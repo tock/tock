@@ -3,11 +3,19 @@
 // Copyright Tock Contributors 2025.
 
 //! PS/2 keyboard device over the i8042 controller.
+//!
+//! How it works (overview)
+//! - I8042 (ports available on 0X60/0X64) delivers keyboard bytes via IRQ1
+//! - We use scan Code set 2 (no translation). 0xE0/0xE1 are prefixes; 0xF0 marks BREAK
+//! - Keyboard speaks simple command/ACK (0xFA) / RESEND (0xFE) protocol
+//! References:
+//! - OSDev: i8042 PS/2 Controller — https://wiki.osdev.org/I8042_PS/2_Controller
+//! - OSDev: PS/2 Keyboard — https://wiki.osdev.org/PS/2_Keyboard
+//! - OSDev: Keyboard / Scan Code Set 2 — https://wiki.osdev.org/Keyboard#Scan_Code_Set_2
 
 use crate::ps2::Ps2Client;
 use crate::ps2::Ps2Controller;
 use core::cell::{Cell, RefCell};
-use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
 
 /// Set-2 scancode constants used for decoding
@@ -277,21 +285,23 @@ impl<'a> Keyboard<'a> {
     ///  No completion callback; failures are tracked internally (telemetry counters).
 
     pub fn enqueue_command(&self, seq: &[u8]) -> bool {
-        if seq.is_empty() || seq.len() > CMD_MAX_LEN {
+        if seq.is_empty() || seq.len() > CMD_MAX_LEN || self.q_count.get() >= CMDQ_LEN {
             return false;
         }
-        if self.q_count.get() >= CMDQ_LEN {
-            return false;
-        }
+
         // Copy into the queue at head
         let head = self.q_head.get();
         {
             let mut q = self.cmd_q.borrow_mut();
-            let e = &mut q[head];
-            e.bytes = [0; CMD_MAX_LEN];
-            e.bytes[..seq.len()].copy_from_slice(seq);
-            e.len = seq.len() as u8;
-            e.idx = 0;
+            if let Some(e) = q.get_mut(head) {
+                e.bytes = [0; CMD_MAX_LEN];
+                e.bytes[..seq.len()].copy_from_slice(seq);
+                e.len = seq.len() as u8;
+                e.idx = 0;
+            } else {
+                debug_assert!(false, "cmd_q head OOB: head={}", head);
+                return false;
+            }
         }
         self.q_head.set((head + 1) % CMDQ_LEN);
         self.q_count.set(self.q_count.get() + 1);
@@ -306,16 +316,26 @@ impl<'a> Keyboard<'a> {
             return;
         }
 
+        let tail = self.q_tail.get();
         // Peek current entry at tail and the next byte to send
-        let (byte_opt, done) = {
+        let (byte_opt, done);
+        {
             let q = self.cmd_q.borrow();
-            let e = &q[self.q_tail.get()];
+            let e = match q.get(tail) {
+                Some(e) => e,
+                None => {
+                    debug_assert!(false, "cmd_q tail OOB: tail={}", tail);
+                    return;
+                }
+            };
             if e.is_done() {
-                (None, true)
+                byte_opt = None;
+                done = true;
             } else {
-                (Some(e.bytes[e.idx as usize]), false)
+                byte_opt = Some(e.bytes[e.idx as usize]);
+                done = false;
             }
-        };
+        }
 
         if done {
             // This shouldn't persist-pop and try again
@@ -356,13 +376,21 @@ impl<'a> Keyboard<'a> {
     }
 
     fn advance_idx_after_ack(&self) {
+        let tail = self.q_tail.get();
         // Increment idx of the current entry; if complete, pop
         let mut finished = false;
         {
             let mut q = self.cmd_q.borrow_mut();
-            let e = &mut q[self.q_tail.get()];
+            let e = match q.get_mut(tail) {
+                Some(e) => e,
+                None => {
+                    debug_assert!(false, "cmd_q tail OOB on ACK: tail={}", tail);
+                    return;
+                }
+            };
+
             if !e.is_done() {
-                e.idx = e.idx.saturating_add(1)
+                e.idx = e.idx.saturating_add(1);
             }
             if e.is_done() {
                 finished = true;
@@ -433,13 +461,6 @@ impl<'a> Keyboard<'a> {
         if let Some(b) = self.ascii_for(byte, pressed, extended) {
             if self.ascii.is_some() {
                 self.ascii.map(|c| c.put_byte(b));
-            } else {
-                // Logging
-                if b >= 0x20 && b != 0x7F {
-                    debug!("ps2-kbd: ASCII '{}'", b as char);
-                } else {
-                    debug!("ps2-kbd: ASCII 0x{:02x}", b);
-                }
             }
         }
     }
