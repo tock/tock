@@ -154,7 +154,7 @@ unsafe extern "cdecl" fn main() {
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
         &(),
-    )
+            )
         .finalize(x86_q35::x86_q35_component_static!(()));
 
     // Acquire required capabilities
@@ -259,10 +259,8 @@ unsafe extern "cdecl" fn main() {
         debug_uart_device,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
-        .finalize(components::debug_writer_component_static!());
+    .finalize(components::debug_writer_component_static!());
 
-    // Now we can safely log via `debug!()`
-    debug!("ps/2 health: {}", chip.ps2.health_snapshot());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
