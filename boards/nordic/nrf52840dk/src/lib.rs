@@ -448,7 +448,7 @@ pub unsafe fn start_no_pconsole() -> (
         // rtt_memory. This aliases reference is only used inside a panic
         // handler, which should be OK, but maybe we should use a const
         // reference to rtt_memory and leverage interior mutability instead.
-        RTT_BUFFER.with(|rtt_buffer_cell| {
+        RTT_BUFFER.get().map(|rtt_buffer_cell| {
             rtt_buffer_cell.replace(*core::ptr::addr_of!(rtt_memory_refs.rtt_memory))
         });
 
@@ -460,8 +460,8 @@ pub unsafe fn start_no_pconsole() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PANIC_RESOURCES.with(|resources| {
-        resources.set_processes(processes.as_slice());
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
     });
 
     // Setup space to store the core kernel data structure.
@@ -470,8 +470,8 @@ pub unsafe fn start_no_pconsole() -> (
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
     let chip = static_init!(ChipHw, nrf52840::chip::NRF52::new(nrf52840_peripherals));
-    PANIC_RESOURCES.with(|resources| {
-        resources.set_chip(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
     });
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
@@ -604,8 +604,8 @@ pub unsafe fn start_no_pconsole() -> (
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PANIC_RESOURCES.with(|resources| {
-        resources.set_process_printer(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
     });
 
     // Virtualize the UART channel for the console and for kernel debug.

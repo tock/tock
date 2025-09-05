@@ -63,14 +63,21 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
 
-    crate::PANIC_RESOURCES.with(|resources| {
-        crate::RTT_BUFFER.with(|rtt_buffer| {
-            let writer = rtt_buffer.take().map_or_else(
+    let writer = crate::RTT_BUFFER.get().map_or_else(
+        || static_init!(Writer, Writer::WriterUart(false)),
+        |buffer_cell| {
+            buffer_cell.take().map_or_else(
                 || static_init!(Writer, Writer::WriterUart(false)),
                 |buffer| static_init!(Writer, Writer::WriterRtt(buffer)),
-            );
+            )
+        },
+    );
 
-            debug::panic(&mut [led], writer, pi, &cortexm4::support::nop, resources)
-        })
-    })
+    debug::panic(
+        &mut [led],
+        writer,
+        pi,
+        &cortexm4::support::nop,
+        crate::PANIC_RESOURCES.get(),
+    )
 }
