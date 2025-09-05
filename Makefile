@@ -606,6 +606,10 @@ ci-setup-qemu:
 
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
+	@echo "*** QEMU VERSIONS ***"
+	qemu-system-i386 -version
+	qemu-system-riscv32 -version
+	@echo ""
 	@cd tools/ci/qemu-runner;\
 		NOWARNINGS=true cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
