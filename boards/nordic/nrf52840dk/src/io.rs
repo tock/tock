@@ -57,21 +57,18 @@ impl IoWrite for Writer {
 pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     use kernel::debug;
     use kernel::hil::led;
+    use kernel::utilities::cells::MapCell;
     use nrf52840::gpio::Pin;
 
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
 
-    let writer = crate::RTT_BUFFER.get().map_or_else(
-        || static_init!(Writer, Writer::WriterUart(false)),
-        |buffer_cell| {
-            buffer_cell.take().map_or_else(
-                || static_init!(Writer, Writer::WriterUart(false)),
-                |buffer| static_init!(Writer, Writer::WriterRtt(buffer)),
-            )
-        },
-    );
+    let writer = crate::RTT_BUFFER.get().and_then(MapCell::take)
+	.map_or_else(
+	    || static_init!(Writer, Writer::WriterUart(false)),
+            |buffer| static_init!(Writer, Writer::WriterRtt(buffer)),
+         );
 
     debug::panic(
         &mut [led],
