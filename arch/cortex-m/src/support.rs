@@ -98,7 +98,7 @@ pub fn is_interrupt_context() -> bool {
 
     // If IPSR[8:0] is 0 then we are in thread mode. Otherwise an interrupt has
     // occurred and we are in some interrupt service routine.
-    (interrupt_number & 0xFF) != 0
+    (interrupt_number & 0x1FF) != 0
 }
 
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
