@@ -52,6 +52,7 @@ type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponent
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
 type RngDriver = components::rng::RngComponentType<stm32f412g::trng::Trng<'static>>;
+type ScreenDriver = components::screen::ScreenComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -71,7 +72,7 @@ struct STM32F412GDiscovery {
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     touch: &'static capsules_extra::touch::Touch<'static>,
-    screen: &'static capsules_extra::screen::Screen<'static>,
+    screen: &'static ScreenDriver,
     temperature: &'static TemperatureDriver,
     rng: &'static RngDriver,
 
@@ -94,7 +95,7 @@ impl SyscallDriverLookup for STM32F412GDiscovery {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::touch::DRIVER_NUM => f(Some(self.touch)),
-            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules_extra::screen::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
@@ -670,7 +671,7 @@ unsafe fn start() -> (
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,
-        capsules_extra::screen::DRIVER_NUM,
+        capsules_extra::screen::screen::DRIVER_NUM,
         tft,
         Some(tft),
     )

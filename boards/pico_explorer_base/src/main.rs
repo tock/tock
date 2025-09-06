@@ -97,7 +97,7 @@ pub struct PicoExplorerBase {
         >,
     >,
     button: &'static capsules_core::button::Button<'static, RPGpioPin<'static>>,
-    screen: &'static capsules_extra::screen::Screen<'static>,
+    screen: &'static capsules_extra::screen::screen::Screen<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -118,7 +118,7 @@ impl SyscallDriverLookup for PicoExplorerBase {
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer_driver)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
-            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules_extra::screen::screen::DRIVER_NUM => f(Some(self.screen)),
             _ => f(None),
         }
     }
@@ -521,7 +521,7 @@ pub unsafe fn start() -> (
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,
-        capsules_extra::screen::DRIVER_NUM,
+        capsules_extra::screen::screen::DRIVER_NUM,
         tft,
         Some(tft),
     )

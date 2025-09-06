@@ -123,7 +123,7 @@ pub struct Platform {
             nrf52840::rtc::Rtc<'static>,
         >,
     >,
-    screen: &'static capsules_extra::screen::Screen<'static>,
+    screen: &'static capsules_extra::screen::screen::Screen<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -144,7 +144,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules_extra::screen::screen::DRIVER_NUM => f(Some(self.screen)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -476,7 +476,7 @@ pub unsafe fn start() -> (
 
         let screen = components::screen::ScreenComponent::new(
             board_kernel,
-            capsules_extra::screen::DRIVER_NUM,
+            capsules_extra::screen::screen::DRIVER_NUM,
             display,
             None,
         )
