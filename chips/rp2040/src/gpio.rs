@@ -218,7 +218,12 @@ register_bitfields![u32,
     GPIO_PAD [
         OD OFFSET(7) NUMBITS(1) [],
         IE OFFSET(6) NUMBITS(1) [],
-        DRIVE OFFSET(4) NUMBITS(2) [],
+        DRIVE OFFSET(4) NUMBITS(2) [
+            _2mA = 0,
+            _4mA = 1,
+            _8mA = 2,
+            _12mA = 3,
+        ],
         PUE OFFSET(3) NUMBITS(1) [],
         PDE OFFSET(2) NUMBITS(1) [],
         SCHMITT OFFSET(1) NUMBITS(1) [],
@@ -391,6 +396,24 @@ enum_from_primitive! {
     }
 }
 
+/// Slew rate of an output
+#[derive(Debug, Eq, PartialEq)]
+pub enum SlewRate {
+    /// Fast slew rate.
+    Fast = 1,
+    /// Slow slew rate.
+    Slow = 0,
+}
+
+/// Drive Strength of a GPIO Pin
+#[derive(Debug, Eq, PartialEq)]
+pub enum DriveStrength {
+    _2mA = 0,
+    _4mA = 1,
+    _8mA = 2,
+    _12mA = 3,
+}
+
 pub struct RPGpioPin<'a> {
     pin: usize,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
@@ -488,6 +511,19 @@ impl<'a> RPGpioPin<'a> {
     pub fn finish_usb_errata(&self, prev_ctrl: u32, prev_pad: u32) {
         self.gpio_registers.pin[self.pin].ctrl.set(prev_ctrl);
         self.gpio_pad_registers.gpio_pad[self.pin].set(prev_pad);
+    }
+
+    pub fn set_schmitt(&self, enable: bool) {
+        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::SCHMITT.val(enable as u32));
+    }
+
+    pub fn set_slew_rate(&self, slew_rate: SlewRate) {
+        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::SLEWFAST.val(slew_rate as u32));
+    }
+
+    pub fn set_drive_strength(&self, drive_strength: DriveStrength) {
+        self.gpio_pad_registers.gpio_pad[self.pin]
+            .modify(GPIO_PAD::DRIVE.val(drive_strength as u32));
     }
 }
 
