@@ -158,8 +158,6 @@ pub static TOCK_KERNEL_VERSION: &str = concat!(
     stringify!(KERNEL_PATCH_VERSION),
     "-",
     stringify!(KERNEL_PRERELEASE_VERSION),
-    "-",
-    stringify!(option_env!("TOCK_IS_TAGGED_RELEASE").unwrap_or("dirty")),
 );
 
 pub mod capabilities;

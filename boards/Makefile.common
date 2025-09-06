@@ -94,18 +94,6 @@ else
   DEVNULL = > /dev/null
 endif
 
-# Try to determine whether this is a clean, tagged release or not. This
-# result is embedded at the end of the version string built into the
-# kernel. The purpose is to have a little context for bug reports of
-# what kind of kernel was running. More specifically, the command below
-# does the following:
-#
-# Is this a git directory? [no] --> "nogit"
-#   Is the working directory clean? [no] --> "dirty"
-#      Is the current commit a tagged release? [no] --> "added"
-#        "clean"
-export TOCK_IS_TAGGED_RELEASE := $(shell if git rev-parse --is-inside-work-tree &> /dev/null; then if output=$(git status --porcelain) && [ -z "$output" ]; then if git describe --match 'release-*' --exact-match 2>/dev/null; then echo clean; else echo added; fi; else echo dirty; fi ; else echo nogit; fi)
-
 # Allow users to opt out of using rustup.
 ifeq ($(NO_RUSTUP),)
 # Validate that rustup exists.
