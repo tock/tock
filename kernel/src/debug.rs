@@ -178,7 +178,7 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
     // Print version of the kernel
     let _ = writer.write_fmt(format_args!(
         "\tKernel version {}\r\n",
-        option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
+        crate::TOCK_KERNEL_VERSION
     ));
 }
 

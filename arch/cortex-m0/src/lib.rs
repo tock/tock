@@ -54,7 +54,7 @@ unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
          \tpc  0x{:x}\r\n\
          \txpsr  0x{:x}\r\n\
          ",
-        option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown"),
+        kernel::TOCK_KERNEL_VERSION,
         hardfault_stacked_registers.r0,
         hardfault_stacked_registers.r1,
         hardfault_stacked_registers.r2,
