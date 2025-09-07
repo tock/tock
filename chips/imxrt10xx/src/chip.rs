@@ -105,6 +105,7 @@ impl InterruptService for Imxrt10xxDefaultPeripherals {
 impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     type MPU = cortexm7::mpu::MPU;
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
+    type ThreadIdProvider = cortexm7::thread_id::CortexMThreadIdProvider;
 
     fn service_pending_interrupts(&self) {
         unsafe {

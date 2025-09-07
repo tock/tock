@@ -114,6 +114,7 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
 impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
     type MPU = QemuRv32VirtPMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
+    type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
@@ -282,3 +283,16 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
         }
     }
 }
+
+/// Array used to track the "trap handler active" state per hart.
+///
+/// The `riscv` crate requires chip crates to allocate an array to
+/// track whether any given hart is currently in a trap handler. The
+/// array must be zero-initialized.
+///
+/// While the QEMU rv32 virt target supports multiple harts, Tock
+/// currently always runs on the first hart, with ID zero. Hence, we
+/// allocate an array of `usizes` with length one for this purpose,
+/// intialized to zero:
+#[export_name = "_trap_handler_active"]
+static mut TRAP_HANDLER_ACTIVE: [usize; 1] = [0; 1];

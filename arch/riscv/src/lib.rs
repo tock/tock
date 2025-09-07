@@ -14,6 +14,7 @@ pub mod csr;
 pub mod pmp;
 pub mod support;
 pub mod syscall;
+pub mod thread_id;
 
 // Default to 32 bit if no architecture is specified of if this is being
 // compiled for docs or testing on a different architecture.
@@ -217,9 +218,8 @@ pub extern "C" fn _start_trap() {
 ///
 /// 1. atomically swap s0 and the mscratch CSR,
 ///
-/// 2. execute the default kernel trap handler if s0 now contains `0`
-/// (meaning that the mscratch CSR contained `0` before entering this trap
-/// handler),
+/// 2. execute the default kernel trap handler if s0 now contains `0` (meaning
+///    that the mscratch CSR contained `0` before entering this trap handler),
 ///
 /// 3. otherwise, save s1 to `0*4(s0)`, and finally
 ///
@@ -233,6 +233,15 @@ pub extern "C" fn _start_trap() {
 /// will not execute an mret instruction). It will not modify CSRs that
 /// contain information on the trap source or the system state prior to
 /// entering the trap handler.
+///
+/// Before a trap handler executes any Rust code, or code that can
+/// transititively call any Rust code, it must indicate that a trap handler is
+/// currently active by writing an MXLEN-sized (usize), non-zero value to the
+/// address at `_trap_handler_active + (MXLEN / 8) * mhartid`. Before leaving
+/// the trap handler using `mret`, but after any Rust code has run, it must
+/// reset the value at this address back to zero. This is used to accurately
+/// determine the running thread ID, taking trap handlers into account as a
+/// separate thread.
 ///
 /// We deliberately clobber callee-saved instead of caller-saved registers,
 /// as this makes it easier to call other functions as part of the trap
@@ -325,9 +334,9 @@ pub extern "C" fn _start_trap() {
     // Restore s0. We reset mscratch to 0 (kernel trap handler mode)
     csrrw s0, mscratch, zero    // s0 = mscratch; mscratch = 0
 
-    // Make room for the caller saved registers we need to restore after
-    // running any trap handler code.
-    addi sp, sp, -16*4
+    // Make room for the caller saved registers we need to restore after running
+    // any trap handler code.
+    addi sp, sp, -20*4
 
     // Save all of the caller saved registers.
     sw   ra, 0*4(sp)
@@ -347,12 +356,33 @@ pub extern "C" fn _start_trap() {
     sw   a6, 14*4(sp)
     sw   a7, 15*4(sp)
 
+    // Save one callee-saved register (s0), which we place the address of
+    // the hart-specific 'are we in a trap handler' flag in:
+    sw   s0, 16*4(sp)
+
+    // Determine the address of the hart-specific 'are we in a trap handler'
+    // flag as an offset to the _trap_handler_active symbol. The chip crate
+    // is responsible for defining this symbol, and ensuring it is large
+    // enough to fit `max(mhartid) * MXLEN` bytes.
+    la   s0, _trap_handler_active // s0 = addr(_trap_handler_active)
+    csrr t0, mhartid              // t0 = hartid
+    slli t0, t0, 2                // t0 = t0 * 4
+    add  s0, s0, t0               // s0 = addr(_trap_handler_active[hartid])
+
+    // Indicate that we are in a trap handler on this hart:
+    li   t0, 1
+    sw   t0, 0(s0)
+
     // Jump to board-specific trap handler code. Likely this was an
     // interrupt and we want to disable a particular interrupt, but each
     // board/chip can customize this as needed.
     jal ra, _start_trap_rust_from_kernel
 
-    // Restore the registers from the stack.
+    // Indicate that we are no longer going to be in a trap handler on this
+    // hart:
+    sw   x0, 0(s0)
+
+    // Restore the caller saved registers from the stack.
     lw   ra, 0*4(sp)
     lw   t0, 1*4(sp)
     lw   t1, 2*4(sp)
@@ -370,8 +400,12 @@ pub extern "C" fn _start_trap() {
     lw   a6, 14*4(sp)
     lw   a7, 15*4(sp)
 
+    // Restore the one callee-saved register (s0), which used to hold the
+    // address of the hart-specific 'are we in a trap handler flag':
+    lw   s0, 16*4(sp)
+
     // Reset the stack pointer.
-    addi sp, sp, 16*4
+    addi sp, sp, 20*4
 
     // mret returns from the trap handler. The PC is set to what is in
     // mepc and execution proceeds from there. Since we did not modify

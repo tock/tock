@@ -16,6 +16,7 @@ pub use riscv::pmp;
 pub use riscv::print_riscv_state;
 pub use riscv::support;
 pub use riscv::syscall;
+pub use riscv::thread_id;
 pub use riscv::PermissionMode;
 pub use riscv::_start;
 pub use riscv::_start_trap;
