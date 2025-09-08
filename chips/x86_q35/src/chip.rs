@@ -62,7 +62,7 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
     interrupt_service: &'static dyn InterruptService,
 }
 
-impl<'a, const PR: u16> Pc<'a, PR> {}
+impl<const PR: u16> Pc<'_, PR> {}
 
 impl<const PR: u16> Pc<'static, PR> {
     /// Construct `Pc` using a standard set of peripherals plus page tables.
