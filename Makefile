@@ -600,7 +600,7 @@ ci-setup-flux:
 
 define ci_job_flux
 	$(call banner,CI-Job: Flux)
-	@echo "TODO: Run jobs here" && exit 1
+	@PATH="$(shell pwd)/tools/ci/flux-ci-runner:${PATH}" cargo flux
 endef
 
 .PHONY: ci-job-flux
