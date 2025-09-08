@@ -6,13 +6,37 @@
 
 use crate::collections::queue;
 
+// Need to tell Flux what slice.len() does
+#[flux_rs::extern_spec]
+impl<T> [T] {
+    #[flux_rs::sig(fn(&[T][@len]) -> usize[len])]
+    fn len(v: &[T]) -> usize;
+}
+
+// Need to tell Flux what an Option<T> is
+#[flux_rs::extern_spec]
+#[flux_rs::refined_by(b: bool)]
+enum Option<T> {
+    #[variant(Option<T>[false])]
+    None,
+    #[variant({T} -> Option<T>[true])]
+    Some(T),
+}
+
+// Specify well-formedness for RingBuffer<T>
+#[flux_rs::refined_by(ring_len: int, hd: int, tl: int)]
+#[flux_rs::invariant(ring_len > 1)]
 pub struct RingBuffer<'a, T: 'a> {
+    #[field({&mut [T][ring_len] | ring_len > 1})]
     ring: &'a mut [T],
+    #[field({usize[hd] | hd < ring_len})]
     head: usize,
+    #[field({usize[tl] | tl < ring_len})]
     tail: usize,
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
+    #[flux_rs::sig(fn({&mut [T][@ring_len] | ring_len > 1}) -> RingBuffer<T>[ring_len, 0, 0])]
     pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
@@ -76,6 +100,9 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>, _) -> bool ensures self: RingBuffer<T>
+    )]
     fn enqueue(&mut self, val: T) -> bool {
         if self.is_full() {
             // Incrementing tail will overwrite head
@@ -87,6 +114,10 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>, _) -> Option<T> ensures self: RingBuffer<T>
+    )]
     fn push(&mut self, val: T) -> Option<T> {
         let result = if self.is_full() {
             let val = self.ring[self.head];
@@ -101,6 +132,9 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         result
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>) -> Option<T> ensures self: RingBuffer<T>
+    )]
     fn dequeue(&mut self) -> Option<T> {
         if self.has_elements() {
             let val = self.ring[self.head];
@@ -118,6 +152,9 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     /// created by removing the element).
     ///
     /// If an element was removed, this function returns it as `Some(elem)`.
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>, _) -> Option<T> ensures self: RingBuffer<T>
+    )]
     fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
         F: Fn(&T) -> bool,
@@ -144,11 +181,17 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         None
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>[@old]) ensures self: RingBuffer<T>[old.ring_len, 0, 0]
+    )]
     fn empty(&mut self) {
         self.head = 0;
         self.tail = 0;
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>, _) ensures self: RingBuffer<T>
+    )]
     fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,

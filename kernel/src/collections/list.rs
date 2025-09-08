@@ -28,7 +28,7 @@ pub struct ListIterator<'a, T: 'a + ?Sized + ListNode<'a, T>> {
 
 impl<'a, T: ?Sized + ListNode<'a, T>> Iterator for ListIterator<'a, T> {
     type Item = &'a T;
-
+    #[flux_rs::spec(fn(this: &mut ListIterator<T>) -> _ ensures this: ListIterator<T>)]
     fn next(&mut self) -> Option<&'a T> {
         match self.cur {
             Some(res) => {
