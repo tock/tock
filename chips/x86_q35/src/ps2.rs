@@ -32,13 +32,6 @@ const BUFFER_SIZE: usize = 32;
 /// Timeout limit for spin loops
 const TIMEOUT_LIMIT: usize = 1_000_000;
 
-/// Controller Configuration Byte bits (check OSDev)
-const CFG_IRQ1: u8 = 1 << 0; // keyboard IRQ enable
-const CFG_IRQ12: u8 = 1 << 1; // mouse IRQ enable
-const CFG_DISABLE_KBD: u8 = 1 << 4; // 1=disable keyboard clock
-const CFG_DISABLE_AUX: u8 = 1 << 5; // 1=disable mouse clock
-const CFG_TRANSLATION: u8 = 1 << 6; // 1=translate Set-2->Set-1
-
 // Status-register bits returned by inb(0x64)
 register_bitfields![u8,
     pub STATUS [
@@ -48,6 +41,19 @@ register_bitfields![u8,
         AUX_OBF     OFFSET(5) NUMBITS(1), // 1 = from mouse/port2
         TIMEOUT_ERR OFFSET(6) NUMBITS(1),
         PARITY_ERR  OFFSET(7) NUMBITS(1),
+    ]
+];
+
+register_bitfields![u8,
+pub CONFIG [
+        IRQ1 OFFSET(0) NUMBITS(1),
+        IRQ12 OFFSET(1) NUMBITS(1),
+        SYSFLAG OFFSET(2) NUMBITS(1),
+        RESERVED3 OFFSET(3) NUMBITS(1),
+        DISABLE_KBD OFFSET(4) NUMBITS(1),
+        DISABLE_AUX OFFSET(5) NUMBITS(1),
+        TRANSLATION OFFSET(6) NUMBITS(1),
+        RESERVED7 OFFSET(7) NUMBITS(1),
     ]
 ];
 
@@ -197,59 +203,62 @@ fn update_config<F: FnOnce(u8) -> u8>(f: F) -> Ps2Result<u8> {
 /// we can do it sequentially
 
 fn cfg_set_translation(enabled: bool) -> Ps2Result<u8> {
-    update_config(|mut c| {
+    update_config(|cur| {
+        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
         if enabled {
-            c |= CFG_TRANSLATION
+            c.modify(CONFIG::TRANSLATION::SET);
         } else {
-            c &= !CFG_TRANSLATION
+            c.modify(CONFIG::TRANSLATION::CLEAR);
         }
-        c
+        c.get()
     })
 }
 
 fn cfg_set_port1_clock(enabled: bool) -> Ps2Result<u8> {
-    // enabled => clear DISABLE_KBD bit
-    update_config(|mut c| {
+    update_config(|cur| {
+        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
         if enabled {
-            c &= !CFG_DISABLE_KBD
+            c.modify(CONFIG::DISABLE_KBD::CLEAR); // enable clock == clear disable bit
         } else {
-            c |= CFG_DISABLE_KBD
+            c.modify(CONFIG::DISABLE_KBD::SET);
         }
-        c
+        c.get()
     })
 }
 
 fn cfg_set_port2_clock(enabled: bool) -> Ps2Result<u8> {
-    // enabled => clear DISABLE_AUX bit
-    update_config(|mut c| {
+    update_config(|cur| {
+        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
         if enabled {
-            c &= !CFG_DISABLE_AUX
+            c.modify(CONFIG::DISABLE_AUX::CLEAR);
         } else {
-            c |= CFG_DISABLE_AUX
+            c.modify(CONFIG::DISABLE_AUX::SET);
         }
-        c
+        c.get()
     })
 }
 
 fn cfg_set_irq1(enabled: bool) -> Ps2Result<u8> {
-    update_config(|mut c| {
+    update_config(|cur| {
+        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
         if enabled {
-            c |= CFG_IRQ1
+            c.modify(CONFIG::IRQ1::SET);
         } else {
-            c &= !CFG_IRQ1
+            c.modify(CONFIG::IRQ1::CLEAR);
         }
-        c
+        c.get()
     })
 }
 
 fn cfg_set_irq12(enabled: bool) -> Ps2Result<u8> {
-    update_config(|mut c| {
+    update_config(|cur| {
+        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
         if enabled {
-            c |= CFG_IRQ12
+            c.modify(CONFIG::IRQ12::SET);
         } else {
-            c &= !CFG_IRQ12
+            c.modify(CONFIG::IRQ12::CLEAR);
         }
-        c
+        c.get()
     })
 }
 fn disable_ports() -> Ps2Result<()> {
