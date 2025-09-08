@@ -288,6 +288,7 @@ ci-runner-github:\
 	ci-runner-github-clippy\
 	ci-runner-github-build\
 	ci-runner-github-tests\
+	ci-runner-github-flux\
 	ci-runner-github-qemu
 	$(call banner,CI-Runner: All GitHub runners DONE)
 
@@ -323,6 +324,11 @@ ci-runner-github-tests:\
 	ci-job-cargo-test-build\
 	ci-job-miri # EXPERIMENTAL
 	$(call banner,CI-Runner: GitHub tests runner DONE)
+
+.PHONY: ci-runner-github-flux
+ci-runner-github-flux:\
+	ci-job-flux
+	$(call banner,CI-Runner: GitHub flux runner DONE)
 
 .PHONY: ci-runner-github-qemu
 ci-runner-github-qemu:\
@@ -575,6 +581,31 @@ ci-job-cargo-test-build:
 	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/redboard_artemis_atp" test
 	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/redboard_artemis_nano" test
 
+
+
+### ci-runner-github-flux jobs:
+define ci_setup_flux
+	$(call banner,CI-Setup: Build Flux and its dependencies)
+	@cd tools/ci/flux-ci-runner; ./deps.sh install
+endef
+
+.PHONY: ci-setup-flux
+ci-setup-flux:
+	$(call ci_setup_helper,\
+		tools/ci/flux-ci-runner/deps.sh check,\
+		Build Flux and install (or build) its dependencies,\
+		ci_setup_flux,\
+		CI_JOB_FLUX)
+	$(if $(CI_JOB_FLUX),$(eval CI_JOB_FLUX := true))
+
+define ci_job_flux
+	$(call banner,CI-Job: Flux)
+	@echo "TODO: Run jobs here" && exit 1
+endef
+
+.PHONY: ci-job-flux
+ci-job-flux: ci-setup-flux
+	$(if $(CI_JOB_FLUX),$(call ci_job_flux))
 
 
 ### ci-runner-github-qemu jobs:
