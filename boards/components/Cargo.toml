@@ -15,8 +15,6 @@ capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 segger = { path = "../../chips/segger" }
-x86_q35 = { path = "../../chips/x86_q35" }
-x86 = { path = "../../arch/x86" }
 
 tock-tbf = { path = "../../libraries/tock-tbf" }
 

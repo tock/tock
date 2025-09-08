@@ -15,7 +15,7 @@
 #![no_std]
 
 mod chip;
-pub use chip::Pc;
+pub use chip::{Pc, PcDefaultPeripherals};
 
 mod interrupts;
 

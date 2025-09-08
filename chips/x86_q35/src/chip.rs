@@ -4,13 +4,15 @@
 
 use core::fmt::Write;
 
-use kernel::platform::chip::Chip;
+use kernel::component::Component;
+use kernel::platform::chip::{Chip, InterruptService};
 use x86::mpu::PagingMPU;
+use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
 use x86::{Boundary, InterruptPoller};
 
 use crate::pit::{Pit, RELOAD_1KHZ};
-use crate::serial::SerialPort;
+use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
 use crate::vga_uart_driver::VgaText;
 
 /// Interrupt constants for legacy PC peripherals
@@ -48,7 +50,7 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
     pub com4: &'a SerialPort<'a>,
 
     /// Legacy PIT timer
-    pub pit: Pit<'a, PR>,
+    pub pit: &'a Pit<'a, PR>,
 
     /// Vga
     pub vga: &'a VgaText<'a>,
@@ -56,29 +58,43 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
     /// System call context
     syscall: Boundary,
     paging: PagingMPU<'a>,
+    /// Interrupt service used to dispatch IRQs to peripherals
+    interrupt_service: &'static dyn InterruptService,
 }
 
-impl<'a, const PR: u16> Pc<'a, PR> {
-    /// Construct a new `Pc` chip instance from its constituent parts.
-    pub fn new(
-        com1: &'a SerialPort<'a>,
-        com2: &'a SerialPort<'a>,
-        com3: &'a SerialPort<'a>,
-        com4: &'a SerialPort<'a>,
-        pit: Pit<'a, PR>,
-        vga: &'a VgaText<'a>,
-        syscall: Boundary,
-        paging: PagingMPU<'a>,
+impl<'a, const PR: u16> Pc<'a, PR> {}
+
+impl<const PR: u16> Pc<'static, PR> {
+    /// Construct `Pc` using a standard set of peripherals plus page tables.
+    ///
+    /// ## Safety
+    /// - Must be called only once for the lifetime of the kernel.
+    /// - `pd` and `pt` must be identity-mapped and unique.
+    pub unsafe fn new(
+        peripherals: &'static PcDefaultPeripherals<PR>,
+        pd: &'static mut PD,
+        pt: &'static mut PT,
     ) -> Self {
+        let paging = unsafe {
+            let pd_addr = core::ptr::from_ref(pd) as usize;
+            let pt_addr = core::ptr::from_ref(pt) as usize;
+            let mpu = PagingMPU::new(pd, pd_addr, pt, pt_addr);
+            mpu.init();
+            mpu
+        };
+
+        let syscall = Boundary::new();
+
         Self {
-            com1,
-            com2,
-            com3,
-            com4,
-            pit,
-            vga,
+            com1: peripherals.com1,
+            com2: peripherals.com2,
+            com3: peripherals.com3,
+            com4: peripherals.com4,
+            pit: &peripherals.pit,
+            vga: peripherals.vga,
             syscall,
             paging,
+            interrupt_service: peripherals,
         }
     }
 }
@@ -97,19 +113,10 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
     fn service_pending_interrupts(&self) {
         InterruptPoller::access(|poller| {
             while let Some(num) = poller.next_pending() {
-                match num {
-                    interrupt::PIT => self.pit.handle_interrupt(),
-                    interrupt::COM2_COM4 => {
-                        self.com2.handle_interrupt();
-                        self.com4.handle_interrupt();
-                    }
-                    interrupt::COM1_COM3 => {
-                        self.com1.handle_interrupt();
-                        self.com3.handle_interrupt();
-                    }
-                    _ => unimplemented!("interrupt {num}"),
+                match unsafe { self.interrupt_service.service_interrupt(num) } {
+                    true => {}
+                    false => panic!("unhandled interrupt"),
                 }
-
                 poller.clear_pending(num);
             }
         })
@@ -179,3 +186,89 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
         let _ = writeln!(writer, "(placeholder)");
     }
 }
+
+/// Default x86 PC peripherals commonly present on Q35 machines.
+pub struct PcDefaultPeripherals<const PR: u16 = RELOAD_1KHZ> {
+    pub com1: &'static SerialPort<'static>,
+    pub com2: &'static SerialPort<'static>,
+    pub com3: &'static SerialPort<'static>,
+    pub com4: &'static SerialPort<'static>,
+    pub pit: Pit<'static, PR>,
+    pub vga: &'static VgaText<'static>,
+}
+
+impl<const PR: u16> PcDefaultPeripherals<PR> {
+    /// Create and initialize default peripherals.
+    ///
+    /// The caller must provide statics through `x86_q35_peripherals_static!()`.
+    ///
+    /// ## Safety
+    /// - Must be called only once per kernel lifetime.
+    pub unsafe fn new(
+        s: (
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            &'static mut core::mem::MaybeUninit<VgaText<'static>>,
+        ),
+        page_dir: &mut PD,
+    ) -> Self {
+        // CPU/interrupt controller/VGA baseline init
+        unsafe {
+            x86::init();
+            crate::pic::init();
+            let pd_ref: &mut PD = &mut *core::ptr::from_mut(page_dir);
+            crate::vga::new_text_console(pd_ref);
+        }
+
+        let com1 = unsafe { SerialPortComponent::new(COM1_BASE).finalize(s.0) };
+        let com2 = unsafe { SerialPortComponent::new(COM2_BASE).finalize(s.1) };
+        let com3 = unsafe { SerialPortComponent::new(COM3_BASE).finalize(s.2) };
+        let com4 = unsafe { SerialPortComponent::new(COM4_BASE).finalize(s.3) };
+
+        let pit = unsafe { Pit::new() };
+
+        let vga = s.4.write(VgaText::new());
+
+        Self {
+            com1,
+            com2,
+            com3,
+            com4,
+            pit,
+            vga,
+        }
+    }
+
+    /// Finalize deferred-call registrations and any circular deps.
+    pub fn setup_circular_deps(&self) {
+        kernel::deferred_call::DeferredCallClient::register(self.vga);
+    }
+}
+
+impl<const PR: u16> InterruptService for PcDefaultPeripherals<PR> {
+    unsafe fn service_interrupt(&self, num: u32) -> bool {
+        match num {
+            interrupt::PIT => {
+                self.pit.handle_interrupt();
+                true
+            }
+            interrupt::COM2_COM4 => {
+                self.com2.handle_interrupt();
+                self.com4.handle_interrupt();
+                true
+            }
+            interrupt::COM1_COM3 => {
+                self.com1.handle_interrupt();
+                self.com3.handle_interrupt();
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+// Note: Boards must provide static buffers for PcDefaultPeripherals::new()
+// directly in their board files. This crate intentionally avoids calling
+// static_buf!() to comply with Tock conventions.
