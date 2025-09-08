@@ -13,6 +13,7 @@
 //! - OSDev: PS/2 Keyboard — https://wiki.osdev.org/PS/2_Keyboard
 //! - OSDev: Keyboard / Scan Code Set 2 — https://wiki.osdev.org/Keyboard#Scan_Code_Set_2
 
+use crate::cmd_fifo::Fifo as CmdFifo;
 use crate::ps2::Ps2Client;
 use crate::ps2::Ps2Controller;
 use core::cell::{Cell, RefCell};
@@ -86,6 +87,28 @@ impl CmdEntry {
     fn is_done(&self) -> bool {
         (self.idx as usize) >= (self.len as usize)
     }
+
+    // helper to avoid duplicating the “turn a byte slice into a queued command” logic
+    fn try_from_bytes(seq: &[u8]) -> Option<Self> {
+        if seq.is_empty() || seq.len() > CMD_MAX_LEN {
+            return None;
+        }
+        let mut e = CmdEntry::empty();
+        e.bytes[..seq.len()].copy_from_slice(seq);
+        e.len = seq.len() as u8;
+        Some(e)
+    }
+}
+
+// this is needed so CmdEntry expects a FifoItem, and not a const default
+impl crate::cmd_fifo::FifoItem for CmdEntry {
+    const EMPTY: Self = Self::empty();
+}
+
+impl Default for CmdEntry {
+    fn default() -> Self {
+        CmdEntry::empty()
+    }
 }
 
 /// We capture bytes and will later add:
@@ -108,11 +131,8 @@ pub struct Keyboard<'a> {
     shift_r: Cell<bool>,
     caps: Cell<bool>,
 
-    // here comes the engine
-    cmd_q: RefCell<[CmdEntry; CMDQ_LEN]>,
-    q_head: Cell<usize>,  // write cursor
-    q_tail: Cell<usize>,  // read cursor
-    q_count: Cell<usize>, // number of entries enqueued
+    // command engine queue (ring FIFO)
+    cmd_q: RefCell<CmdFifo<CmdEntry, CMDQ_LEN>>,
 
     in_flight: Cell<bool>,      // waiting for ACK/RESEND to the last sent byte
     retries_left: Cell<u8>,     // remaining entries for the current byte
@@ -138,10 +158,7 @@ impl<'a> Keyboard<'a> {
             shift_r: Cell::new(false),
             caps: Cell::new(false),
 
-            cmd_q: RefCell::new([CmdEntry::empty(); CMDQ_LEN]),
-            q_head: Cell::new(0),
-            q_tail: Cell::new(0),
-            q_count: Cell::new(0),
+            cmd_q: RefCell::new(CmdFifo::new()),
 
             in_flight: Cell::new(false),
             retries_left: Cell::new(0),
@@ -285,81 +302,57 @@ impl<'a> Keyboard<'a> {
     ///  No completion callback; failures are tracked internally (telemetry counters).
 
     pub fn enqueue_command(&self, seq: &[u8]) -> bool {
-        if seq.is_empty() || seq.len() > CMD_MAX_LEN || self.q_count.get() >= CMDQ_LEN {
+        let Some(entry) = CmdEntry::try_from_bytes(seq) else {
+            return false;
+        };
+        let mut q = self.cmd_q.borrow_mut();
+        if q.is_full() {
             return false;
         }
-
-        // Copy into the queue at head
-        let head = self.q_head.get();
-        {
-            let mut q = self.cmd_q.borrow_mut();
-            if let Some(e) = q.get_mut(head) {
-                e.bytes = [0; CMD_MAX_LEN];
-                e.bytes[..seq.len()].copy_from_slice(seq);
-                e.len = seq.len() as u8;
-                e.idx = 0;
-            } else {
-                debug_assert!(false, "cmd_q head OOB: head={}", head);
-                return false;
-            }
-        }
-        self.q_head.set((head + 1) % CMDQ_LEN);
-        self.q_count.set(self.q_count.get() + 1);
+        let _ = q.push(entry);
+        drop(q);
         self.drive_tx();
-
         true
     }
 
     /// Try to transmit the next byte of the current command
     fn drive_tx(&self) {
-        if self.in_flight.get() || self.q_count.get() == 0 {
+        if self.in_flight.get() {
             return;
         }
 
-        let tail = self.q_tail.get();
-        // Peek current entry at tail and the next byte to send
-        let (byte_opt, done);
-        {
+        // Peek current command
+        let (byte_opt, done_opt) = {
             let q = self.cmd_q.borrow();
-            let e = match q.get(tail) {
-                Some(e) => e,
-                None => {
-                    debug_assert!(false, "cmd_q tail OOB: tail={}", tail);
-                    return;
-                }
-            };
-            if e.is_done() {
-                byte_opt = None;
-                done = true;
-            } else {
-                byte_opt = Some(e.bytes[e.idx as usize]);
-                done = false;
+            match q.peek() {
+                None => (None, None), // empty
+                Some(e) if e.is_done() => (None, Some(true)),
+                Some(e) => (Some(e.bytes[e.idx as usize]), Some(false)),
             }
-        }
+        };
 
-        if done {
-            // This shouldn't persist-pop and try again
-            self.pop_cmd();
-            self.drive_tx();
-            return;
+        match done_opt {
+            None => return, // queue empty
+            Some(true) => {
+                // finished entry => pop and try next
+                self.cmd_q.borrow_mut().pop();
+                self.drive_tx();
+                return;
+            }
+            Some(false) => {}
         }
 
         if let Some(b) = byte_opt {
-            // Attempt to send. If the controller times out, do not mark inflight,
-            // so a later call may retry. We also don't advance idx here, only on ACK
             match self.ps2.send_port1(b) {
                 Ok(()) => {
                     self.in_flight.set(true);
                     if self.retries_left.get() == 0 {
-                        // first attempt for this byte
                         self.retries_left.set(MAX_RETRIES);
                     }
                     self.cmd_sent_bytes
                         .set(self.cmd_sent_bytes.get().wrapping_add(1));
                 }
-
                 Err(_e) => {
-                    // Controller busy/timeout; count and let a later tick retry
                     self.cmd_send_errors
                         .set(self.cmd_send_errors.get().wrapping_add(1));
                 }
@@ -367,40 +360,23 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    fn pop_cmd(&self) {
-        if self.q_count.get() == 0 {
-            return;
-        }
-        self.q_tail.set((self.q_tail.get() + 1) % CMDQ_LEN);
-        self.q_count.set(self.q_count.get() - 1);
-    }
-
     fn advance_idx_after_ack(&self) {
-        let tail = self.q_tail.get();
-        // Increment idx of the current entry; if complete, pop
         let mut finished = false;
         {
             let mut q = self.cmd_q.borrow_mut();
-            let e = match q.get_mut(tail) {
-                Some(e) => e,
-                None => {
-                    debug_assert!(false, "cmd_q tail OOB on ACK: tail={}", tail);
-                    return;
+            if let Some(e) = q.peek_mut() {
+                if !e.is_done() {
+                    e.idx = e.idx.saturating_add(1);
                 }
-            };
-
-            if !e.is_done() {
-                e.idx = e.idx.saturating_add(1);
+                if e.is_done() {
+                    finished = true;
+                }
             }
-            if e.is_done() {
-                finished = true;
+            if finished {
+                q.pop();
             }
         }
-        if finished {
-            self.pop_cmd();
-        }
-
-        // New byte will get a fresh budget retry on first send
+        // New byte will get a fresh retry budget on first send
         self.retries_left.set(0);
     }
 
@@ -492,7 +468,7 @@ impl Ps2Client for Keyboard<'_> {
                         // Give up on this command
                         self.cmd_drops.set(self.cmd_drops.get().wrapping_add(1));
                         self.in_flight.set(false);
-                        self.pop_cmd();
+                        self.cmd_q.borrow_mut().pop();
                         self.retries_left.set(0); // clear for the next new byte
                         self.drive_tx();
                     }
