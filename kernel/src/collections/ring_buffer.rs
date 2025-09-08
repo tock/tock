@@ -6,12 +6,14 @@
 
 use crate::collections::queue;
 
+// Need to tell Flux what slice.len() does
 #[flux_rs::extern_spec]
 impl<T> [T] {
     #[flux_rs::sig(fn(&[T][@len]) -> usize[len])]
     fn len(v: &[T]) -> usize;
 }
 
+// Need to tell Flux what an Option<T> is
 #[flux_rs::extern_spec]
 #[flux_rs::refined_by(b: bool)]
 enum Option<T> {
@@ -21,17 +23,7 @@ enum Option<T> {
     Some(T),
 }
 
-#[allow(dead_code)]
-#[flux_rs::sig(fn(x: bool[true]))]
-pub const fn assert(_x: bool) {}
-
-#[flux_rs::sig(fn(b:bool) ensures b)]
-pub const fn assume(b: bool) {
-    if !b {
-        panic!("assume fails")
-    }
-}
-
+// Specify well-formedness for RingBuffer<T>
 #[flux_rs::refined_by(ring_len: int, hd: int, tl: int)]
 #[flux_rs::invariant(ring_len > 1)]
 pub struct RingBuffer<'a, T: 'a> {
