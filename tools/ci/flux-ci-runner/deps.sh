@@ -3,23 +3,20 @@
 DESIRED_FIXPOINT_VERSION="0.9.6.3.3"
 DESIRED_FIXPOINT_RELEASE_TAG="nightly"
 DESIRED_FLUX_COMMIT="b0cec81c42bc6e210f675b46dd5b4b16774b0d0e"
+DESIRED_FLUX_VERSION="FIXME"
 
 ########################################################
 
 DO_INSTALL="false"
-DO_PATH_UPDATE="false"
 case "$1" in
   "check")
     ;;
   "install")
     DO_INSTALL="true"
     ;;
-  "source")
-    DO_PATH_UPDATE="true"
-    ;;
   *)
     echo "Invalid argument: $1"
-    echo " (expected one of 'check' 'install' or 'source')"
+    echo " (expected one of 'check' 'install')"
     exit 1
     ;;
 esac
@@ -40,13 +37,10 @@ else
 fi
 
 
-# Verify expectations
+# Force execution from the script directory for simplicity
 # https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-if [[ $SCRIPT_DIR != $(pwd) ]]; then
-  echo Error: Must cd to dir containing this script before running.
-  exit 1
-fi
+pushd $SCRIPT_DIR > /dev/null
 
 # Print what we're doing on CI
 VERBOSE="false"
@@ -62,6 +56,8 @@ set -u
 
 #################################
 ## fixpoint
+
+pushd fixpoint > /dev/null
 
 if [[ $(./fixpoint --numeric-version 2>/dev/null) == "$DESIRED_FIXPOINT_VERSION" ]]; then
   if $VERBOSE; then
@@ -80,6 +76,9 @@ else
   fi
 fi
 
+PATH="${PATH}:$(pwd)"
+
+popd > /dev/null # fixpoint/
 
 #################################
 ## z3
@@ -102,9 +101,18 @@ fi
 #################################
 ## flux
 
-# FIXME: Actually check the version of flux (--version doesn't match hash??)
+PATH="${PATH}:$(pwd)/flux/target/release"
+export FLUX_SYSROOT="$(pwd)/flux/target/release"
 
-if ! command -v flux > /dev/null; then
+# FIXME: Equality is inverted to skip actually checking the version until
+# upstream flux prints out the version honestly; this effectively reduces
+# to just checking whether a runnable cargo-flux exists currently
+#                                         ||
+if [[ $(cargo flux --version 2>/dev/null) != "$DESIRED_FLUX_VERSION" ]]; then
+  if $VERBOSE; then
+    echo "flux version: $(cargo flux --version)"
+  fi
+else
   if $DO_INSTALL; then
     if ! [ -d flux/ ]; then
       git clone --shallow-since=2025-01-01 https://github.com/flux-rs/flux
@@ -112,14 +120,13 @@ if ! command -v flux > /dev/null; then
     pushd flux
     git pull
     git checkout $DESIRED_FLUX_COMMIT
-    ## For the moment, just install globally; but ideally we pull that out to path-based runs later
-    # cargo build
-    # pushd crates/flux-bin
-    # cargo build
-    cargo xtask install
+    cargo build --release
     popd
   else 
     echo "Missing required dependency: flux"
     exit 1
   fi
 fi
+
+# Undo forcing the directory (pushd $SCRIPT_DIR)
+popd > /dev/null

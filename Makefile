@@ -600,7 +600,7 @@ ci-setup-flux:
 
 define ci_job_flux
 	$(call banner,CI-Job: Flux)
-	@PATH="$(shell pwd)/tools/ci/flux-ci-runner:${PATH}" cargo flux
+	source tools/ci/flux-ci-runner/deps.sh check && cargo flux
 endef
 
 .PHONY: ci-job-flux
