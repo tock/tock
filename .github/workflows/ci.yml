@@ -91,7 +91,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
       - name: Install dependencies for ubuntu-latest
         run: |
-          sudo apt install libudev-dev libzmq3-dev
+          sudo apt install -q libudev-dev libzmq3-dev
         if: matrix.os == 'ubuntu-latest'
       - uses: actions/checkout@v4
       - name:      ci-job-libraries
@@ -122,7 +122,7 @@ jobs:
       - name: Install dependencies
         continue-on-error: true
         run: |
-          sudo apt install meson libglib2.0-dev
+          sudo apt install -q meson libglib2.0-dev
       - uses: actions/checkout@v4
       - name:      ci-job-qemu
         run:  make ci-job-qemu
