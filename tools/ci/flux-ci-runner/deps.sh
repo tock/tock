@@ -17,6 +17,12 @@ DESIRED_FLUX_VERSION="FIXME"
 
 ########################################################
 
+# Force execution in a sourced context to avoid 'return vs exit' games
+if ! (return 0 2>/dev/null); then
+  source "$0" "$@"
+  exit $?
+fi
+
 DO_INSTALL="false"
 case "$1" in
   "check")
@@ -27,7 +33,7 @@ case "$1" in
   *)
     echo "Invalid argument: $1"
     echo " (expected one of 'check' 'install')"
-    return 1
+    if $sourced; then return 1; else exit 1; fi
     ;;
 esac
 
