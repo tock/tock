@@ -122,7 +122,7 @@ jobs:
       - name: Install dependencies
         continue-on-error: true
         run: |
-          sudo apt install z3
+          sudo apt install -q z3
       - uses: actions/checkout@v4
       - name:      ci-job-flux
         run:  make ci-job-flux
