@@ -12,8 +12,7 @@
 
 DESIRED_FIXPOINT_VERSION="0.9.6.3.3"
 DESIRED_FIXPOINT_RELEASE_TAG="nightly"
-DESIRED_FLUX_COMMIT="b0cec81c42bc6e210f675b46dd5b4b16774b0d0e"
-DESIRED_FLUX_VERSION="FIXME"
+DESIRED_FLUX_COMMIT="279aa94"
 
 ########################################################
 
@@ -97,6 +96,7 @@ else
     rm -f fixpoint fixpoint*.gz
     # Install prebuilt version
     curl -sSL https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/$DESIRED_FIXPOINT_RELEASE_TAG/fixpoint-$PLATFORM.tar.gz | tar -xz
+    # Verify install
     [[ $(./fixpoint --numeric-version) == "$DESIRED_FIXPOINT_VERSION" ]]
   else
     echo "Missing required dependency: fixpoint"
@@ -132,12 +132,10 @@ fi
 PATH="${PATH}:$(pwd)/flux/target/release"
 export FLUX_SYSROOT="$(pwd)/flux/target/release"
 
-# FIXME: Equality is inverted to skip actually checking the version until
-# upstream flux prints out the version honestly; this effectively reduces
-# to just checking whether a runnable cargo-flux exists currently
-#                                          ||
-#if [[ $(cargo flux --version 2>/dev/null) != "$DESIRED_FLUX_VERSION" ]]; then
-if cargo flux --version 2>/dev/null; then
+# nominal output is "cargo-flux SHORT_HASH (DATE)"
+DESIRED_FLUX_VERSION="cargo-flux $DESIRED_FLUX_COMMIT"
+
+if [[ $(cargo flux --version | cut -d' ' -f1,2 2>/dev/null) == "$DESIRED_FLUX_VERSION" ]]; then
   if $VERBOSE; then
     echo "flux version: $(cargo flux --version)"
   fi
@@ -151,7 +149,8 @@ else
     git checkout $DESIRED_FLUX_COMMIT
     cargo build --release
     popd
-    cargo flux --version
+    # Verify install
+    [[ $(cargo flux --version | cut -d' ' -f1,2 2>/dev/null) == "$DESIRED_FLUX_VERSION" ]]
   else
     echo "Missing required dependency: flux"
     return 1
