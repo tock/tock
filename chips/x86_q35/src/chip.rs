@@ -268,7 +268,3 @@ impl<const PR: u16> InterruptService for PcDefaultPeripherals<PR> {
         }
     }
 }
-
-// Note: Boards must provide static buffers for PcDefaultPeripherals::new()
-// directly in their board files. This crate intentionally avoids calling
-// static_buf!() to comply with Tock conventions.
