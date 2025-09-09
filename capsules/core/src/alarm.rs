@@ -100,6 +100,11 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 if let Some(retval) = expired_handler_res {
                     return Err((exp, ud, retval));
                 }
+
+                // We continue iteration, but skip to the next alarm since this
+                // one has expired. Expired alarms are not a candidate for the
+                // "earliest", non-expired alarm returned by this function.
+                continue;
             }
 
             // `exp` has not yet expired. At this point we can assume that
