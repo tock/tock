@@ -32,7 +32,7 @@ case "$1" in
   *)
     echo "Invalid argument: $1"
     echo " (expected one of 'check' 'install')"
-    if $sourced; then return 1; else exit 1; fi
+    return 1
     ;;
 esac
 
