@@ -12,7 +12,6 @@
 
 DESIRED_FIXPOINT_VERSION="0.9.6.3.3"
 DESIRED_FIXPOINT_RELEASE_TAG="nightly"
-DESIRED_FLUX_COMMIT="279aa94"
 
 ########################################################
 
@@ -131,6 +130,9 @@ fi
 
 PATH="${PATH}:$(pwd)/flux/target/release"
 export FLUX_SYSROOT="$(pwd)/flux/target/release"
+
+# Extract this from the project configuration to have a sole source of truth
+DESIRED_FLUX_COMMIT=$(grep 'flux-rs.*rev' ../../../kernel/Cargo.toml | cut -d'"' -f4)
 
 # nominal output is "cargo-flux SHORT_HASH (DATE)"
 DESIRED_FLUX_VERSION="cargo-flux $DESIRED_FLUX_COMMIT"
