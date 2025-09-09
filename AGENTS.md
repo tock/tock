@@ -5,7 +5,7 @@ All code should take into account that this is an OS for constrained systems, wi
 code size and memory.
 
 New files should attempt to follow the coding style established by existing examples of similar
-functionality.
+functionality and should adhere to the rules in the [Tock Style Guide](./doc/Style.md).
 
 ## Rust Code
 - All rust code (except in `tools/`) is embedded Rust code and limited to use of the core library
