@@ -61,7 +61,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
       - name: Install dependencies for ubuntu-latest
         run: |
-          sudo apt install libudev-dev libzmq3-dev
+          sudo apt install -q libudev-dev libzmq3-dev
         if: matrix.os == 'ubuntu-latest'
       - name: Install dependencies for macos-latest
         run: |
