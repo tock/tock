@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DESIRED_FIXPOINT_VERSION="2009-15"
+DESIRED_FIXPOINT_VERSION="0.9.6.3.3"
 DESIRED_FIXPOINT_RELEASE_TAG="nightly"
 DESIRED_FLUX_COMMIT="b0cec81c42bc6e210f675b46dd5b4b16774b0d0e"
 
@@ -72,7 +72,7 @@ else
     # Remove any old versions
     rm -f fixpoint fixpoint*.gz
     # Install prebuilt version
-    curl -sSL https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/$DESIRED_FIXPOINT_RELEASE_TAG/fixpoint-$PLATFORM.tar.gz | tar -x
+    curl -sSL https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/$DESIRED_FIXPOINT_RELEASE_TAG/fixpoint-$PLATFORM.tar.gz | tar -xz
     [[ $(./fixpoint --numeric-version) == "$DESIRED_FIXPOINT_VERSION" ]]
   else
     echo "Missing required dependency: fixpoint"
@@ -118,5 +118,8 @@ if ! command -v flux > /dev/null; then
     # cargo build
     cargo xtask install
     popd
+  else 
+    echo "Missing required dependency: flux"
+    exit 1
   fi
 fi

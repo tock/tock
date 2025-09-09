@@ -592,7 +592,7 @@ endef
 .PHONY: ci-setup-flux
 ci-setup-flux:
 	$(call ci_setup_helper,\
-		tools/ci/flux-ci-runner/deps.sh check,\
+		cd tools/ci/flux-ci-runner && ./deps.sh check > /dev/null 2>&1 && echo yes,\
 		Build Flux and install (or build) its dependencies,\
 		ci_setup_flux,\
 		CI_JOB_FLUX)
