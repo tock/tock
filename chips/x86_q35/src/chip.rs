@@ -177,9 +177,6 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
 pub struct PcComponent<'a> {
     pd: &'a mut PD,
     pt: &'a mut PT,
-
-    /// Holds the PS/2 controller passed in by the board
-    ps2: &'a crate::ps2::Ps2Controller,
 }
 
 impl<'a> PcComponent<'a> {
@@ -194,8 +191,8 @@ impl<'a> PcComponent<'a> {
     /// will cause the kernel's code/data to move unexpectedly.
     ///
     /// See [`x86::init`] for further details.
-    pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT, ps2: &'a crate::ps2::Ps2Controller) -> Self {
-        Self { pd, pt, ps2 }
+    pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT) -> Self {
+        Self { pd, pt }
     }
 }
 
@@ -249,12 +246,12 @@ impl Component for PcComponent<'static> {
 
         let syscall = Boundary::new();
 
-        // PS/2 instance
-        let ps2 = self.ps2;
-
+        // PS/2 inside the component
+        let ps2 =
+            unsafe { static_init!(crate::ps2::Ps2Controller, crate::ps2::Ps2Controller::new()) };
         kernel::deferred_call::DeferredCallClient::register(ps2);
 
-        // controller bring-up owned by the chip (no logging here)
+        // controller bring-up owned by the chip
         let _ = ps2.init_early();
 
         let pc = s.4.write(Pc {

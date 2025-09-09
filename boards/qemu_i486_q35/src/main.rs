@@ -30,7 +30,6 @@ use kernel::{create_capability, static_init};
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
-use x86_q35::ps2::Ps2Controller;
 use x86_q35::{Pc, PcComponent};
 
 mod multiboot;
@@ -152,18 +151,10 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
 unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
-    // Create our PS/2 controller instance before the chip itself, so we
-    // can hand it into the PcComponent and have IRQ1 routed automatically.
-    let ps2 = static_init!(Ps2Controller, Ps2Controller::new());
-
     // Basic setup of the i486 platform
-    //
-    // Build the PC chip and attach our
-    // PS/2 controller so that `service_pending_interrupts` will dispatch IRQ1.
     let chip = PcComponent::new(
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
-        ps2,
     )
     .finalize(x86_q35::x86_q35_component_static!());
 
