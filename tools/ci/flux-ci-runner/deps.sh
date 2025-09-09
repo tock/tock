@@ -117,8 +117,9 @@ export FLUX_SYSROOT="$(pwd)/flux/target/release"
 # FIXME: Equality is inverted to skip actually checking the version until
 # upstream flux prints out the version honestly; this effectively reduces
 # to just checking whether a runnable cargo-flux exists currently
-#                                         ||
-if [[ $(cargo flux --version 2>/dev/null) != "$DESIRED_FLUX_VERSION" ]]; then
+#                                          ||
+#if [[ $(cargo flux --version 2>/dev/null) != "$DESIRED_FLUX_VERSION" ]]; then
+if $(cargo flux --version 2>/dev/null); then
   if $VERBOSE; then
     echo "flux version: $(cargo flux --version)"
   fi
@@ -132,7 +133,8 @@ else
     git checkout $DESIRED_FLUX_COMMIT
     cargo build --release
     popd
-  else 
+    cargo flux --version
+  else
     echo "Missing required dependency: flux"
     exit 1
   fi
