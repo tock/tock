@@ -26,7 +26,7 @@ External Dependencies
 <!-- tocstop -->
 
 Tock's general policy is the kernel does not include external dependencies (i.e.
-rust crates outside of the `tock/tock` repository) that are not part of the Rust
+Rust crates outside of the `tock/tock` repository) that are not part of the Rust
 standard library. However, on a limited, case-by-case basis with appropriate
 safeguards, external dependencies can be used in the Tock kernel. The rationale
 and policy for this is described in this document. This document only applies to
