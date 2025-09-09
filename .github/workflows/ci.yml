@@ -109,6 +109,24 @@ jobs:
       - name:      ci-job-cargo-test-build
         run:  make ci-job-cargo-test-build
 
+  ci-flux:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Update package repositories
+        run: |
+          sudo apt update
+      - name: Install dependencies
+        continue-on-error: true
+        run: |
+          sudo apt install z3
+      - uses: actions/checkout@v4
+      - name:      ci-job-flux
+        run:  make ci-job-flux
+
   ci-qemu:
     strategy:
       matrix:
