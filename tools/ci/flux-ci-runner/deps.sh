@@ -27,7 +27,7 @@ case "$1" in
   *)
     echo "Invalid argument: $1"
     echo " (expected one of 'check' 'install')"
-    exit 1
+    return 1
     ;;
 esac
 
@@ -50,7 +50,7 @@ fi
 # Force execution from the script directory for simplicity
 # https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-pushd $SCRIPT_DIR > /dev/null
+pushd "$SCRIPT_DIR" > /dev/null
 
 # Print what we're doing on CI
 VERBOSE="false"
@@ -60,8 +60,20 @@ if [[ -v CI ]]; then
 fi
 
 # Error on failures
-set -e
 set -u
+
+# Gracefully handle being `source`d or run.
+#
+# This replaces `set -e` such that someone `source`ing this script won't have
+# their shell session terminated
+handle_errror() {
+  trap - ERR
+  kill -INT $$
+  # this sleep is important, as the kill effect is async; without it, the next
+  # command non-deterministically might run before the INT is handled
+  sleep 1
+}
+trap handle_errror ERR
 
 
 #################################
@@ -82,7 +94,7 @@ else
     [[ $(./fixpoint --numeric-version) == "$DESIRED_FIXPOINT_VERSION" ]]
   else
     echo "Missing required dependency: fixpoint"
-    exit 1
+    return 1
   fi
 fi
 
@@ -100,7 +112,7 @@ if ! command -v z3 > /dev/null; then
     $INSTALL_CMD z3
   else
     echo "Missing required dependency: z3"
-    exit 1
+    return 1
   fi
 fi
 if $VERBOSE; then
@@ -119,7 +131,7 @@ export FLUX_SYSROOT="$(pwd)/flux/target/release"
 # to just checking whether a runnable cargo-flux exists currently
 #                                          ||
 #if [[ $(cargo flux --version 2>/dev/null) != "$DESIRED_FLUX_VERSION" ]]; then
-if $(cargo flux --version 2>/dev/null); then
+if cargo flux --version 2>/dev/null; then
   if $VERBOSE; then
     echo "flux version: $(cargo flux --version)"
   fi
@@ -136,7 +148,7 @@ else
     cargo flux --version
   else
     echo "Missing required dependency: flux"
-    exit 1
+    return 1
   fi
 fi
 
