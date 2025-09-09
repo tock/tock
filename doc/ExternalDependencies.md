@@ -8,6 +8,7 @@ External Dependencies
 - [External Dependency Design](#external-dependency-design)
   * [Rationale](#rationale)
   * [Dependency Structure of Tock-Internal Crates](#dependency-structure-of-tock-internal-crates)
+  * [Tock-Controlled Dependencies](#tock-controlled-dependencies)
 - [External Dependency Selection](#external-dependency-selection)
   * [General Guidelines for Dependency Selection](#general-guidelines-for-dependency-selection)
     + [Provide Important Functionality](#provide-important-functionality)
@@ -85,6 +86,24 @@ dependencies internal to Tock:
 - an _arch crate_ may only depend on the _kernel crate_ and other _arch crates_
 - the _kernel crate_ does not depend on _arch_, _chip_, _board_, or _capsule
   crates_
+
+### Tock-Controlled Dependencies
+
+The Tock kernel is composed of multiple components, many of which have stable
+interfaces and are usable in a stand-alone fashion. For improved re-usability and
+code organization, not all of Tock's kernel crates may be contained within the
+[main Tock kernel repository](https://github.com/tock/tock). Some crates may be
+split out into separate repositories, maintained within the Tock GitHub
+organization, and published by the Tock project to external repositories like
+<https://crates.io>.
+
+This document does not concern itself with dependencies that are controlled and
+maintained by the Tock project. These crates are treated as "external" for the
+build system, but are semantically equivalent to crates included in the Tock
+kernel repository itself. At the discretion of the Tock Core Working Group,
+these crates may be depended upon by other Tock kernel crates, either through
+pinned git revisions, tags, or through external repositories such as
+<https://crates.io>.
 
 ## External Dependency Selection
 
