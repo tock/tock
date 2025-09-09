@@ -660,9 +660,9 @@ mod test {
         .unwrap()
         .unwrap();
 
-        assert!(earliest.reference.into_u32() == u32::MAX);
-        assert!(earliest.dt.into_u32() == 44);
-        assert!(id == 1);
+        assert_eq!(id, 1);
+        assert_eq!(earliest.reference.into_u32(), u32::MAX);
+        assert_eq!(earliest.dt.into_u32(), 44);
     }
 
     #[test]
@@ -752,9 +752,9 @@ mod test {
         .unwrap()
         .unwrap();
 
-        assert!(earliest.reference.into_u32() == 41);
-        assert!(earliest.dt.into_u32() == 1);
-        assert!(id == 0);
+        assert_eq!(id, 0);
+        assert_eq!(earliest.reference.into_u32(), 41);
+        assert_eq!(earliest.dt.into_u32(), 1);
 
         let mut bool_exp_list: [bool; 7] = [false; 7];
         exp_list
@@ -762,7 +762,7 @@ mod test {
             .zip(bool_exp_list.iter_mut())
             .for_each(|(src, dst)| *dst = src.get());
 
-        assert!(bool_exp_list == [true, false, false, false, true, true, true]);
+        assert_eq!(bool_exp_list, [true, false, false, false, true, true, true]);
     }
 
     #[test]
@@ -828,10 +828,10 @@ mod test {
             .err()
             .unwrap();
 
-        assert!(expired.reference.into_u32() == 0);
-        assert!(expired.dt.into_u32() == 1);
-        assert!(id == 3);
-        assert!(expired_ret == "stopped");
+        assert_eq!(id, 3);
+        assert_eq!(expired.reference.into_u32(), 0);
+        assert_eq!(expired.dt.into_u32(), 1);
+        assert_eq!(expired_ret, "stopped");
 
         let mut bool_exp_list: [bool; 4] = [false; 4];
         exp_list
@@ -839,14 +839,14 @@ mod test {
             .zip(bool_exp_list.iter_mut())
             .for_each(|(src, dst)| *dst = src.get());
 
-        assert!(bool_exp_list == [false, true, false, true,]);
+        assert_eq!(bool_exp_list, [false, true, false, true,]);
     }
 
     #[test]
     fn test_rearm_24bit_left_justified_noref_basic() {
         let mut expiration = None;
 
-        assert!(Ticks24::u32_padding() == 8);
+        assert_eq!(Ticks24::u32_padding(), 8);
 
         let armed_time =
             AlarmDriver::<MockAlarm<Ticks24, Freq10MHz>>::rearm_u32_left_justified_expiration(
@@ -902,7 +902,7 @@ mod test {
     fn test_rearm_24bit_left_justified_ref_low_bits_basic() {
         let mut expiration = None;
 
-        assert!(Ticks24::u32_padding() == 8);
+        assert_eq!(Ticks24::u32_padding(), 8);
 
         let armed_time =
             AlarmDriver::<MockAlarm<Ticks24, Freq10MHz>>::rearm_u32_left_justified_expiration(
@@ -929,7 +929,7 @@ mod test {
     fn test_rearm_24bit_left_justified_ref_low_bits_max_int() {
         let mut expiration = None;
 
-        assert!(Ticks24::u32_padding() == 8);
+        assert_eq!(Ticks24::u32_padding(), 8);
 
         let armed_time =
             AlarmDriver::<MockAlarm<Ticks24, Freq10MHz>>::rearm_u32_left_justified_expiration(
@@ -967,7 +967,7 @@ mod test {
             dt: 1_u32.into(),
         });
 
-        assert!(Ticks32::u32_padding() == 0);
+        assert_eq!(Ticks32::u32_padding(), 0);
 
         let armed_time =
             AlarmDriver::<MockAlarm<Ticks32, Freq10MHz>>::rearm_u32_left_justified_expiration(
@@ -1022,7 +1022,7 @@ mod test {
             dt: 1_u32.into(),
         });
 
-        assert!(Ticks64::u32_padding() == 0);
+        assert_eq!(Ticks64::u32_padding(), 0);
 
         let armed_time =
             AlarmDriver::<MockAlarm<Ticks64, Freq10MHz>>::rearm_u32_left_justified_expiration(
