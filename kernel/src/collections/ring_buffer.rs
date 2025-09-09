@@ -101,7 +101,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>, _) -> bool ensures self: RingBuffer<T>
+        fn(self: &mut RingBuffer<T>, _) -> bool ensures self: RingBuffer<T>
     )]
     fn enqueue(&mut self, val: T) -> bool {
         if self.is_full() {
@@ -115,7 +115,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>, _) -> Option<T> ensures self: RingBuffer<T>
+        fn(self: &mut RingBuffer<T>, _) -> Option<T> ensures self: RingBuffer<T>
     )]
     fn push(&mut self, val: T) -> Option<T> {
         let result = if self.is_full() {
@@ -132,7 +132,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>) -> Option<T> ensures self: RingBuffer<T>
+        fn(self: &mut RingBuffer<T>) -> Option<T> ensures self: RingBuffer<T>
     )]
     fn dequeue(&mut self) -> Option<T> {
         if self.has_elements() {
@@ -152,7 +152,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     ///
     /// If an element was removed, this function returns it as `Some(elem)`.
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>, _) -> Option<T> ensures self: RingBuffer<T>
+        fn(self: &mut RingBuffer<T>, _) -> Option<T> ensures self: RingBuffer<T>
     )]
     fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
@@ -181,7 +181,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@old]) ensures self: RingBuffer<T>[old.ring_len, 0, 0]
+        fn(self: &mut RingBuffer<T>[@old]) ensures self: RingBuffer<T>[old.ring_len, 0, 0]
     )]
     fn empty(&mut self) {
         self.head = 0;
@@ -189,7 +189,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>, _) ensures self: RingBuffer<T>
+        fn(self: &mut RingBuffer<T>, _) ensures self: RingBuffer<T>
     )]
     fn retain<F>(&mut self, mut f: F)
     where
