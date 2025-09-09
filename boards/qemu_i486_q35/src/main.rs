@@ -30,7 +30,7 @@ use kernel::{create_capability, static_init};
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
-use x86_q35::{Pc, PcComponent};
+use x86_q35::{Pc, PcDefaultPeripherals};
 
 mod multiboot;
 use multiboot::MultibootV1Header;
@@ -149,11 +149,33 @@ unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the i486 platform
-    let chip = PcComponent::new(
-        &mut *ptr::addr_of_mut!(PAGE_DIR),
-        &mut *ptr::addr_of_mut!(PAGE_TABLE),
-    )
-    .finalize(x86_q35::x86_q35_component_static!());
+    // Allocate statics for default peripherals and build them via the chip helper
+    let peripherals = unsafe {
+        static_init!(
+            PcDefaultPeripherals,
+            PcDefaultPeripherals::new(
+                (
+                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    kernel::static_buf!(x86_q35::vga_uart_driver::VgaText<'static>),
+                ),
+                &mut *ptr::addr_of_mut!(PAGE_DIR),
+            )
+        )
+    };
+    peripherals.setup_circular_deps();
+    let chip: &'static Pc = unsafe {
+        static_init!(
+            Pc,
+            Pc::new(
+                &*peripherals,
+                &mut *ptr::addr_of_mut!(PAGE_DIR),
+                &mut *ptr::addr_of_mut!(PAGE_TABLE),
+            ),
+        )
+    };
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -192,9 +214,9 @@ unsafe extern "cdecl" fn main() {
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
-        MuxAlarm::new(&chip.pit),
+        MuxAlarm::new(chip.pit),
     );
-    hil::time::Alarm::set_alarm_client(&chip.pit, mux_alarm);
+    hil::time::Alarm::set_alarm_client(chip.pit, mux_alarm);
 
     // Virtual alarm for the scheduler
     let systick_virtual_alarm = static_init!(
