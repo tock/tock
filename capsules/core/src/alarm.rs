@@ -56,26 +56,44 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         }
     }
 
-    /// Find the earliest [`Expiration`] from an iterator of expirations.
+    /// Finds the earliest non-expired alarm from an iterator of
+    /// [`Expiration`]s.
     ///
-    /// Each [`Expiration`] value is provided as a tuple, with
-    /// - `UD`: an additional user-data argument returned together with the
-    ///   [`Expiration`], should it be the earliest, and
-    /// - `F`: a call-back function invoked when the [`Expiration`] has already
-    ///   expired. The callback is porivded the expiration value and a reference
-    ///   to its user-data.
+    /// This function iterates through a collection of alarms and identifies
+    /// the one that will fire next.
     ///
-    /// Whether an [`Expiration`] has expired or not is determined with respect
-    /// to `now`. If `now` is in `[exp.reference; exp.reference + exp.dt)`, it
-    /// the [`Expiration`] has not yet expired.
+    /// # Parameters
     ///
-    /// An expired [`Expiration`] is not a candidate for "earliest" expiration.
-    /// This means that this function will return `Ok(None)` if it receives an
-    /// empty iterator, or all [`Expiration`]s have expired.
+    /// - `now`: The current time, used to determine if an alarm has already
+    ///   expired.
+    /// - `expirations`: An iterator of tuples, where each tuple contains:
+    ///   - [`Expiration`]: The alarm data.
+    ///   - `UD`: User-defined data associated with the alarm. This is used in
+    ///     callbacks and return values to identify a particular alarm instance.
+    ///   - `F`: A callback function that is invoked if the alarm has already
+    ///     expired. The callback receives the [`Expiration`] and a reference to
+    ///     its associated `UD`.
     ///
-    /// To stop iteration on any expired [`Expiration`], its callback can return
-    /// `Some(R)`. Then this function will return `Err(Expiration, UD, R)`.
-    /// This avoids consuming the entire iterator.
+    /// # Behavior
+    ///
+    /// An [`Expiration`] `exp` is considered *not* expired if the current time
+    /// `now` is within the range `[exp.reference, exp.reference + exp.dt)`
+    /// using a wrapping-add.
+    ///
+    /// For each expired alarm, its associated callback `F` is called. If the
+    /// callback returns `Some(R)`, iteration stops immediately, and this
+    /// function returns `Err((exp, ud, R))`. This allows for early exit, and
+    /// will stop consuming the `expirations` iterator beyond this point.
+    ///
+    /// # Return Value
+    ///
+    /// - `Ok(Some((exp, ud)))`: If one or more non-expired alarms are found,
+    ///   this returns the [`Expiration`] and user data for the one that will
+    ///   fire earliest, relative to `now`.
+    /// - `Ok(None)`: If the `expirations` iterator is empty or all alarms have
+    ///   already expired.
+    /// - `Err((exp, ud, R))`: If a callback for an expired alarm signals to
+    ///   stop iteration.
     fn earliest_alarm<UD, R, F: FnOnce(Expiration<A::Ticks>, &UD) -> Option<R>>(
         now: A::Ticks,
         expirations: impl Iterator<Item = (Expiration<A::Ticks>, UD, F)>,
@@ -88,16 +106,16 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 dt: exp_dt,
             } = exp;
 
-            // Pre-compute the absolute "end" time of this expiration (the
-            // point at which it should fire):
+            // Calculate the absolute time at which this alarm is set to fire.
             let exp_end = exp_ref.wrapping_add(exp_dt);
 
-            // If `now` is not within `[reference, reference + dt)`, this
-            // alarm has expired. Call the expired handler. If it returns
-            // false, stop here.
+            // An alarm is considered expired if `now` is not within the
+            // interval `[reference; reference + dt)`. If it has expired, we
+            // call its handler.
             if !now.within_range(exp_ref, exp_end) {
-                let expired_handler_res = expired_handler(exp, &ud);
-                if let Some(retval) = expired_handler_res {
+                if let Some(retval) = expired_handler(exp, &ud) {
+                    // The handler requested to stop iteration, so we exit
+                    // early.
                     return Err((exp, ud, retval));
                 }
 
@@ -107,16 +125,13 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 continue;
             }
 
-            // `exp` has not yet expired. At this point we can assume that
-            // `now` is within `[exp_ref, exp_end)`. Check whether it will
-            // expire earlier than the current `earliest`:
+            // `exp` has not yet expired. Now, check if it is earlier than the
+            // current earliest known alarm:
             match &earliest {
                 None => {
-                    // Do not have an earliest expiration yet, set this
-                    // expriation as earliest:
+                    // This is the first non-expired alarm we've found.
                     earliest = Some((exp, ud));
                 }
-
                 Some((
                     Expiration {
                         reference: earliest_ref,
@@ -124,27 +139,25 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                     },
                     _,
                 )) => {
-                    // As `now` is within `[ref, end)` for both timers, we
-                    // can check which end time is closer to `now`. We thus
-                    // first compute the end time for the current earliest
-                    // alarm as well ...
+                    // We already have a candidate for the earliest alarm. To
+                    // compare, we calculate the remaining time for both alarms
+                    // relative to `now`. The one with less time remaining is
+                    // earlier.
                     let earliest_end = earliest_ref.wrapping_add(*earliest_dt);
 
-                    // ... and then perform a wrapping_sub against `now` for
-                    // both, checking which is smaller:
                     let exp_remain = exp_end.wrapping_sub(now);
                     let earliest_remain = earliest_end.wrapping_sub(now);
+
                     if exp_remain < earliest_remain {
-                        // Our current exp expires earlier than earliest,
-                        // replace it:
+                        // The current alarm `exp` will fire sooner than our
+                        // previous `earliest`.
                         earliest = Some((exp, ud));
                     }
                 }
             }
         }
 
-        // We have computed earliest by iterating over all alarms, but have not
-        // found one that has already expired. As such return `false`:
+        // We have iterated over all alarms. Return the earliest one found.
         Ok(earliest)
     }
 
@@ -757,9 +770,11 @@ mod test {
         .unwrap()
         .unwrap();
 
-        assert_eq!(id, 0);
-        assert_eq!(earliest.reference.into_u32(), 41);
-        assert_eq!(earliest.dt.into_u32(), 1);
+        // A compliant implementation could also return ID 3, which expires at
+        // the same time as the `Expiration` with ID 2.
+        assert_eq!(id, 2);
+        assert_eq!(earliest.reference.into_u32(), u32::MAX);
+        assert_eq!(earliest.dt.into_u32(), 44);
 
         let mut bool_exp_list: [bool; 7] = [false; 7];
         exp_list
