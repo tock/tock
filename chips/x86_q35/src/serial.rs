@@ -471,7 +471,6 @@ impl Component for SerialPortComponent {
     }
 }
 
-
 /// Serial port handle for blocking I/O
 ///
 /// This struct is a lightweight version of [`SerialPort`] that can be used to perform blocking
