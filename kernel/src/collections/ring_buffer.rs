@@ -114,7 +114,6 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
-    
     #[flux_rs::sig(
         fn(self: &strg RingBuffer<T>, _) -> Option<T> ensures self: RingBuffer<T>
     )]
