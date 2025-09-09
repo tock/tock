@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
+# Sets up the environment to execute a specific version of flux. As flux
+# is currently fast-moving, this avoids any system-wide install. Thus,
+# this script must be `source`d in any shell that wants to use flux.
+#
+# Author: Pat Pannuto <ppannuto@ucsd.edu>
+
 DESIRED_FIXPOINT_VERSION="0.9.6.3.3"
 DESIRED_FIXPOINT_RELEASE_TAG="nightly"
 DESIRED_FLUX_COMMIT="b0cec81c42bc6e210f675b46dd5b4b16774b0d0e"
