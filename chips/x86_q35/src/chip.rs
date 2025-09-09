@@ -287,7 +287,7 @@ impl<'a, I: InterruptService + 'a> PcComponent<'a, I> {
             unsafe { static_init!(crate::ps2::Ps2Controller, crate::ps2::Ps2Controller::new()) };
         kernel::deferred_call::DeferredCallClient::register(ps2);
 
-        // controller bring-up owned by the chip (no logging here)
+        // controller bring-up owned by the chip
         let _ = ps2.init_early();
 
         let pc = s.4.write(Pc {
