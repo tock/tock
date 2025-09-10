@@ -62,7 +62,7 @@ decide how we treat their use in the Tock project.
  - Johnathan: We don't current have any stated policy, and my instinct is that the people who would have flooded us
  - Johnathan: I'll second the potential copyright concerns, but I doubt we will get a good answer at this stage
  - Alexandru: Agreed with copyright; though again hard to even know
- - Alexandru: Ultimately, it'll be hard to even 
+ - Alexandru: Ultimately, it'll be hard to even detect it
  - Hudson: Even in the pre-LLM era, if people contributed code from somewhere else that violated copyright, we would not have known that; it's not necessarily reasonable/feasible for us to gatekeep this; it's not like there's a monolithic "copyrighted code" thing we can query
  - Amit: I agree; and the risk of Tock itself being held legally liable is pretty low
  - Amit: My concern is more around the optics, and how it might impact whether people use or avoid Tock as a project (because of its stance on AI)
