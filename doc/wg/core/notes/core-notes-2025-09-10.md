@@ -235,7 +235,7 @@ valuable.
 I think it's worth spending 5-10m of full core team time for folks to
 review and refine the post.
 
-https://urldefense.com/v3/__https://github.com/tock/tock-www/pull/122__;!!Mih3wA!DFKMcnwAF-kWa6NJtt1bZHQm2a9enefAaQcbCSjj4mx2ATZ1_-0Yswmx-2rNQIcLxjQvRDYkFEQkLl5yLA$
+https://github.com/tock/tock-www/pull/122
 
 ### Call Notes
 
