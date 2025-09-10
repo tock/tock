@@ -249,5 +249,5 @@ N/A
 
 - Revise the blog post
 
-- Merge (and post)
+- Merge (and post), once we have proven this works in Tock
 
