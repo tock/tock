@@ -105,6 +105,7 @@ pub(crate) unsafe fn eoi(num: u32) {
             io::outb(PIC1_CMD, PIC_CMD_EOI);
         } else if (PIC2_OFFSET..PIC2_OFFSET + 8).contains(&num) {
             io::outb(PIC2_CMD, PIC_CMD_EOI);
+            io::outb(PIC1_CMD, PIC_CMD_EOI);
         }
     });
 }
