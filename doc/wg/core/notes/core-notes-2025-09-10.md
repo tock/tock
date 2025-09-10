@@ -31,9 +31,9 @@ experimental such suggested contribution and one non-experimental one,
 as well a draft PR to add an `AGENTS.md` file to better support
 LLM-based tools:
 
-- LLM-based refactor: https://urldefense.com/v3/__https://github.com/tock/tock/pull/4583__;!!Mih3wA!DFKMcnwAF-kWa6NJtt1bZHQm2a9enefAaQcbCSjj4mx2ATZ1_-0Yswmx-2rNQIcLxjQvRDYkFERSSqZCIQ$
-- LLM-spotted alarm bug: https://urldefense.com/v3/__https://github.com/tock/tock/pull/4590__;!!Mih3wA!DFKMcnwAF-kWa6NJtt1bZHQm2a9enefAaQcbCSjj4mx2ATZ1_-0Yswmx-2rNQIcLxjQvRDYkFER4ASvjKA$
-- `AGENTS.md`: https://urldefense.com/v3/__https://github.com/tock/tock/pull/4582__;!!Mih3wA!DFKMcnwAF-kWa6NJtt1bZHQm2a9enefAaQcbCSjj4mx2ATZ1_-0Yswmx-2rNQIcLxjQvRDYkFEST68sL3w$
+- LLM-based refactor: https://github.com/tock/tock/pull/4583
+- LLM-spotted alarm bug: https://github.com/tock/tock/pull/4590
+- `AGENTS.md`: https://github.com/tock/tock/pull/4582
 
 Given the inherent potential and risks of these tools, I think we should
 decide how we treat their use in the Tock project.
