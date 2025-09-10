@@ -226,7 +226,7 @@ manage them.
 
 ### Context
 
-We [just merged](https://urldefense.com/v3/__https://github.com/tock/tock/pull/4551__;!!Mih3wA!DFKMcnwAF-kWa6NJtt1bZHQm2a9enefAaQcbCSjj4mx2ATZ1_-0Yswmx-2rNQIcLxjQvRDYkFET7j9k00g$ )
+We [just merged](https://github.com/tock/tock/pull/4551)
 `SingleThreadValue`. This is a hard question the Rust ecosystem is
 struggling with, and having a write-up that is both (1) accessible to a
 more general audience, and (2) accurate to the important details is
