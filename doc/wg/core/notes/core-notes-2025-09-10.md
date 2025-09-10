@@ -137,9 +137,9 @@ Rust crate" — in particular, the use of a hard-coded path confuses Cargo's
 ability to resolve "same or different".
 
 The result is a suite of PRs:
- - https://urldefense.com/v3/__https://github.com/tock/tock/pull/4587__;!!Mih3wA!DFKMcnwAF-kWa6NJtt1bZHQm2a9enefAaQcbCSjj4mx2ATZ1_-0Yswmx-2rNQIcLxjQvRDYkFERa_f6jnw$
- - https://urldefense.com/v3/__https://github.com/tock/tock/pull/4588__;!!Mih3wA!DFKMcnwAF-kWa6NJtt1bZHQm2a9enefAaQcbCSjj4mx2ATZ1_-0Yswmx-2rNQIcLxjQvRDYkFERBfta16w$
- - https://urldefense.com/v3/__https://github.com/tock/tock/pull/4589__;!!Mih3wA!DFKMcnwAF-kWa6NJtt1bZHQm2a9enefAaQcbCSjj4mx2ATZ1_-0Yswmx-2rNQIcLxjQvRDYkFET1JQ-3bA$
+ - https://github.com/tock/tock/pull/4587
+ - https://github.com/tock/tock/pull/4588
+ - https://github.com/tock/tock/pull/4589
 
 We should start discussion with the last one (4589), as that discusses the
 policy for "Tock-sponsored external dependencies" and how we would like to
