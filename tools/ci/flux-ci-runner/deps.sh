@@ -65,6 +65,7 @@ fi
 
 # Error on failures
 set -u
+set -o pipefail
 
 # Gracefully handle being `source`d or run.
 #
@@ -85,18 +86,26 @@ trap handle_errror ERR
 
 pushd fixpoint > /dev/null
 
-if [[ $(./fixpoint --numeric-version 2>/dev/null) == "$DESIRED_FIXPOINT_VERSION" ]]; then
+need_new_fixpoint() {
+  version=$(./fixpoint --numeric-version 2>/dev/null) || return 0
+  $(../../../build/semver.sh "$version" "<" "$DESIRED_FIXPOINT_VERSION") && return 0
   if $VERBOSE; then
     echo "fixpoint version: $(./fixpoint --numeric-version)"
   fi
-else
+  return 1
+}
+
+if need_new_fixpoint; then
   if $DO_INSTALL; then
     # Remove any old versions
     rm -f fixpoint fixpoint*.gz
     # Install prebuilt version
     curl -sSL https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/$DESIRED_FIXPOINT_RELEASE_TAG/fixpoint-$PLATFORM.tar.gz | tar -xz
     # Verify install
-    [[ $(./fixpoint --numeric-version) == "$DESIRED_FIXPOINT_VERSION" ]]
+    if need_new_fixpoint; then
+      echo "Failed to installed requested fixpoint"
+      return 1
+    fi
   else
     echo "Missing required dependency: fixpoint"
     return 1
