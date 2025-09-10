@@ -149,11 +149,75 @@ manage them.
 
 1. Determine how we want to express "Tock-sponsored external" dependencies.
 
+### Call Notes
+
+- Pat: Driven by Tyler's safe MMIO work. There is a sitation where the
+  safe-mmio crate depends on tock-registers. But when trying to use
+  safe-mmio inside of Tock, Rust treats the two paths to the
+  `tock-registers` crate (one using a `crates.io` rev in the safe-mmio
+  crate, the other using a workspace-internal path) as different
+  dependencies.
+
+  So, next to splitting out `tock-registers` into its separate repo,
+  there's a question of "what is the right way to eventually refer to
+  the external `tock-registers` crate from within Tock?"
+
+  Effectively: `crates.io` PR vs. git revision pinned
+  dependencies. Everyone should take a quick look at the PR:
+  https://github.com/tock/tock/pull/4589
+
+- Brad: do we have the meeting minutes from the last time we discussed
+  this? Why didn't we follow-through with splitting out Tock registers?
+
+- Pat: last time we planned on splitting it out, but it just feel off
+  the table because of other things.
+
+- Amit: why don't we override the safe-mmio internal tock-registers
+  dependency, when using it with the upstream Tock codebase? Would
+  solve the issue.
+
+- Leon: Yes, that would work.
+
+- Alexandru: would prefer not to have external dependencies.
+
+- Brad: two issues: resolving Tyler's dependency conflict, and
+  splitting code out. If we can get the former working, that would
+  remove pressure from the more general question of splitting
+  tock-registers out.
+
+- Leon: tangential -- we also have other external dependencies,
+  referenced from `crates.io` that we're not locking today. That is an
+  issue, which this would solve.
+
+- Amit: we shouldn't have `Cargo.lock` files for binary dependencies,
+  right?
+
+- Leon: lockfiles are per-Workspace. We have at least one non-library
+  crate in our workspace (e.g., board crates), so this is why Cargo
+  generates a lockfile. If a library dependency is used from a
+  workspace that has a lockfile, that lockfile is ignored.
+
+- Amit: wouldn't solve the issue for out of tree boards.
+
+- Leon: yes, those should have their own lockfile.
+
+- Amit: favor Brad's position -- we resolve the short term issue. The
+  question before us is not whether to split out the crate, but how
+  to. So maybe we should resolve that question first.
+
+- Leon: don't want this to linger again for 2 years. We'll have to
+  page in a bunch of context yet again.
+
+- Brad: We did generally agree to split out tock-registers:
+  https://github.com/tock/tock/blob/5f606cc9352797b50262b4970ba169d8336aa6c4/doc/wg/core/notes/core-notes-2023-09-29.md?plain=1#L36
+
+- Pat: Agree it shouldn't linger, we should resolve PR 4589 in the
+  next week or two.
+
 ### Actions
 
-- None?
-
-(it's a red flag for a topic for a meeting if there is no action to be taken)
+- Core team to review and comment on 4589, attempt to come to consensus online,
+  or we can revisit on future call.
 
 
 
