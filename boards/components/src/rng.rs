@@ -88,3 +88,47 @@ impl<E: Entropy32<'static>> Component for RngComponent<E> {
         rng
     }
 }
+
+#[macro_export]
+macro_rules! rng_random_component_static {
+    ($R: ty $(,)?) => {{
+        let rng = kernel::static_buf!(capsules_core::rng::RngDriver<'static, $R>);
+
+        rng
+    };};
+}
+
+pub type RngRandomComponentType<R> = rng::RngDriver<'static, R>;
+
+pub struct RngRandomComponent<R: Rng<'static> + 'static> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+    rng: &'static R,
+}
+
+impl<R: Rng<'static>> RngRandomComponent<R> {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, rng: &'static R) -> Self {
+        Self {
+            board_kernel,
+            driver_num,
+            rng,
+        }
+    }
+}
+
+impl<R: Rng<'static>> Component for RngRandomComponent<R> {
+    type StaticInput = &'static mut MaybeUninit<capsules_core::rng::RngDriver<'static, R>>;
+    type Output = &'static rng::RngDriver<'static, R>;
+
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+        let rng_driver = static_buffer.write(rng::RngDriver::new(
+            self.rng,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
+        self.rng.set_client(rng_driver);
+
+        rng_driver
+    }
+}
