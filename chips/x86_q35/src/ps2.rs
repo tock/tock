@@ -29,8 +29,12 @@ const PS2_STATUS_PORT: u16 = 0x64;
 /// Depth of the scan-code ring buffer
 const BUFFER_SIZE: usize = 32;
 
-/// Timeout limit for spin loops
-const TIMEOUT_LIMIT: usize = 1_000_000;
+/// Maximum number of polling iterations (busy spins) before we give up.
+///
+/// This is not time-based. We repeatedly read the controller status (0x64)
+/// and check the relevant bit; if we’ve spun this many iterations without the
+/// condition becoming true, we return a Timeout error.
+const POLL_SPIN_LIMIT: usize = 1_000_000;
 
 // Status-register bits returned by inb(0x64)
 register_bitfields![u8,
@@ -120,13 +124,13 @@ pub type Ps2Result<T> = core::result::Result<T, Ps2Error>;
 #[inline(always)]
 fn wait_ib_empty() -> Ps2Result<()> {
     let mut status = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
-    let mut loops = 0;
+    let mut spins = 0usize;
     while {
         status.set(read_status());
         status.is_set(STATUS::INPUT_FULL)
     } {
-        loops += 1;
-        if loops >= TIMEOUT_LIMIT {
+        spins += 1;
+        if spins >= POLL_SPIN_LIMIT {
             return Err(Ps2Error::TimeoutIB);
         }
     }
@@ -141,13 +145,13 @@ fn wait_ib_empty() -> Ps2Result<()> {
 #[inline(always)]
 fn wait_ob_full() -> Ps2Result<()> {
     let mut status = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
-    let mut loops = 0;
+    let mut spins = 0usize;
     while {
         status.set(read_status());
         !status.is_set(STATUS::OUTPUT_FULL)
     } {
-        loops += 1;
-        if loops >= TIMEOUT_LIMIT {
+        spins += 1;
+        if spins >= POLL_SPIN_LIMIT {
             return Err(Ps2Error::TimeoutOB);
         }
     }
@@ -182,83 +186,76 @@ fn read_status() -> u8 {
     unsafe { io::inb(PS2_STATUS_PORT) }
 }
 
-fn read_config() -> Ps2Result<u8> {
+#[inline(always)]
+fn read_config_reg() -> Ps2Result<LocalRegisterCopy<u8, CONFIG::Register>> {
     write_command(0x20)?; // Read Controller Configuration Byte
-    read_data()
+    let raw = read_data()?;
+    Ok(LocalRegisterCopy::new(raw))
 }
 
-fn write_config(cfg: u8) -> Ps2Result<()> {
+#[inline(always)]
+fn write_config_reg(cfg: LocalRegisterCopy<u8, CONFIG::Register>) -> Ps2Result<()> {
     write_command(0x60)?; // Write Controller Configuration Byte
-    write_data(cfg)
+    write_data(cfg.get())
 }
 
-fn update_config<F: FnOnce(u8) -> u8>(f: F) -> Ps2Result<u8> {
-    let cur = read_config()?;
+
+fn update_config<F>(
+    f: F,
+) -> Ps2Result<u8>
+where
+    F: FnOnce(LocalRegisterCopy<u8, CONFIG::Register>)
+        -> LocalRegisterCopy<u8, CONFIG::Register>,
+{
+    let cur = read_config_reg()?;
     let new = f(cur);
-    write_config(new)?;
-    Ok(new)
+    write_config_reg(new)?;
+    Ok(new.get())
 }
+
 
 /// Config helpers so we don't break the whole address in the init
 /// we can do it sequentially
 
 fn cfg_set_translation(enabled: bool) -> Ps2Result<u8> {
-    update_config(|cur| {
-        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
-        if enabled {
-            c.modify(CONFIG::TRANSLATION::SET);
-        } else {
-            c.modify(CONFIG::TRANSLATION::CLEAR);
-        }
-        c.get()
+    update_config(|mut c| {
+        if enabled { c.modify(CONFIG::TRANSLATION::SET); }
+        else       { c.modify(CONFIG::TRANSLATION::CLEAR); }
+        c
     })
 }
 
 fn cfg_set_port1_clock(enabled: bool) -> Ps2Result<u8> {
-    update_config(|cur| {
-        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
-        if enabled {
-            c.modify(CONFIG::DISABLE_KBD::CLEAR); // enable clock == clear disable bit
-        } else {
-            c.modify(CONFIG::DISABLE_KBD::SET);
-        }
-        c.get()
+    // enabled => clear DISABLE_KBD bit
+    update_config(|mut c| {
+        if enabled { c.modify(CONFIG::DISABLE_KBD::CLEAR); }
+        else       { c.modify(CONFIG::DISABLE_KBD::SET); }
+        c
     })
 }
 
 fn cfg_set_port2_clock(enabled: bool) -> Ps2Result<u8> {
-    update_config(|cur| {
-        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
-        if enabled {
-            c.modify(CONFIG::DISABLE_AUX::CLEAR);
-        } else {
-            c.modify(CONFIG::DISABLE_AUX::SET);
-        }
-        c.get()
+    // enabled => clear DISABLE_AUX bit
+    update_config(|mut c| {
+        if enabled { c.modify(CONFIG::DISABLE_AUX::CLEAR); }
+        else       { c.modify(CONFIG::DISABLE_AUX::SET); }
+        c
     })
 }
 
 fn cfg_set_irq1(enabled: bool) -> Ps2Result<u8> {
-    update_config(|cur| {
-        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
-        if enabled {
-            c.modify(CONFIG::IRQ1::SET);
-        } else {
-            c.modify(CONFIG::IRQ1::CLEAR);
-        }
-        c.get()
+    update_config(|mut c| {
+        if enabled { c.modify(CONFIG::IRQ1::SET); }
+        else       { c.modify(CONFIG::IRQ1::CLEAR); }
+        c
     })
 }
 
 fn cfg_set_irq12(enabled: bool) -> Ps2Result<u8> {
-    update_config(|cur| {
-        let mut c = LocalRegisterCopy::<u8, CONFIG::Register>::new(cur);
-        if enabled {
-            c.modify(CONFIG::IRQ12::SET);
-        } else {
-            c.modify(CONFIG::IRQ12::CLEAR);
-        }
-        c.get()
+    update_config(|mut c| {
+        if enabled { c.modify(CONFIG::IRQ12::SET); }
+        else       { c.modify(CONFIG::IRQ12::CLEAR); }
+        c
     })
 }
 fn disable_ports() -> Ps2Result<()> {
