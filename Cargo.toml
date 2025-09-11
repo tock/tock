@@ -67,6 +67,7 @@ members = [
     "boards/tutorials/nrf52840dk-dynamic-apps-and-policies",
     "boards/tutorials/nrf52840dk-hotp-tutorial",
     "boards/tutorials/nrf52840dk-thread-tutorial",
+    "boards/tutorials/qemu_rv32_virt-tutorial",
     "capsules/aes_gcm",
     "capsules/ecdsa_sw",
     "capsules/core",

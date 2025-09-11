@@ -9,6 +9,13 @@ authors.workspace = true
 edition.workspace = true
 build = "../build.rs"
 
+[lib]
+name = "qemu_rv32_virt_lib"
+
+[[bin]]
+name = "qemu_rv32_virt"
+path = "src/main.rs"
+
 [dependencies]
 components = { path = "../components" }
 sifive = { path = "../../chips/sifive" }
