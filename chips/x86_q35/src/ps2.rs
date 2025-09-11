@@ -13,10 +13,10 @@
 //!  - ISR reads OB, drops on parity/timeout, queues bytes, schedules deferred call
 //!  - Deferred call drains ring; for now it logs; and attempts to send data to a present client
 
-use core::cell::{Cell, RefCell};
+use core::cell::Cell;
 use kernel::debug;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
 use x86::registers::io;
@@ -262,8 +262,11 @@ fn disable_ports() -> Ps2Result<()> {
 }
 
 fn flush_output_buffer() -> Ps2Result<()> {
+    // Poll status; if OB has data, read once and loop. No waiting.
     while read_status().is_set(STATUS::OUTPUT_FULL) {
-        let _ = read_data()?;
+        unsafe {
+            let _ = io::inb(PS2_DATA_PORT);
+        }
     }
     Ok(())
 }
@@ -290,7 +293,7 @@ fn enable_port1_clock() -> Ps2Result<()> {
 
 /// PS/2 controller driver (the “8042” peripheral)
 pub struct Ps2Controller {
-    buffer: RefCell<[u8; BUFFER_SIZE]>,
+    buffer: MapCell<[Cell<u8>; BUFFER_SIZE]>,
     head: Cell<usize>,
     tail: Cell<usize>,
     count: Cell<usize>, // new field to track number of valid entries
@@ -318,7 +321,12 @@ pub struct Ps2Controller {
 impl Ps2Controller {
     pub fn new() -> Self {
         Self {
-            buffer: RefCell::new([0; BUFFER_SIZE]),
+            // the trait `core::marker::Copy` is not implemented for `Cell<u8>`
+            // note: the `Copy` trait is required because this value
+            // will be copied for each element of the array
+            //
+            // this is why buffer takes a `const` for Cell
+            buffer: MapCell::new([const { Cell::new(0) }; BUFFER_SIZE]),
             head: Cell::new(0),
             tail: Cell::new(0),
             count: Cell::new(0),
@@ -506,7 +514,7 @@ impl Ps2Controller {
                 continue;
             }
 
-            self.push_code_atomic(b);
+            self.push_code(b);
             scheduled = true;
         }
 
@@ -515,23 +523,22 @@ impl Ps2Controller {
         }
     }
 
-    /// Producer-side enqueue. Safe without masking: on x86_q35, IRQs and
-    /// deferred calls are serialized by the main loop (no preemption).
+    /// Producer-side enqueue: push one scan-code byte into the ring buffer.
+    /// Safe without masking on x86_q35: both `handle_interrupt()` and
+    /// deferred calls run on the kernel main loop (no preemption).
     #[inline(always)]
-    fn push_code_atomic(&self, b: u8) {
+    fn push_code(&self, b: u8) {
         let h = self.head.get();
-        self.buffer.borrow_mut()[h] = b;
+        self.buffer.map(|buf| {
+            buf[h].set(b);
+        });
         self.head.set((h + 1) % BUFFER_SIZE);
-
         if self.count.get() < BUFFER_SIZE {
             self.count.set(self.count.get() + 1);
         } else {
-            // overwrite oldest and count overrun
             self.tail.set((self.tail.get() + 1) % BUFFER_SIZE);
             self.overruns.set(self.overruns.get().wrapping_add(1));
         }
-
-        // count accepted bytes
         self.bytes_rx.set(self.bytes_rx.get().wrapping_add(1));
     }
 
@@ -541,7 +548,14 @@ impl Ps2Controller {
             None
         } else {
             let t = self.tail.get();
-            let b = self.buffer.borrow()[t];
+            // without `const` buffer type, the
+            // old declaration MapCell::new([0; BUFFER_SIZE]) was fine for initialization,
+            // but it broke when we tried to write through the .map closure
+            //
+            // since MapCell::map returns Option<R> to prevent nested borrows
+            // our closure returns an `u8`, so the whole call is Option<u8>,
+            // wrap it (or use a temp Cell) so we hand back a `u8`
+            let b = self.buffer.map(|buf| buf[t].get()).unwrap();
             self.tail.set((t + 1) % BUFFER_SIZE);
             self.count.set(self.count.get() - 1);
             Some(b)
