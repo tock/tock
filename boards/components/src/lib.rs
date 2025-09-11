@@ -21,6 +21,7 @@ pub mod bmm150;
 pub mod bmp280;
 pub mod bus;
 pub mod button;
+pub mod button_keyboard;
 pub mod can;
 pub mod ccs811;
 pub mod cdc;
