@@ -31,6 +31,8 @@ mod interrupt {
     /// Interrupt number shared by COM1 and COM3 serial devices
     pub(super) const COM1_COM3: u32 = (PIC1_OFFSET as u32) + 4;
 
+    /// Interrupt number used by the PS/2 keyboard (i8042, IRQ1).
+    /// Raised when the controller’s output buffer has data ready (OB=1).
     pub(super) const KEYBOARD: u32 = (PIC1_OFFSET as u32) + 1;
 }
 

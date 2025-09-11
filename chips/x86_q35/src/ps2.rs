@@ -20,7 +20,6 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
 use x86::registers::io;
-use x86::support;
 
 /// PS/2 controller ports
 const PS2_DATA_PORT: u16 = 0x60;
@@ -86,13 +85,10 @@ pub struct Ps2Health {
     pub resends: u32,  // times device asked us to resend (0xFE)
 }
 
-/// Since I really want to minimise the risk of the controller
+/// Since we really want to minimise the risk of the controller
 /// bringing the whole kernel down if a device (or even the controller itself)
-/// breaks, I will add this simple display + its struct,
-///
-/// Log it anywhere with
-/// debug!("ps2 health: {}", ps2.health_snapshot());
-/// check chip.rs for example
+/// breaks, we will add this simple display and its struct,
+
 impl core::fmt::Display for Ps2Health {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
@@ -123,12 +119,8 @@ pub type Ps2Result<T> = core::result::Result<T, Ps2Error>;
 
 #[inline(always)]
 fn wait_ib_empty() -> Ps2Result<()> {
-    let mut status = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
     let mut spins = 0usize;
-    while {
-        status.set(read_status());
-        status.is_set(STATUS::INPUT_FULL)
-    } {
+    while read_status().is_set(STATUS::INPUT_FULL) {
         spins += 1;
         if spins >= POLL_SPIN_LIMIT {
             return Err(Ps2Error::TimeoutIB);
@@ -144,12 +136,8 @@ fn wait_ib_empty() -> Ps2Result<()> {
 /// Block until there is data ready to read in the output buffer.
 #[inline(always)]
 fn wait_ob_full() -> Ps2Result<()> {
-    let mut status = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
     let mut spins = 0usize;
-    while {
-        status.set(read_status());
-        !status.is_set(STATUS::OUTPUT_FULL)
-    } {
+    while !read_status().is_set(STATUS::OUTPUT_FULL) {
         spins += 1;
         if spins >= POLL_SPIN_LIMIT {
             return Err(Ps2Error::TimeoutOB);
@@ -180,10 +168,9 @@ fn write_data(d: u8) -> Ps2Result<()> {
     unsafe { io::outb(PS2_DATA_PORT, d) }
     Ok(())
 }
-
 #[inline(always)]
-fn read_status() -> u8 {
-    unsafe { io::inb(PS2_STATUS_PORT) }
+fn read_status() -> LocalRegisterCopy<u8, STATUS::Register> {
+    LocalRegisterCopy::new(unsafe { io::inb(PS2_STATUS_PORT) })
 }
 
 #[inline(always)]
@@ -275,8 +262,8 @@ fn disable_ports() -> Ps2Result<()> {
 }
 
 fn flush_output_buffer() -> Ps2Result<()> {
-    while read_status() & 0x01 != 0 {
-        let _ = read_data()?; // non-blocking-ish: read_data waits only if OB set
+    while read_status().is_set(STATUS::OUTPUT_FULL) {
+        let _ = read_data()?;
     }
     Ok(())
 }
@@ -378,9 +365,9 @@ impl Ps2Controller {
         r
     }
 
-    /// I moved this helpers inside the impl of the Controller
-    /// Instead of resending an exact N amount of times
-    /// I changed it so the send_with_ack actually counts the ~good~ bytes it received
+    /// Keyboard device commands (port 0x60)
+    /// Thin wrappers over `send_with_ack`. Kept as methods so they can use the
+    /// controller’s counters/state.
 
     fn kbd_disable_scan(&self) -> Ps2Result<()> {
         self.send_with_ack(0xF5, 3)
@@ -403,8 +390,12 @@ impl Ps2Controller {
         self.send_with_ack(0xF4, 3)
     }
 
-    /// Send a byte to the device and wait for ACK (0xFA).
-    /// Count 0xFE (RESEND) attempts in `resends`.
+    /// Send a device command and wait for ACK (0xFA).
+    /// Retries on RESEND (0xFE) up to `tries - 1` times and increments `self.resends`.
+    /// Returns:
+    /// `Ok(())` on ACK
+    /// `Err(Ps2Error::AckError)` if RESEND persists after all retries
+    /// `Err(Ps2Error::UnexpectedResponse(_))` for any other response byte
     fn send_with_ack(&self, byte: u8, tries: u8) -> Ps2Result<()> {
         let mut attempts = 0;
         loop {
@@ -497,78 +488,64 @@ impl Ps2Controller {
         let mut scheduled = false;
 
         loop {
-            // Check if there is a byte waiting in the output buffer (OB)
             let status = read_status();
-            if (status & 0x01) == 0 {
-                // OUTPUT_FULL == 0 → done
+            if !status.is_set(STATUS::OUTPUT_FULL) {
                 break;
             }
 
-            // Reading from 0x60 consumes one byte from OB.
             let b = unsafe { io::inb(PS2_DATA_PORT) };
 
-            // Drop corrupted bytes, bump counters. No logging here.
-            if (status & (1 << 7)) != 0 {
-                // PARITY_ERR
+            if status.is_set(STATUS::PARITY_ERR) {
                 self.parity_drops
                     .set(self.parity_drops.get().wrapping_add(1));
                 continue;
             }
-            if (status & (1 << 6)) != 0 {
-                // TIMEOUT_ERR
+            if status.is_set(STATUS::TIMEOUT_ERR) {
                 self.timeout_drops
                     .set(self.timeout_drops.get().wrapping_add(1));
                 continue;
             }
 
-            // Enqueue safely; overflow tracked inside.
             self.push_code_atomic(b);
             scheduled = true;
         }
 
-        // Kick the bottom-half once if we queued anything.
         if scheduled {
             self.deferred_call.set();
         }
     }
 
-    /// Pop the next scan-code, or None if buffer is empty.
+    /// Producer-side enqueue. Safe without masking: on x86_q35, IRQs and
+    /// deferred calls are serialized by the main loop (no preemption).
     #[inline(always)]
     fn push_code_atomic(&self, b: u8) {
-        // Mask IRQs briefly while we mutate head/tail/count.
+        let h = self.head.get();
+        self.buffer.borrow_mut()[h] = b;
+        self.head.set((h + 1) % BUFFER_SIZE);
 
-        support::with_interrupts_disabled(|| {
-            let h = self.head.get();
-            self.buffer.borrow_mut()[h] = b;
-            self.head.set((h + 1) % BUFFER_SIZE);
+        if self.count.get() < BUFFER_SIZE {
+            self.count.set(self.count.get() + 1);
+        } else {
+            // overwrite oldest and count overrun
+            self.tail.set((self.tail.get() + 1) % BUFFER_SIZE);
+            self.overruns.set(self.overruns.get().wrapping_add(1));
+        }
 
-            if self.count.get() < BUFFER_SIZE {
-                self.count.set(self.count.get() + 1);
-            } else {
-                // overwrite oldest and count overrun
-                self.tail.set((self.tail.get() + 1) % BUFFER_SIZE);
-                self.overruns.set(self.overruns.get().wrapping_add(1));
-            }
-
-            // count accepted bytes
-            self.bytes_rx.set(self.bytes_rx.get().wrapping_add(1));
-        })
+        // count accepted bytes
+        self.bytes_rx.set(self.bytes_rx.get().wrapping_add(1));
     }
-    /// Internal: push a scan-code into the ring buffer, dropping oldest if full.
-    pub fn pop_scan_code(&self) -> Option<u8> {
-        // Same tiny IRQ-masked critical section for the consumer.
 
-        support::with_interrupts_disabled(|| {
-            if self.count.get() == 0 {
-                None
-            } else {
-                let t = self.tail.get();
-                let b = self.buffer.borrow()[t];
-                self.tail.set((t + 1) % BUFFER_SIZE);
-                self.count.set(self.count.get() - 1);
-                Some(b)
-            }
-        })
+    /// Consumer-side dequeue. Also safe without masking for the same reason.
+    pub fn pop_scan_code(&self) -> Option<u8> {
+        if self.count.get() == 0 {
+            None
+        } else {
+            let t = self.tail.get();
+            let b = self.buffer.borrow()[t];
+            self.tail.set((t + 1) % BUFFER_SIZE);
+            self.count.set(self.count.get() - 1);
+            Some(b)
+        }
     }
 }
 impl DeferredCallClient for Ps2Controller {
