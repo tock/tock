@@ -127,12 +127,6 @@ impl kernel::hil::keyboard::KeyboardClient for ButtonKeyboard<'_> {
                 for (active_key_index, active_key) in self.key_codes.iter().enumerate() {
                     // If there is a match then we may want to handle this key.
                     if key == active_key {
-                        kernel::debug!(
-                            "[ButtonKeyboard] Notify button {} (key {})",
-                            active_key_index,
-                            key
-                        );
-
                         // Schedule callback for apps waiting on that key.
                         self.apps.each(|_, app, upcalls| {
                             if app.subscribe_map & (1 << active_key_index) != 0 {
