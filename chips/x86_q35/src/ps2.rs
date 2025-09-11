@@ -199,13 +199,9 @@ fn write_config_reg(cfg: LocalRegisterCopy<u8, CONFIG::Register>) -> Ps2Result<(
     write_data(cfg.get())
 }
 
-
-fn update_config<F>(
-    f: F,
-) -> Ps2Result<u8>
+fn update_config<F>(f: F) -> Ps2Result<u8>
 where
-    F: FnOnce(LocalRegisterCopy<u8, CONFIG::Register>)
-        -> LocalRegisterCopy<u8, CONFIG::Register>,
+    F: FnOnce(LocalRegisterCopy<u8, CONFIG::Register>) -> LocalRegisterCopy<u8, CONFIG::Register>,
 {
     let cur = read_config_reg()?;
     let new = f(cur);
@@ -213,14 +209,16 @@ where
     Ok(new.get())
 }
 
-
 /// Config helpers so we don't break the whole address in the init
 /// we can do it sequentially
 
 fn cfg_set_translation(enabled: bool) -> Ps2Result<u8> {
     update_config(|mut c| {
-        if enabled { c.modify(CONFIG::TRANSLATION::SET); }
-        else       { c.modify(CONFIG::TRANSLATION::CLEAR); }
+        if enabled {
+            c.modify(CONFIG::TRANSLATION::SET);
+        } else {
+            c.modify(CONFIG::TRANSLATION::CLEAR);
+        }
         c
     })
 }
@@ -228,8 +226,11 @@ fn cfg_set_translation(enabled: bool) -> Ps2Result<u8> {
 fn cfg_set_port1_clock(enabled: bool) -> Ps2Result<u8> {
     // enabled => clear DISABLE_KBD bit
     update_config(|mut c| {
-        if enabled { c.modify(CONFIG::DISABLE_KBD::CLEAR); }
-        else       { c.modify(CONFIG::DISABLE_KBD::SET); }
+        if enabled {
+            c.modify(CONFIG::DISABLE_KBD::CLEAR);
+        } else {
+            c.modify(CONFIG::DISABLE_KBD::SET);
+        }
         c
     })
 }
@@ -237,24 +238,33 @@ fn cfg_set_port1_clock(enabled: bool) -> Ps2Result<u8> {
 fn cfg_set_port2_clock(enabled: bool) -> Ps2Result<u8> {
     // enabled => clear DISABLE_AUX bit
     update_config(|mut c| {
-        if enabled { c.modify(CONFIG::DISABLE_AUX::CLEAR); }
-        else       { c.modify(CONFIG::DISABLE_AUX::SET); }
+        if enabled {
+            c.modify(CONFIG::DISABLE_AUX::CLEAR);
+        } else {
+            c.modify(CONFIG::DISABLE_AUX::SET);
+        }
         c
     })
 }
 
 fn cfg_set_irq1(enabled: bool) -> Ps2Result<u8> {
     update_config(|mut c| {
-        if enabled { c.modify(CONFIG::IRQ1::SET); }
-        else       { c.modify(CONFIG::IRQ1::CLEAR); }
+        if enabled {
+            c.modify(CONFIG::IRQ1::SET);
+        } else {
+            c.modify(CONFIG::IRQ1::CLEAR);
+        }
         c
     })
 }
 
 fn cfg_set_irq12(enabled: bool) -> Ps2Result<u8> {
     update_config(|mut c| {
-        if enabled { c.modify(CONFIG::IRQ12::SET); }
-        else       { c.modify(CONFIG::IRQ12::CLEAR); }
+        if enabled {
+            c.modify(CONFIG::IRQ12::SET);
+        } else {
+            c.modify(CONFIG::IRQ12::CLEAR);
+        }
         c
     })
 }
