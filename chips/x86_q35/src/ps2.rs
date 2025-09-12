@@ -212,7 +212,7 @@ fn flush_output_buffer() -> Ps2Result<()> {
 
 /// PS/2 controller driver (the “8042” peripheral)
 pub struct Ps2Controller {
-    buffer: MapCell<[Cell<u8>; BUFFER_SIZE]>,
+    buffer: MapCell<[u8; BUFFER_SIZE]>,
     head: Cell<usize>,
     tail: Cell<usize>,
     count: Cell<usize>, // new field to track number of valid entries
@@ -240,12 +240,7 @@ pub struct Ps2Controller {
 impl Ps2Controller {
     pub fn new() -> Self {
         Self {
-            // the trait `core::marker::Copy` is not implemented for `Cell<u8>`
-            // note: the `Copy` trait is required because this value
-            // will be copied for each element of the array
-            //
-            // this is why buffer takes a `const` for Cell
-            buffer: MapCell::new([const { Cell::new(0) }; BUFFER_SIZE]),
+            buffer: MapCell::new([0; BUFFER_SIZE]),
             head: Cell::new(0),
             tail: Cell::new(0),
             count: Cell::new(0),
@@ -470,7 +465,7 @@ impl Ps2Controller {
     fn push_code(&self, b: u8) {
         let h = self.head.get();
         self.buffer.map(|buf| {
-            buf[h].set(b);
+            buf[h] = b;
         });
         self.head.set((h + 1) % BUFFER_SIZE);
         if self.count.get() < BUFFER_SIZE {
@@ -495,7 +490,7 @@ impl Ps2Controller {
             // since MapCell::map returns Option<R> to prevent nested borrows
             // our closure returns an `u8`, so the whole call is Option<u8>,
             // wrap it (or use a temp Cell) so we hand back a `u8`
-            let b = self.buffer.map(|buf| buf[t].get()).unwrap();
+            let b = self.buffer.map(|buf| buf[t]).unwrap();
             self.tail.set((t + 1) % BUFFER_SIZE);
             self.count.set(self.count.get() - 1);
             Some(b)
