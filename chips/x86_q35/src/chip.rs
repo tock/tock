@@ -78,6 +78,7 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
     fn service_pending_interrupts(&self) {
         InterruptPoller::access(|poller| {
             while let Some(num) = poller.next_pending() {
+                let mut handled = true;
                 match num {
                     interrupt::PIT => self.pit.handle_interrupt(),
                     interrupt::COM2_COM4 => {
@@ -88,10 +89,19 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                         self.com1.handle_interrupt();
                         self.com3.handle_interrupt();
                     }
-                    _ => unimplemented!("interrupt {num}"),
+                    _ => handled = false,
                 }
 
                 poller.clear_pending(num);
+
+                // Unmask the interrupt so it can fire again, but only if we know how to handle it
+                if handled {
+                    unsafe {
+                        crate::pic::unmask(num);
+                    }
+                } else {
+                    kernel::debug!("Unhandled external interrupt {} left masked", num);
+                }
             }
         })
     }
