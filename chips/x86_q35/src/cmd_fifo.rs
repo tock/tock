@@ -11,73 +11,87 @@
 // By requiring `T: FifoItem` with a `const EMPTY`, we can do `[T::EMPTY; N]`
 // and safely build the FIFO at compile time
 
+use core::cell::Cell;
+
 pub(crate) trait FifoItem: Copy {
     /// Const zero/empty value used to initialize the backing array.
     const EMPTY: Self;
 }
 
-pub(crate) struct Fifo<T: FifoItem, const N: usize> {
-    buf: [T; N],
-    head: usize,
-    tail: usize,
-    len: usize,
+pub struct Fifo<T: Copy + FifoItem, const N: usize> {
+    buf: [Cell<T>; N],
+    head: Cell<usize>,
+    tail: Cell<usize>,
+    len: Cell<usize>,
 }
 
-impl<T: FifoItem, const N: usize> Fifo<T, N> {
+impl<T: Copy + FifoItem, const N: usize> Fifo<T, N> {
     pub(crate) const fn new() -> Self {
         Self {
-            buf: [T::EMPTY; N],
-            head: 0,
-            tail: 0,
-            len: 0,
+            buf: [const { Cell::new(T::EMPTY) }; N],
+            head: Cell::new(0),
+            tail: Cell::new(0),
+            len: Cell::new(0),
         }
     }
 
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
-        self.len == 0
+        self.len.get() == 0
     }
+
     #[inline]
     pub(crate) fn is_full(&self) -> bool {
-        self.len == N
+        self.len.get() == N
     }
+
+    /// Push at head; returns Err(item) if full
     #[inline]
-    pub(crate) fn push(&mut self, item: T) -> Result<(), ()> {
+    pub(crate) fn push(&self, item: T) -> Result<(), T> {
         if self.is_full() {
-            return Err(());
+            return Err(item);
         }
-        self.buf[self.head] = item;
-        self.head = (self.head + 1) % N;
-        self.len += 1;
+        let h = self.head.get();
+        self.buf[h].set(item);
+        self.head.set((h + 1) % N);
+        self.len.set(self.len.get() + 1);
         Ok(())
     }
 
+    /// Copy the current head entry (None if empty).
     #[inline]
-    pub(crate) fn peek(&self) -> Option<&T> {
+    pub(crate) fn peek_copy(&self) -> Option<T> {
         if self.is_empty() {
             None
         } else {
-            Some(&self.buf[self.tail])
+            Some(self.buf[self.tail.get()].get())
         }
     }
 
+    /// Read-modify-write the current head entry; returns closure result.
     #[inline]
-    pub(crate) fn peek_mut(&mut self) -> Option<&mut T> {
+    pub(crate) fn peek_update<R>(&self, f: impl FnOnce(&mut T) -> R) -> Option<R> {
         if self.is_empty() {
             None
         } else {
-            Some(&mut self.buf[self.tail])
+            let t = self.tail.get();
+            let mut v = self.buf[t].get();
+            let r = f(&mut v);
+            self.buf[t].set(v);
+            Some(r)
         }
     }
 
+    /// Pop from tail; returns a copy of the removed item.
     #[inline]
-    pub(crate) fn pop(&mut self) -> Option<T> {
+    pub(crate) fn pop(&self) -> Option<T> {
         if self.is_empty() {
             return None;
         }
-        let item = self.buf[self.tail];
-        self.tail = (self.tail + 1) % N;
-        self.len -= 1;
+        let t = self.tail.get();
+        let item = self.buf[t].get();
+        self.tail.set((t + 1) % N);
+        self.len.set(self.len.get() - 1);
         Some(item)
     }
 }
