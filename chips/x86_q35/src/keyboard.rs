@@ -16,7 +16,7 @@
 use crate::cmd_fifo::Fifo as CmdFifo;
 use crate::ps2::Ps2Client;
 use crate::ps2::Ps2Controller;
-use core::cell::{Cell, RefCell};
+use core::cell::Cell;
 use kernel::utilities::cells::OptionalCell;
 
 /// Set-2 scancode constants used for decoding
@@ -131,8 +131,8 @@ pub struct Keyboard<'a> {
     shift_r: Cell<bool>,
     caps: Cell<bool>,
 
-    // command engine queue (ring FIFO)
-    cmd_q: RefCell<CmdFifo<CmdEntry, CMDQ_LEN>>,
+    // command engine queue (ring FIFO) - interior mutable via Cells inside
+    cmd_q: CmdFifo<CmdEntry, CMDQ_LEN>,
 
     in_flight: Cell<bool>,      // waiting for ACK/RESEND to the last sent byte
     retries_left: Cell<u8>,     // remaining entries for the current byte
@@ -158,7 +158,7 @@ impl<'a> Keyboard<'a> {
             shift_r: Cell::new(false),
             caps: Cell::new(false),
 
-            cmd_q: RefCell::new(CmdFifo::new()),
+            cmd_q: CmdFifo::new(),
 
             in_flight: Cell::new(false),
             retries_left: Cell::new(0),
@@ -305,12 +305,10 @@ impl<'a> Keyboard<'a> {
         let Some(entry) = CmdEntry::try_from_bytes(seq) else {
             return false;
         };
-        let mut q = self.cmd_q.borrow_mut();
-        if q.is_full() {
+        if self.cmd_q.is_full() {
             return false;
         }
-        let _ = q.push(entry);
-        drop(q);
+        let _ = self.cmd_q.push(entry);
         self.drive_tx();
         true
     }
@@ -322,20 +320,17 @@ impl<'a> Keyboard<'a> {
         }
 
         // Peek current command
-        let (byte_opt, done_opt) = {
-            let q = self.cmd_q.borrow();
-            match q.peek() {
-                None => (None, None), // empty
-                Some(e) if e.is_done() => (None, Some(true)),
-                Some(e) => (Some(e.bytes[e.idx as usize]), Some(false)),
-            }
+        let (byte_opt, done_opt) = match self.cmd_q.peek_copy() {
+            None => (None, None),
+            Some(e) if e.is_done() => (None, Some(true)),
+            Some(e) => (Some(e.bytes[e.idx as usize]), Some(false)),
         };
 
         match done_opt {
             None => return, // queue empty
             Some(true) => {
                 // finished entry => pop and try next
-                self.cmd_q.borrow_mut().pop();
+                self.cmd_q.pop();
                 self.drive_tx();
                 return;
             }
@@ -361,20 +356,17 @@ impl<'a> Keyboard<'a> {
     }
 
     fn advance_idx_after_ack(&self) {
-        let mut finished = false;
-        {
-            let mut q = self.cmd_q.borrow_mut();
-            if let Some(e) = q.peek_mut() {
+        let finished = self
+            .cmd_q
+            .peek_update(|e| {
                 if !e.is_done() {
                     e.idx = e.idx.saturating_add(1);
                 }
-                if e.is_done() {
-                    finished = true;
-                }
-            }
-            if finished {
-                q.pop();
-            }
+                e.is_done()
+            })
+            .unwrap_or(false);
+        if finished {
+            self.cmd_q.pop();
         }
         // New byte will get a fresh retry budget on first send
         self.retries_left.set(0);
@@ -468,7 +460,7 @@ impl Ps2Client for Keyboard<'_> {
                         // Give up on this command
                         self.cmd_drops.set(self.cmd_drops.get().wrapping_add(1));
                         self.in_flight.set(false);
-                        self.cmd_q.borrow_mut().pop();
+                        self.cmd_q.pop();
                         self.retries_left.set(0); // clear for the next new byte
                         self.drive_tx();
                     }
