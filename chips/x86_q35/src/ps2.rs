@@ -4,7 +4,7 @@
 
 //! i8042 PS/2 controller for x86_q35
 //!
-//! Init policy (chip owns bring-up -> `init_early()`):
+//! Init policy (chip owns bring-up -> `init_early_with()`):
 //!  - Disable ports, flush OB, self-test
 //!  - Config: translation OFF (Set-2), IRQ bits off during tests
 //!  - Port1 test + enable; device: F5, FF -> AA, F0 02 (Set-2), enable IRQ1, F4
@@ -28,12 +28,15 @@ const PS2_STATUS_PORT: u16 = 0x64;
 /// Depth of the scan-code ring buffer
 const BUFFER_SIZE: usize = 32;
 
-/// Maximum number of polling iterations (busy spins) before we give up.
-///
 /// This is not time-based. We repeatedly read the controller status (0x64)
 /// and check the relevant bit; if we’ve spun this many iterations without the
 /// condition becoming true, we return a Timeout error.
-const POLL_SPIN_LIMIT: usize = 1_000_000;
+
+/// Big spin budget used during controller/device bring-up
+const SPINS_INIT: usize = 32768;
+
+/// Small budget for non-init use
+const SPINS_RUNTIME: usize = 256;
 
 // Status-register bits returned by inb(0x64)
 register_bitfields![u8,
@@ -118,11 +121,11 @@ pub type Ps2Result<T> = core::result::Result<T, Ps2Error>;
 /// Block until the controller’s input buffer is empty (ready for a command).
 
 #[inline(always)]
-fn wait_ib_empty() -> Ps2Result<()> {
+fn wait_ib_empty_with(limit: usize) -> Ps2Result<()> {
     let mut spins = 0usize;
     while read_status().is_set(STATUS::INPUT_FULL) {
         spins += 1;
-        if spins >= POLL_SPIN_LIMIT {
+        if spins >= limit {
             return Err(Ps2Error::TimeoutIB);
         }
     }
@@ -135,11 +138,11 @@ fn wait_ib_empty() -> Ps2Result<()> {
 ///
 /// Block until there is data ready to read in the output buffer.
 #[inline(always)]
-fn wait_ob_full() -> Ps2Result<()> {
+fn wait_ob_full_with(limit: usize) -> Ps2Result<()> {
     let mut spins = 0usize;
     while !read_status().is_set(STATUS::OUTPUT_FULL) {
         spins += 1;
-        if spins >= POLL_SPIN_LIMIT {
+        if spins >= limit {
             return Err(Ps2Error::TimeoutOB);
         }
     }
@@ -148,23 +151,23 @@ fn wait_ob_full() -> Ps2Result<()> {
 
 /// Read one byte from the data port (0x60).
 #[inline(always)]
-fn read_data() -> Ps2Result<u8> {
-    wait_ob_full()?;
+fn read_data_with(limit: usize) -> Ps2Result<u8> {
+    wait_ob_full_with(limit)?;
     Ok(unsafe { io::inb(PS2_DATA_PORT) })
 }
 
 /// Send a command byte to the controller (port 0x64).
 #[inline(always)]
-fn write_command(c: u8) -> Ps2Result<()> {
-    wait_ib_empty()?;
+fn write_command_with(c: u8, limit: usize) -> Ps2Result<()> {
+    wait_ib_empty_with(limit)?;
     unsafe { io::outb(PS2_STATUS_PORT, c) }
     Ok(())
 }
 
 /// Write a data byte to the data port (0x60).
 #[inline(always)]
-fn write_data(d: u8) -> Ps2Result<()> {
-    wait_ib_empty()?;
+fn write_data_with(d: u8, limit: usize) -> Ps2Result<()> {
+    wait_ib_empty_with(limit)?;
     unsafe { io::outb(PS2_DATA_PORT, d) }
     Ok(())
 }
@@ -174,121 +177,37 @@ fn read_status() -> LocalRegisterCopy<u8, STATUS::Register> {
 }
 
 #[inline(always)]
-fn read_config_reg() -> Ps2Result<LocalRegisterCopy<u8, CONFIG::Register>> {
-    write_command(0x20)?; // Read Controller Configuration Byte
-    let raw = read_data()?;
-    Ok(LocalRegisterCopy::new(raw))
+fn read_config_reg_with(limit: usize) -> Ps2Result<LocalRegisterCopy<u8, CONFIG::Register>> {
+    write_command_with(0x20, limit)?; // Read Controller Configuration Byte
+    Ok(LocalRegisterCopy::new(read_data_with(limit)?))
 }
 
 #[inline(always)]
-fn write_config_reg(cfg: LocalRegisterCopy<u8, CONFIG::Register>) -> Ps2Result<()> {
-    write_command(0x60)?; // Write Controller Configuration Byte
-    write_data(cfg.get())
+fn write_config_reg_with(
+    cfg: LocalRegisterCopy<u8, CONFIG::Register>,
+    limit: usize,
+) -> Ps2Result<()> {
+    write_command_with(0x60, limit)?; // Write Controller Configuration Byte
+    write_data_with(cfg.get(), limit)
 }
 
-fn update_config<F>(f: F) -> Ps2Result<u8>
+fn update_config_with<F>(limit: usize, f: F) -> Ps2Result<u8>
 where
     F: FnOnce(LocalRegisterCopy<u8, CONFIG::Register>) -> LocalRegisterCopy<u8, CONFIG::Register>,
 {
-    let cur = read_config_reg()?;
+    let cur = read_config_reg_with(limit)?;
     let new = f(cur);
-    write_config_reg(new)?;
+    write_config_reg_with(new, limit)?;
     Ok(new.get())
 }
 
-/// Config helpers so we don't break the whole address in the init
-/// we can do it sequentially
-
-fn cfg_set_translation(enabled: bool) -> Ps2Result<u8> {
-    update_config(|mut c| {
-        if enabled {
-            c.modify(CONFIG::TRANSLATION::SET);
-        } else {
-            c.modify(CONFIG::TRANSLATION::CLEAR);
-        }
-        c
-    })
-}
-
-fn cfg_set_port1_clock(enabled: bool) -> Ps2Result<u8> {
-    // enabled => clear DISABLE_KBD bit
-    update_config(|mut c| {
-        if enabled {
-            c.modify(CONFIG::DISABLE_KBD::CLEAR);
-        } else {
-            c.modify(CONFIG::DISABLE_KBD::SET);
-        }
-        c
-    })
-}
-
-fn cfg_set_port2_clock(enabled: bool) -> Ps2Result<u8> {
-    // enabled => clear DISABLE_AUX bit
-    update_config(|mut c| {
-        if enabled {
-            c.modify(CONFIG::DISABLE_AUX::CLEAR);
-        } else {
-            c.modify(CONFIG::DISABLE_AUX::SET);
-        }
-        c
-    })
-}
-
-fn cfg_set_irq1(enabled: bool) -> Ps2Result<u8> {
-    update_config(|mut c| {
-        if enabled {
-            c.modify(CONFIG::IRQ1::SET);
-        } else {
-            c.modify(CONFIG::IRQ1::CLEAR);
-        }
-        c
-    })
-}
-
-fn cfg_set_irq12(enabled: bool) -> Ps2Result<u8> {
-    update_config(|mut c| {
-        if enabled {
-            c.modify(CONFIG::IRQ12::SET);
-        } else {
-            c.modify(CONFIG::IRQ12::CLEAR);
-        }
-        c
-    })
-}
-fn disable_ports() -> Ps2Result<()> {
-    write_command(0xAD)?; // disable keyboard (port 1)
-    write_command(0xA7)?; // disable aux (port 2)
-    Ok(())
-}
-
 fn flush_output_buffer() -> Ps2Result<()> {
-    // Poll status; if OB has data, read once and loop. No waiting.
+    // Poll status; if OB has data, read once and loop.
+    // Use the small runtime budget for the read.
     while read_status().is_set(STATUS::OUTPUT_FULL) {
-        unsafe {
-            let _ = io::inb(PS2_DATA_PORT);
-        }
+        let _ = read_data_with(SPINS_RUNTIME)?;
     }
     Ok(())
-}
-
-fn controller_self_test() -> Ps2Result<()> {
-    write_command(0xAA)?;
-    match read_data()? {
-        0x55 => Ok(()),
-        other => Err(Ps2Error::UnexpectedResponse(other)),
-    }
-}
-
-fn port1_interface_test() -> Ps2Result<()> {
-    write_command(0xAB)?;
-    match read_data()? {
-        0x00 => Ok(()),
-        other => Err(Ps2Error::UnexpectedResponse(other)),
-    }
-}
-
-fn enable_port1_clock() -> Ps2Result<()> {
-    write_command(0xAE)
 }
 
 /// PS/2 controller driver (the “8042” peripheral)
@@ -377,41 +296,19 @@ impl Ps2Controller {
     /// Thin wrappers over `send_with_ack`. Kept as methods so they can use the
     /// controller’s counters/state.
 
-    fn kbd_disable_scan(&self) -> Ps2Result<()> {
-        self.send_with_ack(0xF5, 3)
-    }
-
-    fn kbd_reset_and_wait_bat(&self) -> Ps2Result<()> {
-        self.send_with_ack(0xFF, 3)?; // reset
-        match read_data()? {
-            0xAA => Ok(()), // BAT passed
-            other => Err(Ps2Error::UnexpectedResponse(other)),
-        }
-    }
-
-    fn kbd_set_scancode_set2(&self) -> Ps2Result<()> {
-        self.send_with_ack(0xF0, 3)?;
-        self.send_with_ack(0x02, 3)
-    }
-
-    fn kbd_enable_scan(&self) -> Ps2Result<()> {
-        self.send_with_ack(0xF4, 3)
-    }
-
     /// Send a device command and wait for ACK (0xFA).
     /// Retries on RESEND (0xFE) up to `tries - 1` times and increments `self.resends`.
     /// Returns:
     /// `Ok(())` on ACK
     /// `Err(Ps2Error::AckError)` if RESEND persists after all retries
     /// `Err(Ps2Error::UnexpectedResponse(_))` for any other response byte
-    fn send_with_ack(&self, byte: u8, tries: u8) -> Ps2Result<()> {
+    fn send_with_ack_limit(&self, byte: u8, tries: u8, limit: usize) -> Ps2Result<()> {
         let mut attempts = 0;
         loop {
             attempts += 1;
-            write_data(byte)?;
-            let resp = read_data()?;
-            match resp {
-                0xFA => return Ok(()), // ACK
+            write_data_with(byte, limit)?;
+            match read_data_with(limit)? {
+                0xFA => return Ok(()),
                 0xFE if attempts < tries => {
                     self.resends.set(self.resends.get().wrapping_add(1));
                     continue;
@@ -435,33 +332,76 @@ impl Ps2Controller {
     ///
     /// For testing and health of the controller, we'll wrap each call with
     /// tally_timeout helper
-    pub fn init_early(&self) -> Ps2Result<()> {
+    pub fn init_early_with_spins(&self, spins: usize) -> Ps2Result<()> {
         // disable ports; flush OB
-        self.tally_timeout(disable_ports())?;
+        self.tally_timeout(write_command_with(0xAD, spins))?;
+        self.tally_timeout(write_command_with(0xA7, spins))?;
         self.tally_timeout(flush_output_buffer())?;
 
         // controller self-test
-        self.tally_timeout(controller_self_test())?;
+        self.tally_timeout({
+            write_command_with(0xAA, spins)?;
+            match read_data_with(spins)? {
+                0x55 => Ok(()),
+                other => Err(Ps2Error::UnexpectedResponse(other)),
+            }
+        })?;
 
         // config policy (do not generate IRQs during tests)
-        self.tally_timeout(cfg_set_irq1(false))?; // IRQ1 off
-        self.tally_timeout(cfg_set_irq12(false))?; // IRQ12 off
-        self.tally_timeout(cfg_set_translation(false))?; // translation OFF (we want Set2)
-        self.tally_timeout(cfg_set_port1_clock(true))?; // keyboard clock enabled
-        self.tally_timeout(cfg_set_port2_clock(false))?; // mouse clock disabled (for now)
+        self.tally_timeout(update_config_with(spins, |mut c| {
+            c.modify(CONFIG::IRQ1::CLEAR);
+            c
+        }))?;
+        self.tally_timeout(update_config_with(spins, |mut c| {
+            c.modify(CONFIG::IRQ12::CLEAR);
+            c
+        }))?;
+        self.tally_timeout(update_config_with(spins, |mut c| {
+            c.modify(CONFIG::TRANSLATION::CLEAR);
+            c
+        }))?;
+        self.tally_timeout(update_config_with(spins, |mut c| {
+            c.modify(CONFIG::DISABLE_KBD::CLEAR);
+            c
+        }))?;
+        self.tally_timeout(update_config_with(spins, |mut c| {
+            c.modify(CONFIG::DISABLE_AUX::SET);
+            c
+        }))?;
 
         // port1 test then enable keyboard clock at the controller command level
-        self.tally_timeout(port1_interface_test())?;
-        self.tally_timeout(enable_port1_clock())?; // 0xAE
+        self.tally_timeout({
+            write_command_with(0xAB, spins)?;
+            match read_data_with(spins)? {
+                0x00 => Ok(()),
+                other => Err(Ps2Error::UnexpectedResponse(other)),
+            }
+        })?;
+        self.tally_timeout(write_command_with(0xAE, spins))?;
 
         // device sequence (keyboard)
-        self.tally_timeout(self.kbd_disable_scan())?; // F5
-        self.tally_timeout(self.kbd_reset_and_wait_bat())?; // FF -> BAT=AA
-        self.tally_timeout(self.kbd_set_scancode_set2())?; // F0 02
-        self.tally_timeout(cfg_set_irq1(true))?; // turn on controller-side IRQ1 (PIC policy lives in chip)
-        self.tally_timeout(self.kbd_enable_scan())?; // F4
+        self.tally_timeout(self.send_with_ack_limit(0xF5, 3, spins))?; // F5 disable scan
+        self.tally_timeout(self.send_with_ack_limit(0xFF, 3, spins))?; // FF reset
+        self.tally_timeout({
+            match read_data_with(spins)? {
+                0xAA => Ok(()), // BAT passed
+                other => Err(Ps2Error::UnexpectedResponse(other)),
+            }
+        })?;
+        self.tally_timeout(self.send_with_ack_limit(0xF0, 3, spins))?; // select set
+        self.tally_timeout(self.send_with_ack_limit(0x02, 3, spins))?; // set-2
+        self.tally_timeout(update_config_with(spins, |mut c| {
+            c.modify(CONFIG::IRQ1::SET);
+            c
+        }))?;
+        self.tally_timeout(self.send_with_ack_limit(0xF4, 3, spins))?; // enable scan
 
         Ok(())
+    }
+
+    /// Back-compat wrapper: long spin budget during bring-up.
+    pub fn init_early(&self) -> Ps2Result<()> {
+        self.init_early_with_spins(SPINS_INIT)
     }
 
     /// Drain queued bytes and print clean MAKE/BREAK lines.
