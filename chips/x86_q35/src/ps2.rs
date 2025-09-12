@@ -272,6 +272,14 @@ impl Ps2Controller {
         }
     }
 
+    /// Send one byte to the keyboard data port (0x60).
+    /// Busy-waits with a small runtime spin budget.
+    /// No ACK/RESEND handling here; that lives in the keyboard.
+    #[inline(always)]
+    pub(crate) fn send_port1(&self, byte: u8) -> Ps2Result<()> {
+        write_data_with(byte, SPINS_RUNTIME)
+    }
+
     /// Install the "keyboard" client, we'll wire calls to this later
     /// for now it's just the hook
     pub fn set_client(&self, client: &'static dyn Ps2Client) {
