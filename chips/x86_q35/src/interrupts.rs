@@ -9,8 +9,9 @@ use super::pic;
 /// Handler for external interrupts.
 ///
 /// This function is called by the [`x86`] crate to handle interrupts from external devices.
-/// It calls [`InterruptPoller::set_pending`] to mark the interrupt as pending, then issues an EOI
-/// message to the system interrupt controller so that subsequent interrupts can be delivered.
+/// It calls [`InterruptPoller::set_pending`] to mark the interrupt as pending, masks the specific
+/// interrupt, then issues an EOI message to the system interrupt controller so that subsequent
+/// interrupts can be delivered.
 ///
 /// ## Safety
 ///
@@ -20,6 +21,7 @@ use super::pic;
 unsafe extern "cdecl" fn handle_external_interrupt(num: u32) {
     unsafe {
         InterruptPoller::set_pending(num);
+        pic::mask(num);
         pic::eoi(num);
     }
 }

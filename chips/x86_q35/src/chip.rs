@@ -6,13 +6,14 @@ use core::fmt::Write;
 use core::mem::MaybeUninit;
 
 use kernel::component::Component;
-use kernel::platform::chip::Chip;
+use kernel::platform::chip::{Chip, InterruptService};
 use kernel::static_init;
 use x86::mpu::PagingMPU;
 use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
 use x86::{Boundary, InterruptPoller};
 
+use crate::pic::PIC1_OFFSET;
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
 use crate::vga_uart_driver::VgaText;
@@ -38,7 +39,23 @@ mod interrupt {
 /// chip definition should be broadly compatible with most PC hardware.
 ///
 /// Parameter `PR` is the PIT reload value. See [`Pit`] for more information.
-pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
+///
+/// # Interrupt Handling
+///
+/// This chip automatically handles interrupts for legacy PC devices which are known to be present
+/// on QEMU's Q35 machine type. This includes the PIT timer and four serial ports. Other devices
+/// which are conditionally present (e.g. Virtio devices specified on the QEMU command line) may be
+/// handled via a board-specific implementation of [`InterruptService`].
+///
+/// This chip uses the legacy 8259 PIC to manage interrupts. This is relatively simple compared with
+/// using the Local APIC or I/O APIC and avoids needing to interact with ACPI or MP tables.
+///
+/// Internally, this chip re-maps the PIC interrupt numbers to avoid conflicts with ISA-defined
+/// exceptions. This remapping is fully encapsulated within the chip. **N.B.** Implementors of
+/// [`InterruptService`] will be passed the physical interrupt line number, _not_ the remapped
+/// number used internally by the chip. This should match the interrupt line number reported by
+/// documentation or read from the PCI configuration space.
+pub struct Pc<'a, I: InterruptService + 'a, const PR: u16 = RELOAD_1KHZ> {
     /// Legacy COM1 serial port
     pub com1: &'a SerialPort<'a>,
 
@@ -60,9 +77,12 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
     /// System call context
     syscall: Boundary,
     paging: PagingMPU<'a>,
+
+    /// Board-provided interrupt service for handling non-core IRQs (e.g., PCI devices)
+    int_svc: &'a I,
 }
 
-impl<'a, const PR: u16> Chip for Pc<'a, PR> {
+impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
     type ThreadIdProvider = x86::thread_id::X86ThreadIdProvider;
 
     type MPU = PagingMPU<'a>;
@@ -78,6 +98,7 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
     fn service_pending_interrupts(&self) {
         InterruptPoller::access(|poller| {
             while let Some(num) = poller.next_pending() {
+                let mut handled = true;
                 match num {
                     interrupt::PIT => self.pit.handle_interrupt(),
                     interrupt::COM2_COM4 => {
@@ -88,10 +109,24 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                         self.com1.handle_interrupt();
                         self.com3.handle_interrupt();
                     }
-                    _ => unimplemented!("interrupt {num}"),
+                    _ => {
+                        // Convert back to physical interrupt line number before passing to
+                        // board-specific handler
+                        let phys_num = num - PIC1_OFFSET as u32;
+                        handled = unsafe { self.int_svc.service_interrupt(phys_num) };
+                    }
                 }
 
                 poller.clear_pending(num);
+
+                // Unmask the interrupt so it can fire again, but only if we know how to handle it
+                if handled {
+                    unsafe {
+                        crate::pic::unmask(num);
+                    }
+                } else {
+                    kernel::debug!("Unhandled external interrupt {} left masked", num);
+                }
             }
         })
     }
@@ -166,12 +201,13 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
 /// During the call to `finalize()`, this helper will perform low-level initialization of the PC
 /// hardware to ensure a consistent CPU state. This includes initializing memory segmentation and
 /// interrupt handling. See [`x86::init`] for further details.
-pub struct PcComponent<'a> {
+pub struct PcComponent<'a, I: InterruptService + 'a> {
     pd: &'a mut PD,
     pt: &'a mut PT,
+    int_svc: &'a I,
 }
 
-impl<'a> PcComponent<'a> {
+impl<'a, I: InterruptService + 'a> PcComponent<'a, I> {
     /// Creates a new `PcComponent` instance.
     ///
     /// ## Safety
@@ -183,20 +219,20 @@ impl<'a> PcComponent<'a> {
     /// will cause the kernel's code/data to move unexpectedly.
     ///
     /// See [`x86::init`] for further details.
-    pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT) -> Self {
-        Self { pd, pt }
+    pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT, int_svc: &'a I) -> Self {
+        Self { pd, pt, int_svc }
     }
 }
 
-impl Component for PcComponent<'static> {
+impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
     type StaticInput = (
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,
-        &'static mut MaybeUninit<Pc<'static>>,
+        &'static mut MaybeUninit<Pc<'static, I>>,
     );
-    type Output = &'static Pc<'static>;
+    type Output = &'static Pc<'static, I>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         // Low-level hardware initialization. We do this first to guarantee the CPU is in a
@@ -247,6 +283,7 @@ impl Component for PcComponent<'static> {
             vga,
             syscall,
             paging,
+            int_svc: self.int_svc,
         });
 
         pc
@@ -256,13 +293,13 @@ impl Component for PcComponent<'static> {
 /// Provides static buffers needed for `PcComponent::finalize()`.
 #[macro_export]
 macro_rules! x86_q35_component_static {
-    () => {{
+    ($isr_ty:ty) => {{
         (
             $crate::serial_port_component_static!(),
             $crate::serial_port_component_static!(),
             $crate::serial_port_component_static!(),
             $crate::serial_port_component_static!(),
-            kernel::static_buf!($crate::Pc<'static>),
+            kernel::static_buf!($crate::Pc<'static, $isr_ty>),
         )
     };};
 }
