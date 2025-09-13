@@ -1,0 +1,481 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+//! PS/2 keyboard device over the i8042 controller.
+//!
+//! How it works (overview)
+//! - I8042 (ports available on 0X60/0X64) delivers keyboard bytes via IRQ1
+//! - We use scan Code set 2 (no translation). 0xE0/0xE1 are prefixes; 0xF0 marks BREAK
+//! - Keyboard speaks simple command/ACK (0xFA) / RESEND (0xFE) protocol
+//! References:
+//! - OSDev: i8042 PS/2 Controller — https://wiki.osdev.org/I8042_PS/2_Controller
+//! - OSDev: PS/2 Keyboard — https://wiki.osdev.org/PS/2_Keyboard
+//! - OSDev: Keyboard / Scan Code Set 2 — https://wiki.osdev.org/Keyboard#Scan_Code_Set_2
+
+use crate::cmd_fifo::Fifo as CmdFifo;
+use crate::ps2::Ps2Client;
+use crate::ps2::Ps2Controller;
+use core::cell::Cell;
+use kernel::utilities::cells::OptionalCell;
+
+/// Set-2 scancode constants used for decoding
+
+const SC_LSHIFT: u8 = 0x12;
+const SC_RSHIFT: u8 = 0x59;
+const SC_CAPS: u8 = 0x58;
+const RESP_ACK: u8 = 0xFA;
+const RESP_RESEND: u8 = 0xFE;
+const RESP_BAT_OK: u8 = 0xAA; // BAT after reset
+
+/// High bitmask used in `KeyEvent.keycode` to mark E0-extended keys.
+const EXT_MASK: u16 = 0x0100;
+
+// Minimal, layout-free key event (future commits will populate this)
+#[derive(Copy, Clone, Debug)]
+pub struct KeyEvent {
+    /// `keycode`: low 8 bits = Set-2 code, `EXT_MASK` set if E0-extended. `E1` Pause is never emitted
+    /// as events (swallowed), and repeats appear as repeated MAKEs.
+    pub keycode: u16,
+    /// true = make (press), false = break (release)
+    pub pressed: bool,
+    /// true if the event came via the E0 prefix (extended)
+    pub extended: bool,
+}
+
+/// Optional byte send for ASCII output (useful for a later capsule)
+/// Not used by the current ASCII-only console path. Subject to change.
+/// Called from the keyboard's deferred (bottom-half) context; keep it non-blocking.
+pub(crate) trait AsciiClient {
+    fn put_byte(&self, b: u8);
+}
+
+/// Internal hook for full key events (press/release, extended keys).
+/// Not used by the current ASCII-only console path. Subject to change.
+/// Full key events (press/release, E0-extended). Deferred context; non-blocking.
+pub(crate) trait KeyboardClient {
+    fn key_event(&self, _ev: KeyEvent) {
+        // TODO
+    }
+}
+
+/// We will add a small "command engine" (command/response state machine)
+/// with ACK/RESEND handling.
+/// A fixed-size FIFO holds short command sequences (e.g., F0 02, F4).
+/// One byte is in flight at a time; 0xFA ACK advances, 0xFE RESEND retries.
+
+const CMDQ_LEN: usize = 8;
+const CMD_MAX_LEN: usize = 3;
+const MAX_RETRIES: u8 = 3; // to not be confused with the deff call "good bytes" we do for telemetry on controller
+
+#[derive(Copy, Clone)]
+struct CmdEntry {
+    bytes: [u8; CMD_MAX_LEN],
+    len: u8,
+    idx: u8, //next byte to send
+}
+
+impl CmdEntry {
+    const fn empty() -> Self {
+        Self {
+            bytes: [0; CMD_MAX_LEN],
+            len: 0,
+            idx: 0,
+        }
+    }
+
+    fn is_done(&self) -> bool {
+        (self.idx as usize) >= (self.len as usize)
+    }
+
+    // helper to avoid duplicating the “turn a byte slice into a queued command” logic
+    fn try_from_bytes(seq: &[u8]) -> Option<Self> {
+        if seq.is_empty() || seq.len() > CMD_MAX_LEN {
+            return None;
+        }
+        let mut e = CmdEntry::empty();
+        e.bytes[..seq.len()].copy_from_slice(seq);
+        e.len = seq.len() as u8;
+        Some(e)
+    }
+}
+
+// this is needed so CmdEntry expects a FifoItem, and not a const default
+impl crate::cmd_fifo::FifoItem for CmdEntry {
+    const EMPTY: Self = Self::empty();
+}
+
+impl Default for CmdEntry {
+    fn default() -> Self {
+        CmdEntry::empty()
+    }
+}
+
+/// We capture bytes and will later add:
+/// 1) Command FIFO with ACK/RESEND handling
+/// 2) Set-2 decoder state machine (e0/f0/e1)
+/// Modifier tracking and ASCII/layout mapping in upper layers
+
+pub struct Keyboard<'a> {
+    ps2: &'a Ps2Controller,
+    client: OptionalCell<&'static dyn KeyboardClient>,
+    ascii: OptionalCell<&'static dyn AsciiClient>,
+
+    // decoder state
+    got_e0: Cell<bool>,   // sau 0xE0: next code is extended
+    got_f0: Cell<bool>,   // saw 0xF0: next code is a break
+    swallow_e1: Cell<u8>, // > 0 means we are swallowing remaining Pause seq bytes
+
+    // modifiers
+    shift_l: Cell<bool>,
+    shift_r: Cell<bool>,
+    caps: Cell<bool>,
+
+    // command engine queue (ring FIFO) - interior mutable via Cells inside
+    cmd_q: CmdFifo<CmdEntry, CMDQ_LEN>,
+
+    in_flight: Cell<bool>,      // waiting for ACK/RESEND to the last sent byte
+    retries_left: Cell<u8>,     // remaining entries for the current byte
+    cmd_sent_bytes: Cell<u32>,  //bytes attempted to send
+    cmd_acks: Cell<u32>,        // ACKs observed
+    cmd_resends: Cell<u32>,     // RESENDs observed
+    cmd_drops: Cell<u32>,       //commands dropped after retry execution
+    cmd_send_errors: Cell<u32>, // controller TX errors/timeouts
+}
+
+impl<'a> Keyboard<'a> {
+    pub const fn new(ps2: &'a Ps2Controller) -> Self {
+        Self {
+            ps2,
+            client: OptionalCell::empty(),
+            ascii: OptionalCell::empty(),
+
+            // decoder state
+            got_e0: Cell::new(false),
+            got_f0: Cell::new(false),
+            swallow_e1: Cell::new(0),
+            shift_l: Cell::new(false),
+            shift_r: Cell::new(false),
+            caps: Cell::new(false),
+
+            cmd_q: CmdFifo::new(),
+
+            in_flight: Cell::new(false),
+            retries_left: Cell::new(0),
+
+            cmd_sent_bytes: Cell::new(0),
+            cmd_acks: Cell::new(0),
+            cmd_resends: Cell::new(0),
+            cmd_drops: Cell::new(0),
+            cmd_send_errors: Cell::new(0),
+        }
+    }
+
+    /// Install the client which will receive the events
+    /// Will expand when writing a capsule for PC
+    #[allow(dead_code)]
+    pub(crate) fn set_client(&self, client: &'static dyn KeyboardClient) {
+        self.client.set(client);
+    }
+
+    /// Device-level init hook. No-op for now since the `init_early()`
+    /// already runs in the controller. After capsule lands, we will enqueue:
+    ///  F5 (disable scan) -> FF (reset; expect FA then AA) - F0 02 (Set-2) - F4 (enable).
+    /// This will use the command engine (ACK/RESEND) and can run with IRQ1 enabled.
+    pub fn init_device(&self) {
+        // TODO
+    }
+
+    /// Not used by the current ASCII-only console path. Subject to change.
+    /// Will expand when writing a capsule for PC
+    #[allow(dead_code)]
+    pub(crate) fn set_ascii_client(&self, c: &'static dyn AsciiClient) {
+        self.ascii.set(c);
+    }
+
+    /// Translate a Set-2 scancode to US-ASCII (press only, non-extended)
+    /// Returns None for unmapped keys
+    /**
+     * ASCII mapping: US layout, press-only, non-extended keys.
+     * Shift + Caps for letters; digits/punct respect Shift.
+     * Enter => '\n', Backspace => 0x08, Tab => '\t'. Extended keypad Enter and arrows return None.
+     */
+    #[inline(always)]
+    fn ascii_for(&self, code: u8, pressed: bool, extended: bool) -> Option<u8> {
+        if !pressed || extended {
+            return None;
+        }
+        // modifier states
+        let shift = self.shift_l.get() || self.shift_r.get();
+        let caps = self.caps.get();
+
+        // letters
+        let letter = match code {
+            0x1C => b'a',
+            0x32 => b'b',
+            0x21 => b'c',
+            0x23 => b'd',
+            0x24 => b'e',
+            0x2B => b'f',
+            0x34 => b'g',
+            0x33 => b'h',
+            0x43 => b'i',
+            0x3B => b'j',
+            0x42 => b'k',
+            0x4B => b'l',
+            0x3A => b'm',
+            0x31 => b'n',
+            0x44 => b'o',
+            0x4D => b'p',
+            0x15 => b'q',
+            0x2D => b'r',
+            0x1B => b's',
+            0x2C => b't',
+            0x3C => b'u',
+            0x2A => b'v',
+            0x1D => b'w',
+            0x22 => b'x',
+            0x35 => b'y',
+            0x1A => b'z',
+            _ => 0,
+        };
+        if letter != 0 {
+            let upper = shift ^ caps;
+            return Some(if upper {
+                letter.to_ascii_uppercase()
+            } else {
+                letter
+            });
+        }
+
+        // Digits
+        let digit = match code {
+            0x16 => (b'1', b'!'),
+            0x1E => (b'2', b'@'),
+            0x26 => (b'3', b'#'),
+            0x25 => (b'4', b'$'),
+            0x2E => (b'5', b'%'),
+            0x36 => (b'6', b'^'),
+            0x3D => (b'7', b'&'),
+            0x3E => (b'8', b'*'),
+            0x46 => (b'9', b'('),
+            0x45 => (b'0', b')'),
+            _ => (0, 0),
+        };
+        if digit.0 != 0 {
+            return Some(if shift { digit.1 } else { digit.0 });
+        }
+
+        // Punctuation / misc (US)
+        let punct = match code {
+            0x0E => (b'`', b'~'),
+            0x4E => (b'-', b'_'),
+            0x55 => (b'=', b'+'),
+            0x54 => (b'[', b'{'),
+            0x5B => (b']', b'}'),
+            0x5D => (b'\\', b'|'),
+            0x4C => (b';', b':'),
+            0x52 => (b'\'', b'"'),
+            0x41 => (b',', b'<'),
+            0x49 => (b'.', b'>'),
+            0x4A => (b'/', b'?'),
+            0x29 => (b' ', b' '),   // space
+            0x0D => (b'\t', b'\t'), // tab
+            0x5A => (b'\n', b'\n'), // enter
+            0x66 => (0x08, 0x08),   // backspace
+            _ => (0, 0),
+        };
+        if punct.0 != 0 {
+            return Some(if shift { punct.1 } else { punct.0 });
+        }
+
+        None
+    }
+
+    /// Command engine public API
+    ///
+    /// Queue a short PS/2 device command (e.g. `&[0xF0, 0x02]`, `&[0xF4]`).
+    ///
+    ///  Runs in the keyboard’s deferred/bottom-half context;
+    ///  Bytes are sent one-by-one; `ACK (0xFA)` advances; `RESEND (0xFE)` retries with a bounded budget.
+    ///  Returns `false` if the queue is full or the sequence length exceeds `CMD_MAX_LEN`.
+    ///  No completion callback; failures are tracked internally (telemetry counters).
+
+    pub fn enqueue_command(&self, seq: &[u8]) -> bool {
+        let Some(entry) = CmdEntry::try_from_bytes(seq) else {
+            return false;
+        };
+        if self.cmd_q.is_full() {
+            return false;
+        }
+        let _ = self.cmd_q.push(entry);
+        self.drive_tx();
+        true
+    }
+
+    /// Try to transmit the next byte of the current command
+    fn drive_tx(&self) {
+        if self.in_flight.get() {
+            return;
+        }
+
+        // Peek current command
+        let (byte_opt, done_opt) = match self.cmd_q.peek_copy() {
+            None => (None, None),
+            Some(e) if e.is_done() => (None, Some(true)),
+            Some(e) => (Some(e.bytes[e.idx as usize]), Some(false)),
+        };
+
+        match done_opt {
+            None => return, // queue empty
+            Some(true) => {
+                // finished entry => pop and try next
+                self.cmd_q.pop();
+                self.drive_tx();
+                return;
+            }
+            Some(false) => {}
+        }
+
+        if let Some(b) = byte_opt {
+            match self.ps2.send_port1(b) {
+                Ok(()) => {
+                    self.in_flight.set(true);
+                    if self.retries_left.get() == 0 {
+                        self.retries_left.set(MAX_RETRIES);
+                    }
+                    self.cmd_sent_bytes
+                        .set(self.cmd_sent_bytes.get().wrapping_add(1));
+                }
+                Err(_e) => {
+                    self.cmd_send_errors
+                        .set(self.cmd_send_errors.get().wrapping_add(1));
+                }
+            }
+        }
+    }
+
+    fn advance_idx_after_ack(&self) {
+        let finished = self
+            .cmd_q
+            .peek_update(|e| {
+                if !e.is_done() {
+                    e.idx = e.idx.saturating_add(1);
+                }
+                e.is_done()
+            })
+            .unwrap_or(false);
+        if finished {
+            self.cmd_q.pop();
+        }
+        // New byte will get a fresh retry budget on first send
+        self.retries_left.set(0);
+    }
+
+    #[inline(always)]
+    fn emit_event(&self, code: u8, pressed: bool, extended: bool) {
+        let keycode = (code as u16) | (if extended { EXT_MASK } else { 0x0000 });
+        let ev = KeyEvent {
+            keycode,
+            pressed,
+            extended,
+        };
+        // deliver to client if present
+        self.client.map(|c| c.key_event(ev));
+    }
+
+    /// Core set-2 decoder. Consumes one non-command byte
+    #[inline(always)]
+    fn decode_byte(&self, byte: u8) {
+        // handle E1 (pause) long sequence
+        if self.swallow_e1.get() > 0 {
+            self.swallow_e1.set(self.swallow_e1.get() - 1);
+            return;
+        }
+        if byte == 0xE1 {
+            // start swallowing the remaining 7 bytes
+            self.swallow_e1.set(7);
+            return;
+        }
+
+        // Prefix events (caps, shifts)
+        if byte == 0xE0 {
+            self.got_e0.set(true);
+            return;
+        }
+
+        if byte == 0xF0 {
+            self.got_f0.set(true);
+            return;
+        }
+
+        // resolve latched prefixes
+        let extended = self.got_e0.replace(false);
+        let breaking = self.got_f0.replace(false);
+        let pressed = !breaking;
+
+        // Update local modifier state (we still emit events for them)
+        // consumers can ignore
+        match (byte, extended) {
+            (SC_LSHIFT, false) => self.shift_l.set(pressed),
+            (SC_RSHIFT, false) => self.shift_r.set(pressed),
+            (SC_CAPS, _) if pressed => self.caps.set(!self.caps.get()), // toggle on make; ignore break
+            _ => {}
+        }
+
+        // Emit event for this key
+        self.emit_event(byte, pressed, extended);
+
+        if let Some(b) = self.ascii_for(byte, pressed, extended) {
+            if self.ascii.is_some() {
+                self.ascii.map(|c| c.put_byte(b));
+            }
+        }
+    }
+}
+impl Ps2Client for Keyboard<'_> {
+    /// Called by the controller (in def context) for each byte)
+    fn receive_scancode(&self, byte: u8) {
+        // First, if a command byte is in flight, interpret 0XFA/0XFE
+        if self.in_flight.get() {
+            match byte {
+                RESP_ACK => {
+                    // ACK
+                    self.cmd_acks.set(self.cmd_acks.get().wrapping_add(1));
+                    self.in_flight.set(false);
+                    self.advance_idx_after_ack();
+                    // Immediately try to send the next byte/command
+                    self.drive_tx();
+                    return;
+                }
+                RESP_RESEND => {
+                    // RESEND - bounded retry of the same byte
+                    self.cmd_resends.set(self.cmd_resends.get().wrapping_add(1));
+                    let left = self.retries_left.get();
+                    if left > 1 {
+                        self.retries_left.set(left - 1);
+                        self.in_flight.set(false);
+                        self.drive_tx(); // resend same byte, don't reset retries
+                    } else {
+                        // Give up on this command
+                        self.cmd_drops.set(self.cmd_drops.get().wrapping_add(1));
+                        self.in_flight.set(false);
+                        self.cmd_q.pop();
+                        self.retries_left.set(0); // clear for the next new byte
+                        self.drive_tx();
+                    }
+                    return;
+                }
+                _ => {
+                    // Not an ACK/RESEND while waiting = ignore (do NOT decode as a key).
+                    return;
+                }
+            }
+        }
+        // No command in flight: ignore device-only responses that aren’t keystrokes.
+        if byte == RESP_ACK || byte == RESP_RESEND || byte == RESP_BAT_OK {
+            return;
+        }
+        self.decode_byte(byte);
+    }
+}

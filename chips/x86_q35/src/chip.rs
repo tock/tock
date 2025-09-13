@@ -13,6 +13,7 @@ use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
 use x86::{Boundary, InterruptPoller};
 
+use crate::keyboard::Keyboard;
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
 use crate::vga_uart_driver::VgaText;
@@ -29,6 +30,10 @@ mod interrupt {
 
     /// Interrupt number shared by COM1 and COM3 serial devices
     pub(super) const COM1_COM3: u32 = (PIC1_OFFSET as u32) + 4;
+
+    /// Interrupt number used by the PS/2 keyboard (i8042, IRQ1).
+    /// Raised when the controller’s output buffer has data ready (OB=1).
+    pub(super) const KEYBOARD: u32 = (PIC1_OFFSET as u32) + 1;
 }
 
 /// Representation of a generic PC platform.
@@ -56,6 +61,12 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
 
     /// Vga
     pub vga: &'a VgaText<'a>,
+
+    /// PS/2 Controller
+    pub ps2: &'a crate::ps2::Ps2Controller,
+
+    /// Keyboard device
+    pub keyboard: &'a Keyboard<'a>,
 
     /// System call context
     syscall: Boundary,
@@ -88,6 +99,12 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                         self.com1.handle_interrupt();
                         self.com3.handle_interrupt();
                     }
+
+                    // new PS/2 keyboard interrupt handler
+                    interrupt::KEYBOARD => {
+                        self.ps2.handle_interrupt();
+                    }
+
                     _ => unimplemented!("interrupt {num}"),
                 }
 
@@ -154,7 +171,6 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
         let _ = writeln!(writer);
         let _ = writeln!(writer, "---| PC State |---");
         let _ = writeln!(writer);
-
         // todo: print out anything that might be useful
 
         let _ = writeln!(writer, "(placeholder)");
@@ -195,6 +211,7 @@ impl Component for PcComponent<'static> {
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,
         &'static mut MaybeUninit<Pc<'static>>,
+        &'static mut MaybeUninit<crate::keyboard::Keyboard<'static>>,
     );
     type Output = &'static Pc<'static>;
 
@@ -238,6 +255,19 @@ impl Component for PcComponent<'static> {
 
         let syscall = Boundary::new();
 
+        // PS/2 inside the component
+        let ps2 =
+            unsafe { static_init!(crate::ps2::Ps2Controller, crate::ps2::Ps2Controller::new()) };
+        kernel::deferred_call::DeferredCallClient::register(ps2);
+
+        // controller bring-up owned by the chip
+        let _ = ps2.init_early();
+
+        // keyboard device
+        let keyboard = s.5.write(Keyboard::new(ps2));
+        // connect keyboard as the ps/2 client, controller will call `receive_scancode`
+        ps2.set_client(keyboard);
+        keyboard.init_device();
         let pc = s.4.write(Pc {
             com1,
             com2,
@@ -245,6 +275,8 @@ impl Component for PcComponent<'static> {
             com4,
             pit,
             vga,
+            ps2,
+            keyboard,
             syscall,
             paging,
         });
@@ -263,6 +295,7 @@ macro_rules! x86_q35_component_static {
             $crate::serial_port_component_static!(),
             $crate::serial_port_component_static!(),
             kernel::static_buf!($crate::Pc<'static>),
+            kernel::static_buf!($crate::keyboard::Keyboard<'static>),
         )
     };};
 }
