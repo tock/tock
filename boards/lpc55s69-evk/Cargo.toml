@@ -1,0 +1,25 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+
+[package]
+name = "lpc55s69-evk"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+build = "../build.rs"
+
+[dependencies]
+cortexm33 = { path = "../../arch/cortex-m33" }
+kernel = { path = "../../kernel"}
+lpc55s6x = { path = "../../chips/lpc55s6x" }
+components = { path = "../components" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
+capsules-core = { path = "../../capsules/core" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true
