@@ -79,7 +79,12 @@ impl Display for MpuConfigDefault {
 /// requirements, and also allows the MPU to specify some addresses used by the
 /// kernel when deciding where to place certain application memory regions so
 /// that the MPU can appropriately provide protection for those memory regions.
-pub trait MPU {
+///
+/// This is an `unsafe trait`, as it is crucial to uphold Tock's isolation
+/// properties, and thus safety of the Tock kernel. Users of this trait must be
+/// able to rely on its implementations being correct, and implementing the
+/// exact semantics as documented on its associated types and methods.
+pub unsafe trait MPU {
     /// MPU-specific state that defines a particular configuration for the MPU.
     /// That is, this should contain all of the required state such that the
     /// implementation can be passed an object of this type and it should be
@@ -264,7 +269,7 @@ pub trait MPU {
 }
 
 /// Implement default MPU trait for unit.
-impl MPU for () {
+unsafe impl MPU for () {
     type MpuConfig = MpuConfigDefault;
 
     fn enable_app_mpu(&self) {}
