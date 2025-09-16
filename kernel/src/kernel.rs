@@ -535,12 +535,36 @@ impl Kernel {
                     resources
                         .context_switch_callback()
                         .context_switch_hook(process);
+
+                    // Configure the MPU for the process to run, and activate
+                    // it. With certain memory protection mechanisms such as
+                    // RISC-V ePMP, this will make all userspace-accessible
+                    // memory inaccessible to kernel mode. When switching back
+                    // to the kernel, we must first run `disable_app_mpu` before
+                    // attempting to access any userspace memory.
                     process.setup_mpu();
                     chip.mpu().enable_app_mpu();
+
                     scheduler_timer.arm();
                     let context_switch_reason = process.switch_to();
                     scheduler_timer.disarm();
-                    chip.mpu().disable_app_mpu();
+
+                    // Disable the application MPU. This is necessary on systems
+                    // like RISC-V ePMP, which makes userspace memory
+                    // inaccessible to kernel mode if memory protection is
+                    // active.
+                    //
+                    // # Safety
+                    //
+                    // This function is unsafe, as calling it before switching
+                    // to a process, without first re-enabling memory
+                    // protection, could allow an application to access
+                    // kernel-private memory. Invoking this function is safe
+                    // here, as we always call `enable_app_mpu` above before
+                    // switching back to a process.
+                    unsafe {
+                        chip.mpu().disable_app_mpu();
+                    }
 
                     // Now the process has returned back to the kernel. Check
                     // why and handle the process as appropriate.

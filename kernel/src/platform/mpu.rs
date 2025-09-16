@@ -79,7 +79,15 @@ impl Display for MpuConfigDefault {
 /// requirements, and also allows the MPU to specify some addresses used by the
 /// kernel when deciding where to place certain application memory regions so
 /// that the MPU can appropriately provide protection for those memory regions.
-pub trait MPU {
+///
+/// # Safety
+///
+/// This is an `unsafe trait`, as it is crucial to uphold Tock's isolation
+/// properties, and thus safety of the Tock kernel. Users of this trait must be
+/// able to rely on its implementations being correct. Specifically, they must
+/// ensure that applications only have access to the configured MPU regions and
+/// no kernel memory.
+pub unsafe trait MPU {
     /// MPU-specific state that defines a particular configuration for the MPU.
     /// That is, this should contain all of the required state such that the
     /// implementation can be passed an object of this type and it should be
@@ -102,13 +110,28 @@ pub trait MPU {
 
     /// Disables the MPU for userspace apps.
     ///
-    /// This function must disable any access control that was previously setup
-    /// for an app if it will interfere with the kernel.
-    /// This will be called before the kernel starts to execute as on some
-    /// platforms the MPU rules apply to privileged code as well, and therefore
-    /// some of the MPU configuration must be disabled for the kernel to effectively
-    /// manage processes.
-    fn disable_app_mpu(&self);
+    /// This function must disable any memory protection rules that were
+    /// previously setup for an app, if those rules can prevent the kernel from
+    /// accessing this application's memory.
+    ///
+    /// This function is intended to be called when switching back from an
+    /// application to the kernel, as some platforms prevent kernel-mode from
+    /// accessing memory made accessible to less-privileged applications. This
+    /// restriction is intended to increase security by making it harder to
+    /// inject application-controlled data into a buggy kernel (e.g., through an
+    /// incorrect context switch application that provides kernel-mode
+    /// privileges to applications). However, it also prevents the kernel from
+    /// managing application state or accessing application-provided data.
+    ///
+    /// # Safety
+    ///
+    /// This function is marked `unsafe`, as invoking it and subsequently
+    /// switching back to an application could, depending on the underlying MPU
+    /// implementation, provide that application access to kernel memory. Before
+    /// switching back to an application, and after calling this function, the
+    /// kernel must first re-enable memory protection through a call to
+    /// [`MPU::enable_app_mpu`].
+    unsafe fn disable_app_mpu(&self);
 
     /// Returns the maximum number of regions supported by the MPU.
     fn number_total_regions(&self) -> usize;
@@ -253,23 +276,40 @@ pub trait MPU {
 
     /// Configures the MPU with the provided region configuration.
     ///
-    /// An implementation must ensure that all memory locations not covered by
-    /// an allocated region are inaccessible in user mode and accessible in
-    /// supervisor mode.
+    /// An implementation must ensure that, after the MPU configuration has been
+    /// activated through [`MPU::enable_app_mpu`] and until it has been disabled
+    /// through [`MPU::disable_app_mpu`], all memory locations not covered by an
+    /// allocated region are inaccessible in user mode, and all memory locations
+    /// covered by an allocated region are accessible in user mode.
+    ///
+    /// While the MPU configuration is active, memory locations covered by an
+    /// allocated region may or may not be accessible in kernel mode. When the
+    /// MPU configuration is not active, allocated regions must be accessible in
+    /// kernel mode.
     ///
     /// # Arguments
     ///
     /// - `config`: MPU region configuration
-    fn configure_mpu(&self, config: &Self::MpuConfig);
+    ///
+    /// # Safety
+    ///
+    /// This function is `unsafe` as incorrect use of it can endagner Tock's
+    /// isolation properties, and thus safety of the Tock kernel. Specifically,
+    /// callers of this function must ensure that they are applying an MPU
+    /// configuration that does not permit an application to access any
+    /// kernel-private memory (such as the grant region) or peripherals that can
+    /// transitively write to kernel-private memory (such as MMIO registers of
+    /// DMA-capable peripherals).
+    unsafe fn configure_mpu(&self, config: &Self::MpuConfig);
 }
 
 /// Implement default MPU trait for unit.
-impl MPU for () {
+unsafe impl MPU for () {
     type MpuConfig = MpuConfigDefault;
 
     fn enable_app_mpu(&self) {}
 
-    fn disable_app_mpu(&self) {}
+    unsafe fn disable_app_mpu(&self) {}
 
     fn number_total_regions(&self) -> usize {
         0
@@ -339,5 +379,5 @@ impl MPU for () {
         }
     }
 
-    fn configure_mpu(&self, _config: &Self::MpuConfig) {}
+    unsafe fn configure_mpu(&self, _config: &Self::MpuConfig) {}
 }
