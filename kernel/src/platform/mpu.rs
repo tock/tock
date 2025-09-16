@@ -303,8 +303,24 @@ pub unsafe trait MPU {
     unsafe fn configure_mpu(&self, config: &Self::MpuConfig);
 }
 
-/// Implement default MPU trait for unit.
-unsafe impl MPU for () {
+/// No-op MPU implementation, providing no isolation guarantees.
+///
+/// Using this implementation violates Tock's isolation guarantees and results
+/// in applications having unrestricted access to kernel memory. As such,
+/// constructing this type is an `unsafe` operation.
+// By having this type contain a private field, we prevent constructing it from
+// outside this crate, except through the `unsafe fn new()` constructor.
+pub struct NopMPU(());
+
+impl NopMPU {
+    pub unsafe fn new() -> Self {
+        NopMPU(())
+    }
+}
+
+/// This type does not meet the safety requirements outlined on the `MPU` trait,
+/// hence constructing it is also an unsafe (and unsound) operation.
+unsafe impl MPU for NopMPU {
     type MpuConfig = MpuConfigDefault;
 
     fn enable_app_mpu(&self) {}
