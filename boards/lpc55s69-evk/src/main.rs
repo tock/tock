@@ -20,9 +20,7 @@ use lpc55s6x::clocks::Clock;
 use lpc55s6x::gpio::{GpioPin, LPCPin};
 use lpc55s6x::pint::Edge;
 
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x4000] = [0; 0x4000];
+kernel::stack_size! {0x4000}
 
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
@@ -65,7 +63,6 @@ impl SyscallDriverLookup for Lpc55s69evk {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            // capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
@@ -109,7 +106,7 @@ impl KernelResources<Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>> for 
 
 #[no_mangle]
 unsafe fn main() -> ! {
-    cortexm33::scb::set_vector_table_offset(core::ptr::null::<()>());
+    lpc55s6x::init();
 
     system_init();
 

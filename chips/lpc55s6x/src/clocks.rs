@@ -3,10 +3,7 @@
 // Copyright Tock Contributors 2025.
 
 use crate::syscon::{self, SysconRegisters};
-use kernel::utilities::{
-    registers::interfaces::{ReadWriteable, Writeable},
-    StaticRef,
-};
+use kernel::utilities::{registers::interfaces::ReadWriteable, StaticRef};
 
 // const CLKCTL_BASE: StaticRef<ClkctlRegisters> =
 //     unsafe { StaticRef::new(0x4000_2000 as *const ClkctlRegisters) };
@@ -29,6 +26,18 @@ pub enum Peripheral {
     Gpio0,
     Gpio1,
     Dma0,
+}
+
+#[repr(u8)]
+pub enum FrgId {
+    Frg0 = 0,
+    Frg1 = 1,
+    Frg2 = 2,
+    Frg3 = 3,
+    Frg4 = 4,
+    Frg5 = 5,
+    Frg6 = 6,
+    Frg7 = 7,
 }
 
 #[derive(Copy, Clone)]
@@ -82,7 +91,7 @@ impl Clock {
         self.syscon.clkoutsel.modify(syscon::CLKOUTSEL::SEL::SET);
     }
 
-    pub fn set_frg_clock_source(&self, frg_id: u32, source: FrgClockSource) {
+    pub fn set_frg_clock_source(&self, frg_id: FrgId, source: FrgClockSource) {
         let sel_val = match source {
             FrgClockSource::MainClock => syscon::FCCLKSEL::SEL::MainClock,
             FrgClockSource::SystemPll => syscon::FCCLKSEL::SEL::SystemPLLDividedClock,
@@ -95,15 +104,14 @@ impl Clock {
         };
 
         match frg_id {
-            0 => self.syscon.fcclksel0.write(sel_val),
-            1 => self.syscon.fcclksel1.write(sel_val),
-            2 => self.syscon.fcclksel2.write(sel_val),
-            3 => self.syscon.fcclksel3.write(sel_val),
-            4 => self.syscon.fcclksel4.write(sel_val),
-            5 => self.syscon.fcclksel5.write(sel_val),
-            6 => self.syscon.fcclksel6.write(sel_val),
-            7 => self.syscon.fcclksel7.write(sel_val),
-            _ => {}
+            FrgId::Frg0 => self.syscon.fcclksel0.modify(sel_val),
+            FrgId::Frg1 => self.syscon.fcclksel1.modify(sel_val),
+            FrgId::Frg2 => self.syscon.fcclksel2.modify(sel_val),
+            FrgId::Frg3 => self.syscon.fcclksel3.modify(sel_val),
+            FrgId::Frg4 => self.syscon.fcclksel4.modify(sel_val),
+            FrgId::Frg5 => self.syscon.fcclksel5.modify(sel_val),
+            FrgId::Frg6 => self.syscon.fcclksel6.modify(sel_val),
+            FrgId::Frg7 => self.syscon.fcclksel7.modify(sel_val),
         }
     }
 
@@ -118,47 +126,5 @@ impl Clock {
             FrgClockSource::Mclk => 0,
             FrgClockSource::NoClock => 0,
         }
-    }
-
-    pub fn setup_uart_clock(&self, flexcomm_id: u32, frg_source: FrgClockSource) {
-        // Enabling the bus clock for the peripheral
-        match flexcomm_id {
-            0 => self
-                .syscon
-                .ahbclkctrl1
-                .modify(syscon::AHBCLKCTRL1::FC0::SET),
-            1 => self
-                .syscon
-                .ahbclkctrl1
-                .modify(syscon::AHBCLKCTRL1::FC1::SET),
-            2 => self
-                .syscon
-                .ahbclkctrl1
-                .modify(syscon::AHBCLKCTRL1::FC2::SET),
-            3 => self
-                .syscon
-                .ahbclkctrl1
-                .modify(syscon::AHBCLKCTRL1::FC3::SET),
-            4 => self
-                .syscon
-                .ahbclkctrl1
-                .modify(syscon::AHBCLKCTRL1::FC4::SET),
-            5 => self
-                .syscon
-                .ahbclkctrl1
-                .modify(syscon::AHBCLKCTRL1::FC5::SET),
-            6 => self
-                .syscon
-                .ahbclkctrl1
-                .modify(syscon::AHBCLKCTRL1::FC6::SET),
-            7 => self
-                .syscon
-                .ahbclkctrl1
-                .modify(syscon::AHBCLKCTRL1::FC7::SET),
-            _ => return,
-        }
-
-        // Setting the clock source for the Fractional Rate Divider
-        self.set_frg_clock_source(flexcomm_id, frg_source);
     }
 }

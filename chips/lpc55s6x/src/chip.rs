@@ -97,8 +97,6 @@ impl<'a> Lpc55s69DefaultPeripheral<'a> {
             ctimer0: LPCTimer::new(),
         }
     }
-
-    pub fn resolve_dependencies(&'static self) {}
 }
 
 impl<'a> InterruptService for Lpc55s69DefaultPeripheral<'a> {

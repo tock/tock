@@ -124,6 +124,13 @@ pub enum LPCPin {
     P1_31 = 63,
 }
 
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Port {
+    Port0 = 0,
+    Port1 = 1,
+}
+
 pub struct Pins<'a> {
     pub pins: [Option<GpioPin<'a>>; 64],
     pub inputmux: Inputmux,
@@ -208,6 +215,16 @@ impl<'a> Pins<'a> {
             pint,
         }
     }
+    /// Returns a reference to the GPIO pin corresponding to the given `LPCPin`.
+    ///
+    /// # Panics
+    /// This function will **never panic** because:
+    /// - `searched_pin` is an `LPCPin` enum, which only has valid, in‑range discriminants.
+    /// - Each valid `LPCPin` maps to a slot in `self.pins`, so the index is always within bounds.
+    /// - During initialization, all entries in `self.pins` are guaranteed to be populated (`Some`),
+    ///   so calling `.unwrap()` is safe.
+    ///
+    /// Therefore, both the array indexing and the `unwrap()` are guaranteed not to fail.
     pub fn get_pin(&self, searched_pin: LPCPin) -> &'a GpioPin {
         self.pins[searched_pin as usize].as_ref().unwrap()
     }
@@ -255,9 +272,8 @@ impl<'a> Pins<'a> {
 
 pub struct GpioPin<'a> {
     registers: StaticRef<GpioRegisters>,
-    port: u8,
+    port: Port,
     pin: u8,
-    // pint_channel: OptionalCell<u8>,
     client: OptionalCell<&'a dyn gpio::Client>,
     inputmux: OptionalCell<&'a Inputmux>,
     iocon: OptionalCell<&'a Iocon>,
@@ -273,11 +289,15 @@ use crate::pint::{Edge, Pint};
 impl<'a> GpioPin<'a> {
     pub const fn new(pin_name: LPCPin) -> Self {
         let pin_num = pin_name as u8;
+        let port = match pin_num / 32 {
+            0 => Port::Port0,
+            1 => Port::Port1,
+            _ => panic!("Invalid pin number for LPCPin"),
+        };
         Self {
             registers: GPIO_BASE,
-            port: pin_num / 32,
+            port,
             pin: pin_num % 32,
-            // pint_channel: OptionalCell::empty(),
             client: OptionalCell::empty(),
             inputmux: OptionalCell::empty(),
             iocon: OptionalCell::empty(),
@@ -291,9 +311,8 @@ impl<'a> GpioPin<'a> {
 
     fn is_output(&self) -> bool {
         match self.port {
-            0 => (self.registers.dir_0.get() & self.pin_mask()) != 0,
-            1 => (self.registers.dir_1.get() & self.pin_mask()) != 0,
-            _ => false,
+            Port::Port0 => (self.registers.dir_0.get() & self.pin_mask()) != 0,
+            Port::Port1 => (self.registers.dir_1.get() & self.pin_mask()) != 0,
         }
     }
 
@@ -321,25 +340,22 @@ impl<'a> GpioPin<'a> {
 impl gpio::Output for GpioPin<'_> {
     fn set(&self) {
         match self.port {
-            0 => self.registers.set_0.write(SET::SETP.val(self.pin_mask())),
-            1 => self.registers.set_1.write(SET::SETP.val(self.pin_mask())),
-            _ => {}
+            Port::Port0 => self.registers.set_0.write(SET::SETP.val(self.pin_mask())),
+            Port::Port1 => self.registers.set_1.write(SET::SETP.val(self.pin_mask())),
         }
     }
 
     fn clear(&self) {
         match self.port {
-            0 => self.registers.clr_0.write(CLR::CLRP.val(self.pin_mask())),
-            1 => self.registers.clr_1.write(CLR::CLRP.val(self.pin_mask())),
-            _ => {}
+            Port::Port0 => self.registers.clr_0.write(CLR::CLRP.val(self.pin_mask())),
+            Port::Port1 => self.registers.clr_1.write(CLR::CLRP.val(self.pin_mask())),
         }
     }
 
     fn toggle(&self) -> bool {
         match self.port {
-            0 => self.registers.not_0.write(NOT::NOTP.val(self.pin_mask())),
-            1 => self.registers.not_1.write(NOT::NOTP.val(self.pin_mask())),
-            _ => {}
+            Port::Port0 => self.registers.not_0.write(NOT::NOTP.val(self.pin_mask())),
+            Port::Port1 => self.registers.not_1.write(NOT::NOTP.val(self.pin_mask())),
         }
         self.read()
     }
@@ -348,9 +364,8 @@ impl gpio::Output for GpioPin<'_> {
 impl gpio::Input for GpioPin<'_> {
     fn read(&self) -> bool {
         match self.port {
-            0 => self.registers.pin_0.get() & self.pin_mask() != 0,
-            1 => self.registers.pin_1.get() & self.pin_mask() != 0,
-            _ => false,
+            Port::Port0 => self.registers.pin_0.get() & self.pin_mask() != 0,
+            Port::Port1 => self.registers.pin_1.get() & self.pin_mask() != 0,
         }
     }
 }
@@ -358,30 +373,28 @@ impl gpio::Input for GpioPin<'_> {
 impl gpio::Configure for GpioPin<'_> {
     fn make_output(&self) -> gpio::Configuration {
         match self.port {
-            0 => self
+            Port::Port0 => self
                 .registers
                 .dirset_0
                 .write(DIRSET::DIRSETP.val(self.pin_mask())),
-            1 => self
+            Port::Port1 => self
                 .registers
                 .dirset_1
                 .write(DIRSET::DIRSETP.val(self.pin_mask())),
-            _ => {}
         }
         gpio::Configuration::Output
     }
 
     fn make_input(&self) -> gpio::Configuration {
         match self.port {
-            0 => self
+            Port::Port0 => self
                 .registers
                 .dirclr_0
                 .write(DIRCLR::DIRCLRP.val(self.pin_mask())),
-            1 => self
+            Port::Port1 => self
                 .registers
                 .dirclr_1
                 .write(DIRCLR::DIRCLRP.val(self.pin_mask())),
-            _ => {}
         }
         gpio::Configuration::Input
     }
@@ -535,44 +548,3 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
         todo!()
     }
 }
-
-// impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
-//     fn set_client(&self, client: &'a dyn gpio::Client) {
-//         self.client.set(client)
-//     }
-
-//     // fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
-//     //     if self.pint_channel.is_none() {
-//     //         if let Some(channel) = PINT.find_and_take_channel() {
-//     //             self.pint_channel.set(channel);
-//     //             PINT.select_pin(self.get_pin_num(), channel);
-//     //         }
-//     //     }
-
-//     //     self.pint_channel.map(|channel|{
-//     //         self.client.map(|client| PINT.set_client(channel, client));
-
-//     //         let edge = match mode {
-//     //             gpio::InterruptEdge::RisingEdge => Edge::Rising,
-//     //             gpio::InterruptEdge::FallingEdge => Edge:: Falling,
-//     //             gpio::InterruptEdge::EitherEdge => Edge::Both,
-//     //         };
-//     //         PINT.configure_interrupt(channel.into(), edge);
-//     //     });
-//     // }
-
-//     // fn is_interrupt_enabled(&self) -> bool {
-//     //     self.pint_channel.is_some()
-//     // }
-
-//     // fn disable_interrupts(&self) {
-//     //     self.pint_channel.map(|channel| {
-//     //         PINT.disable_and_free_channel(channel);
-//     //     });
-//     //     self.pint_channel.clear();
-//     // }
-
-//     fn is_pending(&self) -> bool {
-//         false
-//     }
-// }

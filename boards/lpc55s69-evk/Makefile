@@ -1,17 +1,17 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2022.
+# Copyright Tock Contributors 2025.
 
-# Makefile for building the tock kernel for the NUCLEO-F429ZI platform
+# Makefile for building the tock kernel for the LPC55S69-EVK platform
 #
 
 include ../Makefile.common
 
 PROBE_RS=probe-rs
 
-# The specific chip on the NUCLEO-F429ZI board.
+# The specific chip on the LPC55S69-EVK board.
 # probe-rs needs this to know what it's flashing.
-iCHIP=LPC55S69JBD100
+CHIP=LPC55S69JBD100
 
 APP=/home/pc1/Projects/libtock-c/examples/blink/build/cortex-m7/cortex-m7.tbf
 KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM).elf
@@ -35,11 +35,11 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 # This is the recommended command for debugging.
 .PHONY: debug
 debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-	$(PROBE_RS) run --chip $(iCHIP) $<
+	$(PROBE_RS) run --chip $(CHIP) $<
 
 # An alias for the default `install` target.
 .PHONY: program
 program: release
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
-	$(PROBE_RS) run --chip $(iCHIP) $(KERNEL_WITH_APP)
+	$(PROBE_RS) run --chip $(CHIP) $(KERNEL_WITH_APP)

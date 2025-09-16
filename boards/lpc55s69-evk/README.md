@@ -38,5 +38,5 @@ probe-rs run --chip LPC55S69JBD100 /home/USER/tock/targetthumbv8m.main-none-eadi
 
 Applications are built separately from the main project. After building an application, specify its path in the `APP` variable within the Makefile, then execute:
 ```bash
-$ make program
+$ APP=<path_to_tbf> make program
 ```
