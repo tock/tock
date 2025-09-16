@@ -121,7 +121,7 @@ pub type Ps2Result<T> = core::result::Result<T, Ps2Error>;
 /// Block until the controller’s input buffer is empty (ready for a command).
 
 #[inline(always)]
-fn wait_ib_empty_with(limit: usize) -> Ps2Result<()> {
+fn wait_ib_empty_with_timeout(limit: usize) -> Ps2Result<()> {
     let mut spins = 0usize;
     while read_status().is_set(STATUS::INPUT_FULL) {
         spins += 1;
@@ -138,7 +138,7 @@ fn wait_ib_empty_with(limit: usize) -> Ps2Result<()> {
 ///
 /// Block until there is data ready to read in the output buffer.
 #[inline(always)]
-fn wait_ob_full_with(limit: usize) -> Ps2Result<()> {
+fn wait_ob_full_with_timeout(limit: usize) -> Ps2Result<()> {
     let mut spins = 0usize;
     while !read_status().is_set(STATUS::OUTPUT_FULL) {
         spins += 1;
@@ -152,14 +152,14 @@ fn wait_ob_full_with(limit: usize) -> Ps2Result<()> {
 /// Read one byte from the data port (0x60).
 #[inline(always)]
 fn read_data_with(limit: usize) -> Ps2Result<u8> {
-    wait_ob_full_with(limit)?;
+    wait_ob_full_with_timeout(limit)?;
     Ok(unsafe { io::inb(PS2_DATA_PORT) })
 }
 
 /// Send a command byte to the controller (port 0x64).
 #[inline(always)]
 fn write_command_with(c: u8, limit: usize) -> Ps2Result<()> {
-    wait_ib_empty_with(limit)?;
+    wait_ib_empty_with_timeout(limit)?;
     unsafe { io::outb(PS2_STATUS_PORT, c) }
     Ok(())
 }
@@ -167,7 +167,7 @@ fn write_command_with(c: u8, limit: usize) -> Ps2Result<()> {
 /// Write a data byte to the data port (0x60).
 #[inline(always)]
 fn write_data_with(d: u8, limit: usize) -> Ps2Result<()> {
-    wait_ib_empty_with(limit)?;
+    wait_ib_empty_with_timeout(limit)?;
     unsafe { io::outb(PS2_DATA_PORT, d) }
     Ok(())
 }
