@@ -37,6 +37,7 @@ WG-OpenTitan:
 WG-Network:
   - capsules/extra/src/ble_advertising_driver.rs
   - capsules/extra/src/can.rs
+  - capsules/extra/src/ethernet_tap.rs
   - capsules/extra/src/ieee802154/**/*
   - capsules/extra/src/net/**/*
   - capsules/extra/src/rf233.rs
@@ -51,6 +52,7 @@ WG-Network:
   - doc/wg/network/**/*
   - kernel/src/hil/ble_advertising.rs
   - kernel/src/hil/can.rs
+  - kernel/src/hil/ethernet.rs
   - kernel/src/hil/radio.rs
 
 # add kernel label unless already covered by hil label
