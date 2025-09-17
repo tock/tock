@@ -2,16 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Component for random number generator using `Entropy32ToRandom`.
+//! Component for random number generator.
 //!
-//! This provides one Component, RngComponent, which implements a userspace
-//! syscall interface to the RNG peripheral (TRNG).
+//! `RngComponent`
+//! --------------
 //!
-//! Usage
-//! -----
+//! `RngComponent` implements a userspace syscall interface to the RNG
+//! peripheral (TRNG) using `Entropy32ToRandom`.
+//!
+//! ### Usage
 //! ```rust
-//! let rng = components::rng::RngComponent::new(board_kernel, &sam4l::trng::TRNG)
-//!     .finalize(rng_component_static!());
+//! let rng = components::rng::RngComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
+//!     .finalize(rng_component_static!(nrf52840::trng::Trng));
+//! ```
+//!
+//! `RngRandomComponent`
+//! --------------------
+//!
+//! `RngRandomComponent` implements a userspace syscall interface to an RNG.
+//!
+//! ### Usage
+//! ```rust
+//! let rng = components::rng::RngRandomComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
+//!     .finalize(rng_random_component_static!(qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng));
 //! ```
 
 // Author: Hudson Ayers <hayers@cs.stanford.edu>
