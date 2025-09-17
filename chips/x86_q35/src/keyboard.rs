@@ -17,7 +17,79 @@ use crate::cmd_fifo::Fifo as CmdFifo;
 use crate::ps2::Ps2Client;
 use crate::ps2::Ps2Controller;
 use core::cell::Cell;
+use kernel::debug;
+use kernel::hil::keyboard::{Keyboard as HilKeyboard, KeyboardClient as HilKeyboardClient};
 use kernel::utilities::cells::OptionalCell;
+
+/// Set-2 - Linux keycode mapper
+#[inline(always)]
+fn linux_key_for(extended: bool, code: u8) -> Option<u16> {
+    match (extended, code) {
+        // basics
+        (false, 0x76) => Some(1),  // KEY_ESC
+        (false, 0x5A) => Some(28), // KEY_ENTER
+        (false, 0x66) => Some(14), // KEY_BACKSPACE
+        (false, 0x0D) => Some(15), // KEY_TAB
+        (false, 0x29) => Some(57), // KEY_SPACE
+
+        // modifiers
+        (false, 0x12) => Some(42), // KEY_LEFTSHIFT
+        (false, 0x59) => Some(54), // KEY_RIGHTSHIFT
+        (false, 0x14) => Some(29), // KEY_LEFTCTRL
+        (true, 0x14) => Some(97),  // KEY_RIGHTCTRL
+        (false, 0x11) => Some(56), // KEY_LEFTALT
+        (true, 0x11) => Some(100), // KEY_RIGHTALT (AltGr)
+        (false, 0x58) => Some(58), // KEY_CAPSLOCK
+
+        // arrows (E0)
+        (true, 0x75) => Some(103), // KEY_UP
+        (true, 0x72) => Some(108), // KEY_DOWN
+        (true, 0x6B) => Some(105), // KEY_LEFT
+        (true, 0x74) => Some(106), // KEY_RIGHT
+
+        // letters (US)
+        (false, 0x1C) => Some(30), // A
+        (false, 0x32) => Some(48), // B
+        (false, 0x21) => Some(46), // C
+        (false, 0x23) => Some(32), // D
+        (false, 0x24) => Some(18), // E
+        (false, 0x2B) => Some(33), // F
+        (false, 0x34) => Some(34), // G
+        (false, 0x33) => Some(35), // H
+        (false, 0x43) => Some(23), // I
+        (false, 0x3B) => Some(36), // J
+        (false, 0x42) => Some(37), // K
+        (false, 0x4B) => Some(38), // L
+        (false, 0x3A) => Some(50), // M
+        (false, 0x31) => Some(49), // N
+        (false, 0x44) => Some(24), // O
+        (false, 0x4D) => Some(25), // P
+        (false, 0x15) => Some(16), // Q
+        (false, 0x2D) => Some(19), // R
+        (false, 0x1B) => Some(31), // S
+        (false, 0x2C) => Some(20), // T
+        (false, 0x3C) => Some(22), // U
+        (false, 0x2A) => Some(47), // V
+        (false, 0x1D) => Some(17), // W
+        (false, 0x22) => Some(45), // X
+        (false, 0x35) => Some(21), // Y
+        (false, 0x1A) => Some(44), // Z
+
+        // digits row (US)
+        (false, 0x16) => Some(2),  // 1
+        (false, 0x1E) => Some(3),  // 2
+        (false, 0x26) => Some(4),  // 3
+        (false, 0x25) => Some(5),  // 4
+        (false, 0x2E) => Some(6),  // 5
+        (false, 0x36) => Some(7),  // 6
+        (false, 0x3D) => Some(8),  // 7
+        (false, 0x3E) => Some(9),  // 8
+        (false, 0x46) => Some(10), // 9
+        (false, 0x45) => Some(11), // 0
+
+        _ => None,
+    }
+}
 
 /// Set-2 scancode constants used for decoding
 
@@ -28,35 +100,11 @@ const RESP_ACK: u8 = 0xFA;
 const RESP_RESEND: u8 = 0xFE;
 const RESP_BAT_OK: u8 = 0xAA; // BAT after reset
 
-/// High bitmask used in `KeyEvent.keycode` to mark E0-extended keys.
-const EXT_MASK: u16 = 0x0100;
-
-// Minimal, layout-free key event (future commits will populate this)
-#[derive(Copy, Clone, Debug)]
-pub struct KeyEvent {
-    /// `keycode`: low 8 bits = Set-2 code, `EXT_MASK` set if E0-extended. `E1` Pause is never emitted
-    /// as events (swallowed), and repeats appear as repeated MAKEs.
-    pub keycode: u16,
-    /// true = make (press), false = break (release)
-    pub pressed: bool,
-    /// true if the event came via the E0 prefix (extended)
-    pub extended: bool,
-}
-
 /// Optional byte send for ASCII output (useful for a later capsule)
 /// Not used by the current ASCII-only console path. Subject to change.
 /// Called from the keyboard's deferred (bottom-half) context; keep it non-blocking.
 pub(crate) trait AsciiClient {
     fn put_byte(&self, b: u8);
-}
-
-/// Internal hook for full key events (press/release, extended keys).
-/// Not used by the current ASCII-only console path. Subject to change.
-/// Full key events (press/release, E0-extended). Deferred context; non-blocking.
-pub(crate) trait KeyboardClient {
-    fn key_event(&self, _ev: KeyEvent) {
-        // TODO
-    }
 }
 
 /// We will add a small "command engine" (command/response state machine)
@@ -118,7 +166,7 @@ impl Default for CmdEntry {
 
 pub struct Keyboard<'a> {
     ps2: &'a Ps2Controller,
-    client: OptionalCell<&'static dyn KeyboardClient>,
+    client: OptionalCell<&'a dyn HilKeyboardClient>,
     ascii: OptionalCell<&'static dyn AsciiClient>,
 
     // decoder state
@@ -141,6 +189,12 @@ pub struct Keyboard<'a> {
     cmd_resends: Cell<u32>,     // RESENDs observed
     cmd_drops: Cell<u32>,       //commands dropped after retry execution
     cmd_send_errors: Cell<u32>, // controller TX errors/timeouts
+}
+
+impl<'a> HilKeyboard<'a> for Keyboard<'a> {
+    fn set_client(&self, client: &'a dyn HilKeyboardClient) {
+        self.client.set(client);
+    }
 }
 
 impl<'a> Keyboard<'a> {
@@ -169,13 +223,6 @@ impl<'a> Keyboard<'a> {
             cmd_drops: Cell::new(0),
             cmd_send_errors: Cell::new(0),
         }
-    }
-
-    /// Install the client which will receive the events
-    /// Will expand when writing a capsule for PC
-    #[allow(dead_code)]
-    pub(crate) fn set_client(&self, client: &'static dyn KeyboardClient) {
-        self.client.set(client);
     }
 
     /// Device-level init hook. No-op for now since the `init_early()`
@@ -372,18 +419,6 @@ impl<'a> Keyboard<'a> {
         self.retries_left.set(0);
     }
 
-    #[inline(always)]
-    fn emit_event(&self, code: u8, pressed: bool, extended: bool) {
-        let keycode = (code as u16) | (if extended { EXT_MASK } else { 0x0000 });
-        let ev = KeyEvent {
-            keycode,
-            pressed,
-            extended,
-        };
-        // deliver to client if present
-        self.client.map(|c| c.key_event(ev));
-    }
-
     /// Core set-2 decoder. Consumes one non-command byte
     #[inline(always)]
     fn decode_byte(&self, byte: u8) {
@@ -414,6 +449,22 @@ impl<'a> Keyboard<'a> {
         let breaking = self.got_f0.replace(false);
         let pressed = !breaking;
 
+        // log the final key event (after prefixes are applied)
+        debug!(
+            "ps2kbd: {} {}{:02X}",
+            if pressed { "MAKE " } else { "BREAK" },
+            if extended { "E0 " } else { "" },
+            byte
+        );
+
+        // Emit Linux keycode to the HIL client
+        if let Some(code) = linux_key_for(extended, byte) {
+            self.client.map(|c| {
+                let one = [(code, pressed)];
+                c.keys_pressed(&one, Ok(()));
+            });
+        }
+
         // Update local modifier state (we still emit events for them)
         // consumers can ignore
         match (byte, extended) {
@@ -422,9 +473,6 @@ impl<'a> Keyboard<'a> {
             (SC_CAPS, _) if pressed => self.caps.set(!self.caps.get()), // toggle on make; ignore break
             _ => {}
         }
-
-        // Emit event for this key
-        self.emit_event(byte, pressed, extended);
 
         if let Some(b) = self.ascii_for(byte, pressed, extended) {
             if self.ascii.is_some() {

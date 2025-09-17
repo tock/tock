@@ -63,6 +63,12 @@ pub CONFIG [
     ]
 ];
 
+/// Raw byte sink for PS/2 controller clients (keyboard, mouse).
+pub trait Ps2Client {
+    /// Called in deferred context for each byte pulled from the ring.
+    fn receive_scancode(&self, byte: u8);
+}
+
 /// Error types that  the controller can return
 /// so we don't bring the whole kernel down
 /// if something breaks in a peripheral
@@ -105,11 +111,6 @@ impl core::fmt::Display for Ps2Health {
             self.resends
         )
     }
-}
-
-/// Client hook (future: keyboard capsule)
-pub trait Ps2Client {
-    fn receive_scancode(&self, code: u8);
 }
 
 pub type Ps2Result<T> = core::result::Result<T, Ps2Error>;
@@ -216,9 +217,6 @@ pub struct Ps2Controller {
     head: Cell<usize>,
     tail: Cell<usize>,
     count: Cell<usize>, // new field to track number of valid entries
-    // track prefix bytes for logging => press/release only inputs
-    break_next: Cell<bool>, // saw 0xF0; next data byte is a BREAK
-    ext_next: Cell<bool>,   // saw 0xE0; next data byte is extended
 
     // "health" counters
     parity_drops: Cell<u32>,
@@ -233,7 +231,7 @@ pub struct Ps2Controller {
     // actually count health logs in board
     prev_log_bytes: Cell<u32>,
 
-    // optional client for keyboard capsule later on
+    // raw byte client (keyboard device)
     client: OptionalCell<&'static dyn Ps2Client>,
 }
 
@@ -244,8 +242,6 @@ impl Ps2Controller {
             head: Cell::new(0),
             tail: Cell::new(0),
             count: Cell::new(0),
-            break_next: Cell::new(false),
-            ext_next: Cell::new(false),
 
             parity_drops: Cell::new(0),
             timeout_drops: Cell::new(0),
@@ -271,19 +267,21 @@ impl Ps2Controller {
             resends: self.resends.get(),
         }
     }
+    pub fn set_client(&self, client: &'static dyn Ps2Client) {
+        self.client.set(client);
+    }
 
-    /// Send one byte to the keyboard data port (0x60).
-    /// Busy-waits with a small runtime spin budget.
-    /// No ACK/RESEND handling here; that lives in the keyboard.
+    /// Send one byte to port 0x60 (device), small runtime spin budget.
     #[inline(always)]
     pub(crate) fn send_port1(&self, byte: u8) -> Ps2Result<()> {
         write_data_with(byte, SPINS_RUNTIME)
     }
 
-    /// Install the "keyboard" client, we'll wire calls to this later
-    /// for now it's just the hook
-    pub fn set_client(&self, client: &'static dyn Ps2Client) {
-        self.client.set(client);
+    #[inline(always)]
+    fn drain_and_deliver(&self) {
+        while let Some(b) = self.pop_scan_code() {
+            self.client.map(|c| c.receive_scancode(b));
+        }
     }
 
     /// Count controller wait timeouts
@@ -406,35 +404,6 @@ impl Ps2Controller {
     pub fn init_early(&self) -> Ps2Result<()> {
         self.init_early_with_spins(SPINS_INIT)
     }
-
-    /// Drain queued bytes and print clean MAKE/BREAK lines.
-    /// Runs in the deferred bottom-half (not in IRQ context).
-    #[inline(always)]
-    fn decode_and_log_stream(&self) {
-        while let Some(b) = self.pop_scan_code() {
-            // hand the raw byte to a client if present
-            self.client.map(|c| c.receive_scancode(b));
-
-            // Track Set-2 prefixes locally; we keep state in the controller
-            if b == 0xE0 {
-                self.ext_next.set(true);
-                continue;
-            }
-            if b == 0xF0 {
-                self.break_next.set(true);
-                continue;
-            }
-
-            let ext = self.ext_next.replace(false);
-            let brk = self.break_next.replace(false);
-
-            if brk {
-                debug!("ps2: BREAK {}{:02X}", if ext { "E0 " } else { "" }, b);
-            } else {
-                debug!("ps2: MAKE  {}{:02X}", if ext { "E0 " } else { "" }, b);
-            }
-        }
-    }
     pub fn handle_interrupt(&self) {
         let mut scheduled = false;
 
@@ -507,8 +476,8 @@ impl Ps2Controller {
 }
 impl DeferredCallClient for Ps2Controller {
     fn handle_deferred_call(&self) {
-        // drain and print MAKE/BREAKs
-        self.decode_and_log_stream();
+        // drain ring and deliver raw bytes to the client
+        self.drain_and_deliver();
 
         // log health only when bytes_rx advanced
         let cur = self.bytes_rx.get();

@@ -301,6 +301,12 @@ impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
         // connect keyboard as the ps/2 client, controller will call `receive_scancode`
         ps2.set_client(keyboard);
         keyboard.init_device();
+
+        // allow IRQ1 to fire
+        unsafe {
+            crate::pic::unmask(interrupt::KEYBOARD);
+        }
+
         let pc = s.4.write(Pc {
             com1,
             com2,
