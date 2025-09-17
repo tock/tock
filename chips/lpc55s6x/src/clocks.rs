@@ -5,15 +5,6 @@
 use crate::syscon::{self, SysconRegisters};
 use kernel::utilities::{registers::interfaces::ReadWriteable, StaticRef};
 
-// const CLKCTL_BASE: StaticRef<ClkctlRegisters> =
-//     unsafe { StaticRef::new(0x4000_2000 as *const ClkctlRegisters) };
-
-// const PMC_BASE: StaticRef<PmcRegisters> =
-//     unsafe { StaticRef::new(0x5000_1000 as *const PmcRegisters) };
-
-// const ANACTRL_BASE: StaticRef<AnactrlRegisters> =
-//     unsafe { StaticRef::new(0x5000_3000 as *const AnactrlRegisters) };
-
 pub const SYSCON_BASE: StaticRef<SysconRegisters> =
     unsafe { StaticRef::new(0x40000000 as *const SysconRegisters) };
 
