@@ -483,23 +483,6 @@ impl<'a> Pint<'a> {
         }
     }
 
-    // pub fn find_and_take_channel(&self) -> Option<u8> {
-    //     for i in 0..self.clients.len() {
-    //         if self.clients[i].is_none() {
-    //             self.clients[i].put(unsafe {core::mem::transmute(&())});
-    //             return Some(i as u8);
-    //         }
-    //     }
-
-    //     None
-    // }
-
-    // pub fn select_pin(&self, pin_num: usize, channel: u8) {
-    //     if channel < 8 {
-    //     inputmux::INPUTMUX.pintsel[channel as usize].set(pin_num as u32);
-    //     }
-    // }
-
     pub fn set_client(&self, channel: u8, client: &'a dyn kernel::hil::gpio::Client) {
         if channel < 8 {
             self.clients[channel as usize].replace(client);
@@ -511,8 +494,6 @@ impl<'a> Pint<'a> {
             let mask = 1 << channel;
 
             self.registers.isel.modify(ISEL::PMODE.val(!mask));
-            // self.registers.rise.modify(RISE::RDET.val(mask));
-            // self.registers.fall.modify(FALL::FDET.val(mask));
 
             match edge {
                 Edge::Rising => {
@@ -529,22 +510,7 @@ impl<'a> Pint<'a> {
                 }
             }
         }
-
-        // self.registers.isel.modify(ISEL::PMODE.val(1));
-        // self.registers.ienr.modify(IENR::ENRL.val(1));
-        // self.registers.ienf.modify(IENF::ENAF.val(1));
     }
-
-    // pub fn disable_and_free_channel(&mut self, channel: u8) {
-    //     if channel < 8 {
-    //     let mask = 1 << channel;
-
-    //     self.registers.cienr.write(CIENR::CENRL.val(mask));
-    //     self.registers.cienf.write(CIENF::CENAF.val(mask));
-    //     // self.clients[channel as usize].take();
-    //     }
-
-    // }
 
     pub fn handle_interrupt(&self) {
         let status = self.registers.ist.get();
@@ -552,24 +518,12 @@ impl<'a> Pint<'a> {
         self.registers.rise.write(RISE::RDET.val(status));
         self.registers.fall.write(FALL::FDET.val(status));
 
-        // self.registers.ist.get();
-
-        // let blue_led = GpioPin::new(LPCPin::P1_6);
-
         for i in 0..8 {
             if (status & (1 << i)) != 0 {
                 self.registers.ist.write(IST::PSTAT.val(1 << i));
-                // hprintln!("IST loop {}", self.registers.ist.get());
-
                 self.clients[i].map(|client| client.fired());
             }
         }
-
-        // blue_led.toggle();
-        // Self::delay_ms(1000);
-        // blue_led.toggle();
-
-        // self.configure_interrupt(0, Edge::Rising);
     }
 
     pub fn disable_interrupt(&self, channel: usize) {
