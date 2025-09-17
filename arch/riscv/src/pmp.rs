@@ -893,8 +893,11 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> PMPUserMPU<
     }
 }
 
-impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::platform::mpu::MPU
-    for PMPUserMPU<MAX_REGIONS, P>
+// `MPU` is an unsafe trait, and with this implementation we guarantee
+// that we adhere to the semantics documented on that trait and its
+// associated types and methods.
+unsafe impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
+    kernel::platform::mpu::MPU for PMPUserMPU<MAX_REGIONS, P>
 {
     type MpuConfig = PMPUserMPUConfig<MAX_REGIONS>;
 

@@ -379,7 +379,10 @@ impl CortexMRegion {
     }
 }
 
-impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
+// `MPU` is an unsafe trait, and with this implementation we guarantee
+// that we adhere to the semantics documented on that trait and its
+// associated types and methods.
+unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
     for MPU<NUM_REGIONS, MIN_REGION_SIZE>
 {
     type MpuConfig = CortexMConfig<NUM_REGIONS>;
