@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
@@ -232,6 +233,20 @@ pub struct Inputmux {
     registers: StaticRef<InputmuxRegisters>,
 }
 
+enum_from_primitive! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum PintChannel {
+        Ch0 = 0,
+        Ch1 = 1,
+        Ch2 = 2,
+        Ch3 = 3,
+        Ch4 = 4,
+        Ch5 = 5,
+        Ch6 = 6,
+        Ch7 = 7,
+    }
+}
+
 impl Inputmux {
     pub const fn new() -> Self {
         Inputmux {
@@ -243,19 +258,18 @@ impl Inputmux {
         &self.registers
     }
 
-    pub fn set_pintsel(&self, channel: usize, pin: u8) {
-        assert!(channel < 8);
+    pub fn set_pintsel(&self, channel: PintChannel, pin: u8) {
         let pintsel = match channel {
-            0 => &self.registers.pintsel_0,
-            1 => &self.registers.pintsel_1,
-            2 => &self.registers.pintsel_2,
-            3 => &self.registers.pintsel_3,
-            4 => &self.registers.pintsel_4,
-            5 => &self.registers.pintsel_5,
-            6 => &self.registers.pintsel_6,
-            7 => &self.registers.pintsel_7,
-            _ => unreachable!(),
+            PintChannel::Ch0 => &self.registers.pintsel_0,
+            PintChannel::Ch1 => &self.registers.pintsel_1,
+            PintChannel::Ch2 => &self.registers.pintsel_2,
+            PintChannel::Ch3 => &self.registers.pintsel_3,
+            PintChannel::Ch4 => &self.registers.pintsel_4,
+            PintChannel::Ch5 => &self.registers.pintsel_5,
+            PintChannel::Ch6 => &self.registers.pintsel_6,
+            PintChannel::Ch7 => &self.registers.pintsel_7,
         };
+
         pintsel.modify(PINTSEL::INTPIN.val(pin as u32));
     }
 }

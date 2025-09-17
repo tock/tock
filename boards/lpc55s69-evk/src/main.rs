@@ -241,7 +241,10 @@ unsafe fn main() -> ! {
 
     const INPUTMUX_SRC: u8 = 41;
 
-    peripherals.pins.inputmux.set_pintsel(0, INPUTMUX_SRC);
+    peripherals
+        .pins
+        .inputmux
+        .set_pintsel(lpc55s6x::inputmux::PintChannel::Ch0, INPUTMUX_SRC);
 
     peripherals.pins.pint.configure_interrupt(0, Edge::Rising);
 
