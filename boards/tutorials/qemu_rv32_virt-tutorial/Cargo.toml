@@ -1,0 +1,31 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+
+[package]
+name = "qemu_rv32_virt-tutorial"
+version.workspace = true
+authors.workspace = true
+build = "../../build.rs"
+edition.workspace = true
+
+[dependencies]
+kernel = { path = "../../../kernel" }
+
+components = { path = "../../components" }
+sifive = { path = "../../../chips/sifive" }
+rv32i = { path = "../../../arch/rv32i" }
+qemu_rv32_virt = { path = "../../qemu_rv32_virt" }
+qemu_rv32_virt_chip = { path = "../../../chips/qemu_rv32_virt_chip" }
+capsules-core = { path = "../../../capsules/core" }
+capsules-extra = { path = "../../../capsules/extra" }
+capsules-system = { path = "../../../capsules/system" }
+ecdsa-sw = { path = "../../../capsules/ecdsa_sw" }
+
+tock-tbf = { path = "../../../libraries/tock-tbf" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
+
+[lints]
+workspace = true
