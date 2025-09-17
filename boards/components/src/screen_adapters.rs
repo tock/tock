@@ -3,6 +3,10 @@
 // Copyright Tock Contributors 2025.
 
 //! Components for screen adapters.
+//!
+//! Capsule: capsules/extra/src/screen/screen_adapters.rs
+//!
+//! Various converters for screens.
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
