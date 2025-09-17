@@ -16,7 +16,6 @@
 use core::cell::Cell;
 use kernel::debug;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::keyboard::{Keyboard, KeyboardClient};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
@@ -63,6 +62,12 @@ pub CONFIG [
         RESERVED7 OFFSET(7) NUMBITS(1),
     ]
 ];
+
+/// Raw byte sink for PS/2 controller clients (keyboard, mouse).
+pub trait Ps2Client {
+    /// Called in deferred context for each byte pulled from the ring.
+    fn receive_scancode(&self, byte: u8);
+}
 
 /// Error types that  the controller can return
 /// so we don't bring the whole kernel down
@@ -212,9 +217,6 @@ pub struct Ps2Controller {
     head: Cell<usize>,
     tail: Cell<usize>,
     count: Cell<usize>, // new field to track number of valid entries
-    // track prefix bytes for logging => press/release only inputs
-    break_next: Cell<bool>, // saw 0xF0; next data byte is a BREAK
-    ext_next: Cell<bool>,   // saw 0xE0; next data byte is extended
 
     // "health" counters
     parity_drops: Cell<u32>,
@@ -229,28 +231,8 @@ pub struct Ps2Controller {
     // actually count health logs in board
     prev_log_bytes: Cell<u32>,
 
-    // optional client for keyboard capsule later on
-    client: OptionalCell<&'static dyn KeyboardClient>,
-}
-
-#[inline(always)]
-fn map_set2_to_linux(ext: bool, code: u8) -> Option<u16> {
-    // Minimal, commonly-used keys.
-    // Values are Linux input-event keycodes.
-    match (ext, code) {
-        // Non-extended (no E0)
-        (false, 0x76) => Some(1),  // KEY_ESC
-        (false, 0x5A) => Some(28), // KEY_ENTER
-        (false, 0x29) => Some(57), // KEY_SPACE
-
-        // Arrow keys (extended with E0)
-        (true, 0x75) => Some(103), // KEY_UP
-        (true, 0x72) => Some(108), // KEY_DOWN
-        (true, 0x6B) => Some(105), // KEY_LEFT
-        (true, 0x74) => Some(106), // KEY_RIGHT
-
-        _ => None, // TODO: extend mapping
-    }
+    // raw byte client (keyboard device)
+    client: OptionalCell<&'static dyn Ps2Client>,
 }
 
 impl Ps2Controller {
@@ -260,8 +242,6 @@ impl Ps2Controller {
             head: Cell::new(0),
             tail: Cell::new(0),
             count: Cell::new(0),
-            break_next: Cell::new(false),
-            ext_next: Cell::new(false),
 
             parity_drops: Cell::new(0),
             timeout_drops: Cell::new(0),
@@ -285,6 +265,16 @@ impl Ps2Controller {
             timeout_err: self.timeout_drops.get(),
             timeouts: self.timeouts.get(),
             resends: self.resends.get(),
+        }
+    }
+    pub fn set_client(&self, client: &'static dyn Ps2Client) {
+        self.client.set(client);
+    }
+
+    #[inline(always)]
+    fn drain_and_deliver(&self) {
+        while let Some(b) = self.pop_scan_code() {
+            self.client.map(|c| c.receive_scancode(b));
         }
     }
 
@@ -408,42 +398,6 @@ impl Ps2Controller {
     pub fn init_early(&self) -> Ps2Result<()> {
         self.init_early_with_spins(SPINS_INIT)
     }
-
-    /// Drain queued bytes and print clean MAKE/BREAK lines.
-    /// Runs in the deferred bottom-half (not in IRQ context).
-    #[inline(always)]
-    fn decode_and_log_stream(&self) {
-        while let Some(b) = self.pop_scan_code() {
-            // Track Set-2 prefixes
-            if b == 0xE0 {
-                self.ext_next.set(true);
-                continue;
-            } // extended
-            if b == 0xF0 {
-                self.break_next.set(true);
-                continue;
-            } // break
-
-            let ext = self.ext_next.replace(false);
-            let brk = self.break_next.replace(false);
-            let pressed = !brk;
-
-            if brk {
-                debug!("ps2: BREAK {}{:02X}", if ext { "E0 " } else { "" }, b);
-            } else {
-                debug!("ps2: MAKE  {}{:02X}", if ext { "E0 " } else { "" }, b);
-            }
-
-            // emit to HIL if we can map to a Linux keycode
-            if let Some(keycode) = map_set2_to_linux(ext, b) {
-                self.client.map(|c| {
-                    let one = [(keycode, pressed)];
-                    c.keys_pressed(&one, Ok(()));
-                });
-            }
-        }
-    }
-
     pub fn handle_interrupt(&self) {
         let mut scheduled = false;
 
@@ -514,17 +468,10 @@ impl Ps2Controller {
         }
     }
 }
-
-impl Keyboard<'static> for Ps2Controller {
-    fn set_client(&self, client: &'static dyn KeyboardClient) {
-        self.client.set(client);
-    }
-}
-
 impl DeferredCallClient for Ps2Controller {
     fn handle_deferred_call(&self) {
-        // drain and print MAKE/BREAKs
-        self.decode_and_log_stream();
+        // drain ring and deliver raw bytes to the client
+        self.drain_and_deliver();
 
         // log health only when bytes_rx advanced
         let cur = self.bytes_rx.get();
