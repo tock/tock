@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
-use crate::syscon::{self, SysconRegisters};
+pub mod syscon;
+
+use self::syscon::SysconRegisters;
 use kernel::utilities::{registers::interfaces::ReadWriteable, StaticRef};
 
 pub const SYSCON_BASE: StaticRef<SysconRegisters> =

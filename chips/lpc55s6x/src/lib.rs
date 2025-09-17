@@ -17,7 +17,7 @@ pub mod iocon;
 pub mod pint;
 // pub mod rtc;
 // pub mod adc0;
-pub mod syscon;
+// pub mod syscon;
 
 extern "C" {
     fn _estack();
