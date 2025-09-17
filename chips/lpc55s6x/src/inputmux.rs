@@ -232,8 +232,6 @@ pub struct Inputmux {
     registers: StaticRef<InputmuxRegisters>,
 }
 
-// Safety: Inputmux only contains a StaticRef, which is safe to share between threads.
-
 impl Inputmux {
     pub const fn new() -> Self {
         Inputmux {

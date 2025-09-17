@@ -4210,6 +4210,42 @@ impl Iocon {
         }
     }
 
+    /// Configures the function, pull mode, and digital mode of a given pin.
+    ///
+    /// # Overview
+    /// This function applies a standard configuration value to the selected pin,
+    /// based on the provided [`Config`] settings:
+    /// - `function`: the peripheral function assigned to the pin
+    /// - `pull`: the pull-up/pull-down resistor configuration
+    /// - `digital_mode`: whether the pin is used in digital mode
+    ///
+    /// # Current Limitations
+    /// At the moment, only **GPIO** and **alarm** functionality are supported.
+    /// Many pins are commented out in the `match` statement because they belong
+    /// to peripherals (e.g., UART, SPI, I2C, etc.) that are not yet implemented.
+    /// These pins will require additional configuration logic once their
+    /// corresponding peripheral drivers are added.
+    ///
+    /// # Notes
+    /// - Pins such as `P1_4` (on-board blue LED) and `P1_9` (user button) are
+    ///   already supported for basic GPIO usage.
+    /// - Attempting to configure a pin that is not yet implemented will result
+    ///   in no action (`_ => {}` branch).
+    ///
+    /// # Future Work
+    /// As new peripherals are implemented for the lpc55sx, the commented-out pin
+    /// entries will be enabled and configured accordingly.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Configure P0_0 as a GPIO output with pull-up enabled
+    /// device.configure_pin(LPCPin::P0_0, Config {
+    ///     function: Function::Gpio,
+    ///     pull: Pull::Up,
+    ///     digital_mode: DigitalMode::Enabled,
+    /// });
+    /// ```
+
     pub fn configure_pin(&self, pin: LPCPin, config: Config) {
         let standard_value = PIO0_0::FUNC.val(config.function as u32)
             + PIO0_0::MODE.val(config.pull as u32)

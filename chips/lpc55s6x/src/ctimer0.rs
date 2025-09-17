@@ -287,54 +287,41 @@ PWMC [
         PWMPWMModeIsEnabledForCT132Bn_MAT3 = 1
     ]
 ],
-MR0 [
-    /// Timer counter match value.
-    MATCH OFFSET(0) NUMBITS(32) []
-],
-MR1 [
-    /// Timer counter match value.
-    MATCH OFFSET(0) NUMBITS(32) []
-],
-MR2 [
-    /// Timer counter match value.
-    MATCH OFFSET(0) NUMBITS(32) []
-],
-MR3 [
-    /// Timer counter match value.
-    MATCH OFFSET(0) NUMBITS(32) []
-],
-CR0 [
-    /// Timer counter capture value.
-    CAP OFFSET(0) NUMBITS(32) []
-],
-CR1 [
-    /// Timer counter capture value.
-    CAP OFFSET(0) NUMBITS(32) []
-],
-CR2 [
-    /// Timer counter capture value.
-    CAP OFFSET(0) NUMBITS(32) []
-],
-CR3 [
-    /// Timer counter capture value.
-    CAP OFFSET(0) NUMBITS(32) []
-],
-MSR0 [
-    /// Timer counter match shadow value.
-    SHADOW OFFSET(0) NUMBITS(32) []
-],
-MSR1 [
-    /// Timer counter match shadow value.
-    SHADOW OFFSET(0) NUMBITS(32) []
-],
-MSR2 [
-    /// Timer counter match shadow value.
-    SHADOW OFFSET(0) NUMBITS(32) []
-],
-MSR3 [
-    /// Timer counter match shadow value.
-    SHADOW OFFSET(0) NUMBITS(32) []
-]
+/// Timer counter match value.
+MR0 [ MATCH OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter match value.
+MR1 [ MATCH OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter match value.
+MR2 [ MATCH OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter match value.
+MR3 [ MATCH OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter capture value.
+CR0 [ CAP OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter capture value.
+CR1 [ CAP OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter capture value.
+CR2 [ CAP OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter capture value.
+CR3 [ CAP OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter match shadow value.
+MSR0 [ SHADOW OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter match shadow value.
+MSR1 [ SHADOW OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter match shadow value.
+MSR2 [ SHADOW OFFSET(0) NUMBITS(32) [] ],
+
+/// Timer counter match shadow value.
+MSR3 [ SHADOW OFFSET(0) NUMBITS(32) [] ],
 ];
 
 const CTIMER0_BASE: StaticRef<Ctimer0Registers> =
