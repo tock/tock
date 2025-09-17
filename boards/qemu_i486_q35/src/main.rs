@@ -144,6 +144,7 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
         &()
     }
 }
+
 #[no_mangle]
 unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
@@ -180,14 +181,8 @@ unsafe extern "cdecl" fn main() {
     let vga_uart_mux = components::console::UartMuxComponent::new(chip.vga, 115_200)
         .finalize(components::uart_mux_component_static!());
 
-    // Debug output: default to the VGA mux is
-    // active.  If you prefer to keep debug on the serial port even with VGA
-    // enabled, comment the line below and uncomment the next one.
-
     // Debug output uses VGA when available, otherwise COM1
     let debug_uart_device = vga_uart_mux;
-
-    // let debug_uart_device  = com1_uart_mux;
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -237,12 +232,6 @@ unsafe extern "cdecl" fn main() {
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
-
-    // ProcessConsole stays on COM1 because we have no keyboard input yet.
-    // As soon as keyboard support will be added, the process console
-    // may be used with the VGA and keyboard.
-    //
-    // let console_uart_device = vga_uart_mux;
 
     // For now the ProcessConsole (interactive shell) is wired to COM1 so the user can
     // type commands over the serial port.  Once keyboard input is implemented
