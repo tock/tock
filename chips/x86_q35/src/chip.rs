@@ -127,7 +127,6 @@ impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
                     }
                 }
 
-
                 poller.clear_pending(num);
 
                 // Unmask the interrupt so it can fire again, but only if we know how to handle it
@@ -234,7 +233,7 @@ impl<'a, I: InterruptService + 'a> PcComponent<'a, I> {
     }
 }
 
-    impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
+impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
     type StaticInput = (
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,

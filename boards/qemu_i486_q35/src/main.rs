@@ -129,7 +129,7 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
     }
 
     type SchedulerTimer =
-    VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>;
+        VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>;
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
         self.scheduler_timer
     }
@@ -154,8 +154,8 @@ unsafe extern "cdecl" fn main() {
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
         &(),
-            )
-        .finalize(x86_q35::x86_q35_component_static!(()));
+    )
+    .finalize(x86_q35::x86_q35_component_static!(()));
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -246,7 +246,7 @@ unsafe extern "cdecl" fn main() {
         process_printer,
         None,
     )
-        .finalize(components::process_console_component_static!(
+    .finalize(components::process_console_component_static!(
         Pit<'static, RELOAD_1KHZ>
     ));
 
@@ -261,13 +261,12 @@ unsafe extern "cdecl" fn main() {
     )
     .finalize(components::debug_writer_component_static!());
 
-
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-        .finalize(components::low_level_debug_component_static!());
+    .finalize(components::low_level_debug_component_static!());
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
@@ -325,10 +324,10 @@ unsafe extern "cdecl" fn main() {
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
-        .unwrap_or_else(|err| {
-            debug!("Error loading processes!");
-            debug!("{:?}", err);
-        });
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
 }
