@@ -3,6 +3,10 @@
 // Copyright Tock Contributors 2025.
 
 //! Component for buttons using keyboard presses.
+//!
+//! Capsule: capsules/extra/src/button_keyboard.rs
+//!
+//! Implements the button system call with keyboard inputs.
 
 use core::mem::MaybeUninit;
 use kernel::capabilities;
