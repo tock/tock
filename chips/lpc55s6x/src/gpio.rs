@@ -538,7 +538,7 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
 
     fn is_pending(&self) -> bool {
         self.pint.map_or(false, |pint| {
-            let channel = 0; 
+            let channel = 0;
             pint.is_pending(channel)
         })
     }
