@@ -538,4 +538,16 @@ impl<'a> Pint<'a> {
     pub fn read_interrupt(&self) -> u32 {
         self.registers.rise.get()
     }
+
+    /// Returns true if the given channel has a pending interrupt.
+    pub fn is_pending(&self, channel: usize) -> bool {
+        let status = self.registers.ist.get();
+        (status & (1 << channel)) != 0
+    }
+
+    /// Clears the pending interrupt for the given channel.
+    pub fn clear_pending(&self, channel: usize) {
+        // Writing a 1 clears the bit
+        self.registers.ist.set(1 << channel);
+    }
 }

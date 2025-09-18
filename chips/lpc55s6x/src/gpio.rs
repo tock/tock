@@ -132,7 +132,7 @@ pub enum Port {
 }
 
 pub struct Pins<'a> {
-    pub pins: [Option<GpioPin<'a>>; 64],
+    pub pins: [GpioPin<'a>; 64],
     pub inputmux: Inputmux,
     pub iocon: Iocon,
     pub pint: Pint<'a>,
@@ -145,70 +145,70 @@ impl<'a> Pins<'a> {
         let pint = Pint::new();
         Self {
             pins: [
-                Some(GpioPin::new(LPCPin::P0_0)),
-                Some(GpioPin::new(LPCPin::P0_1)),
-                Some(GpioPin::new(LPCPin::P0_2)),
-                Some(GpioPin::new(LPCPin::P0_3)),
-                Some(GpioPin::new(LPCPin::P0_4)),
-                Some(GpioPin::new(LPCPin::P0_5)),
-                Some(GpioPin::new(LPCPin::P0_6)),
-                Some(GpioPin::new(LPCPin::P0_7)),
-                Some(GpioPin::new(LPCPin::P0_8)),
-                Some(GpioPin::new(LPCPin::P0_9)),
-                Some(GpioPin::new(LPCPin::P0_10)),
-                Some(GpioPin::new(LPCPin::P0_11)),
-                Some(GpioPin::new(LPCPin::P0_12)),
-                Some(GpioPin::new(LPCPin::P0_13)),
-                Some(GpioPin::new(LPCPin::P0_14)),
-                Some(GpioPin::new(LPCPin::P0_15)),
-                Some(GpioPin::new(LPCPin::P0_16)),
-                Some(GpioPin::new(LPCPin::P0_17)),
-                Some(GpioPin::new(LPCPin::P0_18)),
-                Some(GpioPin::new(LPCPin::P0_19)),
-                Some(GpioPin::new(LPCPin::P0_20)),
-                Some(GpioPin::new(LPCPin::P0_21)),
-                Some(GpioPin::new(LPCPin::P0_22)),
-                Some(GpioPin::new(LPCPin::P0_23)),
-                Some(GpioPin::new(LPCPin::P0_24)),
-                Some(GpioPin::new(LPCPin::P0_25)),
-                Some(GpioPin::new(LPCPin::P0_26)),
-                Some(GpioPin::new(LPCPin::P0_27)),
-                Some(GpioPin::new(LPCPin::P0_28)),
-                Some(GpioPin::new(LPCPin::P0_29)),
-                Some(GpioPin::new(LPCPin::P0_30)),
-                Some(GpioPin::new(LPCPin::P0_31)),
-                Some(GpioPin::new(LPCPin::P1_0)),
-                Some(GpioPin::new(LPCPin::P1_1)),
-                Some(GpioPin::new(LPCPin::P1_2)),
-                Some(GpioPin::new(LPCPin::P1_3)),
-                Some(GpioPin::new(LPCPin::P1_4)),
-                Some(GpioPin::new(LPCPin::P1_5)),
-                Some(GpioPin::new(LPCPin::P1_6)),
-                Some(GpioPin::new(LPCPin::P1_7)),
-                Some(GpioPin::new(LPCPin::P1_8)),
-                Some(GpioPin::new(LPCPin::P1_9)),
-                Some(GpioPin::new(LPCPin::P1_10)),
-                Some(GpioPin::new(LPCPin::P1_11)),
-                Some(GpioPin::new(LPCPin::P1_12)),
-                Some(GpioPin::new(LPCPin::P1_13)),
-                Some(GpioPin::new(LPCPin::P1_14)),
-                Some(GpioPin::new(LPCPin::P1_15)),
-                Some(GpioPin::new(LPCPin::P1_16)),
-                Some(GpioPin::new(LPCPin::P1_17)),
-                Some(GpioPin::new(LPCPin::P1_18)),
-                Some(GpioPin::new(LPCPin::P1_19)),
-                Some(GpioPin::new(LPCPin::P1_20)),
-                Some(GpioPin::new(LPCPin::P1_21)),
-                Some(GpioPin::new(LPCPin::P1_22)),
-                Some(GpioPin::new(LPCPin::P1_23)),
-                Some(GpioPin::new(LPCPin::P1_24)),
-                Some(GpioPin::new(LPCPin::P1_25)),
-                Some(GpioPin::new(LPCPin::P1_26)),
-                Some(GpioPin::new(LPCPin::P1_27)),
-                Some(GpioPin::new(LPCPin::P1_28)),
-                Some(GpioPin::new(LPCPin::P1_29)),
-                Some(GpioPin::new(LPCPin::P1_30)),
-                Some(GpioPin::new(LPCPin::P1_31)),
+                GpioPin::new(LPCPin::P0_0),
+                GpioPin::new(LPCPin::P0_1),
+                GpioPin::new(LPCPin::P0_2),
+                GpioPin::new(LPCPin::P0_3),
+                GpioPin::new(LPCPin::P0_4),
+                GpioPin::new(LPCPin::P0_5),
+                GpioPin::new(LPCPin::P0_6),
+                GpioPin::new(LPCPin::P0_7),
+                GpioPin::new(LPCPin::P0_8),
+                GpioPin::new(LPCPin::P0_9),
+                GpioPin::new(LPCPin::P0_10),
+                GpioPin::new(LPCPin::P0_11),
+                GpioPin::new(LPCPin::P0_12),
+                GpioPin::new(LPCPin::P0_13),
+                GpioPin::new(LPCPin::P0_14),
+                GpioPin::new(LPCPin::P0_15),
+                GpioPin::new(LPCPin::P0_16),
+                GpioPin::new(LPCPin::P0_17),
+                GpioPin::new(LPCPin::P0_18),
+                GpioPin::new(LPCPin::P0_19),
+                GpioPin::new(LPCPin::P0_20),
+                GpioPin::new(LPCPin::P0_21),
+                GpioPin::new(LPCPin::P0_22),
+                GpioPin::new(LPCPin::P0_23),
+                GpioPin::new(LPCPin::P0_24),
+                GpioPin::new(LPCPin::P0_25),
+                GpioPin::new(LPCPin::P0_26),
+                GpioPin::new(LPCPin::P0_27),
+                GpioPin::new(LPCPin::P0_28),
+                GpioPin::new(LPCPin::P0_29),
+                GpioPin::new(LPCPin::P0_30),
+                GpioPin::new(LPCPin::P0_31),
+                GpioPin::new(LPCPin::P1_0),
+                GpioPin::new(LPCPin::P1_1),
+                GpioPin::new(LPCPin::P1_2),
+                GpioPin::new(LPCPin::P1_3),
+                GpioPin::new(LPCPin::P1_4),
+                GpioPin::new(LPCPin::P1_5),
+                GpioPin::new(LPCPin::P1_6),
+                GpioPin::new(LPCPin::P1_7),
+                GpioPin::new(LPCPin::P1_8),
+                GpioPin::new(LPCPin::P1_9),
+                GpioPin::new(LPCPin::P1_10),
+                GpioPin::new(LPCPin::P1_11),
+                GpioPin::new(LPCPin::P1_12),
+                GpioPin::new(LPCPin::P1_13),
+                GpioPin::new(LPCPin::P1_14),
+                GpioPin::new(LPCPin::P1_15),
+                GpioPin::new(LPCPin::P1_16),
+                GpioPin::new(LPCPin::P1_17),
+                GpioPin::new(LPCPin::P1_18),
+                GpioPin::new(LPCPin::P1_19),
+                GpioPin::new(LPCPin::P1_20),
+                GpioPin::new(LPCPin::P1_21),
+                GpioPin::new(LPCPin::P1_22),
+                GpioPin::new(LPCPin::P1_23),
+                GpioPin::new(LPCPin::P1_24),
+                GpioPin::new(LPCPin::P1_25),
+                GpioPin::new(LPCPin::P1_26),
+                GpioPin::new(LPCPin::P1_27),
+                GpioPin::new(LPCPin::P1_28),
+                GpioPin::new(LPCPin::P1_29),
+                GpioPin::new(LPCPin::P1_30),
+                GpioPin::new(LPCPin::P1_31),
             ],
             inputmux,
             iocon,
@@ -225,41 +225,33 @@ impl<'a> Pins<'a> {
     ///   so calling `.unwrap()` is safe.
     ///
     /// Therefore, both the array indexing and the `unwrap()` are guaranteed not to fail.
-    pub fn get_pin(&self, searched_pin: LPCPin) -> &'a GpioPin {
-        self.pins[searched_pin as usize].as_ref().unwrap()
+    pub fn get_pin(&self, searched_pin: LPCPin) -> &GpioPin<'a> {
+        &self.pins[searched_pin as usize]
     }
 
     pub fn handle_interrupt(&self) {
         self.pint.handle_interrupt();
 
         for pin in self.pins.iter() {
-            if let Some(gpio_pin) = pin {
-                gpio_pin.handle_interrupt();
-            }
+            pin.handle_interrupt();
         }
     }
 
     pub fn set_inputmux(&'a self) {
         for pin in self.pins.iter() {
-            if let Some(gpio_pin) = pin {
-                gpio_pin.set_inputmux(&self.inputmux);
-            }
+            pin.set_inputmux(&self.inputmux);
         }
     }
 
     pub fn set_iocon(&'a self) {
         for pin in self.pins.iter() {
-            if let Some(gpio_pin) = pin {
-                gpio_pin.set_iocon(&self.iocon);
-            }
+            pin.set_iocon(&self.iocon);
         }
     }
 
     pub fn set_pint(&'a self) {
         for pin in self.pins.iter() {
-            if let Some(gpio_pin) = pin {
-                gpio_pin.set_pint(&self.pint);
-            }
+            pin.set_pint(&self.pint);
         }
     }
 
@@ -545,6 +537,9 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        todo!()
+        self.pint.map_or(false, |pint| {
+            let channel = 0; 
+            pint.is_pending(channel)
+        })
     }
 }
