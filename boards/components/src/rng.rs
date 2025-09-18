@@ -2,16 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Component for random number generator using `Entropy32ToRandom`.
+//! Component for random number generator.
 //!
-//! This provides one Component, RngComponent, which implements a userspace
-//! syscall interface to the RNG peripheral (TRNG).
+//! `RngComponent`
+//! --------------
 //!
-//! Usage
-//! -----
+//! `RngComponent` implements a userspace syscall interface to the RNG
+//! peripheral (TRNG) using `Entropy32ToRandom`.
+//!
+//! ### Usage
 //! ```rust
-//! let rng = components::rng::RngComponent::new(board_kernel, &sam4l::trng::TRNG)
-//!     .finalize(rng_component_static!());
+//! let rng = components::rng::RngComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
+//!     .finalize(rng_component_static!(nrf52840::trng::Trng));
+//! ```
+//!
+//! `RngRandomComponent`
+//! --------------------
+//!
+//! `RngRandomComponent` implements a userspace syscall interface to an RNG.
+//!
+//! ### Usage
+//! ```rust
+//! let rng = components::rng::RngRandomComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
+//!     .finalize(rng_random_component_static!(qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng));
 //! ```
 
 // Author: Hudson Ayers <hayers@cs.stanford.edu>
@@ -86,5 +99,49 @@ impl<E: Entropy32<'static>> Component for RngComponent<E> {
         entropy_to_random.set_client(rng);
 
         rng
+    }
+}
+
+#[macro_export]
+macro_rules! rng_random_component_static {
+    ($R: ty $(,)?) => {{
+        let rng = kernel::static_buf!(capsules_core::rng::RngDriver<'static, $R>);
+
+        rng
+    };};
+}
+
+pub type RngRandomComponentType<R> = rng::RngDriver<'static, R>;
+
+pub struct RngRandomComponent<R: Rng<'static> + 'static> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+    rng: &'static R,
+}
+
+impl<R: Rng<'static>> RngRandomComponent<R> {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, rng: &'static R) -> Self {
+        Self {
+            board_kernel,
+            driver_num,
+            rng,
+        }
+    }
+}
+
+impl<R: Rng<'static>> Component for RngRandomComponent<R> {
+    type StaticInput = &'static mut MaybeUninit<capsules_core::rng::RngDriver<'static, R>>;
+    type Output = &'static rng::RngDriver<'static, R>;
+
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+        let rng_driver = static_buffer.write(rng::RngDriver::new(
+            self.rng,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
+        self.rng.set_client(rng_driver);
+
+        rng_driver
     }
 }
