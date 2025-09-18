@@ -17,7 +17,7 @@
 
 ## Updates
 ### Lockfiles and External Dependencies
- - Leon: There's a discussion about adding lockfiles to repo. Still need fresh comments to bread deadlock. https://github.com/tock/tock/pull/4589
+ - Leon: There's a discussion about adding lockfiles to repo. Still need fresh comments to break deadlock. https://github.com/tock/tock/pull/4589
  - Pat: One resolution was a PR to add lockfiles, which can go in parallel with external dependency policy
  - Leon: I don't believe we finished the discussion on lockfiles yet. I can move it to a new PR
  - Pat: I think we support lockfiles. We're disassisfied with them, but they seem better than nothing
