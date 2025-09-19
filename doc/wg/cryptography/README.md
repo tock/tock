@@ -10,9 +10,9 @@ The goals of the Tock Working Group (crypto) are to:
 
 - Improve and standardize HIL and system call interfaces for cryptographic
   primitives
-- maintain and improve cryptography support in the Tock kernel, libtock-rs, and
+- Maintain and improve cryptography support in the Tock kernel, libtock-rs, and
   libtock-c.
-- review changes to the Tock kernel, libtock-rs, and libtock-c that
+- Review changes to the Tock kernel, libtock-rs, and libtock-c that
   affect cryptography support.
 
 ## Members
@@ -40,5 +40,5 @@ architectures, including libraries for interacting with cryptography system
 call drivers.
 
 It does not have exclusive purview over other kernel or userspace subsystems
-that use cryptography but whos primary purpose is other functionality (such as
+that use cryptography but whose primary purpose is other functionality (such as
 networking stacks that encrypt traffic).
