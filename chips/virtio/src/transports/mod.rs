@@ -14,6 +14,7 @@ use super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::queues::Virtqueue;
 
 pub mod mmio;
+pub mod pci;
 
 #[derive(Debug, Copy, Clone)]
 pub enum VirtIOInitializationError {
