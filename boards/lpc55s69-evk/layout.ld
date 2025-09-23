@@ -21,6 +21,4 @@ SECTIONS{
 
 }
 
-ENTRY(initialize_ram_jump_to_main)
-
 INCLUDE tock_kernel_layout.ld
