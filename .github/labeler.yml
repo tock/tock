@@ -56,7 +56,7 @@ WG-Network:
 WG-Crypto:
   - doc/wg/cryptography/**/*
   - kernel/src/hil/symmetric_encryption.rs
-  - kernel/src/hil/public_key_crypto.rs
+  - kernel/src/hil/public_key_crypto/**/*
   - kernel/src/hil/digest.rs
   - kernel/src/hil/crc.rs
   - kernel/src/hil/rng.rs
