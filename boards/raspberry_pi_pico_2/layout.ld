@@ -28,16 +28,6 @@ SECTIONS {
         KEEP (*(.flash_bootloader));
         . = ALIGN (256);
     } > bootloader
-
-    /*
-     * This padding has been added because arm-none-eabi-objcopy
-     * wrongly aligns the .stack section. This is a workaround, not a
-     * permanent fix. See https://github.com/tock/tock/pull/4416#discussion_r2237885703
-     * for details.
-     */
-   .padding (NOLOAD) : {
-        BYTE(0xFF)
-    } > ram
 }
 
 INCLUDE tock_kernel_layout.ld
