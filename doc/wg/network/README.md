@@ -9,18 +9,16 @@ Network Working Group (NWG)
 The goals of the Network Tock Working Group (NWG) are to:
 
 - design a set of interfaces (traits) for networking
-- design the user land interfaces for networking
+- design the userland interfaces for networking
 - define how buffer management should be implemented
 - determine other kernel infrastructure useful for networking
 
 ## Members
 
-- Alexandru Radovici (Chair), Politehnica University of Bucharest
-- Branden Ghena, Northwestern University
+- Alexandru Radovici, Politehnica University of Bucharest
+- Branden Ghena (Chair), Northwestern University
 - Leon Schuermann, Princeton University
 - Tyler Potyondy, UCSD
-- Cristian Rusu, University of Bucharest
-- Felix Mada, OxidOS Automotive
 
 ## Membership and Communication
 
@@ -46,4 +44,9 @@ transcription of what is said.
 
 ## Code Purview
 
-At this time, the network working group does not have responsibility for code in any particular directories of Tock. That may change as work progresses, with the possibility of a subdirectory within `capsules/` being created under the purview of this working group.
+The Network working group is responsible for reviewing, approving, and merging
+pull requests related to networking in Tock. This includes the Tock kernel,
+libtock-c, and libtock-rs. Within the Tock kernel, this includes but is not
+limited to, capsules supporting BLE, CAN, Ethernet, IEEE 802.15.4, and WiFi.
+This also includes chip drivers and kernel HILs related to similar subsystems.
+
