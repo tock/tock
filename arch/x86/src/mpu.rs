@@ -278,7 +278,10 @@ impl fmt::Display for PagingMPU<'_> {
     }
 }
 
-impl MPU for PagingMPU<'_> {
+// `MPU` is an unsafe trait, and with this implementation we guarantee
+// that we adhere to the semantics documented on that trait and its
+// associated types and methods.
+unsafe impl MPU for PagingMPU<'_> {
     type MpuConfig = MemoryProtectionConfig;
 
     fn new_config(&self) -> Option<Self::MpuConfig> {
