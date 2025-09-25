@@ -11,14 +11,5 @@ MEMORY
 
 PAGE_SIZE = 4K;
 
-SECTIONS{
-  .stack (NOLOAD) :
-{
-    . = ALIGN(8);
-    *(.stack*)
-    . = ALIGN(8);
-} > ram
-
-}
 
 INCLUDE tock_kernel_layout.ld
