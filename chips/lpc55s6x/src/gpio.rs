@@ -2,6 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! General‑Purpose Input/Output (GPIO) driver for the LPC55S6x family.
+//!
+//! Features supported:
+//! - 64 GPIO pins across Port0 and Port1
+//! - Direction control (input/output) with atomic set/clear/not registers
+//! - Pin read/write/toggle operations
+//! - Integration with IOCON, InputMux, and PINT for flexible pin configuration
+//! - Interrupt support on rising, falling, or both edges
+//! - Safe abstractions for pin initialization and peripheral setup
+//!
+//! The `Pins` struct bundles all pins and ensures they are initialized with
+//! the required InputMux, IOCON, and PINT connections. Each `GpioPin` can be
+//! retrieved by its `LPCPin` enum value and used directly in drivers.
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};

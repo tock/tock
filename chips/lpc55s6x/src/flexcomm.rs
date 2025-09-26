@@ -1,3 +1,27 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+//! Flexible Communication (Flexcomm) peripheral driver for the LPC55S6x family.
+//!
+//! The Flexcomm block is a multi‑protocol serial interface that can be
+//! configured at runtime to operate as one of several functions:
+//! - **USART** (Universal Synchronous/Asynchronous Receiver/Transmitter)
+//! - **SPI** (Serial Peripheral Interface)
+//! - **I²C** (Inter‑Integrated Circuit)
+//! - **I²S** (Inter‑IC Sound, transmit or receive)
+//!
+//! Each LPC55S6x device includes up to 8 Flexcomm instances (Flexcomm0–7),
+//! each with its own base address. The `PSELID` register selects the active
+//! function and can be locked to prevent accidental reconfiguration.
+//!
+//! This module provides:
+//! - Strongly‑typed register mappings for `PSELID` and `PID`
+//! - Safe constructors for accessing Flexcomm instances by base address or ID
+//! - Convenience methods for configuring a Flexcomm as a UART
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;

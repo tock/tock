@@ -2,6 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! I/O Configuration (IOCON) driver for the LPC55S6x family.
+//!
+//! The IOCON block controls the electrical characteristics and multiplexing
+//! of the device’s pins. Each pin can be configured for one of several
+//! functions and with specific pad settings.
+//!
+//! Features supported:
+//! - Pin function selection (connects pins to GPIO, Flexcomm, CTIMER, etc.)
+//! - Pull‑up, pull‑down, or inactive resistor modes
+//! - Input hysteresis and input inversion
+//! - Slew rate and drive strength control
+//! - Open‑drain enable for wired‑OR connections
+//! - Digital/analog mode selection
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use crate::gpio::LPCPin;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};

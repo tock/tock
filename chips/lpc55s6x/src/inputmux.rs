@@ -2,6 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! Input Multiplexer (INPUTMUX) driver for the LPC55S6x family.
+//!
+//! The Inputmux block provides flexible routing of internal and external
+//! signals to on‑chip peripherals. It allows software to dynamically select
+//! which pin or internal source drives a given peripheral input.
+//!
+//! Features supported:
+//! - Connects GPIO pins to **Pin Interrupts (PINT)** and **Pattern Match** logic
+//! - Routes capture inputs for **CTIMER0–4** and **SCT0**
+//! - Selects trigger sources for **DMA0/DMA1 channels**
+//! - Provides secure and non‑secure pin interrupt selection
+//! - Supports frequency measurement reference/target clock selection
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};

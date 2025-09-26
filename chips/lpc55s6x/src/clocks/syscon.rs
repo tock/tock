@@ -2,6 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! System Controller (SYSCON) register definitions for the LPC55S6x family.
+//!
+//! The SYSCON block provides global system configuration and control,
+//! including:
+//! - Memory remap and AHB matrix priorities
+//! - Peripheral reset and clock gating (AHBCLKCTRLx, PRESETCTRLx)
+//! - Clock source selection and dividers for timers, Flexcomm, ADC, USB, etc.
+//! - PLL configuration and status
+//! - CPU control, debug features, and device identification
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };

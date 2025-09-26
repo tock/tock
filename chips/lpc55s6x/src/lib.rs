@@ -3,6 +3,8 @@
 // Copyright Tock Contributors 2025.
 
 #![no_std]
+// IOCON has many register definitions in `register_structs()!`
+// and requires a deeper recursion limit than the default to fully expand.
 #![recursion_limit = "512"]
 
 use cortexm33::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM33, CortexMVariant};

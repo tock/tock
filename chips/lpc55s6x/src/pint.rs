@@ -2,6 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! Pin Interrupt (PINT) driver for the LPC55S6x family.
+//!
+//! The PINT block provides edge‑sensitive and pattern‑match interrupt
+//! generation from GPIO pins. It works in conjunction with the IOCON and
+//! INPUTMUX modules to route physical pins into the PINT channels.
+//!
+//! Features supported:
+//! - Up to 8 independent pin interrupt channels
+//! - Configurable rising, falling, or both‑edge detection
+//! - Pattern match engine for complex multi‑pin conditions
+//! - Interrupt status and enable/disable control per channel
+//! - Integration with NVIC for interrupt delivery to the Cortex‑M33 core
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
@@ -463,8 +478,6 @@ pub struct Pint<'a> {
     registers: StaticRef<PintRegisters>,
     clients: [OptionalCell<&'a dyn kernel::hil::gpio::Client>; 8],
 }
-
-// pub static PINT: Pint = Pint::new();
 
 impl<'a> Pint<'a> {
     pub const fn new() -> Self {

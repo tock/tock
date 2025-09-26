@@ -1,3 +1,22 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+//! Universal Asynchronous Receiver/Transmitter (UART) driver for the LPC55S6x family.
+//!
+//! The UART peripheral provides full‑duplex asynchronous serial communication,
+//! typically used for console I/O, debugging, or external device interfaces.
+//! On the LPC55S6x, UART functionality is implemented through the Flexcomm
+//! blocks when configured in USART mode.
+//!
+//! Features supported:
+//! - Standard 8‑N‑1 asynchronous communication
+//! - Configurable baud rate generation via fractional rate generator (FRG)
+//! - Interrupts for transmit, receive, and error conditions
+//! - FIFO support for buffered TX/RX
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use crate::clocks::FrgId;
 use enum_primitive::cast::FromPrimitive;
 use kernel::utilities::registers::{

@@ -2,6 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! Standard counter/timer (CTIMER) driver for the LPC55S6x family.
+//!
+//! Features supported:
+//! - 32‑bit timer counter with prescaler
+//! - Match registers with interrupt, reset, and stop control
+//! - Capture inputs for edge‑triggered timestamping
+//! - External match outputs and PWM mode
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use cortexm33::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};

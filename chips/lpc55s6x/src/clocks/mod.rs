@@ -2,13 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! Clock configuration and control for the LPC55S6x system controller (SYSCON).
+//!
+//! This module provides safe abstractions for enabling peripheral clocks,
+//! configuring Fractional Rate Generators (FRGs), and setting up UART clock
+//! sources. It wraps low-level register access in a structured API to ensure
+//! clarity and maintainability across the Tock kernel codebase.
+
 pub mod syscon;
+use crate::clocks::syscon::SYSCON_BASE;
+
 use self::syscon::SysconRegisters;
 use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
-use kernel::utilities::{registers::interfaces::ReadWriteable, StaticRef};
-
-pub const SYSCON_BASE: StaticRef<SysconRegisters> =
-    unsafe { StaticRef::new(0x40000000 as *const SysconRegisters) };
+use kernel::utilities::registers::interfaces::ReadWriteable;
 
 pub enum Peripheral {
     Flexcomm0,
