@@ -16,12 +16,14 @@ WORKING_QEMU_VERSION := 7.2.0
 # Peripherals attached by default:
 # - 16550 UART (attached to stdio by default)
 # - VGA display (pass NOVGA=1 to disable)
+# - Virtio EntropySource RNG (attached to /dev/urandom)
 QEMU_BASE_CMDLINE := \
   $(QEMU_CMD) \
     -cpu 486 \
     -machine q35 \
     -net none \
-    -device isa-debug-exit,iobase=0xf4,iosize=0x04
+    -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+    -device virtio-rng-pci,disable-legacy=on
 
 ifeq ($(NOVGA),1)
 QEMU_BASE_CMDLINE += -nographic

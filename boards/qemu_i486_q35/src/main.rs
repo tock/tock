@@ -11,6 +11,7 @@
 
 use capsules_core::alarm;
 use capsules_core::console::{self, Console};
+use capsules_core::rng::RngDriver;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use components::console::ConsoleComponent;
 use components::debug_writer::DebugWriterComponent;
@@ -18,15 +19,20 @@ use core::ptr;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::ipc::IPC;
-use kernel::platform::chip::Chip;
+use kernel::platform::chip::{Chip, InterruptService};
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
+use kernel::utilities::cells::OptionalCell;
 use kernel::{create_capability, static_init};
+use virtio::devices::virtio_rng::VirtIORng;
+use virtio::devices::VirtIODeviceType;
+use virtio_pci_x86::VirtIOPCIDevice;
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
@@ -70,6 +76,63 @@ pub static mut PAGE_DIR: PD = [PDEntry(0); 1024];
 #[link_section = ".pte"]
 pub static mut PAGE_TABLE: PT = [PTEntry(0); 1024];
 
+/// Initializes a Virtio transport driver for the given PCI device.
+///
+/// Disables MSI/MSI-X interrupts for the device since the x86_q35 chip uses the 8259 PIC for
+/// interrupt management.
+///
+/// On success, returns a tuple containing the interrupt line number assigned to this device as well
+/// as a fully initialized Virtio PCI transport driver.
+///
+/// Returns `None` if the device does not report an assigned interrupt line, or if the transport
+/// driver fails to initialize for some other reason. Either of these could be an indication that
+/// `dev` is not a valid Virtio device.
+fn init_virtio_dev(
+    dev: pci_x86::Device,
+    dev_type: VirtIODeviceType,
+) -> Option<(u8, VirtIOPCIDevice)> {
+    use pci_x86::cap::Cap;
+
+    let int_line = dev.int_line()?;
+
+    for cap in dev.capabilities() {
+        match cap {
+            Cap::Msi(cap) => {
+                cap.disable();
+            }
+            Cap::Msix(cap) => {
+                cap.disable();
+            }
+            _ => {}
+        }
+    }
+
+    let dev = VirtIOPCIDevice::from_pci_device(dev, dev_type)?;
+
+    Some((int_line, dev))
+}
+
+/// Provides interrupt servicing logic for Virtio devices which may or may not be present at
+/// runtime.
+struct VirtioDevices {
+    rng: OptionalCell<(u8, &'static VirtIOPCIDevice)>,
+}
+
+impl InterruptService for VirtioDevices {
+    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        let mut handled = false;
+
+        self.rng.map(|(int_line, dev)| {
+            if interrupt == (int_line as u32) {
+                dev.handle_interrupt();
+                handled = true;
+            }
+        });
+
+        handled
+    }
+}
+
 pub struct QemuI386Q35Platform {
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -90,6 +153,7 @@ pub struct QemuI386Q35Platform {
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>,
+    rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static>>>,
 }
 
 impl SyscallDriverLookup for QemuI386Q35Platform {
@@ -101,6 +165,13 @@ impl SyscallDriverLookup for QemuI386Q35Platform {
             console::DRIVER_NUM => f(Some(self.console)),
             alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::rng::DRIVER_NUM => {
+                if let Some(rng) = self.rng {
+                    f(Some(rng))
+                } else {
+                    f(None)
+                }
+            }
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -149,12 +220,18 @@ unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the i486 platform
+    let virtio_devs = static_init!(
+        VirtioDevices,
+        VirtioDevices {
+            rng: OptionalCell::empty(),
+        }
+    );
     let chip = PcComponent::new(
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
-        &(),
+        virtio_devs,
     )
-    .finalize(x86_q35::x86_q35_component_static!(()));
+    .finalize(x86_q35::x86_q35_component_static!(VirtioDevices));
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -223,6 +300,91 @@ unsafe extern "cdecl" fn main() {
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
+    // ---------- VIRTIO PERIPHERAL DISCOVERY ----------
+    //
+    // On x86, PCI is used to discover and communicate with Virtio devices.
+    //
+    // Enumerate the PCI bus to find supported Virtio devices. If there are two instances of a
+    // supported peripheral, we use the first one we encounter.
+    let mut virtio_rng_dev = None;
+    for dev in pci_x86::iter() {
+        use virtio::devices::VirtIODeviceType;
+        use virtio_pci_x86::{DEVICE_ID_BASE, VENDOR_ID};
+
+        // Only consider Virtio devices
+        if dev.vendor_id() != VENDOR_ID {
+            continue;
+        }
+        let dev_id = dev.device_id();
+        if dev_id < DEVICE_ID_BASE {
+            continue;
+        }
+
+        // Decode device type
+        let dev_id = (dev_id - DEVICE_ID_BASE) as u32;
+        let Some(dev_type) = VirtIODeviceType::from_device_id(dev_id) else {
+            continue;
+        };
+
+        if dev_type == VirtIODeviceType::EntropySource {
+            // Only consider first entropy source found
+            if virtio_rng_dev.is_some() {
+                continue;
+            }
+
+            virtio_rng_dev = Some(dev);
+        }
+    }
+
+    // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
+    // driver and expose it to userspace though the RngDriver
+    let virtio_rng: Option<&'static VirtIORng> = if let Some(rng_dev) = virtio_rng_dev {
+        use virtio::queues::split_queue::{
+            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
+        };
+        use virtio::queues::Virtqueue;
+        use virtio::transports::VirtIOTransport;
+
+        // Initialize PCI transport driver
+        let (int_line, transport) = init_virtio_dev(rng_dev, VirtIODeviceType::EntropySource)
+            .expect("virtio pci init failed");
+        let transport = static_init!(VirtIOPCIDevice, transport);
+
+        // EntropySource requires a single Virtqueue for retrieved entropy
+        let descriptors = static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
+        let available_ring =
+            static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
+        let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
+        let queue = static_init!(
+            SplitVirtqueue<1>,
+            SplitVirtqueue::new(descriptors, available_ring, used_ring),
+        );
+        queue.set_transport(transport);
+
+        // VirtIO EntropySource device driver instantiation
+        let rng = static_init!(VirtIORng, VirtIORng::new(queue));
+        DeferredCallClient::register(rng);
+        queue.set_client(rng);
+
+        // Register the queues and driver with the transport, so interrupts
+        // are routed properly
+        let queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
+        transport.initialize(rng, queues).unwrap();
+
+        // Provide an internal randomness buffer
+        let rng_buffer = static_init!([u8; 64], [0; 64]);
+        rng.provide_buffer(rng_buffer)
+            .expect("rng: providing initial buffer failed");
+
+        // Device is successfully initialized, register it with the VirtioDevices struct so that
+        // interrupts are routed properly
+        virtio_devs.rng.set((int_line, transport));
+
+        Some(rng)
+    } else {
+        None
+    };
+
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
 
     // PIT interrupts need to be started manually
@@ -279,6 +441,14 @@ unsafe extern "cdecl" fn main() {
     )
     .finalize(components::low_level_debug_component_static!());
 
+    // ---------- RNG ----------
+
+    // Userspace RNG driver over the VirtIO EntropySource
+    let rng_driver = virtio_rng.map(|rng| {
+        components::rng::RngRandomComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
+            .finalize(components::rng_random_component_static!(VirtIORng))
+    });
+
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
@@ -294,6 +464,7 @@ unsafe extern "cdecl" fn main() {
         lldb,
         scheduler,
         scheduler_timer,
+        rng: rng_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,

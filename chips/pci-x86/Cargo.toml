@@ -1,0 +1,16 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+
+[package]
+name = "pci-x86"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+tock-registers = { path = "../../libraries/tock-register-interface" }
+x86 = { path = "../../arch/x86" }
+
+[lints]
+workspace = true

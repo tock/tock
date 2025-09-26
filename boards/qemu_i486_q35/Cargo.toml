@@ -12,6 +12,9 @@ build = "../build.rs"
 [dependencies]
 components = { path = "../components" }
 kernel = { path = "../../kernel" }
+pci-x86 = { path = "../../chips/pci-x86" }
+virtio = { path = "../../chips/virtio" }
+virtio-pci-x86 = { path = "../../chips/virtio-pci-x86" }
 x86_q35 = { path = "../../chips/x86_q35" }
 x86 = { path = "../../arch/x86" }
 
