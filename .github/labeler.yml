@@ -55,6 +55,22 @@ WG-Network:
   - kernel/src/hil/ethernet.rs
   - kernel/src/hil/radio.rs
 
+WG-Crypto:
+  - doc/wg/cryptography/**/*
+  - kernel/src/hil/symmetric_encryption.rs
+  - kernel/src/hil/public_key_crypto/**/*
+  - kernel/src/hil/digest.rs
+  - kernel/src/hil/crc.rs
+  - kernel/src/hil/rng.rs
+  - capsules/extra/src/symmetric_encryption/**/*
+  - capsules/extra/src/public_key_crypto/**/*
+  - capsules/extra/src/hmac.rs
+  - capsules/extra/src/hmac_sha256.rs
+  - capsules/extra/src/sha.rs
+  - capsules/extra/src/sha256.rs
+  - capsules/aes_gcm/**/*
+  - capsules/ecdsa_sw/**/*
+
 # add kernel label unless already covered by hil label
 kernel:
   - any: ['kernel/**/*', '!kernel/src/hil/*']
