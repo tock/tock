@@ -113,16 +113,13 @@ impl core::fmt::Display for Ps2Health {
     }
 }
 
-pub type Ps2Result<T> = core::result::Result<T, Ps2Error>;
-
 /// Note: There is no hardware interrupt when the input buffer empties, so we must poll bit 1.
 /// See OSDev documentation:
 /// https://wiki.osdev.org/I8042_PS/2_Controller#Status_Register
 ///
 /// Block until the controller’s input buffer is empty (ready for a command).
-
 #[inline(always)]
-fn wait_ib_empty_with_timeout(limit: usize) -> Ps2Result<()> {
+fn wait_ib_empty_with_timeout(limit: usize) -> Result<(), Ps2Error> {
     let mut spins = 0usize;
     while read_status().is_set(STATUS::INPUT_FULL) {
         spins += 1;
@@ -139,7 +136,7 @@ fn wait_ib_empty_with_timeout(limit: usize) -> Ps2Result<()> {
 ///
 /// Block until there is data ready to read in the output buffer.
 #[inline(always)]
-fn wait_ob_full_with_timeout(limit: usize) -> Ps2Result<()> {
+fn wait_ob_full_with_timeout(limit: usize) -> Result<(), Ps2Error> {
     let mut spins = 0usize;
     while !read_status().is_set(STATUS::OUTPUT_FULL) {
         spins += 1;
@@ -152,14 +149,14 @@ fn wait_ob_full_with_timeout(limit: usize) -> Ps2Result<()> {
 
 /// Read one byte from the data port (0x60).
 #[inline(always)]
-fn read_data_with(limit: usize) -> Ps2Result<u8> {
+fn read_data_with(limit: usize) -> Result<u8, Ps2Error> {
     wait_ob_full_with_timeout(limit)?;
     Ok(unsafe { io::inb(PS2_DATA_PORT) })
 }
 
 /// Send a command byte to the controller (port 0x64).
 #[inline(always)]
-fn write_command_with(c: u8, limit: usize) -> Ps2Result<()> {
+fn write_command_with(c: u8, limit: usize) -> Result<(), Ps2Error> {
     wait_ib_empty_with_timeout(limit)?;
     unsafe { io::outb(PS2_STATUS_PORT, c) }
     Ok(())
@@ -167,7 +164,7 @@ fn write_command_with(c: u8, limit: usize) -> Ps2Result<()> {
 
 /// Write a data byte to the data port (0x60).
 #[inline(always)]
-fn write_data_with(d: u8, limit: usize) -> Ps2Result<()> {
+fn write_data_with(d: u8, limit: usize) -> Result<(), Ps2Error> {
     wait_ib_empty_with_timeout(limit)?;
     unsafe { io::outb(PS2_DATA_PORT, d) }
     Ok(())
@@ -178,7 +175,7 @@ fn read_status() -> LocalRegisterCopy<u8, STATUS::Register> {
 }
 
 #[inline(always)]
-fn read_config_reg_with(limit: usize) -> Ps2Result<LocalRegisterCopy<u8, CONFIG::Register>> {
+fn read_config_reg_with(limit: usize) -> Result<LocalRegisterCopy<u8, CONFIG::Register>, Ps2Error> {
     write_command_with(0x20, limit)?; // Read Controller Configuration Byte
     Ok(LocalRegisterCopy::new(read_data_with(limit)?))
 }
@@ -187,12 +184,12 @@ fn read_config_reg_with(limit: usize) -> Ps2Result<LocalRegisterCopy<u8, CONFIG:
 fn write_config_reg_with(
     cfg: LocalRegisterCopy<u8, CONFIG::Register>,
     limit: usize,
-) -> Ps2Result<()> {
+) -> Result<(), Ps2Error> {
     write_command_with(0x60, limit)?; // Write Controller Configuration Byte
     write_data_with(cfg.get(), limit)
 }
 
-fn update_config_with<F>(limit: usize, f: F) -> Ps2Result<u8>
+fn update_config_with<F>(limit: usize, f: F) -> Result<u8, Ps2Error>
 where
     F: FnOnce(LocalRegisterCopy<u8, CONFIG::Register>) -> LocalRegisterCopy<u8, CONFIG::Register>,
 {
@@ -202,7 +199,7 @@ where
     Ok(new.get())
 }
 
-fn flush_output_buffer() -> Ps2Result<()> {
+fn flush_output_buffer() -> Result<(), Ps2Error> {
     // Poll status; if OB has data, read once and loop.
     // Use the small runtime budget for the read.
     while read_status().is_set(STATUS::OUTPUT_FULL) {
@@ -286,7 +283,7 @@ impl Ps2Controller {
 
     /// Count controller wait timeouts
     #[inline(always)]
-    fn tally_timeout<T>(&self, r: Ps2Result<T>) -> Ps2Result<T> {
+    fn tally_timeout<T>(&self, r: Result<T, Ps2Error>) -> Result<T, Ps2Error> {
         if matches!(r, Err(Ps2Error::TimeoutIB) | Err(Ps2Error::TimeoutOB)) {
             self.timeouts.set(self.timeouts.get().wrapping_add(1));
         }
@@ -303,7 +300,7 @@ impl Ps2Controller {
     /// `Ok(())` on ACK
     /// `Err(Ps2Error::AckError)` if RESEND persists after all retries
     /// `Err(Ps2Error::UnexpectedResponse(_))` for any other response byte
-    fn send_with_ack_limit(&self, byte: u8, tries: u8, limit: usize) -> Ps2Result<()> {
+    fn send_with_ack_limit(&self, byte: u8, tries: u8, limit: usize) -> Result<(), Ps2Error> {
         let mut attempts = 0;
         loop {
             attempts += 1;
@@ -333,7 +330,7 @@ impl Ps2Controller {
     ///
     /// For testing and health of the controller, we'll wrap each call with
     /// tally_timeout helper
-    pub fn init_early_with_spins(&self, spins: usize) -> Ps2Result<()> {
+    pub fn init_early_with_spins(&self, spins: usize) -> Result<(), Ps2Error> {
         // disable ports; flush OB
         self.tally_timeout(write_command_with(0xAD, spins))?;
         self.tally_timeout(write_command_with(0xA7, spins))?;
@@ -401,7 +398,7 @@ impl Ps2Controller {
     }
 
     /// Back-compat wrapper: long spin budget during bring-up.
-    pub fn init_early(&self) -> Ps2Result<()> {
+    pub fn init_early(&self) -> Result<(), Ps2Error> {
         self.init_early_with_spins(SPINS_INIT)
     }
     pub fn handle_interrupt(&self) {
