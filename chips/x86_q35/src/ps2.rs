@@ -118,7 +118,6 @@ impl core::fmt::Display for Ps2Health {
 /// https://wiki.osdev.org/I8042_PS/2_Controller#Status_Register
 ///
 /// Block until the controller’s input buffer is empty (ready for a command).
-
 #[inline(always)]
 fn wait_ib_empty_with_timeout(limit: usize) -> Result<(), Ps2Error> {
     let mut spins = 0usize;
