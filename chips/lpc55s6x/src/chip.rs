@@ -13,6 +13,7 @@ use kernel::platform::chip::InterruptService;
 use crate::ctimer0::LPCTimer;
 use crate::gpio::Pins;
 use crate::interrupts;
+use crate::uart::Uart;
 
 #[repr(u8)]
 pub enum Processor {
@@ -88,6 +89,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
 pub struct Lpc55s69DefaultPeripheral<'a> {
     pub pins: Pins<'a>,
     pub ctimer0: LPCTimer<'a>,
+    pub uart: Uart<'a>,
 }
 
 impl<'a> Lpc55s69DefaultPeripheral<'a> {
@@ -95,6 +97,7 @@ impl<'a> Lpc55s69DefaultPeripheral<'a> {
         Self {
             pins: Pins::new(),
             ctimer0: LPCTimer::new(),
+            uart: Uart::new_uart0(),
         }
     }
 }
@@ -138,6 +141,11 @@ impl<'a> InterruptService for Lpc55s69DefaultPeripheral<'a> {
 
             interrupts::CTIMER0 => {
                 self.ctimer0.handle_interrupt();
+                true
+            }
+
+            interrupts::FLEXCOMM0 => {
+                self.uart.handle_interrupt();
                 true
             }
 

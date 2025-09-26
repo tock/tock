@@ -6,34 +6,91 @@ use crate::{LPCPin, CHIP, PROCESSES, PROCESS_PRINTER};
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::ptr::{addr_of, addr_of_mut};
-// use cortex_m_semihosting::hprint;
 use kernel::debug::{self, IoWrite};
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
+use kernel::hil::uart::{Configure as UARTconfig, Parameters, Parity, StopBits, Width};
+use kernel::utilities::cells::OptionalCell;
 use lpc55s6x::gpio::GpioPin;
 use lpc55s6x::iocon::{Config, Function, Iocon, Pull, Slew};
+use lpc55s6x::uart::Uart;
 
-pub struct Writer;
+pub struct Writer {
+    uart: OptionalCell<&'static Uart<'static>>,
+}
 
-/// Global static for debug writer
-pub static mut WRITER: Writer = Writer;
+impl Writer {
+    fn configure_uart(&self, uart: &Uart) {
+        if !uart.is_configured() {
+            let params = Parameters {
+                // USART initial configuration, using default settings
+                baud_rate: 9600,
+                width: Width::Eight,
+                stop_bits: StopBits::One,
+                parity: Parity::None,
+                hw_flow_control: false,
+            };
 
-// TODO: This will be implemented later, when UART support will be available
+            let _ = uart.configure(params);
+
+            let iocon = Iocon::new();
+
+            let _tx = iocon.configure_pin(
+                LPCPin::P0_29,
+                Config {
+                    function: Function::Alt1,
+                    pull: Pull::None,
+                    digital_mode: true,
+                    slew: Slew::Standard,
+                    invert: false,
+                    open_drain: false,
+                },
+            );
+            let _rx = iocon.configure_pin(
+                LPCPin::P0_30,
+                Config {
+                    function: Function::Alt1,
+                    pull: Pull::None,
+                    digital_mode: true,
+                    slew: Slew::Standard,
+                    invert: false,
+                    open_drain: false,
+                },
+            );
+        }
+    }
+
+    fn write_to_uart(&self, uart: &Uart, buf: &[u8]) {
+        for &c in buf {
+            uart.send_byte(c);
+        }
+    }
+}
+
+pub static mut WRITER: Writer = Writer {
+    uart: OptionalCell::empty(),
+};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        for _byte in s.as_bytes() {
-            // TODO print one character when UART becomes available
-        }
+        self.write(s.as_bytes());
         Ok(())
     }
 }
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        for _byte in buf {
-            // TODO print one character when UART becomes available
-        }
+        self.uart.map_or_else(
+            || {
+                let uart = Uart::new_uart0();
+                self.configure_uart(&uart);
+                self.write_to_uart(&uart, buf);
+            },
+            |uart| {
+                self.configure_uart(uart);
+                self.write_to_uart(uart, buf);
+            },
+        );
         buf.len()
     }
 }

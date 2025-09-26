@@ -3,8 +3,8 @@
 // Copyright Tock Contributors 2025.
 
 pub mod syscon;
-
 use self::syscon::SysconRegisters;
+use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
 use kernel::utilities::{registers::interfaces::ReadWriteable, StaticRef};
 
 pub const SYSCON_BASE: StaticRef<SysconRegisters> =
@@ -21,16 +21,19 @@ pub enum Peripheral {
     Dma0,
 }
 
-#[repr(u8)]
-pub enum FrgId {
-    Frg0 = 0,
-    Frg1 = 1,
-    Frg2 = 2,
-    Frg3 = 3,
-    Frg4 = 4,
-    Frg5 = 5,
-    Frg6 = 6,
-    Frg7 = 7,
+enum_from_primitive! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[repr(u8)]
+    pub enum FrgId {
+        Frg0 = 0,
+        Frg1 = 1,
+        Frg2 = 2,
+        Frg3 = 3,
+        Frg4 = 4,
+        Frg5 = 5,
+        Frg6 = 6,
+        Frg7 = 7,
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -119,5 +122,46 @@ impl Clock {
             FrgClockSource::Mclk => 0,
             FrgClockSource::NoClock => 0,
         }
+    }
+
+    pub fn setup_uart_clock(&self, flexcomm_id: FrgId, frg_source: FrgClockSource) {
+        // Enable the bus clock for the peripheral
+        match flexcomm_id {
+            FrgId::Frg0 => self
+                .syscon
+                .ahbclkctrl1
+                .modify(syscon::AHBCLKCTRL1::FC0::SET),
+            FrgId::Frg1 => self
+                .syscon
+                .ahbclkctrl1
+                .modify(syscon::AHBCLKCTRL1::FC1::SET),
+            FrgId::Frg2 => self
+                .syscon
+                .ahbclkctrl1
+                .modify(syscon::AHBCLKCTRL1::FC2::SET),
+            FrgId::Frg3 => self
+                .syscon
+                .ahbclkctrl1
+                .modify(syscon::AHBCLKCTRL1::FC3::SET),
+            FrgId::Frg4 => self
+                .syscon
+                .ahbclkctrl1
+                .modify(syscon::AHBCLKCTRL1::FC4::SET),
+            FrgId::Frg5 => self
+                .syscon
+                .ahbclkctrl1
+                .modify(syscon::AHBCLKCTRL1::FC5::SET),
+            FrgId::Frg6 => self
+                .syscon
+                .ahbclkctrl1
+                .modify(syscon::AHBCLKCTRL1::FC6::SET),
+            FrgId::Frg7 => self
+                .syscon
+                .ahbclkctrl1
+                .modify(syscon::AHBCLKCTRL1::FC7::SET),
+        }
+
+        // Setting the clock source for the Fractional Rate Divider
+        self.set_frg_clock_source(flexcomm_id, frg_source);
     }
 }
