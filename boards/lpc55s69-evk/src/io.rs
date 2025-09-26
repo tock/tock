@@ -2,6 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! Board‑level I/O and panic infrastructure for the LPC55S69‑EVK.
+//!
+//! This module provides:
+//! - A `Writer` type that implements both `core::fmt::Write` and
+//!   Tock’s `IoWrite` trait, allowing formatted output and debug
+//!   messages to be sent over UART0.
+//! - UART initialization and pin configuration via the IOCON block
+//!   (TX on P0_29, RX on P0_30).
+//! - A global `WRITER` instance used by the kernel’s debug system.
+//! - A `panic_handler` that configures an LED (P1_6) as a panic
+//!   indicator and routes panic output through the UART writer.
+//!
+//! Together, these components provide console output and visual
+//! feedback during normal operation and in panic situations.
+//!
+//! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
+
 use crate::{LPCPin, CHIP, PROCESSES, PROCESS_PRINTER};
 use core::fmt::Write;
 use core::panic::PanicInfo;
@@ -35,7 +52,7 @@ impl Writer {
 
             let iocon = Iocon::new();
 
-            let _tx = iocon.configure_pin(
+            iocon.configure_pin(
                 LPCPin::P0_29,
                 Config {
                     function: Function::Alt1,
@@ -46,7 +63,7 @@ impl Writer {
                     open_drain: false,
                 },
             );
-            let _rx = iocon.configure_pin(
+            iocon.configure_pin(
                 LPCPin::P0_30,
                 Config {
                     function: Function::Alt1,
