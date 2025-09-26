@@ -8,6 +8,7 @@
 //! - I8042 (ports available on 0X60/0X64) delivers keyboard bytes via IRQ1
 //! - We use scan Code set 2 (no translation). 0xE0/0xE1 are prefixes; 0xF0 marks BREAK
 //! - Keyboard speaks simple command/ACK (0xFA) / RESEND (0xFE) protocol
+//!
 //! References:
 //! - OSDev: i8042 PS/2 Controller — https://wiki.osdev.org/I8042_PS/2_Controller
 //! - OSDev: PS/2 Keyboard — https://wiki.osdev.org/PS/2_Keyboard
@@ -17,7 +18,6 @@ use crate::cmd_fifo::Fifo as CmdFifo;
 use crate::ps2::Ps2Client;
 use crate::ps2::Ps2Controller;
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil::keyboard::{Keyboard as HilKeyboard, KeyboardClient as HilKeyboardClient};
 use kernel::utilities::cells::OptionalCell;
 
@@ -334,13 +334,13 @@ impl<'a> Keyboard<'a> {
         let breaking = self.got_f0.replace(false);
         let pressed = !breaking;
 
-        // log the final key event (after prefixes are applied)
-        debug!(
-            "ps2kbd: {} {}{:02X}",
-            if pressed { "MAKE " } else { "BREAK" },
-            if extended { "E0 " } else { "" },
-            byte
-        );
+        // // log the final key event (after prefixes are applied)
+        // debug!(
+        // "ps2kbd: {} {}{:02X}",
+        // if pressed { "MAKE " } else { "BREAK" },
+        // if extended { "E0 " } else { "" },
+        // byte
+        // );
 
         // Emit Linux keycode to the HIL client
         if let Some(code) = linux_key_for(extended, byte) {
