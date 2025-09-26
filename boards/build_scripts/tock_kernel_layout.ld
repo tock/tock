@@ -286,7 +286,7 @@ SECTIONS
         KEEP(*(.stack_buffer))
         . = ALIGN(8);
         _estack = .;
-    } > ram
+    } > ram AT> ram
 
     /* Section for application binaries in flash.
      *
