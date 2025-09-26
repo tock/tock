@@ -270,7 +270,7 @@ impl Ps2Controller {
 
     /// Send one byte to port 0x60 (device), small runtime spin budget.
     #[inline(always)]
-    pub(crate) fn send_port1(&self, byte: u8) -> Ps2Result<()> {
+    pub(crate) fn send_port1(&self, byte: u8) -> Result<(), Ps2Error> {
         write_data_with(byte, SPINS_RUNTIME)
     }
 
