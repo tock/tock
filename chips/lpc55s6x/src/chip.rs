@@ -92,7 +92,7 @@ pub struct Lpc55s69DefaultPeripheral<'a> {
     pub uart: Uart<'a>,
 }
 
-impl<'a> Lpc55s69DefaultPeripheral<'a> {
+impl Lpc55s69DefaultPeripheral<'_> {
     pub fn new() -> Self {
         Self {
             pins: Pins::new(),
@@ -102,7 +102,7 @@ impl<'a> Lpc55s69DefaultPeripheral<'a> {
     }
 }
 
-impl<'a> InterruptService for Lpc55s69DefaultPeripheral<'a> {
+impl InterruptService for Lpc55s69DefaultPeripheral<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::GPIO_INT0_IRQ0 => {
