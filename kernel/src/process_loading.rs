@@ -293,7 +293,46 @@ fn find_ram_region(
     process_memory_end_addresses: &mut [usize],
     required_size: usize,
     alignment: usize,
-) -> Option<usize> {
+) -> (Option<usize>, Option<usize>) {
+    // let app_memory_start = memory.as_ptr() as usize;
+    // let app_memory_end = app_memory_start + memory.len();
+
+    // let mut count = 0;
+    // for i in 0..process_memory_start_addresses.len() {
+    //     if process_memory_start_addresses[i] != 0 {
+    //         process_memory_start_addresses[count] = process_memory_start_addresses[i];
+    //         process_memory_end_addresses[count] = process_memory_end_addresses[i];
+    //         count += 1;
+    //     }
+    // }
+
+    // // If no processes, return start of memory
+    // if count == 0 {
+    //     return Some((app_memory_start + alignment - 1) & !(alignment - 1));
+    // }
+
+    // // Scan for gaps
+    // let mut current = app_memory_start;
+    // for i in 0..count {
+    //     let start = process_memory_start_addresses[i];
+    //     let end = process_memory_end_addresses[i];
+
+    //     let aligned = (current + alignment - 1) & !(alignment - 1);
+
+    //     if aligned + required_size <= start {
+    //         return Some(aligned);
+    //     }
+
+    //     current = core::cmp::max(current, end);
+    // }
+
+    // // Check remaining space after last process
+    // let aligned = (current + alignment - 1) & !(alignment - 1);
+    // if aligned + required_size <= app_memory_end {
+    //     Some(aligned)
+    // } else {
+    //     None
+    // }
     let app_memory_start = memory.as_ptr() as usize;
     let app_memory_end = app_memory_start + memory.len();
 
@@ -306,33 +345,95 @@ fn find_ram_region(
         }
     }
 
-    // If no processes, return start of memory
-    if count == 0 {
-        return Some((app_memory_start + alignment - 1) & !(alignment - 1));
-    }
-
-    // Scan for gaps
-    let mut current = app_memory_start;
     for i in 0..count {
-        let start = process_memory_start_addresses[i];
-        let end = process_memory_end_addresses[i];
-
-        let aligned = (current + alignment - 1) & !(alignment - 1);
-
-        if aligned + required_size <= start {
-            return Some(aligned);
+        for j in i + 1..count {
+            if process_memory_start_addresses[i] > process_memory_start_addresses[j] {
+                process_memory_start_addresses.swap(i, j);
+                process_memory_end_addresses.swap(i, j);
+            }
         }
-
-        current = core::cmp::max(current, end);
     }
 
-    // Check remaining space after last process
-    let aligned = (current + alignment - 1) & !(alignment - 1);
-    if aligned + required_size <= app_memory_end {
-        Some(aligned)
+    let mut best_addr = None;
+    let mut best_size = usize::MAX;
+    let mut second_best_addr = None;
+    let mut second_best_size = usize::MAX;
+
+    let mut update_best_fits = |addr: usize, size: usize| {
+        if size < best_size {
+            second_best_addr = best_addr;
+            second_best_size = best_size;
+            best_addr = Some(addr);
+            best_size = size;
+        } else if size < second_best_size && Some(addr) != best_addr {
+            second_best_addr = Some(addr);
+            second_best_size = size;
+        }
+    };
+
+    // Check all regions (same logic as above)
+    if count > 0 {
+        let aligned = (app_memory_start + alignment - 1) & !(alignment - 1);
+        if aligned < process_memory_start_addresses[0] {
+            let available_size = process_memory_start_addresses[0] - aligned;
+            if available_size >= required_size {
+                update_best_fits(aligned, available_size);
+            }
+        }
     } else {
-        None
+        let aligned = (app_memory_start + alignment - 1) & !(alignment - 1);
+        let available_size = app_memory_end - aligned;
+        if available_size >= required_size {
+            update_best_fits(aligned, available_size);
+        }
     }
+
+    for i in 0..count.saturating_sub(1) {
+        let gap_start = process_memory_end_addresses[i];
+        let gap_end = process_memory_start_addresses[i + 1];
+        
+        if gap_start < gap_end {
+            let aligned = (gap_start + alignment - 1) & !(alignment - 1);
+            if aligned < gap_end {
+                let available_size = gap_end - aligned;
+                if available_size >= required_size {
+                    update_best_fits(aligned, available_size);
+                }
+            }
+        }
+    }
+
+    if count > 0 {
+        let gap_start = process_memory_end_addresses[count - 1];
+        if gap_start < app_memory_end {
+            let aligned = (gap_start + alignment - 1) & !(alignment - 1);
+            if aligned < app_memory_end {
+                let available_size = app_memory_end - aligned;
+                if available_size >= required_size {
+                    update_best_fits(aligned, available_size);
+                }
+            }
+        }
+    }
+
+    match (best_addr, second_best_addr) {
+    (Some(best), Some(second)) => {
+        debug!("Best RAM address: {:#010x} with size: {:?}", best, best_size);
+        debug!("Second Best RAM address: {:#010x} with size: {:?}", second, second_best_size);
+    },
+    (Some(best), None) => {
+        debug!("Only one RAM address available: {:#010x} with size: {:?}", best, best_size);
+    },
+    (None, None) => {
+        debug!("No suitable RAM addresses found");
+    },
+    (None, Some(_)) => {
+        // This shouldn't happen in practice with our algorithm
+        debug!("Unexpected state: second best without best");
+    }
+}
+
+    (best_addr, second_best_addr)
 }
 
 /// Find a process binary stored at the beginning of `flash` and create a
@@ -414,7 +515,7 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
-    if config::CONFIG.debug_load_processes {
+    // if config::CONFIG.debug_load_processes {
         debug!(
             "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
             process_binary.flash.as_ptr() as usize,
@@ -422,7 +523,7 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
             app_memory.as_ptr() as usize,
             app_memory.as_ptr() as usize + app_memory.len() - 1
         );
-    }
+    // }
 
     // Need to reassign remaining_memory in every iteration so the compiler
     // knows it will not be re-borrowed.
@@ -729,8 +830,9 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             required_size,
             alignment,
         ) {
-            Some(address) => Some(address),
-            None => None,
+            (Some(address), Some(_second_address)) => Some(address),
+            (None, None) => None,
+             (None, Some(address)) | (Some(address), None) => Some(address),
         }
     }
 
