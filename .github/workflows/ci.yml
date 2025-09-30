@@ -41,44 +41,7 @@ jobs:
       - name:      ci-job-readme-check
         run:  make ci-job-readme-check
 
-  ci-clippy:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    # The type of runner that the job will run on
-    runs-on: ${{ matrix.os }}
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      - uses: actions/checkout@v4
-      - name:      ci-job-clippy
-        run:  make ci-job-clippy
-
-  ci-build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - uses: actions/checkout@v4
-      - name:      ci-job-syntax
-        run:  make ci-job-syntax
-      - name:      ci-job-compilation
-        run:  make ci-job-compilation
-      - name:      ci-job-msrv
-        run:  make ci-job-msrv
-      - name:      ci-job-debug-support-targets
-        run:  make ci-job-debug-support-targets
-      - name:      ci-job-collect-artifacts
-        run:  make ci-job-collect-artifacts
-      - name: upload-build-artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts
-          path: tools/ci/ci-artifacts
-
-  ci-tests:
+  ci-all:
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -94,6 +57,16 @@ jobs:
           sudo apt install -q libudev-dev libzmq3-dev
         if: matrix.os == 'ubuntu-latest'
       - uses: actions/checkout@v4
+      - name:      ci-job-syntax
+        run:  make ci-job-syntax
+      - name:      ci-job-compilation
+        run:  make ci-job-compilation
+      - name:      ci-job-msrv
+        run:  make ci-job-msrv
+      - name:      ci-job-debug-support-targets
+        run:  make ci-job-debug-support-targets
+      - name:      ci-job-clippy
+        run:  make ci-job-clippy
       - name:      ci-job-libraries
         run:  make ci-job-libraries
       - name:      ci-job-archs
@@ -108,6 +81,13 @@ jobs:
         run:  make ci-job-tools
       - name:      ci-job-cargo-test-build
         run:  make ci-job-cargo-test-build
+      - name:      ci-job-collect-artifacts
+        run:  make ci-job-collect-artifacts
+      - name: upload-build-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: tools/ci/ci-artifacts
 
   ci-qemu:
     strategy:
