@@ -15,6 +15,7 @@ group](wg/core/README.md) maintains the Tock project.
     + [Tagging a release candidate](#tagging-a-release-candidate)
     + [Release testing](#release-testing)
     + [Tagging a release](#tagging-a-release)
+    + [Starting the next release](#starting-the-next-release)
 - [Stabilizing a Syscall Driver](#stabilizing-a-syscall-driver)
   * [Syscall Driver Stabilization Process](#syscall-driver-stabilization-process)
 
@@ -84,6 +85,10 @@ major features which might be in-flight at a release point.
   phase.
 - Release candidates are named release-<version>-rc-x, where x is the release
   candidate in question.
+- The version number in `kernel/src/lib.rs` is updated by incrementing
+  `KERNEL_PRERELEASE_VERSION`.
+- The version number in the root `Cargo.toml` file is updated to
+  `<version>-rcx`, where x is the release candidate in question.
 
 #### Release testing
 
@@ -113,8 +118,23 @@ will decide whether new release candidates require re-testing all boards or not.
 
 #### Tagging a release
 
-Once all tests pass for all boards, and the changelog is updated, a release can
-be tagged.
+Once these steps are complete:
+
+- All tests pass for all boards.
+- The changelog is updated.
+- The `KERNEL_PRERELEASE_VERSION` version number in `kernel/src/lib.rs` is set
+  to 0.
+- The version number in the root `Cargo.toml` file is updated.
+
+then a release can be tagged.
+
+#### Starting the next release
+
+Immediately after a release, the minor version number is incremented and the
+patch version number is set to 0. This is set in the root `Cargo.toml` file by
+setting the version to `<new version>-dev` and in `kernel/src/lib.rs` by
+updating `KERNEL_MAJOR_VERSION`, `KERNEL_MINOR_VERSION`, and
+`KERNEL_PATCH_VERSION`, and setting `KERNEL_PRERELEASE_VERSION` to 1.
 
 ## Stabilizing a Syscall Driver
 
