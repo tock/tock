@@ -14,7 +14,7 @@ pub trait KeyboardClient {
     /// same as the codes used by Linux to identify different keys.
     /// `is_pressed` is true if the key was pressed, and false if the key was
     /// un-pressed. A list of keycodes can be found here:
-    /// https://manpages.ubuntu.com/manpages/focal/man7/virkeycode-linux.7.html
+    /// <https://manpages.ubuntu.com/manpages/focal/man7/virkeycode-linux.7.html>
     ///
     /// `result` is `Ok(())` if the keys were received correctly.
     fn keys_pressed(&self, keys: &[(u16, bool)], result: Result<(), ErrorCode>);

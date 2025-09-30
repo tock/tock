@@ -12,20 +12,20 @@
 //!
 //! NOTE!!!
 //!
-//! This file compiles and provides working text-
-//! mode console support so the board can swap from the UART mux to a VGA
-//! console.  Graphical modes are *disabled at runtime* until a framebuffer
-//! capsule implementation lands.  The low-level register writes for 640×480 and 800×600 are
-//! nonetheless laid out so they can be enabled by flipping a constant.
+//! This file compiles and provides working text-mode console support so the
+//! board can swap from the UART mux to a VGA console.  Graphical modes
+//! are *disabled at runtime* until a framebuffer capsule implementation lands.
+//! The low-level register writes for 640×480 and 800×600 are nonetheless laid
+//! out so they can be enabled by flipping a constant.
 //!
 //! VGA peripheral driver for the x86_q35 chip.
 //!
 //! The driver currently focuses on **text mode** (colour attribute buffer at
-//! 0xB8000).  It also defines [`VgaMode`] and an [`init`] routine that writes
-//! the necessary CRT controller registers for text mode and two common planar
-//! 16-colour modes.  Other code (e.g. the board crate) can query the selected
-//! mode via `kernel::config::CONFIG.vga_mode` and decide whether to route the
-//! `ProcessConsole` to this driver or to the legacy serial mux.
+//! 0xB8000).  It also defines [`VgaMode`] and a `new_text_console` routine
+//! that writes the necessary CRT controller registers for text mode and two
+//! common planar 16-colour modes.  Other code (e.g. the board crate) can query
+//! the selected mode via `kernel::config::CONFIG.vga_mode` and decide whether
+//! to route the `ProcessConsole` to this driver or to the legacy serial mux.
 
 use core::cell::Cell;
 use kernel::utilities::StaticRef;
