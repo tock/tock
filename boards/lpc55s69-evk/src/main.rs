@@ -109,8 +109,12 @@ impl KernelResources<Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>> for 
     }
 }
 
-#[no_mangle]
-unsafe fn main() -> ! {
+#[inline(never)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Lpc55s69evk,
+    &'static Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>,
+) {
     lpc55s6x::init();
 
     system_init();
@@ -330,6 +334,19 @@ unsafe fn main() -> ! {
     ));
     let _ = process_console.start();
 
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
+
+    let lpc55 = Lpc55s69evk {
+        console,
+        alarm,
+        gpio,
+        button,
+        led,
+        scheduler,
+        systick: cortexm33::systick::SysTick::new_with_calibration(12_000_000),
+    };
+
     debug!("Tock");
 
     // These symbols are defined in the linker script.
@@ -365,24 +382,16 @@ unsafe fn main() -> ! {
         kernel::debug!("Error loading processes!");
         kernel::debug!("{:?}", err);
     });
+    (board_kernel, lpc55, chip)
+}
 
+#[no_mangle]
+unsafe fn main() -> ! {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
-        .finalize(components::round_robin_component_static!(NUM_PROCS));
-
-    let lpc55 = Lpc55s69evk {
-        console,
-        alarm,
-        gpio,
-        button,
-        led,
-        scheduler,
-        systick: cortexm33::systick::SysTick::new_with_calibration(12_000_000),
-    };
+    let (board_kernel, platform, chip) = start();
 
     board_kernel.kernel_loop(
-        &lpc55,
+        &platform,
         chip,
         None::<kernel::ipc::IPC<{ NUM_PROCS as u8 }>>.as_ref(),
         &main_loop_capability,
