@@ -15,7 +15,7 @@ extern "C" {
 /// ARMv7-M systick handler function.
 ///
 /// For documentation of this function, please see
-/// [`CortexMVariant::SYSTICK_HANDLER`].
+/// `CortexMVariant::SYSTICK_HANDLER`.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn systick_handler_arm_v7m() {
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
 /// Handler of `svc` instructions on ARMv7-M.
 ///
 /// For documentation of this function, please see
-/// [`CortexMVariant::SVC_HANDLER`].
+/// `CortexMVariant::SVC_HANDLER`.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
@@ -128,7 +128,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
 
 /// Generic interrupt handler for ARMv7-M instruction sets.
 ///
-/// For documentation of this function, see [`CortexMVariant::GENERIC_ISR`].
+/// For documentation of this function, see `CortexMVariant::GENERIC_ISR`.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn generic_isr_arm_v7m() {
@@ -432,7 +432,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 /// ARMv7-M hardfault handler.
 ///
 /// For documentation of this function, please see
-/// [`CortexMVariant::HARD_FAULT_HANDLER_HANDLER`].
+/// `CortexMVariant::HARD_FAULT_HANDLER_HANDLER`.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {

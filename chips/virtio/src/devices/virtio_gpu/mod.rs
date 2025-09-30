@@ -31,14 +31,14 @@ use messages::{
 
 /// The total number of bytes occupied by a pixel in memory.
 ///
-/// All [`VideoFormat`]s supported by VirtIO have a pixel stride of 4.
+/// All `VideoFormat`s supported by VirtIO have a pixel stride of 4.
 pub const PIXEL_STRIDE: usize = 4;
 
-/// How many individual memory regions a backing buffer for a resouce
+/// How many individual memory regions a backing buffer for a resource
 /// can be split over.
 ///
-/// This constant is used in calculating the maxium size of a
-/// [`ResourceAttachBackingReq`], which in turn is used to calculate
+/// This constant is used in calculating the maximum size of a
+/// `ResourceAttachBackingReq`, which in turn is used to calculate
 /// the overall maximum request size issued by the [`VirtIOGPU`]
 /// driver.
 pub const MAX_ATTACH_BACKING_REQ_MEMORY_ENTRIES: usize = 1;
@@ -126,7 +126,7 @@ pub struct VirtIOGPU<'a, 'b> {
     // Slot for the client's write buffer, while it's attached to the GPU:
     write_buffer: TakeCell<'static, [u8]>,
 
-    // Current rect being transfered to the host:
+    // Current rect being transferred to the host:
     current_transfer_area_pixels: Cell<(Rect, usize)>,
 }
 
