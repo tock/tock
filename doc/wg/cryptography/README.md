@@ -1,15 +1,15 @@
 Tock Cryptography Working Group (crypto)
-======================================
+========================================
 
 - Working Group Charter
-- Adopted 09/18/2025
+- Adopted 09/30/2025
 
 ## Goals
 
 The goals of the Tock Working Group (crypto) are to:
 
 - Improve and standardize HIL and system call interfaces for cryptographic
-  primitives
+  primitives.
 - Maintain and improve cryptography support in the Tock kernel, libtock-rs, and
   libtock-c.
 - Review changes to the Tock kernel, libtock-rs, and libtock-c that
@@ -29,7 +29,7 @@ interested in the design of cryptography interfaces. Group membership
 is decided by the group: the exact process is not yet determined and
 may organically evolve as the group gains momentum.
 
-The group primarily coordiates via the Cryptography WG channel in the
+The group primarily coordinates via the Cryptography WG channel in the
 [Tock Matrix space](https://matrix.to/#/#tock:tockos.org). Those
 looking to engage with the working group are encouraged to join the
 channel.
