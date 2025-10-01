@@ -1,4 +1,4 @@
-# Tock Network Notes 2023-08-10
+# Tock Network WG Meeting Notes
 
 ## Attendees
  * Branden Ghena
