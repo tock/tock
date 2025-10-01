@@ -1,5 +1,7 @@
 # Tock Network WG Meeting Notes
 
+- **Date:** August 10th, 2023
+
 ## Attendees
  * Branden Ghena
  * Alexandru Radovici
