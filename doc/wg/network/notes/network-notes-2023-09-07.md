@@ -1,9 +1,5 @@
 # Tock Network WG Meeting Notes
 
-
-2023-09-07
-===
-
 - **Date:** September 7th, 2023
 - **Participants:**
     - Alex Radovici
