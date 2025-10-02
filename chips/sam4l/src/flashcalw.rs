@@ -439,7 +439,6 @@ impl FLASHCALW {
     }
 
     /// Cache controlling functionality.
-
     //  Flush the cache. Should be called after every write!
     fn invalidate_cache(&self) {
         self.registers

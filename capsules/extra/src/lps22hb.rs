@@ -42,11 +42,11 @@ use kernel::hil::sensors::{PressureClient, PressureDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
-/// Syscall driver number.
 use capsules_core::driver;
+/// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Pressure as usize;
 
-/// Register values
+// Register values
 
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;
 const CTRL_REG1_ONE_SHOT: u8 = 0x00;

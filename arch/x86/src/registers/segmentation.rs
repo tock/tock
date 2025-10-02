@@ -103,8 +103,9 @@ impl Descriptor {
         }
     }
 
-    /// Specifies the privilege level of the segment. The DPL is used to control access to the segment.
-
+    /// Specifies the privilege level of the segment.
+    ///
+    /// The DPL is used to control access to the segment.
     pub fn set_dpl(&mut self, ring: Ring) {
         assert!(ring as u32 <= 0b11);
         self.upper &= !(0b11 << 13);
@@ -127,10 +128,9 @@ impl Descriptor {
         self.upper |= limit_last_four_bits << 16;
     }
 
-    /// Creates a new descriptor with selector and offset (for IDT Gate descriptors,
-
-    /// e.g. Trap, Interrupts and Task gates)
-
+    /// Creates a new descriptor with selector and offset
+    ///
+    /// This is for IDT Gate descriptors, e.g. Trap, Interrupts and Task gates.
     pub fn set_selector_offset(&mut self, selector: SegmentSelector, offset: u32) {
         // Clear the selector and offset
         self.lower = 0;
@@ -506,9 +506,8 @@ pub(crate) enum DescriptorType {
 }
 
 /// System-Segment and Gate-Descriptor Types 32-bit mode.
-
+///
 /// See also Intel 3a, Table 3-2 System Segment and Gate-Descriptor Types.
-
 #[allow(clippy::upper_case_acronyms)]
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

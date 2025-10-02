@@ -21,7 +21,6 @@ use core::fmt;
 
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
-
 pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Width of the actual underlying timer in bits.
     ///
@@ -169,7 +168,6 @@ pub trait ConvertTicks<T: Ticks> {
     /// Returns the number of ticks in the provided number of milliseconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
-
     fn ticks_from_ms(&self, ms: u32) -> T;
 
     /// Returns the number of ticks in the provided number of microseconds,

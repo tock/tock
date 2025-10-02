@@ -1271,7 +1271,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     }
 
     //#################################################
-    /// Accessors
+    // Accessors
     //#################################################
 
     fn get_address(&self) -> u16 {
@@ -1298,7 +1298,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     }
 
     //#################################################
-    /// Mutators
+    // Mutators
     //#################################################
 
     fn set_address(&self, addr: u16) {

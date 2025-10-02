@@ -145,11 +145,6 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     }
 }
 
-/// Helper function called during bring-up that configures DMA.
-/// DMA for imxrt1050-evkb is not implemented yet.
-// unsafe fn setup_dma() {
-// }
-
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     peripherals: &'static imxrt1050::chip::Imxrt10xxDefaultPeripherals,

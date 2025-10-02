@@ -315,7 +315,6 @@ impl<
     /// 2. ProcessLoadError::MpuInvalidFlashLength <==> ErrorCode::INVAL
     /// 3. ProcessLoadError::InternalError         <==> ErrorCode::OFF
     /// 4. All other ProcessLoadError types        <==> ErrorCode::FAIL
-
     fn load_done(&self, result: Result<(), ProcessLoadError>) {
         let status_code = match result {
             Ok(()) => Ok(()),

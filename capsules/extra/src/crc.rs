@@ -249,9 +249,9 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
 /// Then, it initiates a Crc computation using the `command` system call. See function-specific
 /// comments for details.
 impl<'a, C: Crc<'a>> SyscallDriver for CrcDriver<'a, C> {
-    /// The `allow` syscall for this driver supports the single
-    /// `allow_num` zero, which is used to provide a buffer over which
-    /// to compute a Crc computation.
+    // The `allow` syscall for this driver supports the single
+    // `allow_num` zero, which is used to provide a buffer over which
+    // to compute a Crc computation.
 
     // The `subscribe` syscall supports the single `subscribe_number`
     // zero, which is used to provide a callback that will receive the

@@ -117,7 +117,7 @@ impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
     /// upcall or as returned by allow.
     ///
     /// Returns INVAL if the other process doesn't exist.
-
+    ///
     /// Initiates a service discovery or notifies a client or service.
     ///
     /// ### `command_num`

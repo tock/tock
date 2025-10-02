@@ -906,7 +906,6 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
 /// Testing PWM HIL trait...
 /// PWM HIL trait OK
 /// ```
-
 pub mod unit_tests {
     use super::{
         debug, hil, ChannelNumber, ChannelPin, DivMode, Pwm, RPGpio, Readable, CC, CH, CSR, CTR,

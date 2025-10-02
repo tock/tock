@@ -166,7 +166,6 @@ pub trait Client {
 
 /// Generic interface for a synchronous 32-bit random number
 /// generator.
-
 pub trait Random<'a> {
     /// Initialize/reseed the random number generator from an
     /// internal source. This initialization MAY be deterministic

@@ -184,7 +184,6 @@ const DIGITS: [u8; 10] = [
 ];
 
 /// Holds an array of digits and an array of segments for each digit.
-
 pub struct SevenSegmentDriver<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> {
     /// An array of 8 segment pins (7 for digit segments and one dot segment)
     segments: &'a [&'a P; 8],

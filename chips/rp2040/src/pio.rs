@@ -1659,7 +1659,6 @@ mod examples {
     impl Pio {
         // # Examples
         /// Used for the examples in the pico explorer base main.rs file.
-
         pub fn blinking_hello_program_init(
             &self,
             sm_number: SMNumber,

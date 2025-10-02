@@ -13,11 +13,10 @@ use kernel::utilities::StaticRef;
 /// Place the register map definition in a private module to disallow direct access to it's
 /// fields from the Plic struct implementation, which should only use a getter/setter with
 /// appropriate bounds set
-
+///
 ///    The generic SiFive PLIC specification:
 ///    <https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc>
 ///    is defining maximum of 1023 interrupt sources
-
 // TODO: replace with const generic for `priority` and `_reserved1` field
 // in the [PlicRegisters] when const generic expressions are stable
 const MAX_INTERRUPTS: usize = 1023;

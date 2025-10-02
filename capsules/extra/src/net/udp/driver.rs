@@ -377,7 +377,6 @@ impl SyscallDriver for UDPDriver<'_> {
     ///   this driver. This represents the size of the payload buffer in the
     ///   kernel. Apps can use this syscall to ensure they do not attempt to
     ///   send too-large messages.
-
     fn command(
         &self,
         command_num: usize,
