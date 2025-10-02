@@ -336,7 +336,6 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 
         panic!(
             "{} HardFault.\r\n\
-         \tKernel version {}\r\n\
          \tr0  0x{:x}\r\n\
          \tr1  0x{:x}\r\n\
          \tr2  0x{:x}\r\n\
@@ -374,7 +373,6 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
          \tBus Fault Address:       (valid: {}) {:#010X}\r\n\
          ",
             mode_str,
-            kernel::TOCK_KERNEL_VERSION,
             stacked_r0,
             stacked_r1,
             stacked_r2,
