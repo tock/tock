@@ -17,15 +17,9 @@
 //!
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
-use crate::clocks::FrgId;
-use enum_primitive::cast::FromPrimitive;
-use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
-};
-use kernel::utilities::StaticRef;
-
 use core::arch::asm;
 use core::cell::Cell;
+use enum_primitive::cast::FromPrimitive;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
@@ -33,8 +27,13 @@ use kernel::hil::uart::{
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+};
+use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks::FrgId;
 use crate::clocks::{Clock, FrgClockSource};
 use crate::flexcomm::Flexcomm;
 
