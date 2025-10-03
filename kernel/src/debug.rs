@@ -95,6 +95,51 @@ pub trait IoWrite {
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
 
+/// Resources needed by the main panic routines.
+pub struct PanicResources<C: Chip + 'static, PP: ProcessPrinter + 'static> {
+    /// The array of process slots.
+    pub processes: MapCell<&'static [ProcessSlot]>,
+    /// The board-specific chip object.
+    pub chip: MapCell<&'static C>,
+    /// The tool for printing process details.
+    pub printer: MapCell<&'static PP>,
+}
+
+impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
+    /// Create a new [`BoardPanic`] with nothing stored.
+    pub const fn new() -> Self {
+        Self {
+            processes: MapCell::empty(),
+            chip: MapCell::empty(),
+            printer: MapCell::empty(),
+        }
+    }
+}
+
+/// Tock default panic routine.
+///
+/// **NOTE:** The supplied `writer` must be synchronous.
+///
+/// This will print a detailed debugging message and then loop forever while
+/// blinking an LED in a recognizable pattern.
+pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+    leds: &mut [&L],
+    writer: &mut W,
+    panic_info: &PanicInfo,
+    nop: &dyn Fn(),
+    panic_resources: Option<&PanicResources<C, PP>>,
+) -> ! {
+    // Call `panic_print` first which will print out the panic information and
+    // return
+    panic_print(writer, panic_info, nop, panic_resources);
+
+    // The system is no longer in a well-defined state, we cannot
+    // allow this function to return
+    //
+    // Forever blink LEDs in an infinite loop
+    panic_blink_forever(leds)
+}
+
 /// Tock panic routine, without the infinite LED-blinking loop.
 ///
 /// This is useful for boards which do not feature LEDs to blink or want to
@@ -110,51 +155,28 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [ProcessSlot],
-    chip: &'static Option<&'static C>,
-    process_printer: &'static Option<&'static PP>,
+    panic_resources: Option<&PanicResources<C, PP>>,
 ) {
     panic_begin(nop);
     // Flush debug buffer if needed
     flush(writer);
     panic_banner(writer, panic_info);
-    panic_cpu_state(chip, writer);
 
-    // Some systems may enforce memory protection regions for the kernel, making
-    // application memory inaccessible. However, printing process information
-    // will attempt to access memory. If we are provided a chip reference,
-    // attempt to disable userspace memory protection first:
-    chip.map(|c| {
-        use crate::platform::mpu::MPU;
-        c.mpu().disable_app_mpu()
+    panic_resources.map(|pr| {
+        pr.chip.take().map(|c| {
+            c.print_state(writer);
+
+            // Some systems may enforce memory protection regions for the kernel,
+            // making application memory inaccessible. However, printing process
+            // information will attempt to access memory. If we are provided a chip
+            // reference, attempt to disable userspace memory protection first:
+            use crate::platform::mpu::MPU;
+            c.mpu().disable_app_mpu()
+        });
+        pr.processes.take().map(|p| {
+            panic_process_info(p, pr.printer.take(), writer);
+        });
     });
-    panic_process_info(processes, process_printer, writer);
-}
-
-/// Tock default panic routine.
-///
-/// **NOTE:** The supplied `writer` must be synchronous.
-///
-/// This will print a detailed debugging message and then loop forever while
-/// blinking an LED in a recognizable pattern.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
-    leds: &mut [&L],
-    writer: &mut W,
-    panic_info: &PanicInfo,
-    nop: &dyn Fn(),
-    processes: &'static [ProcessSlot],
-    chip: &'static Option<&'static C>,
-    process_printer: &'static Option<&'static PP>,
-) -> ! {
-    // Call `panic_print` first which will print out the panic information and
-    // return
-    panic_print(writer, panic_info, nop, processes, chip, process_printer);
-
-    // The system is no longer in a well-defined state, we cannot
-    // allow this function to return
-    //
-    // Forever blink LEDs in an infinite loop
-    panic_blink_forever(leds)
 }
 
 /// Generic panic entry.
@@ -194,24 +216,12 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
     }
 }
 
-/// Print current machine (CPU) state.
-///
-/// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
-    chip: &'static Option<&'static C>,
-    writer: &mut W,
-) {
-    chip.map(|c| {
-        c.print_state(writer);
-    });
-}
-
 /// More detailed prints about all processes.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
     processes: &'static [ProcessSlot],
-    process_printer: &'static Option<&'static PP>,
+    process_printer: Option<&'static PP>,
     writer: &mut W,
 ) {
     process_printer.map(|printer| {

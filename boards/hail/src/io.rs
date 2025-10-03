@@ -10,15 +10,20 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
-
 struct Writer {
     initialized: bool,
+    uart: sam4l::usart::USART<'static>,
 }
 
-static mut WRITER: Writer = Writer { initialized: false };
+impl Writer {
+    fn new(chip: &'static crate::Chip) -> Self {
+        let uart = sam4l::usart::USART::new_usart0(chip.pm);
+        Self {
+            initialized: false,
+            uart,
+        }
+    }
+}
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
@@ -32,7 +37,8 @@ impl IoWrite for Writer {
         // Here, we create a second instance of the USART0 struct.
         // This is okay because we only call this during a panic, and
         // we will never actually process the interrupts
-        let uart = unsafe { sam4l::usart::USART::new_usart0(CHIP.unwrap().pm) };
+        // let uart = unsafe { sam4l::usart::USART::new_usart0(CHIP.unwrap().pm) };
+        let uart = &self.uart;
         let regs_manager = &sam4l::usart::USARTRegManager::panic_new(&uart);
         if !self.initialized {
             self.initialized = true;
@@ -59,8 +65,6 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // turn off the non panic leds, just in case
-
-    use core::ptr::{addr_of, addr_of_mut};
     let led_green = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA14);
     led_green.enable_output();
     led_green.set();
@@ -70,14 +74,22 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let red_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA13);
     let led_red = &mut led::LedLow::new(&red_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic(
-        &mut [led_red],
-        writer,
-        pi,
-        &cortexm4::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
-    )
+
+    crate::PANIC_RESOURCES.with(|resources| {
+        resources.chip.take().map_or_else(
+            || debug::panic_blink_forever(&mut [led_red]),
+            |c| {
+                let writer = kernel::static_init!(Writer, Writer::new(c));
+                resources.set_chip(c);
+
+                debug::panic(
+                    &mut [led_red],
+                    writer,
+                    pi,
+                    &cortexm4::support::nop,
+                    resources,
+                )
+            },
+        )
+    })
 }
