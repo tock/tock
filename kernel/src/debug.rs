@@ -25,6 +25,55 @@
 //! .finalize(components::debug_writer_component_static!());
 //! ```
 //!
+//! An alternative to using the default `DebugWriterComponent`, which defaults
+//! to sending over UART, is to implement a custom [`DebugWriter`] that can be
+//! used for other types of output. For example a simple "endless" FIFO with
+//! fixed "push" address:
+//!
+//! ```ignore
+//! use kernel::debug::DebugWriter;
+//!
+//! pub struct SyncDebugWriter;
+//!
+//! impl DebugWriter for SyncDebugWriter {
+//!    fn write(&self, buf: &[u8], _overflow: &[u8]) -> usize {
+//!        let out_reg = 0x4000 as *mut u8; // Replace with the actual address of the FIFO
+//!        for c in buf.iter() {
+//!            unsafe { out_reg.write_volatile(*c) };
+//!        }
+//!        buf.len()
+//!    }
+//!
+//!    fn available_len(&self) -> usize {
+//!        usize::MAX
+//!    }
+//!
+//!    fn to_write_len(&self) -> usize {
+//!        0
+//!    }
+//!
+//!    fn publish(&self) -> usize {
+//!        0
+//!    }
+//!
+//!    fn flush(&self, _writer: &mut dyn IoWrite) { }
+//! ```
+//! And instantiate it in the main board file:
+//!
+//! ```ignore
+//! let debug_writer = static_init!(
+//!     utils::SyncDebugWriter,
+//!     utils::SyncDebugWriter
+//! );
+//!
+//! kernel::debug::set_debug_writer_wrapper(
+//!     static_init!(
+//!         kernel::debug::DebugWriterWrapper,
+//!         kernel::debug::DebugWriterWrapper::new(debug_writer)
+//!     ),
+//! );
+//! ```
+//!
 //! Example
 //! -------
 //!
@@ -301,20 +350,46 @@ macro_rules! debug_gpio {
 ///////////////////////////////////////////////////////////////////
 // debug! and debug_verbose! support
 
+/// A trait for writing debug output.
+///
+/// This can be used for example to implement asynchronous or synchronous
+/// writers, and buffered or unbuffered writers. Various platforms may have
+/// in-memory logs, memory mapped "endless" FIFOs, JTAG support for output,
+/// etc.
+pub trait DebugWriter {
+    /// Write bytes to output with overflow notification.
+    ///
+    /// The `overflow` slice is used as a message to be appended to the end of
+    /// the available buffer if it becomes full.
+    fn write(&self, bytes: &[u8], overflow_message: &[u8]) -> usize;
+
+    /// Available length of the internal buffer if limited.
+    ///
+    /// If the buffer can support a write of any size, it should lie and return
+    /// `usize::MAX`.
+    ///
+    /// Across subsequent calls to this function, without invoking `write()` in
+    /// between, this returned value may only increase, but never decrease.
+    fn available_len(&self) -> usize;
+
+    /// How many bytes are buffered and not yet written.
+    fn to_write_len(&self) -> usize;
+
+    /// Publish bytes from the internal buffer to the output.
+    ///
+    /// Returns how many bytes were written.
+    fn publish(&self) -> usize;
+
+    /// Flush any buffered bytes to the provided output writer.
+    ///
+    /// `flush()` should be used to write an buffered bytes to a new `writer`
+    /// instead of the internal writer that `publish()` would use.
+    fn flush(&self, writer: &mut dyn IoWrite);
+}
 /// Wrapper type that we need a mutable reference to for the
 /// [`core::fmt::Write`] interface.
 pub struct DebugWriterWrapper {
-    dw: MapCell<&'static DebugWriter>,
-}
-
-/// Main type that we share with the UART provider and this debug module.
-pub struct DebugWriter {
-    // What provides the actual writing mechanism.
-    uart: &'static dyn hil::uart::Transmit<'static>,
-    // The buffer that is passed to the writing mechanism.
-    output_buffer: TakeCell<'static, [u8]>,
-    // An internal buffer that is used to hold debug!() calls as they come in.
-    internal_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
+    dw: MapCell<&'static dyn DebugWriter>,
     // Number of debug!() calls.
     count: Cell<usize>,
 }
@@ -343,39 +418,83 @@ pub fn set_debug_writer_wrapper<C: SetDebugWriterCapability>(
     }
 }
 
-impl DebugWriterWrapper {
-    pub fn new(dw: &'static DebugWriter) -> DebugWriterWrapper {
-        DebugWriterWrapper {
-            dw: MapCell::new(dw),
-        }
-    }
+/// Buffered [`DebugWriter`] implementation using a UART.
+///
+/// Currently used as a default implementation of DebugWriterComponent.
+pub struct UartDebugWriter {
+    /// What provides the actual writing mechanism.
+    uart: &'static dyn hil::uart::Transmit<'static>,
+    /// The buffer that is passed to the writing mechanism.
+    output_buffer: TakeCell<'static, [u8]>,
+    /// An internal buffer that is used to hold debug!() calls as they come in.
+    internal_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
 }
 
-impl DebugWriter {
+impl UartDebugWriter {
     pub fn new(
         uart: &'static dyn hil::uart::Transmit,
         out_buffer: &'static mut [u8],
         internal_buffer: &'static mut RingBuffer<'static, u8>,
-    ) -> DebugWriter {
-        DebugWriter {
+    ) -> UartDebugWriter {
+        UartDebugWriter {
             uart,
             output_buffer: TakeCell::new(out_buffer),
             internal_buffer: TakeCell::new(internal_buffer),
-            count: Cell::new(0), // how many debug! calls
+        }
+    }
+}
+
+impl hil::uart::TransmitClient for UartDebugWriter {
+    fn transmitted_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        _tx_len: usize,
+        _rcode: core::result::Result<(), ErrorCode>,
+    ) {
+        // Replace this buffer since we are done with it.
+        self.output_buffer.replace(buffer);
+
+        if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
+            // Buffer not empty, go around again
+            self.publish();
+        }
+    }
+    fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
+}
+
+impl DebugWriter for UartDebugWriter {
+    fn write(&self, bytes: &[u8], overflow_message: &[u8]) -> usize {
+        // If we have a buffer, write to it.
+        if let Some(ring_buffer) = self.internal_buffer.take() {
+            let available_len = ring_buffer
+                .available_len()
+                .saturating_sub(overflow_message.len());
+            let total_written = if available_len >= bytes.len() {
+                for &b in bytes {
+                    ring_buffer.enqueue(b);
+                }
+                bytes.len()
+            } else {
+                // If we don't have enough space, write as much as we can and
+                // then write the overflow message.
+                for &b in &bytes[..available_len] {
+                    ring_buffer.enqueue(b);
+                }
+                for &b in overflow_message {
+                    ring_buffer.enqueue(b);
+                }
+                available_len + overflow_message.len()
+            };
+            // Put the buffer back.
+            self.internal_buffer.replace(ring_buffer);
+            total_written
+        } else {
+            // No buffer, so just return the number of bytes.
+            bytes.len()
         }
     }
 
-    fn increment_count(&self) {
-        self.count.increment();
-    }
-
-    fn get_count(&self) -> usize {
-        self.count.get()
-    }
-
-    /// Write as many of the bytes from the internal_buffer to the output
-    /// mechanism as possible, returning the number written.
-    fn publish_bytes(&self) -> usize {
+    fn publish(&self) -> usize {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
         self.internal_buffer.map_or(0, |ring_buffer| {
@@ -409,86 +528,59 @@ impl DebugWriter {
         })
     }
 
-    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
-        self.internal_buffer.take()
+    fn flush(&self, writer: &mut dyn IoWrite) {
+        self.internal_buffer.map(|ring_buffer| {
+            writer.write_ring_buffer(ring_buffer);
+        });
     }
 
     fn available_len(&self) -> usize {
         self.internal_buffer.map_or(0, |rb| rb.available_len())
     }
+
+    fn to_write_len(&self) -> usize {
+        self.internal_buffer.map_or(0, |rb| rb.len())
+    }
 }
 
-impl hil::uart::TransmitClient for DebugWriter {
-    fn transmitted_buffer(
-        &self,
-        buffer: &'static mut [u8],
-        _tx_len: usize,
-        _rcode: core::result::Result<(), ErrorCode>,
-    ) {
-        // Replace this buffer since we are done with it.
-        self.output_buffer.replace(buffer);
-
-        if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
-            // Buffer not empty, go around again
-            self.publish_bytes();
+impl DebugWriterWrapper {
+    const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
+    pub fn new(dw: &'static dyn DebugWriter) -> DebugWriterWrapper {
+        DebugWriterWrapper {
+            dw: MapCell::new(dw),
+            count: Cell::new(0),
         }
     }
-    fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
-}
 
-/// Pass through functions.
-impl DebugWriterWrapper {
+    /// Pass through functions.
     fn increment_count(&self) {
-        self.dw.map(|dw| {
-            dw.increment_count();
-        });
+        self.count.increment();
     }
 
     fn get_count(&self) -> usize {
-        self.dw.map_or(0, |dw| dw.get_count())
+        self.count.get()
     }
 
     fn publish_bytes(&self) -> usize {
-        self.dw.map_or(0, |dw| dw.publish_bytes())
-    }
-
-    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
-        self.dw.map_or(None, |dw| dw.extract())
+        self.dw.map_or(0, |dw| dw.publish())
     }
 
     fn available_len(&self) -> usize {
-        const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
         self.dw
-            .map_or(0, |dw| dw.available_len().saturating_sub(FULL_MSG.len()))
+            .map_or(0, |dw| dw.available_len())
+            .saturating_sub(Self::FULL_MSG.len())
     }
-}
 
-impl IoWrite for DebugWriterWrapper {
-    fn write(&mut self, bytes: &[u8]) -> usize {
-        const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
-        self.dw.map_or(0, |dw| {
-            dw.internal_buffer.map_or(0, |ring_buffer| {
-                let available_len_for_msg =
-                    ring_buffer.available_len().saturating_sub(FULL_MSG.len());
+    fn to_write_len(&self) -> usize {
+        self.dw.map_or(0, |dw| dw.to_write_len())
+    }
 
-                if available_len_for_msg >= bytes.len() {
-                    for &b in bytes {
-                        ring_buffer.enqueue(b);
-                    }
-                    bytes.len()
-                } else {
-                    for &b in &bytes[..available_len_for_msg] {
-                        ring_buffer.enqueue(b);
-                    }
-                    // When the buffer is close to full, print a warning and drop the current
-                    // string.
-                    for &b in FULL_MSG {
-                        ring_buffer.enqueue(b);
-                    }
-                    available_len_for_msg
-                }
-            })
-        })
+    fn write(&self, bytes: &[u8]) -> usize {
+        self.dw.map_or(0, |dw| dw.write(bytes, Self::FULL_MSG))
+    }
+
+    fn flush(&self, writer: &mut dyn IoWrite) {
+        self.dw.map(|dw| dw.flush(writer));
     }
 }
 
@@ -647,14 +739,11 @@ macro_rules! debug_expr {
 /// Flush any stored messages to the output writer.
 pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
     if let Some(debug_writer) = try_get_debug_writer() {
-        if let Some(ring_buffer) = debug_writer.extract() {
-            if ring_buffer.has_elements() {
-                let _ = writer.write_str(
+        if debug_writer.to_write_len() > 0 {
+            let _ = writer.write_str(
                     "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
                 );
-
-                writer.write_ring_buffer(ring_buffer);
-            }
+            debug_writer.flush(writer);
         }
     } else {
         let _ = writer.write_str(
