@@ -12,6 +12,7 @@ edition.workspace = true
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
+flux-rs = { git  = "https://github.com/flux-rs/flux.git", rev="0165730", optional=true }
 
 # In general, Tock discourages the use of cargo features. However for certain
 # kernel crate configuration, we have not found reasonable alternatives to
@@ -34,6 +35,7 @@ trace_syscalls = []
 debug_load_processes = []
 no_debug_panics = []
 debug_process_credentials = []
+flux = ["flux-rs"]
 
 [lints]
 workspace = true
