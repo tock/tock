@@ -70,7 +70,7 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
             |buffer| static_init!(Writer, Writer::WriterRtt(buffer)),
          );
 
-    debug::panic(
+    debug::panic_new(
         &mut [led],
         writer,
         pi,
