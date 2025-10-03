@@ -45,7 +45,6 @@ unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
 
     panic!(
         "Kernel HardFault.\r\n\
-         \tKernel version {}\r\n\
          \tr0  0x{:x}\r\n\
          \tr1  0x{:x}\r\n\
          \tr2  0x{:x}\r\n\
@@ -55,7 +54,6 @@ unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
          \tpc  0x{:x}\r\n\
          \txpsr  0x{:x}\r\n\
          ",
-        kernel::TOCK_KERNEL_VERSION,
         hardfault_stacked_registers.r0,
         hardfault_stacked_registers.r1,
         hardfault_stacked_registers.r2,

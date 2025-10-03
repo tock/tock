@@ -176,10 +176,22 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
     let _ = writer.write_fmt(format_args!("\r\n{}\r\n", panic_info));
 
     // Print version of the kernel
-    let _ = writer.write_fmt(format_args!(
-        "\tKernel version {}\r\n",
-        crate::TOCK_KERNEL_VERSION
-    ));
+    if crate::KERNEL_PRERELEASE_VERSION != 0 {
+        let _ = writer.write_fmt(format_args!(
+            "\tKernel version {}.{}.{}-dev{}\r\n",
+            crate::KERNEL_MAJOR_VERSION,
+            crate::KERNEL_MINOR_VERSION,
+            crate::KERNEL_PATCH_VERSION,
+            crate::KERNEL_PRERELEASE_VERSION,
+        ));
+    } else {
+        let _ = writer.write_fmt(format_args!(
+            "\tKernel version {}.{}.{}\r\n",
+            crate::KERNEL_MAJOR_VERSION,
+            crate::KERNEL_MINOR_VERSION,
+            crate::KERNEL_PATCH_VERSION,
+        ));
+    }
 }
 
 /// Print current machine (CPU) state.
