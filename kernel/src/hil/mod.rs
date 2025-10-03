@@ -43,6 +43,7 @@ pub mod touch;
 pub mod uart;
 pub mod usb;
 pub mod usb_hid;
+pub mod wifi_cyw43;
 
 /// Shared interface for configuring components.
 pub trait Controller {
