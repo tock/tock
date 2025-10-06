@@ -755,7 +755,12 @@ impl<'a> Uart<'a> {
                 // the transaction is complete.
                 if is_terminator || buffer_is_full {
                     self.disable_receive_interrupt();
-
+                    self.tx_status.set(UARTStateTX::Idle);
+                    self.tx_client.map(|client| {
+                        self.tx_buffer.take().map(|buf| {
+                            client.transmitted_buffer(buf, self.tx_position.get(), Ok(()));
+                        });
+                    });
                     break;
                 }
             }
