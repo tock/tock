@@ -10,13 +10,14 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
-use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use rv32i::csr;
@@ -25,21 +26,17 @@ pub mod io;
 
 pub const NUM_PROCS: usize = 4;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-
-// Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
-
-// Reference to the process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
-
 pub type ChipHw = QemuRv32VirtChip<'static, QemuRv32VirtDefaultPeripherals<'static>>;
+type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
+
 type RngDriver = components::rng::RngRandomComponentType<
     qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
 >;
 pub type ScreenHw = qemu_rv32_virt_chip::virtio::devices::virtio_gpu::VirtIOGPU<'static, 'static>;
+
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<Chip, ProcessPrinter>> =
+    SingleThreadValue::new(PanicResources::new());
 
 kernel::stack_size! {0x8000}
 
@@ -189,8 +186,9 @@ pub unsafe fn start() -> (
         /// The end of the kernel / app RAM (Included only for kernel PMP)
         static _esram: u8;
     }
-
     // ---------- BASIC INITIALIZATION -----------
+
+    PANIC_RESOURCES.bind_to_thread::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>();
 
     // Basic setup of the RISC-V IMAC platform
     rv32i::configure_trap_handler();
@@ -238,7 +236,9 @@ pub unsafe fn start() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -627,7 +627,9 @@ pub unsafe fn start() -> (
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
         QemuRv32VirtChip::new(peripherals, hardware_timer, epmp),
     );
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
@@ -643,7 +645,9 @@ pub unsafe fn start() -> (
     // Create the process printer used in panic prints, etc.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // Initialize the kernel's process console.
     let pconsole = components::process_console::ProcessConsoleComponent::new(
