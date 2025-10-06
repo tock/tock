@@ -265,7 +265,6 @@ unsafe fn start() -> (
 
     uart.set_clocks(clock);
     uart.set_flexcomm(flexcomm0);
-    uart.setup_deferred_call();
 
     peripherals.pins.iocon.configure_pin(
         LPCPin::P0_29,

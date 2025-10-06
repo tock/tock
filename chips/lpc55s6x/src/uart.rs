@@ -20,10 +20,9 @@
 use core::arch::asm;
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
-use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
-    Configure, Error, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
+    Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -555,16 +554,6 @@ enum UARTStateRX {
     AbortRequested,
 }
 
-#[derive(Copy, Clone, PartialEq)]
-#[allow(dead_code)]
-enum DeferredReason {
-    None,
-    TransmitComplete,
-    ReceiveComplete,
-    Error,
-    Abort,
-}
-
 const USART0_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40086000 as *const UsartRegisters) };
 
@@ -591,9 +580,6 @@ pub struct Uart<'a> {
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     rx_status: Cell<UARTStateRX>,
-
-    deferred_call: DeferredCall,
-    deferred_reason: Cell<DeferredReason>,
 }
 
 impl<'a> Uart<'a> {
@@ -618,9 +604,6 @@ impl<'a> Uart<'a> {
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             rx_status: Cell::new(UARTStateRX::Idle),
-
-            deferred_call: DeferredCall::new(),
-            deferred_reason: Cell::new(DeferredReason::None),
         }
     }
     pub fn new_uart0() -> Self {
@@ -714,10 +697,6 @@ impl<'a> Uart<'a> {
         (self.registers.fiford.get() & 0xFF) as u8
     }
 
-    pub fn setup_deferred_call(&'static self) {
-        self.deferred_call.register(self);
-    }
-
     pub fn handle_interrupt(&self) {
         // --- Handle Errors ---
         let framing_error = self.registers.stat.is_set(STAT::FRAMERRINT);
@@ -727,8 +706,6 @@ impl<'a> Uart<'a> {
         if framing_error || parity_error || rx_fifo_error {
             self.clear_status_flags_and_fifos();
             self.disable_receive_interrupt();
-            self.deferred_reason.set(DeferredReason::Error);
-            self.deferred_call.set();
             return;
         }
 
@@ -751,8 +728,6 @@ impl<'a> Uart<'a> {
             else if tx_idle_triggered {
                 self.registers.stat.write(STAT::TXIDLE::SET); // Clear flag
                 self.disable_all_tx_interrupts();
-                self.deferred_reason.set(DeferredReason::TransmitComplete);
-                self.deferred_call.set();
             }
         }
 
@@ -780,8 +755,6 @@ impl<'a> Uart<'a> {
                 // the transaction is complete.
                 if is_terminator || buffer_is_full {
                     self.disable_receive_interrupt();
-                    self.deferred_reason.set(DeferredReason::ReceiveComplete);
-                    self.deferred_call.set();
 
                     break;
                 }
@@ -837,78 +810,6 @@ impl<'a> Uart<'a> {
         self.registers
             .fifocfg
             .modify(FIFOCFG::EMPTYTX::SET + FIFOCFG::EMPTYRX::SET);
-    }
-}
-
-impl DeferredCallClient for Uart<'_> {
-    fn register(&'static self) {
-        self.deferred_call.register(self)
-    }
-
-    fn handle_deferred_call(&self) {
-        let reason = self.deferred_reason.get();
-        // Clear the reason so we don't accidentally re-handle it.
-        self.deferred_reason.set(DeferredReason::None);
-
-        match reason {
-            DeferredReason::TransmitComplete => {
-                self.registers.stat.write(STAT::TXIDLE::SET);
-                self.disable_all_tx_interrupts();
-                self.tx_status.set(UARTStateTX::Idle);
-                self.tx_client.map(|client| {
-                    self.tx_buffer.take().map(|buffer| {
-                        client.transmitted_buffer(buffer, self.tx_len.get(), Ok(()));
-                    });
-                });
-            }
-            DeferredReason::ReceiveComplete => {
-                self.disable_receive_interrupt();
-                self.rx_status.set(UARTStateRX::Idle);
-                self.rx_client.map(|client| {
-                    if let Some(buf) = self.rx_buffer.take() {
-                        client.received_buffer(buf, self.rx_position.get(), Ok(()), Error::None);
-                    }
-                });
-            }
-            DeferredReason::Error => {
-                self.clear_status_flags_and_fifos();
-                self.disable_receive_interrupt();
-                self.rx_status.set(UARTStateRX::Idle);
-                self.rx_client.map(|client| {
-                    if let Some(buf) = self.rx_buffer.take() {
-                        client.received_buffer(buf, 0, Err(ErrorCode::FAIL), Error::FramingError);
-                    }
-                });
-            }
-            DeferredReason::Abort => {
-                if self.tx_status.get() == UARTStateTX::AbortRequested {
-                    self.tx_status.set(UARTStateTX::Idle);
-                    self.tx_client.map(|client| {
-                        self.tx_buffer.take().map(|buf| {
-                            client.transmitted_buffer(
-                                buf,
-                                self.tx_position.get(),
-                                Err(ErrorCode::CANCEL),
-                            );
-                        });
-                    });
-                }
-                if self.rx_status.get() == UARTStateRX::AbortRequested {
-                    self.rx_status.set(UARTStateRX::Idle);
-                    self.rx_client.map(|client| {
-                        self.rx_buffer.take().map(|buf| {
-                            client.received_buffer(
-                                buf,
-                                self.rx_position.get(),
-                                Err(ErrorCode::CANCEL),
-                                Error::Aborted,
-                            );
-                        });
-                    });
-                }
-            }
-            DeferredReason::None => {}
-        }
     }
 }
 
@@ -1027,8 +928,6 @@ impl<'a> Transmit<'a> for Uart<'a> {
             self.disable_all_tx_interrupts();
             self.tx_status.set(UARTStateTX::AbortRequested);
 
-            self.deferred_call.set();
-
             Err(ErrorCode::BUSY)
         } else {
             Ok(())
@@ -1077,8 +976,6 @@ impl<'a> Receive<'a> for Uart<'a> {
         if self.rx_status.get() != UARTStateRX::Idle {
             self.disable_receive_interrupt();
             self.rx_status.set(UARTStateRX::AbortRequested);
-
-            self.deferred_call.set();
 
             Err(ErrorCode::BUSY)
         } else {
