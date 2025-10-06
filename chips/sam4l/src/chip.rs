@@ -289,7 +289,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
         cortexm4::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
         CortexM4::print_cortexm_state(writer);
     }
 }

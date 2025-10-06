@@ -102,13 +102,16 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
         let _ = writer.write_fmt(format_args!(
             "\r\n---| LiteX configuration for {} |---",
-            self.soc_identifier,
+            this.map_or("unknown board (in trap handler thread)", |t| t
+                .soc_identifier),
         ));
         rv32i::print_riscv_state(writer);
-        let _ = writer.write_fmt(format_args!("{}", self.pmp_mpu.pmp));
+        if let Some(t) = this {
+            let _ = writer.write_fmt(format_args!("{}", t.pmp_mpu.pmp));
+        }
     }
 }
 

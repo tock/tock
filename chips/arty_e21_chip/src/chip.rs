@@ -187,7 +187,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, write: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
         rv32i::print_riscv_state(write);
     }
 }

@@ -145,7 +145,7 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
         cortexm7::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, write: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
         CortexM7::print_cortexm_state(write);
     }
 }
