@@ -17,7 +17,6 @@
 //!
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
-use core::arch::asm;
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use kernel::hil::uart::ReceiveClient;
@@ -878,9 +877,7 @@ impl Configure for Uart<'_> {
         // A short busy-wait loop is required to allow the peripheral clock
         // to propagate and the internal logic to settle after being re-enabled
         for _ in 0..1500 {
-            unsafe {
-                asm!("nop");
-            }
+            cortexm33::support::nop();
         }
 
         Ok(())
