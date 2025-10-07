@@ -13,14 +13,12 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
@@ -43,14 +41,7 @@ static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = 
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
-/// Resources for when a board panics used by io.rs.
-static PANIC_RESOURCES: SingleThreadValue<PanicResources<Chip, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new());
-
 kernel::stack_size! {0x1000}
-
-type Chip = sam4l::chip::Sam4l<Sam4lDefaultPeripherals>;
-type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
 type SI7021Sensor = components::si7021::SI7021ComponentType<
     capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
