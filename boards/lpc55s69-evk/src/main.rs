@@ -7,6 +7,8 @@
 
 mod io;
 
+use core::ptr::addr_of_mut;
+
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::led::LedsComponent;
 use kernel::component::Component;
@@ -299,6 +301,8 @@ unsafe fn start() -> (
     };
     uart.configure(params).unwrap();
 
+    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
+
     let uart_mux = components::console::UartMuxComponent::new(uart, 9600)
         .finalize(components::uart_mux_component_static!());
 
@@ -346,7 +350,7 @@ unsafe fn start() -> (
         systick: cortexm33::systick::SysTick::new_with_calibration(12_000_000),
     };
 
-    debug!("Tock");
+    debug!("Board initialization complete. Entering main loop");
 
     // These symbols are defined in the linker script.
     extern "C" {
