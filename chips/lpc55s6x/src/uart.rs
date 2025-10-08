@@ -29,7 +29,7 @@ use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::{hil, ErrorCode};
 
 use crate::clocks::FrgId;
 use crate::clocks::{Clock, FrgClockSource};
@@ -761,6 +761,19 @@ impl<'a> Uart<'a> {
                         });
                     });
                     break;
+                }
+
+                if self.rx_status.get() == UARTStateRX::Idle {
+                    self.rx_client.map(|client| {
+                        if let Some(buf) = self.rx_buffer.take() {
+                            client.received_buffer(
+                                buf,
+                                self.rx_len.get(),
+                                Ok(()),
+                                hil::uart::Error::None,
+                            );
+                        }
+                    });
                 }
             }
         }
