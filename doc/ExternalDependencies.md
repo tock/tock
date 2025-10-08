@@ -17,6 +17,7 @@ External Dependencies
   * [Capsule Crate-Specific External Dependencies](#capsule-crate-specific-external-dependencies)
   * [Core Kernel External Dependencies](#core-kernel-external-dependencies)
     + [Approved Exceptions for Core Kernel External Dependencies](#approved-exceptions-for-core-kernel-external-dependencies)
+      - [**tock-registers**](#tock-registers)
 - [Including the Dependency](#including-the-dependency)
   * [Including Capsule Crate-Specific External Dependencies](#including-capsule-crate-specific-external-dependencies)
   * [Including Board-Specific External Dependencies](#including-board-specific-external-dependencies)
@@ -202,13 +203,14 @@ crates. All exceptions will be considered independently.
 
 #### Approved Exceptions for Core Kernel External Dependencies
 
-- **tock-registers** ([repo](https://github.com/tock/tock-registers)): This
-  crate provides an interface for using MMIO registers which are extensively
-  used in `chips/` crates.
+##### **tock-registers**
+This crate provides an interface for using MMIO registers which are extensively
+used in `chips/` crates.
 
-  Justification: This crate has moved to an external dependency to encourage its
-  development and use in projects beyond Tock. Specifically, the benefits of
-  development in a separate repository include:
+- **Repository:** https://github.com/tock/tock-registers
+- **Justification:** This crate has moved to an external dependency to
+  encourage its development and use in projects beyond Tock. Specifically, the
+  benefits of development in a separate repository include:
 
   1. Encouraging more rigorous backwards compatibility considerations for
      external users. The close interplay of Tock and tock-registers means
