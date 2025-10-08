@@ -3,11 +3,9 @@
 // Copyright Tock Contributors 2024.
 
 use core::fmt::Write;
-use core::mem::MaybeUninit;
 
 use kernel::component::Component;
 use kernel::platform::chip::{Chip, InterruptService};
-use kernel::static_init;
 use x86::mpu::PagingMPU;
 use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
@@ -55,7 +53,8 @@ mod interrupt {
 /// [`InterruptService`] will be passed the physical interrupt line number, _not_ the remapped
 /// number used internally by the chip. This should match the interrupt line number reported by
 /// documentation or read from the PCI configuration space.
-pub struct Pc<'a, I: InterruptService + 'a, const PR: u16 = RELOAD_1KHZ> {
+pub struct Pc<'a, I1: InterruptService + 'a, I2: InterruptService + 'a, const PR: u16 = RELOAD_1KHZ>
+{
     /// Legacy COM1 serial port
     pub com1: &'a SerialPort<'a>,
 
@@ -69,7 +68,7 @@ pub struct Pc<'a, I: InterruptService + 'a, const PR: u16 = RELOAD_1KHZ> {
     pub com4: &'a SerialPort<'a>,
 
     /// Legacy PIT timer
-    pub pit: Pit<'a, PR>,
+    pub pit: &'a Pit<'a, PR>,
 
     /// Vga
     pub vga: &'a VgaText<'a>,
@@ -78,11 +77,51 @@ pub struct Pc<'a, I: InterruptService + 'a, const PR: u16 = RELOAD_1KHZ> {
     syscall: Boundary,
     paging: PagingMPU<'a>,
 
-    /// Board-provided interrupt service for handling non-core IRQs (e.g., PCI devices)
-    int_svc: &'a I,
+    /// Interrupt service used to dispatch IRQs to peripherals
+    default_peripherals: &'a I1,
+
+    /// Interrupt service used to dispatch IRQs to board-specific peripherals
+    board_peripherals: &'a I2,
 }
 
-impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
+impl<I2: InterruptService, const PR: u16> Pc<'static, PcDefaultPeripherals<PR>, I2, PR> {
+    /// Construct `Pc` using a standard set of peripherals plus page tables.
+    ///
+    /// ## Safety
+    /// - Must be called only once for the lifetime of the kernel.
+    /// - `pd` and `pt` must be identity-mapped and unique.
+    pub unsafe fn new(
+        default_peripherals: &'static PcDefaultPeripherals<PR>,
+        pd: &'static mut PD,
+        pt: &'static mut PT,
+        board_peripherals: &'static I2,
+    ) -> Self {
+        let paging = unsafe {
+            let pd_addr = core::ptr::from_ref(pd) as usize;
+            let pt_addr = core::ptr::from_ref(pt) as usize;
+            let mpu = PagingMPU::new(pd, pd_addr, pt, pt_addr);
+            mpu.init();
+            mpu
+        };
+
+        let syscall = Boundary::new();
+
+        Self {
+            com1: default_peripherals.com1,
+            com2: default_peripherals.com2,
+            com3: default_peripherals.com3,
+            com4: default_peripherals.com4,
+            pit: &default_peripherals.pit,
+            vga: default_peripherals.vga,
+            syscall,
+            paging,
+            default_peripherals,
+            board_peripherals,
+        }
+    }
+}
+
+impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<'a, I1, I2, PR> {
     type ThreadIdProvider = x86::thread_id::X86ThreadIdProvider;
 
     type MPU = PagingMPU<'a>;
@@ -99,24 +138,15 @@ impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
         InterruptPoller::access(|poller| {
             while let Some(num) = poller.next_pending() {
                 let mut handled = true;
-                match num {
-                    interrupt::PIT => self.pit.handle_interrupt(),
-                    interrupt::COM2_COM4 => {
-                        self.com2.handle_interrupt();
-                        self.com4.handle_interrupt();
-                    }
-                    interrupt::COM1_COM3 => {
-                        self.com1.handle_interrupt();
-                        self.com3.handle_interrupt();
-                    }
-                    _ => {
+                match unsafe { self.default_peripherals.service_interrupt(num) } {
+                    true => {}
+                    false => {
                         // Convert back to physical interrupt line number before passing to
                         // board-specific handler
                         let phys_num = num - PIC1_OFFSET as u32;
-                        handled = unsafe { self.int_svc.service_interrupt(phys_num) };
+                        handled = unsafe { self.board_peripherals.service_interrupt(phys_num) };
                     }
                 }
-
                 poller.clear_pending(num);
 
                 // Unmask the interrupt so it can fire again, but only if we know how to handle it
@@ -196,50 +226,39 @@ impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
     }
 }
 
-/// Component helper for constructing a [`Pc`] chip instance.
-///
-/// During the call to `finalize()`, this helper will perform low-level initialization of the PC
-/// hardware to ensure a consistent CPU state. This includes initializing memory segmentation and
-/// interrupt handling. See [`x86::init`] for further details.
-pub struct PcComponent<'a, I: InterruptService + 'a> {
-    pd: &'a mut PD,
-    pt: &'a mut PT,
-    int_svc: &'a I,
+/// Default x86 PC peripherals
+pub struct PcDefaultPeripherals<const PR: u16 = RELOAD_1KHZ> {
+    pub com1: &'static SerialPort<'static>,
+    pub com2: &'static SerialPort<'static>,
+    pub com3: &'static SerialPort<'static>,
+    pub com4: &'static SerialPort<'static>,
+    pub pit: Pit<'static, PR>,
+    pub vga: &'static VgaText<'static>,
 }
 
-impl<'a, I: InterruptService + 'a> PcComponent<'a, I> {
-    /// Creates a new `PcComponent` instance.
+impl<const PR: u16> PcDefaultPeripherals<PR> {
+    /// Create and initialize default peripherals.
+    ///
+    /// The caller must provide statics through `x86_q35_peripherals_static!()`.
     ///
     /// ## Safety
-    ///
-    /// It is unsafe to construct more than a single `PcComponent` during the entire lifetime of the
-    /// kernel.
-    ///
-    /// Before calling, memory must be identity-mapped. Otherwise, introduction of flat segmentation
-    /// will cause the kernel's code/data to move unexpectedly.
-    ///
-    /// See [`x86::init`] for further details.
-    pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT, int_svc: &'a I) -> Self {
-        Self { pd, pt, int_svc }
-    }
-}
-
-impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
-    type StaticInput = (
-        <SerialPortComponent as Component>::StaticInput,
-        <SerialPortComponent as Component>::StaticInput,
-        <SerialPortComponent as Component>::StaticInput,
-        <SerialPortComponent as Component>::StaticInput,
-        &'static mut MaybeUninit<Pc<'static, I>>,
-    );
-    type Output = &'static Pc<'static, I>;
-
-    fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        // Low-level hardware initialization. We do this first to guarantee the CPU is in a
-        // predictable state before initializing the chip object.
+    /// - Must be called only once per kernel lifetime.
+    pub unsafe fn new(
+        s: (
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            &'static mut core::mem::MaybeUninit<VgaText<'static>>,
+        ),
+        page_dir: &mut PD,
+    ) -> Self {
+        // CPU/interrupt controller/VGA baseline init
+        // SAFETY: PAGE_DIR is identity-mapped, aligned, and unique
         unsafe {
             x86::init();
             crate::pic::init();
+            let pd_ref: &mut PD = &mut *core::ptr::from_mut(page_dir);
             // Enable the VGA path by building or running with the feature flag, e.g.:
             //   `cargo run -- -display none`
             // A plain `make run` / `cargo run` keeps everything on COM1.
@@ -248,9 +267,7 @@ impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
             // Clear BIOS banner: the real-mode BIOS leaves its text (and the cursor off-screen) in
             // 0xB8000.  Wiping the full 80×25 buffer gives us a clean screen and a visible cursor
             // before the kernel prints its first message.
-            // SAFETY: PAGE_DIR is identity-mapped, aligned, and unique
-            let pd: &mut PD = &mut *core::ptr::from_mut(self.pd);
-            crate::vga::new_text_console(pd);
+            crate::vga::new_text_console(pd_ref);
         }
 
         let com1 = unsafe { SerialPortComponent::new(COM1_BASE).finalize(s.0) };
@@ -260,46 +277,42 @@ impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
 
         let pit = unsafe { Pit::new() };
 
-        let vga = unsafe { static_init!(VgaText, VgaText::new()) };
+        let vga = s.4.write(VgaText::new());
 
-        kernel::deferred_call::DeferredCallClient::register(vga);
-
-        let paging = unsafe {
-            let pd_addr = core::ptr::from_ref(self.pd) as usize;
-            let pt_addr = core::ptr::from_ref(self.pt) as usize;
-            PagingMPU::new(self.pd, pd_addr, self.pt, pt_addr)
-        };
-
-        paging.init();
-
-        let syscall = Boundary::new();
-
-        let pc = s.4.write(Pc {
+        Self {
             com1,
             com2,
             com3,
             com4,
             pit,
             vga,
-            syscall,
-            paging,
-            int_svc: self.int_svc,
-        });
+        }
+    }
 
-        pc
+    /// Finalize deferred-call registrations and any circular deps.
+    pub fn setup_circular_deps(&self) {
+        kernel::deferred_call::DeferredCallClient::register(self.vga);
     }
 }
 
-/// Provides static buffers needed for `PcComponent::finalize()`.
-#[macro_export]
-macro_rules! x86_q35_component_static {
-    ($isr_ty:ty) => {{
-        (
-            $crate::serial_port_component_static!(),
-            $crate::serial_port_component_static!(),
-            $crate::serial_port_component_static!(),
-            $crate::serial_port_component_static!(),
-            kernel::static_buf!($crate::Pc<'static, $isr_ty>),
-        )
-    };};
+impl<const PR: u16> InterruptService for PcDefaultPeripherals<PR> {
+    unsafe fn service_interrupt(&self, num: u32) -> bool {
+        match num {
+            interrupt::PIT => {
+                self.pit.handle_interrupt();
+                true
+            }
+            interrupt::COM2_COM4 => {
+                self.com2.handle_interrupt();
+                self.com4.handle_interrupt();
+                true
+            }
+            interrupt::COM1_COM3 => {
+                self.com1.handle_interrupt();
+                self.com3.handle_interrupt();
+                true
+            }
+            _ => false,
+        }
+    }
 }
