@@ -24,7 +24,6 @@ use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
-use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -107,6 +106,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolic
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
+
+type Chip = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -517,7 +518,9 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -795,7 +798,10 @@ unsafe fn start() -> (
     CHIP = Some(chip);
 
     // Need to disable the MPU because the bootloader seems to set it up.
-    chip.mpu().clear_mpu();
+    {
+        use kernel::platform::chip::Chip;
+        chip.mpu().clear_mpu();
+    }
 
     // Configure the USB stack to enable a serial port over CDC-ACM.
     cdc.enable();

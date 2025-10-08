@@ -94,6 +94,8 @@ const PAN_ID: u16 = 0xABCD;
 const FAULT_RESPONSE: capsules_system::process_policies::StopFaultPolicy =
     capsules_system::process_policies::StopFaultPolicy {};
 
+type Chip = sam4l::chip::Sam4l<Sam4lDefaultPeripherals>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
@@ -400,7 +402,7 @@ unsafe fn start() -> (
     .finalize(components::console_ordered_component_static!(
         sam4l::ast::Ast
     ));
-    DebugWriterComponent::new(
+    DebugWriterComponent::new::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
