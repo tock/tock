@@ -217,14 +217,12 @@ impl Component for UartChannelComponent {
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         match self.uart_channel {
             UartChannel::Pins(uart_pins) => {
-                unsafe {
-                    self.uarte0.initialize(
-                        nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
-                        nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
-                        uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
-                        uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
-                    )
-                };
+                self.uarte0.initialize(
+                    nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
+                    nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
+                    uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+                    uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+                );
                 self.uarte0
             }
             UartChannel::Rtt(rtt_memory) => {

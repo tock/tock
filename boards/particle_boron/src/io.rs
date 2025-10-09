@@ -67,7 +67,11 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)
 
     use core::ptr::{addr_of, addr_of_mut};
-    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(LED2_R_PIN);
+    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(
+        LED2_R_PIN,
+        nrf52840::gpio::GPIOTE_BASE,
+        nrf52840::gpio::GPIO_BASE_PORT0,
+    );
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
