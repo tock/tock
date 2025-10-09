@@ -256,9 +256,10 @@ pub unsafe fn start() -> (
             PanicResources::new(),
         );
 
+    let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new()
+        Nrf52832DefaultPeripherals::new(aes_ecb_buf)
     );
 
     // set up circular peripheral dependencies
