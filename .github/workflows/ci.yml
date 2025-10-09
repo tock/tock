@@ -62,6 +62,68 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check that `Cargo.lock` is current
+        run: |
+          if ! cargo check --locked; then
+            echo
+            echo "Running \"cargo check\" to compute lockfile diff..."
+            echo
+
+            cp Cargo.lock /tmp/Cargo.lock.orig
+            cargo check -q
+
+            echo
+            # Essentially there's two ways in which the Cargo.lock
+            # could be out-of-sync:
+            #
+            # - It plainly doesn't correspond to the git ref that was pushed to
+            #   CI. This can happen when updating dependencies or the set of
+            #   crates in the workspace, but not checking in the updated
+            #   Cargo.lock. Then the remedy is simple: run a command like `cargo
+            #   check` to update the lockfile, and check it into git.
+            #
+            # - It does correspond to the git ref that was pushed to CI.
+            #   However, for GH Actions run in response to the `pull_request`
+            #   event, GitHub doesn't build the pushed ref -- it instead builds
+            #   the merged result of the pushed ref merged into current target
+            #   branch revision (e.g., master).
+            #
+            #   This can potentially result in conflicts: for instance, if two
+            #   crates rely on different versions of a common sub-dependency,
+            #   but the git merge algorithm were to simply include both
+            #   instances in the lockfile, then this needs to be resolved by
+            #   rebasing on the target branch, and manually fixing the lockfile
+            #   (either using cargo check or editing it).
+            #
+            # The latter case is probably less likely to cause issues, but also
+            # more confusing to users. So we want to provide universal guidance
+            # that always works for these kinds of errors: when in doubt, simply
+            # rebase and run cargo check, and check in the resulting lockfile.
+            if [[ -v GITHUB_BASE_REF ]]; then
+              # This is a pull request, building against the merged ref:
+              echo \
+                "The Cargo.lock lockfile needs to be updated before this pull"\
+                "request can be merged. You can do so by rebasing on this PR's"\
+                "target branch (\"$GITHUB_BASE_REF\"), and then running a"\
+                "command like \"cargo check\" or \"cargo build\" locally."\
+                "Below is the diff that a \"cargo check\" command attempts to"\
+                "make:"
+            else
+              # This is not a pull request, building against the ref pushed by
+              # the developer:
+              echo \
+                "The Cargo.lock lockfile does not match this tree. You can fix"\
+                "this issue by running a command like \"cargo check\" or"\
+                "\"cargo build\" locally, and then committing the updated"\
+                "Cargo.lock lockfile."
+            fi
+            echo
+
+            diff /tmp/Cargo.lock.orig Cargo.lock
+            exit 1
+          fi
+
       - name:      ci-job-syntax
         run:  make ci-job-syntax
       - name:      ci-job-compilation
