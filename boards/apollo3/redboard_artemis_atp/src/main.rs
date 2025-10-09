@@ -1,18 +1,15 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
-
 //! Board file for SparkFun Redboard Artemis ATP
 //!
 //! - <https://www.sparkfun.com/products/15442>
-
 #![no_std]
 #![no_main]
 #![deny(missing_docs)]
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
-
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver;
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
@@ -27,29 +24,42 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
-
 /// Support routines for debugging I/O.
 pub mod io;
-
 #[cfg(test)]
 mod tests;
-
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
-
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
+
+type Chip = apollo3::chip::Apollo3<Apollo3DefaultPeripherals>;
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps.
+
+    
+          
+            
+    
+
+          
+          Expand Down
+          
+            
+    
+
+          
+          Expand Up
+    
+    @@ -231,7 +233,9 @@ unsafe fn setup() -> (
+  
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
-
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
-
 // Test access to the peripherals
 #[cfg(test)]
 static mut PERIPHERALS: Option<&'static Apollo3DefaultPeripherals> = None;
@@ -64,9 +74,7 @@ static mut PLATFORM: Option<&'static RedboardArtemisAtp> = None;
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
-
 kernel::stack_size! {0x1000}
-
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct RedboardArtemisAtp {
@@ -104,7 +112,6 @@ struct RedboardArtemisAtp {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
-
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for RedboardArtemisAtp {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -123,7 +130,6 @@ impl SyscallDriverLookup for RedboardArtemisAtp {
         }
     }
 }
-
 impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for RedboardArtemisAtp {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
@@ -132,7 +138,6 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
-
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
     }
@@ -155,7 +160,6 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
         &()
     }
 }
-
 // Ensure that `setup()` is never inlined
 // This helps reduce the stack frame, see https://github.com/tock/tock/issues/3518
 #[inline(never)]
@@ -166,33 +170,25 @@ unsafe fn setup() -> (
     &'static Apollo3DefaultPeripherals,
 ) {
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
-
     // No need to statically allocate mcu/pwr/clk_ctrl because they are only used in main!
     let mcu_ctrl = apollo3::mcuctrl::McuCtrl::new();
     let pwr_ctrl = apollo3::pwrctrl::PwrCtrl::new();
     let clkgen = apollo3::clkgen::ClkGen::new();
-
     clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
-
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
     PROCESSES = Some(processes);
-
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
-
     // Power up components
     pwr_ctrl.enable_uart0();
     pwr_ctrl.enable_iom0();
     pwr_ctrl.enable_iom4();
     pwr_ctrl.enable_ios();
-
     peripherals.init();
-
     // Enable PinCfg
     peripherals
         .gpio_port
@@ -211,18 +207,15 @@ unsafe fn setup() -> (
         &peripherals.gpio_port[7],
         &peripherals.gpio_port[6],
     );
-
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
         Some(&peripherals.gpio_port[19]), // Blue LED
         None,
         None,
     );
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
-
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -231,18 +224,29 @@ unsafe fn setup() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
-    .finalize(components::debug_writer_component_static!());
 
+    
+          
+            
+    
+
+          
+          Expand Down
+    
+    
+  
+    .finalize(components::debug_writer_component_static!());
     // LEDs
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, apollo3::gpio::GpioPin>,
         LedHigh::new(&peripherals.gpio_port[19]),
     ));
-
     // GPIOs
     // These are also ADC channels, but let's expose them as GPIOs
     let gpio = components::gpio::GpioComponent::new(
@@ -255,7 +259,6 @@ unsafe fn setup() -> (
         ),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
-
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.
     let _ = peripherals.stimer.start();
@@ -269,12 +272,10 @@ unsafe fn setup() -> (
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
     ALARM = Some(mux_alarm);
-
     // Create a process printer for panic.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
-
     let i2c_master_slave_combo = static_init!(
         capsules_core::i2c_master_slave_combo::I2CMasterSlaveCombo<
             'static,
@@ -286,11 +287,9 @@ unsafe fn setup() -> (
             &peripherals.ios
         )
     );
-
     let i2c_master_buffer = static_init!([u8; 32], [0; 32]);
     let i2c_slave_buffer1 = static_init!([u8; 32], [0; 32]);
     let i2c_slave_buffer2 = static_init!([u8; 32], [0; 32]);
-
     let i2c_master_slave = static_init!(
         I2CMasterSlaveDriver<
             capsules_core::i2c_master_slave_combo::I2CMasterSlaveCombo<
@@ -310,17 +309,13 @@ unsafe fn setup() -> (
             ),
         )
     );
-
     i2c_master_slave_combo.set_master_client(i2c_master_slave);
     i2c_master_slave_combo.set_slave_client(i2c_master_slave);
-
     peripherals.iom4.enable();
-
     // Init the SPI controller
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom0).finalize(
         components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
     );
-
     // The IOM0 expects an auto chip select on pin D11 or D15
     // We already use manual CS control for other Apollo3 boards, so
     // let's use A13 as it's broken out next to the SPI ports
@@ -335,7 +330,6 @@ unsafe fn setup() -> (
     .finalize(components::spi_syscall_component_static!(
         apollo3::iom::Iom<'static>
     ));
-
     // Setup BLE
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
@@ -344,7 +338,6 @@ unsafe fn setup() -> (
     mcu_ctrl.reset_ble();
     peripherals.ble.power_up();
     peripherals.ble.ble_initialise();
-
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
@@ -355,11 +348,8 @@ unsafe fn setup() -> (
         apollo3::stimer::STimer,
         apollo3::ble::Ble,
     ));
-
     mcu_ctrl.print_chip_revision();
-
     debug!("Initialization complete. Entering main loop");
-
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -371,12 +361,9 @@ unsafe fn setup() -> (
         /// End of the RAM region for app memory.
         static _eappmem: u8;
     }
-
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
-
     let systick = cortexm4::systick::SysTick::new_with_calibration(48_000_000);
-
     let artemis_atp = static_init!(
         RedboardArtemisAtp,
         RedboardArtemisAtp {
@@ -391,13 +378,11 @@ unsafe fn setup() -> (
             systick,
         }
     );
-
     let chip = static_init!(
         apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
         apollo3::chip::Apollo3::new(peripherals)
     );
     CHIP = Some(chip);
-
     kernel::process::load_processes(
         board_kernel,
         chip,
@@ -416,10 +401,8 @@ unsafe fn setup() -> (
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
-
     (board_kernel, artemis_atp, chip, peripherals)
 }
-
 /// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
@@ -427,16 +410,12 @@ unsafe fn setup() -> (
 #[no_mangle]
 pub unsafe fn main() {
     apollo3::init();
-
     #[cfg(test)]
     test_main();
-
     #[cfg(not(test))]
     {
         let (board_kernel, esp32_c3_board, chip, _peripherals) = setup();
-
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
-
         board_kernel.kernel_loop(
             esp32_c3_board,
             chip,
@@ -445,28 +424,22 @@ pub unsafe fn main() {
         );
     }
 }
-
 #[cfg(test)]
 use kernel::platform::watchdog::WatchDog;
-
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
         let (board_kernel, esp32_c3_board, _chip, peripherals) = setup();
-
         BOARD = Some(board_kernel);
         PLATFORM = Some(&esp32_c3_board);
         PERIPHERALS = Some(peripherals);
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
-
         PLATFORM.map(|p| {
             p.watchdog().setup();
         });
-
         for test in tests {
             test();
         }
     }
-
     loop {}
 }
