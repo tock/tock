@@ -36,7 +36,6 @@
 //! * Date: April 21, 2017
 
 use core::cell::Cell;
-use core::ptr::addr_of;
 use kernel::hil::symmetric_encryption;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -44,12 +43,6 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-
-// DMA buffer that the aes chip will mutate during encryption
-// Byte 0-15   - Key
-// Byte 16-32  - Payload
-// Byte 33-47  - Ciphertext
-static mut ECB_DATA: [u8; 48] = [0; 48];
 
 #[allow(dead_code)]
 const KEY_START: usize = 0;
@@ -62,11 +55,8 @@ const CIPHERTEXT_START: usize = 33;
 #[allow(dead_code)]
 const CIPHERTEXT_END: usize = 47;
 
-const AESECB_BASE: StaticRef<AesEcbRegisters> =
-    unsafe { StaticRef::new(0x4000E000 as *const AesEcbRegisters) };
-
 #[repr(C)]
-struct AesEcbRegisters {
+pub struct AesEcbRegisters {
     /// Start ECB block encrypt
     /// - Address 0x000 - 0x004
     task_startecb: WriteOnly<u32, Task::Register>,
@@ -134,6 +124,12 @@ enum AESMode {
 
 pub struct AesECB<'a> {
     registers: StaticRef<AesEcbRegisters>,
+    /// DMA buffer that the aes chip will mutate during encryption
+    /// Byte 0-15   - Key
+    /// Byte 16-32  - Payload
+    /// Byte 33-47  - Ciphertext
+    ecb_data: TakeCell<'static, [u8; 48]>,
+    ecb_data_in_dma: TakeCell<'static, [u8; 48]>,
     mode: Cell<AESMode>,
     client: OptionalCell<&'a dyn kernel::hil::symmetric_encryption::Client<'a>>,
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
@@ -145,9 +141,14 @@ pub struct AesECB<'a> {
 }
 
 impl<'a> AesECB<'a> {
-    pub const fn new() -> AesECB<'a> {
+    pub fn new(
+        registers: StaticRef<AesEcbRegisters>,
+        ecb_data: &'static mut [u8; 48],
+    ) -> AesECB<'a> {
         AesECB {
-            registers: AESECB_BASE,
+            registers,
+            ecb_data: TakeCell::new(ecb_data),
+            ecb_data_in_dma: TakeCell::empty(),
             mode: Cell::new(AESMode::CTR),
             client: OptionalCell::empty(),
             input: TakeCell::empty(),
@@ -159,7 +160,18 @@ impl<'a> AesECB<'a> {
     }
 
     fn set_dma(&self) {
-        self.registers.ecbdataptr.set(addr_of!(ECB_DATA) as u32);
+        self.ecb_data.take().map(|buf| {
+            self.registers
+                .ecbdataptr
+                .set(core::ptr::from_ref::<[u8; 48]>(buf) as u32);
+            self.ecb_data_in_dma.replace(buf);
+        });
+    }
+
+    fn unset_dma(&self) {
+        self.ecb_data_in_dma.take().map(|buf| {
+            self.ecb_data.replace(buf);
+        });
     }
 
     /// Verify that the provided start and stop indices work with the given
@@ -204,14 +216,14 @@ impl<'a> AesECB<'a> {
     // FIXME: should this be performed in constant time i.e. skip the break part
     // and always loop 16 times?
     fn update_ctr(&self) {
-        for i in (PLAINTEXT_START..PLAINTEXT_END).rev() {
-            unsafe {
-                ECB_DATA[i] += 1;
-                if ECB_DATA[i] != 0 {
+        self.ecb_data.map(|buf| {
+            for i in (PLAINTEXT_START..PLAINTEXT_END).rev() {
+                buf[i] += 1;
+                if buf[i] != 0 {
                     break;
                 }
             }
-        }
+        });
     }
 
     /// Get the relevant positions of our input data whether we are using a
@@ -248,21 +260,19 @@ impl<'a> AesECB<'a> {
                     self.input.map_or_else(
                         || {
                             self.output.map(|output| {
-                                for i in 0..take {
+                                self.ecb_data.map(|buf| {
                                     // Copy into static mut DMA buffer
-                                    unsafe {
-                                        ECB_DATA[i + PLAINTEXT_START] = output[i + start];
-                                    }
-                                }
+                                    buf[PLAINTEXT_START..(take + PLAINTEXT_START)]
+                                        .copy_from_slice(&output[start..(take + start)]);
+                                });
                             });
                         },
                         |input| {
-                            for i in 0..take {
+                            self.ecb_data.map(|buf| {
                                 // Copy into static mut DMA buffer
-                                unsafe {
-                                    ECB_DATA[i + PLAINTEXT_START] = input[i + start];
-                                }
-                            }
+                                buf[PLAINTEXT_START..(take + PLAINTEXT_START)]
+                                    .copy_from_slice(&input[start..(take + start)]);
+                            });
                         },
                     );
                 }
@@ -271,24 +281,24 @@ impl<'a> AesECB<'a> {
                     self.input.map_or_else(
                         || {
                             self.output.map(|output| {
-                                for i in 0..take {
-                                    let ecb_idx = i + PLAINTEXT_START;
+                                self.ecb_data.map(|buf| {
+                                    for i in 0..take {
+                                        let ecb_idx = i + PLAINTEXT_START;
 
-                                    // Copy into static mut DMA buffer
-                                    unsafe {
-                                        ECB_DATA[ecb_idx] ^= output[i + start];
+                                        // Copy into static mut DMA buffer
+                                        buf[ecb_idx] ^= output[i + start];
                                     }
-                                }
+                                });
                             });
                         },
                         |input| {
-                            for i in 0..take {
-                                let ecb_idx = i + PLAINTEXT_START;
-                                // Copy into static mut DMA buffer
-                                unsafe {
-                                    ECB_DATA[ecb_idx] ^= input[i + start];
+                            self.ecb_data.map(|buf| {
+                                for i in 0..take {
+                                    let ecb_idx = i + PLAINTEXT_START;
+                                    // Copy into static mut DMA buffer
+                                    buf[ecb_idx] ^= input[i + start];
                                 }
-                            }
+                            });
                         },
                     );
                 }
@@ -312,6 +322,7 @@ impl<'a> AesECB<'a> {
             }
         }
 
+        self.set_dma();
         self.registers.event_endecb.write(Event::READY::CLEAR);
         self.registers.task_startecb.set(1);
 
@@ -322,6 +333,7 @@ impl<'a> AesECB<'a> {
     pub fn handle_interrupt(&self) {
         // disable interrupts
         self.disable_interrupts();
+        self.unset_dma();
 
         if self.registers.event_endecb.get() == 1 {
             let (start, end, take) = self.get_start_end_take();
@@ -337,25 +349,29 @@ impl<'a> AesECB<'a> {
                                 // No input buffer, so source data comes from
                                 // output buffer.
                                 self.output.map(|output| {
-                                    for i in 0..take {
-                                        let in_byte = output[start + i];
-                                        let keystream_byte = unsafe { ECB_DATA[i + PLAINTEXT_END] };
+                                    self.ecb_data.map(|buf| {
+                                        for i in 0..take {
+                                            let in_byte = output[start + i];
+                                            let keystream_byte = buf[i + PLAINTEXT_END];
 
-                                        output[start + i] = keystream_byte ^ in_byte;
-                                    }
+                                            output[start + i] = keystream_byte ^ in_byte;
+                                        }
+                                    });
                                 });
                             },
                             |input| {
                                 self.output.map(|output| {
-                                    let start_idx = self.start_idx.get();
+                                    self.ecb_data.map(|buf| {
+                                        let start_idx = self.start_idx.get();
 
-                                    for i in 0..take {
-                                        let in_byte = input[start + i];
-                                        let keystream_byte = unsafe { ECB_DATA[i + PLAINTEXT_END] };
+                                        for i in 0..take {
+                                            let in_byte = input[start + i];
+                                            let keystream_byte = buf[i + PLAINTEXT_END];
 
-                                        output[start_idx + current_idx + i] =
-                                            keystream_byte ^ in_byte;
-                                    }
+                                            output[start_idx + current_idx + i] =
+                                                keystream_byte ^ in_byte;
+                                        }
+                                    });
                                 });
                             },
                         );
@@ -368,16 +384,16 @@ impl<'a> AesECB<'a> {
                     // Copy ciphertext to output.
                     if take > 0 {
                         self.output.map(|output| {
-                            for i in 0..take {
-                                // We write to the buffer starting at the
-                                // originally provided start index, plus our
-                                // offset at current_idx.
-                                let dest_idx = start_idx + current_idx + i;
-                                // Copy out of static mut DMA buffer
-                                unsafe {
-                                    output[dest_idx] = ECB_DATA[i + PLAINTEXT_END];
+                            self.ecb_data.map(|buf| {
+                                for i in 0..take {
+                                    // We write to the buffer starting at the
+                                    // originally provided start index, plus our
+                                    // offset at current_idx.
+                                    let dest_idx = start_idx + current_idx + i;
+                                    // Copy out of static mut DMA buffer
+                                    output[dest_idx] = buf[i + PLAINTEXT_END];
                                 }
-                            }
+                            });
                         });
                     }
                 }
@@ -386,17 +402,17 @@ impl<'a> AesECB<'a> {
                     // on the next iteration.
                     if take > 0 {
                         self.output.map(|output| {
-                            for i in 0..take {
-                                // We write to the buffer starting at the
-                                // originally provided start index, plus our
-                                // offset at current_idx.
-                                let dest_idx = start_idx + current_idx + i;
-                                // Copy out of static mut DMA buffer
-                                unsafe {
-                                    output[dest_idx] = ECB_DATA[i + PLAINTEXT_END];
-                                    ECB_DATA[i + PLAINTEXT_START] = ECB_DATA[i + PLAINTEXT_END];
+                            self.ecb_data.map(|buf| {
+                                for i in 0..take {
+                                    // We write to the buffer starting at the
+                                    // originally provided start index, plus our
+                                    // offset at current_idx.
+                                    let dest_idx = start_idx + current_idx + i;
+                                    // Copy out of static mut DMA buffer
+                                    output[dest_idx] = buf[i + PLAINTEXT_END];
+                                    buf[i + PLAINTEXT_START] = buf[i + PLAINTEXT_END];
                                 }
-                            }
+                            });
                         });
                     }
                 }
@@ -432,9 +448,7 @@ impl<'a> AesECB<'a> {
 }
 
 impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
-    fn enable(&self) {
-        self.set_dma();
-    }
+    fn enable(&self) {}
 
     fn disable(&self) {
         self.registers.task_stopecb.write(Task::ENABLE::CLEAR);
@@ -449,11 +463,11 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         if key.len() != symmetric_encryption::AES128_KEY_SIZE {
             Err(ErrorCode::INVAL)
         } else {
-            for (i, c) in key.iter().enumerate() {
-                unsafe {
-                    ECB_DATA[i] = *c;
+            self.ecb_data.map(|buf| {
+                for (i, c) in key.iter().enumerate() {
+                    buf[i] = *c;
                 }
-            }
+            });
             Ok(())
         }
     }
@@ -462,11 +476,11 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         if iv.len() != symmetric_encryption::AES128_BLOCK_SIZE {
             Err(ErrorCode::INVAL)
         } else {
-            for (i, c) in iv.iter().enumerate() {
-                unsafe {
-                    ECB_DATA[i + PLAINTEXT_START] = *c;
+            self.ecb_data.map(|buf| {
+                for (i, c) in iv.iter().enumerate() {
+                    buf[i + PLAINTEXT_START] = *c;
                 }
-            }
+            });
             Ok(())
         }
     }
