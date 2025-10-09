@@ -372,6 +372,11 @@ unsafe fn start() -> (
 ) {
     stm32f303xc::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     // We use the default HSI 8Mhz clock
     let rcc = static_init!(stm32f303xc::rcc::Rcc, stm32f303xc::rcc::Rcc::new());
     let syscfg = static_init!(

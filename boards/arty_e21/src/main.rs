@@ -126,6 +126,11 @@ unsafe fn start() -> (
     ArtyE21,
     &'static arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>,
 ) {
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
     peripherals.init();
 

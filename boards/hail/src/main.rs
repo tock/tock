@@ -229,6 +229,11 @@ unsafe fn start() -> (
 ) {
     sam4l::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
     let peripherals = static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm));
 
