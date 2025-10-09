@@ -14,3 +14,10 @@ error_on_unformatted = true
 # repository, it does not search parent directories for a rustfmt.toml file.
 # This allows projects with their own rustfmt.toml file to include tock as a
 # submodule without changing the behavior of `make prepush`.
+ignore = [
+  "**/vendor/**",
+  "**/third_party/**",
+  "**/third-party/**",
+  "**/external/**",
+  "**/extern/**"
+]
