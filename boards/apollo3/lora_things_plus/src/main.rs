@@ -1,7 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
-
 //! Board file for SparkFun LoRa Thing Plus - expLoRaBLE
 //!
 //! - <https://www.sparkfun.com/products/17506>
@@ -29,14 +28,12 @@
 //!                      J7 |       GPIO 44 |                15 |  NRESET     | Radio reset signal, active low
 //! IOM4: Not connected
 //! IOM5: Pins used by UART0
-
 #![no_std]
 #![no_main]
 #![deny(missing_docs)]
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
-
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
@@ -54,7 +51,6 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
-
 #[cfg(feature = "atecc508a")]
 use {
     capsules_core::virtualizers::virtual_i2c::MuxI2C,
@@ -63,32 +59,44 @@ use {
     kernel::hil::gpio::{Configure, Output},
     kernel::hil::rng::Rng,
 };
-
 #[cfg(any(feature = "chirp_i2c_moisture", feature = "dfrobot_i2c_rainfall"))]
 use capsules_core::virtualizers::virtual_i2c::MuxI2C;
-
 /// Support routines for debugging I/O.
 pub mod io;
-
 #[cfg(test)]
 mod tests;
-
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
-
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
+
+type Chip = apollo3::chip::Apollo3<Apollo3DefaultPeripherals>;
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps.
+
+    
+          
+            
+    
+
+          
+          Expand Down
+          
+            
+    
+
+          
+          Expand Up
+    
+    @@ -473,7 +475,9 @@ unsafe fn setup() -> (
+  
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
-
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
-
 // Test access to the peripherals
 static mut PERIPHERALS: Option<&'static Apollo3DefaultPeripherals> = None;
 // Test access to board
@@ -112,12 +120,9 @@ static mut BME280: Option<
 static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
 #[cfg(feature = "atecc508a")]
 static mut ATECC508A: Option<&'static capsules_extra::atecc508a::Atecc508a<'static>> = None;
-
 kernel::stack_size! {0x1000}
-
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
-
 type ChirpI2cMoistureType = components::chirp_i2c_moisture::ChirpI2cMoistureComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
 >;
@@ -131,10 +136,8 @@ type DFRobotRainFallType = components::dfrobot_rainfall_sensor::DFRobotRainFallS
 type BME280Sensor = components::bme280::Bme280ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
 >;
-
 type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<BME280Sensor>;
-
 #[cfg(feature = "atecc508a")]
 type Verifier = capsules_extra::atecc508a::Atecc508a<'static>;
 #[cfg(feature = "atecc508a")]
@@ -146,7 +149,6 @@ type SignatureVerifyInMemoryKeys =
         32,
         64,
     >;
-
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LoRaThingsPlus {
@@ -217,26 +219,21 @@ struct LoRaThingsPlus {
         >,
     >,
 }
-
 #[cfg(feature = "atecc508a")]
 fn atecc508a_wakeup() {
     let peripherals = (unsafe { PERIPHERALS }).unwrap();
-
     peripherals.gpio_port[6].make_output();
     peripherals.gpio_port[6].clear();
-
     // The ATECC508A requires the SDA line to be low for at least 60us
     // to wake up.
     for _i in 0..700 {
         cortexm4::support::nop();
     }
-
     // Enable SDA and SCL for I2C (exposed via Qwiic)
     let _ = &peripherals
         .gpio_port
         .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
 }
-
 #[cfg(feature = "atecc508a")]
 unsafe fn setup_atecc508a(
     board_kernel: &'static kernel::Kernel,
@@ -250,7 +247,6 @@ unsafe fn setup_atecc508a(
         components::atecc508a_component_static!(apollo3::iom::Iom<'static>),
     );
     ATECC508A = Some(atecc508a);
-
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
         capsules_core::rng::Entropy32ToRandom<
@@ -275,10 +271,8 @@ unsafe fn setup_atecc508a(
         )
     );
     entropy_to_random.set_client(rng_local);
-
     rng_local
 }
-
 #[cfg(feature = "chirp_i2c_moisture")]
 unsafe fn setup_chirp_i2c_moisture(
     board_kernel: &'static kernel::Kernel,
@@ -289,17 +283,14 @@ unsafe fn setup_chirp_i2c_moisture(
         components::chirp_i2c_moisture::ChirpI2cMoistureComponent::new(mux_i2c, 0x20).finalize(
             components::chirp_i2c_moisture_component_static!(apollo3::iom::Iom<'static>),
         );
-
     let moisture = components::moisture::MoistureComponent::new(
         board_kernel,
         capsules_extra::moisture::DRIVER_NUM,
         chirp_moisture,
     )
     .finalize(components::moisture_component_static!(ChirpI2cMoistureType));
-
     moisture
 }
-
 #[cfg(feature = "dfrobot_i2c_rainfall")]
 unsafe fn setup_dfrobot_i2c_rainfall(
     board_kernel: &'static kernel::Kernel,
@@ -315,17 +306,14 @@ unsafe fn setup_dfrobot_i2c_rainfall(
             apollo3::stimer::STimer<'static>,
             apollo3::iom::Iom<'static>
         ));
-
     let rainfall = components::rainfall::RainFallComponent::new(
         board_kernel,
         capsules_extra::rainfall::DRIVER_NUM,
         dfrobot_rainfall,
     )
     .finalize(components::rainfall_component_static!(DFRobotRainFallType));
-
     rainfall
 }
-
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for LoRaThingsPlus {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -370,7 +358,6 @@ impl SyscallDriverLookup for LoRaThingsPlus {
         }
     }
 }
-
 impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for LoRaThingsPlus {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
@@ -379,7 +366,6 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for LoRa
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
-
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
     }
@@ -402,7 +388,6 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for LoRa
         &()
     }
 }
-
 // Ensure that `setup()` is never inlined
 // This helps reduce the stack frame, see https://github.com/tock/tock/issues/3518
 #[inline(never)]
@@ -413,32 +398,24 @@ unsafe fn setup() -> (
 ) {
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
     PERIPHERALS = Some(peripherals);
-
     // No need to statically allocate mcu/pwr/clk_ctrl because they are only used in main!
     let mcu_ctrl = apollo3::mcuctrl::McuCtrl::new();
     let pwr_ctrl = apollo3::pwrctrl::PwrCtrl::new();
     let clkgen = apollo3::clkgen::ClkGen::new();
-
     clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
-
     // initialize capabilities
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
     PROCESSES = Some(processes);
-
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
-
     // Power up components
     pwr_ctrl.enable_uart0();
     pwr_ctrl.enable_iom0();
     pwr_ctrl.enable_iom2();
     pwr_ctrl.enable_iom3();
-
     peripherals.init();
-
     // Enable PinCfg
     peripherals
         .gpio_port
@@ -457,14 +434,11 @@ unsafe fn setup() -> (
     );
     // Enable the radio pins
     peripherals.gpio_port.enable_sx1262_radio_pins();
-
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(Some(&peripherals.gpio_port[26]), None, None);
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
-
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -473,18 +447,29 @@ unsafe fn setup() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
-    .finalize(components::debug_writer_component_static!());
 
+    
+          
+            
+    
+
+          
+          Expand Down
+    
+    
+  
+    .finalize(components::debug_writer_component_static!());
     // LEDs
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, apollo3::gpio::GpioPin>,
         LedHigh::new(&peripherals.gpio_port[19]),
     ));
-
     // GPIOs
     // Details are at: https://github.com/NorthernMechatronics/nmsdk/blob/master/bsp/nm180100evb/bsp_pins.src
     let gpio = components::gpio::GpioComponent::new(
@@ -500,7 +485,6 @@ unsafe fn setup() -> (
         ),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
-
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.
     let _ = peripherals.stimer.start();
@@ -514,17 +498,14 @@ unsafe fn setup() -> (
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
     ALARM = Some(mux_alarm);
-
     // Create a process printer for panic.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
-
     // Enable SDA and SCL for I2C (exposed via Qwiic)
     peripherals
         .gpio_port
         .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
-
     // Init the I2C device attached via Qwiic
     let i2c_master_buffer = static_init!(
         [u8; capsules_core::i2c_master::BUFFER_LENGTH],
@@ -541,14 +522,11 @@ unsafe fn setup() -> (
             )
         )
     );
-
     peripherals.iom0.set_master_client(i2c_master);
     peripherals.iom0.enable();
-
     let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom0, None).finalize(
         components::i2c_mux_component_static!(apollo3::iom::Iom<'static>),
     );
-
     let bme280 = Bme280Component::new(mux_i2c, 0x77).finalize(
         components::bme280_component_static!(apollo3::iom::Iom<'static>),
     );
@@ -565,7 +543,6 @@ unsafe fn setup() -> (
     )
     .finalize(components::humidity_component_static!(BME280Sensor));
     BME280 = Some(bme280);
-
     let ccs811 = Ccs811Component::new(mux_i2c, 0x5B).finalize(
         components::ccs811_component_static!(apollo3::iom::Iom<'static>),
     );
@@ -576,7 +553,6 @@ unsafe fn setup() -> (
     )
     .finalize(components::air_quality_component_static!());
     CCS811 = Some(ccs811);
-
     #[cfg(feature = "chirp_i2c_moisture")]
     let moisture = Some(setup_chirp_i2c_moisture(
         board_kernel,
@@ -585,7 +561,6 @@ unsafe fn setup() -> (
     ));
     #[cfg(not(feature = "chirp_i2c_moisture"))]
     let moisture = None;
-
     #[cfg(feature = "dfrobot_i2c_rainfall")]
     let rainfall = Some(setup_dfrobot_i2c_rainfall(
         board_kernel,
@@ -595,7 +570,6 @@ unsafe fn setup() -> (
     ));
     #[cfg(not(feature = "dfrobot_i2c_rainfall"))]
     let rainfall = None;
-
     #[cfg(feature = "atecc508a")]
     let rng = Some(setup_atecc508a(
         board_kernel,
@@ -604,12 +578,10 @@ unsafe fn setup() -> (
     ));
     #[cfg(not(feature = "atecc508a"))]
     let rng = None;
-
     // Init the broken out SPI controller
     let external_mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom2).finalize(
         components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
     );
-
     let external_spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         external_mux_spi,
@@ -621,12 +593,10 @@ unsafe fn setup() -> (
     .finalize(components::spi_syscall_component_static!(
         apollo3::iom::Iom<'static>
     ));
-
     // Init the internal SX1262 SPI controller
     let sx1262_mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom3).finalize(
         components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
     );
-
     let sx1262_spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         sx1262_mux_spi,
@@ -647,7 +617,6 @@ unsafe fn setup() -> (
             &peripherals.gpio_port[36], // H6 - SX1262 Slave Select
         ))
         .unwrap();
-
     let sx1262_gpio = components::gpio::GpioComponent::new(
         board_kernel,
         LORA_GPIO_DRIVER_NUM,
@@ -661,10 +630,8 @@ unsafe fn setup() -> (
         ),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
-
     // Setup BLE
     mcu_ctrl.disable_ble();
-
     // Flash
     let flash_ctrl_read_buf = static_init!(
         [u8; apollo3::flashctrl::PAGE_SIZE],
@@ -674,18 +641,15 @@ unsafe fn setup() -> (
         apollo3::flashctrl::Apollo3Page,
         apollo3::flashctrl::Apollo3Page::default()
     );
-
     let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
         components::flash_mux_component_static!(apollo3::flashctrl::FlashCtrl),
     );
-
     // SipHash
     let sip_hash = static_init!(
         capsules_extra::sip_hash::SipHasher24,
         capsules_extra::sip_hash::SipHasher24::new()
     );
     kernel::deferred_call::DeferredCallClient::register(sip_hash);
-
     // TicKV
     let tickv = components::tickv::TicKVComponent::new(
         sip_hash,
@@ -703,7 +667,6 @@ unsafe fn setup() -> (
     ));
     HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
     sip_hash.set_client(tickv);
-
     let kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
         components::tickv_kv_store_component_static!(
             capsules_extra::tickv::TicKVSystem<
@@ -716,7 +679,6 @@ unsafe fn setup() -> (
             capsules_extra::tickv::TicKVKeyType,
         ),
     );
-
     let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(kv_store).finalize(
         components::kv_store_permissions_component_static!(
             capsules_extra::tickv_kv_store::TicKVKVStore<
@@ -731,7 +693,6 @@ unsafe fn setup() -> (
             >
         ),
     );
-
     let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
         components::kv_permissions_mux_component_static!(
             capsules_extra::kv_store_permissions::KVStorePermissions<
@@ -748,7 +709,6 @@ unsafe fn setup() -> (
             >
         ),
     );
-
     let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
         components::virtual_kv_permissions_component_static!(
             capsules_extra::kv_store_permissions::KVStorePermissions<
@@ -765,7 +725,6 @@ unsafe fn setup() -> (
             >
         ),
     );
-
     let kv_driver = components::kv::KVDriverComponent::new(
         virtual_kv_driver,
         board_kernel,
@@ -787,11 +746,8 @@ unsafe fn setup() -> (
             >,
         >
     ));
-
     mcu_ctrl.print_chip_revision();
-
     debug!("Initialization complete. Entering main loop");
-
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -807,12 +763,9 @@ unsafe fn setup() -> (
         /// Length of the RAM region containing K/V data.
         static _lkv_data: u8;
     }
-
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
-
     let systick = cortexm4::systick::SysTick::new_with_calibration(48_000_000);
-
     let artemis_nano = static_init!(
         LoRaThingsPlus,
         LoRaThingsPlus {
@@ -835,13 +788,11 @@ unsafe fn setup() -> (
             kv_driver,
         }
     );
-
     let chip = static_init!(
         apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
         apollo3::chip::Apollo3::new(peripherals)
     );
     CHIP = Some(chip);
-
     let checking_policy;
     #[cfg(feature = "atecc508a")]
     {
@@ -851,7 +802,6 @@ unsafe fn setup() -> (
         // pretty slow and the ATECC508a doesn't support the DigestVerify trait
         let sha = components::sha::ShaSoftware256Component::new()
             .finalize(components::sha_software_256_component_static!());
-
         // These are the generated test keys used below, please do not use them
         // for anything important!!!!
         //
@@ -878,7 +828,6 @@ unsafe fn setup() -> (
             ]
         );
         let verifying_keys = kernel::static_init!([&'static mut [u8; 64]; 1], [public_key]);
-
         // Setup the in-memory key selector.
         let verifier_multiple_keys =
             components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponent::new(
@@ -890,7 +839,6 @@ unsafe fn setup() -> (
                     Verifier, 1, 64, 32, 64,
                 ),
             );
-
         checking_policy = components::appid::checker_signature::AppCheckerSignatureComponent::new(
             sha,
             verifier_multiple_keys,
@@ -908,15 +856,12 @@ unsafe fn setup() -> (
         checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
             .finalize(components::app_checker_null_component_static!());
     }
-
     // Create the AppID assigner.
     let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
         .finalize(components::appid_assigner_names_component_static!());
-
     // Create the process checking machine.
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
-
     let storage_permissions_policy =
         components::storage_permissions::tbf_header::StoragePermissionsTbfHeaderComponent::new()
             .finalize(
@@ -925,7 +870,6 @@ unsafe fn setup() -> (
                     kernel::process::ProcessStandardDebugFull,
                 ),
             );
-
     let app_flash = core::slice::from_raw_parts(
         core::ptr::addr_of!(_sapps),
         core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
@@ -934,7 +878,6 @@ unsafe fn setup() -> (
         core::ptr::addr_of_mut!(_sappmem),
         core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
     );
-
     // Create and start the asynchronous process loader.
     let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
@@ -951,10 +894,8 @@ unsafe fn setup() -> (
         kernel::process::ProcessStandardDebugFull,
         NUM_PROCS,
     ));
-
     (board_kernel, artemis_nano, chip)
 }
-
 /// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
@@ -962,16 +903,12 @@ unsafe fn setup() -> (
 #[no_mangle]
 pub unsafe fn main() {
     apollo3::init();
-
     #[cfg(test)]
     test_main();
-
     #[cfg(not(test))]
     {
         let (board_kernel, sf_lora_thing_plus_board, chip) = setup();
-
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
-
         board_kernel.kernel_loop(
             sf_lora_thing_plus_board,
             chip,
@@ -980,27 +917,21 @@ pub unsafe fn main() {
         );
     }
 }
-
 #[cfg(test)]
 use kernel::platform::watchdog::WatchDog;
-
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
         let (board_kernel, sf_lora_thing_plus_board, _chip) = setup();
-
         BOARD = Some(board_kernel);
         PLATFORM = Some(&sf_lora_thing_plus_board);
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
-
         PLATFORM.map(|p| {
             p.watchdog().setup();
         });
-
         for test in tests {
             test();
         }
     }
-
     loop {}
 }
