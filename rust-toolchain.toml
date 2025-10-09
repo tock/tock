@@ -3,6 +3,6 @@
 # Copyright Tock Contributors 2023.
 
 [toolchain]
-channel = "nightly-2025-05-19"
+channel = "stable"
 components = ["miri", "llvm-tools", "rust-src", "rustfmt", "clippy", "rust-analyzer"]
 targets = ["thumbv6m-none-eabi", "thumbv7em-none-eabi", "thumbv7em-none-eabihf", "thumbv8m.main-none-eabi", "riscv32imc-unknown-none-elf", "riscv32imac-unknown-none-elf"]

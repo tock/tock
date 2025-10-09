@@ -1,0 +1,9 @@
+
+
+[build]
+rustflags = ["--cfg", "cfg_tock_buildflagssentinel"]
+
+[target.thumbv7em-none-eabi]
+runner = "arm-none-eabi-gdb"  # Or your actual runner command
+
+

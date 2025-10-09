@@ -6,4 +6,7 @@
         "RUSTUP_TOOLCHAIN": "nightly-2025-05-19"
     },
     "rust-analyzer.check.allTargets": false,
+    "python.analysis.extraPaths": [
+        "./tools/debugging-and-development"
+    ],
 }
