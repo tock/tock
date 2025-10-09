@@ -179,6 +179,11 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
 unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     imxrt1060::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1060::chip::Imxrt10xxDefaultPeripherals,
@@ -265,7 +270,9 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
         .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

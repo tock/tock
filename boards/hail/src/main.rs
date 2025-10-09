@@ -35,6 +35,8 @@ mod test_take_map_cell;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 20;
 
+type Chip = sam4l::chip::Sam4l<Sam4lDefaultPeripherals>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
@@ -227,6 +229,11 @@ unsafe fn start() -> (
 ) {
     sam4l::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
     let peripherals = static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm));
 
@@ -306,7 +313,9 @@ unsafe fn start() -> (
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>
     ));
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

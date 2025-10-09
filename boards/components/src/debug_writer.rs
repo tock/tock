@@ -89,6 +89,8 @@ macro_rules! debug_writer_no_mux_component_static {
     };};
 }
 
+// Allow dead code because we need the `Chip` type but don't use `chip`.
+#[allow(dead_code)]
 pub struct DebugWriterComponent<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> {
     uart_mux: &'static MuxUart<'static>,
     marker: core::marker::PhantomData<[u8; BUF_SIZE_BYTES]>,
@@ -98,7 +100,48 @@ pub struct DebugWriterComponent<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCa
 impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability>
     DebugWriterComponent<BUF_SIZE_BYTES, C>
 {
-    pub fn new(uart_mux: &'static MuxUart, capability: C) -> Self {
+    /// Create a debug writer component while binding the global variable used
+    /// by debug.rs to the main thread.
+    #[cfg(target_has_atomic = "ptr")]
+    pub fn new<P: kernel::platform::chip::ThreadIdProvider>(
+        uart_mux: &'static MuxUart,
+        capability: C,
+    ) -> Self {
+        kernel::debug::initialize_debug_writer_wrapper::<P>();
+
+        Self {
+            uart_mux,
+            marker: core::marker::PhantomData,
+            capability,
+        }
+    }
+
+    /// Create a debug writer component and bind the global variable used by
+    /// debug.rs to the main thread, but require that the caller(i.e., main.rs)
+    /// provides the actual init call.
+    ///
+    /// This allows moving the unsafe call to main.rs instead of being
+    /// encapsulated in a component.
+    ///
+    /// The resulting use of this component for platforms without atomics
+    /// support looks like this:
+    ///
+    /// ```
+    ///  components::debug_writer::DebugWriterComponent::new(
+    ///      ...,
+    ///      || unsafe {
+    ///         kernel::debug::initialize_debug_writer_wrapper_unsafe::<
+    ///             <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    ///         >();
+    ///      })
+    /// .finalize(components::debug_writer_component_static!());
+    /// ```
+    pub fn new_unsafe<F>(uart_mux: &'static MuxUart, capability: C, bind_debug_global: F) -> Self
+    where
+        F: FnOnce(),
+    {
+        bind_debug_global();
+
         Self {
             uart_mux,
             marker: core::marker::PhantomData,
@@ -139,10 +182,13 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> Component
         hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
         let debug_wrapper = s.4.write(kernel::debug::DebugWriterWrapper::new(debugger));
+
         kernel::debug::set_debug_writer_wrapper(debug_wrapper, self.capability);
     }
 }
 
+// Allow dead code because we need the `Chip` type but don't use `chip`.
+#[allow(dead_code)]
 pub struct DebugWriterNoMuxComponent<
     U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
     const BUF_SIZE_BYTES: usize,
@@ -196,6 +242,7 @@ impl<
         hil::uart::Transmit::set_transmit_client(self.uart, debugger);
 
         let debug_wrapper = s.3.write(kernel::debug::DebugWriterWrapper::new(debugger));
+
         kernel::debug::set_debug_writer_wrapper(debug_wrapper, self.capability);
 
         let _ = self.uart.configure(uart::Parameters {

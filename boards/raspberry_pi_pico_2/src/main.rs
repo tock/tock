@@ -64,6 +64,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+type Chip = Rp2350<'static, Rp2350DefaultPeripherals<'static>>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
@@ -243,6 +245,11 @@ unsafe fn get_peripherals() -> &'static mut Rp2350DefaultPeripherals<'static> {
 pub unsafe fn main() {
     rp2350::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = get_peripherals();
     peripherals.resolve_dependencies();
 
@@ -359,7 +366,9 @@ pub unsafe fn main() {
     ));
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

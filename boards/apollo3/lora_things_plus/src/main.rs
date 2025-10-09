@@ -79,6 +79,8 @@ const NUM_PROCS: usize = 4;
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
+type Chip = apollo3::chip::Apollo3<Apollo3DefaultPeripherals>;
+
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps.
@@ -411,6 +413,11 @@ unsafe fn setup() -> (
     &'static LoRaThingsPlus,
     &'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
 ) {
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
     PERIPHERALS = Some(peripherals);
 
@@ -473,7 +480,9 @@ unsafe fn setup() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

@@ -32,10 +32,11 @@ pub mod io;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+type Chip = stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPeripherals<'static>>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static stm32f401cc::chip::Stm32f4xx<Stm32f401ccDefaultPeripherals>> =
-    None;
+static mut CHIP: Option<&'static Chip> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
@@ -220,6 +221,11 @@ unsafe fn start() -> (
 ) {
     stm32f401cc::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f401cc::rcc::Rcc, stm32f401cc::rcc::Rcc::new());
     let clocks = static_init!(
@@ -292,7 +298,9 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

@@ -230,6 +230,11 @@ unsafe fn start() -> (
 ) {
     imxrt1050::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
@@ -323,7 +328,9 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         lpuart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

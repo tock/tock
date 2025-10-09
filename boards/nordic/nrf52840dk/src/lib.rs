@@ -406,6 +406,11 @@ pub unsafe fn start_no_pconsole() -> (
     // Apply errata fixes and enable interrupts.
     nrf52840::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let ieee802154_ack_buf = static_init!(
@@ -620,7 +625,9 @@ pub unsafe fn start_no_pconsole() -> (
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
