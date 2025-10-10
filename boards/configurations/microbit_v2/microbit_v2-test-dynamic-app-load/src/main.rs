@@ -70,7 +70,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-type Chip = nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>;
+type ChipHw = nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -463,7 +463,7 @@ unsafe fn start() -> (
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
-        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),

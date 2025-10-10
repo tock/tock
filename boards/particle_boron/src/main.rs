@@ -77,7 +77,7 @@ const NUM_PROCS: usize = 8;
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
-type Chip = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
 
 // Static reference to chip for panic dumps
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
@@ -399,7 +399,7 @@ pub unsafe fn start_particle_boron() -> (
     .finalize(components::console_component_static!(132, 132));
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
-        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),

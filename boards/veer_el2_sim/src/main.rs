@@ -29,7 +29,7 @@ pub mod io;
 pub const NUM_PROCS: usize = 4;
 
 pub type VeeRChip = veer_el2::chip::VeeR<'static, VeeRDefaultPeripherals>;
-pub type Chip = VeeRChip;
+pub type ChipHw = VeeRChip;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -202,7 +202,7 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
         create_capability!(capabilities::SetDebugWriterCapability),
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
-                <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+                <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
             >();
         },
     )

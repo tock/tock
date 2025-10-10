@@ -26,7 +26,7 @@ pub mod io;
 
 pub const NUM_PROCS: usize = 4;
 
-type Chip = e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<'static>>;
+type ChipHw = e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<'static>>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -248,7 +248,7 @@ unsafe fn start() -> (
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
-        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),

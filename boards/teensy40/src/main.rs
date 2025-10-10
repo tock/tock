@@ -133,8 +133,8 @@ mod dma_config {
     }
 }
 
-type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
-static mut CHIP: Option<&'static Chip> = None;
+type ChipHw = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
+static mut CHIP: Option<&'static ChipHw> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
@@ -176,7 +176,7 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
+unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
     imxrt1060::init();
 
     let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
@@ -247,7 +247,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     cortexm7::nvic::Nvic::new(imxrt1060::nvic::GPT1).enable();
     dma_config::enable_interrupts();
 
-    let chip = static_init!(Chip, Chip::new(peripherals));
+    let chip = static_init!(ChipHw, ChipHw::new(peripherals));
     CHIP = Some(chip);
 
     // Start loading the kernel
@@ -266,7 +266,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
         .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
     components::debug_writer::DebugWriterComponent::new::<
-        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),

@@ -35,7 +35,7 @@ static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
-pub type Chip = QemuRv32VirtChip<'static, QemuRv32VirtDefaultPeripherals<'static>>;
+pub type ChipHw = QemuRv32VirtChip<'static, QemuRv32VirtDefaultPeripherals<'static>>;
 type RngDriver = components::rng::RngRandomComponentType<
     qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
 >;
@@ -666,7 +666,7 @@ pub unsafe fn start() -> (
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
-        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),

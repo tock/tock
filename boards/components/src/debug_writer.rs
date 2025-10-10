@@ -129,7 +129,7 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability>
     ///      ...,
     ///      || unsafe {
     ///         kernel::debug::initialize_debug_writer_wrapper_unsafe::<
-    ///             <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+    ///             <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     ///         >();
     ///      })
     /// .finalize(components::debug_writer_component_static!());

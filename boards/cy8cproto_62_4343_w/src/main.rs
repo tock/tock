@@ -39,7 +39,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-type Chip = Psoc62xa<'static, PsoC62xaDefaultPeripherals<'static>>;
+type ChipHw = Psoc62xa<'static, PsoC62xaDefaultPeripherals<'static>>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -177,7 +177,7 @@ pub unsafe fn main() {
         create_capability!(capabilities::SetDebugWriterCapability),
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
-                <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+                <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
             >();
         },
     )

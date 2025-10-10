@@ -35,7 +35,7 @@ mod test_take_map_cell;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 20;
 
-type Chip = sam4l::chip::Sam4l<Sam4lDefaultPeripherals>;
+type ChipHw = sam4l::chip::Sam4l<Sam4lDefaultPeripherals>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -309,7 +309,7 @@ unsafe fn start() -> (
         sam4l::ast::Ast<'static>
     ));
     components::debug_writer::DebugWriterComponent::new::<
-        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),

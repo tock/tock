@@ -88,7 +88,7 @@ impl InterruptService for LiteXSimInterruptablePeripherals {
 
 const NUM_PROCS: usize = 4;
 
-type Chip = litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePeripherals>;
+type ChipHw = litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePeripherals>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -669,7 +669,7 @@ unsafe fn start() -> (
         create_capability!(capabilities::SetDebugWriterCapability),
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
-                <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+                <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
             >();
         },
     )

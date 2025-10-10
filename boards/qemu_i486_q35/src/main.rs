@@ -50,13 +50,13 @@ static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 
 const NUM_PROCS: usize = 4;
 
-type Chip = Pc<'static, ()>;
+type ChipHw = Pc<'static, ()>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Reference to the chip for panic dumps
-static mut CHIP: Option<&'static Chip> = None;
+static mut CHIP: Option<&'static ChipHw> = None;
 
 // Reference to the process printer for panic dumps.
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
@@ -430,7 +430,7 @@ unsafe extern "cdecl" fn main() {
         .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    DebugWriterComponent::new::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>(
+    DebugWriterComponent::new::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
         debug_uart_device,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

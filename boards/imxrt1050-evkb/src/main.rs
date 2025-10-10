@@ -49,11 +49,11 @@ pub mod boot_header;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-type Chip = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
+type ChipHw = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static Chip> = None;
+static mut CHIP: Option<&'static ChipHw> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
@@ -256,7 +256,7 @@ unsafe fn start() -> (
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    let chip = static_init!(Chip, Chip::new(peripherals));
+    let chip = static_init!(ChipHw, ChipHw::new(peripherals));
     CHIP = Some(chip);
 
     // LPUART1
@@ -324,7 +324,7 @@ unsafe fn start() -> (
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
-        <Chip as kernel::platform::chip::Chip>::ThreadIdProvider,
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         lpuart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
