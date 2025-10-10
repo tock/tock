@@ -302,12 +302,6 @@ macro_rules! debug_gpio {
 ///////////////////////////////////////////////////////////////////
 // debug! and debug_verbose! support
 
-/// Wrapper type that we need a mutable reference to for the
-/// [`core::fmt::Write`] interface.
-pub struct DebugWriterWrapper {
-    dw: MapCell<&'static DebugWriter>,
-}
-
 /// Main type that we share with the UART provider and this debug module.
 pub struct DebugWriter {
     // What provides the actual writing mechanism.
@@ -324,7 +318,7 @@ pub struct DebugWriter {
 ///
 /// This is needed so the `debug!()` macros have a reference to the object to
 /// use.
-static DEBUG_WRITER: SingleThreadValue<MapCell<&'static mut DebugWriterWrapper>> =
+static DEBUG_WRITER: SingleThreadValue<MapCell<&'static DebugWriter>> =
     SingleThreadValue::new(MapCell::empty());
 
 /// Initialize the static debug writer.
@@ -349,7 +343,7 @@ pub unsafe fn initialize_debug_writer_wrapper_unsafe<P: ThreadIdProvider>() {
 
 fn try_get_debug_writer<F, R>(closure: F) -> Option<R>
 where
-    F: FnOnce(&mut DebugWriterWrapper) -> R,
+    F: FnOnce(&DebugWriter) -> R,
 {
     DEBUG_WRITER
         .get()
@@ -358,20 +352,10 @@ where
 
 /// Function used by board main.rs to set a reference to the writer.
 pub fn set_debug_writer_wrapper<C: SetDebugWriterCapability>(
-    debug_writer: &'static mut DebugWriterWrapper,
+    debug_writer: &'static DebugWriter,
     _cap: C,
 ) {
-    if let Some(dw) = DEBUG_WRITER.get() {
-        dw.replace(debug_writer);
-    }
-}
-
-impl DebugWriterWrapper {
-    pub fn new(dw: &'static DebugWriter) -> DebugWriterWrapper {
-        DebugWriterWrapper {
-            dw: MapCell::new(dw),
-        }
-    }
+    DEBUG_WRITER.get().map(|dw| dw.replace(debug_writer));
 }
 
 impl DebugWriter {
@@ -459,63 +443,33 @@ impl hil::uart::TransmitClient for DebugWriter {
     fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
 }
 
-/// Pass through functions.
-impl DebugWriterWrapper {
-    fn increment_count(&self) {
-        self.dw.map(|dw| {
-            dw.increment_count();
-        });
-    }
-
-    fn get_count(&self) -> usize {
-        self.dw.map_or(0, |dw| dw.get_count())
-    }
-
-    fn publish_bytes(&self) -> usize {
-        self.dw.map_or(0, |dw| dw.publish_bytes())
-    }
-
-    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
-        self.dw.map_or(None, |dw| dw.extract())
-    }
-
-    fn available_len(&self) -> usize {
-        const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
-        self.dw
-            .map_or(0, |dw| dw.available_len().saturating_sub(FULL_MSG.len()))
-    }
-}
-
-impl IoWrite for DebugWriterWrapper {
+impl IoWrite for &DebugWriter {
     fn write(&mut self, bytes: &[u8]) -> usize {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
-        self.dw.map_or(0, |dw| {
-            dw.internal_buffer.map_or(0, |ring_buffer| {
-                let available_len_for_msg =
-                    ring_buffer.available_len().saturating_sub(FULL_MSG.len());
+        self.internal_buffer.map_or(0, |ring_buffer| {
+            let available_len_for_msg = ring_buffer.available_len().saturating_sub(FULL_MSG.len());
 
-                if available_len_for_msg >= bytes.len() {
-                    for &b in bytes {
-                        ring_buffer.enqueue(b);
-                    }
-                    bytes.len()
-                } else {
-                    for &b in &bytes[..available_len_for_msg] {
-                        ring_buffer.enqueue(b);
-                    }
-                    // When the buffer is close to full, print a warning and drop the current
-                    // string.
-                    for &b in FULL_MSG {
-                        ring_buffer.enqueue(b);
-                    }
-                    available_len_for_msg
+            if available_len_for_msg >= bytes.len() {
+                for &b in bytes {
+                    ring_buffer.enqueue(b);
                 }
-            })
+                bytes.len()
+            } else {
+                for &b in &bytes[..available_len_for_msg] {
+                    ring_buffer.enqueue(b);
+                }
+                // When the buffer is close to full, print a warning and drop the current
+                // string.
+                for &b in FULL_MSG {
+                    ring_buffer.enqueue(b);
+                }
+                available_len_for_msg
+            }
         })
     }
 }
 
-impl Write for DebugWriterWrapper {
+impl Write for &DebugWriter {
     fn write_str(&mut self, s: &str) -> Result {
         self.write(s.as_bytes());
         Ok(())
@@ -524,16 +478,16 @@ impl Write for DebugWriterWrapper {
 
 /// Write a debug message without a trailing newline.
 pub fn debug_print(args: Arguments) {
-    try_get_debug_writer(|writer| {
-        let _ = write(writer, args);
+    try_get_debug_writer(|mut writer| {
+        let _ = write(&mut writer, args);
         writer.publish_bytes();
     });
 }
 
 /// Write a debug message with a trailing newline.
 pub fn debug_println(args: Arguments) {
-    try_get_debug_writer(|writer| {
-        let _ = write(writer, args);
+    try_get_debug_writer(|mut writer| {
+        let _ = write(&mut writer, args);
         let _ = writer.write_str("\r\n");
         writer.publish_bytes();
     });
@@ -541,7 +495,7 @@ pub fn debug_println(args: Arguments) {
 
 /// Write a [`ReadableProcessSlice`] to the debug output.
 pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
-    try_get_debug_writer(|writer| {
+    try_get_debug_writer(|mut writer| {
         let mut total = 0;
         for b in slice.iter() {
             let buf: [u8; 1] = [b.get(); 1];
@@ -563,7 +517,7 @@ pub fn debug_available_len() -> usize {
     try_get_debug_writer(|writer| writer.available_len()).unwrap_or(0)
 }
 
-fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
+fn write_header(writer: &mut &DebugWriter, (file, line): &(&'static str, u32)) -> Result {
     writer.increment_count();
     let count = writer.get_count();
     writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line))
@@ -572,9 +526,9 @@ fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u
 /// Write a debug message with file and line information without a trailing
 /// newline.
 pub fn debug_verbose_print(args: Arguments, file_line: &(&'static str, u32)) {
-    try_get_debug_writer(|writer| {
-        let _ = write_header(writer, file_line);
-        let _ = write(writer, args);
+    try_get_debug_writer(|mut writer| {
+        let _ = write_header(&mut writer, file_line);
+        let _ = write(&mut writer, args);
         writer.publish_bytes();
     });
 }
@@ -582,9 +536,9 @@ pub fn debug_verbose_print(args: Arguments, file_line: &(&'static str, u32)) {
 /// Write a debug message with file and line information with a trailing
 /// newline.
 pub fn debug_verbose_println(args: Arguments, file_line: &(&'static str, u32)) {
-    try_get_debug_writer(|writer| {
-        let _ = write_header(writer, file_line);
-        let _ = write(writer, args);
+    try_get_debug_writer(|mut writer| {
+        let _ = write_header(&mut writer, file_line);
+        let _ = write(&mut writer, args);
         let _ = writer.write_str("\r\n");
         writer.publish_bytes();
     });
