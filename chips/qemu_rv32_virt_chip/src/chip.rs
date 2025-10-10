@@ -174,9 +174,11 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
         rv32i::print_riscv_state(writer);
-        let _ = writer.write_fmt(format_args!("{}", self.pmp.pmp));
+        if let Some(t) = this {
+            let _ = writer.write_fmt(format_args!("{}", t.pmp.pmp));
+        }
     }
 }
 

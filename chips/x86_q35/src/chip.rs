@@ -185,7 +185,7 @@ impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
         support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
         let _ = writeln!(writer);
         let _ = writeln!(writer, "---| PC State |---");
         let _ = writeln!(writer);

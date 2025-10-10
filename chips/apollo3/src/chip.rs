@@ -137,7 +137,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
         cortexm4f::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, write: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
         CortexM4F::print_cortexm_state(write);
     }
 }

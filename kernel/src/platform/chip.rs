@@ -61,17 +61,19 @@ pub trait Chip {
     where
         F: FnOnce() -> R;
 
-    /// Print out chip state (system registers) to a supplied
-    /// writer. This does not print out the execution context
-    /// (data registers), as this depends on how they are stored;
-    /// that is implemented by
-    /// `syscall::UserspaceKernelBoundary::print_context`.
-    /// This also does not print out a process memory state,
-    /// that is implemented by `process::Process::print_memory_map`.
-    /// The MPU state is printed by the MPU's implementation of
-    /// the Display trait.
-    /// Used by panic.
-    unsafe fn print_state(&self, writer: &mut dyn Write);
+    /// Print out debug information about the current chip state (system
+    /// registers, MPU configuration, etc.) to a supplied writer.
+    ///
+    /// This function may be called across thread boundaries (such as from a
+    /// panic handler). As implementors of `Chip` do not have to be `Send` or
+    /// `Sync`, `&self` may not be available in these contexts. Therefore, this
+    /// function instead accepts an `Option<&Self>` parameter named `this`. In
+    /// contexts where `&self` is available, callers should invoke this function
+    /// by passing `Some(&self)` to `this`. Otherwise, `this` will be set to
+    /// `None`. The implementation of `print_state` may not print certain
+    /// information if it depends on runtime-accessible state in `Self`, but
+    /// that reference is not provided.
+    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write);
 }
 
 /// Interface for retrieving the currently executing thread.
