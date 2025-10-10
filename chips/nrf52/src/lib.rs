@@ -16,6 +16,7 @@ pub mod ficr;
 pub mod i2c;
 pub mod ieee802154_radio;
 pub mod nvmc;
+pub mod peripherals;
 pub mod power;
 pub mod ppi;
 pub mod pwm;

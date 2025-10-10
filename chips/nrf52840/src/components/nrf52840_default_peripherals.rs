@@ -33,7 +33,7 @@ impl Nrf52840DefaultPeripheralsComponent {
 
 impl Component for Nrf52840DefaultPeripheralsComponent {
     type StaticInput = (
-        &'static mut MaybeUninit<nrf52::chip::Nrf52DefaultPeripherals<'static>>,
+        &'static mut MaybeUninit<nrf52::peripherals::Nrf52DefaultPeripherals<'static>>,
         &'static mut MaybeUninit<Nrf52840DefaultPeripherals<'static>>,
         &'static mut MaybeUninit<[u8; crate::ieee802154_radio::ACK_BUF_SIZE]>,
     );

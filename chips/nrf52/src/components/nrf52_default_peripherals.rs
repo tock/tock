@@ -7,12 +7,12 @@
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 
-use crate::chip::Nrf52DefaultPeripherals;
+use crate::peripherals::Nrf52DefaultPeripherals;
 
 #[macro_export]
 macro_rules! nrf52_default_peripherals_component_static {
     ($c:ident $(,)?) => {{
-        let peripherals = kernel::static_buf!($c::chip::Nrf52DefaultPeripherals);
+        let peripherals = kernel::static_buf!($c::peripherals::Nrf52DefaultPeripherals);
 
         peripherals
     };};
