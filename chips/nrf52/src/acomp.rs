@@ -33,6 +33,13 @@ use kernel::utilities::registers::{
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+/// Only one channel
+#[derive(Copy, Clone, Debug)]
+#[repr(u8)]
+pub enum ChannelNumber {
+    AC0 = 0x00,
+}
+
 /// Analog comparator channels.
 ///
 /// The nrf52840 only has one analog comparator, so it does need channels
@@ -44,27 +51,17 @@ pub struct Channel {
     _chan_num: u32,
 }
 
-/// Only one channel
-#[derive(Copy, Clone, Debug)]
-#[repr(u8)]
-enum ChannelNumber {
-    AC0 = 0x00,
-}
-
 /// Initialization of an AC channel.
 impl Channel {
     /// Create a new AC channel.
     ///
     /// - `channel`: Channel enum representing the channel number
-    const fn new(channel: ChannelNumber) -> Channel {
+    pub const fn new(channel: ChannelNumber) -> Channel {
         Channel {
             _chan_num: (channel as u32) & 0x0F,
         }
     }
 }
-
-/// Uses only comparator, with VIN+=AIN5 and VIN-=AIN0
-pub static mut CHANNEL_AC0: Channel = Channel::new(ChannelNumber::AC0);
 
 register_structs! {
     CompRegisters {
