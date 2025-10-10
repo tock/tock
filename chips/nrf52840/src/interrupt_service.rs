@@ -12,18 +12,19 @@ use nrf52::chip::Nrf52DefaultPeripherals;
 /// constructed manually in main.rs.
 //create all base nrf52 peripherals
 pub struct Nrf52840DefaultPeripherals<'a> {
-    pub nrf52: Nrf52DefaultPeripherals<'a>,
+    pub nrf52: &'a Nrf52DefaultPeripherals<'a>,
     pub ieee802154_radio: crate::ieee802154_radio::Radio<'a>,
     pub usbd: crate::usbd::Usbd<'a>,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
 
-impl Nrf52840DefaultPeripherals<'_> {
+impl<'a> Nrf52840DefaultPeripherals<'a> {
     pub unsafe fn new(
+        nrf52: &'a Nrf52DefaultPeripherals<'a>,
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
     ) -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(),
+            nrf52,
             ieee802154_radio: crate::ieee802154_radio::Radio::new(ieee802154_radio_ack_buf),
             usbd: crate::usbd::Usbd::new(),
             gpio_port: crate::gpio::nrf52840_gpio_create(),

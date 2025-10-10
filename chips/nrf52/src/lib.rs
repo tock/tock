@@ -10,6 +10,7 @@ pub mod approtect;
 pub mod ble_radio;
 pub mod chip;
 pub mod clock;
+pub mod components;
 pub mod crt1;
 pub mod ficr;
 pub mod i2c;
