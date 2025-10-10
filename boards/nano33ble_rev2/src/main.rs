@@ -19,6 +19,7 @@ use kernel::hil::gpio::Output;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -671,10 +672,7 @@ pub unsafe fn start() -> (
     CHIP = Some(chip);
 
     // Need to disable the MPU because the bootloader seems to set it up.
-    {
-        use kernel::platform::chip::Chip;
-        chip.mpu().clear_mpu();
-    }
+    chip.mpu().clear_mpu();
 
     // Configure the USB stack to enable a serial port over CDC-ACM.
     cdc.enable();
