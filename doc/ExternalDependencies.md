@@ -253,10 +253,12 @@ during testing__.  `flux` does not affect built artifacts.
   the `cfg(test)` context, and thus it cannot be listed in `dev-dependencies`.
   For this reason, it is listed as an __optional__ dependency for the primary
   workspace.
-  - _Exclusion from `Cargo.lock`:_ As `flux` is an optional dependency and the
-    feature is not included by default, it is omitted from the provided
-    `Cargo.lock` file. This further helps ensure and validate that the standard
-    Tock OS build does not rely on `flux` as a dependency.
+  - _Impact on `Cargo.lock`:_ While `flux` is an optional dependency,
+    [cargo limitations](https://github.com/rust-lang/cargo/issues/10801) are
+    such that `flux` and its dependencies will be included in the lockfile
+    even if they are unused. `flux` adds the following packages to the
+    lockfile: `flux-attrs`, `flux-attrs-impl`, `flux-rs`, `proc-macro2`,
+    `quote`, `syn`, and `unicode-ident`.
 - **Scope and Usage:** `flux` refinements in Tock aim to parallel established
   conventions around unit testing. I.e.,
    - Refinements are located at the end of the file in a dedicated module
