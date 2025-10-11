@@ -22,7 +22,7 @@ use kernel::debug;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::ipc::IPC;
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
@@ -50,11 +50,13 @@ static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 
 const NUM_PROCS: usize = 4;
 
+type ChipHw = Pc<'static, ()>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Reference to the chip for panic dumps
-static mut CHIP: Option<&'static Pc<'static, ()>> = None;
+static mut CHIP: Option<&'static ChipHw> = None;
 
 // Reference to the process printer for panic dumps.
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
@@ -178,7 +180,7 @@ impl SyscallDriverLookup for QemuI386Q35Platform {
     }
 }
 
-impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
+impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform {
     type SyscallDriverLookup = Self;
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -428,7 +430,7 @@ unsafe extern "cdecl" fn main() {
         .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    DebugWriterComponent::new(
+    DebugWriterComponent::new::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
         debug_uart_device,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

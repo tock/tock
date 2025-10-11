@@ -254,8 +254,11 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
                     app.writing = true;
                     self.tx_in_progress.set(true);
                     if real_write_len > 0 {
-                        let count = debug_process_slice!(remaining_data);
-                        count
+                        // If the debug printing fails we have no recourse. Just
+                        // pretend like we wrote everything so we make forward
+                        // progress, and maybe the debug writer will start
+                        // working in the future.
+                        debug_process_slice!(remaining_data).unwrap_or(real_write_len)
                     } else {
                         0
                     }

@@ -43,25 +43,25 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-impl KernelResources<qemu_rv32_virt_lib::Chip> for Platform {
+impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::SyscallFilter;
     type ProcessFault = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::ProcessFault;
     type Scheduler = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::Scheduler;
     type SchedulerTimer = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::SchedulerTimer;
     type WatchDog = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::WatchDog;
     type ContextSwitchCallback = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::ContextSwitchCallback;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {

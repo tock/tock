@@ -113,25 +113,25 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-impl KernelResources<qemu_rv32_virt_lib::Chip> for Platform {
+impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::SyscallFilter;
     type ProcessFault = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::ProcessFault;
     type Scheduler = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::Scheduler;
     type SchedulerTimer = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::SchedulerTimer;
     type WatchDog = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::WatchDog;
     type ContextSwitchCallback = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
     >>::ContextSwitchCallback;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
@@ -373,7 +373,7 @@ pub unsafe fn main() {
     let storage_permissions_policy =
         components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
             components::storage_permissions_null_component_static!(
-                qemu_rv32_virt_lib::Chip,
+                qemu_rv32_virt_lib::ChipHw,
                 kernel::process::ProcessStandardDebugFull,
             ),
         );
@@ -415,7 +415,7 @@ pub unsafe fn main() {
         app_memory,
     )
     .finalize(components::process_loader_sequential_component_static!(
-        qemu_rv32_virt_lib::Chip,
+        qemu_rv32_virt_lib::ChipHw,
         kernel::process::ProcessStandardDebugFull,
         NUM_PROCS
     ));

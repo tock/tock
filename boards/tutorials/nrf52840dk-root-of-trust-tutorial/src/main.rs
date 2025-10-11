@@ -47,17 +47,17 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-type Chip = nrf52840dk_lib::Chip;
+type ChipHw = nrf52840dk_lib::ChipHw;
 
-impl KernelResources<Chip> for Platform {
+impl KernelResources<ChipHw> for Platform {
     type SyscallDriverLookup = Self;
-    type SyscallFilter = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SyscallFilter;
-    type ProcessFault = <nrf52840dk_lib::Platform as KernelResources<Chip>>::ProcessFault;
-    type Scheduler = <nrf52840dk_lib::Platform as KernelResources<Chip>>::Scheduler;
-    type SchedulerTimer = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SchedulerTimer;
-    type WatchDog = <nrf52840dk_lib::Platform as KernelResources<Chip>>::WatchDog;
+    type SyscallFilter = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::SyscallFilter;
+    type ProcessFault = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::ProcessFault;
+    type Scheduler = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::Scheduler;
+    type SchedulerTimer = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::SchedulerTimer;
+    type WatchDog = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::WatchDog;
     type ContextSwitchCallback =
-        <nrf52840dk_lib::Platform as KernelResources<Chip>>::ContextSwitchCallback;
+        <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::ContextSwitchCallback;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self

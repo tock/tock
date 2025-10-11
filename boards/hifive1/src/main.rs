@@ -17,7 +17,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::led::LedLow;
-use kernel::platform::chip::Chip;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
@@ -30,6 +29,8 @@ use rv32i::csr;
 pub mod io;
 
 pub const NUM_PROCS: usize = 4;
+
+type ChipHw = e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<'static>>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -123,7 +124,10 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
 /// main. By wrapping it in a non-inlined function, this reduces the stack utilization once
 /// processes are running.
 #[inline(never)]
-fn load_processes_not_inlined<C: Chip>(board_kernel: &'static Kernel, chip: &'static C) {
+fn load_processes_not_inlined<C: kernel::platform::chip::Chip>(
+    board_kernel: &'static Kernel,
+    chip: &'static C,
+) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -307,7 +311,9 @@ unsafe fn start() -> (
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     const DEBUG_BUFFER_KB: usize = 1;
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
