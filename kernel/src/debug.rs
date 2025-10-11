@@ -46,7 +46,7 @@
 //! ```
 
 use core::cell::Cell;
-use core::fmt::{write, Arguments, Result, Write};
+use core::fmt::{write, Arguments, Write};
 use core::panic::PanicInfo;
 use core::str;
 
@@ -430,7 +430,7 @@ impl hil::uart::TransmitClient for DebugWriter {
         &self,
         buffer: &'static mut [u8],
         _tx_len: usize,
-        _rcode: core::result::Result<(), ErrorCode>,
+        _rcode: Result<(), ErrorCode>,
     ) {
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
@@ -440,7 +440,7 @@ impl hil::uart::TransmitClient for DebugWriter {
             self.publish_bytes();
         }
     }
-    fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
+    fn transmitted_word(&self, _rcode: Result<(), ErrorCode>) {}
 }
 
 impl IoWrite for &DebugWriter {
@@ -470,7 +470,7 @@ impl IoWrite for &DebugWriter {
 }
 
 impl Write for &DebugWriter {
-    fn write_str(&mut self, s: &str) -> Result {
+    fn write_str(&mut self, s: &str) -> Result<(), core::fmt::Error> {
         self.write(s.as_bytes());
         Ok(())
     }
@@ -494,7 +494,11 @@ pub fn debug_println(args: Arguments) {
 }
 
 /// Write a [`ReadableProcessSlice`] to the debug output.
-pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
+///
+/// # Errors
+///
+/// Will return `Err` if it is not possible to write any output.
+pub fn debug_slice(slice: &ReadableProcessSlice) -> Result<usize, ()> {
     try_get_debug_writer(|mut writer| {
         let mut total = 0;
         for b in slice.iter() {
@@ -509,7 +513,7 @@ pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
         writer.publish_bytes();
         total
     })
-    .unwrap_or(0)
+    .ok_or(())
 }
 
 /// Return how many bytes are remaining in the internal debug buffer.
@@ -517,7 +521,10 @@ pub fn debug_available_len() -> usize {
     try_get_debug_writer(|writer| writer.available_len()).unwrap_or(0)
 }
 
-fn write_header(writer: &mut &DebugWriter, (file, line): &(&'static str, u32)) -> Result {
+fn write_header(
+    writer: &mut &DebugWriter,
+    (file, line): &(&'static str, u32),
+) -> Result<(), core::fmt::Error> {
     writer.increment_count();
     let count = writer.get_count();
     writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line))
