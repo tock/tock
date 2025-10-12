@@ -471,14 +471,6 @@ impl Component for SerialPortComponent {
     }
 }
 
-/// Statically allocates the storage needed to finalize a [`SerialPortComponent`].
-#[macro_export]
-macro_rules! serial_port_component_static {
-    () => {{
-        (kernel::static_buf!($crate::serial::SerialPort<'static>),)
-    }};
-}
-
 /// Serial port handle for blocking I/O
 ///
 /// This struct is a lightweight version of [`SerialPort`] that can be used to perform blocking
