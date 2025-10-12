@@ -100,6 +100,10 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         self.rcc.get_ahb_prescaler()
     }
 
+    pub fn reset_subghzradio(&self) {
+        self.rcc.reset_subghzradio();
+    }
+
     /// Get the frequency of the AHB
     pub fn get_ahb_frequency_mhz(&self) -> usize {
         let ahb_divider: usize = self.get_ahb_prescaler().into();

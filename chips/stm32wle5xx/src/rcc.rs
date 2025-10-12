@@ -1315,6 +1315,10 @@ impl Rcc {
     }
 
     // RNG clock
+    pub fn reset_subghzradio(&self) {
+        self.registers.csr.modify(CSR::RFRST::SET);
+        self.registers.csr.modify(CSR::RFRST::CLEAR);
+    }
 
     pub(crate) fn is_enabled_rng_clock(&self) -> bool {
         self.registers.ahb3enr.is_set(AHB3ENR::RNGEN)
