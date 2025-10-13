@@ -278,7 +278,14 @@ pub unsafe fn start() -> (
     let gpio_port = &nrf52840_peripherals.gpio_port;
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(Some(&gpio_port[LED1_PIN]), None, None);
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [&gpio_port[LED1_PIN]]
+    );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();

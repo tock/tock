@@ -126,9 +126,6 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(None, None, None);
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.sim_uart, 115200)
         .finalize(components::uart_mux_component_static!());
