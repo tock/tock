@@ -202,9 +202,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
     chip: &'static Option<&'static C>,
     writer: &mut W,
 ) {
-    chip.map(|c| {
-        c.print_state(writer);
-    });
+    C::print_state(*chip, writer);
 }
 
 /// More detailed prints about all processes.
