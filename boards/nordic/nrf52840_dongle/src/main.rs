@@ -411,11 +411,15 @@ pub unsafe fn start() -> (
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
+    let analog_comparator_channel = static_init!(
+        nrf52840::acomp::Channel,
+        nrf52840::acomp::Channel::new(nrf52840::acomp::ChannelNumber::AC0)
+    );
     let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
-            &*addr_of!(nrf52840::acomp::CHANNEL_AC0)
+            analog_comparator_channel,
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
