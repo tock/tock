@@ -550,7 +550,7 @@ impl hil::uart::TransmitClient for UartDebugWriter {
         &self,
         buffer: &'static mut [u8],
         _tx_len: usize,
-        _rcode: core::result::Result<(), ErrorCode>,
+        _rcode: Result<(), ErrorCode>,
     ) {
         // Replace this buffer since we are done with it.
         self.output_buffer.replace(buffer);
@@ -560,7 +560,7 @@ impl hil::uart::TransmitClient for UartDebugWriter {
             self.publish();
         }
     }
-    fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
+    fn transmitted_word(&self, _rcode: Result<(), ErrorCode>) {}
 }
 
 impl IoWrite for UartDebugWriter {
