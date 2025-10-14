@@ -696,91 +696,92 @@ impl<'a> Uart<'a> {
         (self.registers.fiford.get() & 0xFF) as u8
     }
 
- pub fn handle_interrupt(&self) {
-    // --- Handle Errors (RX-only clears) ---
-    let framing_error = self.registers.stat.is_set(STAT::FRAMERRINT);
-    let parity_error  = self.registers.stat.is_set(STAT::PARITYERRINT);
-    let rx_fifo_error = self.registers.fifostat.is_set(FIFOSTAT::RXERR);
+    pub fn handle_interrupt(&self) {
+        // --- Handle Errors (RX-only clears) ---
+        let framing_error = self.registers.stat.is_set(STAT::FRAMERRINT);
+        let parity_error = self.registers.stat.is_set(STAT::PARITYERRINT);
+        let rx_fifo_error = self.registers.fifostat.is_set(FIFOSTAT::RXERR);
 
-    if framing_error || parity_error || rx_fifo_error {
-        // Clear RX-related status bits; DO NOT touch TX FIFO or TX interrupts here.
-        self.registers.stat.write(
-            STAT::FRAMERRINT::SET
-                + STAT::PARITYERRINT::SET
-                + STAT::RXBRK::SET
-                + STAT::DELTACTS::SET
-        );
-        self.registers.fifostat.write(FIFOSTAT::RXERR::SET);
+        if framing_error || parity_error || rx_fifo_error {
+            // Clear RX-related status bits; DO NOT touch TX FIFO or TX interrupts here.
+            self.registers.stat.write(
+                STAT::FRAMERRINT::SET
+                    + STAT::PARITYERRINT::SET
+                    + STAT::RXBRK::SET
+                    + STAT::DELTACTS::SET,
+            );
+            self.registers.fifostat.write(FIFOSTAT::RXERR::SET);
 
-        // If no receive is active, turn off RX interrupts; otherwise leave them on.
-        if self.rx_status.get() != UARTStateRX::Receiving {
-            self.disable_receive_interrupt();
-        }
-        // Return; TX remains untouched so the process console can still print.
-        return;
-    }
-
-    // --- Handle Transmit ---
-    let tx_level_triggered = self.registers.fifointstat.is_set(FIFOINTSTAT::TXLVL);
-    let tx_idle_triggered  = self.registers.intstat.is_set(INTSTAT::TXIDLE);
-
-    if self.tx_status.get() == UARTStateTX::Transmitting {
-        if tx_level_triggered {
-            // Fill TX FIFO from software buffer
-            self.fill_fifo();
-
-            // If we finished sending the software buffer, wait for TXIDLE to signal completion.
-            if self.tx_position.get() == self.tx_len.get() {
-                self.set_interrupts_for_finishing(); // enable INTENSET::TXIDLEEN, disable FIFO TXLVL
+            // If no receive is active, turn off RX interrupts; otherwise leave them on.
+            if self.rx_status.get() != UARTStateRX::Receiving {
+                self.disable_receive_interrupt();
             }
+            // Return; TX remains untouched so the process console can still print.
+            return;
         }
-        if tx_idle_triggered {
-            // Acknowledge TXIDLE and finish TX operation.
-            self.registers.stat.write(STAT::TXIDLE::SET);
-            self.disable_all_tx_interrupts();
-            self.tx_status.set(UARTStateTX::Idle);
 
-            // Notify the TX client (console/process_console expects this)
-            self.tx_client.map(|client| {
-                self.tx_buffer.take().map(|buf| {
-                    client.transmitted_buffer(buf, self.tx_position.get(), Ok(()));
-                });
-            });
-        }
-    }
+        // --- Handle Transmit ---
+        let tx_level_triggered = self.registers.fifointstat.is_set(FIFOINTSTAT::TXLVL);
+        let tx_idle_triggered = self.registers.intstat.is_set(INTSTAT::TXIDLE);
 
-    // --- Handle Receive ---
-    if self.registers.fifointstat.is_set(FIFOINTSTAT::RXLVL) {
-        if self.rx_status.get() == UARTStateRX::Receiving {
-            if self.uart_is_readable() && self.rx_position.get() < self.rx_len.get() {
-                let byte = self.receive_byte();
-                let pos  = self.rx_position.get();
+        if self.tx_status.get() == UARTStateTX::Transmitting {
+            if tx_level_triggered {
+                // Fill TX FIFO from software buffer
+                self.fill_fifo();
 
-                self.rx_buffer.map(|buf| { buf[pos] = byte; });
-                self.rx_position.set(pos + 1);
-
-                // If buffer is complete, finish and notify client.
-                if self.rx_position.get() == self.rx_len.get() {
-                    self.disable_receive_interrupt();
-                    self.rx_status.set(UARTStateRX::Idle);
-
-                    self.rx_client.map(|client| {
-                        if let Some(buf) = self.rx_buffer.take() {
-                            client.received_buffer(
-                                buf,
-                                self.rx_position.get(),
-                                Ok(()),
-                                hil::uart::Error::None,
-                            );
-                        }
-                    });
+                // If we finished sending the software buffer, wait for TXIDLE to signal completion.
+                if self.tx_position.get() == self.tx_len.get() {
+                    self.set_interrupts_for_finishing(); // enable INTENSET::TXIDLEEN, disable FIFO TXLVL
                 }
             }
-        }
-        // If no receive is active, ignore spurious RX level interrupts.
-    }
-}
+            if tx_idle_triggered {
+                // Acknowledge TXIDLE and finish TX operation.
+                self.registers.stat.write(STAT::TXIDLE::SET);
+                self.disable_all_tx_interrupts();
+                self.tx_status.set(UARTStateTX::Idle);
 
+                // Notify the TX client (console/process_console expects this)
+                self.tx_client.map(|client| {
+                    self.tx_buffer.take().map(|buf| {
+                        client.transmitted_buffer(buf, self.tx_position.get(), Ok(()));
+                    });
+                });
+            }
+        }
+
+        // --- Handle Receive ---
+        if self.registers.fifointstat.is_set(FIFOINTSTAT::RXLVL) {
+            if self.rx_status.get() == UARTStateRX::Receiving {
+                if self.uart_is_readable() && self.rx_position.get() < self.rx_len.get() {
+                    let byte = self.receive_byte();
+                    let pos = self.rx_position.get();
+
+                    self.rx_buffer.map(|buf| {
+                        buf[pos] = byte;
+                    });
+                    self.rx_position.set(pos + 1);
+
+                    // If buffer is complete, finish and notify client.
+                    if self.rx_position.get() == self.rx_len.get() {
+                        self.disable_receive_interrupt();
+                        self.rx_status.set(UARTStateRX::Idle);
+
+                        self.rx_client.map(|client| {
+                            if let Some(buf) = self.rx_buffer.take() {
+                                client.received_buffer(
+                                    buf,
+                                    self.rx_position.get(),
+                                    Ok(()),
+                                    hil::uart::Error::None,
+                                );
+                            }
+                        });
+                    }
+                }
+            }
+            // If no receive is active, ignore spurious RX level interrupts.
+        }
+    }
 
     fn fill_fifo(&self) {
         self.tx_buffer.map(|buf| {
