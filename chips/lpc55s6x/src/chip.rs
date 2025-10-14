@@ -81,7 +81,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
         cortexm33::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
         CortexM33::print_cortexm_state(writer);
     }
 }
