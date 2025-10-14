@@ -125,3 +125,10 @@ pub unsafe trait NetworkCapabilityCreationCapability {}
 /// debug writer mechanism has access to debugging print messages which may
 /// contain information about the operation of the kernel.
 pub unsafe trait SetDebugWriterCapability {}
+
+/// The `PanicCapability` allows the holder to use the kernel-provided panic
+/// functions.
+///
+/// These functions can both loop indefinitely and access internal debugging
+/// state. Only trusted code should use these APIs.
+pub unsafe trait PanicCapability {}
