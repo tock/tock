@@ -26,10 +26,6 @@ install: flash
 .PHONY: flash-debug
 flash-debug: debug
 
-# Flash the release version of the kernel to the board.
-.PHONY: flash
-flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(PROBE_RS) flash --chip $(CHIP) --erase-all $<
 
 # Flash the debug version and attach an RTT console to view kernel logs.
 # This is the recommended command for debugging.
