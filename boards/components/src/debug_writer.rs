@@ -58,7 +58,7 @@ macro_rules! debug_writer_component_static {
         let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
-        let debug = kernel::static_buf!(kernel::debug::DebugWriter);
+        let debug = kernel::static_buf!(kernel::debug::UartDebugWriter);
 
         (uart, ring, buffer, debug)
     };};
@@ -77,7 +77,7 @@ macro_rules! debug_writer_no_mux_component_static {
     ($BUF_SIZE_KB:expr) => {{
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
-        let debug = kernel::static_buf!(kernel::debug::DebugWriter);
+        let debug = kernel::static_buf!(kernel::debug::UartDebugWriter);
 
         (ring, buffer, debug)
     };};
@@ -158,7 +158,7 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> Component
         &'static mut MaybeUninit<UartDevice<'static>>,
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
         &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
-        &'static mut MaybeUninit<kernel::debug::DebugWriter>,
+        &'static mut MaybeUninit<kernel::debug::UartDebugWriter>,
     );
     type Output = ();
 
@@ -171,7 +171,7 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> Component
         let debugger_uart = s.0.write(UartDevice::new(self.uart_mux, false));
         debugger_uart.setup();
         let ring_buffer = s.1.write(RingBuffer::new(internal_buf));
-        let debugger = s.3.write(kernel::debug::DebugWriter::new(
+        let debugger = s.3.write(kernel::debug::UartDebugWriter::new(
             debugger_uart,
             output_buf,
             ring_buffer,
@@ -218,7 +218,7 @@ impl<
     type StaticInput = (
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
         &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
-        &'static mut MaybeUninit<kernel::debug::DebugWriter>,
+        &'static mut MaybeUninit<kernel::debug::UartDebugWriter>,
     );
     type Output = ();
 
@@ -228,7 +228,7 @@ impl<
 
         // Create virtual device for kernel debug.
         let ring_buffer = s.0.write(RingBuffer::new(internal_buf));
-        let debugger = s.2.write(kernel::debug::DebugWriter::new(
+        let debugger = s.2.write(kernel::debug::UartDebugWriter::new(
             self.uart,
             output_buf,
             ring_buffer,
