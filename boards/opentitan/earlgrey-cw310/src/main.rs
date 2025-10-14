@@ -403,7 +403,7 @@ unsafe fn setup() -> (
             &peripherals.gpio_port[7]
         ]
     );
-    kernel::debug::initialize_debug_gpio::<
+    kernel::debug::initialize_debug_gpio_unsafe::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
     kernel::debug::assign_gpios(debug_gpios);
