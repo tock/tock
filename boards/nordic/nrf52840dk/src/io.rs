@@ -82,5 +82,6 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
         PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
+        &kernel::create_capability!(kernel::capabilities::PanicCapability),
     )
 }
