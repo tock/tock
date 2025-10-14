@@ -423,11 +423,18 @@ pub unsafe fn start_no_pconsole() -> (
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     // Configure kernel debug GPIOs as early as possible.
-    kernel::debug::assign_gpios(
-        Some(&nrf52840_peripherals.gpio_port[LED1_PIN]),
-        Some(&nrf52840_peripherals.gpio_port[LED2_PIN]),
-        Some(&nrf52840_peripherals.gpio_port[LED3_PIN]),
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 3],
+        [
+            &nrf52840_peripherals.gpio_port[LED1_PIN],
+            &nrf52840_peripherals.gpio_port[LED2_PIN],
+            &nrf52840_peripherals.gpio_port[LED3_PIN]
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Choose the channel for serial output. This board can be configured to use
     // either the Segger RTT channel or via UART with traditional TX/RX GPIO

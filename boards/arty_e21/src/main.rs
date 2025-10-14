@@ -146,11 +146,20 @@ unsafe fn start() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&peripherals.gpio_port[0]), // Blue
-        Some(&peripherals.gpio_port[1]), // Green
-        Some(&peripherals.gpio_port[8]),
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 3],
+        [
+            // Blue
+            &peripherals.gpio_port[0],
+            // Green
+            &peripherals.gpio_port[1],
+            &peripherals.gpio_port[8],
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
