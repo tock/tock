@@ -17,9 +17,9 @@ use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{capabilities, create_capability, debug, static_init};
+use kernel::{capabilities, create_capability, static_init};
 use lpc55s6x::chip::{Lpc55s69, Lpc55s69DefaultPeripheral};
-use lpc55s6x::clocks::{self, Clock};
+use lpc55s6x::clocks::{self, Clock, FrgClockSource, FrgId};
 use lpc55s6x::flexcomm::{self};
 use lpc55s6x::gpio::{GpioPin, LPCPin};
 use lpc55s6x::iocon::{Config, Function, Pull, Slew};
@@ -263,8 +263,11 @@ unsafe fn start() -> (
     let clock = static_init!(clocks::Clock, clocks::Clock::new());
     let flexcomm0 = static_init!(flexcomm::Flexcomm, flexcomm::Flexcomm::new_id(0).unwrap());
 
+    clock.setup_uart_clock(FrgId::Frg0, FrgClockSource::Fro96Mhz);
+
     let uart = &peripherals.uart;
 
+    uart.set_clock_source(FrgClockSource::Fro96Mhz);
     uart.set_clocks(clock);
     uart.set_flexcomm(flexcomm0);
 
@@ -293,7 +296,7 @@ unsafe fn start() -> (
 
     let params = Parameters {
         // USART initial configuration, using default settings
-        baud_rate: 9600,
+        baud_rate: 115200,
         width: Width::Eight,
         stop_bits: StopBits::One,
         parity: Parity::None,
@@ -303,7 +306,7 @@ unsafe fn start() -> (
 
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
 
-    let uart_mux = components::console::UartMuxComponent::new(uart, 9600)
+    let uart_mux = components::console::UartMuxComponent::new(uart, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Console
@@ -349,8 +352,6 @@ unsafe fn start() -> (
         scheduler,
         systick: cortexm33::systick::SysTick::new_with_calibration(12_000_000),
     };
-
-    debug!("Board initialization complete. Entering main loop");
 
     // These symbols are defined in the linker script.
     extern "C" {

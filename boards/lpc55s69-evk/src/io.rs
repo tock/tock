@@ -45,7 +45,7 @@ impl Writer {
         if !uart.is_configured() {
             let params = Parameters {
                 // USART initial configuration, using default settings
-                baud_rate: 9600,
+                baud_rate: 115200,
                 width: Width::Eight,
                 stop_bits: StopBits::One,
                 parity: Parity::None,
