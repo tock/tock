@@ -46,7 +46,7 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
         cortexm0p::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn core::fmt::Write) {
+    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn core::fmt::Write) {
         CortexM0P::print_cortexm_state(writer);
     }
 

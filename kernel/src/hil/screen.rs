@@ -101,10 +101,10 @@ pub enum ScreenPixelFormat {
     /// Pixels encoded as 1-bit, used for monochromatic displays.
     ///
     /// The pixel order uses 8-bit (1-byte) pages where each page is displayed
-    /// vertically. That is, buffer[0] bit0 is pixel (0,0), but buffer[0] bit1
-    /// is pixel (0,1). The page continues, so buffer[0] bit 7 is pixel
-    /// (0,7). Then the page advances horizontally, so buffer[1] bit0 is
-    /// pixel (1,0), and buffer[1] bit4 is pixel (1,4).
+    /// vertically. That is, `buffer[0]` bit0 is pixel (0,0), but `buffer[0]`
+    /// bit1 is pixel (0,1). The page continues, so `buffer[0]` bit7 is
+    /// pixel (0,7). Then the page advances horizontally, so `buffer[1]` bit0 is
+    /// pixel (1,0), and `buffer[1]` bit4 is pixel (1,4).
     ///
     /// An example of a screen driver that uses this format is the SSD1306.
     Mono_8BitPage = 6,

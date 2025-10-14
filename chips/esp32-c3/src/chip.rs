@@ -154,7 +154,7 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
         let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
         let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
         let _ = writer.write_fmt(format_args!("Last cause (mcause): "));

@@ -93,6 +93,7 @@ members = [
     "chips/nrf52833",
     "chips/nrf52840",
     "chips/nrf5x",
+    "chips/pci-x86",
     "chips/x86_q35",
     "chips/qemu_rv32_virt_chip",
     "chips/psoc62xa",

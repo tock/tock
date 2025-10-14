@@ -136,7 +136,7 @@ pub mod io;
 const USB_DEBUGGING: bool = false;
 
 /// This platform's chip type:
-pub type Chip = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+pub type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
 
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
@@ -266,7 +266,7 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-impl KernelResources<Chip> for Platform {
+impl KernelResources<ChipHw> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -395,7 +395,7 @@ pub unsafe fn ieee802154_udp(
 pub unsafe fn start_no_pconsole() -> (
     &'static kernel::Kernel,
     Platform,
-    &'static Chip,
+    &'static ChipHw,
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
 ) {
@@ -459,7 +459,7 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
-    let chip = static_init!(Chip, nrf52840::chip::NRF52::new(nrf52840_peripherals));
+    let chip = static_init!(ChipHw, nrf52840::chip::NRF52::new(nrf52840_peripherals));
     CHIP = Some(chip);
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
@@ -620,7 +620,9 @@ pub unsafe fn start_no_pconsole() -> (
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -819,11 +821,15 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
+    let analog_comparator_channel = static_init!(
+        nrf52840::acomp::Channel,
+        nrf52840::acomp::Channel::new(nrf52840::acomp::ChannelNumber::AC0)
+    );
     let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
-            &*addr_of!(nrf52840::acomp::CHANNEL_AC0)
+            analog_comparator_channel
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
@@ -937,7 +943,7 @@ pub unsafe fn start_no_pconsole() -> (
 pub unsafe fn start() -> (
     &'static kernel::Kernel,
     Platform,
-    &'static Chip,
+    &'static ChipHw,
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
 ) {

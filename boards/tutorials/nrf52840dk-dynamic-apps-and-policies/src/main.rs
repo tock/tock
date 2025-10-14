@@ -28,8 +28,8 @@ const SCREEN_I2C_SCL_PIN: Pin = Pin::P1_11;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-type Chip = nrf52840dk_lib::Chip;
-static mut CHIP: Option<&'static Chip> = None;
+type ChipHw = nrf52840dk_lib::ChipHw;
+static mut CHIP: Option<&'static ChipHw> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
@@ -147,15 +147,15 @@ impl SyscallDriverLookup for Platform {
 }
 
 // Configure the kernel.
-impl KernelResources<Chip> for Platform {
+impl KernelResources<ChipHw> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = system_call_filter::DynamicPoliciesCustomFilter;
-    type ProcessFault = <nrf52840dk_lib::Platform as KernelResources<Chip>>::ProcessFault;
-    type Scheduler = <nrf52840dk_lib::Platform as KernelResources<Chip>>::Scheduler;
-    type SchedulerTimer = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SchedulerTimer;
-    type WatchDog = <nrf52840dk_lib::Platform as KernelResources<Chip>>::WatchDog;
+    type ProcessFault = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::ProcessFault;
+    type Scheduler = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::Scheduler;
+    type SchedulerTimer = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::SchedulerTimer;
+    type WatchDog = <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::WatchDog;
     type ContextSwitchCallback =
-        <nrf52840dk_lib::Platform as KernelResources<Chip>>::ContextSwitchCallback;
+        <nrf52840dk_lib::Platform as KernelResources<ChipHw>>::ContextSwitchCallback;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self

@@ -125,6 +125,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+type ChipHw = nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'static>>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static nrf52832::chip::NRF52<Nrf52832DefaultPeripherals>> = None;
@@ -395,7 +397,9 @@ pub unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -430,11 +434,15 @@ pub unsafe fn start() -> (
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
+    let analog_comparator_channel = static_init!(
+        nrf52832::acomp::Channel,
+        nrf52832::acomp::Channel::new(nrf52832::acomp::ChannelNumber::AC0)
+    );
     let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52832::acomp::Channel,
-            &*addr_of!(nrf52832::acomp::CHANNEL_AC0)
+            analog_comparator_channel,
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
