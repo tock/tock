@@ -21,11 +21,11 @@
 use core::cell::Cell;
 use core::num::NonZeroU32;
 
-use crate::collections::list::{List, ListLink, ListNode};
-use crate::platform::chip::Chip;
-use crate::process::ProcessSlot;
-use crate::process::StoppedExecutingReason;
-use crate::scheduler::{Scheduler, SchedulingDecision};
+use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::platform::chip::Chip;
+use kernel::process::ProcessSlot;
+use kernel::process::StoppedExecutingReason;
+use kernel::scheduler::{Scheduler, SchedulingDecision};
 
 /// A node in the linked list the scheduler uses to track processes
 /// Each node holds a pointer to a slot in the processes array

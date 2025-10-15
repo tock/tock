@@ -4,11 +4,6 @@
 
 //! Interface for Tock kernel schedulers.
 
-pub mod cooperative;
-pub mod mlfq;
-pub mod priority;
-pub mod round_robin;
-
 use crate::deferred_call::DeferredCall;
 use crate::platform::chip::Chip;
 use crate::process::ProcessId;
