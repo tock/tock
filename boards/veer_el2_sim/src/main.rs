@@ -14,7 +14,6 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
-use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
@@ -47,6 +46,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x900}
 
+type SchedulerObj = components::sched::cooperative::CooperativeComponentType;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct VeeR {
@@ -55,7 +56,7 @@ struct VeeR {
         'static,
         VirtualMuxAlarm<'static, Clint<'static>>,
     >,
-    scheduler: &'static CooperativeSched<'static>,
+    scheduler: &'static SchedulerObj,
     scheduler_timer: &'static SchedulerTimerHw,
 }
 
@@ -77,7 +78,7 @@ impl KernelResources<VeeRChip> for VeeR {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = CooperativeSched<'static>;
+    type Scheduler = SchedulerObj;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
