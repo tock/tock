@@ -14,32 +14,36 @@
 //!         .finalize(components::priority_component_static!());
 //! ```
 
+use capsules_system::scheduler::priority::PrioritySched;
 use core::mem::MaybeUninit;
+use kernel::capabilities::ProcessManagementCapability;
 use kernel::component::Component;
-use kernel::scheduler::priority::PrioritySched;
 
 #[macro_export]
 macro_rules! priority_component_static {
-    () => {{
-        kernel::static_buf!(kernel::scheduler::priority::PrioritySched)
+    ($CAP:ty $(,)?) => {{
+        kernel::static_buf!(capsules_system::scheduler::priority::PrioritySched<$CAP>)
     };};
 }
 
-pub struct PriorityComponent {
+pub type PriorityComponentType<CAP> = capsules_system::scheduler::priority::PrioritySched<CAP>;
+
+pub struct PriorityComponent<CAP: ProcessManagementCapability> {
     board_kernel: &'static kernel::Kernel,
+    cap: CAP,
 }
 
-impl PriorityComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel) -> PriorityComponent {
-        PriorityComponent { board_kernel }
+impl<CAP: ProcessManagementCapability> PriorityComponent<CAP> {
+    pub fn new(board_kernel: &'static kernel::Kernel, cap: CAP) -> Self {
+        Self { board_kernel, cap }
     }
 }
 
-impl Component for PriorityComponent {
-    type StaticInput = &'static mut MaybeUninit<PrioritySched>;
-    type Output = &'static mut PrioritySched;
+impl<CAP: ProcessManagementCapability + 'static> Component for PriorityComponent<CAP> {
+    type StaticInput = &'static mut MaybeUninit<PrioritySched<CAP>>;
+    type Output = &'static mut PrioritySched<CAP>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        static_buffer.write(PrioritySched::new(self.board_kernel))
+        static_buffer.write(PrioritySched::new(self.board_kernel, self.cap))
     }
 }

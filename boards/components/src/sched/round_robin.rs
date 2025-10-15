@@ -16,24 +16,28 @@
 // Author: Hudson Ayers <hayers@stanford.edu>
 // Last modified: 03/31/2020
 
+use capsules_system::scheduler::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 
 #[macro_export]
 macro_rules! round_robin_component_static {
     ($N:expr $(,)?) => {{
         let rr_sched =
-            kernel::static_buf!(kernel::scheduler::round_robin::RoundRobinSched<'static>);
+            kernel::static_buf!(capsules_system::scheduler::round_robin::RoundRobinSched<'static>);
         let rr_nodes = kernel::static_buf!(
-            [core::mem::MaybeUninit<kernel::scheduler::round_robin::RoundRobinProcessNode<'static>>;
-                $N]
+            [core::mem::MaybeUninit<
+                capsules_system::scheduler::round_robin::RoundRobinProcessNode<'static>,
+            >; $N]
         );
 
         (rr_sched, rr_nodes)
     };};
 }
+
+pub type RoundRobinComponentType =
+    capsules_system::scheduler::round_robin::RoundRobinSched<'static>;
 
 pub struct RoundRobinComponent<const NUM_PROCS: usize> {
     processes: &'static ProcessArray<NUM_PROCS>,

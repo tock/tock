@@ -15,23 +15,28 @@
 
 // Author: Hudson Ayers <hayers@stanford.edu>
 
+use capsules_system::scheduler::cooperative::{CoopProcessNode, CooperativeSched};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::process::ProcessArray;
-use kernel::scheduler::cooperative::{CoopProcessNode, CooperativeSched};
 
 #[macro_export]
 macro_rules! cooperative_component_static {
     ($N:expr $(,)?) => {{
         let coop_sched =
-            kernel::static_buf!(kernel::scheduler::cooperative::CooperativeSched<'static>);
+            kernel::static_buf!(capsules_system::scheduler::cooperative::CooperativeSched<'static>);
         let coop_nodes = kernel::static_buf!(
-            [core::mem::MaybeUninit<kernel::scheduler::cooperative::CoopProcessNode<'static>>; $N]
+            [core::mem::MaybeUninit<
+                capsules_system::scheduler::cooperative::CoopProcessNode<'static>,
+            >; $N]
         );
 
         (coop_sched, coop_nodes)
     };};
 }
+
+pub type CooperativeComponentType =
+    capsules_system::scheduler::cooperative::CooperativeSched<'static>;
 
 pub struct CooperativeComponent<const NUM_PROCS: usize> {
     processes: &'static ProcessArray<NUM_PROCS>,

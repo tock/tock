@@ -20,7 +20,6 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
 
@@ -47,6 +46,8 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new(PanicResources::new());
 
+type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+
 /// Supported drivers by the platform
 pub struct Cy8cproto0624343w {
     console: &'static capsules_core::console::Console<'static>,
@@ -57,7 +58,7 @@ pub struct Cy8cproto0624343w {
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, GpioPin<'static>>, 1>,
     button: &'static capsules_core::button::Button<'static, GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, psoc62xa::gpio::GpioPin<'static>>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerObj,
     systick: cortexm0p::systick::SysTick,
 }
 
@@ -81,7 +82,7 @@ impl KernelResources<Psoc62xa<'static, PsoC62xaDefaultPeripherals<'static>>> for
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerObj;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

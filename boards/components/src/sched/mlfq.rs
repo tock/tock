@@ -12,10 +12,10 @@
 use core::mem::MaybeUninit;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_system::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
 use kernel::component::Component;
 use kernel::hil::time;
 use kernel::process::ProcessArray;
-use kernel::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
 
 #[macro_export]
 macro_rules! mlfq_component_static {
@@ -24,18 +24,22 @@ macro_rules! mlfq_component_static {
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );
         let mlfq_sched = kernel::static_buf!(
-            kernel::scheduler::mlfq::MLFQSched<
+            capsules_system::scheduler::mlfq::MLFQSched<
                 'static,
                 capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
         let mlfq_node = kernel::static_buf!(
-            [core::mem::MaybeUninit<kernel::scheduler::mlfq::MLFQProcessNode<'static>>; $N]
+            [core::mem::MaybeUninit<capsules_system::scheduler::mlfq::MLFQProcessNode<'static>>;
+                $N]
         );
 
         (alarm, mlfq_sched, mlfq_node)
     };};
 }
+
+pub type MLFQComponentType<A> =
+    capsules_system::scheduler::mlfq::MLFQSched<'static, VirtualMuxAlarm<'static, A>>;
 
 pub struct MLFQComponent<A: 'static + time::Alarm<'static>, const NUM_PROCS: usize> {
     alarm_mux: &'static MuxAlarm<'static, A>,

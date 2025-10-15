@@ -15,7 +15,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::priority::PrioritySched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
@@ -44,6 +43,12 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<Chip, ProcessPrinter>> 
 
 kernel::stack_size! {0x1000}
 
+struct ProcessManagementCapabilityObj {}
+unsafe impl capabilities::ProcessManagementCapability for ProcessManagementCapabilityObj {}
+
+type SchedulerObj =
+    components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct ArtyE21 {
@@ -60,7 +65,7 @@ struct ArtyE21 {
     >,
     button: &'static capsules_core::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
-    scheduler: &'static PrioritySched,
+    scheduler: &'static SchedulerObj,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -89,7 +94,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = PrioritySched;
+    type Scheduler = SchedulerObj;
     type SchedulerTimer = ();
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -261,8 +266,13 @@ unsafe fn start() -> (
 
     chip.enable_all_interrupts();
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
-        .finalize(components::priority_component_static!());
+    let scheduler = components::sched::priority::PriorityComponent::new(
+        board_kernel,
+        ProcessManagementCapabilityObj {},
+    )
+    .finalize(components::priority_component_static!(
+        ProcessManagementCapabilityObj
+    ));
 
     let artye21 = ArtyE21 {
         console,
