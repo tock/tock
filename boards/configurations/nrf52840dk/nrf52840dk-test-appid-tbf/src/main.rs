@@ -12,8 +12,7 @@ use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::process::ProcessLoadingAsync;
+use kernel::process::{ProcessArray, ProcessLoadingAsync};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
@@ -45,10 +44,6 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 const NUM_PROCS: usize = 8;
 
 type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
-
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 
 kernel::stack_size! {0x2000}
 
@@ -179,7 +174,6 @@ pub unsafe fn main() {
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -190,7 +184,6 @@ pub unsafe fn main() {
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
         nrf52840::chip::NRF52::new(nrf52840_peripherals)
     );
-    CHIP = Some(chip);
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
