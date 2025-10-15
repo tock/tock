@@ -13,7 +13,6 @@ use kernel::component::Component;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::mlfq::MLFQSched;
@@ -89,6 +88,10 @@ impl InterruptService for LiteXSimInterruptablePeripherals {
 const NUM_PROCS: usize = 4;
 
 type ChipHw = litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePeripherals>;
+type AlarmHw =
+    litex_vexriscv::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -160,17 +163,7 @@ struct LiteXSim {
             >,
         >,
     >,
-    scheduler_timer: &'static VirtualSchedulerTimer<
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >,
+    scheduler_timer: &'static SchedulerTimerHw,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -210,17 +203,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
             >,
         >,
     >;
-    type SchedulerTimer = VirtualSchedulerTimer<
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -418,35 +401,11 @@ unsafe fn start() -> (
     );
     virtual_alarm_user.set_alarm_client(alarm);
 
-    // Systick virtual alarm for scheduling
-    let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    systick_virtual_alarm.setup();
-
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<
-            VirtualMuxAlarm<
-                'static,
-                litex_vexriscv::timer::LiteXAlarm<
-                    'static,
-                    'static,
-                    socc::SoCRegisterFmt,
-                    socc::ClockFrequency,
-                >,
-            >,
-        >,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
 
     // ---------- UART ----------
 

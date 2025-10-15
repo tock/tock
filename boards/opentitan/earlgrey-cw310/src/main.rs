@@ -31,7 +31,6 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::priority::PrioritySched;
@@ -106,6 +105,9 @@ pub type EarlGreyChip = earlgrey::chip::EarlGrey<
 const NUM_PROCS: usize = 4;
 
 type ChipHw = EarlGreyChip;
+type AlarmHw = earlgrey::timer::RvTimer<'static, ChipConfig>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -231,9 +233,7 @@ struct EarlGrey {
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
     scheduler: &'static PrioritySched,
-    scheduler_timer: &'static VirtualSchedulerTimer<
-        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
-    >,
+    scheduler_timer: &'static SchedulerTimerHw,
     watchdog: &'static lowrisc::aon_timer::AonTimer,
 }
 
@@ -265,9 +265,7 @@ impl KernelResources<EarlGreyChip> for EarlGrey {
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
     type ProcessFault = ();
     type Scheduler = PrioritySched;
-    type SchedulerTimer = VirtualSchedulerTimer<
-        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
-    >;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = lowrisc::aon_timer::AonTimer;
     type ContextSwitchCallback = ();
 
@@ -464,12 +462,6 @@ unsafe fn setup() -> (
     );
     virtual_alarm_user.setup();
 
-    let scheduler_timer_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<ChipConfig>>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    scheduler_timer_virtual_alarm.setup();
-
     let alarm = static_init!(
         capsules_core::alarm::AlarmDriver<
             'static,
@@ -482,12 +474,11 @@ unsafe fn setup() -> (
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<
-            VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
-        >,
-        VirtualSchedulerTimer::new(scheduler_timer_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
 
     let chip = static_init!(
         EarlGreyChip,
