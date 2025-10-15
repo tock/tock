@@ -509,11 +509,9 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            let continue_process = unsafe {
-                resources
-                    .scheduler()
-                    .continue_process(process.processid(), chip)
-            };
+            let continue_process = resources
+                .scheduler()
+                .continue_process(process.processid(), chip);
             if !continue_process {
                 return_reason = process::StoppedExecutingReason::KernelPreemption;
                 break;
