@@ -26,7 +26,6 @@ use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
-use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::cells::OptionalCell;
 use kernel::{create_capability, static_init};
@@ -71,6 +70,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 kernel::stack_size! {0x1000}
+
+type SchedulerObj = components::sched::cooperative::CooperativeComponentType;
 
 // Static allocations used for page tables
 //
@@ -156,7 +157,7 @@ pub struct QemuI386Q35Platform {
         VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
     >,
     ipc: IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static CooperativeSched<'static>,
+    scheduler: &'static SchedulerObj,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>,
     rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static>>>,
@@ -200,7 +201,7 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
         &()
     }
 
-    type Scheduler = CooperativeSched<'static>;
+    type Scheduler = SchedulerObj;
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
     }
