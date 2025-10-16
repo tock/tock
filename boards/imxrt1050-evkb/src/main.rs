@@ -21,7 +21,6 @@ use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, static_init};
 
 // use components::fxos8700::Fxos8700Component;
@@ -68,6 +67,8 @@ static BOOT_HDR: [u8; 8192] = boot_header::BOOT_HDR;
 
 kernel::stack_size! {0x2000}
 
+type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+
 // const NUM_LEDS: usize = 1;
 
 /// A structure representing this platform that holds references to all
@@ -88,7 +89,7 @@ struct Imxrt1050EVKB {
     >,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerObj,
     systick: cortexm7::systick::SysTick,
 }
 
@@ -117,7 +118,7 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerObj;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

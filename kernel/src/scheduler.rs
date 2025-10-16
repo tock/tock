@@ -4,11 +4,6 @@
 
 //! Interface for Tock kernel schedulers.
 
-pub mod cooperative;
-pub mod mlfq;
-pub mod priority;
-pub mod round_robin;
-
 use crate::deferred_call::DeferredCall;
 use crate::platform::chip::Chip;
 use crate::process::ProcessId;
@@ -61,7 +56,7 @@ pub trait Scheduler<C: Chip> {
     /// processes to handle kernel tasks. Most schedulers will use this default
     /// implementation, which always prioritizes kernel work, but schedulers
     /// that wish to defer interrupt handling may reimplement it.
-    unsafe fn do_kernel_work_now(&self, chip: &C) -> bool {
+    fn do_kernel_work_now(&self, chip: &C) -> bool {
         chip.has_pending_interrupts() || DeferredCall::has_tasks()
     }
 
@@ -81,7 +76,7 @@ pub trait Scheduler<C: Chip> {
     /// returns `false`, then `do_process` will exit with a `KernelPreemption`.
     ///
     /// `id` is the identifier of the currently active process.
-    unsafe fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
+    fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
         !(chip.has_pending_interrupts() || DeferredCall::has_tasks())
     }
 }
