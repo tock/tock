@@ -27,6 +27,7 @@ nrf52_components = { path = "../nrf52_components" }
 capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
+capsules-aes-ctr = { path = "../../../capsules/aes_ctr" }
 
 [build-dependencies]
 tock_build_scripts = { path = "../../build_scripts" }
