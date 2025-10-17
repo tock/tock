@@ -18,4 +18,3 @@ pub use self::platform::KernelResources;
 pub use self::platform::ProcessFault;
 pub use self::platform::SyscallDriverLookup;
 pub use self::platform::SyscallFilter;
-pub use self::platform::TbfHeaderFilterDefaultAllow;
