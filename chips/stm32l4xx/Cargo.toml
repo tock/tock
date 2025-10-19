@@ -1,0 +1,23 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+
+[package]
+name = "stm32l4xx"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+cortexm4f = { path = "../../arch/cortex-m4f" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
+kernel = { path = "../../kernel" }
+
+[features]
+# Currently, Tock supports only these chips.
+# When a new chip is added, add its identifier here and inside
+# the chip's crate as a feature for the dependency.
+stm32l476 = []
+
+[lints]
+workspace = true
