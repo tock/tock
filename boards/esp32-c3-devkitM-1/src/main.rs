@@ -65,6 +65,9 @@ static mut ALARM: Option<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static
 kernel::stack_size! {0x900}
 
 type RngDriver = components::rng::RngComponentType<esp32_c3::rng::Rng<'static>>;
+type GpioHw = esp32::gpio::GpioPin<'static>;
+type LedHw = components::sk68xx::Sk68xxLedComponentType<GpioHw, 3>;
+type LedDriver = components::led::LedsComponentType<LedHw, 3>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -78,6 +81,7 @@ struct Esp32C3Board {
     scheduler: &'static PrioritySched,
     scheduler_timer: &'static VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
     rng: &'static RngDriver,
+    led: &'static LedDriver,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -91,6 +95,7 @@ impl SyscallDriverLookup for Esp32C3Board {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             _ => f(None),
         }
     }
@@ -262,6 +267,21 @@ unsafe fn setup() -> (
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     //
+    // LED
+    //
+
+    let led_gpio = &peripherals.gpio[8];
+    let sk68xx = components::sk68xx::Sk68xxComponent::new(led_gpio, rv32i::support::nop)
+        .finalize(components::sk68xx_component_static_esp32c3_160mhz!(GpioHw,));
+
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
+        LedHw,
+        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 0), // red
+        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 1), // green
+        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 2), // blue
+    ));
+
+    //
     // SCHEDULER
     //
 
@@ -347,6 +367,7 @@ unsafe fn setup() -> (
             scheduler,
             scheduler_timer,
             rng,
+            led,
         }
     );
 
