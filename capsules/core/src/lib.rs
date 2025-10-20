@@ -11,6 +11,7 @@ pub mod test;
 pub mod stream;
 
 pub mod adc;
+pub mod aes;
 pub mod alarm;
 pub mod button;
 pub mod console;
