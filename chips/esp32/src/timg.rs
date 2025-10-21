@@ -194,9 +194,11 @@ impl<F: time::Frequency, const C3: bool> time::Time for TimG<'_, F, C3> {
     type Ticks = Ticks64;
 
     fn now(&self) -> Self::Ticks {
-        // a write (of any value) to T0UPDATE stores the
-        // current counter value to T0LO and T0HI
+        // A write (of any value) to T0UPDATE stores the current counter value
+        // to T0LO and T0HI. When T0UPDATE is cleared the value is ready.
         self.registers.t0update.set(0xABC);
+        while self.registers.t0update.get() != 0 {}
+
         Self::Ticks::from(
             self.registers.t0lo.get() as u64 + ((self.registers.t0hi.get() as u64) << 32),
         )

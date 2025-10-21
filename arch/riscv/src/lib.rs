@@ -277,6 +277,7 @@ pub extern "C" fn _start_trap() {
 /// the contract as stated above.
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[link_section = ".riscv.trap"]
+#[export_name = "_start_trap"]
 #[unsafe(naked)]
 pub extern "C" fn _start_trap() {
     use core::arch::naked_asm;
