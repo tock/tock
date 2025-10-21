@@ -6,6 +6,7 @@
 
 use core::cmp;
 use core::fmt::{self, Display};
+use crate::utilities::math;
 
 /// User mode access permissions.
 #[derive(Copy, Clone, Debug)]
@@ -318,10 +319,23 @@ impl MPU for () {
             min_memory_size,
             initial_app_memory_size + initial_kernel_memory_size,
         );
-        if memory_size > unallocated_memory_size {
+        let memory_size_po2 = math::closest_power_of_two(memory_size as u32) as usize;
+
+        // Region size is the actual size the MPU region will be set to, and is
+        // half of the total power of two size we are allocating to the app.
+        let region_size = memory_size_po2 / 2;
+
+        // The region should start as close as possible to the start of the
+        // unallocated memory.
+        let mut region_start = unallocated_memory_start as usize;
+        // If the start and length don't align, move region so that it does.
+        let alignment_shift = (region_size - (region_start % region_size)) % region_size;
+        region_start += alignment_shift;
+
+        if memory_size_po2 + alignment_shift > unallocated_memory_size {
             None
         } else {
-            Some((unallocated_memory_start, memory_size))
+            Some((region_start as *const u8, memory_size_po2))
         }
     }
 
