@@ -191,7 +191,11 @@ unsafe fn set_pin_primary_functions(
         pin.make_output();
 
         // Configure kernel debug gpios as early as possible
-        kernel::debug::assign_gpios(Some(pin), None, None);
+        let debug_gpios = static_init!([&'static dyn kernel::hil::gpio::Pin; 1], [pin]);
+        kernel::debug::initialize_debug_gpio::<
+            <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+        >();
+        kernel::debug::assign_gpios(debug_gpios);
     });
 
     // pc4 and pc5 (USART1) is connected to ST-LINK virtual COM port
