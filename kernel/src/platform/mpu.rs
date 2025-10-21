@@ -328,13 +328,11 @@ impl MPU for () {
         // The region should start as close as possible to the start of the
         // unallocated memory.
         let mut region_start = unallocated_memory_start as usize;
+        // If the start and length don't align, move region so that it does.
+        let alignment_shift = (region_size - (region_start % region_size)) % region_size;
+        region_start += alignment_shift;
 
-        // If the start and length don't align, move region up until it does.
-        if region_start % region_size != 0 {
-            region_start += region_size - (region_start % region_size);
-        }
-
-        if memory_size_po2 > unallocated_memory_size {
+        if memory_size_po2 + alignment_shift > unallocated_memory_size {
             None
         } else {
             Some((region_start as *const u8, memory_size_po2))
