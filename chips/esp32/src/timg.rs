@@ -194,13 +194,10 @@ impl<F: time::Frequency, const C3: bool> time::Time for TimG<'_, F, C3> {
     type Ticks = Ticks64;
 
     fn now(&self) -> Self::Ticks {
-        // According to the datasheet, a write (of any value) to T0UPDATE stores
-        // the current counter value to T0LO and T0HI. However, in my (bradjc)
-        // testing the first read of t0lo and t0hi after a single write to
-        // t0update returned the old counter value. Writing two values to
-        // t0update seems to fix this.
+        // A write (of any value) to T0UPDATE stores the current counter value
+        // to T0LO and T0HI. When T0UPDATE is cleared the value is ready.
         self.registers.t0update.set(0xABC);
-        self.registers.t0update.set(0x8000_0000);
+        while self.registers.t0update.get() != 0 {}
 
         Self::Ticks::from(
             self.registers.t0lo.get() as u64 + ((self.registers.t0hi.get() as u64) << 32),
