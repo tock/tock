@@ -79,7 +79,12 @@ impl Display for MpuConfigDefault {
 /// requirements, and also allows the MPU to specify some addresses used by the
 /// kernel when deciding where to place certain application memory regions so
 /// that the MPU can appropriately provide protection for those memory regions.
-pub trait MPU {
+///
+/// This is an `unsafe trait`, as it is crucial to uphold Tock's isolation
+/// properties, and thus safety of the Tock kernel. Users of this trait must be
+/// able to rely on its implementations being correct, and implementing the
+/// exact semantics as documented on its associated types and methods.
+pub unsafe trait MPU {
     /// MPU-specific state that defines a particular configuration for the MPU.
     /// That is, this should contain all of the required state such that the
     /// implementation can be passed an object of this type and it should be
@@ -263,8 +268,24 @@ pub trait MPU {
     fn configure_mpu(&self, config: &Self::MpuConfig);
 }
 
-/// Implement default MPU trait for unit.
-impl MPU for () {
+/// No-op MPU implementation, providing no isolation guarantees.
+///
+/// Using this implementation violates Tock's isolation guarantees and results
+/// in applications having unrestricted access to kernel memory. As such,
+/// constructing this type is an `unsafe` operation.
+// By having this type contain a private field, we prevent constructing it from
+// outside this crate, except through the `unsafe fn new()` constructor.
+pub struct NopMPU(());
+
+impl NopMPU {
+    pub unsafe fn new() -> Self {
+        NopMPU(())
+    }
+}
+
+/// This type does not meet the safety requirements outlined on the `MPU` trait,
+/// hence constructing it is also an unsafe (and unsound) operation.
+unsafe impl MPU for NopMPU {
     type MpuConfig = MpuConfigDefault;
 
     fn enable_app_mpu(&self) {}
