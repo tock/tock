@@ -4,8 +4,6 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 
 use kernel::debug;
@@ -13,40 +11,60 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::Transmit;
 use kernel::hil::uart::{self};
+use kernel::static_init;
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::TakeCell;
 use kernel::utilities::cells::VolatileCell;
 use nrf52840::gpio::Pin;
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
-
-struct Writer {
-    initialized: bool,
-}
-
-static mut WRITER: Writer = Writer { initialized: false };
-
-impl Write for Writer {
-    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
 const BUF_LEN: usize = 512;
-static mut STATIC_PANIC_BUF: [u8; BUF_LEN] = [0; BUF_LEN];
-
-static mut DUMMY: DummyUsbClient = DummyUsbClient {
-    fired: VolatileCell::new(false),
-};
 
 struct DummyUsbClient {
     fired: VolatileCell<bool>,
 }
 
+impl DummyUsbClient {
+    fn new() -> Self {
+        Self {
+            fired: VolatileCell::new(false),
+        }
+    }
+
+    fn fired(&self) -> bool {
+        self.fired.get()
+    }
+
+    fn clear(&self) {
+        self.fired.set(false)
+    }
+}
+
 impl uart::TransmitClient for DummyUsbClient {
     fn transmitted_buffer(&self, _: &'static mut [u8], _: usize, _: Result<(), ErrorCode>) {
         self.fired.set(true);
+    }
+}
+
+struct Writer {
+    initialized: bool,
+    buffer: TakeCell<'static, [u8]>,
+    client: &'static DummyUsbClient,
+}
+
+impl Writer {
+    fn new(client: &'static DummyUsbClient, buffer: &'static mut [u8]) -> Self {
+        Self {
+            initialized: false,
+            buffer: TakeCell::new(buffer),
+            client,
+        }
+    }
+}
+
+impl Write for Writer {
+    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
     }
 }
 
@@ -81,44 +99,38 @@ impl IoWrite for Writer {
             max = buf.len();
         }
 
-        unsafe {
-            // If CDC_REF_FOR_PANIC is not yet set we panicked very early,
-            // and not much we can do. Don't want to double fault,
-            // so just return.
-            super::CDC_REF_FOR_PANIC.map(|cdc| {
-                // Lots of unsafe dereferencing of global static mut objects here.
-                // However, this should be okay, because it all happens within
-                // a single thread, and:
-                // - This is the only place the global CDC_REF_FOR_PANIC is used, the logic is the same
-                //   as applies for the global CHIP variable used in the panic handler.
-                // - We do create multiple mutable references to the STATIC_PANIC_BUF, but we never
-                //   access the STATIC_PANIC_BUF after a slice of it is passed to transmit_buffer
-                //   until the slice has been returned in the uart callback.
-                // - Similarly, only this function uses the global DUMMY variable, and we do not
-                //   mutate it.
+        // If CDC_REF_FOR_PANIC is not yet set we panicked very early,
+        // and not much we can do. Don't want to double fault,
+        // so just return.
+        super::CDC_REF_FOR_PANIC
+            .get()
+            .and_then(MapCell::get)
+            .map(|cdc| {
                 let usb = &mut cdc.controller();
-                STATIC_PANIC_BUF[..max].copy_from_slice(&buf[..max]);
-                let static_buf = &mut *addr_of_mut!(STATIC_PANIC_BUF);
-                cdc.set_transmit_client(&*addr_of!(DUMMY));
-                let _ = cdc.transmit_buffer(static_buf, max);
+                self.buffer.take().map(|buffer| {
+                    buffer[..max].copy_from_slice(&buf[..max]);
+                    cdc.set_transmit_client(self.client);
+                    let _ = cdc.transmit_buffer(buffer, max);
+                });
+
                 loop {
-                    if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                    if let Some(interrupt) = unsafe { cortexm4::nvic::next_pending() } {
                         if interrupt == 39 {
                             usb.handle_interrupt();
                         }
-                        let n = cortexm4::nvic::Nvic::new(interrupt);
+                        let n = unsafe { cortexm4::nvic::Nvic::new(interrupt) };
                         n.clear_pending();
                         n.enable();
                     }
-                    if (*addr_of!(DUMMY)).fired.get() {
+                    if self.client.fired() {
                         // buffer finished transmitting, return so we can output additional
                         // messages when requested by the panic handler.
                         break;
                     }
                 }
-                (*addr_of!(DUMMY)).fired.set(false);
+                self.client.clear();
             });
-        }
+
         buf.len()
     }
 }
@@ -131,14 +143,14 @@ impl IoWrite for Writer {
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P1_01);
     let led = &mut led::LedHigh::new(led_kernel_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic(
+    let static_buf = static_init!([u8; BUF_LEN], [0; BUF_LEN]);
+    let dummy_usb_client = static_init!(DummyUsbClient, DummyUsbClient::new());
+    let mut writer = Writer::new(dummy_usb_client, static_buf);
+    debug::panic_new(
         &mut [led],
-        writer,
+        &mut writer,
         pi,
         &cortexm4::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     )
 }

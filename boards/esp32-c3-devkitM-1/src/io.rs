@@ -46,7 +46,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     debug::panic_cpu_state(&*addr_of!(CHIP), writer);
     debug::panic_process_info(
         PROCESSES.unwrap().as_slice(),
-        &*addr_of!(PROCESS_PRINTER),
+        *addr_of!(PROCESS_PRINTER),
         writer,
     );
 

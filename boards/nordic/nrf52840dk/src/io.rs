@@ -6,19 +6,13 @@ use core::fmt::Write;
 use kernel::debug::IoWrite;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
+use kernel::static_init;
 
 use nrf52840::uart::{Uarte, UARTE0_BASE};
 
 enum Writer {
     WriterUart(/* initialized */ bool),
     WriterRtt(&'static segger::rtt::SeggerRttMemory<'static>),
-}
-
-static mut WRITER: Writer = Writer::WriterUart(false);
-
-/// Set the RTT memory buffer used to output panic messages.
-pub unsafe fn set_rtt_memory(rtt_memory: &'static segger::rtt::SeggerRttMemory<'static>) {
-    WRITER = Writer::WriterRtt(rtt_memory);
 }
 
 impl Write for Writer {
@@ -61,26 +55,25 @@ impl IoWrite for Writer {
 #[panic_handler]
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
-    use core::ptr::{addr_of, addr_of_mut};
     use kernel::debug;
     use kernel::hil::led;
+    use kernel::utilities::cells::MapCell;
     use nrf52840::gpio::Pin;
-
-    use crate::CHIP;
-    use crate::PROCESSES;
-    use crate::PROCESS_PRINTER;
 
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic(
+
+    let writer = crate::RTT_BUFFER.get().and_then(MapCell::take).map_or_else(
+        || static_init!(Writer, Writer::WriterUart(false)),
+        |buffer| static_init!(Writer, Writer::WriterRtt(buffer)),
+    );
+
+    debug::panic_new(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     )
 }
