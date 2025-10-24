@@ -10,6 +10,7 @@ use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
 use crate::chip_specific::chip_specs::ChipSpecs as ChipSpecsTrait;
+use crate::nvic;
 
 pub struct Stm32wle5xx<'a, I: InterruptService + 'a> {
     mpu: cortexm4::mpu::MPU,
