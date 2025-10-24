@@ -12,10 +12,12 @@
 
 pub mod chip;
 pub mod chip_specific;
+pub mod nvic;
 
 // Peripherals
 pub mod gpio;
 pub mod rcc;
+pub mod usart;
 
 // Clocks
 pub mod clocks;

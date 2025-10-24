@@ -21,6 +21,8 @@ pub struct Stm32wle5xx<'a, I: InterruptService + 'a> {
 pub struct Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
     pub clocks: &'a crate::clocks::Clocks<'a, ChipSpecs>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
+    pub usart1: crate::usart::Usart<'a>,
+    pub usart2: crate::usart::Usart<'a>,
 }
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
@@ -28,18 +30,24 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32wle5xxDefaultPeripherals<'a, ChipSpecs>
         Self {
             clocks,
             gpio_ports: crate::gpio::GpioPorts::new(clocks),
+            usart1: crate::usart::Usart::new_usart1(clocks),
+            usart2: crate::usart::Usart::new_usart2(clocks),
         }
     }
 
     // Setup any circular dependencies and register deferred calls
     pub fn setup_circular_deps(&'static self) {
         self.gpio_ports.setup_circular_deps();
+        kernel::deferred_call::DeferredCallClient::register(&self.usart1);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart2);
     }
 }
 
 impl<ChipSpecs: ChipSpecsTrait> InterruptService for Stm32wle5xxDefaultPeripherals<'_, ChipSpecs> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
+            nvic::USART1 => self.usart1.handle_interrupt(),
+            nvic::USART2 => self.usart2.handle_interrupt(),
             _ => return false,
         }
         true
