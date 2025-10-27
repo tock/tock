@@ -277,6 +277,11 @@ pub extern "C" fn _start_trap() {
 /// the contract as stated above.
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[link_section = ".riscv.trap"]
+// We need the `_start_trap` function to be 256 byte aligned. The linker script
+// includes a check for whether a symbol named `_start_trap` exists. If it does,
+// it makes sure to align the `.riscv.trap` section on a 256 byte
+// boundary. Thus, ensure that this function is exported under this stable
+// symbol name.
 #[export_name = "_start_trap"]
 #[unsafe(naked)]
 pub extern "C" fn _start_trap() {
