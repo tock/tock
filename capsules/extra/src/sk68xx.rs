@@ -153,7 +153,7 @@ impl<'a, P: Pin, const T0H: usize> Sk68xxLed<'a, P, T0H> {
     }
 }
 
-impl<'a, P: Pin, const T0H: usize> Led for Sk68xxLed<'a, P, T0H> {
+impl<P: Pin, const T0H: usize> Led for Sk68xxLed<'_, P, T0H> {
     fn init(&self) {}
 
     fn on(&self) {
