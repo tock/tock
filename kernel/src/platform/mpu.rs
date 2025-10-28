@@ -4,7 +4,6 @@
 
 //! Interface for configuring the Memory Protection Unit.
 
-use core::cmp;
 use core::fmt::{self, Display};
 
 /// User mode access permissions.
@@ -301,99 +300,4 @@ pub unsafe trait MPU {
     /// transitively write to kernel-private memory (such as MMIO registers of
     /// DMA-capable peripherals).
     unsafe fn configure_mpu(&self, config: &Self::MpuConfig);
-}
-
-/// No-op MPU implementation, providing no isolation guarantees.
-///
-/// Using this implementation violates Tock's isolation guarantees and results
-/// in applications having unrestricted access to kernel memory. As such,
-/// constructing this type is an `unsafe` operation.
-// By having this type contain a private field, we prevent constructing it from
-// outside this crate, except through the `unsafe fn new()` constructor.
-pub struct NopMPU(());
-
-impl NopMPU {
-    pub unsafe fn new() -> Self {
-        NopMPU(())
-    }
-}
-
-/// This type does not meet the safety requirements outlined on the `MPU` trait,
-/// hence constructing it is also an unsafe (and unsound) operation.
-unsafe impl MPU for NopMPU {
-    type MpuConfig = MpuConfigDefault;
-
-    fn enable_app_mpu(&self) {}
-
-    unsafe fn disable_app_mpu(&self) {}
-
-    fn number_total_regions(&self) -> usize {
-        0
-    }
-
-    fn new_config(&self) -> Option<MpuConfigDefault> {
-        Some(MpuConfigDefault)
-    }
-
-    fn reset_config(&self, _config: &mut Self::MpuConfig) {}
-
-    fn allocate_region(
-        &self,
-        unallocated_memory_start: *const u8,
-        unallocated_memory_size: usize,
-        min_region_size: usize,
-        _permissions: Permissions,
-        _config: &mut Self::MpuConfig,
-    ) -> Option<Region> {
-        if min_region_size > unallocated_memory_size {
-            None
-        } else {
-            Some(Region::new(unallocated_memory_start, min_region_size))
-        }
-    }
-
-    fn remove_memory_region(
-        &self,
-        _region: Region,
-        _config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
-        Ok(())
-    }
-
-    fn allocate_app_memory_region(
-        &self,
-        unallocated_memory_start: *const u8,
-        unallocated_memory_size: usize,
-        min_memory_size: usize,
-        initial_app_memory_size: usize,
-        initial_kernel_memory_size: usize,
-        _permissions: Permissions,
-        _config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
-        let memory_size = cmp::max(
-            min_memory_size,
-            initial_app_memory_size + initial_kernel_memory_size,
-        );
-        if memory_size > unallocated_memory_size {
-            None
-        } else {
-            Some((unallocated_memory_start, memory_size))
-        }
-    }
-
-    fn update_app_memory_region(
-        &self,
-        app_memory_break: *const u8,
-        kernel_memory_break: *const u8,
-        _permissions: Permissions,
-        _config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
-        if (app_memory_break as usize) > (kernel_memory_break as usize) {
-            Err(())
-        } else {
-            Ok(())
-        }
-    }
-
-    unsafe fn configure_mpu(&self, _config: &Self::MpuConfig) {}
 }
