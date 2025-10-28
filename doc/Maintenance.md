@@ -9,6 +9,7 @@ group](wg/core/README.md) maintains the Tock project.
 
 - [Roadmap and Feature Planning](#roadmap-and-feature-planning)
 - [Outreach and Education](#outreach-and-education)
+- [Between Releases](#between-releases)
 - [Preparing a Release](#preparing-a-release)
   * [Release Tasks](#release-tasks)
     + [Before the release](#before-the-release)
@@ -38,6 +39,63 @@ academic and professional conferences.
 
 The project also maintains a [book](https://book.tockos.org) which includes
 self-guided tutorials for various Tock features.
+
+## Between Releases
+
+Generally speaking, the primary development branch of Tock holds "next
+minor version" semantics. That is, a default compile of a fresh checkout
+of the Tock repository should maintain backwards-compatibility with the
+currently released major version, but may also include bugfixes and new,
+additional features.
+
+### Patch Releases
+
+> Note: Currently, even for patch releases, the Tock release process is
+> fairly heavyweight due to the extensive hardware testing by core team
+> members and affiliates. As a result, releases are relatively rare,
+> which underpins the rationale for the current point release process.
+
+A patch release generally carries the minimal changeset necessary for
+the bugfix it includes relative to the most recent prior release. This
+means that a 'new' patch release may be fairly divorced from the tip of
+the development branch.
+
+Normally, a patch release will follow the full release process described
+in the next section. However, for very contained changesets with no risk
+of hardware-sensitive behavior changes, the core team may elect for an
+abridged release-testing process. Rationale and actual testing performed
+will be included in the release notes in such cases.
+
+
+### Minor Releases
+
+(todo)
+
+
+### Major Releases
+
+When preparing a major release for Tock, a new branch will be christened
+as the 'eventual release' branch, generally named `tock-v{N+1}` or
+similar. ABI-breaking changes will all go to the major release branch.
+Smaller changes and bugfixes will still go to the primary development
+branch. The major release branch will periodically merge in new
+changesets as is appropriate for its development process.
+
+When the major release reaches a point of reasonable stability and
+maturity, the core team will ask that new features be directed towards
+the major release branch, and only bugfixes go to the current
+development master. Shortly before the new major release is ready for
+its first release candidate, a final minor release for the current major
+version will be prepared.
+
+After this release, all development will move to the major release
+branch. Critical fixes that merit a new point release for the old major
+version will be accepted, but all other changes should target the new
+major release. The core team will then initiate the release process for
+the new major release. When the final release is tagged, the major
+version branch will be merged into the default branch for the Tock
+repository, and development will continue as-normal.
+
 
 ## Preparing a Release
 
