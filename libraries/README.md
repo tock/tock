@@ -8,6 +8,13 @@ folder as separate crates so that external projects can leverage them.
 
 Someday these libraries could become their own repositories if the need arises.
 
+Libraries in Separate Repositories
+----------------------------------
+
+The following libraries used to reside in this folder but have graduated to live
+in their own repositories:
+
+- [tock-registers](https://github.com/tock/tock-registers)
 
 Using in an External Project
 ----------------------------
@@ -17,7 +24,7 @@ file. For example:
 
 ```toml
 [dependencies]
-tock-registers = { git = "https://github.com/tock/tock" }
+tock-tbf = { git = "https://github.com/tock/tock" }
 ```
 
 Cargo will handle finding the correct folder inside of the tock repository.
