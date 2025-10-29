@@ -29,6 +29,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -36,13 +37,16 @@ jobs:
 
       - name: ci-job-syntax
         run: make ci-job-syntax
+
       - name: ci-job-compilation
         run: make ci-job-compilation
+
       - name: ci-job-debug-support-targets
         run: make ci-job-debug-support-targets
 
       - name: ci-job-collect-artifacts
         run: make ci-job-collect-artifacts
+
       - name: upload-build-artifacts
         uses: actions/upload-artifact@v4
         with:
