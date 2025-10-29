@@ -1331,6 +1331,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "seeed_studio_lora_e5_mini"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "stm32wle5jc",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "segger"
 version = "0.2.3-dev"
 dependencies = [
