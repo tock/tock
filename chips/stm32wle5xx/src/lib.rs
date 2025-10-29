@@ -18,6 +18,7 @@ pub mod nvic;
 pub mod gpio;
 pub mod i2c;
 pub mod rcc;
+pub mod spi;
 pub mod tim2;
 pub mod usart;
 
