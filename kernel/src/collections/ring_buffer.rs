@@ -319,19 +319,33 @@ mod test {
     }
 }
 
-
-// ===== Flux spec ========
-#[cfg(feature="flux")]
+// ===== Flux code ========
+// Below is a basic specification that checks:
+// 1. There are no division-by-zero errors
+// 2. No are no array bounds violations
+// 3. Some common-sense invariants like that indexes into the RingBuffer are always valid
+//
+// If any of these properties could be violated either in the RingBuffer implementation, or how it
+// is used anywhere in Tock, Flux would raise an error.
+#[cfg(feature = "flux")]
 mod flux_specs {
-    // Need to tell Flux what slice.len() does
+    // Prelude: Here we provide some specifications for methods/types in the core library
+    // This allows Flux to make use of these specs for proving useful things about RingBuffer
+    // Generally, these specs are per-project---if we verified many modules in
+    // Tock, there would only be 1 centralized set of these specs for the whole project.
     #[flux_rs::extern_spec]
     impl<T> [T] {
+        // Need to tell Flux what slice.len() does
         #[flux_rs::sig(fn(&[T][@len]) -> usize[len])]
         fn len(v: &[T]) -> usize;
+
+        // Need to tell Flux what slice.split_at_mut() does (for our tests)
+        #[flux_rs::sig(fn(&mut [T][@len], usize[@mid]) -> (&mut [T][mid], &mut [T][len - mid]))]
+        fn split_at_mut(v: &mut [T], mid: usize) -> (&mut [T], &mut [T]);
     }
 
-    // Need to tell Flux what an Option<T> is
-    // Here, we refine Option<T> with a bool, denoting whether it is Some or None
+    // Need to tell Flux what an Option<T> is:
+    // Here, we refine Option<T> with a bool, denoting whether it is `Some` or `None`
     #[flux_rs::extern_spec]
     #[flux_rs::refined_by(b: bool)]
     enum Option<T> {
@@ -341,11 +355,17 @@ mod flux_specs {
         Some(T),
     }
 
-
+    // ======= RingBuffer spec ===========
     #[flux::specs {
         mod collections {
             mod ring_buffer {
                 // Specify well-formedness for RingBuffer<T>
+                // By adding these annotations, we can prove that RingBuffer 
+                // does not panic either in its implementation, anywhere in Tock.
+                // Flux will raise an error if 1) any RingBuffer implementation violates these rules,
+                // Or 2, Any Tock code attempts to create a RingBuffer that violates these rules.
+                // At the bottom of this spec, we have included some example 
+                // test code that raises Flux errors for both of these cases.
                 #[refined_by(ring_len: int, hd: int, tl: int)]
                 struct RingBuffer<T> {
                     ring: {&mut [T][ring_len] | ring_len > 1},
@@ -354,14 +374,34 @@ mod flux_specs {
                 }
 
                 impl RingBuffer<T> {
-                    // Every time RingBuffer::new() is called, 
+                    // Example of a function-level spec.
+                    // It has a precondition that the input slice is length > 1, so
+                    // every time RingBuffer::new() is called (throughout Tock), 
                     // Flux will ensure the slice passed in has length > 1.
+                    //
+                    // It also has a postcondition that the output RingBuffer has a head and tail of zero.
+                    // Flux will check the implementation of `new` to ensure this is true.
+                    // 
+                    // Design note: This contract has the strongest possible postcondition, and 
+                    // reads like a direct translation of the implementation, but we could also make the 
+                    // postcondition something like `result.head == result.tail`, which is "weaker".
+                    // Weaker vs stronger contracts is a design decision: it is easier to prove that a weak contract
+                    // holds in the implementation, but it lets you prove less in the rest of Tock (e.g., if there was some code
+                    // that was only safe if head/tail was 0 after it called new, we could prove its safety only with the stronger contract).
                     fn new({&mut [T][@ring_len] | ring_len > 1}) -> RingBuffer<T>[ring_len, 0, 0];
                 }
             }
 
             mod queue {
                 impl Queue<T> for collections::ring_buffer::RingBuffer<T> {
+                  // Simple function-level contract. 
+                  // See `new` example above for a discussion of contract design.
+                  fn empty(self: &mut RingBuffer<T>[@old]) 
+                        ensures self: RingBuffer<T>[old.ring_len, 0, 0];
+                
+                    // These specs of the form: `(self: RingBuffer) ensures RingBuffer` 
+                    // are present to compensate for a current technical limitation of Flux,
+                    // and should be gone in the near future.
                     fn enqueue(self: &mut RingBuffer<T>, val: T) -> bool 
                         ensures self: RingBuffer<T>;
 
@@ -376,10 +416,8 @@ mod flux_specs {
 
                     fn retain<F>(self: &mut RingBuffer<T>, _) 
                         ensures self: RingBuffer<T>;
-
-                    fn empty(self: &mut RingBuffer<T>[@old]) 
-                        ensures self: RingBuffer<T>[old.ring_len, 0, 0];
                 }
+  
             }
 
             mod list {
@@ -391,5 +429,52 @@ mod flux_specs {
         }
     }]
     const _: () = ();
-}
 
+    // ========= Flux tests ==============
+    // These functions will fail verification, and demonstrate the sorts of
+    // errors that our RingBuffer spec protects us against. Specifically:
+    // 1. Bad usage of the RingBuffer API that leads to kernel panics
+    // 2. Bad implementation of the RingBuffer API that leads to kernel panics
+
+    use crate::collections::queue::Queue;
+    use crate::collections::ring_buffer::RingBuffer;
+
+    // 1. Flux will prevent Tock from using the RingBuffer API incorrectly, leading to panics
+    #[allow(dead_code)]
+    #[flux_rs::should_fail]
+    fn bad_split_into_ringbuffers<'a, T: Copy>(
+        buf: &'a mut [T],
+        output_len: usize,
+    ) -> (RingBuffer<'a, T>, RingBuffer<'a, T>) {
+        // If `output_len` is `0` or `buf.len()`, then `output_ringbuf`
+        // or `internal_ringbuf` will have a length of `0`.
+        // This is bad, because if the `len` of a RingBuffer is `0`,
+        // then functions like `is_full` will panic.
+        let (output_buf, internal_buf) = buf.split_at_mut(output_len);
+        let output_ringbuf = RingBuffer::new(output_buf);
+        let internal_ringbuf = RingBuffer::new(internal_buf);
+        (output_ringbuf, internal_ringbuf)
+    }
+
+    // 2. Here, Flux will prevent RingBuffer implementations from panicing via
+    // out-of-bounds memory access or divide by zero.
+    #[allow(dead_code)]
+    #[flux_rs::should_fail]
+    #[flux_rs::spec(fn bad_enqueue(self: &mut RingBuffer<T>, val: T) -> bool 
+                        ensures self: RingBuffer<T>)]
+    fn bad_enqueue<T: Copy>(rb: &mut RingBuffer<T>, val: T) -> bool {
+        // This function will not panic as long as rb.tail < rb.ring.len().
+        // However, for this to be true, every RingBuffer method needs to
+        // maintain this invariant (which is encoded in our RingBuffer spec).
+        // This function does not maintain this invariant, as it increases
+        // tail without checking ring.len(), and will throw an error.
+        if rb.is_full() {
+            false
+        } else {
+            rb.ring[rb.tail] = val;
+            // CORRECT: rb.tail = (rb.tail + 1) % rb.ring.len();
+            rb.tail = rb.tail + 1;
+            true
+        }
+    }
+}
