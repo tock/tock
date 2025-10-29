@@ -82,16 +82,11 @@ jobs:
         run: make ci-job-chips
       - name: ci-job-tools
         run: make ci-job-tools
-      - name: Create Issue on Failed workflow
+
+      - name: Create Issue on Failed Workflow
         if: failure()
-        uses: dacbd/create-issue-action@v2.0.0
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ github.token }}
-          title: Nightly CI failed
-          body: |
-            ### Context
-            [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
-            Workflow name - `${{ github.workflow }}`
-            Job -           `${{ github.job }}`
-            status -        `${{ job.status }}`
+          filename: .github/ci_nightly_failure_issue_template.md
