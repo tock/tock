@@ -322,17 +322,17 @@ mod test {
 // ===== Flux code ========
 // Below is a basic specification that checks:
 // 1. There are no division-by-zero errors
-// 2. No are no array bounds violations
-// 3. Some common-sense invariants like that indexes into the RingBuffer are always valid
+// 2. There are no array bounds violations
+// 3. Some common-sense invariants (e.g., indexes into the RingBuffer are always valid)
 //
-// If any of these properties could be violated either in the RingBuffer implementation, or how it
+// If any of these properties could be violated either in the RingBuffer implementation or how it
 // is used anywhere in Tock, Flux would raise an error.
 #[cfg(feature = "flux")]
 mod flux_specs {
-    // Prelude: Here we provide some specifications for methods/types in the core library
-    // This allows Flux to make use of these specs for proving useful things about RingBuffer
+    // Prelude: Here we provide some specifications for methods/types in the core library.
+    // This allows Flux to make use of these specs for proving useful things about RingBuffer.
     // Generally, these specs are per-project---if we verified many modules in
-    // Tock, there would only be 1 centralized set of these specs for the whole project.
+    // Tock, there would only be 1 centralized set of these specs for all of Tock.
     #[flux_rs::extern_spec]
     impl<T> [T] {
         // Need to tell Flux what slice.len() does
@@ -359,11 +359,9 @@ mod flux_specs {
     #[flux::specs {
         mod collections {
             mod ring_buffer {
-                // Specify well-formedness for RingBuffer<T>
-                // By adding these annotations, we can prove that RingBuffer 
-                // does not panic either in its implementation, anywhere in Tock.
+                // Specify well-formedness for RingBuffer<T>.
                 // Flux will raise an error if 1) any RingBuffer implementation violates these rules,
-                // Or 2, Any Tock code attempts to create a RingBuffer that violates these rules.
+                // Or 2) Any Tock code attempts to create a RingBuffer that violates these rules.
                 // At the bottom of this spec, we have included some example 
                 // test code that raises Flux errors for both of these cases.
                 #[refined_by(ring_len: int, hd: int, tl: int)]
@@ -382,11 +380,10 @@ mod flux_specs {
                     // It also has a postcondition that the output RingBuffer has a head and tail of zero.
                     // Flux will check the implementation of `new` to ensure this is true.
                     // 
-                    // Design note: This contract has the strongest possible postcondition, and 
-                    // reads like a direct translation of the implementation, but we could also make the 
-                    // postcondition something like `result.head == result.tail`, which is "weaker".
+                    // Design note: This contract has the strongest possible postcondition (head == 0 and tail == 0), 
+                    // but we could also make the postcondition something "weaker" like `result.head == result.tail`.
                     // Weaker vs stronger contracts is a design decision: it is easier to prove that a weak contract
-                    // holds in the implementation, but it lets you prove less in the rest of Tock (e.g., if there was some code
+                    // holds in the implementation, but it lets you prove less in the rest of Tock (e.g., if there was code
                     // that was only safe if head/tail was 0 after it called new, we could prove its safety only with the stronger contract).
                     fn new({&mut [T][@ring_len] | ring_len > 1}) -> RingBuffer<T>[ring_len, 0, 0];
                 }
