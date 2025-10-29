@@ -80,7 +80,7 @@ jobs:
         run: make ci-job-tools
       - name: Create Issue on Failed workflow
         if: failure()
-        uses: dacbd/create-issue-action@main
+        uses: dacbd/create-issue-action@v2.0.0
         with:
           token: ${{ github.token }}
           title: Nightly CI failed
