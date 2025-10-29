@@ -8,6 +8,10 @@ on:
   schedule:
   - cron: "0 0 * * *"
 
+  # Allow this workflow to be invoked manually, for an arbitrary ref
+  # (useful for testing PRs, etc)
+  workflow_dispatch:
+
 env:
   TERM: xterm # Makes tput work in actions output
 
