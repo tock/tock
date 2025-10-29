@@ -44,7 +44,11 @@ use multiboot::MultibootV1Header;
 mod io;
 
 /// Multiboot V1 header, allowing this kernel to be booted directly by QEMU
-#[link_section = ".multiboot"]
+///
+/// When compiling for a macOS host, the `link_section` attribute is elided as
+/// it yields the following error: `mach-o section specifier requires a segment
+/// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".multiboot")]
 #[used]
 static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 
@@ -72,10 +76,10 @@ kernel::stack_size! {0x1000}
 //
 // These are placed into custom sections so they can be properly aligned and padded in layout.ld
 #[no_mangle]
-#[link_section = ".pde"]
+#[cfg_attr(not(target_os = "macos"), link_section = ".pde")]
 pub static mut PAGE_DIR: PD = [PDEntry(0); 1024];
 #[no_mangle]
-#[link_section = ".pte"]
+#[cfg_attr(not(target_os = "macos"), link_section = ".pte")]
 pub static mut PAGE_TABLE: PT = [PTEntry(0); 1024];
 
 /// Initializes a Virtio transport driver for the given PCI device.

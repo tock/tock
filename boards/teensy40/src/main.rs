@@ -388,7 +388,11 @@ const FCB_SIZE: usize = core::mem::size_of::<fcb::FCB>();
 ///
 /// See justification for the `".stack_buffer"` section to understand why we need
 /// explicit padding for the FCB.
+///
+/// When compiling for a macOS host, the `link_section` attribute is elided as
+/// it yields the following error: `mach-o section specifier requires a segment
+/// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".fcb_buffer")]
 #[no_mangle]
-#[link_section = ".fcb_buffer"]
 #[used]
 static mut FCB_BUFFER: [u8; 0x1000 - FCB_SIZE] = [0xFF; 0x1000 - FCB_SIZE];
