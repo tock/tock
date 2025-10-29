@@ -53,6 +53,14 @@ jobs:
           name: build-artifacts-${{ matrix.os }}
           path: tools/ci/ci-artifacts
 
+      - name: Create Issue on Failed Workflow
+        if: failure()
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          filename: .github/ci_nightly_failure_issue_template.md
+
   ci-tests:
     # Do not run job on forks
     if: github.repository == 'tock/tock'
