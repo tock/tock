@@ -61,7 +61,11 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52 DK LEDs (see back of board)
 
     use core::ptr::{addr_of, addr_of_mut};
-    let led_kernel_pin = &nrf52832::gpio::GPIOPin::new(Pin::P0_17);
+    let led_kernel_pin = &nrf52832::gpio::GPIOPin::new(
+        Pin::P0_17,
+        nrf52832::gpio::GPIOTE_BASE,
+        nrf52832::gpio::GPIO_BASE_PORT0,
+    );
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(

@@ -5,6 +5,32 @@
 use core::fmt::Write;
 use cortexm4f::{nvic, CortexM4F, CortexMVariant};
 use kernel::platform::chip::InterruptService;
+use kernel::utilities::StaticRef;
+
+//
+// Peripheral Registers Instantiations
+//
+
+const AESECB_BASE: StaticRef<crate::aes::AesEcbRegisters> =
+    unsafe { StaticRef::new(0x4000E000 as *const crate::aes::AesEcbRegisters) };
+
+const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
+    unsafe { StaticRef::new(0x40011000 as *const crate::rtc::RtcRegisters) };
+
+const TEMP_BASE: StaticRef<crate::temperature::TempRegisters> =
+    unsafe { StaticRef::new(0x4000C000 as *const crate::temperature::TempRegisters) };
+
+const TIMER0_BASE: StaticRef<crate::timer::TimerRegisters> =
+    unsafe { StaticRef::new(0x40008000 as *const crate::timer::TimerRegisters) };
+
+const TIMER1_BASE: StaticRef<crate::timer::TimerRegisters> =
+    unsafe { StaticRef::new(0x40009000 as *const crate::timer::TimerRegisters) };
+
+const TIMER2_BASE: StaticRef<crate::timer::TimerRegisters> =
+    unsafe { StaticRef::new(0x4000A000 as *const crate::timer::TimerRegisters) };
+
+const RNG_BASE: StaticRef<crate::trng::RngRegisters> =
+    unsafe { StaticRef::new(0x4000D000 as *const crate::trng::RngRegisters) };
 
 pub struct NRF52<'a, I: InterruptService + 'a> {
     mpu: cortexm4f::mpu::MPU,
@@ -49,18 +75,18 @@ pub struct Nrf52DefaultPeripherals<'a> {
 }
 
 impl Nrf52DefaultPeripherals<'_> {
-    pub fn new() -> Self {
+    pub fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
         Self {
             acomp: crate::acomp::Comparator::new(),
-            ecb: crate::aes::AesECB::new(),
+            ecb: crate::aes::AesECB::new(AESECB_BASE, aes_ecb_buffer),
             pwr_clk: crate::power::Power::new(),
             ble_radio: crate::ble_radio::Radio::new(),
-            trng: crate::trng::Trng::new(),
-            rtc: crate::rtc::Rtc::new(),
-            temp: crate::temperature::Temp::new(),
-            timer0: crate::timer::TimerAlarm::new(0),
-            timer1: crate::timer::TimerAlarm::new(1),
-            timer2: crate::timer::Timer::new(2),
+            trng: crate::trng::Trng::new(RNG_BASE),
+            rtc: crate::rtc::Rtc::new(RTC1_BASE),
+            temp: crate::temperature::Temp::new(TEMP_BASE),
+            timer0: crate::timer::TimerAlarm::new(TIMER0_BASE),
+            timer1: crate::timer::TimerAlarm::new(TIMER1_BASE),
+            timer2: crate::timer::Timer::new(TIMER2_BASE),
             uarte0: crate::uart::Uarte::new(crate::uart::UARTE0_BASE),
             spim0: crate::spi::SPIM::new(0),
             twi1: crate::i2c::TWI::new_twi1(),

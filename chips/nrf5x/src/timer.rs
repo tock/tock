@@ -34,16 +34,8 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
-    [
-        StaticRef::new(0x40008000 as *const TimerRegisters),
-        StaticRef::new(0x40009000 as *const TimerRegisters),
-        StaticRef::new(0x4000A000 as *const TimerRegisters),
-    ]
-};
-
 #[repr(C)]
-struct TimerRegisters {
+pub struct TimerRegisters {
     /// Start Timer
     tasks_start: WriteOnly<u32, Task::Register>,
     /// Stop Timer
@@ -220,9 +212,9 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub const fn new(instance: usize) -> Timer {
+    pub const fn new(registers: StaticRef<TimerRegisters>) -> Timer {
         Timer {
-            registers: INSTANCES[instance],
+            registers,
             client: OptionalCell::empty(),
         }
     }
@@ -272,9 +264,9 @@ const CC_CAPTURE: usize = 0;
 const CC_COMPARE: usize = 1;
 
 impl<'a> TimerAlarm<'a> {
-    pub const fn new(instance: usize) -> TimerAlarm<'a> {
+    pub const fn new(registers: StaticRef<TimerRegisters>) -> TimerAlarm<'a> {
         TimerAlarm {
-            registers: INSTANCES[instance],
+            registers,
             client: OptionalCell::empty(),
         }
     }

@@ -10,7 +10,11 @@ use nrf52840::gpio::Pin;
 /// Panic handler
 pub unsafe fn panic_fmt(_pi: &PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)
-    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
+    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(
+        Pin::P0_13,
+        nrf52840::gpio::GPIOTE_BASE,
+        nrf52840::gpio::GPIO_BASE_PORT0,
+    );
     let led = &mut kernel::hil::led::LedLow::new(led_kernel_pin);
     kernel::debug::panic_blink_forever(&mut [led])
 }
