@@ -8,6 +8,10 @@ on:
   schedule:
   - cron: "0 0 * * *"
 
+  # Allow this workflow to be invoked manually, for an arbitrary ref
+  # (useful for testing PRs, etc)
+  workflow_dispatch:
+
 env:
   TERM: xterm # Makes tput work in actions output
 
@@ -80,7 +84,7 @@ jobs:
         run: make ci-job-tools
       - name: Create Issue on Failed workflow
         if: failure()
-        uses: dacbd/create-issue-action@main
+        uses: dacbd/create-issue-action@v2.0.0
         with:
           token: ${{ github.token }}
           title: Nightly CI failed
@@ -91,4 +95,3 @@ jobs:
             Workflow name - `${{ github.workflow }}`
             Job -           `${{ github.job }}`
             status -        `${{ job.status }}`
-          assignees: tock/core-wg
