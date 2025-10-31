@@ -15,7 +15,10 @@
 
 pub type FCB = [u8; 512];
 
-#[link_section = ".fcb"]
+// When compiling for a macOS host, the `link_section` attribute is elided as
+// it yields the following error: `mach-o section specifier requires a segment
+// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".fcb")]
 #[no_mangle]
 #[used]
 static FLEXSPI_CONFIGURATION_BLOCK: FCB = [
