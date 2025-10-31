@@ -8,17 +8,20 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
+# Justification and details on external dependencies, refer to the documentation at
+# doc/ExternalDependencies.md#approved-exceptions-for-core-kernel-external-dependencies
 [dependencies]
 tock-registers = "0.10.0"
 tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
+flux-rs = { git  = "https://github.com/flux-rs/flux.git", rev="0165730", optional=true }
 
 # In general, Tock discourages the use of cargo features. However for certain
 # kernel crate configuration, we have not found reasonable alternatives to
 # setting boolean values in kernel/src/config.rs. To make those settings configurable
 # without requiring users to modify the kernel crate itself, we allow configuration of
 # the values of the global CONFIG constant in kernel/src/config.rs via these features.
-# Other uses of cargo features are disallowed.
+# Other uses of cargo features are disallowed.*
 #
 # To use these features, modify your dependency on the kernel crate as follows:
 # ```rust
@@ -29,11 +32,15 @@ tock-tbf = { path = "../libraries/tock-tbf" }
 # You should only modify the dependency on the kernel crate from your "board"
 # crate, as feature unification will ensure that a feature being set by a single
 # crate will lead to the feature being enabled for that dependency.
+#
+# *The `flux` feature here is an exception, due to limitations of cargo's
+# dev-dependency mechanism, see doc/ExternalDependencies.md#flux-rs for details.
 [features]
 trace_syscalls = []
 debug_load_processes = []
 no_debug_panics = []
 debug_process_credentials = []
+flux = ["flux-rs"]
 
 [lints]
 workspace = true
