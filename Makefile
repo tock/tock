@@ -476,7 +476,6 @@ ci-job-libraries:
 	@cd libraries/enum_primitive && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
 	@cd libraries/riscv-csr && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
 	@cd libraries/tock-cells && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tock-register-interface && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
 	@cd libraries/tickv && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
 
 .PHONY: ci-job-archs
@@ -555,8 +554,6 @@ ci-job-miri:
 	#
 	# Note: This is highly experimental and limited at the moment.
 	#
-	@# Hangs forever during `Building` for this one :shrug:
-	@#cd libraries/tock-register-interface && NOWARNINGS=true cargo miri test
 	@cd kernel && NOWARNINGS=true cargo miri test
 	@for a in $$(tools/build/list_archs.sh); do cd arch/$$a && NOWARNINGS=true cargo miri test && cd ../..; done
 	@cd capsules/core && NOWARNINGS=true cargo miri test

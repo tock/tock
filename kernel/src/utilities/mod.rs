@@ -24,8 +24,9 @@ pub use self::static_ref::StaticRef;
 
 /// The Tock Register Interface.
 ///
-/// This is a re-export of the `tock-register-interface` crate provided for
-/// convenience.
+/// This is a re-export of the
+/// [`tock-registers`](https://github.com/tock/tock-registers) crate provided
+/// for convenience.
 ///
 /// The Tock Register Interface provides a mechanism for accessing hardware
 /// registers and MMIO interfaces.
