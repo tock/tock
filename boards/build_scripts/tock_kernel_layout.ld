@@ -236,9 +236,12 @@ SECTIONS
     {
         /* Kernel stack.
          *
-         * Tock places the kernel stack at the bottom of SRAM so that the
-         * kernel will trigger memory fault if it exceeds its stack depth,
-         * rather than silently overwriting valuable data.
+         * Tock places the kernel stack at the bottom of (the lowest address in)
+         * SRAM. This is to ensure that when the kernel stack grows from
+         * `_estack` down towards `_sstack` and ultimately overflows the
+         * latter, it overflows into unmapped / inaccessible memory. This causes
+         * the hardware to trigger a memory fault if the kernel exceeds its
+         * stack depth, rather than silently overwriting valuable data.
          */
         . = ALIGN(8);
         _sstack = .;
