@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+use cortexm4::support::with_interrupts_disabled;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::hil;
@@ -12,7 +13,7 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 
 use crate::clocks::{phclk, Stm32wle5xxClocks};
-// use crate::exti::{self, LineId};
+use crate::exti;
 
 /// General-purpose I/Os
 #[repr(C)]
@@ -387,26 +388,11 @@ register_bitfields![u32,
     ]
 ];
 
-// See comment above about GpioRegisters only being correct for A/B
-/*
 const GPIOH_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40021C00 as *const GpioRegisters) };
-
-const GPIOG_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40021800 as *const GpioRegisters) };
-
-const GPIOF_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40021400 as *const GpioRegisters) };
-
-const GPIOE_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40021000 as *const GpioRegisters) };
-
-const GPIOD_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40020C00 as *const GpioRegisters) };
+    unsafe { StaticRef::new(0x40001C00 as *const GpioRegisters) };
 
 const GPIOC_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x40020800 as *const GpioRegisters) };
-*/
+    unsafe { StaticRef::new(0x40000800 as *const GpioRegisters) };
 
 const GPIOB_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x48000400 as *const GpioRegisters) };
@@ -420,6 +406,8 @@ const GPIOA_BASE: StaticRef<GpioRegisters> =
 pub enum PortId {
     A = 0b000,
     B = 0b001,
+    C = 0b010,
+    H = 0b111,
 }
 
 /// Name of the GPIO pin on the STM32WLE5xx.
@@ -444,32 +432,13 @@ pub enum PinId {
     PB08 = 0b0011000, PB09 = 0b0011001, PB10 = 0b0011010, PB11 = 0b0011011,
     PB12 = 0b0011100, PB13 = 0b0011101, PB14 = 0b0011110, PB15 = 0b0011111,
 
-    // PC00 = 0b0100000, PC01 = 0b0100001, PC02 = 0b0100010, PC03 = 0b0100011,
-    // PC04 = 0b0100100, PC05 = 0b0100101, PC06 = 0b0100110, PC07 = 0b0100111,
-    // PC08 = 0b0101000, PC09 = 0b0101001, PC10 = 0b0101010, PC11 = 0b0101011,
-    // PC12 = 0b0101100, PC13 = 0b0101101, PC14 = 0b0101110, PC15 = 0b0101111,
+    PC00 = 0b0100000, PC01 = 0b0100001, PC02 = 0b0100010, PC03 = 0b0100011,
+    PC04 = 0b0100100, PC05 = 0b0100101, PC06 = 0b0100110, PC13 = 0b0101101,
+    PC14 = 0b0101110, PC15 = 0b0101111,
 
-    // PD00 = 0b0110000, PD01 = 0b0110001, PD02 = 0b0110010, PD03 = 0b0110011,
-    // PD04 = 0b0110100, PD05 = 0b0110101, PD06 = 0b0110110, PD07 = 0b0110111,
-    // PD08 = 0b0111000, PD09 = 0b0111001, PD10 = 0b0111010, PD11 = 0b0111011,
-    // PD12 = 0b0111100, PD13 = 0b0111101, PD14 = 0b0111110, PD15 = 0b0111111,
-
-    // PE00 = 0b1000000, PE01 = 0b1000001, PE02 = 0b1000010, PE03 = 0b1000011,
-    // PE04 = 0b1000100, PE05 = 0b1000101, PE06 = 0b1000110, PE07 = 0b1000111,
-    // PE08 = 0b1001000, PE09 = 0b1001001, PE10 = 0b1001010, PE11 = 0b1001011,
-    // PE12 = 0b1001100, PE13 = 0b1001101, PE14 = 0b1001110, PE15 = 0b1001111,
-
-    // PF00 = 0b1010000, PF01 = 0b1010001, PF02 = 0b1010010, PF03 = 0b1010011,
-    // PF04 = 0b1010100, PF05 = 0b1010101, PF06 = 0b1010110, PF07 = 0b1010111,
-    // PF08 = 0b1011000, PF09 = 0b1011001, PF10 = 0b1011010, PF11 = 0b1011011,
-    // PF12 = 0b1011100, PF13 = 0b1011101, PF14 = 0b1011110, PF15 = 0b1011111,
-
-    // PG00 = 0b1100000, PG01 = 0b1100001, PG02 = 0b1100010, PG03 = 0b1100011,
-    // PG04 = 0b1100100, PG05 = 0b1100101, PG06 = 0b1100110, PG07 = 0b1100111,
-    // PG08 = 0b1101000, PG09 = 0b1101001, PG10 = 0b1101010, PG11 = 0b1101011,
-    // PG12 = 0b1101100, PG13 = 0b1101101, PG14 = 0b1101110, PG15 = 0b1101111,
-
-    // PH00 = 0b1110000, PH01 = 0b1110001,
+    PH03 = 0b1110011,
+    
+    None
 }
 
 impl<'a> GpioPorts<'a> {
@@ -573,11 +542,20 @@ pub struct Port<'a> {
 }
 
 macro_rules! declare_gpio_pins {
+    // Allow specifying `none` to produce `None` entries for the provided pins.
+    // Caller is still responsible for providing the correct number of entries
+    // so the resulting array has the expected length.
+    ($($pin:ident)*, none) => {
+        [
+            $(None, )*
+        ]
+    };
+    // Default: use the provided `exti` reference for each pin.
     ($($pin:ident)*, $exti:expr) => {
         [
-            $(Some(Pin::new(PinId::$pin)), )*
+            $(Some(Pin::new(PinId::$pin, $exti)), )*
         ]
-    }
+    };
 }
 
 // Note (from f3 implementation this is based on):
@@ -588,12 +566,12 @@ macro_rules! declare_gpio_pins {
 // We need to use `Option<Pin>`, instead of just `Pin` because GPIOH has
 // only two pins - PH00 and PH01, rather than the usual sixteen pins.
 pub struct GpioPorts<'a> {
-    ports: [Port<'a>; 2],
-    pub pins: [[Option<Pin<'a>>; 16]; 2],
+    ports: [Port<'a>; 4],
+    pub pins: [[Option<Pin<'a>>; 16]; 4],
 }
 
 impl<'a> GpioPorts<'a> {
-    pub fn new(clocks: &'a dyn Stm32wle5xxClocks) -> Self {
+    pub fn new(clocks: &'a dyn Stm32wle5xxClocks, exti: &'a exti::Exti<'a>) -> Self {
         Self {
             ports: [
                 Port {
@@ -610,6 +588,20 @@ impl<'a> GpioPorts<'a> {
                         clocks,
                     )),
                 },
+                Port {
+                    registers: GPIOC_BASE,
+                    clock: PortClock(phclk::PeripheralClock::new(
+                        phclk::PeripheralClockType::AHB2(phclk::HCLK2::GPIOC),
+                        clocks,
+                    )),
+                },
+                Port {
+                    registers: GPIOH_BASE,
+                    clock: PortClock(phclk::PeripheralClock::new(
+                        phclk::PeripheralClockType::AHB2(phclk::HCLK2::GPIOH),
+                        clocks,
+                    )),
+                },
             ],
             pins: [
                 declare_gpio_pins! {
@@ -620,6 +612,13 @@ impl<'a> GpioPorts<'a> {
                     PB00 PB01 PB02 PB03 PB04 PB05 PB06 PB07
                     PB08 PB09 PB10 PB11 PB12 PB13 PB14 PB15, exti
                 },
+                declare_gpio_pins!(
+                    PC00 PC01 PC02 PC03 PC04 PC05 PC06 None
+                    None None None None None PC13 PC14 PC15, exti
+                ),
+                declare_gpio_pins!(
+                    None None None PH03 None None None None
+                    None None None None None None None None, exti),
             ],
         }
     }
@@ -668,14 +667,18 @@ pub struct Pin<'a> {
     pinid: PinId,
     ports_ref: OptionalCell<&'a GpioPorts<'a>>,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
+    exti: &'a exti::Exti<'a>,
+    exti_lineid: OptionalCell<exti::LineId>,
 }
 
 impl<'a> Pin<'a> {
-    pub const fn new(pinid: PinId) -> Self {
+    pub const fn new(pinid: PinId, exti: &'a exti::Exti<'a>) -> Self {
         Self {
             pinid,
             ports_ref: OptionalCell::empty(),
             client: OptionalCell::empty(),
+            exti,
+            exti_lineid: OptionalCell::empty(),
         }
     }
 
@@ -769,7 +772,15 @@ impl<'a> Pin<'a> {
         self.pinid
     }
 
-    pub unsafe fn enable_interrupt(&'static self) {}
+    pub unsafe fn enable_interrupt(&'static self) {
+        let exti_line_id = exti::LineId::from_u8(self.pinid.get_pin_number()).unwrap();
+
+        self.exti.associate_line_gpiopin(exti_line_id, self);
+    }
+
+    pub fn set_exti_lineid(&self, lineid: exti::LineId) {
+        self.exti_lineid.set(lineid);
+    }
 
     fn set_mode_output_pushpull(&self) {
         let port = self.ports_ref.unwrap_or_panic().get_port(self.pinid); // Unwrap fail =
@@ -1092,14 +1103,48 @@ impl hil::gpio::Input for Pin<'_> {
     }
 }
 
-// TODO
 impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
-    fn enable_interrupts(&self, _mode: hil::gpio::InterruptEdge) {
-        todo!()
+    fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
+        unsafe {
+            with_interrupts_disabled(|| {
+                self.exti_lineid.map(|lineid| {
+                    let l = lineid;
+
+                    // disable the interrupt
+                    self.exti.mask_interrupt(l);
+                    self.exti.clear_pending(l);
+
+                    match mode {
+                        hil::gpio::InterruptEdge::EitherEdge => {
+                            self.exti.select_rising_trigger(l);
+                            self.exti.select_falling_trigger(l);
+                        }
+                        hil::gpio::InterruptEdge::RisingEdge => {
+                            self.exti.select_rising_trigger(l);
+                            self.exti.deselect_falling_trigger(l);
+                        }
+                        hil::gpio::InterruptEdge::FallingEdge => {
+                            self.exti.deselect_rising_trigger(l);
+                            self.exti.select_falling_trigger(l);
+                        }
+                    }
+
+                    self.exti.unmask_interrupt(l);
+                });
+            });
+        }
     }
 
     fn disable_interrupts(&self) {
-        todo!()
+        unsafe {
+            with_interrupts_disabled(|| {
+                self.exti_lineid.map(|lineid| {
+                    let l = lineid;
+                    self.exti.mask_interrupt(l);
+                    self.exti.clear_pending(l);
+                });
+            });
+        }
     }
 
     fn set_client(&self, client: &'a dyn hil::gpio::Client) {
@@ -1107,6 +1152,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        todo!()
+        self.exti_lineid
+            .map_or(false, |lineid| self.exti.is_pending(lineid))
     }
 }

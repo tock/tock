@@ -21,6 +21,8 @@ pub struct Stm32wle5xx<'a, I: InterruptService + 'a> {
 pub struct Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
     pub clocks: &'a crate::clocks::Clocks<'a, ChipSpecs>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
+    pub exti: &'a crate::exti::Exti<'a>,
+    pub syscfg: &'a crate::syscfg::Syscfg,
     pub usart1: crate::usart::Usart<'a>,
     pub usart2: crate::usart::Usart<'a>,
     pub tim2: crate::tim2::Tim2<'a>,
@@ -32,10 +34,16 @@ pub struct Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
 }
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
-    pub fn new(clocks: &'a crate::clocks::Clocks<'a, ChipSpecs>) -> Self {
+    pub fn new(
+        clocks: &'a crate::clocks::Clocks<'a, ChipSpecs>,
+        exti: &'a crate::exti::Exti<'a>,
+        syscfg: &'a crate::syscfg::Syscfg,
+    ) -> Self {
         Self {
             clocks,
-            gpio_ports: crate::gpio::GpioPorts::new(clocks),
+            gpio_ports: crate::gpio::GpioPorts::new(clocks, exti),
+            exti,
+            syscfg,
             usart1: crate::usart::Usart::new_usart1(clocks),
             usart2: crate::usart::Usart::new_usart2(clocks),
             tim2: crate::tim2::Tim2::new(clocks),
@@ -72,6 +80,15 @@ impl<ChipSpecs: ChipSpecsTrait> InterruptService for Stm32wle5xxDefaultPeriphera
             }
             nvic::SUBGHZ_SPI => {
                 self.subghz_spi.handle_interrupt();
+            }
+            nvic::EXTI0
+            | nvic::EXTI1
+            | nvic::EXTI2
+            | nvic::EXTI3
+            | nvic::EXTI4
+            | nvic::EXTI9_5
+            | nvic::EXTI15_10 => {
+                self.exti.handle_interrupt();
             }
             _ => return false,
         }
