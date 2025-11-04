@@ -292,19 +292,29 @@ pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
 /// appropriate to blink multiple LEDs (e.g. one on the top and one on the
 /// bottom), thus this method accepts an array, however most will only need one.
 pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&L]) -> ! {
-    leds.iter_mut().for_each(|led| led.init());
+    for led in leds.iter_mut() {
+        led.init();
+    }
     loop {
         for _ in 0..1000000 {
-            leds.iter_mut().for_each(|led| led.on());
+            for led in leds.iter_mut() {
+                led.on();
+            }
         }
         for _ in 0..100000 {
-            leds.iter_mut().for_each(|led| led.off());
+            for led in leds.iter_mut() {
+                led.off();
+            }
         }
         for _ in 0..1000000 {
-            leds.iter_mut().for_each(|led| led.on());
+            for led in leds.iter_mut() {
+                led.on();
+            }
         }
         for _ in 0..500000 {
-            leds.iter_mut().for_each(|led| led.off());
+            for led in leds.iter_mut() {
+                led.off();
+            }
         }
     }
 }

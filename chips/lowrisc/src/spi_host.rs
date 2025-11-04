@@ -242,10 +242,9 @@ impl SpiHost<'_> {
     //Determine if transfer complete or if we need to keep
     //writing from an offset.
     fn continue_transfer(&self) -> Result<SpiHostStatus, ErrorCode> {
-        let rc = self
-            .rx_buf
-            .take()
-            .map(|mut rx_buf| -> Result<SpiHostStatus, ErrorCode> {
+        let rc = self.rx_buf.take().map_or(
+            Err(ErrorCode::FAIL),
+            |mut rx_buf| -> Result<SpiHostStatus, ErrorCode> {
                 let regs = self.registers;
                 let mut val32: u32;
                 let mut val8: u8;
@@ -281,8 +280,8 @@ impl SpiHost<'_> {
                     //Theres more to transfer, continue writing from the offset
                     self.spi_transfer_progress()
                 }
-            })
-            .map_or_else(|| Err(ErrorCode::FAIL), |rc| rc);
+            },
+        );
 
         rc
     }
