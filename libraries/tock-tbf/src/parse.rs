@@ -181,9 +181,10 @@ pub fn parse_tbf_header(
                         }
                         types::TbfHeaderTypes::TbfHeaderWriteableFlashRegions => {
                             // Length must be a multiple of the size of a region definition.
-                            if tlv_header.length as usize
-                                % mem::size_of::<types::TbfHeaderV2WriteableFlashRegion>()
-                                == 0
+                            if (tlv_header.length as usize)
+                                .is_multiple_of(mem::size_of::<
+                                    types::TbfHeaderV2WriteableFlashRegion,
+                                >())
                             {
                                 // Capture a slice with just the wfr information.
                                 let wfr_slice = remaining

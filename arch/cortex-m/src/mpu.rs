@@ -449,7 +449,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         let mut size = min_region_size;
 
         // Region start always has to align to minimum region size bytes
-        if start % MIN_REGION_SIZE != 0 {
+        if !start.is_multiple_of(MIN_REGION_SIZE) {
             start += MIN_REGION_SIZE - (start % MIN_REGION_SIZE);
         }
 
@@ -466,7 +466,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         // We can only create an MPU region if the size is a power of two and it divides
         // the start address. If this is not the case, the first thing we try to do to
         // cover the memory region is to use a larger MPU region and expose certain subregions.
-        if size.count_ones() > 1 || start % size != 0 {
+        if size.count_ones() > 1 || !start.is_multiple_of(size) {
             // Which (power-of-two) subregion size would align with the start
             // address?
             //
@@ -498,7 +498,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             let underlying_region_start = start - (start % underlying_region_size);
 
             // If `size` doesn't align to the subregion size, extend it.
-            if size % subregion_size != 0 {
+            if !size.is_multiple_of(subregion_size) {
                 size += subregion_size - (size % subregion_size);
             }
 
@@ -628,7 +628,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         let mut region_start = unallocated_memory_start as usize;
 
         // If the start and length don't align, move region up until it does.
-        if region_start % region_size != 0 {
+        if !region_start.is_multiple_of(region_size) {
             region_start += region_size - (region_start % region_size);
         }
 
@@ -660,7 +660,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             memory_size_po2 *= 2;
             region_size *= 2;
 
-            if region_start % region_size != 0 {
+            if !region_start.is_multiple_of(region_size) {
                 region_start += region_size - (region_start % region_size);
             }
 

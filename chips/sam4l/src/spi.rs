@@ -328,7 +328,7 @@ impl<'a> SpiHw<'a> {
         // rate, but only if we are not at the slowest rate. Since scbr is the
         // clock rate divisor, the highest divisor 0xFF corresponds to the
         // lowest rate.
-        if clock % real_rate != 0 && scbr != 0xFF {
+        if !clock.is_multiple_of(real_rate) && scbr != 0xFF {
             scbr += 1;
         }
         let spi = &SpiRegisterManager::new(self);

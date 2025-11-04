@@ -535,7 +535,7 @@ impl SpiHost<'_> {
 
         //Increase scaler if the division was not exact, ensuring that it does not overflow
         //or exceed divider specification where tsck is at most <= Tclk/2
-        if self.cpu_clk % (2 * rate) != 0 && scaler != 0xFF {
+        if !self.cpu_clk.is_multiple_of(2 * rate) && scaler != 0xFF {
             scaler += 1;
         }
         Ok(scaler as u16)

@@ -158,7 +158,7 @@ impl NAPOTRegionSpec {
     /// `Some(region)` when all constraints specified in the
     /// [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
     pub fn from_start_size(start: *const u8, size: usize) -> Option<Self> {
-        if !size.is_power_of_two() || start.addr() % size != 0 || size < 8 {
+        if !size.is_power_of_two() || !start.addr().is_multiple_of(size) || size < 8 {
             return None;
         }
 
@@ -259,8 +259,8 @@ impl TORRegionSpec {
     /// `Some(region)` when all constraints specified in the [`TORRegionSpec`]'s
     /// documentation are satisfied, otherwise `None`.
     pub fn from_start_end(start: *const u8, end: *const u8) -> Option<Self> {
-        if (start as usize) % 4 != 0
-            || (end as usize) % 4 != 0
+        if !(start as usize).is_multiple_of(4)
+            || !(end as usize).is_multiple_of(4)
             || (end as usize)
                 .checked_sub(start as usize)
                 .is_none_or(|size| size < 4)
@@ -969,13 +969,13 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 
         // Region start always has to align to 4 bytes. Round up to a 4 byte
         // boundary if required:
-        if start % 4 != 0 {
+        if !start.is_multiple_of(4) {
             start += 4 - (start % 4);
         }
 
         // Region size always has to align to 4 bytes. Round up to a 4 byte
         // boundary if required:
-        if size % 4 != 0 {
+        if !size.is_multiple_of(4) {
             size += 4 - (size % 4);
         }
 
@@ -1101,13 +1101,13 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 
         // Region start always has to align to 4 bytes. Round up to a 4 byte
         // boundary if required:
-        if start % 4 != 0 {
+        if !start.is_multiple_of(4) {
             start += 4 - (start % 4);
         }
 
         // Region size always has to align to 4 bytes. Round up to a 4 byte
         // boundary if required:
-        if pmp_region_size % 4 != 0 {
+        if !pmp_region_size.is_multiple_of(4) {
             pmp_region_size += 4 - (pmp_region_size % 4);
         }
 
@@ -1178,7 +1178,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         // Ensure that the requested app_memory_break complies with PMP
         // alignment constraints, namely that the region's end address is 4 byte
         // aligned:
-        if app_memory_break % 4 != 0 {
+        if !app_memory_break.is_multiple_of(4) {
             app_memory_break += 4 - (app_memory_break % 4);
         }
 

@@ -25,7 +25,7 @@ pub struct ScreenARGB8888ToMono8BitPage<'a, S: Screen<'a>> {
 
 impl<'a, S: Screen<'a>> ScreenARGB8888ToMono8BitPage<'a, S> {
     pub fn new(screen: &'a S, draw_buffer: &'static mut [u8]) -> Self {
-        assert!(draw_buffer.len() % 4 == 0);
+        assert!(draw_buffer.len().is_multiple_of(4));
 
         ScreenARGB8888ToMono8BitPage {
             screen,
@@ -68,7 +68,7 @@ impl<'a> EightRowColumnPixelIter<'a> {
             .and_then(|off| off.checked_mul(4))?;
 
         self.row += 1;
-        if self.row % 8 == 0 {
+        if self.row.is_multiple_of(8) {
             self.row -= 8;
             self.col += 1;
         }
@@ -106,7 +106,7 @@ impl<'a, S: Screen<'a>> Screen<'a> for ScreenARGB8888ToMono8BitPage<'a, S> {
         height: usize,
     ) -> Result<(), ErrorCode> {
         // We can only write 8 full rows at a time:
-        if y % 8 != 0 || height % 8 != 0 {
+        if !y.is_multiple_of(8) || !height.is_multiple_of(8) {
             return Err(ErrorCode::INVAL);
         }
 
