@@ -103,7 +103,7 @@ unsafe fn init_tss() -> Descriptor {
 ///
 /// When calling this function, the stack frame referenced by `esp` must meet these expectations.
 #[no_mangle]
-pub unsafe extern "cdecl" fn set_tss_esp0(esp: u32) {
+pub unsafe extern "C" fn set_tss_esp0(esp: u32) {
     unsafe {
         TSS_INSTANCE.esp0 = esp;
     }

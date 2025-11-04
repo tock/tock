@@ -18,7 +18,7 @@ use super::pic;
 /// This function must only be called when handling an interrupt. It should _never_ be called by
 /// other Rust code.
 #[no_mangle]
-unsafe extern "cdecl" fn handle_external_interrupt(num: u32) {
+unsafe extern "C" fn handle_external_interrupt(num: u32) {
     unsafe {
         InterruptPoller::set_pending(num);
         pic::mask(num);
