@@ -1211,7 +1211,7 @@ impl<'a> RPPins<'a> {
         }
     }
 
-    pub fn get_pin(&self, pin: RPGpio) -> &'a RPGpioPin {
+    pub fn get_pin(&self, pin: RPGpio) -> &'a RPGpioPin<'_> {
         &self.pins[pin as usize]
     }
 
