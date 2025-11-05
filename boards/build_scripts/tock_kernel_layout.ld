@@ -232,6 +232,23 @@ SECTIONS
         KEEP(*(.ccfg))
     } > ccfg
 
+   .stack (NOLOAD) :
+    {
+        /* Kernel stack.
+         *
+         * Tock places the kernel stack at the bottom of (the lowest address in)
+         * SRAM. This is to ensure that when the kernel stack grows from
+         * `_estack` down towards `_sstack` and ultimately overflows the
+         * latter, it overflows into unmapped / inaccessible memory. This causes
+         * the hardware to trigger a memory fault if the kernel exceeds its
+         * stack depth, rather than silently overwriting valuable data.
+         */
+        . = ALIGN(8);
+        _sstack = .;
+        KEEP(*(.stack_buffer))
+        . = ALIGN(8);
+        _estack = .;
+    } > ram AT> ram
 
     /* Kernel data that must be relocated. This is program data that is
      * expected to live in SRAM, but is initialized with a value. This data is
@@ -271,22 +288,6 @@ SECTIONS
         . = ALIGN(4);
         _erelocate = .;
     } > ram
-
-
-   .stack (NOLOAD) :
-    {
-        /* Kernel stack.
-         *
-         * Tock places the kernel stack at the bottom of SRAM so that the
-         * kernel will trigger memory fault if it exceeds its stack depth,
-         * rather than silently overwriting valuable data.
-         */
-        . = ALIGN(8);
-        _sstack = .;
-        KEEP(*(.stack_buffer))
-        . = ALIGN(8);
-        _estack = .;
-    } > ram AT> ram
 
     /* Section for application binaries in flash.
      *
