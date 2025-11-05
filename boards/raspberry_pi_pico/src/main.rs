@@ -79,7 +79,7 @@ type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureRp2040Sensor>;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type Scheduler = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct RaspberryPiPico {
@@ -97,7 +97,7 @@ pub struct RaspberryPiPico {
 
     date_time:
         &'static capsules_extra::date_time::DateTimeCapsule<'static, rp2040::rtc::Rtc<'static>>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static Scheduler,
     systick: cortexm0p::systick::SysTick,
 }
 
@@ -125,7 +125,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = Scheduler;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

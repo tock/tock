@@ -46,8 +46,7 @@ kernel::stack_size! {0x1000}
 struct ProcessManagementCapabilityObj {}
 unsafe impl capabilities::ProcessManagementCapability for ProcessManagementCapabilityObj {}
 
-type SchedulerObj =
-    components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
+type Scheduler = components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -65,7 +64,7 @@ struct ArtyE21 {
     >,
     button: &'static capsules_core::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static Scheduler,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -94,7 +93,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = Scheduler;
     type SchedulerTimer = ();
     type WatchDog = ();
     type ContextSwitchCallback = ();

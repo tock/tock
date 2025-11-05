@@ -62,7 +62,7 @@ type L3GD20Sensor = components::l3gd20::L3gd20ComponentType<
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<L3GD20Sensor>;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type Scheduler = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -94,7 +94,7 @@ struct STM32F3Discovery {
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static Scheduler,
     systick: cortexm4::systick::SysTick,
     watchdog: &'static wdt::WindoWdg<'static>,
 }
@@ -136,7 +136,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = Scheduler;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = wdt::WindoWdg<'static>;
     type ContextSwitchCallback = ();

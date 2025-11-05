@@ -41,7 +41,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x1500}
 
-type SchedulerObj = components::sched::cooperative::CooperativeComponentType;
+type Scheduler = components::sched::cooperative::CooperativeComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -55,7 +55,7 @@ struct HiFiveInventor {
         'static,
         VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>,
     >,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static Scheduler,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>,
     >,
@@ -82,7 +82,7 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = Scheduler;
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>>;
     type WatchDog = ();

@@ -112,7 +112,7 @@ kernel::stack_size! {0x2000}
 
 type AlarmHw =
     litex_vexriscv::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>;
-type SchedulerObj = components::sched::mlfq::MLFQComponentType<AlarmHw>;
+type Scheduler = components::sched::mlfq::MLFQComponentType<AlarmHw>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -154,7 +154,7 @@ struct LiteXArty {
         >,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static Scheduler,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,
@@ -191,7 +191,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = Scheduler;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,

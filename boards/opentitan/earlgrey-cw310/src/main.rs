@@ -167,8 +167,7 @@ kernel::stack_size! {0x1400}
 struct ProcessManagementCapabilityObj {}
 unsafe impl capabilities::ProcessManagementCapability for ProcessManagementCapabilityObj {}
 
-type SchedulerObj =
-    components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
+type Scheduler = components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -235,7 +234,7 @@ struct EarlGrey {
         >,
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static Scheduler,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
     >,
@@ -269,7 +268,7 @@ impl KernelResources<EarlGreyChip> for EarlGrey {
     type SyscallDriverLookup = Self;
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = Scheduler;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
     >;

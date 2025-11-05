@@ -93,7 +93,7 @@ type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>
 
 type NonvolatileDriver = components::nonvolatile_storage::NonvolatileStorageComponentType;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type Scheduler = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -124,7 +124,7 @@ pub struct Platform {
             nrf52840::spi::SPIM<'static>,
         >,
     >,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static Scheduler,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -158,7 +158,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = Scheduler;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
