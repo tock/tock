@@ -278,7 +278,10 @@ impl fmt::Display for PagingMPU<'_> {
     }
 }
 
-impl MPU for PagingMPU<'_> {
+// `MPU` is an unsafe trait, and with this implementation we guarantee
+// that we adhere to the semantics documented on that trait and its
+// associated types and methods.
+unsafe impl MPU for PagingMPU<'_> {
     type MpuConfig = MemoryProtectionConfig;
 
     fn new_config(&self) -> Option<Self::MpuConfig> {
@@ -299,7 +302,7 @@ impl MPU for PagingMPU<'_> {
     fn enable_app_mpu(&self) {}
 
     // Paging stays enabled for Ring0/Ring3
-    fn disable_app_mpu(&self) {}
+    unsafe fn disable_app_mpu(&self) {}
 
     /// Returns the maximum number of regions supported by the MPU.
     fn number_total_regions(&self) -> usize {
@@ -602,7 +605,7 @@ impl MPU for PagingMPU<'_> {
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig) {
+    unsafe fn configure_mpu(&self, config: &Self::MpuConfig) {
         self.config_pages.map(|current_config| {
             unsafe {
                 let mut sram_page_table = self.pt.borrow_mut();
