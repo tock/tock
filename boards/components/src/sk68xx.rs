@@ -25,29 +25,6 @@ macro_rules! sk68xx_component_static_esp32c3_160mhz {
     };};
 }
 
-// let sk68xx = static_init!(
-//     capsules_extra::sk68xx::Sk68xx<esp32::gpio::GpioPin,3>,
-//     capsules_extra::sk68xx::Sk68xx::new(&peripherals.gpio[8], rv32i::support::nop)
-// );
-// sk68xx.init();
-
-// use kernel::hil::led::Led;
-// let led_red = static_init!(capsules_extra::sk68xx::Sk68xxLed<esp32::gpio::GpioPin, 0,3>,
-//     capsules_extra::sk68xx::Sk68xxLed::new(sk68xx));
-// let led_green = static_init!(capsules_extra::sk68xx::Sk68xxLed<esp32::gpio::GpioPin, 1,3>,
-//     capsules_extra::sk68xx::Sk68xxLed::new(sk68xx));
-// let led_blue = static_init!(capsules_extra::sk68xx::Sk68xxLed<esp32::gpio::GpioPin, 2,3>,
-//     capsules_extra::sk68xx::Sk68xxLed::new(sk68xx));
-// led_red.on();
-// led_green.on();
-// // led_blue.on();
-// led_green.toggle();
-
-// pub type Sk68xxComponentType<P, A> = capsules_extra::sk68xx::Sk68xx<
-//     'static,
-//     P,
-// >;
-
 pub struct Sk68xxComponent<P: 'static + hil::gpio::Pin, const T0H: usize> {
     led_pin: &'static P,
     nop: fn(),
