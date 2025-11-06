@@ -16,12 +16,14 @@ tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
 flux-rs = { git  = "https://github.com/flux-rs/flux.git", rev="0165730", optional=true }
 
-# In general, Tock discourages the use of cargo features. However for certain
-# kernel crate configuration, we have not found reasonable alternatives to
-# setting boolean values in kernel/src/config.rs. To make those settings configurable
-# without requiring users to modify the kernel crate itself, we allow configuration of
-# the values of the global CONFIG constant in kernel/src/config.rs via these features.
-# Other uses of cargo features are disallowed.*
+# In general, Tock discourages the use of cargo features. However, we have
+# identified two cases where cargo features are the best available solution.
+#
+# First, for certain kernel crate configuration, we have not found reasonable
+# alternatives to setting boolean values in kernel/src/config.rs. To make those
+# settings configurable without requiring users to modify the kernel crate
+# itself, we allow configuration of the values of the global CONFIG constant in
+# kernel/src/config.rs via these features.
 #
 # To use these features, modify your dependency on the kernel crate as follows:
 # ```rust
@@ -33,8 +35,11 @@ flux-rs = { git  = "https://github.com/flux-rs/flux.git", rev="0165730", optiona
 # crate, as feature unification will ensure that a feature being set by a single
 # crate will lead to the feature being enabled for that dependency.
 #
-# *The `flux` feature here is an exception, due to limitations of cargo's
-# dev-dependency mechanism, see doc/ExternalDependencies.md#flux-rs for details.
+# Second, we use the feature "flux" to workaround limitations of development
+# dependencies in cargo. This enables us to use flux-rs without affecting the
+# built output. See doc/ExternalDependencies.md#flux-rs for details.
+#
+# Other uses of cargo features are disallowed.
 [features]
 trace_syscalls = []
 debug_load_processes = []
