@@ -49,6 +49,9 @@ impl Component for Nrf52840DefaultPeripheralsComponent {
             s.1.write(Nrf52840DefaultPeripherals::new(nrf52_peripherals, ack_buf))
         };
 
+        // Set up circular peripheral dependencies.
+        peripherals.init();
+
         peripherals
     }
 }
