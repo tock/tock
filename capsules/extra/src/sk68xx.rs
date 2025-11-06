@@ -89,9 +89,9 @@ impl<'a, P: Pin, const T0H: usize> Sk68xx<'a, P, T0H> {
             }
         }
 
-        // Rest period after to reset the writing and permit a subsequent write
-        // to the LED.
-        for _ in 0..1000 {
+        // 80 us rest period after to reset the writing and permit a subsequent
+        // write to the LED.
+        for _ in 0..(286 * T0H) {
             (self.nop)();
         }
     }
