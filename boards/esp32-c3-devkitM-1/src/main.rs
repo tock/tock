@@ -48,7 +48,9 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 static mut PERIPHERALS: Option<&'static Esp32C3DefaultPeripherals> = None;
 // Test access to scheduler
 #[cfg(test)]
-static mut SCHEDULER: Option<&PrioritySched> = None;
+static mut SCHEDULER: Option<
+    &capsules_system::scheduler::priority::PrioritySched<ProcessManagementCapabilityObj>,
+> = None;
 // Test access to board
 #[cfg(test)]
 static mut BOARD: Option<&'static kernel::Kernel> = None;
@@ -380,8 +382,13 @@ fn test_runner(tests: &[&dyn Fn()]) {
         PLATFORM = Some(&esp32_c3_board);
         PERIPHERALS = Some(peripherals);
         SCHEDULER = Some(
-            components::sched::priority::PriorityComponent::new(board_kernel)
-                .finalize(components::priority_component_static!()),
+            components::sched::priority::PriorityComponent::new(
+                board_kernel,
+                ProcessManagementCapabilityObj {},
+            )
+            .finalize(components::priority_component_static!(
+                ProcessManagementCapabilityObj
+            )),
         );
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
