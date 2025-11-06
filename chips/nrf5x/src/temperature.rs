@@ -18,11 +18,8 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-const TEMP_BASE: StaticRef<TempRegisters> =
-    unsafe { StaticRef::new(0x4000C000 as *const TempRegisters) };
-
 #[repr(C)]
-struct TempRegisters {
+pub struct TempRegisters {
     /// Start temperature measurement
     /// Address: 0x000 - 0x004
     pub task_start: WriteOnly<u32, Task::Register>,
@@ -30,14 +27,14 @@ struct TempRegisters {
     /// Address: 0x004 - 0x008
     pub task_stop: WriteOnly<u32, Task::Register>,
     /// Reserved
-    pub _reserved1: [u32; 62],
+    _reserved1: [u32; 62],
     /// Temperature measurement complete, data ready
     /// Address: 0x100 - 0x104
     pub event_datardy: ReadWrite<u32, Event::Register>,
     /// Reserved
     // Note, `inten` register on nRF51 is ignored because it's not supported by nRF52
     // And intenset and intenclr provide the same functionality
-    pub _reserved2: [u32; 128],
+    _reserved2: [u32; 128],
     /// Enable interrupt
     /// Address: 0x304 - 0x308
     pub intenset: ReadWrite<u32, Intenset::Register>,
@@ -45,22 +42,22 @@ struct TempRegisters {
     /// Address: 0x308 - 0x30c
     pub intenclr: ReadWrite<u32, Intenclr::Register>,
     /// Reserved
-    pub _reserved3: [u32; 127],
+    _reserved3: [u32; 127],
     /// Temperature in °C (0.25° steps)
     /// Address: 0x508 - 0x50c
     pub temp: ReadOnly<u32, Temperature::Register>,
     /// Reserved
-    pub _reserved4: [u32; 5],
+    _reserved4: [u32; 5],
     /// Slope of piece wise linear function (nRF52 only)
     /// Address 0x520 - 0x534
     #[cfg(feature = "nrf52")]
     pub a: [ReadWrite<u32, A::Register>; 6],
-    pub _reserved5: [u32; 2],
+    _reserved5: [u32; 2],
     /// y-intercept of 5th piece wise linear function (nRF52 only)
     /// Address: 0x540 - 0x554
     #[cfg(feature = "nrf52")]
     pub b: [ReadWrite<u32, B::Register>; 6],
-    pub _reserved6: [u32; 2],
+    _reserved6: [u32; 2],
     /// End point of 1st piece wise linear function (nRF52 only)
     /// Address: 0x560 - 0x570
     #[cfg(feature = "nrf52")]
@@ -115,9 +112,9 @@ pub struct Temp<'a> {
 }
 
 impl<'a> Temp<'a> {
-    pub const fn new() -> Temp<'a> {
+    pub const fn new(registers: StaticRef<TempRegisters>) -> Temp<'a> {
         Temp {
-            registers: TEMP_BASE,
+            registers,
             client: OptionalCell::empty(),
         }
     }
