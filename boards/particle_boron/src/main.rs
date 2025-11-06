@@ -191,18 +191,9 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
-    let ieee802154_ack_buf = static_init!(
-        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
-        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
-    );
-    // Initialize chip peripheral drivers
-    let nrf52840_peripherals = static_init!(
-        Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
-    );
-
-    nrf52840_peripherals
+unsafe fn create_peripherals() -> &'static Nrf52840DefaultPeripherals<'static> {
+    nrf52840::components::Nrf52840DefaultPeripheralsComponent::new()
+        .finalize(nrf52840::nrf52840_default_peripherals_component_static!())
 }
 
 /// This is in a separate, inline(never) function so that its stack frame is
@@ -217,9 +208,6 @@ pub unsafe fn start_particle_boron() -> (
     nrf52840::init();
 
     let nrf52840_peripherals = create_peripherals();
-
-    // set up circular peripheral dependencies
-    nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     // Save a reference to the power module for resetting the board into the

@@ -17,9 +17,9 @@ use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::cells::NumericCellExt;
 use kernel::{capabilities, create_capability, static_init};
-use nrf52840::chip::Nrf52DefaultPeripherals;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
+use nrf52840::peripherals::Nrf52DefaultPeripherals;
 use nrf52_components::{UartChannel, UartPins};
 
 mod test;
@@ -105,18 +105,9 @@ impl CapsuleTestClient for TestLauncher {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
-    let ieee802154_ack_buf = static_init!(
-        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
-        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
-    );
-    // Initialize chip peripheral drivers
-    let nrf52840_peripherals = static_init!(
-        Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
-    );
-
-    nrf52840_peripherals
+unsafe fn create_peripherals() -> &'static Nrf52840DefaultPeripherals<'static> {
+    nrf52840::components::Nrf52840DefaultPeripheralsComponent::new()
+        .finalize(nrf52840::nrf52840_default_peripherals_component_static!())
 }
 
 impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>>
@@ -166,9 +157,6 @@ pub unsafe fn main() {
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let nrf52840_peripherals = create_peripherals();
-
-    // Set up circular peripheral dependencies.
-    nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     // Create an array to hold process references.

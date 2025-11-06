@@ -411,8 +411,6 @@ pub unsafe fn start_no_pconsole() -> (
     let nrf52840_peripherals = nrf52840::components::Nrf52840DefaultPeripheralsComponent::new()
         .finalize(nrf52840::nrf52840_default_peripherals_component_static!());
 
-    // Set up circular peripheral dependencies.
-    nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     // Configure kernel debug GPIOs as early as possible.
