@@ -48,7 +48,9 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 static mut PERIPHERALS: Option<&'static Esp32C3DefaultPeripherals> = None;
 // Test access to scheduler
 #[cfg(test)]
-static mut SCHEDULER: Option<&PrioritySched> = None;
+static mut SCHEDULER: Option<
+    &capsules_system::scheduler::priority::PrioritySched<ProcessManagementCapabilityObj>,
+> = None;
 // Test access to board
 #[cfg(test)]
 static mut BOARD: Option<&'static kernel::Kernel> = None;
