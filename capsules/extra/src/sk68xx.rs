@@ -16,7 +16,8 @@ use kernel::hil::led::Led;
 /// The single-wire, tri-color (RGB) LED.
 ///
 /// The pulses need to be calibrated based on the clock speed of the chip.
-/// - `T0H`: Number of nops needed for about 0.28 us. This is then scaled for T0L, T1H, and T1L.
+/// - `T0H`: Number of nops needed for about 0.28 us. This is then scaled for
+///   `T0L`, `T1H`, and `T1L`.
 pub struct Sk68xx<'a, P: Pin, const T0H: usize> {
     pin: &'a P,
     nop: fn(),
@@ -39,7 +40,8 @@ impl<'a, P: Pin, const T0H: usize> Sk68xx<'a, P, T0H> {
     pub fn init(&self) {
         self.pin.make_output();
         self.pin.clear();
-        for _ in 0..1000 {
+        // Wait for 80 us.
+        for _ in 0..(286 * T0H) {
             (self.nop)();
         }
     }
