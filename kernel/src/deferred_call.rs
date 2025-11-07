@@ -42,6 +42,19 @@
 //! use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 //! use kernel::static_init;
 //!
+//! // Don't use this! Use the actual `ThreadIdProvider` from your arch crate.
+//! struct DummyThreadIdProvider {}
+//! unsafe impl kernel::platform::chip::ThreadIdProvider for DummyThreadIdProvider {
+//!     fn running_thread_id() -> usize { 0 }
+//! }
+//!
+//! // Initialize the deferred call mechanism.
+//! #[cfg(target_has_atomic = "ptr")]
+//! kernel::deferred_call::initialize_deferred_call_state::<DummyThreadIdProvider>();
+//! #[cfg(not(target_has_atomic = "ptr"))]
+//! unsafe { kernel::deferred_call::initialize_deferred_call_state_unsafe::<DummyThreadIdProvider>(); }
+//!
+//!
 //! struct SomeCapsule {
 //!     deferred_call: DeferredCall
 //! }
@@ -165,7 +178,8 @@ pub fn initialize_deferred_call_state<P: ThreadIdProvider>() {
 /// # Safety
 ///
 /// Callers of this function must ensure that this function is never called
-/// concurrently with other calls to [`initialize_deferred_call_state_unsafe`].
+/// concurrently with calls to [`initialize_deferred_call_state`] or other calls
+/// to [`initialize_deferred_call_state_unsafe`].
 pub unsafe fn initialize_deferred_call_state_unsafe<P: ThreadIdProvider>() {
     CTR.bind_to_thread_unsafe::<P>();
     BITMASK.bind_to_thread_unsafe::<P>();
