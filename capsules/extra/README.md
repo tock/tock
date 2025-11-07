@@ -86,6 +86,7 @@ Support for wireless radios, network stacks and related infrastructure.
 - **[Ethernet Tap Driver](src/ethernet_tap.rs)**: Forwarding raw IEEE
   802.3 Ethernet frames from / to userspace. Useful for running
   network stacks in userspace.
+- **[WiFi Driver](src/wifi)**: Support for WiFi devices.
 
 Libraries
 ---------

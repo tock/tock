@@ -24,17 +24,28 @@ install: flash
 flash-openocd: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<;  reset; shutdown;"
 
+.PHONY: flash-probe
+flash-probe: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	probe-rs run $< --chip rp2040
+
 .PHONY: flash
 flash: $(KERNEL)
 	elf2uf2-rs $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2
 	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Raspberry Pi Pico Flash Drive Folder; echo You can download and flash $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2; fi
 
-.PHONY: program
-program: $(KERNEL)
+$(KERNEL_WITH_APP): $(KERNEL)
 ifeq ($(APP),)
 	$(error Please define the APP variable with the TBF file to flash an application)
 endif
-	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
+	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $@
+	arm-none-eabi-objcopy --update-section .apps=$(APP) $@
+
+.PHONY: program
+program: $(KERNEL_WITH_APP)
 	elf2uf2-rs $(KERNEL_WITH_APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2
 	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Raspberry Pi Pico Flash Drive Folder; echo You can download and flash $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2; fi
+
+.PHONY: program-probe
+program-probe: $(KERNEL_WITH_APP)
+	probe-rs run $< --chip rp2040
+
