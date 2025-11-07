@@ -111,3 +111,4 @@ pub mod udp_driver;
 pub mod udp_mux;
 pub mod usb;
 pub mod virtual_scheduler_timer;
+pub mod wifi;
