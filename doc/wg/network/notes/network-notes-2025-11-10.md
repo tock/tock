@@ -21,7 +21,7 @@
 - Leon: Tyler's Thread tests have been merged. Known as "tensile"
 - Tyler: Thread network testing. I named it tensile.
 - Tyler: Thanks Leon for sending that over the finish line.
-- Leon: The abstract for Treadmill is that you specify the board you want and you get a shell that can run stuff. Tyler wrote scripts that initialize a Pi which has four nRF52840s attached. There's one thread router, and three Tock devices that communicate with it. The python script checks that stuff runs and messages get delivered. Now running every night around 3am! And if it fails it should file a github issue tagging Tyler.
+- Leon: The abstraction for Treadmill is that you specify the board you want and you get a shell that can run stuff. Tyler wrote scripts that initialize a Pi which has four nRF52840s attached. There's one thread router, and three Tock devices that communicate with it. The python script checks that stuff runs and messages get delivered. Now running every night around 3am! And if it fails it should file a github issue tagging Tyler.
 - Tyler: It also tests that libtock-c 802.15.4 test applications. Checks that a payload is received.
 
 
