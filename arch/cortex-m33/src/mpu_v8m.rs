@@ -350,7 +350,7 @@ impl CortexMRegion {
         let logical_end = logical_start as usize + logical_size;
 
         // The end address must be aligned to 32 bytes.
-        if logical_end % 32 != 0 {
+        if !logical_end.is_multiple_of(32) {
             return None;
         }
 

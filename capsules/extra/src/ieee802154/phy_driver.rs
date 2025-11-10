@@ -377,7 +377,8 @@ impl<'a, R: hil::radio::Radio<'a>> hil::radio::RxClient for RadioDriver<'a, R> {
                         // conditional check (due to unsigned integer
                         // arithmetic).
                         if rbuf.len() <= RING_BUF_METADATA_SIZE
-                            || (rbuf.len() - RING_BUF_METADATA_SIZE) % USER_FRAME_MAX_SIZE != 0
+                            || !(rbuf.len() - RING_BUF_METADATA_SIZE)
+                                .is_multiple_of(USER_FRAME_MAX_SIZE)
                         {
                             return false;
                         }

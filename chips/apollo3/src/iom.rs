@@ -1492,7 +1492,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
                 || ((rate >= (48000000 / 3)) && (rate <= ((48000000 / 2) - 1))),
         );
         let denom = (1 << n) * (1 + (div3 * 2));
-        let tot_per = if div % denom > 0 {
+        let tot_per = if !div.is_multiple_of(denom) {
             (div / denom) + 1
         } else {
             div / denom

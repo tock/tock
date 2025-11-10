@@ -222,7 +222,7 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
     }
 }
 #[no_mangle]
-unsafe extern "cdecl" fn main() {
+unsafe extern "C" fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the i486 platform

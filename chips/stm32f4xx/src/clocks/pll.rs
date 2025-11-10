@@ -349,7 +349,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         // Check if PLL48CLK is calibrated, e.g. its frequency is exactly 48MHz
         let pll48_frequency = vco_output_frequency / pllq as usize;
         self.pll48_calibrated
-            .set(pll48_frequency == 48 && vco_output_frequency % pllq as usize == 0);
+            .set(pll48_frequency == 48 && vco_output_frequency.is_multiple_of(pllq as usize));
 
         // Cache the frequency so it is not computed every time a get method is called
         self.frequency_mhz.set(desired_frequency_mhz);

@@ -591,7 +591,7 @@ enum AdcMode {
 /// This function is necessary since the DMA returns only `u8`-buffers
 /// whereas the ADC-traits only work with `u16`-buffers.
 unsafe fn buf_u8_to_buf_u16(buf: &'static mut [u8]) -> &'static mut [u16] {
-    if (buf.len() % 2) > 0 {
+    if !buf.len().is_multiple_of(2) {
         panic!("ADC: cannot convert an u8 array with an odd length to an u16 array");
     }
 
