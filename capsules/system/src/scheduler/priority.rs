@@ -14,43 +14,47 @@
 //! is running. The only way for a process to longer be the highest priority is
 //! for an interrupt to occur, which will cause the process to stop running.
 
-use crate::deferred_call::DeferredCall;
-use crate::kernel::Kernel;
-use crate::platform::chip::Chip;
-use crate::process::ProcessId;
-use crate::process::StoppedExecutingReason;
-use crate::scheduler::{Scheduler, SchedulingDecision};
-use crate::utilities::cells::OptionalCell;
+use kernel::capabilities::ProcessManagementCapability;
+use kernel::deferred_call::DeferredCall;
+use kernel::platform::chip::Chip;
+use kernel::process::ProcessId;
+use kernel::process::StoppedExecutingReason;
+use kernel::scheduler::{Scheduler, SchedulingDecision};
+use kernel::utilities::cells::OptionalCell;
+use kernel::Kernel;
 
 /// Priority scheduler based on the order of processes in the `PROCESSES` array.
-pub struct PrioritySched {
+pub struct PrioritySched<CAP: ProcessManagementCapability> {
     kernel: &'static Kernel,
-    running: OptionalCell<ProcessId>,
+    running: OptionalCell<(usize, ProcessId)>,
+    cap: CAP,
 }
 
-impl PrioritySched {
-    pub const fn new(kernel: &'static Kernel) -> Self {
+impl<CAP: ProcessManagementCapability> PrioritySched<CAP> {
+    pub const fn new(kernel: &'static Kernel, cap: CAP) -> Self {
         Self {
             kernel,
             running: OptionalCell::empty(),
+            cap,
         }
     }
 }
 
-impl<C: Chip> Scheduler<C> for PrioritySched {
+impl<C: Chip, CAP: ProcessManagementCapability> Scheduler<C> for PrioritySched<CAP> {
     fn next(&self) -> SchedulingDecision {
         // Iterates in-order through the process array, always running the
         // first process it finds that is ready to run. This enforces the
         // priorities of all processes.
         let next = self
             .kernel
-            .get_process_iter()
-            .find(|&proc| proc.ready())
-            .map(|proc| proc.processid());
+            .process_iter_capability(&self.cap)
+            .enumerate()
+            .find(|(_i, proc)| proc.ready())
+            .map(|(i, proc)| (i, proc.processid()));
         self.running.insert(next);
 
         next.map_or(SchedulingDecision::TrySleep, |next| {
-            SchedulingDecision::RunProcess((next, None))
+            SchedulingDecision::RunProcess((next.1, None))
         })
     }
 
@@ -63,12 +67,11 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
             || DeferredCall::has_tasks()
             || self
                 .kernel
-                .get_process_iter()
-                .find(|proc| proc.ready())
-                .is_some_and(|ready_proc| {
-                    self.running.map_or(false, |running| {
-                        ready_proc.processid().index < running.index
-                    })
+                .process_iter_capability(&self.cap)
+                .enumerate()
+                .find(|(_i, proc)| proc.ready())
+                .is_some_and(|(i, _ready_proc)| {
+                    self.running.map_or(false, |running| i < running.0)
                 }))
     }
 

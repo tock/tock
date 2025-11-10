@@ -17,7 +17,6 @@ use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
-use kernel::scheduler::mlfq::MLFQSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, debug, static_init};
@@ -111,6 +110,10 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x2000}
 
+type AlarmHw =
+    litex_vexriscv::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>;
+type Scheduler = components::sched::mlfq::MLFQComponentType<AlarmHw>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LiteXArty {
@@ -151,18 +154,7 @@ struct LiteXArty {
         >,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static MLFQSched<
-        'static,
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >,
+    scheduler: &'static Scheduler,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,
@@ -199,18 +191,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = MLFQSched<
-        'static,
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >;
+    type Scheduler = Scheduler;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,
@@ -609,17 +590,8 @@ unsafe fn start() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, processes).finalize(
-        components::mlfq_component_static!(
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-            NUM_PROCS
-        ),
-    );
+    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, processes)
+        .finalize(components::mlfq_component_static!(AlarmHw, NUM_PROCS));
 
     let litex_arty = LiteXArty {
         console,

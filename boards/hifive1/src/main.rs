@@ -20,7 +20,6 @@ use kernel::hil::led::LedLow;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
-use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::Kernel;
 use kernel::{create_capability, debug, static_init};
@@ -46,6 +45,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x900}
 
+type Scheduler = components::sched::cooperative::CooperativeComponentType;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
@@ -63,7 +64,7 @@ struct HiFive1 {
         'static,
         VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>,
     >,
-    scheduler: &'static CooperativeSched<'static>,
+    scheduler: &'static Scheduler,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>,
     >,
@@ -91,7 +92,7 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = CooperativeSched<'static>;
+    type Scheduler = Scheduler;
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>>;
     type WatchDog = ();
