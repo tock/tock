@@ -356,6 +356,7 @@ mod flux_specs {
     }
 
     // ======= RingBuffer spec ===========
+    use crate::collections;
     #[flux::specs {
         mod collections {
             mod ring_buffer {
