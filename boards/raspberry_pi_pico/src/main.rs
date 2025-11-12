@@ -42,8 +42,8 @@ use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::i2c::I2c;
 use rp2040::pio_gspi::PioGSpi;
 use rp2040::resets::Peripheral;
-use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
+use rp2040::{dma, pio, sysinfo};
 
 mod io;
 
@@ -579,34 +579,19 @@ pub unsafe fn start() -> (
     i2c0.set_master_client(i2c);
 
     let wifi = WIFI.then(|| {
-        let pio_pwr = peripherals.pins.get_pin(RPGpio::GPIO23);
-        pio_pwr.make_output();
+        let cs = peripherals.pins.get_pin(RPGpio::GPIO25);
+        cs.make_output();
 
-        let pio_cs = peripherals.pins.get_pin(RPGpio::GPIO25);
-        pio_cs.make_output();
-
-        peripherals.pins.get_pin(RPGpio::GPIO25).make_output();
-
-        let dma_channel = peripherals.dma.channel(rp2040::dma::Channel::Channel0);
-        dma_channel.enable_interrupt(rp2040::dma::Irq::Irq0);
-
-        let pio_cyw = static_init!(
-            PioGSpi<'static>,
-            PioGSpi::new(
-                &peripherals.pio0,
-                dma_channel,
-                RPGpio::GPIO29 as u32,
-                RPGpio::GPIO24 as u32,
-                RPGpioPin::new(RPGpio::GPIO25),
-                rp2040::pio::SMNumber::SM0,
-            )
-        );
-
-        dma_channel.set_client(pio_cyw);
-
-        let sm = peripherals.pio0.sm(pio_cyw.sm_number());
-        pio_cyw.init();
-        sm.set_sm_client(pio_cyw);
+        let pio_gspi = components::pio_gspi::PioGspiComponent::new(
+            &peripherals.pio0,
+            pio::SMNumber::SM0,
+            peripherals.dma.channel(dma::Channel::Channel0),
+            dma::Irq::Irq0,
+            RPGpio::GPIO29,
+            RPGpio::GPIO24,
+            cs,
+        )
+        .finalize(components::pio_gpsi_component_static!());
 
         let (fw, nvram, clm) = (
             cyw43::cyw43439::FW,
@@ -614,19 +599,20 @@ pub unsafe fn start() -> (
             cyw43::cyw43439::CLM,
         );
 
-        let bus =
-            components::cyw4343::CYW4343xSpiBusComponent::new(mux_alarm, pio_cyw, fw, nvram)
-                .finalize(components::cyw4343x_spi_bus_component_static!(
-                    PioGSpi<'static>,
-                    RPTimer
-                ));
-        pio_cyw.set_irq_client(bus);
-        let device = components::cyw4343::CYW4343xComponent::new(pio_pwr, mux_alarm, bus, clm)
-            .finalize(components::cyw4343_component_static!(
-                RPGpioPin,
-                RPTimer,
-                CYW4343xSpiBus
+        let pwr = peripherals.pins.get_pin(RPGpio::GPIO23);
+        pwr.make_output();
+
+        let bus = components::cyw4343::CYW4343xSpiBusComponent::new(mux_alarm, pio_gspi, fw, nvram)
+            .finalize(components::cyw4343x_spi_bus_component_static!(
+                PioGSpi<'static>,
+                RPTimer
             ));
+        pio_gspi.set_irq_client(bus);
+
+        let device =
+            components::cyw4343::CYW4343xComponent::new(pwr, mux_alarm, bus, clm).finalize(
+                components::cyw4343_component_static!(RPGpioPin, RPTimer, CYW4343xSpiBus),
+            );
         components::wifi::WifiComponent::new(board_kernel, capsules_extra::wifi::DRIVER_NUM, device)
             .finalize(components::wifi_component_static!(CYW4343xDriver))
     });
