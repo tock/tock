@@ -82,17 +82,17 @@ pub(crate) const CLM_DOWNLOAD_TYPE: u16 = 0x2;
 pub(crate) const MAX_SPI_BP_CHUNK_SIZE: usize = 64;
 pub(crate) const NVRAM_END: u32 = RAM_BASE_ADDR + RAM_SIZE - 4;
 
-#[macro_export]
 macro_rules! backplane_window_bits {
     ($addr:expr) => {
-        ($addr & !$crate::utils::BACKPLANE_ADDRESS_MASK) >> 8
+        ($addr & !$crate::cyw4343::utils::BACKPLANE_ADDRESS_MASK) >> 8
     };
 }
-
-#[macro_export]
 macro_rules! reset_and_restore_bufs {
     ($self: ident, $($buf:ident),*) => {{
         $($buf.reset();)*
         $($self.$buf.set($buf);)*
     }}
 }
+
+pub(crate) use backplane_window_bits;
+pub(crate) use reset_and_restore_bufs;

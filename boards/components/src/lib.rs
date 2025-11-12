@@ -29,6 +29,7 @@ pub mod chirp_i2c_moisture;
 pub mod console;
 pub mod crc;
 pub mod ctap;
+pub mod cyw4343;
 pub mod dac;
 pub mod date_time;
 pub mod debug_writer;

@@ -80,13 +80,13 @@ type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureRp2040Sensor>;
 
-type CYW4343xSpiBus = cyw4343::spi_bus::CYW4343xSpiBus<
+type CYW4343xSpiBus = capsules_extra::cyw4343::spi_bus::CYW4343xSpiBus<
     'static,
     PioGSpi<'static>,
     VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
 >;
 
-type CYW4343xDriver = cyw4343::CYW4343x<
+type CYW4343xDriver = capsules_extra::cyw4343::CYW4343x<
     'static,
     RPGpioPin<'static>,
     VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
@@ -614,13 +614,19 @@ pub unsafe fn start() -> (
             cyw43::cyw43439::CLM,
         );
 
-        let bus = cyw4343::CYW4343xSpiBusComponent::new(mux_alarm, pio_cyw, fw, nvram).finalize(
-            cyw4343::cyw4343x_spi_bus_component_static!(PioGSpi<'static>, RPTimer),
-        );
+        let bus =
+            components::cyw4343::CYW4343xSpiBusComponent::new(mux_alarm, pio_cyw, fw, nvram)
+                .finalize(components::cyw4343x_spi_bus_component_static!(
+                    PioGSpi<'static>,
+                    RPTimer
+                ));
         pio_cyw.set_irq_client(bus);
-        let device = cyw4343::CYW4343xComponent::new(pio_pwr, mux_alarm, bus, clm).finalize(
-            cyw4343::cyw4343_component_static!(RPGpioPin, RPTimer, CYW4343xSpiBus),
-        );
+        let device = components::cyw4343::CYW4343xComponent::new(pio_pwr, mux_alarm, bus, clm)
+            .finalize(components::cyw4343_component_static!(
+                RPGpioPin,
+                RPTimer,
+                CYW4343xSpiBus
+            ));
         components::wifi::WifiComponent::new(board_kernel, capsules_extra::wifi::DRIVER_NUM, device)
             .finalize(components::wifi_component_static!(CYW4343xDriver))
     });

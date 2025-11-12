@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-use crate::spi_bus;
-use crate::CYW4343x;
-use crate::CYW4343xBus;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_extra::cyw4343::spi_bus;
+use capsules_extra::cyw4343::CYW4343x;
+use capsules_extra::cyw4343::CYW4343xBus;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::{gpio, spi, time};
@@ -19,7 +19,7 @@ macro_rules! cyw4343_component_static {
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );
         let driver = kernel::static_buf!(
-            $crate::CYW4343x<
+            capsules_extra::cyw4343::CYW4343x<
                 'static,
                 $P,
                 capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
@@ -93,13 +93,13 @@ impl<
 #[macro_export]
 macro_rules! cyw4343x_spi_bus_component_static {
     ($S:ty, $A:ty) => {{
-        let extra = kernel::static_buf!([u8; $crate::spi_bus::WORD_SIZE]);
-        let buffer = kernel::static_buf!([u8; $crate::spi_bus::MAX_PACKET_SIZE]);
+        let extra = kernel::static_buf!([u8; capsules_extra::cyw4343::spi_bus::WORD_SIZE]);
+        let buffer = kernel::static_buf!([u8; capsules_extra::cyw4343::spi_bus::MAX_PACKET_SIZE]);
         let alarm = kernel::static_buf!(
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );
         let bus = kernel::static_buf!(
-            $crate::spi_bus::CYW4343xSpiBus<
+            capsules_extra::cyw4343::spi_bus::CYW4343xSpiBus<
                 'static,
                 $S,
                 capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,

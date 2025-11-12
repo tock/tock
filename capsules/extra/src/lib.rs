@@ -34,6 +34,7 @@ pub mod ccs811;
 pub mod chirp_i2c_moisture;
 pub mod crc;
 pub mod cycle_count;
+pub mod cyw4343;
 pub mod dac;
 pub mod date_time;
 pub mod debug_process_restart;

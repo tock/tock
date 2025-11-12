@@ -4,13 +4,47 @@
 
 //! CYW4343x SDPCM protocol headers and packet types
 
+use crate::wifi;
 use core::ffi::CStr;
-
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 
-use capsules_extra::wifi;
-
+/// Macro for parsing into/from bytes for structs that represent protocol packet headers.
+/// This generates an `impl` block with `into_bytes` and `from_bytes` const methods and an
+/// associated `SIZE` constant for the struct size in bytes.
+///
+/// ## Example
+///
+/// ```rust,ignore
+/// // Usage
+///
+/// parse!{
+///     #[derive(Debug)]
+///     struct Header {
+///         data: u32,
+///         crc: u8,
+///         another_field: [u8; 10]
+///     }
+/// };
+///
+/// // This generates:
+///
+/// #[derive(Debug)]
+/// struct Header {
+///     data: u32,
+///     crc: u8,
+///     another_field: [u8; 10]
+/// }
+/// impl Header {
+///     pub const SIZE: usize = core::mem::size_of::<Self>();
+///     pub const fn into_bytes(self) -> [u8; Self::SIZE] {
+///         // ...
+///     }
+///     pub const fn from_bytes(__bytes: &[u8]) -> Self {
+///         // ...
+///     }
+/// }
+/// ```
 macro_rules! parse {
     (
         $(#[$attr_struct:meta])* $vis_struct:vis struct $name:ident { $($(#[$attr_field:meta])* $vis_field:vis $field:ident : $field_ty:tt),* $(,)? }
