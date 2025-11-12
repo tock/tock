@@ -1,12 +1,12 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
+// Copyright OxidOS Automotive 2025.
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
 use kernel::debug::{self, IoWrite};
-use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
 
@@ -88,20 +88,18 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    // LED is connected to GPIO 25
-
     use core::ptr::{addr_of, addr_of_mut};
-    let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25);
-    let led = &mut LedHigh::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic(
-        &mut [led],
+    debug::panic_print(
         writer,
         pi,
         &cortexm0p::support::nop,
         PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
-    )
+    );
+
+    // Loop forever
+    loop {}
 }
