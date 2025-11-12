@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
+use super::common;
 use super::State as BusState;
 use super::{CYW4343xBus, CYW4343xBusClient, Function, RegLen, Type};
-use crate::bus::common;
-use crate::utils;
-use crate::{backplane_window_bits, reset_and_restore_bufs};
+use crate::cyw4343::utils;
 use core::cell::Cell;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::hil::time::ConvertTicks;
@@ -15,6 +14,7 @@ use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::register_bitfields;
 use kernel::{utilities::cells::OptionalCell, ErrorCode};
 use task::GspiTask;
+use utils::{backplane_window_bits, reset_and_restore_bufs};
 
 /// Max packet size is max payload size + 1 command/status word
 pub const MAX_PACKET_SIZE: usize = MAX_PAYLOAD_SIZE + CMD_SIZE;
@@ -642,8 +642,7 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> gpio::Client
 }
 
 mod init {
-    use crate::bus;
-    use crate::utils;
+    use crate::cyw4343::{bus, utils};
     use bus::common;
     use bus::spi::{bus_init, wakeup};
     use bus::RegLen::Word;
@@ -723,7 +722,7 @@ mod init {
 
 mod bus_init {
     use super::task::GspiTask;
-    use crate::{bus, utils};
+    use crate::cyw4343::{bus, utils};
     use bus::common::{eq, mask};
     use bus::Function::{Backplane as Bp, Bus};
     use bus::RegLen::{Byte, Word};
@@ -785,7 +784,7 @@ mod bus_init {
 
 mod wakeup {
     use super::task::GspiTask;
-    use crate::{bus, utils};
+    use crate::cyw4343::{bus, utils};
     use bus::common::mask;
     use bus::Function::{Backplane as Bp, Bus};
     use bus::RegLen::{Byte, HalfWord, Word};
@@ -835,7 +834,7 @@ mod wakeup {
 
 mod task {
     use super::{cmd16, cmd32};
-    use crate::{bus, utils};
+    use crate::cyw4343::{bus, utils};
     use bus::{common, Function, RegLen, Type};
 
     type Cmd = u32;

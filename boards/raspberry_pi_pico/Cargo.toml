@@ -19,7 +19,6 @@ enum_primitive = { path = "../../libraries/enum_primitive" }
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
-cyw4343 = { path = "../../capsules/cyw4343" }
 
 # Exports the firmware blobs
 cyw43 = { git = "https://github.com/tock/firmware.git" }

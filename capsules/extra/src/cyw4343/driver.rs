@@ -2,8 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-use crate::{bus, sdpcm, utils};
-use capsules_extra::wifi;
+//! Driver for CYW4343x
+//!
+//! The driver handles encoding/decoding SDPCM protocol packets:
+//! - CDC = control packets
+//! - BDC = data/Ethernet packets
+//!
+//! Control packets are chained to implement WiFi functionalities (see `tasks`) and data packets
+//! are used to implement the Ethernet interface.
+
+use super::{bus, sdpcm, utils};
+use crate::wifi;
 use core::cell::Cell;
 use core::iter::{Enumerate, Peekable};
 use core::slice::Chunks;
@@ -12,6 +21,7 @@ use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{hil, ErrorCode};
+use utils::reset_and_restore_bufs;
 
 /// Current state of the CYW43x device driver
 #[derive(Clone, Copy, Debug, Default)]
@@ -811,7 +821,7 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>> bu
 /// This module defines lists of IOCTL operations needed
 /// for each functionality required by the WiFi device interface.
 mod ioctl {
-    use crate::sdpcm::{self, IoctlCommand};
+    use crate::cyw4343::sdpcm::{self, IoctlCommand};
     use core::cell::Cell;
     use kernel::utilities::cells::OptionalCell;
 
@@ -1068,7 +1078,7 @@ mod ioctl {
     pub mod join_wpa {
         use super::sdpcm::Iovar;
         use super::{IoctlCommand as Cmd, IoctlData as Data, Op};
-        use crate::utils;
+        use crate::cyw4343::utils;
 
         mod wpa1 {
             pub(super) const MFP: u32 = 0;
@@ -1138,7 +1148,7 @@ mod ioctl {
     pub mod start_scan {
         use super::sdpcm::Iovar;
         use super::{IoctlData as Data, Op};
-        use crate::{sdpcm, utils};
+        use crate::cyw4343::{sdpcm, utils};
 
         pub const SCAN_PARAMS: [u8; sdpcm::ScanParams::SIZE] = sdpcm::ScanParams {
             version: 1,
@@ -1165,7 +1175,7 @@ mod ioctl {
     pub mod stop_scan {
         use super::sdpcm::Iovar;
         use super::{IoctlData as Data, Op};
-        use crate::{sdpcm, utils};
+        use crate::cyw4343::{sdpcm, utils};
 
         pub const SCAN_PARAMS: [u8; sdpcm::ScanParams::SIZE] = sdpcm::ScanParams {
             version: 1,

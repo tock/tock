@@ -71,7 +71,6 @@ members = [
     "capsules/aes_gcm",
     "capsules/ecdsa_sw",
     "capsules/core",
-    "capsules/cyw4343",
     "capsules/extra",
     "capsules/system",
     "chips/apollo3",

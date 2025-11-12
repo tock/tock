@@ -2,6 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
+//! Common interface for CYW4343x buses. The buses support 2 functions:
+//! F0: Standard bus function. These packets are used to write/read the chip's registers (e.g.
+//! disable overflow interrupts)
+//! F1: Backplane function. These packets are used to access the internal address space (e.g.
+//! writing the firmware)
+//! F2: WLAN function. These packets are used for WLAN data.
+//!
+//! F0 and F1 functions are used in the configuring/initialisation process of each bus
+//! implementation (setting up registers, loading binaries).
+//!
+//! F2 is used for reading/writing WLAN packets. The bus implementation should only handle
+//! sending data as F2 packets and it should expect that the protocol headers have been added by
+//! the upper layer.
+//!
+//! The bus should be responsible for handling interrupts from the chip and notify the clients of
+//! incoming data with the `packet_available` method or with the `State::Available` state.
+
 use kernel::utilities::leasable_buffer::SubSliceMut;
 
 mod common;
@@ -95,6 +112,6 @@ pub trait CYW4343xBusClient {
         rval: Result<(), kernel::ErrorCode>,
     );
 
-    /// An F2 (WLAN) packet is done read
+    /// An F2 (WLAN) packet is available
     fn packet_available(&self, len: usize);
 }
