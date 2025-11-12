@@ -36,7 +36,7 @@ pub struct PioGSpi<'a> {
     dma: &'a DmaChannel<'a>,
     clock_pin: u32,
     dio_pin: u32,
-    cs_pin: RPGpioPin<'a>,
+    cs_pin: &'a RPGpioPin<'a>,
     sm_number: SMNumber,
     write_buffer: OptionalCell<SubSliceMut<'static, u8>>,
     read_buffer: OptionalCell<SubSliceMut<'static, u8>>,
@@ -58,7 +58,7 @@ impl<'a> PioGSpi<'a> {
         dma: &'a DmaChannel<'a>,
         clock_pin: u32,
         dio_pin: u32,
-        cs_pin: RPGpioPin<'a>,
+        cs_pin: &'a RPGpioPin<'a>,
         sm_number: SMNumber,
     ) -> Self {
         Self {
