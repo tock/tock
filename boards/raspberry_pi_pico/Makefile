@@ -4,17 +4,20 @@
 
 # Makefile for building the tock kernel for the Pico Explorer Base board.
 
+# Get current directory for openocd configs path so this Makefile
+# can be included in others
+curr:=$(dir $(lastword $(MAKEFILE_LIST)))
+
 include ../Makefile.common
 
 OPENOCD=openocd
 OPENOCD_INTERFACE=swd
-OPENOCD_OPTIONS=-f openocd-$(OPENOCD_INTERFACE).cfg
+OPENOCD_OPTIONS=-f $(curr)openocd-$(OPENOCD_INTERFACE).cfg
 
 BOOTSEL_FOLDER?=/media/$(USER)/RPI-RP2
 
 KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
-
 
 # Default target for installing the kernel.
 .PHONY: install

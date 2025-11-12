@@ -1,25 +1,25 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
 // Copyright OxidOS Automotive 2025.
 
-//! Tock kernel for the Raspberry Pi Pico.
-//!
-//! It is based on RP2040SoC SoC (Cortex M0+).
+//! Tock kernel for the Raspberry Pi Pico W.
 
 #![no_std]
 #![no_main]
 #![deny(missing_docs)]
 
-use components::led::LedsComponent;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
-use kernel::hil::led::LedHigh;
+use kernel::debug;
+use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::syscall::SyscallDriver;
-use kernel::{capabilities, create_capability, debug};
+use kernel::{capabilities, create_capability};
+use kernel::{scheduler::round_robin::RoundRobinSched, syscall::SyscallDriver};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::gpio::{RPGpio, RPGpioPin};
+use rp2040::pio_gspi::PioGSpi;
+use rp2040::timer::RPTimer;
+use rp2040::{dma, pio};
 
 mod io;
 
@@ -30,25 +30,40 @@ kernel::stack_size! {0x1500}
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
+type CYW4343xSpiBus = capsules_extra::cyw4343::spi_bus::CYW4343xSpiBus<
+    'static,
+    PioGSpi<'static>,
+    VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
+>;
+
+type CYW4343xHw = capsules_extra::cyw4343::CYW4343x<
+    'static,
+    RPGpioPin<'static>,
+    VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
+    CYW4343xSpiBus,
+>;
+
+type WifiDriver = capsules_extra::wifi::WifiDriver<'static, CYW4343xHw>;
+
 /// Supported drivers by the platform
-pub struct RaspberryPiPico {
+pub struct RaspberryPiPicoW {
     base: raspberry_pi_pico::Platform,
-    led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
+    wifi: &'static WifiDriver,
 }
 
-impl SyscallDriverLookup for RaspberryPiPico {
+impl SyscallDriverLookup for RaspberryPiPicoW {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_extra::wifi::DRIVER_NUM => f(Some(self.wifi)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
 }
 
-impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for RaspberryPiPico {
+impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for RaspberryPiPicoW {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -86,7 +101,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
 #[inline(never)]
 pub unsafe fn start() -> (
     &'static kernel::Kernel,
-    RaspberryPiPico,
+    RaspberryPiPicoW,
     &'static rp2040::chip::Rp2040<'static, Rp2040DefaultPeripherals<'static>>,
 ) {
     // Initialize deferred calls very early.
@@ -99,16 +114,52 @@ pub unsafe fn start() -> (
     // Uncomment this to use UART0 as output for console caspule/debug writer/process console
     // let output = raspberry_pi_pico::Output::Uart;
 
-    let (board_kernel, base, peripherals, _, chip) = raspberry_pi_pico::setup(output);
+    let (board_kernel, base, peripherals, mux_alarm, chip) = raspberry_pi_pico::setup(output);
 
     // Set the UART used for panic
     (*core::ptr::addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
-    // LED
-    let led = LedsComponent::new().finalize(components::led_component_static!(
-        LedHigh<'static, RPGpioPin<'static>>,
-        LedHigh::new(peripherals.pins.get_pin(RPGpio::GPIO25))
-    ));
+    // WIFI
+
+    let cs = peripherals.pins.get_pin(RPGpio::GPIO25);
+    cs.make_output();
+
+    let pio_gspi = components::pio_gspi::PioGspiComponent::new(
+        &peripherals.pio0,
+        pio::SMNumber::SM0,
+        peripherals.dma.channel(dma::Channel::Channel0),
+        dma::Irq::Irq0,
+        RPGpio::GPIO29,
+        RPGpio::GPIO24,
+        cs,
+    )
+    .finalize(components::pio_gpsi_component_static!());
+
+    let (fw, nvram, clm) = (
+        tock_firmware_cyw43::cyw43439::FW,
+        tock_firmware_cyw43::cyw43439::NVRAM,
+        tock_firmware_cyw43::cyw43439::CLM,
+    );
+
+    let pwr = peripherals.pins.get_pin(RPGpio::GPIO23);
+    pwr.make_output();
+
+    let bus =
+        components::cyw4343::CYW4343xSpiBusComponent::new(mux_alarm, pio_gspi, fw, nvram).finalize(
+            components::cyw4343x_spi_bus_component_static!(PioGSpi<'static>, RPTimer),
+        );
+    pio_gspi.set_irq_client(bus);
+
+    let device = components::cyw4343::CYW4343xComponent::new(pwr, mux_alarm, bus, clm).finalize(
+        components::cyw4343_component_static!(RPGpioPin, RPTimer, CYW4343xSpiBus),
+    );
+
+    let wifi = components::wifi::WifiComponent::new(
+        board_kernel,
+        capsules_extra::wifi::DRIVER_NUM,
+        device,
+    )
+    .finalize(components::wifi_component_static!(CYW4343xHw));
 
     debug!("Initialization complete. Enter main loop");
 
@@ -145,7 +196,7 @@ pub unsafe fn start() -> (
         debug!("{:?}", err);
     });
 
-    let platform = RaspberryPiPico { base, led };
+    let platform = RaspberryPiPicoW { base, wifi };
 
     (board_kernel, platform, chip)
 }
@@ -156,7 +207,6 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-
     board_kernel.kernel_loop(
         &platform,
         chip,

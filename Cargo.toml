@@ -43,6 +43,7 @@ members = [
     "boards/pico_explorer_base",
     "boards/raspberry_pi_pico",
     "boards/raspberry_pi_pico_2",
+    "boards/raspberry_pi_pico_w",
     "boards/apollo3/redboard_artemis_atp",
     "boards/apollo3/redboard_artemis_nano",
     "boards/apollo3/lora_things_plus",
