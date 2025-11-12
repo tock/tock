@@ -15,7 +15,6 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use esp32_c3::chip::Esp32C3DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::priority::PrioritySched;
@@ -31,6 +30,9 @@ mod tests;
 const NUM_PROCS: usize = 4;
 
 type ChipHw = esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<'static>>;
+type AlarmHw = esp32_c3::timg::TimG<'static>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerNoMuxComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -76,7 +78,7 @@ struct Esp32C3Board {
         VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static>>,
     >,
     scheduler: &'static PrioritySched,
-    scheduler_timer: &'static VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
+    scheduler_timer: &'static SchedulerTimerHw,
     rng: &'static RngDriver,
 }
 
@@ -104,7 +106,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type ProcessFault = ();
     type ContextSwitchCallback = ();
     type Scheduler = PrioritySched;
-    type SchedulerTimer = VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
@@ -217,10 +219,12 @@ unsafe fn setup() -> (
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
-        VirtualSchedulerTimer::new(&peripherals.timg1)
-    );
+    let scheduler_timer_alarm = &peripherals.timg1;
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerNoMuxComponent::new(
+            scheduler_timer_alarm,
+        )
+        .finalize(components::virtual_scheduler_timer_no_mux_component_static!(AlarmHw));
 
     let chip = static_init!(
         esp32_c3::chip::Esp32C3<

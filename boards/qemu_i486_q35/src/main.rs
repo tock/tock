@@ -23,7 +23,6 @@ use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::ipc::IPC;
 use kernel::platform::chip::InterruptService;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -55,6 +54,9 @@ static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 const NUM_PROCS: usize = 4;
 
 type ChipHw = Pc<'static, (), ()>;
+type AlarmHw = Pit<'static, RELOAD_1KHZ>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -157,8 +159,7 @@ pub struct QemuI386Q35Platform {
     >,
     ipc: IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer:
-        &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>,
+    scheduler_timer: &'static SchedulerTimerHw,
     rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static>>>,
 }
 
@@ -205,8 +206,7 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
         self.scheduler
     }
 
-    type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>;
+    type SchedulerTimer = SchedulerTimerHw;
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
         self.scheduler_timer
     }
@@ -301,13 +301,6 @@ unsafe extern "cdecl" fn main() {
         MuxAlarm::new(chip.pit),
     );
     hil::time::Alarm::set_alarm_client(chip.pit, mux_alarm);
-
-    // Virtual alarm for the scheduler
-    let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    systick_virtual_alarm.setup();
 
     // Virtual alarm and driver for userspace
     let virtual_alarm_user = static_init!(
@@ -480,10 +473,11 @@ unsafe extern "cdecl" fn main() {
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
 
     let platform = QemuI386Q35Platform {
         pconsole,
