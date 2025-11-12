@@ -21,7 +21,7 @@ capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 # Exports the firmware blobs
-cyw43 = { git = "https://github.com/tock/firmware.git" }
+cyw43-firmware = { git = "https://github.com/tock/firmware.git", package = "cyw43" }
 
 [build-dependencies]
 tock_build_scripts = { path = "../build_scripts" }

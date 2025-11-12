@@ -594,9 +594,9 @@ pub unsafe fn start() -> (
         .finalize(components::pio_gpsi_component_static!());
 
         let (fw, nvram, clm) = (
-            cyw43::cyw43439::FW,
-            cyw43::cyw43439::NVRAM,
-            cyw43::cyw43439::CLM,
+            cyw43_firmware::cyw43439::FW,
+            cyw43_firmware::cyw43439::NVRAM,
+            cyw43_firmware::cyw43439::CLM,
         );
 
         let pwr = peripherals.pins.get_pin(RPGpio::GPIO23);
