@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-use super::{Client, Device};
-use crate::wifi::{len, Security, Ssid, Wpa3Passphrase, WpaPassphrase};
+use crate::wifi::{len, Client, Device, Passphrase, Security, Ssid};
+use enum_primitive::cast::FromPrimitive;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
@@ -40,11 +40,11 @@ mod upcall {
     pub const SCAN: usize = 5;
     pub const STOP_SCAN: usize = 6;
 
+    // Scan result/scan done
     pub const SCAN_RES: usize = 7;
-    pub const SCAN_DONE: usize = 8;
 
     /// The number of upcalls the kernel stores for this grant
-    pub const COUNT: u8 = 9;
+    pub const COUNT: u8 = 8;
 }
 
 /// Wifi security options encodings
@@ -112,19 +112,13 @@ impl<'a, D: Device<'a>> WifiDriver<'a, D> {
         &self,
         process_id: ProcessId,
         security: usize,
-    ) -> Result<(Ssid, Option<Security>), ErrorCode> {
+    ) -> Result<(Ssid, Option<(Security, Passphrase)>), ErrorCode> {
         self.grants.enter(process_id, |_, kernel_data| {
             let ssid = kernel_data
                 .get_readonly_processbuffer(ro_allow::SSID)
                 .and_then(|buf| {
-                    buf.enter(|buf| {
-                        if buf.len() > len::SSID {
-                            return Err(ErrorCode::SIZE);
-                        }
-                        let mut ssid = Ssid {
-                            len: buf.len() as _,
-                            ..Default::default()
-                        };
+                    buf.enter(|buf| -> Result<Ssid, ErrorCode> {
+                        let mut ssid = Ssid::try_new(buf.len() as _)?;
                         buf.copy_to_slice(&mut ssid.buf[..buf.len()]);
                         Ok(ssid)
                     })
@@ -132,42 +126,25 @@ impl<'a, D: Device<'a>> WifiDriver<'a, D> {
                 .map_err(ErrorCode::from)??;
             let security = match security {
                 security::OPEN => None,
-                wpa @ security::WPA..security::WPA3 => Some(
-                    kernel_data
-                        .get_readonly_processbuffer(ro_allow::PASS)
-                        .and_then(|buf| {
-                            buf.enter(|buf| {
-                                // WPA passphrase
-                                if wpa <= security::WPA2 && buf.len() < len::WPA_PASSPHRASE {
-                                    let mut passphrase = WpaPassphrase {
-                                        len: buf.len() as _,
-                                        ..Default::default()
-                                    };
-                                    passphrase.len = buf.len() as _;
-                                    buf.copy_to_slice(&mut passphrase.buf[..buf.len()]);
-                                    if wpa == security::WPA {
-                                        return Ok(Security::Wpa(passphrase));
-                                    } else {
-                                        return Ok(Security::Wpa2(passphrase));
+                wpa @ (security::WPA | security::WPA3 | security::WPA2 | security::WPA2_WPA3) => {
+                    Some(
+                        kernel_data
+                            .get_readonly_processbuffer(ro_allow::PASS)
+                            .and_then(|buf| {
+                                buf.enter(|buf| {
+                                    if buf.len() < len::WPA_PASSPHRASE_MIN {
+                                        return Err(ErrorCode::INVAL);
                                     }
-                                }
-                                // WPA3 passphrase
-                                if wpa >= security::WPA2_WPA3 && buf.len() < len::WPA3_PASSPHRASE {
-                                    let mut passphrase = Wpa3Passphrase {
-                                        len: buf.len() as _,
-                                        ..Default::default()
-                                    };
+                                    let mut passphrase = Passphrase::try_new(buf.len() as _)?;
                                     buf.copy_to_slice(&mut passphrase.buf[..buf.len()]);
-                                    if wpa == security::WPA2_WPA3 {
-                                        return Ok(Security::Wpa2Wpa3(passphrase));
-                                    } else {
-                                        return Ok(Security::Wpa3(passphrase));
-                                    }
-                                }
-                                Err(ErrorCode::INVAL)
-                            })
-                        })??,
-                ),
+                                    let security =
+                                        Security::from_usize(wpa).ok_or(ErrorCode::INVAL)?;
+
+                                    Ok((security, passphrase))
+                                })
+                            })??,
+                    )
+                }
                 _ => Err(ErrorCode::INVAL)?,
             };
             Ok((ssid, security))
@@ -300,12 +277,10 @@ impl<'a, D: Device<'a>> Client for WifiDriver<'a, D> {
         });
     }
 
-    // TODO: Maybe set the same callback for `scan_done` and `scanned_network` and just set the len
-    // to 0 when scanning is done.
     fn scan_done(&self) {
         self.process_id.map(|process_id| {
             self.grants.enter(process_id, |_, kernel_data| {
-                let _ = kernel_data.schedule_upcall(upcall::SCAN_DONE, (0, 0, 0));
+                let _ = kernel_data.schedule_upcall(upcall::SCAN_RES, (0, 0, 0));
             })
         });
     }
@@ -318,11 +293,12 @@ impl<'a, D: Device<'a>> Client for WifiDriver<'a, D> {
                         .get_readwrite_processbuffer(rw_allow::SCAN_SSID)
                         .and_then(|buf| {
                             buf.mut_enter(|buf| {
-                                let len = usize::min(ssid.len as _, buf.len());
+                                let len = usize::min(ssid.len.get() as _, buf.len());
                                 buf[..len].copy_from_slice(&ssid.buf[..len]);
                             })
                         });
-                    let _ = kernel_data.schedule_upcall(upcall::SCAN_RES, (ssid.len as _, 0, 0));
+                    let _ =
+                        kernel_data.schedule_upcall(upcall::SCAN_RES, (ssid.len.get() as _, 0, 0));
                 })
                 .unwrap();
         });

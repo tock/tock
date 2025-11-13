@@ -86,7 +86,7 @@ pub struct CYW4343x<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4
     /// SSID
     ssid: OptionalCell<wifi::Ssid>,
     /// Security passphrase
-    security: OptionalCell<wifi::Security>,
+    security: OptionalCell<wifi::Passphrase>,
     /// Wifi channel
     channel: OptionalCell<u8>,
     /// Current async operation (the chip may send a SDPCM response packet anytime)
@@ -314,62 +314,53 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
 
     /// Do a IOCTL operation
     fn ioctl(&self, ioctl: ioctl::Ioctl) -> Result<(), ErrorCode> {
-        let data =
-            match ioctl.data {
-                ioctl::IoctlData::Empty => &[],
-                ioctl::IoctlData::Word(ref bytes) => &bytes[..],
-                ioctl::IoctlData::DWord(ref bytes) => &bytes[..],
-                ioctl::IoctlData::BssSsid => &self
-                    .ssid
-                    .take()
-                    .map(|wifi::Ssid { len, buf }| {
-                        sdpcm::SsidInfoWithIndex {
-                            idx: 0,
-                            len: len as _,
-                            buf,
-                        }
-                        .into_bytes()
-                    })
-                    .ok_or(ErrorCode::FAIL)?,
-                ioctl::IoctlData::Ssid => &self
-                    .ssid
-                    .take()
-                    .map(|wifi::Ssid { len, buf }| {
-                        sdpcm::SsidInfo { len: len as _, buf }.into_bytes()
-                    })
-                    .ok_or(ErrorCode::FAIL)?,
-                ioctl::IoctlData::Wpa1Passphrase => &self.security.take().map_or(
-                    Err(ErrorCode::FAIL),
-                    |security| match security {
-                        wifi::Security::Wpa(passphrase) | wifi::Security::Wpa2(passphrase) => {
-                            Ok(sdpcm::PassphraseInfo::from_wpa1_to_bytes(passphrase))
-                        }
-                        wifi::Security::Wpa2Wpa3(passphrase) => {
-                            self.security.set(security);
-                            Ok(sdpcm::PassphraseInfo::from_wpa3_to_bytes(passphrase))
-                        }
-                        _ => Err(ErrorCode::FAIL),
-                    },
-                )?,
-                ioctl::IoctlData::Wpa3Passphrase => &self.security.take().map_or(
-                    Err(ErrorCode::FAIL),
-                    |security| match security {
-                        wifi::Security::Wpa2Wpa3(passphrase) | wifi::Security::Wpa3(passphrase) => {
-                            Ok(sdpcm::SaePassphraseInfo::from(passphrase).into_bytes())
-                        }
-                        _ => Err(ErrorCode::FAIL),
-                    },
-                )?,
-                ioctl::IoctlData::Channel => &self
-                    .channel
-                    .take()
-                    .map(|channel| [channel])
-                    .ok_or(ErrorCode::FAIL)?,
-                ioctl::IoctlData::ScanParameters => &ioctl::start_scan::SCAN_PARAMS,
-                ioctl::IoctlData::AbortScanParameters => &ioctl::stop_scan::SCAN_PARAMS,
-                ioctl::IoctlData::CountryInfo => &ioctl::init::COUNTRY_INFO,
-                ioctl::IoctlData::EventMask => &ioctl::init::EVENTS,
-            };
+        let data = match ioctl.data {
+            ioctl::IoctlData::Empty => &[],
+            ioctl::IoctlData::Word(ref bytes) => &bytes[..],
+            ioctl::IoctlData::DWord(ref bytes) => &bytes[..],
+            ioctl::IoctlData::BssSsid => &self
+                .ssid
+                .take()
+                .map(|wifi::Ssid { len, buf }| {
+                    sdpcm::SsidInfoWithIndex {
+                        idx: 0,
+                        len: len.get() as _,
+                        buf,
+                    }
+                    .into_bytes()
+                })
+                .ok_or(ErrorCode::FAIL)?,
+            ioctl::IoctlData::Ssid => &self
+                .ssid
+                .take()
+                .map(|wifi::Ssid { len, buf }| {
+                    sdpcm::SsidInfo {
+                        len: len.get() as _,
+                        buf,
+                    }
+                    .into_bytes()
+                })
+                .ok_or(ErrorCode::FAIL)?,
+            ioctl::IoctlData::Wpa1Passphrase => &self
+                .security
+                .take()
+                .map(<[u8; sdpcm::PassphraseInfo::SIZE]>::from)
+                .ok_or(ErrorCode::FAIL)?,
+            ioctl::IoctlData::Wpa3Passphrase => &self
+                .security
+                .take()
+                .map(<[u8; sdpcm::SaePassphraseInfo::SIZE]>::from)
+                .ok_or(ErrorCode::FAIL)?,
+            ioctl::IoctlData::Channel => &self
+                .channel
+                .take()
+                .map(|channel| [channel])
+                .ok_or(ErrorCode::FAIL)?,
+            ioctl::IoctlData::ScanParameters => &ioctl::start_scan::SCAN_PARAMS,
+            ioctl::IoctlData::AbortScanParameters => &ioctl::stop_scan::SCAN_PARAMS,
+            ioctl::IoctlData::CountryInfo => &ioctl::init::COUNTRY_INFO,
+            ioctl::IoctlData::EventMask => &ioctl::init::EVENTS,
+        };
 
         if let Some(name) = ioctl.name {
             const MAX_LEN: usize = sdpcm::SaePassphraseInfo::SIZE + sdpcm::MAX_IOVAR_LEN;
@@ -471,12 +462,8 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
                         }
                         data = &data[sdpcm::ScanResults::SIZE..];
                         let bss_info = sdpcm::BssInfo::from_bytes(&data[..sdpcm::BssInfo::SIZE]);
-                        if bss_info.ssid_len > 0 {
-                            let ssid = wifi::Ssid {
-                                buf: bss_info.ssid,
-                                len: bss_info.ssid_len as _,
-                            };
-
+                        if let Ok(mut ssid) = wifi::Ssid::try_new(bss_info.ssid_len) {
+                            ssid.buf = bss_info.ssid;
                             self.client.map(|client| client.scanned_network(ssid));
                         }
                     }
@@ -635,22 +622,22 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>> wi
     fn join(
         &self,
         ssid: wifi::Ssid,
-        security: Option<wifi::Security>,
+        security: Option<(wifi::Security, wifi::Passphrase)>,
     ) -> Result<(), kernel::ErrorCode> {
         if let State::NotInit = self.state.get() {
             return Err(ErrorCode::FAIL);
         }
 
-        if let Some(security) = security {
+        if let Some((security, passphrase)) = security {
             match security {
-                wifi::Security::Wpa(_) => self.init_tasks(&ioctl::join_wpa::WPA1)?,
-                wifi::Security::Wpa2(_) => self.init_tasks(&ioctl::join_wpa::WPA2)?,
-                wifi::Security::Wpa2Wpa3(_) => {
+                wifi::Security::Wpa => self.init_tasks(&ioctl::join_wpa::WPA1)?,
+                wifi::Security::Wpa2 => self.init_tasks(&ioctl::join_wpa::WPA2)?,
+                wifi::Security::Wpa2Wpa3 => {
                     self.init_tasks(&ioctl::join_wpa::WPA2_WPA3)?;
                 }
-                wifi::Security::Wpa3(_) => self.init_tasks(&ioctl::join_wpa::WPA3)?,
+                wifi::Security::Wpa3 => self.init_tasks(&ioctl::join_wpa::WPA3)?,
             }
-            self.security.set(security);
+            self.security.set(passphrase);
         } else {
             self.init_tasks(&ioctl::join_open::OPS)?;
         }
@@ -693,10 +680,10 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>> wi
     fn access_point(
         &self,
         ssid: wifi::Ssid,
-        security: Option<wifi::Security>,
+        security: Option<(wifi::Security, wifi::Passphrase)>,
         channel: u8,
     ) -> Result<(), kernel::ErrorCode> {
-        let (None | Some(wifi::Security::Wpa2(_))) = security else {
+        let (None | Some((wifi::Security::Wpa2, _))) = security else {
             return Err(ErrorCode::NOSUPPORT);
         };
 
@@ -704,9 +691,9 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>> wi
             return Err(ErrorCode::FAIL);
         }
 
-        if let Some(security) = security {
+        if let Some((_, passphrase)) = security {
             self.init_tasks(&ioctl::start_ap_wpa::OPS)?;
-            self.security.set(security);
+            self.security.set(passphrase);
         } else {
             self.init_tasks(&ioctl::start_ap::OPS)?;
         }
