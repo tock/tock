@@ -320,13 +320,16 @@ mod test {
 }
 
 // ===== Flux code ========
-// Below is a basic specification that checks:
+// Flux by-default checks:
 // 1. There are no division-by-zero errors
 // 2. There are no array bounds violations
-// 3. Some common-sense invariants (e.g., indexes into the RingBuffer are always valid)
+//
+// This spec is sufficient to prove the above two properties for RingBuffer,
+// as well as to prove some related, but stronger, well-formedness properties about RingBuffer
+// (e.g., indexes into the RingBuffer are always valid)
 //
 // If any of these properties could be violated either in the RingBuffer implementation or how it
-// is used anywhere in Tock, Flux would raise an error.
+// is used anywhere in Tock, Flux will raise an error.
 #[cfg(feature = "flux")]
 mod flux_specs {
     // Prelude: Here we provide some specifications for methods/types in the core library.
@@ -356,26 +359,26 @@ mod flux_specs {
     }
 
     // ======= RingBuffer spec ===========
+    #[allow(unused_imports)]
     use crate::collections::list::ListIterator;
     use crate::collections::queue::Queue;
     use crate::collections::ring_buffer::RingBuffer;
-    use core::iter::Iterator;
 
     #[flux::specs {
         // Specify well-formedness for RingBuffer<T>.
-        // Flux will raise an error if 1) any RingBuffer implementation violates these rules,
-        // Or 2) Any Tock code attempts to create a RingBuffer that violates these rules.
-        // At the bottom of this spec, we have included some example 
-        // test code that raises Flux errors for both of these cases.
+        // A well-formed RingBuffer has an internal slice (`ring`) that can store at least 1 element, and 
+        // a `head` and `tail` index, each of which must be less than the length of the internal slice. 
+        // This ensures that all indices `ring[head]` and `ring[tail]` are valid.
         #[refined_by(ring_len: int, hd: int, tl: int)]
         struct RingBuffer<T> {
-            ring: {&mut [T][ring_len] | ring_len > 1},
+            ring: {&mut [T][ring_len] | ring_len > 0},
             head: {usize[hd] | hd < ring_len},
             tail: {usize[tl] | tl < ring_len},
         }
 
         impl RingBuffer<T> {
-            // Example of a function-level spec.
+            // A simple function-level spec for the RingBuffer<T> constructor.
+            //
             // It has a precondition that the input slice is length > 1, so
             // every time RingBuffer::new() is called (throughout Tock), 
             // Flux will ensure the slice passed in has length > 1.
@@ -388,18 +391,16 @@ mod flux_specs {
             // Weaker vs stronger contracts is a design decision: it is easier to prove that a weak contract
             // holds in the implementation, but it lets you prove less in the rest of Tock (e.g., if there was code
             // that was only safe if head/tail was 0 after it called new, we could prove its safety only with the stronger contract).
-            fn new({&mut [T][@ring_len] | ring_len > 1}) -> RingBuffer<T>[ring_len, 0, 0];
+            fn new({&mut [T][@ring_len] | ring_len > 0}) -> RingBuffer<T>[ring_len, 0, 0];
         }
     
-        impl Queue<T> for RingBuffer<T> {
-            // Simple function-level contract. 
-            // See `new` example above for a discussion of contract design.
-            fn empty(self: &mut RingBuffer<T>[@old]) 
-                ensures self: RingBuffer<T>[old.ring_len, 0, 0];
-        
+        impl Queue<T> for RingBuffer<T> {        
             // These specs of the form: `(self: RingBuffer) ensures RingBuffer` 
             // are present to compensate for a current technical limitation of Flux,
             // and should be gone in the near future.
+            fn empty(self: &mut RingBuffer<T>[@old]) 
+                ensures self: RingBuffer<T>;
+                
             fn enqueue(self: &mut RingBuffer<T>, val: T) -> bool 
                 ensures self: RingBuffer<T>;
 
@@ -416,7 +417,7 @@ mod flux_specs {
                 ensures self: RingBuffer<T>;
         }
 
-        impl Iterator for ListIterator<T> {
+        impl core::iter::Iterator for ListIterator<T> {
             fn next(self: &mut ListIterator<T>) -> Option<&T> 
                 ensures self: ListIterator<T>;
         }
