@@ -254,21 +254,12 @@ parse!(
     }
 );
 
-impl PassphraseInfo {
-    pub(super) fn from_wpa1_to_bytes(value: wifi::WpaPassphrase) -> [u8; Self::SIZE] {
+impl From<wifi::Passphrase> for [u8; PassphraseInfo::SIZE] {
+    fn from(value: wifi::Passphrase) -> Self {
         let mut passphrase_info = [0u8; PassphraseInfo::SIZE];
-        passphrase_info[0..2].copy_from_slice(&(value.len as u16).to_le_bytes());
+        passphrase_info[0..2].copy_from_slice(&(value.len.get() as u16).to_le_bytes());
         passphrase_info[2..4].copy_from_slice(&1u16.to_le_bytes());
-        passphrase_info[4..][..64].copy_from_slice(&value.buf[..64]);
-        passphrase_info
-    }
-
-    pub(super) fn from_wpa3_to_bytes(value: wifi::Wpa3Passphrase) -> [u8; Self::SIZE] {
-        let mut passphrase_info = [0u8; PassphraseInfo::SIZE];
-        let len = u8::min(value.len, 64);
-        passphrase_info[0..2].copy_from_slice(&(len as u16).to_le_bytes());
-        passphrase_info[2..4].copy_from_slice(&1u16.to_le_bytes());
-        passphrase_info[4..][..64].copy_from_slice(&value.buf[..64]);
+        passphrase_info[4..][..wifi::len::WPA_PASSPHRASE_MAX].copy_from_slice(&value.buf);
         passphrase_info
     }
 }
@@ -280,12 +271,12 @@ parse!(
     }
 );
 
-impl From<wifi::Wpa3Passphrase> for SaePassphraseInfo {
-    fn from(value: wifi::Wpa3Passphrase) -> Self {
-        Self {
-            len: value.len as _,
-            buf: value.buf,
-        }
+impl From<wifi::Passphrase> for [u8; SaePassphraseInfo::SIZE] {
+    fn from(value: wifi::Passphrase) -> Self {
+        let mut sae_passphrase = [0u8; SaePassphraseInfo::SIZE];
+        sae_passphrase[0..2].copy_from_slice(&(value.len.get() as u16).to_le_bytes());
+        sae_passphrase[2..][..wifi::len::WPA_PASSPHRASE_MAX].copy_from_slice(&value.buf);
+        sae_passphrase
     }
 }
 

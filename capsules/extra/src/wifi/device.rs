@@ -7,47 +7,52 @@
 //! This interface provides high-level functionalities: scanning for networks, joining a network,
 //! configure as access point, get MAC address.
 
+use core::num::NonZeroU8;
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 use kernel::ErrorCode;
 
 /// Maximum lengths for buffers
 pub mod len {
     pub const SSID: usize = 32;
-    pub const WPA_PASSPHRASE: usize = 64;
-    pub const WPA3_PASSPHRASE: usize = 128;
+
+    pub const WPA_PASSPHRASE_MIN: usize = 8;
+    pub const WPA_PASSPHRASE_MAX: usize = 63;
 }
 
-/// Security method
-#[derive(Copy, Clone, Debug)]
-pub enum Security {
-    Wpa(WpaPassphrase),
-    Wpa2(WpaPassphrase),
-    Wpa2Wpa3(Wpa3Passphrase),
-    Wpa3(Wpa3Passphrase),
-}
+enum_from_primitive!(
+    /// Security method
+    #[derive(Copy, Clone, Debug)]
+    pub enum Security {
+        Wpa = 1,
+        Wpa2 = 2,
+        Wpa2Wpa3 = 3,
+        Wpa3 = 4,
+    }
+);
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Ssid {
-    pub len: u8,
-    pub buf: [u8; len::SSID],
-}
+pub type Ssid = Credential<{ len::SSID }>;
+pub type Passphrase = Credential<{ len::WPA_PASSPHRASE_MAX }>;
 
 #[derive(Clone, Copy, Debug)]
-pub struct Passphrase<const LEN: usize> {
-    pub len: u8,
+pub struct Credential<const LEN: usize> {
+    pub len: NonZeroU8,
     pub buf: [u8; LEN],
 }
 
-impl<const LEN: usize> Default for Passphrase<LEN> {
-    fn default() -> Self {
-        Self {
-            len: Default::default(),
-            buf: [0u8; LEN],
+impl<const LEN: usize> Credential<LEN> {
+    pub fn try_new(len: u8) -> Result<Self, ErrorCode> {
+        if len as usize > LEN {
+            return Err(ErrorCode::INVAL);
         }
+        let len = NonZeroU8::new(len).ok_or(ErrorCode::INVAL)?;
+
+        Ok(Self {
+            len,
+            buf: [0u8; LEN],
+        })
     }
 }
-
-pub type WpaPassphrase = Passphrase<{ len::WPA_PASSPHRASE }>;
-pub type Wpa3Passphrase = Passphrase<{ len::WPA3_PASSPHRASE }>;
 
 /// Client trait
 pub trait Client {
@@ -101,7 +106,7 @@ pub trait Device<'a> {
     fn access_point(
         &self,
         ssid: Ssid,
-        security: Option<Security>,
+        security: Option<(Security, Passphrase)>,
         channel: u8,
     ) -> Result<(), ErrorCode>;
 
@@ -116,7 +121,7 @@ pub trait Device<'a> {
     /// - `security`: Security method to use in order to join the network:
     ///     - `None` if the network is open
     ///     - tuple of the security method and the passphrase buffer
-    fn join(&self, ssid: Ssid, security: Option<Security>) -> Result<(), ErrorCode>;
+    fn join(&self, ssid: Ssid, security: Option<(Security, Passphrase)>) -> Result<(), ErrorCode>;
 
     /// Disconnect from the current network
     fn leave(&self) -> Result<(), ErrorCode>;
