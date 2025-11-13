@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::hil::time::Alarm;
-use nrf52::chip::Nrf52DefaultPeripherals;
+use nrf52::peripherals::Nrf52DefaultPeripherals;
 
 /// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
 ///
