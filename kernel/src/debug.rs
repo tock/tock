@@ -12,11 +12,17 @@
 //! hardware:
 //!
 //! ```ignore
-//! kernel::debug::assign_gpios(
-//!     Some(&sam4l::gpio::PA[13]),
-//!     Some(&sam4l::gpio::PA[15]),
-//!     None,
+//! let debug_gpios = static_init!(
+//!     [&'static dyn kernel::hil::gpio::Pin; 2],
+//!     [
+//!         &sam4l::gpio::PA[13],
+//!         &sam4l::gpio::PA[15],
+//!     ]
 //! );
+//! kernel::debug::initialize_debug_gpio::<
+//!     <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+//! >();
+//! kernel::debug::assign_gpios(debug_gpios);
 //!
 //! components::debug_writer::DebugWriterComponent::new(
 //!     uart_mux,
@@ -315,22 +321,35 @@ pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&L]) -> ! {
 ///////////////////////////////////////////////////////////////////
 // debug_gpio! support
 
-/// Object to hold the assigned debugging GPIOs.
-pub static mut DEBUG_GPIOS: (
-    Option<&'static dyn hil::gpio::Pin>,
-    Option<&'static dyn hil::gpio::Pin>,
-    Option<&'static dyn hil::gpio::Pin>,
-) = (None, None, None);
+/// Static variable that holds an array of debug GPIO references.
+pub static DEBUG_GPIOS: SingleThreadValue<MapCell<&'static [&'static dyn hil::gpio::Pin]>> =
+    SingleThreadValue::new(MapCell::empty());
 
-/// Map up to three GPIO pins to use for debugging.
-pub unsafe fn assign_gpios(
-    gpio0: Option<&'static dyn hil::gpio::Pin>,
-    gpio1: Option<&'static dyn hil::gpio::Pin>,
-    gpio2: Option<&'static dyn hil::gpio::Pin>,
-) {
-    DEBUG_GPIOS.0 = gpio0;
-    DEBUG_GPIOS.1 = gpio1;
-    DEBUG_GPIOS.2 = gpio2;
+/// Initialize the static debug gpio variable.
+///
+/// This ensures it can safely be used as a global variable.
+#[cfg(target_has_atomic = "ptr")]
+pub fn initialize_debug_gpio<P: ThreadIdProvider>() {
+    DEBUG_GPIOS.bind_to_thread::<P>();
+}
+
+/// Initialize the static debug gpio variable.
+///
+/// This ensures it can safely be used as a global variable.
+///
+/// # Safety
+///
+/// Callers of this function must ensure that this function is never called
+/// concurrently with other calls to [`initialize_debug_gpio_unsafe`].
+pub unsafe fn initialize_debug_gpio_unsafe<P: ThreadIdProvider>() {
+    DEBUG_GPIOS.bind_to_thread_unsafe::<P>();
+}
+
+/// Map an array of GPIO pins to use for debugging.
+pub fn assign_gpios(gpio: &'static [&'static dyn hil::gpio::Pin]) {
+    DEBUG_GPIOS.get().map(|gpio_array_cell| {
+        gpio_array_cell.replace(gpio);
+    });
 }
 
 /// In-kernel gpio debugging that accepts any GPIO HIL method.
@@ -339,7 +358,11 @@ macro_rules! debug_gpio {
     ($i:tt, $method:ident $(,)?) => {{
         #[allow(unused_unsafe)]
         unsafe {
-            $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method());
+            $crate::debug::DEBUG_GPIOS.get().map(|debug_gpio_cell| {
+                debug_gpio_cell.map(|debug_gpio_array| {
+                    debug_gpio_array.get($i).map(|g| g.$method());
+                });
+            });
         }
     }};
 }
