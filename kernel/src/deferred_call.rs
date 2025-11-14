@@ -296,16 +296,21 @@ impl DeferredCall {
 
     /// This function should be called at the beginning of the kernel loop to
     /// verify that deferred calls have been correctly initialized. This
-    /// function verifies two things:
+    /// function verifies three things:
     ///
-    /// 1. That <= [`DEFCALLS.len()`] deferred calls have been created, which is
+    /// 1. That `DEFCALLS` and the other [`SingleThreadValue`] types have been
+    ///    bound to a thread. This happens during
+    ///    [`initialize_deferred_call_state`] or
+    ///    [`initialize_deferred_call_state_unsafe`].
+    ///
+    /// 2. That <= [`DEFCALLS.len()`] deferred calls have been created, which is
     ///    the maximum this interface supports.
     ///
-    /// 2. That exactly as many deferred calls were registered as were created,
+    /// 3. That exactly as many deferred calls were registered as were created,
     ///    which helps to catch bugs if board maintainers forget to call
     ///    [`register()`](DeferredCall::register) on a created [`DeferredCall`].
     ///
-    /// Neither of these checks are necessary for soundness, but they are
+    /// None of these checks is necessary for soundness, but they are
     /// necessary for confirming that [`DeferredCall`]s will actually be
     /// delivered as expected. This function costs about 300 bytes, so you can
     /// remove it if you are confident your setup will not exceed 32 deferred
@@ -331,6 +336,11 @@ A component may have forgotten to register a deferred call.",
                     }
                 }
             });
+        } else {
+            // The board must call initialize_deferred_call_state() or
+            // initialize_deferred_call_state_unsafe() before creating any
+            // deferred calls.
+            panic!("ERROR: deferred calls not initialized.");
         }
     }
 }
