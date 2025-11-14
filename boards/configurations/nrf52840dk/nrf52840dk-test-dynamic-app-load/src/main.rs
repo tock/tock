@@ -189,6 +189,11 @@ pub unsafe fn main() {
     // Apply errata fixes and enable interrupts.
     nrf52840::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let nrf52840_peripherals = create_peripherals();

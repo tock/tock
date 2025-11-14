@@ -399,6 +399,11 @@ unsafe fn start() -> (
 ) {
     stm32f412g::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let rcc = static_init!(stm32f412g::rcc::Rcc, stm32f412g::rcc::Rcc::new());
     let clocks = static_init!(
         stm32f412g::clocks::Clocks<Stm32f412Specs>,

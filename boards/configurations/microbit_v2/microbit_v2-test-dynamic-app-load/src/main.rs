@@ -234,6 +234,11 @@ unsafe fn start() -> (
 ) {
     nrf52833::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52833::ieee802154_radio::ACK_BUF_SIZE],
         [0; nrf52833::ieee802154_radio::ACK_BUF_SIZE]

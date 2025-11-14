@@ -194,6 +194,11 @@ pub unsafe fn start() -> (
     // Basic setup of the RISC-V IMAC platform
     rv32i::configure_trap_handler();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with ePMP
     // protection.

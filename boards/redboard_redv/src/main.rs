@@ -134,6 +134,11 @@ unsafe fn start() -> (
     // only machine mode
     rv32i::configure_trap_handler();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(
         E310G002DefaultPeripherals,
         E310G002DefaultPeripherals::new(16_000_000)
