@@ -93,6 +93,7 @@ pub mod sht4x;
 pub mod si7021;
 pub mod signature_verify_in_memory_keys;
 pub mod siphash;
+pub mod sk68xx;
 pub mod sound_pressure;
 pub mod spi;
 pub mod ssd1306;
