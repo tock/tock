@@ -244,6 +244,11 @@ pub unsafe fn start() -> (
 ) {
     nrf52832::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
         Nrf52832DefaultPeripherals::new()

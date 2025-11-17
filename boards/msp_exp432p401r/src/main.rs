@@ -194,6 +194,11 @@ unsafe fn start() -> (
 ) {
     startup_intilialisation();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(
         msp432::chip::Msp432DefaultPeripherals,
         msp432::chip::Msp432DefaultPeripherals::new()

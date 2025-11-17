@@ -218,6 +218,11 @@ pub unsafe fn start_particle_boron() -> (
 ) {
     nrf52840::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let nrf52840_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies

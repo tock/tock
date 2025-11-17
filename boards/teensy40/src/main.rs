@@ -179,6 +179,11 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
 unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
     imxrt1060::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1060::chip::Imxrt10xxDefaultPeripherals,

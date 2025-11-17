@@ -327,6 +327,11 @@ unsafe fn setup() -> (
     // Ibex-specific handler
     earlgrey::chip::configure_trap_handler();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state_unsafe::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with ePMP
     // protection.

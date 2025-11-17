@@ -225,6 +225,11 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
 unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     // Basic setup of the i486 platform
     // Allocate statics for default peripherals and build them via the chip helper
     let default_peripherals = unsafe {
