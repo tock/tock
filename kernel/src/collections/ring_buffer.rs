@@ -366,8 +366,8 @@ mod flux_specs {
 
     #[flux::specs {
         // Specify well-formedness for RingBuffer<T>.
-        // A well-formed RingBuffer has an internal slice (`ring`) that can store at least 1 element, and 
-        // a `head` and `tail` index, each of which must be less than the length of the internal slice. 
+        // A well-formed RingBuffer has an internal slice (`ring`) that can store at least 1 element, and
+        // a `head` and `tail` index, each of which must be less than the length of the internal slice.
         // This ensures that all indices `ring[head]` and `ring[tail]` are valid.
         #[refined_by(ring_len: int, hd: int, tl: int)]
         struct RingBuffer<T> {
@@ -380,28 +380,28 @@ mod flux_specs {
             // A simple function-level spec for the RingBuffer<T> constructor.
             //
             // It has a precondition that the input slice is length > 1, so
-            // every time RingBuffer::new() is called (throughout Tock), 
+            // every time RingBuffer::new() is called (throughout Tock),
             // Flux will ensure the slice passed in has length > 1.
             //
             // It also has a postcondition that the output RingBuffer has a head and tail of zero.
             // Flux will check the implementation of `new` to ensure this is true.
-            // 
-            // Design note: This contract has the strongest possible postcondition (head == 0 and tail == 0), 
+            //
+            // Design note: This contract has the strongest possible postcondition (head == 0 and tail == 0),
             // but we could also make the postcondition something "weaker" like `result.head == result.tail`.
             // Weaker vs stronger contracts is a design decision: it is easier to prove that a weak contract
             // holds in the implementation, but it lets you prove less in the rest of Tock (e.g., if there was code
             // that was only safe if head/tail was 0 after it called new, we could prove its safety only with the stronger contract).
             fn new({&mut [T][@ring_len] | ring_len > 0}) -> RingBuffer<T>[ring_len, 0, 0];
         }
-    
-        impl Queue<T> for RingBuffer<T> {        
-            // These specs of the form: `(self: RingBuffer) ensures RingBuffer` 
+
+        impl Queue<T> for RingBuffer<T> {
+            // These specs of the form: `(self: RingBuffer) ensures RingBuffer`
             // are present to compensate for a current technical limitation of Flux,
             // and should be gone in the near future.
-            fn empty(self: &mut RingBuffer<T>[@old]) 
+            fn empty(self: &mut RingBuffer<T>[@old])
                 ensures self: RingBuffer<T>;
-                
-            fn enqueue(self: &mut RingBuffer<T>, val: T) -> bool 
+
+            fn enqueue(self: &mut RingBuffer<T>, val: T) -> bool
                 ensures self: RingBuffer<T>;
 
             fn push(self: &mut RingBuffer<T>, val: T) -> Option<T>
@@ -410,18 +410,18 @@ mod flux_specs {
             fn dequeue(self: &mut RingBuffer<T>) -> Option<T>
                 ensures self: RingBuffer<T>;
 
-            fn remove_first_matching<F>(self: &mut RingBuffer<T>, _) -> Option<T> 
+            fn remove_first_matching<F>(self: &mut RingBuffer<T>, _) -> Option<T>
                 ensures self: RingBuffer<T>;
 
-            fn retain<F>(self: &mut RingBuffer<T>, _) 
+            fn retain<F>(self: &mut RingBuffer<T>, _)
                 ensures self: RingBuffer<T>;
         }
 
         impl core::iter::Iterator for ListIterator<T> {
-            fn next(self: &mut ListIterator<T>) -> Option<&T> 
+            fn next(self: &mut ListIterator<T>) -> Option<&T>
                 ensures self: ListIterator<T>;
         }
-        
+
     }]
     const _: () = ();
 
