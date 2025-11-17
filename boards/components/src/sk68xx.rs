@@ -8,21 +8,22 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil;
 
+/// T0H clock divider for an ESP32-C3 with a 160MHz clock speed.
+pub const ESP32C3_160MHZ_T0H: usize = 3;
+
 #[macro_export]
 macro_rules! sk68xx_component_static {
-    ($P:ty, $T0H:expr $(,)?) => {{
-        let sk68xx = kernel::static_buf!(capsules_extra::sk68xx::Sk68xx<'static, $P, $T0H>);
-        sk68xx
-    };};
+    ($P:ty, $T0H:expr $(,)?) => {
+        kernel::static_buf!(capsules_extra::sk68xx::Sk68xx<'static, $P, $T0H>)
+    };
 }
 
 /// Custom version of the static for the ESP32-C3 board with a fixed clock speed.
 #[macro_export]
 macro_rules! sk68xx_component_static_esp32c3_160mhz {
-    ($P:ty $(,)?) => {{
-        let sk68xx = kernel::static_buf!(capsules_extra::sk68xx::Sk68xx<'static, $P, 3>);
-        sk68xx
-    };};
+    ($P:ty $(,)?) => {
+        $crate::sk68xx_component_static!($P, { $crate::sk68xx::ESP32C3_160MHZ_T0H })
+    };
 }
 
 pub struct Sk68xxComponent<P: 'static + hil::gpio::Pin, const T0H: usize> {
@@ -50,19 +51,17 @@ impl<P: 'static + hil::gpio::Pin, const T0H: usize> Component for Sk68xxComponen
 
 #[macro_export]
 macro_rules! sk68xx_led_component_static {
-    ($P:ty,  $T0H:expr $(,)?) => {{
-        let sk68xx_led = kernel::static_buf!(capsules_extra::sk68xx::Sk68xxLed<'static, $P, $T0H>);
-        sk68xx_led
-    };};
+    ($P:ty,  $T0H:expr $(,)?) => {
+        kernel::static_buf!(capsules_extra::sk68xx::Sk68xxLed<'static, $P, $T0H>)
+    };
 }
 
 /// Custom version of the static for the ESP32-C3 board with a fixed clock speed.
 #[macro_export]
 macro_rules! sk68xx_led_component_static_esp32c3_160mhz {
-    ($P:ty $(,)?) => {{
-        let sk68xx_led = kernel::static_buf!(capsules_extra::sk68xx::Sk68xxLed<'static, $P, 3>);
-        sk68xx_led
-    };};
+    ($P:ty $(,)?) => {
+        $crate::sk68xx_led_component_static!($P, { $crate::sk68xx::ESP32C3_160MHZ_T0H })
+    };
 }
 
 pub type Sk68xxLedComponentType<P, const T0H: usize> =
