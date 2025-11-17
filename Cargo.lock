@@ -117,7 +117,6 @@ dependencies = [
  "capsules-extra",
  "capsules-system",
  "kernel",
- "rp2040",
  "segger",
  "tock-tbf",
 ]
