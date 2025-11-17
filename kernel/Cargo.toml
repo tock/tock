@@ -19,7 +19,7 @@ include = [ "src/collections{*.rs}" ]
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
-flux-rs = { git  = "https://github.com/flux-rs/flux.git", optional=true }
+flux-rs = { git  = "https://github.com/flux-rs/flux.git", rev = "4378b96369f037861b777f1c10b3b6a4e232a6af", optional = true }
 
 # In general, Tock discourages the use of cargo features. However, we have
 # identified two cases where cargo features are the best available solution.
