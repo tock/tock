@@ -15,6 +15,7 @@ use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability};
 use kernel::{scheduler::round_robin::RoundRobinSched, syscall::SyscallDriver};
+use pio_gspi_component::{pio_gpsi_component_static, PioGspiComponent};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::gpio::{RPGpio, RPGpioPin};
 use rp2040::pio_gspi::PioGSpi;
@@ -22,6 +23,7 @@ use rp2040::timer::RPTimer;
 use rp2040::{dma, pio};
 
 mod io;
+mod pio_gspi_component;
 
 kernel::stack_size! {0x1500}
 
@@ -124,7 +126,7 @@ pub unsafe fn start() -> (
     let cs = peripherals.pins.get_pin(RPGpio::GPIO25);
     cs.make_output();
 
-    let pio_gspi = components::pio_gspi::PioGspiComponent::new(
+    let pio_gspi = PioGspiComponent::new(
         &peripherals.pio0,
         pio::SMNumber::SM0,
         peripherals.dma.channel(dma::Channel::Channel0),
@@ -133,7 +135,7 @@ pub unsafe fn start() -> (
         RPGpio::GPIO24,
         cs,
     )
-    .finalize(components::pio_gpsi_component_static!());
+    .finalize(pio_gpsi_component_static!());
 
     let (fw, nvram, clm) = (
         tock_firmware_cyw43::cyw43439::FW,
