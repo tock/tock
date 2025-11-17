@@ -8,12 +8,12 @@ use rp2040::gpio::{RPGpio, RPGpioPin};
 use rp2040::pio_gspi::PioGSpi;
 use rp2040::{dma, pio, pio_gspi};
 
-#[macro_export]
 macro_rules! pio_gpsi_component_static {
     () => {{
         kernel::static_buf!(rp2040::pio_gspi::PioGSpi<'static>)
     }};
 }
+pub(super) use pio_gpsi_component_static;
 
 pub struct PioGspiComponent {
     dma_channel: &'static dma::DmaChannel<'static>,
