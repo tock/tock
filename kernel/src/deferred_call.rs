@@ -88,6 +88,7 @@ use crate::utilities::single_thread_value::SingleThreadValue;
 use core::cell::Cell;
 use core::marker::Copy;
 use core::marker::PhantomData;
+use core::num::NonZero;
 
 /// This trait should be implemented by clients which need to receive
 /// [`DeferredCall`]s.
@@ -187,27 +188,28 @@ pub unsafe fn initialize_deferred_call_state_unsafe<P: ThreadIdProvider>() {
 }
 
 pub struct DeferredCall {
-    idx: usize,
+    /// The index of the deferred call plus one.
+    ///
+    /// Use the zero value to make the option zero size. A None means the
+    /// deferred call could not be created.
+    idx_plus_one: Option<NonZero<usize>>,
 }
 
 impl DeferredCall {
     /// Create a new deferred call with a unique ID.
     pub fn new() -> Self {
         if let Some(ctr) = CTR.get() {
-            let idx = ctr.get();
+            let idx = ctr.get() + 1;
             ctr.set(idx + 1);
-            DeferredCall { idx }
+            if let Some(nonzero_idx) = NonZero::new(idx) {
+                DeferredCall {
+                    idx_plus_one: Some(nonzero_idx),
+                }
+            } else {
+                DeferredCall { idx_plus_one: None }
+            }
         } else {
-            // If this panic occurs, the platform did not call
-            // `initialize_deferred_call_state()` or
-            // `initialize_deferred_call_state_unsafe()` before creating a
-            // DeferredCall.
-            //
-            // We panic here rather than return an option or result because
-            // there is no recourse for the caller. This is an unrecoverable
-            // issue in practice and a bug in the kernel. The board must call
-            // one of the initialization functions first.
-            panic!("DeferredCall state not initialized.");
+            DeferredCall { idx_plus_one: None }
         }
     }
 
@@ -217,15 +219,18 @@ impl DeferredCall {
     fn register_internal_non_generic(&self, handler: DynDefCallRef<'static>) {
         if let Some(defcalls_cell) = DEFCALLS.get() {
             defcalls_cell.map(|defcalls| {
-                if self.idx >= defcalls.len() {
-                    // This error will be caught by the scheduler at the beginning of
-                    // the kernel loop, which is much better than panicking here, before
-                    // the debug writer is setup. Also allows a single panic for
-                    // creating too many deferred calls instead of NUM_DCS panics (this
-                    // function is monomorphized).
-                    return;
+                if let Some(idx_plus_one) = self.idx_plus_one {
+                    let idx = usize::from(idx_plus_one) - 1;
+                    if idx >= defcalls.len() {
+                        // This error will be caught by the scheduler at the beginning of
+                        // the kernel loop, which is much better than panicking here, before
+                        // the debug writer is setup. Also allows a single panic for
+                        // creating too many deferred calls instead of NUM_DCS panics (this
+                        // function is monomorphized).
+                        return;
+                    }
+                    defcalls[idx].set(handler);
                 }
-                defcalls[self.idx].set(handler);
             });
         }
     }
@@ -243,7 +248,10 @@ impl DeferredCall {
     /// call.
     pub fn set(&self) {
         if let Some(bitmask) = BITMASK.get() {
-            bitmask.set(bitmask.get() | (1 << self.idx));
+            if let Some(idx_plus_one) = self.idx_plus_one {
+                let idx = usize::from(idx_plus_one) - 1;
+                bitmask.set(bitmask.get() | (1 << idx));
+            }
         }
     }
 
@@ -251,7 +259,12 @@ impl DeferredCall {
     /// deferred call.
     pub fn is_pending(&self) -> bool {
         if let Some(bitmask) = BITMASK.get() {
-            bitmask.get() & (1 << self.idx) == 1
+            if let Some(idx_plus_one) = self.idx_plus_one {
+                let idx = usize::from(idx_plus_one) - 1;
+                bitmask.get() & (1 << idx) == 1
+            } else {
+                false
+            }
         } else {
             false
         }
