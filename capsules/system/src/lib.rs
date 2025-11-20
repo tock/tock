@@ -10,3 +10,5 @@ pub mod process_checker;
 pub mod process_policies;
 pub mod process_printer;
 pub mod storage_permissions;
+pub mod syscall_filter;
+pub mod virtual_scheduler_timer;

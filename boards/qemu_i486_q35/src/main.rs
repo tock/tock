@@ -23,7 +23,6 @@ use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::ipc::IPC;
 use kernel::platform::chip::InterruptService;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -36,7 +35,7 @@ use virtio_pci_x86::VirtIOPCIDevice;
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
-use x86_q35::{Pc, PcComponent};
+use x86_q35::{Pc, PcDefaultPeripherals};
 
 mod multiboot;
 use multiboot::MultibootV1Header;
@@ -44,13 +43,20 @@ use multiboot::MultibootV1Header;
 mod io;
 
 /// Multiboot V1 header, allowing this kernel to be booted directly by QEMU
-#[link_section = ".multiboot"]
+///
+/// When compiling for a macOS host, the `link_section` attribute is elided as
+/// it yields the following error: `mach-o section specifier requires a segment
+/// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".multiboot")]
 #[used]
 static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 
 const NUM_PROCS: usize = 4;
 
-type ChipHw = Pc<'static, ()>;
+type ChipHw = Pc<'static, (), ()>;
+type AlarmHw = Pit<'static, RELOAD_1KHZ>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -72,10 +78,10 @@ kernel::stack_size! {0x1000}
 //
 // These are placed into custom sections so they can be properly aligned and padded in layout.ld
 #[no_mangle]
-#[link_section = ".pde"]
+#[cfg_attr(not(target_os = "macos"), link_section = ".pde")]
 pub static mut PAGE_DIR: PD = [PDEntry(0); 1024];
 #[no_mangle]
-#[link_section = ".pte"]
+#[cfg_attr(not(target_os = "macos"), link_section = ".pte")]
 pub static mut PAGE_TABLE: PT = [PTEntry(0); 1024];
 
 /// Initializes a Virtio transport driver for the given PCI device.
@@ -153,8 +159,7 @@ pub struct QemuI386Q35Platform {
     >,
     ipc: IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer:
-        &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>,
+    scheduler_timer: &'static SchedulerTimerHw,
     rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static>>>,
 }
 
@@ -201,8 +206,7 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
         self.scheduler
     }
 
-    type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>;
+    type SchedulerTimer = SchedulerTimerHw;
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
         self.scheduler_timer
     }
@@ -222,18 +226,40 @@ unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the i486 platform
+    // Allocate statics for default peripherals and build them via the chip helper
+    let default_peripherals = unsafe {
+        static_init!(
+            PcDefaultPeripherals,
+            PcDefaultPeripherals::new(
+                (
+                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    kernel::static_buf!(x86_q35::vga_uart_driver::VgaText<'static>),
+                ),
+                &mut *ptr::addr_of_mut!(PAGE_DIR),
+            )
+        )
+    };
+    default_peripherals.setup_circular_deps();
     let virtio_devs = static_init!(
         VirtioDevices,
         VirtioDevices {
             rng: OptionalCell::empty(),
         }
     );
-    let chip = PcComponent::new(
-        &mut *ptr::addr_of_mut!(PAGE_DIR),
-        &mut *ptr::addr_of_mut!(PAGE_TABLE),
-        virtio_devs,
-    )
-    .finalize(x86_q35::x86_q35_component_static!(VirtioDevices));
+    let chip: &'static Pc<PcDefaultPeripherals, VirtioDevices> = unsafe {
+        static_init!(
+            Pc<PcDefaultPeripherals, VirtioDevices>,
+            Pc::new(
+                &*default_peripherals,
+                &mut *ptr::addr_of_mut!(PAGE_DIR),
+                &mut *ptr::addr_of_mut!(PAGE_TABLE),
+                virtio_devs,
+            ),
+        )
+    };
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -272,16 +298,9 @@ unsafe extern "cdecl" fn main() {
     // alarm.
     let mux_alarm = static_init!(
         MuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
-        MuxAlarm::new(&chip.pit),
+        MuxAlarm::new(chip.pit),
     );
-    hil::time::Alarm::set_alarm_client(&chip.pit, mux_alarm);
-
-    // Virtual alarm for the scheduler
-    let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    systick_virtual_alarm.setup();
+    hil::time::Alarm::set_alarm_client(chip.pit, mux_alarm);
 
     // Virtual alarm and driver for userspace
     let virtual_alarm_user = static_init!(
@@ -454,10 +473,11 @@ unsafe extern "cdecl" fn main() {
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
 
     let platform = QemuI386Q35Platform {
         pconsole,

@@ -9,7 +9,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-tock-registers = { path = "../../libraries/tock-register-interface" }
+tock-registers = "0.10.0"
 x86 = { path = "../../arch/x86" }
 
 [lints]

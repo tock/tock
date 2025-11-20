@@ -137,9 +137,14 @@ struct TockAttributesKernelVersion {
 /// More information on kernel attributes is
 /// [here](https://book.tockos.org/doc/kernel_attributes.html).
 ///
-/// This is inserted into a specific section that the linker script includes at
-/// the correct location to be included in the attributes.
-#[link_section = ".tock.attr.kernel_version"]
+/// This is inserted into a specific section (`.tock.attr.kernel_version`) that
+/// the linker script includes at the correct location to be included in the
+/// attributes.
+///
+/// When compiling for a macOS host, this section attribute is elided as it is
+/// incompatible with Mach-O objects and yields the following error: `mach-o
+/// section specifier requires a segment and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".tock.attr.kernel_version")]
 #[used]
 static TOCK_ATTRIBUTES_KERNEL_VERSION: TockAttributesKernelVersion = TockAttributesKernelVersion {
     major: KERNEL_MAJOR_VERSION,

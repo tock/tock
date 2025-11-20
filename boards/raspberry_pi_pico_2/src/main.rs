@@ -43,17 +43,28 @@ mod io;
 mod flash_bootloader;
 
 /// Allocate memory for the stack
+//
+// When compiling for a macOS host, the `link_section` attribute is elided as
+// it yields the following error: `mach-o section specifier requires a segment
+// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".stack_buffer")]
 #[no_mangle]
-#[link_section = ".stack_buffer"]
 static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
 
 // Manually setting the boot header section that contains the FCB header
+//
+// When compiling for a macOS host, the `link_section` attribute is elided as
+// it yields the following error: `mach-o section specifier requires a segment
+// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".flash_bootloader")]
 #[used]
-#[link_section = ".flash_bootloader"]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
+// When compiling for a macOS host, the `link_section` attribute is elided as
+// it yields the following error: `mach-o section specifier requires a segment
+// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".metadata_block")]
 #[used]
-#[link_section = ".metadata_block"]
 static METADATA_BLOCK: [u8; 28] = flash_bootloader::METADATA_BLOCK;
 
 // State for loading and holding applications.

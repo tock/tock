@@ -461,7 +461,14 @@ unsafe fn setup() -> (
     peripherals.gpio_port.enable_sx1262_radio_pins();
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(Some(&peripherals.gpio_port[26]), None, None);
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [&peripherals.gpio_port[26]]
+    );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)

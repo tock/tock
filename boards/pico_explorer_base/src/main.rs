@@ -47,8 +47,12 @@ mod flash_bootloader;
 kernel::stack_size! {0x1500}
 
 // Manually setting the boot header section that contains the FCB header
+//
+// When compiling for a macOS host, the `link_section` attribute is elided as it
+// yields the following error: `mach-o section specifier requires a segment and
+// section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".flash_bootloader")]
 #[used]
-#[link_section = ".flash_bootloader"]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
 // State for loading and holding applications.

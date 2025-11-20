@@ -62,8 +62,12 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 // Manually setting the boot header section that contains the FCB header
+//
+// When compiling for a macOS host, the `link_section` attribute is elided as it
+// yields the following error: `mach-o section specifier requires a segment and
+// section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".boot_hdr")]
 #[used]
-#[link_section = ".boot_hdr"]
 static BOOT_HDR: [u8; 8192] = boot_header::BOOT_HDR;
 
 kernel::stack_size! {0x2000}
@@ -188,7 +192,11 @@ unsafe fn set_pin_primary_functions(
     // Configuring the GPIO_AD_B0_09 as output
     let pin = peripherals.ports.pin(PinId::AdB0_09);
     pin.make_output();
-    kernel::debug::assign_gpios(Some(pin), None, None);
+    let debug_gpios = static_init!([&'static dyn kernel::hil::gpio::Pin; 1], [pin]);
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // User_Button is connected to IOMUXC_SNVS_WAKEUP.
     peripherals.ports.gpio5.enable_clock();

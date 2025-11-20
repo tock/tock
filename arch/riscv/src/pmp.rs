@@ -893,8 +893,11 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> PMPUserMPU<
     }
 }
 
-impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::platform::mpu::MPU
-    for PMPUserMPU<MAX_REGIONS, P>
+// `MPU` is an unsafe trait, and with this implementation we guarantee
+// that we adhere to the semantics documented on that trait and its
+// associated types and methods.
+unsafe impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
+    kernel::platform::mpu::MPU for PMPUserMPU<MAX_REGIONS, P>
 {
     type MpuConfig = PMPUserMPUConfig<MAX_REGIONS>;
 
@@ -908,7 +911,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         self.pmp.enable_user_pmp().unwrap()
     }
 
-    fn disable_app_mpu(&self) {
+    unsafe fn disable_app_mpu(&self) {
         self.pmp.disable_user_pmp()
     }
 
@@ -1196,7 +1199,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig) {
+    unsafe fn configure_mpu(&self, config: &Self::MpuConfig) {
         if !self.last_configured_for.contains(&config.id) || config.is_dirty.get() {
             self.pmp.configure_pmp(&config.regions).unwrap();
             config.is_dirty.set(false);

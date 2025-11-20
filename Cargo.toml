@@ -114,7 +114,6 @@ members = [
     "libraries/enum_primitive",
     "libraries/riscv-csr",
     "libraries/tock-cells",
-    "libraries/tock-register-interface",
     "libraries/tickv",
 ]
 exclude = ["tools/"]
