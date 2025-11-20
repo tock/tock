@@ -74,7 +74,7 @@ type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynami
     NonVolatilePages,
 >;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -87,7 +87,7 @@ pub struct Platform {
         4,
     >,
     alarm: &'static AlarmDriver,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
     processes: &'static ProcessArray<NUM_PROCS>,
     dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<
@@ -137,7 +137,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

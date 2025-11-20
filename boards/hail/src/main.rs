@@ -52,7 +52,7 @@ type TemperatureDriver = components::temperature::TemperatureComponentType<SI702
 type HumidityDriver = components::humidity::HumidityComponentType<SI7021Sensor>;
 type RngDriver = components::rng::RngComponentType<sam4l::trng::Trng<'static>>;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -89,7 +89,7 @@ struct Hail {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     crc: &'static capsules_extra::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules_extra::dac::Dac<'static>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -130,7 +130,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
