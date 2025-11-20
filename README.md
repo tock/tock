@@ -1,6 +1,6 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
-[![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
+[![tock-ci](https://github.com/tock/tock/actions/workflows/ci.yml/badge.svg)](https://github.com/tock/tock/actions/workflows/ci.yml)
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 [![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
 
