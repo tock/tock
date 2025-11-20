@@ -1027,7 +1027,8 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         // invalid buffer (e.g. of length 1) may otherwise errantly pass the second
                         // conditional check (due to unsigned integer arithmetic).
                         if rbuf.len() <= RING_BUF_METADATA_SIZE
-                            || (rbuf.len() - RING_BUF_METADATA_SIZE) % USER_FRAME_MAX_SIZE != 0
+                            || !(rbuf.len() - RING_BUF_METADATA_SIZE)
+                                .is_multiple_of(USER_FRAME_MAX_SIZE)
                         {
                             // kernel::debug!("[15.4 Driver] Error - improperly formatted readwrite buffer provided");
                             return false;

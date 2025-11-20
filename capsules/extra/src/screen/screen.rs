@@ -83,7 +83,7 @@ enum ScreenCommand {
 
 fn pixels_in_bytes(pixels: usize, bits_per_pixel: usize) -> usize {
     let bytes = pixels * bits_per_pixel / 8;
-    if pixels * bits_per_pixel % 8 != 0 {
+    if !(pixels * bits_per_pixel).is_multiple_of(8) {
         bytes + 1
     } else {
         bytes
@@ -174,7 +174,7 @@ impl<'a> Screen<'a> {
 
     fn is_len_multiple_color_depth(&self, len: usize) -> bool {
         let depth = pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
-        (len % depth) == 0
+        len.is_multiple_of(depth)
     }
 
     fn call_screen(&self, command: ScreenCommand, process_id: ProcessId) -> Result<(), ErrorCode> {
