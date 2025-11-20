@@ -65,7 +65,7 @@ static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'sta
 
 kernel::stack_size! {0x1000}
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -101,7 +101,7 @@ struct RedboardArtemisAtp {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -128,7 +128,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

@@ -47,7 +47,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x900}
 
-type SchedulerObj = components::sched::cooperative::CooperativeComponentType;
+type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -66,7 +66,7 @@ struct RedV {
         'static,
         VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>,
     >,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
 }
 
@@ -92,7 +92,7 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();

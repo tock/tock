@@ -69,7 +69,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x1000}
 
-type SchedulerObj = components::sched::cooperative::CooperativeComponentType;
+type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 // Static allocations used for page tables
 //
@@ -155,7 +155,7 @@ pub struct QemuI386Q35Platform {
         VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
     >,
     ipc: IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static>>>,
 }
@@ -198,7 +198,7 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
         &()
     }
 
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
     }

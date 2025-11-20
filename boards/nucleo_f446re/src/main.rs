@@ -55,7 +55,7 @@ type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponent
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -77,7 +77,7 @@ struct NucleoF446RE {
     temperature: &'static TemperatureDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f446re::gpio::Pin<'static>>,
 
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -112,7 +112,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

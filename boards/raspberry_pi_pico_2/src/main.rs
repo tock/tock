@@ -82,13 +82,13 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new(PanicResources::new());
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct RaspberryPiPico2 {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     console: &'static capsules_core::console::Console<'static>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm33::systick::SysTick,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -118,7 +118,7 @@ impl KernelResources<Rp2350<'static, Rp2350DefaultPeripherals<'static>>> for Ras
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm33::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

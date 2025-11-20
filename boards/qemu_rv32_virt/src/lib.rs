@@ -35,7 +35,7 @@ pub type ScreenHw = qemu_rv32_virt_chip::virtio::devices::virtio_gpu::VirtIOGPU<
 type AlarmHw = qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>;
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
-type SchedulerObj = components::sched::cooperative::CooperativeComponentType;
+type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
@@ -65,7 +65,7 @@ pub struct QemuRv32VirtPlatform {
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
     pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     rng: Option<&'static RngDriver>,
     virtio_ethernet_tap: Option<
@@ -126,7 +126,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();

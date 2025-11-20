@@ -72,7 +72,7 @@ type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureRp2040Sensor>;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct NanoRP2040Connect {
@@ -95,7 +95,7 @@ pub struct NanoRP2040Connect {
         >,
     >,
 
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm0p::systick::SysTick,
 }
 
@@ -123,7 +123,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Nan
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

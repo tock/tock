@@ -55,7 +55,7 @@ type TemperatureDriver = components::temperature::TemperatureComponentType<Tempe
 type RngDriver = components::rng::RngComponentType<stm32f412g::trng::Trng<'static>>;
 type ScreenDriver = components::screen::ScreenComponentType;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -79,7 +79,7 @@ struct STM32F412GDiscovery {
     temperature: &'static TemperatureDriver,
     rng: &'static RngDriver,
 
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -117,7 +117,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

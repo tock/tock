@@ -168,7 +168,7 @@ kernel::stack_size! {0x1400}
 struct ProcessManagementCapabilityObj {}
 unsafe impl capabilities::ProcessManagementCapability for ProcessManagementCapabilityObj {}
 
-type SchedulerObj =
+type SchedulerInUse =
     components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
 
 /// A structure representing this platform that holds references to all
@@ -236,7 +236,7 @@ struct EarlGrey {
         >,
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     watchdog: &'static lowrisc::aon_timer::AonTimer,
 }
@@ -268,7 +268,7 @@ impl KernelResources<EarlGreyChip> for EarlGrey {
     type SyscallDriverLookup = Self;
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = lowrisc::aon_timer::AonTimer;
     type ContextSwitchCallback = ();

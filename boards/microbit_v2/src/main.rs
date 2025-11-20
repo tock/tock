@@ -85,7 +85,7 @@ type RngDriver = components::rng::RngComponentType<nrf52833::trng::Trng<'static>
 type Ieee802154RawDriver =
     components::ieee802154::Ieee802154RawComponentType<nrf52833::ieee802154_radio::Radio<'static>>;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct MicroBit {
@@ -145,7 +145,7 @@ pub struct MicroBit {
     app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules_extra::sound_pressure::SoundPressureSensor<'static>,
 
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -184,7 +184,7 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

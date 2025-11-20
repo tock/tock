@@ -84,7 +84,7 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
     nrf52840::aes::AesECB<'static>,
 >;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -122,7 +122,7 @@ pub struct Platform {
             nrf52840::rtc::Rtc<'static>,
         >,
     >,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -154,7 +154,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

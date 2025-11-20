@@ -42,7 +42,7 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterI
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Teensy 4 platform
 struct Teensy40 {
@@ -61,7 +61,7 @@ struct Teensy40 {
         >,
     >,
 
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm7::systick::SysTick,
 }
 
@@ -86,7 +86,7 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

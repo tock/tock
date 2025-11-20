@@ -195,7 +195,7 @@ pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
 /// Userspace EUI64 driver.
 pub type Eui64Driver = components::eui64::Eui64ComponentType;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -240,7 +240,7 @@ pub struct Platform {
         >,
     >,
     kv_driver: &'static KVDriver,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -273,7 +273,7 @@ impl KernelResources<ChipHw> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

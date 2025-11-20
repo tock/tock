@@ -45,7 +45,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x2000}
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -64,7 +64,7 @@ struct WeactF401CC {
         VirtualMuxAlarm<'static, stm32f401cc::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -93,7 +93,7 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

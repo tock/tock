@@ -46,7 +46,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new(PanicResources::new());
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Cy8cproto0624343w {
@@ -58,7 +58,7 @@ pub struct Cy8cproto0624343w {
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, GpioPin<'static>>, 1>,
     button: &'static capsules_core::button::Button<'static, GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, psoc62xa::gpio::GpioPin<'static>>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm0p::systick::SysTick,
 }
 
@@ -82,7 +82,7 @@ impl KernelResources<Psoc62xa<'static, PsoC62xaDefaultPeripherals<'static>>> for
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

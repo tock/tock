@@ -88,7 +88,7 @@ type AlarmHw =
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
-type SchedulerObj = components::sched::mlfq::MLFQComponentType<AlarmHw>;
+type SchedulerInUse = components::sched::mlfq::MLFQComponentType<AlarmHw>;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
@@ -121,7 +121,7 @@ struct LiteXArty {
     >,
     alarm: &'static capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, AlarmHw>>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
 }
 
@@ -148,7 +148,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
