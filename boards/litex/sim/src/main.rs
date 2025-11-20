@@ -91,7 +91,7 @@ type AlarmHw =
     litex_vexriscv::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>;
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
-type SchedulerObj = components::sched::mlfq::MLFQComponentType<AlarmHw>;
+type SchedulerInUse = components::sched::mlfq::MLFQComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -140,7 +140,7 @@ struct LiteXSim {
     >,
     alarm: &'static capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, AlarmHw>>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
 }
 
@@ -169,7 +169,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();

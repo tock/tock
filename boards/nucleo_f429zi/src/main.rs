@@ -56,7 +56,7 @@ type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponent
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
 type RngDriver = components::rng::RngComponentType<stm32f429zi::trng::Trng<'static>>;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Nucleo F429ZI HSE frequency in MHz
 pub const NUCLEO_F429ZI_HSE_FREQUENCY_MHZ: usize = 8;
@@ -82,7 +82,7 @@ struct NucleoF429ZI {
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
     rng: &'static RngDriver,
 
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
     can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
     date_time: &'static capsules_extra::date_time::DateTimeCapsule<
@@ -126,7 +126,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

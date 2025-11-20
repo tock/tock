@@ -71,7 +71,7 @@ static BOOT_HDR: [u8; 8192] = boot_header::BOOT_HDR;
 
 kernel::stack_size! {0x2000}
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 // const NUM_LEDS: usize = 1;
 
@@ -93,7 +93,7 @@ struct Imxrt1050EVKB {
     >,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
 
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm7::systick::SysTick,
 }
 
@@ -122,7 +122,7 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

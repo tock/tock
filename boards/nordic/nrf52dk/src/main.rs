@@ -138,7 +138,7 @@ type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52832::temperature::Temp<'static>>;
 type RngDriver = components::rng::RngComponentType<nrf52832::trng::Trng<'static>>;
 
-type SchedulerObj = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -175,7 +175,7 @@ pub struct Platform {
             nrf52832::rtc::Rtc<'static>,
         >,
     >,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -206,7 +206,7 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

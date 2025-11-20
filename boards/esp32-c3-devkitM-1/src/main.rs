@@ -76,7 +76,7 @@ type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 struct ProcessManagementCapabilityObj {}
 unsafe impl capabilities::ProcessManagementCapability for ProcessManagementCapabilityObj {}
 
-type SchedulerObj =
+type SchedulerInUse =
     components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
 
 /// A structure representing this platform that holds references to all
@@ -88,7 +88,7 @@ struct Esp32C3Board {
         'static,
         VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static>>,
     >,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     rng: &'static RngDriver,
     led: &'static LedDriver,
@@ -120,7 +120,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type SyscallFilter = ();
     type ProcessFault = ();
     type ContextSwitchCallback = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
 

@@ -46,7 +46,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x900}
 
-type SchedulerObj = components::sched::cooperative::CooperativeComponentType;
+type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -56,7 +56,7 @@ struct VeeR {
         'static,
         VirtualMuxAlarm<'static, Clint<'static>>,
     >,
-    scheduler: &'static SchedulerObj,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
 }
 
@@ -78,7 +78,7 @@ impl KernelResources<VeeRChip> for VeeR {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = SchedulerObj;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
