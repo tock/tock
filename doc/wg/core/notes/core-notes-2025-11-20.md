@@ -49,7 +49,7 @@
    `cdecl`".
  - Leon: I thought this warranted a short discussion, because these are not
    fundamentally new issues, is that in contrast to other cases (like
-   target-specific inline specific), is that we could always swap out the body
+   target-specific inline ASM), is that we could always swap out the body
    without changing the type signature. But the ABI is part of the type
    signature, and while we could add conditional compilation attributes, so it's
    irrelevant at the call site, if you want to reexport it like in a trait or
