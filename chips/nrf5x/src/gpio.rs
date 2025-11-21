@@ -32,19 +32,18 @@ const NUM_GPIOTE: usize = 4;
 
 const GPIO_PER_PORT: usize = 32;
 
-const GPIOTE_BASE: StaticRef<GpioteRegisters> =
-    unsafe { StaticRef::new(0x40006000 as *const GpioteRegisters) };
+pub const GPIO_BASE_ADDRESS: usize = 0x50000000;
+pub const GPIO_SIZE: usize = 0x300;
 
-const GPIO_BASE_ADDRESS: usize = 0x50000000;
-const GPIO_SIZE: usize = 0x300;
-
+/// nRF5x GPIOTE Registers
+///
 /// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
 /// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
 /// Event) channel, and bind the channel to the desired pin. There are 4
 /// channels for the nrf51 and 8 channels for the nrf52. This means that
 /// requesting an interrupt can fail, if they are all already allocated.
 #[repr(C)]
-struct GpioteRegisters {
+pub struct GpioteRegisters {
     /// Task for writing to pin specified in CONFIG\[n\].PSEL.
     /// Action on pin is configured in CONFIG\[n\].POLARITY
     ///
@@ -84,7 +83,7 @@ struct GpioteRegisters {
 }
 
 #[repr(C)]
-struct GpioRegisters {
+pub struct GpioRegisters {
     /// Reserved
     _reserved1: [u32; 321],
     /// Write GPIO port
@@ -368,18 +367,17 @@ pub struct GPIOPin<'a> {
 }
 
 impl<'a> GPIOPin<'a> {
-    pub const fn new(pin: Pin) -> GPIOPin<'a> {
+    pub const fn new(
+        pin: Pin,
+        gpiote_registers: StaticRef<GpioteRegisters>,
+        gpio_registers: StaticRef<GpioRegisters>,
+    ) -> GPIOPin<'a> {
         GPIOPin {
             pin: ((pin as usize) % GPIO_PER_PORT) as u8,
             port: ((pin as usize) / GPIO_PER_PORT) as u8,
             client: OptionalCell::empty(),
-            gpio_registers: unsafe {
-                StaticRef::new(
-                    (GPIO_BASE_ADDRESS + ((pin as usize) / GPIO_PER_PORT) * GPIO_SIZE)
-                        as *const GpioRegisters,
-                )
-            },
-            gpiote_registers: GPIOTE_BASE,
+            gpio_registers,
+            gpiote_registers,
             allocated_channel: OptionalCell::empty(),
         }
     }

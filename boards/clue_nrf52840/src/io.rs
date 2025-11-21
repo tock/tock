@@ -129,7 +129,11 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P1_01);
+    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(
+        Pin::P1_01,
+        nrf52840::gpio::GPIOTE_BASE,
+        nrf52840::gpio::GPIO_BASE_PORT1,
+    );
     let led = &mut led::LedHigh::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(

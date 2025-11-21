@@ -77,7 +77,11 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // MicroBit v2 has a microphone LED, use it for panic
 
     use core::ptr::{addr_of, addr_of_mut};
-    let led_kernel_pin = &nrf52833::gpio::GPIOPin::new(Pin::P0_20);
+    let led_kernel_pin = &nrf52833::gpio::GPIOPin::new(
+        Pin::P0_20,
+        nrf52833::gpio::GPIOTE_BASE,
+        nrf52833::gpio::GPIO_BASE_PORT0,
+    );
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
