@@ -408,18 +408,9 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
-    let ieee802154_ack_buf = static_init!(
-        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
-        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
-    );
-    // Initialize chip peripheral drivers
-    let nrf52840_peripherals = static_init!(
-        Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
-    );
+    let nrf52840_peripherals = nrf52840::components::Nrf52840DefaultPeripheralsComponent::new()
+        .finalize(nrf52840::nrf52840_default_peripherals_component_static!());
 
-    // Set up circular peripheral dependencies.
-    nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     // Configure kernel debug GPIOs as early as possible.
