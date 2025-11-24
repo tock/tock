@@ -218,6 +218,9 @@ Servers allow a buffer to be appended to the StreamingProcessSlice for a
 specific client. The client will also receive the process ID of the server that
 sent the message.
 
+In the case that a server in the allowlist of a client has a state change (faults),
+the client will be notified in a separate callback.
+
 **Commands**:
 * Existence
 * Client, enable async reception
@@ -230,7 +233,8 @@ sent the message.
 * Read-only, client, allowlist of which process IDs to accept messages from
 
 **Subscribes**:
-* Client, Async message received
+* Client, async message received
+* Client, error with allowlist ProcessID
 
 
 ## Shared Memory Capsule
@@ -295,7 +299,9 @@ request to a server, which may not immediately have room for the client's
 message data. Instead, the data is left in the client's allow buffer until the
 server requests it. But if the client successfully registers data to be sent,
 and the server status changes after this point, the client would remain in limbo
-as the message would never be fully received and responded to.
+as the message would never be fully received and responded to. Similarly, the
+Asynchronous Mailbox needs a mechanism to notify clients that no further packets
+will arrive from a process.
 
 One way around this issue is to have userspace timeouts for Synchronous Mailbox
 requests. The client could then cancel the request, or possibly take some
@@ -331,10 +337,57 @@ TBD
 
 ## Use Case Examples
 
+The following are example scenarios that use IPC mechanisms or adapt them in
+some way. The goal with these examples is to increase confidence that the
+provided mechanisms are sufficient.
+
 ### Thread Network Server
 
+In this example, a Thread network is managed by one application (the server).
+The server provides IPC access to the Thread network, allowing clients to send
+messages and register to receive incoming messages on a certain port or IP
+address. Other applications act as clients to this server.
+
+The mechanisms used are:
+ * IPC Manager - registration and discovery
+ * Synchronous Mailbox - requests to Thread server, mostly outgoing Thread packets from a client
+ * Asynchronous Mailbox - incoming Thread packets for a client
+
+The Thread server would first register with the IPC Manager, initialize the
+Thread network, and then yield until either Thread work occurs or an incoming
+Synchronous Mailbox request arrives. Requests would take the form of either
+outgoing Thread packets, to be sent and then confirmed in a response, or
+opening an incoming port/address for packets to arrive for the client. In the
+later case, the server stores information about the registration, including the
+client's ProcessID. Later, if an incoming packet destined for that client
+arrives, the server uses the Asynchronous Mailbox to append it to the client's
+StreamingProcessSlice.
+
+Thread clients would first discover the server with the IPC Manager. They could
+make requests of the server over the Synchronous Mailbox. A local queue in the
+client could be used to store multiple outgoing packets while the first request
+is still outstanding. Typically clients would yield on their own mechanisms
+such as timers or sensor data arrival.
+
+A thread client wishing to receive incoming packets would create a
+StreamingProcessSlice which it would allow to the Asynchronous Mailbox for
+packet reception. It would also send a different request via the Synchronous
+Mailbox to the Thread server, registering for them. Finally, it would yield on
+Asynchronous Mailbox callbacks to handle packet arrivals.
+
+If the server faults and restarts, most clients would determine this upon next
+Synchronous Mailbox request, which would fail due to the non-existent
+ProcessID. Outstanding Synchronous Mailbox or Asynchronous Mailbox requests
+would result in an error callback.
+
+
 ### Dynamic Application Loading
+TBD
 
 ### Automotive IPC Extension
+TBD
 
+
+## Alternative Mechanisms Considered
+TBD
 
