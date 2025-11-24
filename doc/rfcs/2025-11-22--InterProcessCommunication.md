@@ -24,20 +24,35 @@ This RFC proposes replacing the current IPC kernel driver entirely with a new
 IPC ecosystem of capsules which will provide various mechanisms for
 communication between processes. Basing a significant portion of the work in
 capsules should allow for more secure and extensible IPC mechanisms.
-Each capsule is also a syscall driver, which userspace applications can make
-requests to. Most applications will use multiple IPC capsules in combination
-to fulfill their needs.
+Each IPC mechanism can expose its own syscall driver interface, which userspace
+applications can make requests to. Applications can use multiple IPC capsules
+in combination to fulfill their needs.
 
 Some portions of enabling IPC will still need to exist in the kernel. These
 will take the form of capability-limited interfaces and will be limited to
 necessary features for managing processes and memory.
 
-The IPC design will primarily focus on client-server interactions. A review of
-users' use cases has shown that enabling service applications is a primary goal
-for a new IPC system. Servers will register with the OS and wait for
-communications. Clients will discover servers and trigger communication. Some
-mechanisms may also support peer-to-peer communication, but this is not a
+The initial IPC mechanisms will primarily focus on client-server interactions.
+A review of users' use cases has shown that enabling service applications is
+a primary goal for a new IPC system. Servers will register with the OS and wait
+for communications. Clients will discover servers and trigger communication.
+Some mechanisms may also support peer-to-peer communication, but this is not a
 first-order priority.
+
+<!--
+
+Leon: I don't agree with the above. I think that some of the use-cases we
+discussed (such as a "network stack service") will have more complex
+communication patterns than mere request-response. For instance, to avoid
+entirely blocking a client that waits for the next request, they should have at
+least a notification mechanism to indicate that a new packet arrived. This is
+closer to what I remember from our previous discussions. Also, I don't know why
+the document needs to set this premise explicitly, given that we want to design
+an ecosystem of mechanisms instead of a single one, implementing a single
+pattern.
+
+-->
+
 
 Basic mechanisms in the IPC ecosystem will include: registration and discovery
 of services, message passing both synchronous and asynchronous, and shared
