@@ -64,14 +64,14 @@ memory.
 **Fulfill common application-scenario requirements.**
 The IPC mechanisms provided should support common application design patterns.
 A particular focus is on client-server communication as that has shown to be
-common among many use cases. We should ensure the IPC system has some
-capability for all common use cases, rather than optimal cpability for a select
-use cases.
+common among many use cases. We should ensure the IPC system has some capability
+for all common use cases, rather than being optimized for a select set of use
+cases.
 
 **Enable extensions with alternative IPC mechanisms.**
 While Tock should provide a variety of mechanisms to cover common use cases, it
 seems unlikely that those mechanisms will suffice for all use cases. Instead,
-the IPC system should enable extension through the creation of additional
+the IPC system should be extensible through the creation of additional
 capsules. These could be created by downstream users, possibly without
 additional kernel interfaces, and the most useful could be upstreamed into
 mainline Tock.
@@ -102,7 +102,9 @@ Much of IPC research focuses on optimal performance to enable microkernel
 designs. Our focus is instead of client-server interactions between userspace
 applications which may not require the best possible performance. Where
 possible, performance should be valued, but we will weigh that value when in
-conflict with other issues such as usability.
+conflict with other issues such as usability. Nonetheless, where possible, the
+IPC system should be extensible for downstream users to stricter accomodate
+performance requirements.
 
 **One perfect mechanism.**
 We do not believe that there is any single best IPC mechanism that would
@@ -117,6 +119,31 @@ The primary focus of the IPC design is to support client-server interactions.
 The current belief is that true peer-to-peer communication is not as commonly
 needed by Tock applications. However, the design should not preclude the
 future addition of peer-to-peer communication mechanisms if possible.
+
+<!--
+
+I think we should do a better job of deliminating what "peer-to-peer"
+communication means.
+
+When we talk about the simplest form of client--server communication, it's clear
+how to distinguish it: in P2P, you can have the "server" initate requests to the
+client. However, when we're adding features like asynchronous messages being
+delivered from a server to a client (as we'd need for a network stack exposing
+an "IPC server"), then you kind of have all primitives required for "P2P
+communication", in the sense that both sides can initiate communication by
+sending a type of signal (either a client->server request, or a server->client
+signal).
+
+I think that we should instead define that the IPC system assumes that there are
+two entities with different roles: there is a client to initate communication,
+and a server offering a discoverable service.
+
+This says little about the communication patterns that these entities will
+engage in, once communication is established. And I think that's good, because
+those patterns are ultimately going to be governed by the interfaces offered by
+the IPC capsules.
+
+-->
 
 
 ## IPC Manager Capsule
@@ -135,6 +162,15 @@ place before they are completed.
 **Commands**:
 * Existence
 * Register as service with allowed string name
+
+  <!-- This seems problematic implementation-wise: we'd need to store this
+  string name somewhere, possibly using dynamic grant-allocation in the app, or
+  require the app to keep it allowed permanently -- which would enable it to
+  modify it over time. We should think about whether, for now, it makes sense to
+  only allow identifying apps through the package identifier. This is a
+  pre-allocated string stored in flash, app ID checks close over it, and the app
+  is unable to modify it. -->
+
 * Discover service with allowed string name
 
 **Allows**:
@@ -150,7 +186,7 @@ place before they are completed.
 This capsule provides synchronous client-to-server request-and-response
 messages. Clients can send a request to any process ID. After receiving a
 request message, the server performs whatever action it chooses and eventually
-sends a response message back to the client. Clients may wait end up waiting
+sends a response message back to the client. Clients may end up waiting
 for an arbitrary duration until the server responds to them, but may also
 cancel their request at any time.
 
@@ -170,10 +206,12 @@ accepted immediately or dropped. Typical behavior for a server will be to yield
 until a request is waiting. Then it can service that request and check for any
 more before yielding again.
 
-The implementation for synchronous mailbox should use a single copy from
-allowed memory to allowed memory. No message is ever stored within the capsule
+The implementation for synchronous mailbox should use a single copy from allowed
+memory to allowed memory. No message is ever stored within the capsule
 itself. Clients will allow two buffers, one containing the request and one for
-the response to be written to. Upcalls occur on request or response.
+the response to be written to. Upcalls occur on request or response. If a client
+is not large enough for a server's reply, the reply is not, or only partially
+copied, and the client upcall will indicate this error.
 
 **Commands**:
 * Existence
@@ -215,8 +253,10 @@ buffer containing a StreamingProcessSlice. Clients receive a callback when one
 or more messages have been appended for them.
 
 Servers allow a buffer to be appended to the StreamingProcessSlice for a
-specific client. The client will also receive the process ID of the server that
-sent the message.
+specific client. Each message in the buffer is prepended the process ID of the
+server that sent the message, and the message length. In case the client lacked
+space to receive a server's message, the next upcall will indicate this error
+condition.
 
 In the case that a server in the allowlist of a client has a state change (faults),
 the client will be notified in a separate callback.
@@ -287,11 +327,18 @@ tables and instead utilize ProcessIDs directly. Client authentication could be
 ignored and instead systems desiring authentication could use standard process
 authentication mechanisms that already exist in Tock.
 
+<!-- We could also push this into userspace: apps can allow a buffer to the "IPC
+registration capsule", with an allow-list of applications that can send it IPC
+messages. That would be a generalization of the asynchronous-mailbox ACL
+design. For getting clients onto that list, they could use a special "knock"
+call with the server, which then adds them to the list. This avoids a central
+data structure in the kernel. -->
+
 
 ### Process Status Callback
 
 IPC capsules may need to receive a callback if the state of a process changes.
-The would require the addition of a process status callback mechanism to the
+This would require the addition of a process status callback mechanism to the
 kernel, where IPC mechanism(s) could register as clients.
 
 As a specific example, the Synchronous Mailbox capsule allows clients to send a
