@@ -575,34 +575,41 @@ ci-job-cargo-test-build:
 
 
 ### ci-runner-github-qemu jobs:
-QEMU_COMMIT_HASH=abb1565d3d863cf210f18f70c4a42b0f39b8ccdb
-define ci_setup_qemu_riscv
-	$(call banner,CI-Setup: Build QEMU)
-	@# Use the latest QEMU as it has OpenTitan support
-	@printf "Building QEMU, this could take a few minutes\n\n"
-	@git clone https://github.com/qemu/qemu ./tools/ci/qemu 2>/dev/null || echo "qemu already cloned, checking out"
-	@cd tools/ci/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
-	@# Build qemu
-	@$(MAKE) -C "tools/ci/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
+define ci_setup_qemu
+	$(call banner,CI-Setup: Install QEMU)
+	@if command -v apt > /dev/null; then\
+		echo "Running: sudo apt install qemu-system-i386 qemu-system-x86 qemu-system-riscv32";\
+		sudo apt-get install qemu-system-i386 qemu-system-x86 qemu-system-riscv32;\
+	elif command -v brew > /dev/null; then\
+		echo "Running: brew install qemu";\
+		brew install qemu;\
+	elif command -v dnf > /dev/null; then\
+		echo "Running: sudo dnf install qemu";\
+		sudo dnf install qemu;\
+	else\
+		echo "";\
+		echo "ERR: Do not know how to install qemu on this platform.";\
+		exit 1;\
+	fi
 endef
 
 .PHONY: ci-setup-qemu
 ci-setup-qemu:
 	$(call ci_setup_helper,\
-		[[ $$(git -C ./tools/ci/qemu rev-parse HEAD 2>/dev/null || echo 0) == "${QEMU_COMMIT_HASH}" ]] && \
-			cd tools/ci/qemu/build && make -q riscv32-softmmu && echo yes,\
-		Clone QEMU and run its build scripts,\
-		ci_setup_qemu_riscv,\
-		CI_JOB_QEMU_RISCV)
-	$(if $(CI_JOB_QEMU_RISCV),$(eval CI_JOB_QEMU := true))
+		qemu-system-i386 -version &> /dev/null && echo yes,\
+		Install QEMU using your system package manager,\
+		ci_setup_qemu,\
+		CI_JOB_QEMU)
 
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
+	@echo "*** QEMU VERSIONS ***"
+	qemu-system-i386 -version
+	qemu-system-riscv32 -version
+	@echo ""
 	@cd tools/ci/qemu-runner;\
-		PATH="$(shell pwd)/tools/ci/qemu/build/:${PATH}"\
 		NOWARNINGS=true cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
-		PATH="$(shell pwd)/tools/ci/qemu/build/:${PATH}"\
 		make test
 endef
 
