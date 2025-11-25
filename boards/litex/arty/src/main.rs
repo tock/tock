@@ -86,6 +86,7 @@ type AlarmHw =
     litex_vexriscv::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>;
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
+type SchedulerInUse = components::sched::mlfq::MLFQComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -111,10 +112,6 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 kernel::stack_size! {0x2000}
-
-type AlarmHw =
-    litex_vexriscv::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>;
-type SchedulerInUse = components::sched::mlfq::MLFQComponentType<AlarmHw>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
