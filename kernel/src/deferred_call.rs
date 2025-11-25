@@ -260,28 +260,26 @@ impl DeferredCall {
     /// Services and clears the next pending [`DeferredCall`], returns which
     /// index was serviced.
     pub fn service_next_pending() -> Option<usize> {
-        if let Some(defcalls_cell) = DEFCALLS.get() {
-            defcalls_cell.map_or(None, |defcalls| {
-                if let Some(bitmask) = BITMASK.get() {
-                    let val = bitmask.get();
-                    if val == 0 {
-                        None
-                    } else {
-                        let bit = val.trailing_zeros() as usize;
-                        let new_val = val & !(1 << bit);
-                        bitmask.set(new_val);
-                        defcalls[bit].map(|dc| {
-                            dc.handle_deferred_call();
-                            bit
-                        })
-                    }
-                } else {
-                    None
-                }
-            })
-        } else {
-            None
-        }
+        let Some(defcalls_cell) = DEFCALLS.get() else {
+            return None;
+        };
+        defcalls_cell.map_or(None, |defcalls| {
+            let Some(bitmask) = BITMASK.get() else {
+                return None;
+            };
+            let val = bitmask.get();
+            if val == 0 {
+                None
+            } else {
+                let bit = val.trailing_zeros() as usize;
+                let new_val = val & !(1 << bit);
+                bitmask.set(new_val);
+                defcalls[bit].map(|dc| {
+                    dc.handle_deferred_call();
+                    bit
+                })
+            }
+        })
     }
 
     /// Returns true if any deferred calls are waiting to be serviced, false
