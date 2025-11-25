@@ -199,13 +199,17 @@ impl DeferredCall {
     /// Create a new deferred call with a unique ID.
     pub fn new() -> Self {
         if let Some(ctr) = CTR.get() {
-            let idx = ctr.get() + 1;
+            let idx = ctr.get();
             ctr.set(idx + 1);
-            if let Some(nonzero_idx) = NonZero::new(idx) {
+
+            // Check if `idx` is >= 32. If so, we have run out of deferred call
+            // spots and can't create this deferred call.
+            if idx < u32::BITS as usize {
                 DeferredCall {
-                    idx_plus_one: Some(nonzero_idx),
+                    idx_plus_one: NonZero::new(idx + 1),
                 }
             } else {
+                // Invalid deferred call.
                 DeferredCall { idx_plus_one: None }
             }
         } else {
