@@ -260,13 +260,9 @@ impl DeferredCall {
     /// Services and clears the next pending [`DeferredCall`], returns which
     /// index was serviced.
     pub fn service_next_pending() -> Option<usize> {
-        let Some(defcalls_cell) = DEFCALLS.get() else {
-            return None;
-        };
+        let defcalls_cell = DEFCALLS.get()?;
         defcalls_cell.map_or(None, |defcalls| {
-            let Some(bitmask) = BITMASK.get() else {
-                return None;
-            };
+            let bitmask = BITMASK.get()?;
             let val = bitmask.get();
             if val == 0 {
                 None
