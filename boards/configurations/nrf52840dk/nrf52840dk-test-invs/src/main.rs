@@ -281,9 +281,9 @@ pub unsafe fn main() {
         .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
 
     base_peripherals.spim0.configure(
-        nrf52840::pinmux::Pinmux::new(SPI_MOSI as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_MISO as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_CLK as u32),
+        nrf52840::pinmux::Pinmux::new(SPI_MOSI),
+        nrf52840::pinmux::Pinmux::new(SPI_MISO),
+        nrf52840::pinmux::Pinmux::new(SPI_CLK),
     );
 
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
