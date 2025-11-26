@@ -47,7 +47,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     let wdt = Wdt::new();
 
     wdt.disable();
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         info,

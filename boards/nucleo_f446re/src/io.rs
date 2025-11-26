@@ -85,7 +85,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
 
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         info,

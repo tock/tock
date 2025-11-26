@@ -191,7 +191,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_old<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer: &mut W,
     panic_info: &PanicInfo,

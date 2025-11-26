@@ -77,7 +77,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_red_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_14);
     let led = &mut led::LedHigh::new(led_red_pin);
     let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         pi,
