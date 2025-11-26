@@ -102,7 +102,7 @@
 //! ```
 
 use core::cell::Cell;
-use core::fmt::{write, Arguments, Write};
+use core::fmt::{Arguments, Write, write};
 use core::panic::PanicInfo;
 use core::str;
 
@@ -188,27 +188,29 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     nop: &dyn Fn(),
     panic_resources: Option<&PanicResources<C, PP>>,
 ) {
-    panic_begin(nop);
-    // Flush debug buffer if needed
-    flush(writer);
-    panic_banner(writer, panic_info);
+    unsafe {
+        panic_begin(nop);
+        // Flush debug buffer if needed
+        flush(writer);
+        panic_banner(writer, panic_info);
 
-    panic_resources.map(|pr| {
-        let chip = pr.chip.take();
-        panic_cpu_state(chip, writer);
+        panic_resources.map(|pr| {
+            let chip = pr.chip.take();
+            panic_cpu_state(chip, writer);
 
-        chip.map(|c| {
-            // Some systems may enforce memory protection regions for the kernel,
-            // making application memory inaccessible. However, printing process
-            // information will attempt to access memory. If we are provided a chip
-            // reference, attempt to disable userspace memory protection first:
-            use crate::platform::mpu::MPU;
-            c.mpu().disable_app_mpu()
+            chip.map(|c| {
+                // Some systems may enforce memory protection regions for the kernel,
+                // making application memory inaccessible. However, printing process
+                // information will attempt to access memory. If we are provided a chip
+                // reference, attempt to disable userspace memory protection first:
+                use crate::platform::mpu::MPU;
+                c.mpu().disable_app_mpu()
+            });
+            pr.processes.take().map(|p| {
+                panic_process_info(p, pr.printer.take(), writer);
+            });
         });
-        pr.processes.take().map(|p| {
-            panic_process_info(p, pr.printer.take(), writer);
-        });
-    });
+    }
 }
 
 /// Tock default panic routine.
@@ -224,15 +226,17 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
     nop: &dyn Fn(),
     panic_resources: Option<&PanicResources<C, PP>>,
 ) -> ! {
-    // Call `panic_print` first which will print out the panic information and
-    // return
-    panic_print(writer, panic_info, nop, panic_resources);
+    unsafe {
+        // Call `panic_print` first which will print out the panic information and
+        // return
+        panic_print(writer, panic_info, nop, panic_resources);
 
-    // The system is no longer in a well-defined state, we cannot
-    // allow this function to return
-    //
-    // Forever blink LEDs in an infinite loop
-    panic_blink_forever(leds)
+        // The system is no longer in a well-defined state, we cannot
+        // allow this function to return
+        //
+        // Forever blink LEDs in an infinite loop
+        panic_blink_forever(leds)
+    }
 }
 
 /// Generic panic entry.
@@ -276,7 +280,9 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, writer: &mut W) {
-    C::print_state(chip, writer);
+    unsafe {
+        C::print_state(chip, writer);
+    }
 }
 
 /// More detailed prints about all processes.
@@ -373,7 +379,9 @@ pub fn initialize_debug_gpio<P: ThreadIdProvider>() {
 /// Callers of this function must ensure that this function is never called
 /// concurrently with other calls to [`initialize_debug_gpio_unsafe`].
 pub unsafe fn initialize_debug_gpio_unsafe<P: ThreadIdProvider>() {
-    DEBUG_GPIOS.bind_to_thread_unsafe::<P>();
+    unsafe {
+        DEBUG_GPIOS.bind_to_thread_unsafe::<P>();
+    }
 }
 
 /// Map an array of GPIO pins to use for debugging.
@@ -469,8 +477,10 @@ pub fn initialize_debug_writer_wrapper<P: ThreadIdProvider>() {
 /// Callers of this function must ensure that this function is never called
 /// concurrently with other calls to [`initialize_debug_writer_wrapper_unsafe`].
 pub unsafe fn initialize_debug_writer_wrapper_unsafe<P: ThreadIdProvider>() {
-    DEBUG_WRITER.bind_to_thread_unsafe::<P>();
-    DEBUG_WRITER_COUNT.bind_to_thread_unsafe::<P>();
+    unsafe {
+        DEBUG_WRITER.bind_to_thread_unsafe::<P>();
+        DEBUG_WRITER_COUNT.bind_to_thread_unsafe::<P>();
+    }
 }
 
 fn try_get_debug_writer<F, R>(closure: F) -> Option<R>
@@ -593,9 +603,7 @@ macro_rules! debug {
 /// In-kernel `println()` debugging that can take a process slice.
 #[macro_export]
 macro_rules! debug_process_slice {
-    ($msg:expr $(,)?) => {{
-        $crate::debug::debug_slice($msg)
-    }};
+    ($msg:expr $(,)?) => {{ $crate::debug::debug_slice($msg) }};
 }
 
 /// In-kernel `println()` debugging with filename and line numbers.

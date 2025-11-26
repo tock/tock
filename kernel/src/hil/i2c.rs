@@ -228,7 +228,7 @@ pub trait I2CDevice {
     ) -> Result<(), (Error, &'static mut [u8])>;
     fn write(&self, data: &'static mut [u8], len: usize) -> Result<(), (Error, &'static mut [u8])>;
     fn read(&self, buffer: &'static mut [u8], len: usize)
-        -> Result<(), (Error, &'static mut [u8])>;
+    -> Result<(), (Error, &'static mut [u8])>;
 }
 
 pub trait SMBusDevice: I2CDevice {

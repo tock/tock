@@ -141,11 +141,7 @@ impl CapabilityPtr {
     where
         F: FnOnce(&Self) -> U,
     {
-        if self.ptr.is_null() {
-            default
-        } else {
-            f(self)
-        }
+        if self.ptr.is_null() { default } else { f(self) }
     }
 
     /// If the [`CapabilityPtr`] is null returns `default`, otherwise applies `f` to `self`.

@@ -4,6 +4,7 @@
 
 //! Data structure for storing an upcall from the kernel to a process.
 
+use crate::ErrorCode;
 use crate::config;
 use crate::debug;
 use crate::process;
@@ -11,7 +12,6 @@ use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
-use crate::ErrorCode;
 use core::fmt::Debug;
 
 /// Type to uniquely identify an upcall subscription across all drivers.

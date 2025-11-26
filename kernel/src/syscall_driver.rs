@@ -386,8 +386,8 @@ pub trait SyscallDriver {
 
 #[cfg(test)]
 mod test {
-    use crate::syscall_driver::CommandReturn;
     use crate::ErrorCode;
+    use crate::syscall_driver::CommandReturn;
 
     #[test]
     fn failure() {
