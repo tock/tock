@@ -270,6 +270,11 @@ unsafe fn start() -> (
 ) {
     stm32f446re::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f446re::rcc::Rcc, stm32f446re::rcc::Rcc::new());
     let clocks = static_init!(
