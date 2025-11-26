@@ -12,10 +12,6 @@ use kernel::hil::uart;
 use nrf52833::gpio::Pin;
 use nrf52833::uart::{Uarte, UARTE0_BASE};
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
-
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
     initialized: bool,
@@ -76,17 +72,15 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     // MicroBit v2 has a microphone LED, use it for panic
 
-    use core::ptr::{addr_of, addr_of_mut};
+    use core::ptr::addr_of_mut;
     let led_kernel_pin = &nrf52833::gpio::GPIOPin::new(Pin::P0_20);
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic_old(
+    debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     )
 }
