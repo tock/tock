@@ -259,7 +259,14 @@ pub unsafe fn start_particle_boron() -> (
     // Configure kernel debug GPIOs as early as possible. These are used by the
     // `debug_gpio!(0, toggle)` macro. We configure these early so that the
     // macro is available during most of the setup code and kernel execution.
-    kernel::debug::assign_gpios(Some(&gpio_port[LED2_R_PIN]), None, None);
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [&gpio_port[LED2_R_PIN]]
+    );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     let uart_channel = UartChannel::Pins(UartPins::new(None, UART_TXD, None, UART_RXD));
 

@@ -15,7 +15,6 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use esp32_c3::chip::Esp32C3DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::priority::PrioritySched;
@@ -31,6 +30,9 @@ mod tests;
 const NUM_PROCS: usize = 4;
 
 type ChipHw = esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<'static>>;
+type AlarmHw = esp32_c3::timg::TimG<'static>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerNoMuxComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -65,6 +67,10 @@ static mut ALARM: Option<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static
 kernel::stack_size! {0x900}
 
 type RngDriver = components::rng::RngComponentType<esp32_c3::rng::Rng<'static>>;
+type GpioHw = esp32::gpio::GpioPin<'static>;
+type LedHw = components::sk68xx::Sk68xxLedComponentType<GpioHw, 3>;
+type LedDriver = components::led::LedsComponentType<LedHw, 3>;
+type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -76,8 +82,10 @@ struct Esp32C3Board {
         VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static>>,
     >,
     scheduler: &'static PrioritySched,
-    scheduler_timer: &'static VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
+    scheduler_timer: &'static SchedulerTimerHw,
     rng: &'static RngDriver,
+    led: &'static LedDriver,
+    button: &'static ButtonDriver,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -91,6 +99,8 @@ impl SyscallDriverLookup for Esp32C3Board {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             _ => f(None),
         }
     }
@@ -104,7 +114,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type ProcessFault = ();
     type ContextSwitchCallback = ();
     type Scheduler = PrioritySched;
-    type SchedulerTimer = VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
@@ -146,6 +156,10 @@ unsafe fn setup() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    //
+    // PERIPHERALS
+    //
+
     let peripherals = static_init!(Esp32C3DefaultPeripherals, Esp32C3DefaultPeripherals::new());
 
     peripherals.timg0.disable_wdt();
@@ -163,6 +177,10 @@ unsafe fn setup() -> (
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
+    //
+    // BOARD SETUP AND PROCESSES
+    //
+
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
@@ -171,12 +189,41 @@ unsafe fn setup() -> (
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(None, None, None);
+    //
+    // UART
+    //
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
+
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules_core::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(components::console_component_static!());
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new_unsafe(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+        || unsafe {
+            kernel::debug::initialize_debug_writer_wrapper_unsafe::<
+                <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+            >();
+        },
+    )
+    .finalize(components::debug_writer_component_static!());
+
+    // Create process printer for panic.
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
+    PROCESS_PRINTER = Some(process_printer);
+
+    //
+    // GPIO
+    //
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
@@ -195,6 +242,10 @@ unsafe fn setup() -> (
         ),
     )
     .finalize(components::gpio_component_static!(esp32::gpio::GpioPin));
+
+    //
+    // ALARM
+    //
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -222,10 +273,84 @@ unsafe fn setup() -> (
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
-        VirtualSchedulerTimer::new(&peripherals.timg1)
-    );
+    //
+    // LED
+    //
+
+    let led_gpio = &peripherals.gpio[8];
+    let sk68xx = components::sk68xx::Sk68xxComponent::new(led_gpio, rv32i::support::nop)
+        .finalize(components::sk68xx_component_static_esp32c3_160mhz!(GpioHw,));
+
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
+        LedHw,
+        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 0), // red
+        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 1), // green
+        capsules_extra::sk68xx::Sk68xxLed::new(sk68xx, 2), // blue
+    ));
+
+    //
+    // BUTTONS
+    //
+
+    let button_boot_gpio = &peripherals.gpio[9];
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        capsules_core::button::DRIVER_NUM,
+        components::button_component_helper!(
+            GpioHw,
+            (
+                button_boot_gpio,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            )
+        ),
+    )
+    .finalize(components::button_component_static!(GpioHw));
+
+    //
+    // SCHEDULER
+    //
+
+    let scheduler_timer_alarm = &peripherals.timg1;
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerNoMuxComponent::new(
+            scheduler_timer_alarm,
+        )
+        .finalize(components::virtual_scheduler_timer_no_mux_component_static!(AlarmHw));
+
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
+        .finalize(components::priority_component_static!());
+
+    //
+    // PROCESS CONSOLE
+    //
+
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        None,
+    )
+    .finalize(components::process_console_component_static!(
+        esp32_c3::timg::TimG
+    ));
+    let _ = process_console.start();
+
+    //
+    // RNG
+    //
+
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        &peripherals.rng,
+    )
+    .finalize(components::rng_component_static!(esp32_c3::rng::Rng));
+
+    //
+    // CHIP AND INTERRUPTS
+    //
 
     let chip = static_init!(
         esp32_c3::chip::Esp32C3<
@@ -242,32 +367,12 @@ unsafe fn setup() -> (
     // enable interrupts globally
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
-    // Setup the console.
-    let console = components::console::ConsoleComponent::new(
-        board_kernel,
-        capsules_core::console::DRIVER_NUM,
-        uart_mux,
-    )
-    .finalize(components::console_component_static!());
-    // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new_unsafe(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-        || unsafe {
-            kernel::debug::initialize_debug_writer_wrapper_unsafe::<
-                <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-            >();
-        },
-    )
-    .finalize(components::debug_writer_component_static!());
-
-    // Create process printer for panic.
-    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
-        .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
-
     debug!("ESP32-C3 initialisation complete.");
     debug!("Entering main loop.");
+
+    //
+    // LOAD PROCESSES
+    //
 
     // These symbols are defined in the linker script.
     extern "C" {
@@ -281,29 +386,6 @@ unsafe fn setup() -> (
         static _eappmem: u8;
     }
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
-        .finalize(components::priority_component_static!());
-
-    // PROCESS CONSOLE
-    let process_console = components::process_console::ProcessConsoleComponent::new(
-        board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-        None,
-    )
-    .finalize(components::process_console_component_static!(
-        esp32_c3::timg::TimG
-    ));
-    let _ = process_console.start();
-
-    let rng = components::rng::RngComponent::new(
-        board_kernel,
-        capsules_core::rng::DRIVER_NUM,
-        &peripherals.rng,
-    )
-    .finalize(components::rng_component_static!(esp32_c3::rng::Rng));
-
     let esp32_c3_board = static_init!(
         Esp32C3Board,
         Esp32C3Board {
@@ -313,6 +395,8 @@ unsafe fn setup() -> (
             scheduler,
             scheduler_timer,
             rng,
+            led,
+            button
         }
     );
 

@@ -220,11 +220,17 @@ unsafe fn setup() -> (
     );
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&peripherals.gpio_port[19]), // Blue LED
-        None,
-        None,
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [
+            // Blue LED
+            &peripherals.gpio_port[19]
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)

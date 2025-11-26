@@ -11,7 +11,6 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::process::ProcessArray;
@@ -41,6 +40,10 @@ type RngDriver = components::rng::RngRandomComponentType<
 >;
 pub type ScreenHw = qemu_rv32_virt_chip::virtio::devices::virtio_gpu::VirtIOGPU<'static, 'static>;
 
+type AlarmHw = qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
+
 kernel::stack_size! {0x8000}
 
 /// A structure representing this platform that holds references to all
@@ -66,9 +69,7 @@ pub struct QemuRv32VirtPlatform {
     >,
     pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer: &'static VirtualSchedulerTimer<
-        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
-    >,
+    scheduler_timer: &'static SchedulerTimerHw,
     rng: Option<&'static RngDriver>,
     virtio_ethernet_tap: Option<
         &'static capsules_extra::ethernet_tap::EthernetTapDriver<
@@ -129,9 +130,7 @@ impl
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = CooperativeSched<'static>;
-    type SchedulerTimer = VirtualSchedulerTimer<
-        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
-    >;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -274,13 +273,6 @@ pub unsafe fn start() -> (
         MuxAlarm::new(hardware_timer)
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
-
-    // Virtual alarm for the scheduler
-    let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    systick_virtual_alarm.setup();
 
     // Virtual alarm and driver for userspace
     let virtual_alarm_user = static_init!(
@@ -700,12 +692,11 @@ pub unsafe fn start() -> (
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<
-            VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
-        >,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
 
     let platform = QemuRv32VirtPlatform {
         pconsole,

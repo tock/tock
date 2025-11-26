@@ -101,6 +101,7 @@ pub mod sht4x;
 pub mod si7021;
 pub mod signature_verify_in_memory_keys;
 pub mod sip_hash;
+pub mod sk68xx;
 pub mod sound_pressure;
 pub mod ssd1306;
 pub mod st77xx;

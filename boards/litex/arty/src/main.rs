@@ -9,12 +9,10 @@
 #![no_main]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::mlfq::MLFQSched;
@@ -85,6 +83,10 @@ impl InterruptService for LiteXArtyInterruptablePeripherals {
 const NUM_PROCS: usize = 4;
 
 type ChipHw = litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptablePeripherals>;
+type AlarmHw =
+    litex_vexriscv::timer::LiteXAlarm<'static, 'static, socc::SoCRegisterFmt, socc::ClockFrequency>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -123,57 +125,17 @@ struct LiteXArty {
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
+        VirtualMuxAlarm<'static, AlarmHw>,
         components::process_console::Capability,
     >,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >,
+    alarm: &'static capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, AlarmHw>>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static MLFQSched<
-        'static,
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >,
-    scheduler_timer: &'static VirtualSchedulerTimer<
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >,
+    scheduler: &'static MLFQSched<'static, VirtualMuxAlarm<'static, AlarmHw>>,
+    scheduler_timer: &'static SchedulerTimerHw,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls
@@ -199,29 +161,8 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = MLFQSched<
-        'static,
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >;
-    type SchedulerTimer = VirtualSchedulerTimer<
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-    >;
+    type Scheduler = MLFQSched<'static, VirtualMuxAlarm<'static, AlarmHw>>;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -382,12 +323,7 @@ unsafe fn start() -> (
     // Create the LiteXAlarm based on the hardware LiteXTimer core and
     // the uptime peripheral
     let litex_alarm = static_init!(
-        litex_vexriscv::timer::LiteXAlarm<
-            'static,
-            'static,
-            socc::SoCRegisterFmt,
-            socc::ClockFrequency,
-        >,
+        AlarmHw,
         litex_vexriscv::timer::LiteXAlarm::new(timer0_uptime, timer0)
     );
     timer0.set_timer_client(litex_alarm);
@@ -395,48 +331,18 @@ unsafe fn start() -> (
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
-    let mux_alarm = static_init!(
-        MuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-        MuxAlarm::new(litex_alarm)
-    );
+    let mux_alarm = static_init!(MuxAlarm<'static, AlarmHw>, MuxAlarm::new(litex_alarm));
     litex_alarm.set_alarm_client(mux_alarm);
 
     // Userspace alarm driver
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
+        VirtualMuxAlarm<'static, AlarmHw>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules_core::alarm::AlarmDriver<
-            'static,
-            VirtualMuxAlarm<
-                'static,
-                litex_vexriscv::timer::LiteXAlarm<
-                    'static,
-                    'static,
-                    socc::SoCRegisterFmt,
-                    socc::ClockFrequency,
-                >,
-            >,
-        >,
+        capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, AlarmHw>>,
         capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
@@ -444,35 +350,11 @@ unsafe fn start() -> (
     );
     virtual_alarm_user.set_alarm_client(alarm);
 
-    // Systick virtual alarm for scheduling
-    let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<
-            'static,
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-        >,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    systick_virtual_alarm.setup();
-
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<
-            VirtualMuxAlarm<
-                'static,
-                litex_vexriscv::timer::LiteXAlarm<
-                    'static,
-                    'static,
-                    socc::SoCRegisterFmt,
-                    socc::ClockFrequency,
-                >,
-            >,
-        >,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
 
     // ---------- UART ----------
 
@@ -578,14 +460,7 @@ unsafe fn start() -> (
         process_printer,
         None,
     )
-    .finalize(components::process_console_component_static!(
-        litex_vexriscv::timer::LiteXAlarm<
-            'static,
-            'static,
-            socc::SoCRegisterFmt,
-            socc::ClockFrequency,
-        >
-    ));
+    .finalize(components::process_console_component_static!(AlarmHw));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

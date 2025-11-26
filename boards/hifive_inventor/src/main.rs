@@ -14,7 +14,6 @@ use e310_g003::interrupt_service::E310G003DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -27,6 +26,9 @@ pub mod io;
 pub const NUM_PROCS: usize = 4;
 
 type ChipHw = e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<'static>>;
+type AlarmHw = e310_g003::chip::E310xClint<'static>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -55,9 +57,7 @@ struct HiFiveInventor {
         VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>,
     >,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer: &'static VirtualSchedulerTimer<
-        VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>,
-    >,
+    scheduler_timer: &'static SchedulerTimerHw,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -82,8 +82,7 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = CooperativeSched<'static>;
-    type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>>;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -168,9 +167,6 @@ unsafe fn start() -> (
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(None, None, None);
-
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.e310x.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
@@ -194,12 +190,6 @@ unsafe fn start() -> (
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
-
-    let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, e310_g003::chip::E310xClint>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    systick_virtual_alarm.setup();
 
     let alarm = static_init!(
         capsules_core::alarm::AlarmDriver<
@@ -284,10 +274,12 @@ unsafe fn start() -> (
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>>,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
+
     let hifive1 = HiFiveInventor {
         console,
         lldb,

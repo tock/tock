@@ -15,11 +15,11 @@
 #![no_std]
 
 mod chip;
-pub use chip::{Pc, PcComponent};
+pub use chip::{Pc, PcDefaultPeripherals};
 
 mod interrupts;
 
-mod pic;
+pub mod pic;
 
 pub mod pit;
 

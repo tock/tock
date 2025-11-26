@@ -223,11 +223,17 @@ unsafe fn start() -> (
     dbg_gpio0.make_output();
     dbg_gpio1.make_output();
     dbg_gpio2.make_output();
-    debug::assign_gpios(
-        Some(dbg_gpio0), // Red LED
-        Some(dbg_gpio1),
-        Some(dbg_gpio2),
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 3],
+        [
+            // Red LED
+            dbg_gpio0, dbg_gpio1, dbg_gpio2
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Setup pins for UART0
     peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_2 as usize].enable_primary_function();

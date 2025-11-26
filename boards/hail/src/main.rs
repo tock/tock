@@ -263,11 +263,18 @@ unsafe fn start() -> (
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&peripherals.pa[13]),
-        Some(&peripherals.pa[15]),
-        Some(&peripherals.pa[14]),
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 3],
+        [
+            &peripherals.pa[13],
+            &peripherals.pa[14],
+            &peripherals.pa[15],
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()

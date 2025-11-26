@@ -282,13 +282,16 @@ unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     // Configure kernel debug GPIOs as early as possible. These are used by the
-    // `debug_gpio!(0, toggle)` macro. We uconfigure these early so that the
-    // macro is available during most of the setup code and kernel exection.
-    kernel::debug::assign_gpios(
-        Some(&nrf52833_peripherals.gpio_port[LED_KERNEL_PIN]),
-        None,
-        None,
+    // `debug_gpio!(0, toggle)` macro. We configure these early so that the
+    // macro is available during most of the setup code and kernel execution.
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [&nrf52833_peripherals.gpio_port[LED_KERNEL_PIN]]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     //--------------------------------------------------------------------------
     // GPIO

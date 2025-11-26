@@ -457,7 +457,7 @@ pub fn framebuffer() -> Option<(*mut u8, usize)> {
 }
 
 /// Initialise 80×25 text mode and start with a clean screen.
-pub(crate) fn new_text_console(_page_dir_ptr: &mut x86::registers::bits32::paging::PD) {
+pub fn new_text_console(_page_dir_ptr: &mut x86::registers::bits32::paging::PD) {
     // Program 80×25 text mode
     VgaDevice::set_mode(VgaMode::Text80x25);
 
