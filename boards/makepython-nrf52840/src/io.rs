@@ -13,9 +13,6 @@ use kernel::hil::uart::{self};
 use kernel::ErrorCode;
 use nrf52840::gpio::Pin;
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
 use kernel::hil::uart::Transmit;
 use kernel::utilities::cells::VolatileCell;
 
@@ -122,6 +119,8 @@ impl IoWrite for Writer {
     }
 }
 
+/// Default panic handler for the Adafruit CLUE nRF52480 Express Board.
+///
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[panic_handler]
@@ -129,13 +128,11 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P1_10);
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic_old(
+    debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     )
 }
