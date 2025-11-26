@@ -76,7 +76,7 @@ use crate::ErrorCode;
 ///
 /// See also the tracking issue:
 /// <https://github.com/rust-lang/rfcs/issues/2262>.
-pub trait IoWrite {
+pub trait IoWrite: Write {
     fn write(&mut self, buf: &[u8]) -> usize;
 
     fn write_ring_buffer(&mut self, buf: &RingBuffer<'_, u8>) -> usize {
@@ -116,22 +116,29 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
     }
 }
 
+pub trait PanicWriter {
+    type Config;
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite;
+}
+
 /// Tock default panic routine.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic_new<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_new<PW: PanicWriter, L: hil::led::Led, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
-    writer: &mut W,
+    writer_config: PW::Config,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     panic_resources: Option<&PanicResources<C, PP>>,
 ) -> ! {
+    let mut writer = PW::create_panic_writer(writer_config);
+
     // Call `panic_print` first which will print out the panic information and
     // return
-    panic_print_new(writer, panic_info, nop, panic_resources);
+    panic_print_new(&mut writer, panic_info, nop, panic_resources);
 
     // The system is no longer in a well-defined state, we cannot
     // allow this function to return
@@ -177,7 +184,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print_new<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_print_new<W: IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
