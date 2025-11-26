@@ -45,7 +45,7 @@ impl IoWrite for Writer {
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_print(
+    debug::panic_print_old(
         writer,
         pi,
         &rv32i::support::nop,

@@ -53,7 +53,7 @@ fn exit_qemu() -> ! {
 unsafe fn panic_handler(pi: &PanicInfo) -> ! {
     let mut com1 = BlockingSerialPort::new(COM1_BASE);
 
-    debug::panic_print(
+    debug::panic_print_old(
         &mut com1,
         pi,
         &x86::support::nop,

@@ -88,7 +88,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
     #[cfg(feature = "sim_verilator")]
-    debug::panic_print(
+    debug::panic_print_old(
         writer,
         pi,
         &|| {},
@@ -97,7 +97,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         &PROCESS_PRINTER,
     );
     #[cfg(not(feature = "sim_verilator"))]
-    debug::panic_print(
+    debug::panic_print_old(
         writer,
         pi,
         &rv32i::support::nop,

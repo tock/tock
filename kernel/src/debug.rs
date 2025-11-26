@@ -160,7 +160,7 @@ pub trait IoWrite {
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
@@ -200,9 +200,9 @@ pub unsafe fn panic_old<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: Proce
     chip: &'static Option<&'static C>,
     process_printer: &'static Option<&'static PP>,
 ) -> ! {
-    // Call `panic_print` first which will print out the panic information and
+    // Call `panic_print_old` first which will print out the panic information and
     // return
-    panic_print(writer, panic_info, nop, processes, chip, process_printer);
+    panic_print_old(writer, panic_info, nop, processes, chip, process_printer);
 
     // The system is no longer in a well-defined state, we cannot
     // allow this function to return
