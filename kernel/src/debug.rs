@@ -130,7 +130,7 @@ use crate::utilities::single_thread_value::SingleThreadValue;
 ///
 /// See also the tracking issue:
 /// <https://github.com/rust-lang/rfcs/issues/2262>.
-pub trait IoWrite {
+pub trait IoWrite: Write {
     fn write(&mut self, buf: &[u8]) -> usize;
 
     fn write_ring_buffer(&mut self, buf: &RingBuffer<'_, u8>) -> usize {
@@ -168,6 +168,11 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
             printer: MapCell::empty(),
         }
     }
+}
+
+pub trait PanicWriter {
+    type Config;
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite;
 }
 
 /// Tock panic routine, without the infinite LED-blinking loop.
