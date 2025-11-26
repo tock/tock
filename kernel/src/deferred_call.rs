@@ -285,11 +285,7 @@ impl DeferredCall {
     /// Returns true if any deferred calls are waiting to be serviced, false
     /// otherwise.
     pub fn has_tasks() -> bool {
-        if let Some(bitmask) = BITMASK.get() {
-            bitmask.get() != 0
-        } else {
-            false
-        }
+        BITMASK.get().map_or(false, |b| b.get() != 0)
     }
 
     /// This function should be called at the beginning of the kernel loop to
