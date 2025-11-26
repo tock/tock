@@ -452,9 +452,7 @@ unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         let mut size = min_region_size;
 
         // Region start always has to align to minimum region size bytes
-        if !start.is_multiple_of(MIN_REGION_SIZE) {
-            start += MIN_REGION_SIZE - (start % MIN_REGION_SIZE);
-        }
+        start = start.next_multiple_of(MIN_REGION_SIZE);
 
         // Regions must be at least minimum region size bytes
         if size < MIN_REGION_SIZE {
@@ -501,9 +499,7 @@ unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             let underlying_region_start = start - (start % underlying_region_size);
 
             // If `size` doesn't align to the subregion size, extend it.
-            if !size.is_multiple_of(subregion_size) {
-                size += subregion_size - (size % subregion_size);
-            }
+            size = size.next_multiple_of(subregion_size);
 
             let end = start + size;
             let underlying_region_end = underlying_region_start + underlying_region_size;
@@ -631,9 +627,7 @@ unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         let mut region_start = unallocated_memory_start as usize;
 
         // If the start and length don't align, move region up until it does.
-        if !region_start.is_multiple_of(region_size) {
-            region_start += region_size - (region_start % region_size);
-        }
+        region_start = region_start.next_multiple_of(region_size);
 
         // We allocate two MPU regions exactly over the process memory block,
         // and we disable subregions at the end of this region to disallow
@@ -663,9 +657,7 @@ unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             memory_size_po2 *= 2;
             region_size *= 2;
 
-            if !region_start.is_multiple_of(region_size) {
-                region_start += region_size - (region_start % region_size);
-            }
+            region_start = region_start.next_multiple_of(region_size);
 
             num_enabled_subregions = initial_app_memory_size * 8 / region_size + 1;
         }
