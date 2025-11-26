@@ -61,26 +61,20 @@ impl IoWrite for Writer {
 #[panic_handler]
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
-    use core::ptr::{addr_of, addr_of_mut};
+    use core::ptr::addr_of_mut;
     use kernel::debug;
     use kernel::hil::led;
     use nrf52840::gpio::Pin;
-
-    use crate::CHIP;
-    use crate::PROCESSES;
-    use crate::PROCESS_PRINTER;
 
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic_old(
+    debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     )
 }
