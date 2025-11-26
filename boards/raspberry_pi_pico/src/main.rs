@@ -20,14 +20,15 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
+use kernel::debug::PanicResources;
 use kernel::hil::gpio::{Configure, FloatingState};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
 
 use rp2040::adc::{Adc, Channel};
@@ -67,13 +68,11 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 const NUM_PROCS: usize = 4;
 
 type ChipHw = Rp2040<'static, Rp2040DefaultPeripherals<'static>>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-
-static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
 
 type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040ComponentType<
     capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
@@ -316,13 +315,16 @@ pub unsafe fn start() -> (
         Rp2040<Rp2040DefaultPeripherals>,
         Rp2040::new(peripherals, &peripherals.sio)
     );
-
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -512,7 +514,9 @@ pub unsafe fn start() -> (
     // PROCESS CONSOLE
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
