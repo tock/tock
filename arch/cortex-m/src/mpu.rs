@@ -482,7 +482,7 @@ unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
                     1_usize << tz
                 } else {
                     // This case means `start` is 0.
-                    let mut ceil = math::closest_power_of_two(size as u32) as usize;
+                    let mut ceil = (size as u32).next_power_of_two() as usize;
                     if ceil < 256 {
                         ceil = 256
                     }
@@ -524,7 +524,7 @@ unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
                 // In this case, we can't use subregions to solve the alignment
                 // problem. Instead, we round up `size` to a power of two and
                 // shift `start` up in memory to make it align with `size`.
-                size = math::closest_power_of_two(size as u32) as usize;
+                size = (size as u32).next_power_of_two() as usize;
                 start += size - (start % size);
 
                 region_start = start;
@@ -604,7 +604,7 @@ unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
 
         // Size must be a power of two, so:
         // https://www.youtube.com/watch?v=ovo6zwv6DX4.
-        let mut memory_size_po2 = math::closest_power_of_two(memory_size as u32) as usize;
+        let mut memory_size_po2 = (memory_size as u32).next_power_of_two() as usize;
         let exponent = math::log_base_two(memory_size_po2 as u32);
 
         // Check for compliance with the constraints of the MPU.

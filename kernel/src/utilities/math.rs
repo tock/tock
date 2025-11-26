@@ -6,18 +6,6 @@
 
 use core::f32;
 
-/// Get closest power of two greater than the given number.
-pub fn closest_power_of_two(mut num: u32) -> u32 {
-    num -= 1;
-    num |= num >> 1;
-    num |= num >> 2;
-    num |= num >> 4;
-    num |= num >> 8;
-    num |= num >> 16;
-    num += 1;
-    num
-}
-
 /// Represents an integral power-of-two as an exponent.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PowerOfTwo(u32);
@@ -39,7 +27,7 @@ impl PowerOfTwo {
     /// Converts a number two the nearest [`PowerOfTwo`] greater-than-or-equal to
     /// it.
     pub fn ceiling<F: Into<u32>>(f: F) -> PowerOfTwo {
-        PowerOfTwo(log_base_two(closest_power_of_two(f.into())))
+        PowerOfTwo(log_base_two(f.into().next_power_of_two()))
     }
 
     /// Creates a new [`PowerOfTwo`] representing the number zero.
