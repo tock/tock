@@ -279,27 +279,39 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         process: &'a dyn Process,
         grant_num: usize,
     ) -> Self {
-        unsafe {
-            let counters_ptr = base_ptr.as_ptr() as *mut usize;
-            let counters_val = counters_ptr.read();
+        let counters_ptr = base_ptr.as_ptr() as *mut usize;
 
-            // Parse the counters field for each of the fields
-            let [_, _, allow_ro_num, upcalls_num] = u32::to_be_bytes(counters_val as u32);
+        // # Safety
+        //
+        // The safety requirement for the function ensures that `base_ptr` is
+        // well aligned and there is an initialized counters structure there.
+        let counters_val = unsafe { counters_ptr.read() };
 
-            // Skip over the counter usize, then the stored array of `SavedAllowRo`
-            // items and `SavedAllowRw` items.
+        // Parse the counters field for each of the fields
+        let [_, _, allow_ro_num, upcalls_num] = u32::to_be_bytes(counters_val as u32);
+
+        // Skip over the counter usize, then the stored array of `SavedAllowRo`
+        // items and `SavedAllowRw` items.
+        //
+        // # Safety
+        //
+        // The safety requirement for the function ensures that `base_ptr` is
+        // well aligned and there are initialized arrays of saved upcalls and
+        // allows above the counters.
+        let (upcalls_array, allow_ro_array, allow_rw_array) = unsafe {
             let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
             let allow_ro_array = upcalls_array.add(upcalls_num as usize) as *mut SavedAllowRo;
             let allow_rw_array = allow_ro_array.add(allow_ro_num as usize) as *mut SavedAllowRw;
+            (upcalls_array, allow_ro_array, allow_rw_array)
+        };
 
-            Self {
-                process,
-                grant_num,
-                counters_ptr,
-                upcalls_array,
-                allow_ro_array,
-                allow_rw_array,
-            }
+        Self {
+            process,
+            grant_num,
+            counters_ptr,
+            upcalls_array,
+            allow_ro_array,
+            allow_rw_array,
         }
     }
 
