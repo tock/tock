@@ -488,7 +488,7 @@ impl Adc<'_> {
                     113600 / 32
                 };
                 let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
-                let divisor_pow2 = math::closest_power_of_two(divisor);
+                let divisor_pow2 = divisor.next_power_of_two();
                 let clock_divisor = cmp::min(math::log_base_two(divisor_pow2), 7);
                 self.adc_clk_freq.set(max_freq / (1 << (clock_divisor)));
                 cfg_val += Configuration::PRESCAL.val(clock_divisor);
@@ -505,7 +505,7 @@ impl Adc<'_> {
                 // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
                 let cpu_frequency = self.pm.get_system_frequency();
                 let divisor = cpu_frequency.div_ceil(1500000);
-                let divisor_pow2 = math::closest_power_of_two(divisor);
+                let divisor_pow2 = divisor.next_power_of_two();
                 let clock_divisor = cmp::min(math::log_base_two(divisor_pow2).saturating_sub(2), 7);
                 self.adc_clk_freq
                     .set(cpu_frequency / (1 << (clock_divisor + 2)));
