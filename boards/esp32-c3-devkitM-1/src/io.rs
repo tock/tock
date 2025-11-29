@@ -4,14 +4,9 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of;
 use core::str;
 use kernel::debug;
 use kernel::debug::IoWrite;
-
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
 
 struct Writer {}
 
@@ -42,12 +37,11 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_banner(writer, pi);
-    debug::panic_cpu_state(&*addr_of!(CHIP), writer);
-    debug::panic_process_info(
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(PROCESS_PRINTER),
+    debug::panic_print(
         writer,
+        pi,
+        &rv32i::support::nop,
+        crate::PANIC_RESOURCES.get(),
     );
 
     loop {
@@ -66,9 +60,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &rv32i::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     );
 
     let _ = writeln!(writer, "{}", pi);

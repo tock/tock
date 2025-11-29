@@ -29,7 +29,6 @@ const SCREEN_I2C_SCL_PIN: Pin = Pin::P1_11;
 const NUM_PROCS: usize = 8;
 
 type ChipHw = nrf52840dk_lib::ChipHw;
-static mut CHIP: Option<&'static ChipHw> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
@@ -212,8 +211,6 @@ pub unsafe fn main() {
     // Create the base board:
     let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
         nrf52840dk_lib::start();
-
-    CHIP = Some(chip);
 
     //--------------------------------------------------------------------------
     // SCREEN
