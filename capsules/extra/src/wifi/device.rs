@@ -23,11 +23,12 @@ pub mod len {
 enum_from_primitive!(
     /// Security method
     #[derive(Copy, Clone, Debug)]
+    #[non_exhaustive]
     pub enum Security {
-        Wpa = 1,
-        Wpa2 = 2,
-        Wpa2Wpa3 = 3,
-        Wpa3 = 4,
+        WpaPsk = 1,
+        Wpa2Psk = 2,
+        Wpa2PskWpa3Sae = 3,
+        Wpa3Sae = 4,
     }
 );
 
