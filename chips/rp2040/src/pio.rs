@@ -626,6 +626,7 @@ pub trait PioRxClient {
     fn on_data_received(&self, data: u32);
 }
 
+/// Client for State Machine interrupts fired by the `irq` PIO instruction
 pub trait PioSmClient {
     fn on_irq(&self);
 }
@@ -955,7 +956,7 @@ impl StateMachine {
     }
 
     /// Address of the RX FIFO
-    pub fn rxf_addr(&self, pio: PIONumber) -> u32 {
+    pub fn rx_fifo_addr(&self, pio: PIONumber) -> u32 {
         let base_addr = match pio {
             PIONumber::PIO0 => PIO_0_BASE_ADDRESS,
             PIONumber::PIO1 => PIO_1_BASE_ADDRESS,
@@ -964,7 +965,7 @@ impl StateMachine {
     }
 
     /// Address of the TX FIFO
-    pub fn txf_addr(&self, pio: PIONumber) -> u32 {
+    pub fn tx_fifo_addr(&self, pio: PIONumber) -> u32 {
         let base_addr = match pio {
             PIONumber::PIO0 => PIO_0_BASE_ADDRESS,
             PIONumber::PIO1 => PIO_1_BASE_ADDRESS,

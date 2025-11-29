@@ -152,7 +152,7 @@ impl PioGSpi<'_> {
         assert!(addr % 4 == 0);
         let current_sm = self.pio.sm(self.sm_number);
         self.dma
-            .set_read_addr(current_sm.rxf_addr(self.pio.number()));
+            .set_read_addr(current_sm.rx_fifo_addr(self.pio.number()));
         self.dma.set_write_addr(addr);
 
         self.dma.set_len(len);
@@ -169,7 +169,7 @@ impl PioGSpi<'_> {
         let current_sm = self.pio.sm(self.sm_number);
         self.dma.set_read_addr(addr);
         self.dma
-            .set_write_addr(current_sm.txf_addr(self.pio.number()));
+            .set_write_addr(current_sm.tx_fifo_addr(self.pio.number()));
 
         self.dma.set_len(len);
 
