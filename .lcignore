@@ -4,6 +4,7 @@
 # Copyright Google LLC 2022.
 
 /.git/
+/.gitattributes
 /COPYRIGHT
 /LICENSE-APACHE
 /LICENSE-MIT

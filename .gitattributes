@@ -1,0 +1,3 @@
+# Don't treat Cargo.lock as generated files, show full diff
+# https://docs.github.com/en/repositories/working-with-files/managing-files/customizing-how-changed-files-appear-on-github
+Cargo.lock -linguist-generated
