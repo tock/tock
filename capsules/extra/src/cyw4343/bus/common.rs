@@ -53,27 +53,27 @@ pub(crate) fn mask<const MASK: u32, const IDX_EQ_0: u8, const IDX_NEQ_0: u8>(
 /// Disable a core
 pub(crate) mod core_disable {
     use super::{mask, BackplaneTask as Task};
-    use crate::cyw4343::{bus, utils};
+    use crate::cyw4343::{bus, constants};
     use bus::RegLen::Byte;
 
     #[inline]
     pub(crate) const fn ops<const BASE_ADDR: u32>() -> [Task; 7] {
         [
-            Task::read(BASE_ADDR + utils::AI_RESETCTRL_OFFSET, Byte, None),
+            Task::read(BASE_ADDR + constants::AI_RESETCTRL_OFFSET, Byte, None),
             Task::read(
-                BASE_ADDR + utils::AI_RESETCTRL_OFFSET,
+                BASE_ADDR + constants::AI_RESETCTRL_OFFSET,
                 Byte,
-                Some(mask::<{ utils::AI_RESETCTRL_BIT_RESET }, 1, 6>),
+                Some(mask::<{ constants::AI_RESETCTRL_BIT_RESET }, 1, 6>),
             ),
-            Task::write(BASE_ADDR + utils::AI_IOCTRL_OFFSET, 0, Byte),
-            Task::read(BASE_ADDR + utils::AI_IOCTRL_OFFSET, Byte, None),
+            Task::write(BASE_ADDR + constants::AI_IOCTRL_OFFSET, 0, Byte),
+            Task::read(BASE_ADDR + constants::AI_IOCTRL_OFFSET, Byte, None),
             Task::WaitMs(1),
             Task::write(
-                BASE_ADDR + utils::AI_RESETCTRL_OFFSET,
-                utils::AI_RESETCTRL_BIT_RESET,
+                BASE_ADDR + constants::AI_RESETCTRL_OFFSET,
+                constants::AI_RESETCTRL_BIT_RESET,
                 Byte,
             ),
-            Task::read(BASE_ADDR + utils::AI_RESETCTRL_OFFSET, Byte, None),
+            Task::read(BASE_ADDR + constants::AI_RESETCTRL_OFFSET, Byte, None),
         ]
     }
 }
@@ -81,26 +81,26 @@ pub(crate) mod core_disable {
 /// Reset a core
 pub(crate) mod core_reset {
     use super::BackplaneTask as Task;
-    use crate::cyw4343::{bus, utils};
+    use crate::cyw4343::{bus, constants};
     use bus::RegLen::Byte;
 
     #[inline]
     pub(crate) const fn ops<const BASE_ADDR: u32>() -> [Task; 7] {
         [
             Task::write(
-                BASE_ADDR + utils::AI_IOCTRL_OFFSET,
-                utils::AI_IOCTRL_BIT_FGC | utils::AI_IOCTRL_BIT_CLOCK_EN,
+                BASE_ADDR + constants::AI_IOCTRL_OFFSET,
+                constants::AI_IOCTRL_BIT_FGC | constants::AI_IOCTRL_BIT_CLOCK_EN,
                 Byte,
             ),
-            Task::read(BASE_ADDR + utils::AI_IOCTRL_OFFSET, Byte, None),
-            Task::write(BASE_ADDR + utils::AI_RESETCTRL_OFFSET, 0, Byte),
+            Task::read(BASE_ADDR + constants::AI_IOCTRL_OFFSET, Byte, None),
+            Task::write(BASE_ADDR + constants::AI_RESETCTRL_OFFSET, 0, Byte),
             Task::WaitMs(1),
             Task::write(
-                BASE_ADDR + utils::AI_IOCTRL_OFFSET,
-                utils::AI_IOCTRL_BIT_CLOCK_EN,
+                BASE_ADDR + constants::AI_IOCTRL_OFFSET,
+                constants::AI_IOCTRL_BIT_CLOCK_EN,
                 Byte,
             ),
-            Task::read(BASE_ADDR + utils::AI_IOCTRL_OFFSET, Byte, None),
+            Task::read(BASE_ADDR + constants::AI_IOCTRL_OFFSET, Byte, None),
             Task::WaitMs(1),
         ]
     }

@@ -13,9 +13,10 @@
 //!   loading the firmware, sending WLAN data from the driver)
 
 mod bus;
+mod constants;
 mod driver;
+mod macros;
 mod sdpcm;
-mod utils;
 
 pub use bus::spi as spi_bus;
 pub use bus::{CYW4343xBus, CYW4343xBusClient};
