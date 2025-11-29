@@ -149,7 +149,7 @@ impl DmaChannelClient for PioGSpi<'_> {
 
 impl PioGSpi<'_> {
     fn dma_pull(&self, addr: u32, len: u32) {
-        assert!(addr % 4 == 0);
+        assert!(addr.is_multiple_of(4));
         let current_sm = self.pio.sm(self.sm_number);
         self.dma
             .set_read_addr(current_sm.rx_fifo_addr(self.pio.number()));
@@ -165,7 +165,7 @@ impl PioGSpi<'_> {
     }
 
     fn dma_push(&self, addr: u32, len: u32) {
-        assert!(addr % 4 == 0);
+        assert!(addr.is_multiple_of(4));
         let current_sm = self.pio.sm(self.sm_number);
         self.dma.set_read_addr(addr);
         self.dma
@@ -199,7 +199,7 @@ impl<'a> SpiMasterDevice<'a> for PioGSpi<'a> {
             Option<SubSliceMut<'static, u8>>,
         ),
     > {
-        assert!(write_buffer.len() % 4 == 0);
+        assert!(write_buffer.len().is_multiple_of(4));
 
         let current_sm = self.pio.sm(self.sm_number);
         self.cs_pin.clear();
