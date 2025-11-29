@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-//! Common interface for CYW4343x buses. The buses support 2 functions:
+//! Common interface for CYW4343x buses. The buses support 3 functions:
 //! F0: Standard bus function. These packets are used to write/read the chip's registers (e.g.
 //! disable overflow interrupts)
 //! F1: Backplane function. These packets are used to access the internal address space (e.g.
@@ -13,7 +13,7 @@
 //! implementation (setting up registers, loading binaries).
 //!
 //! F2 is used for reading/writing WLAN packets. The bus implementation should only handle
-//! sending data as F2 packets and it should expect that the protocol headers have been added by
+//! sending data as F2 packets and it should expect that the SDPCM protocol headers have been added by
 //! the upper layer.
 //!
 //! The bus should be responsible for handling interrupts from the chip and notify the clients of

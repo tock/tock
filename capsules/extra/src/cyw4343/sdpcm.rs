@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-//! CYW4343x SDPCM protocol headers and packet types
+//! Broadcom SDPCM protocol headers and packet types. The SDPCM protocol is used for multiplexing
+//! frames, IOCTLs and asynchronous events:
+//!
+//! +---------------------------------------------------------------------------------------------+
+//! | SDPCM header | CDC (control) or BDC (data) header | Data (control/event or Ethernet frames) |
+//! +---------------------------------------------------------------------------------------------+
 
 use crate::wifi;
 use core::ffi::CStr;
@@ -15,7 +20,7 @@ use enum_primitive::enum_from_primitive;
 ///
 /// ## Example
 ///
-/// ```rust,ignore
+/// ```rust
 /// // Usage
 ///
 /// parse!{
@@ -35,6 +40,7 @@ use enum_primitive::enum_from_primitive;
 ///     crc: u8,
 ///     another_field: [u8; 10]
 /// }
+///
 /// impl Header {
 ///     pub const SIZE: usize = core::mem::size_of::<Self>();
 ///     pub const fn into_bytes(self) -> [u8; Self::SIZE] {
