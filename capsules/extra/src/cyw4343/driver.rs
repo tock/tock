@@ -630,12 +630,12 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>> wi
 
         if let Some((security, passphrase)) = security {
             match security {
-                wifi::Security::Wpa => self.init_tasks(&ioctl::join_wpa::WPA1)?,
-                wifi::Security::Wpa2 => self.init_tasks(&ioctl::join_wpa::WPA2)?,
-                wifi::Security::Wpa2Wpa3 => {
+                wifi::Security::WpaPsk => self.init_tasks(&ioctl::join_wpa::WPA1)?,
+                wifi::Security::Wpa2Psk => self.init_tasks(&ioctl::join_wpa::WPA2)?,
+                wifi::Security::Wpa2PskWpa3Sae => {
                     self.init_tasks(&ioctl::join_wpa::WPA2_WPA3)?;
                 }
-                wifi::Security::Wpa3 => self.init_tasks(&ioctl::join_wpa::WPA3)?,
+                wifi::Security::Wpa3Sae => self.init_tasks(&ioctl::join_wpa::WPA3)?,
             }
             self.security.set(passphrase);
         } else {
@@ -683,7 +683,7 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>> wi
         security: Option<(wifi::Security, wifi::Passphrase)>,
         channel: u8,
     ) -> Result<(), kernel::ErrorCode> {
-        let (None | Some((wifi::Security::Wpa2, _))) = security else {
+        let (None | Some((wifi::Security::Wpa2Psk, _))) = security else {
             return Err(ErrorCode::NOSUPPORT);
         };
 
