@@ -146,20 +146,21 @@ pub unsafe fn start() -> (
     let pwr = peripherals.pins.get_pin(RPGpio::GPIO23);
     pwr.make_output();
 
-    let bus =
+    let cyw4343_spi_bus =
         components::cyw4343::CYW4343xSpiBusComponent::new(mux_alarm, pio_gspi, fw, nvram).finalize(
             components::cyw4343x_spi_bus_component_static!(PioGSpi<'static>, RPTimer),
         );
-    pio_gspi.set_irq_client(bus);
+    pio_gspi.set_irq_client(cyw4343_spi_bus);
 
-    let device = components::cyw4343::CYW4343xComponent::new(pwr, mux_alarm, bus, clm).finalize(
-        components::cyw4343_component_static!(RPGpioPin, RPTimer, CYW4343xSpiBus),
-    );
+    let cyw4343_device =
+        components::cyw4343::CYW4343xComponent::new(pwr, mux_alarm, cyw4343_spi_bus, clm).finalize(
+            components::cyw4343_component_static!(RPGpioPin, RPTimer, CYW4343xSpiBus),
+        );
 
     let wifi = components::wifi::WifiComponent::new(
         board_kernel,
         capsules_extra::wifi::DRIVER_NUM,
-        device,
+        cyw4343_device,
     )
     .finalize(components::wifi_component_static!(CYW4343xHw));
 
