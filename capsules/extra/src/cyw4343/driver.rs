@@ -11,7 +11,8 @@
 //! Control packets are chained to implement WiFi functionalities (see `tasks`) and data packets
 //! are used to implement the Ethernet interface.
 
-use super::{bus, sdpcm, utils};
+use super::macros::reset_and_restore_bufs;
+use super::{bus, constants, sdpcm};
 use crate::wifi;
 use core::cell::Cell;
 use core::iter::{Enumerate, Peekable};
@@ -21,7 +22,6 @@ use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{hil, ErrorCode};
-use utils::reset_and_restore_bufs;
 
 /// Current state of the CYW43x device driver
 #[derive(Clone, Copy, Debug, Default)]
@@ -121,7 +121,7 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
             ioctl_tasks: ioctl::Tasks::new(),
             eth_tx_data: OptionalCell::empty(),
             pending: OptionalCell::empty(),
-            clm: MapCell::new(clm.chunks(utils::CLM_CHUNK_SIZE).enumerate().peekable()),
+            clm: MapCell::new(clm.chunks(constants::CLM_CHUNK_SIZE).enumerate().peekable()),
             buffer: OptionalCell::new(SubSliceMut::new(buffer)),
             mac: OptionalCell::empty(),
         }
@@ -134,7 +134,7 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
         };
 
         let total_len = sdpcm::SdpcmHeader::SIZE
-            + utils::BDC_PADDING_SIZE
+            + constants::BDC_PADDING_SIZE
             + sdpcm::BdcHeader::SIZE
             + data.len();
 
@@ -147,7 +147,7 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
             seq,
             flags: sdpcm::ChannelType::Data as _,
             next_len: 0,
-            data_offset: (sdpcm::SdpcmHeader::SIZE + utils::BDC_PADDING_SIZE) as _,
+            data_offset: (sdpcm::SdpcmHeader::SIZE + constants::BDC_PADDING_SIZE) as _,
             flow_ctrl: 0,
             data_credit: 0,
             reserved: 0,
@@ -155,7 +155,7 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
         .into_bytes();
 
         let bdc_header = sdpcm::BdcHeader {
-            flags: utils::BDC_VERSION << utils::BDC_VERSION_SHIFT,
+            flags: constants::BDC_VERSION << constants::BDC_VERSION_SHIFT,
             priority: 0,
             flags2: 0,
             data_offset: 0,
@@ -165,9 +165,9 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
         buffer.slice(0..total_len);
         let slice = buffer.as_mut_slice();
         slice[0..sdpcm::SdpcmHeader::SIZE].copy_from_slice(&sdpcm_header);
-        slice[sdpcm::SdpcmHeader::SIZE + utils::BDC_PADDING_SIZE..][..sdpcm::BdcHeader::SIZE]
+        slice[sdpcm::SdpcmHeader::SIZE + constants::BDC_PADDING_SIZE..][..sdpcm::BdcHeader::SIZE]
             .copy_from_slice(&bdc_header);
-        slice[sdpcm::SdpcmHeader::SIZE + utils::BDC_PADDING_SIZE + sdpcm::BdcHeader::SIZE..]
+        slice[sdpcm::SdpcmHeader::SIZE + constants::BDC_PADDING_SIZE + sdpcm::BdcHeader::SIZE..]
             [..data.len()]
             .copy_from_slice(data);
 
@@ -259,27 +259,27 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
                         return Err(ErrorCode::FAIL);
                     };
                     let next = chunks.peek();
-                    let mut flag = utils::CLM_DOWNLOAD_FLAG_HANDLER_VER;
+                    let mut flag = constants::CLM_DOWNLOAD_FLAG_HANDLER_VER;
 
                     if next.is_none() {
-                        flag |= utils::CLM_DOWNLOAD_FLAG_END;
+                        flag |= constants::CLM_DOWNLOAD_FLAG_END;
                     } else {
                         advance = false;
                     }
 
                     if curr.0 == 0 {
-                        flag |= utils::CLM_DOWNLOAD_FLAG_BEGIN;
+                        flag |= constants::CLM_DOWNLOAD_FLAG_BEGIN;
                     }
                     let header = sdpcm::WlDloadData {
                         flag,
-                        dload_type: utils::CLM_DOWNLOAD_TYPE,
+                        dload_type: constants::CLM_DOWNLOAD_TYPE,
                         len: curr.1.len() as _,
                         crc: 0,
                     }
                     .into_bytes();
                     const IOVAR_SIZE: usize = sdpcm::Iovar::ClmLoad.len();
                     let mut data =
-                        [0; IOVAR_SIZE + sdpcm::WlDloadData::SIZE + utils::CLM_CHUNK_SIZE];
+                        [0; IOVAR_SIZE + sdpcm::WlDloadData::SIZE + constants::CLM_CHUNK_SIZE];
                     data[0..IOVAR_SIZE].copy_from_slice(sdpcm::Iovar::ClmLoad.into());
                     data[IOVAR_SIZE..][..sdpcm::WlDloadData::SIZE].copy_from_slice(&header);
 
@@ -438,9 +438,9 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>>
                 (header, data) = data.split_at(sdpcm::EventHeader::SIZE);
                 let event_hdr = sdpcm::EventHeader::from_bytes(header);
 
-                if eth_hdr.ethertype.to_be() != utils::ETHER_TYPE_BRCM
-                    || event_hdr.oui != utils::BRCM_OUI
-                    || event_hdr.subtype.to_be() != utils::EVT_SUBTYPE
+                if eth_hdr.ethertype.to_be() != constants::ETHER_TYPE_BRCM
+                    || event_hdr.oui != constants::BRCM_OUI
+                    || event_hdr.subtype.to_be() != constants::EVT_SUBTYPE
                 {
                     return;
                 }
@@ -1065,7 +1065,7 @@ mod ioctl {
     pub mod join_wpa {
         use super::sdpcm::Iovar;
         use super::{IoctlCommand as Cmd, IoctlData as Data, Op};
-        use crate::cyw4343::utils;
+        use crate::cyw4343::constants;
 
         mod wpa1 {
             pub(super) const MFP: u32 = 0;
@@ -1090,7 +1090,7 @@ mod ioctl {
         const fn ops(wpa_set: Op, mfp: u32, auth: u32, wpa_auth: u32) -> [Op; 12] {
             [
                 Op::iovar(Iovar::AmpduBaWsize, Data::from_u32(8)),
-                Op::ioctl(Cmd::SetWsec, Data::from_u32(utils::WSEC_AES)),
+                Op::ioctl(Cmd::SetWsec, Data::from_u32(constants::WSEC_AES)),
                 Op::iovar(Iovar::BssCfgSupWpa, Data::from_2xu32(0, 1)),
                 Op::iovar(Iovar::BssCfgSupWpa2Eapver, Data::from_2xu32(0, 0xFFFF_FFFF)),
                 Op::iovar(Iovar::BssCfgSupWpaTmo, Data::from_2xu32(0, 2500)),
@@ -1109,7 +1109,7 @@ mod ioctl {
         pub static WPA3: [Op; 12] = ops(WPA3_SET, wpa3::MFP, wpa3::AUTH, wpa3::WPA_AUTH);
         pub static WPA2_WPA3: [Op; 13] = [
             Op::iovar(Iovar::AmpduBaWsize, Data::from_u32(8)),
-            Op::ioctl(Cmd::SetWsec, Data::from_u32(utils::WSEC_AES)),
+            Op::ioctl(Cmd::SetWsec, Data::from_u32(constants::WSEC_AES)),
             Op::iovar(Iovar::BssCfgSupWpa, Data::from_2xu32(0, 1)),
             Op::iovar(Iovar::BssCfgSupWpa2Eapver, Data::from_2xu32(0, 0xFFFF_FFFF)),
             Op::iovar(Iovar::BssCfgSupWpaTmo, Data::from_2xu32(0, 2500)),
@@ -1135,17 +1135,17 @@ mod ioctl {
     pub mod start_scan {
         use super::sdpcm::Iovar;
         use super::{IoctlData as Data, Op};
-        use crate::cyw4343::{sdpcm, utils};
+        use crate::cyw4343::{constants, sdpcm};
 
         pub const SCAN_PARAMS: [u8; sdpcm::ScanParams::SIZE] = sdpcm::ScanParams {
             version: 1,
-            action: utils::WL_SCAN_ACTION_START,
+            action: constants::WL_SCAN_ACTION_START,
             sync_id: 1,
             ssid_len: 0,
             ssid: [0; 32],
             bssid: [0xff; 6],
             bss_type: 2,
-            scan_type: utils::SCANTYPE_PASSIVE,
+            scan_type: constants::SCANTYPE_PASSIVE,
             nprobes: !0,
             active_time: !0,
             passive_time: !0,
@@ -1162,11 +1162,11 @@ mod ioctl {
     pub mod stop_scan {
         use super::sdpcm::Iovar;
         use super::{IoctlData as Data, Op};
-        use crate::cyw4343::{sdpcm, utils};
+        use crate::cyw4343::{constants, sdpcm};
 
         pub const SCAN_PARAMS: [u8; sdpcm::ScanParams::SIZE] = sdpcm::ScanParams {
             version: 1,
-            action: utils::WL_SCAN_ACTION_ABORT,
+            action: constants::WL_SCAN_ACTION_ABORT,
             sync_id: 0,
             ssid_len: 0,
             ssid: [0; 32],

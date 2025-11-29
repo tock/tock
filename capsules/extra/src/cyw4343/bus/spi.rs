@@ -5,7 +5,8 @@
 use super::common;
 use super::State as BusState;
 use super::{CYW4343xBus, CYW4343xBusClient, Function, RegLen, Type};
-use crate::cyw4343::utils;
+use crate::cyw4343::constants;
+use crate::cyw4343::macros::{backplane_window_bits, reset_and_restore_bufs};
 use core::cell::Cell;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::hil::time::ConvertTicks;
@@ -14,7 +15,6 @@ use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::register_bitfields;
 use kernel::{utilities::cells::OptionalCell, ErrorCode};
 use task::GspiTask;
-use utils::{backplane_window_bits, reset_and_restore_bufs};
 
 /// Max packet size is max payload size + 1 command/status word
 pub const MAX_PACKET_SIZE: usize = MAX_PAYLOAD_SIZE + CMD_SIZE;
@@ -150,7 +150,7 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> CYW4343xSpiBus
             wlan: OptionalCell::empty(),
             nvram: (
                 nvram,
-                utils::NVRAM_END - (nvram_len as u32),
+                constants::NVRAM_END - (nvram_len as u32),
                 nvram_magic as u32,
             ),
             fw,
@@ -186,10 +186,10 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> CYW4343xSpiBus
                 self.read(fun, cmd)
             }
             GspiTask::Write(cmd, val) => self.write(cmd, val),
-            GspiTask::Fw => self.write_bp(utils::RAM_BASE_ADDR, self.fw),
+            GspiTask::Fw => self.write_bp(constants::RAM_BASE_ADDR, self.fw),
             GspiTask::Nvram => self.write_bp(self.nvram.1, self.nvram.0),
             GspiTask::NvramMagic => self
-                .update_bp_window_or_else(backplane_window_bits!(utils::NVRAM_END), || {
+                .update_bp_window_or_else(backplane_window_bits!(constants::NVRAM_END), || {
                     self.write(NVRAM_MAGIC_CMD, self.nvram.2)
                 }),
             GspiTask::WaitMs(ms) => {
@@ -216,8 +216,8 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> CYW4343xSpiBus
                 return Err(ErrorCode::NOMEM);
             };
 
-            let window_offset = address & utils::BACKPLANE_ADDRESS_MASK;
-            let window_remaining = (utils::BACKPLANE_WINDOW_SIZE - window_offset) as usize;
+            let window_offset = address & constants::BACKPLANE_ADDRESS_MASK;
+            let window_remaining = (constants::BACKPLANE_WINDOW_SIZE - window_offset) as usize;
 
             // chunk size is the min of:
             // - the remaining length of packet
@@ -225,7 +225,7 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> CYW4343xSpiBus
             // - the remaining length of the current window (so it doesnt wrap to the start of
             // window)
             let len = (base_buffer.len() - offset)
-                .min(utils::MAX_SPI_BP_CHUNK_SIZE)
+                .min(constants::MAX_SPI_BP_CHUNK_SIZE)
                 .min(window_remaining);
 
             let cmd = cmd32(Type::Write, Function::Backplane, window_offset, len as u32);
@@ -320,7 +320,7 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> CYW4343xSpiBus
                     cmd32(
                         Type::Write,
                         Function::Backplane,
-                        utils::REG_BACKPLANE_BACKPLANE_ADDRESS_LOW + idx as u32,
+                        constants::REG_BACKPLANE_BACKPLANE_ADDRESS_LOW + idx as u32,
                         RegLen::Byte as _,
                     ),
                     extr,
@@ -367,7 +367,7 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> CYW4343xBus<'a
         const CMD: u32 = cmd16(
             Type::Read,
             Function::Bus,
-            utils::REG_BUS_TEST_RO,
+            constants::REG_BUS_TEST_RO,
             RegLen::Word as _,
         );
 
@@ -461,7 +461,7 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> CYW4343xBus<'a
 pub(super) const IRQ_CAUSE_CMD: u32 = cmd32(
     Type::Read,
     Function::Bus,
-    utils::REG_BUS_INTERRUPT,
+    constants::REG_BUS_INTERRUPT,
     RegLen::HalfWord as _,
 );
 
@@ -469,7 +469,7 @@ pub(super) const IRQ_CAUSE_CMD: u32 = cmd32(
 pub(super) const NVRAM_MAGIC_CMD: u32 = cmd32(
     Type::Write,
     Function::Backplane,
-    utils::NVRAM_END & utils::BACKPLANE_ADDRESS_MASK | utils::BACKPLANE_WINDOW_SIZE,
+    constants::NVRAM_END & constants::BACKPLANE_ADDRESS_MASK | constants::BACKPLANE_WINDOW_SIZE,
     RegLen::Word as _,
 );
 
@@ -492,8 +492,8 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> SpiMasterClien
             // The status word indicates whether a F2 (WLAN) packet is available
             // + contains the length of the available packet
             (
-                status & utils::STATUS_F2_PKT_AVAILABLE != 0,
-                (status & utils::STATUS_F2_PKT_LEN_MASK) >> utils::STATUS_F2_PKT_LEN_SHIFT,
+                status & constants::STATUS_F2_PKT_AVAILABLE != 0,
+                (status & constants::STATUS_F2_PKT_LEN_MASK) >> constants::STATUS_F2_PKT_LEN_SHIFT,
             )
         };
 
@@ -584,7 +584,7 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> SpiMasterClien
             }
             State::Irq => {
                 let irq = u16::from_le_bytes([data[0], data[1]]);
-                let pending = irq & utils::IRQ_F2_PACKET_AVAILABLE as u16 != 0;
+                let pending = irq & constants::IRQ_F2_PACKET_AVAILABLE as u16 != 0;
 
                 reset_and_restore_bufs!(self, extra, data);
                 self.client.map(|client| {
@@ -642,7 +642,7 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> gpio::Client
 }
 
 mod init {
-    use crate::cyw4343::{bus, utils};
+    use crate::cyw4343::{bus, constants};
     use bus::common;
     use bus::spi::{bus_init, wakeup};
     use bus::RegLen::Word;
@@ -684,17 +684,17 @@ mod init {
 
         // 2. Wlan core disable
         const WLAN_DISABLE: [common::BackplaneTask; 7] =
-            common::core_disable::ops::<{ utils::WLAN_ARM_CORE_BASE_ADDR }>();
+            common::core_disable::ops::<{ constants::WLAN_ARM_CORE_BASE_ADDR }>();
         copy_from_arr!(task => curr, bytes, WLAN_DISABLE); // 13..20
 
         // 3. SoC RAM core disable
         const SOCRAM_DISABLE: [common::BackplaneTask; 7] =
-            common::core_disable::ops::<{ utils::SOCRAM_CORE_BASE_ADDR }>();
+            common::core_disable::ops::<{ constants::SOCRAM_CORE_BASE_ADDR }>();
         copy_from_arr!(task => curr, bytes, SOCRAM_DISABLE); // 20..27
 
         // 4. SoC RAM core reset
         const SOCRAM_RESET: [common::BackplaneTask; 7] =
-            common::core_reset::ops::<{ utils::SOCRAM_CORE_BASE_ADDR }>();
+            common::core_reset::ops::<{ constants::SOCRAM_CORE_BASE_ADDR }>();
         copy_from_arr!(task => curr, bytes, SOCRAM_RESET); // 27..34
 
         // 5. Disable remap
@@ -709,7 +709,7 @@ mod init {
 
         // 7. WLAN core reset
         const WLAN_RESET: [common::BackplaneTask; 7] =
-            common::core_reset::ops::<{ utils::WLAN_ARM_CORE_BASE_ADDR }>();
+            common::core_reset::ops::<{ constants::WLAN_ARM_CORE_BASE_ADDR }>();
         copy_from_arr!(task => curr, bytes, WLAN_RESET); // 39..46
 
         // 8. Wakeup sequence
@@ -722,7 +722,7 @@ mod init {
 
 mod bus_init {
     use super::task::GspiTask;
-    use crate::cyw4343::{bus, utils};
+    use crate::cyw4343::{bus, constants};
     use bus::common::{eq, mask};
     use bus::Function::{Backplane as Bp, Bus};
     use bus::RegLen::{Byte, Word};
@@ -731,60 +731,60 @@ mod bus_init {
         // First test
         GspiTask::read16(
             Bus,
-            utils::REG_BUS_TEST_RO,
+            constants::REG_BUS_TEST_RO,
             Word,
             Some(eq::<0xBEADFEED, 1, 0>),
         ),
-        GspiTask::write16(Bus, utils::REG_BUS_TEST_RW, Word, 0x12345678),
+        GspiTask::write16(Bus, constants::REG_BUS_TEST_RW, Word, 0x12345678),
         GspiTask::read16(
             Bus,
-            utils::REG_BUS_TEST_RW,
+            constants::REG_BUS_TEST_RW,
             Word,
             Some(eq::<0x56781234, 1, 0>),
         ),
         // Configure bus
-        GspiTask::write16(Bus, utils::REG_BUS_CTRL, Word, utils::CONFIG_DATA),
+        GspiTask::write16(Bus, constants::REG_BUS_CTRL, Word, constants::CONFIG_DATA),
         // Second test
         GspiTask::read32(
             Bus,
-            utils::REG_BUS_TEST_RO,
+            constants::REG_BUS_TEST_RO,
             Word,
             Some(eq::<0xFEEDBEAD, 1, 0>),
         ),
         // Interrupts
         GspiTask::write32(
             Bus,
-            utils::REG_BUS_INTERRUPT,
+            constants::REG_BUS_INTERRUPT,
             Byte,
-            utils::INTR_STATUS_RESET,
+            constants::INTR_STATUS_RESET,
         ),
         GspiTask::write32(
             Bus,
-            utils::REG_BUS_INTERRUPT_ENABLE,
+            constants::REG_BUS_INTERRUPT_ENABLE,
             Byte,
-            utils::INTR_ENABLE_RESET,
+            constants::INTR_ENABLE_RESET,
         ),
         GspiTask::write32(
             Bp,
-            utils::REG_BACKPLANE_CHIP_CLOCK_CSR,
+            constants::REG_BACKPLANE_CHIP_CLOCK_CSR,
             Byte,
-            utils::BACKPLANE_ALP_AVAIL_REQ as u32,
+            constants::BACKPLANE_ALP_AVAIL_REQ as u32,
         ),
-        GspiTask::write32(Bp, utils::REG_BACKPLANE_FUNCTION2_WATERMARK, Byte, 0x10),
-        GspiTask::read32(Bp, utils::REG_BACKPLANE_FUNCTION2_WATERMARK, Byte, None),
+        GspiTask::write32(Bp, constants::REG_BACKPLANE_FUNCTION2_WATERMARK, Byte, 0x10),
+        GspiTask::read32(Bp, constants::REG_BACKPLANE_FUNCTION2_WATERMARK, Byte, None),
         GspiTask::read32(
             Bp,
-            utils::REG_BACKPLANE_CHIP_CLOCK_CSR,
+            constants::REG_BACKPLANE_CHIP_CLOCK_CSR,
             Byte,
-            Some(mask::<{ utils::BACKPLANE_ALP_AVAIL }, 0, 1>),
+            Some(mask::<{ constants::BACKPLANE_ALP_AVAIL }, 0, 1>),
         ),
-        GspiTask::write32(Bp, utils::REG_BACKPLANE_CHIP_CLOCK_CSR, Byte, 0x0),
+        GspiTask::write32(Bp, constants::REG_BACKPLANE_CHIP_CLOCK_CSR, Byte, 0x0),
     ];
 }
 
 mod wakeup {
     use super::task::GspiTask;
-    use crate::cyw4343::{bus, utils};
+    use crate::cyw4343::{bus, constants};
     use bus::common::mask;
     use bus::Function::{Backplane as Bp, Bus};
     use bus::RegLen::{Byte, HalfWord, Word};
@@ -793,39 +793,39 @@ mod wakeup {
         GspiTask::WaitMs(30),
         GspiTask::read32(
             Bp,
-            utils::REG_BACKPLANE_CHIP_CLOCK_CSR,
+            constants::REG_BACKPLANE_CHIP_CLOCK_CSR,
             Byte,
             Some(mask::<0x80, 0, 1>),
         ),
         GspiTask::write_bp(
-            utils::SDIOD_CORE_BASE_ADDRESS + utils::SDIO_INT_HOST_MASK,
+            constants::SDIOD_CORE_BASE_ADDRESS + constants::SDIO_INT_HOST_MASK,
             Word,
-            utils::I_HMB_SW_MASK,
+            constants::I_HMB_SW_MASK,
         ),
         GspiTask::write32(
             Bus,
-            utils::REG_BUS_INTERRUPT_ENABLE,
+            constants::REG_BUS_INTERRUPT_ENABLE,
             HalfWord,
-            utils::IRQ_F2_PACKET_AVAILABLE,
+            constants::IRQ_F2_PACKET_AVAILABLE,
         ),
         GspiTask::write32(
             Bp,
-            utils::REG_BACKPLANE_FUNCTION2_WATERMARK,
+            constants::REG_BACKPLANE_FUNCTION2_WATERMARK,
             Byte,
-            utils::SPI_F2_WATERMARK,
+            constants::SPI_F2_WATERMARK,
         ),
         GspiTask::read32(
             Bus,
-            utils::REG_BUS_STATUS,
+            constants::REG_BUS_STATUS,
             Word,
-            Some(mask::<{ utils::STATUS_F2_RX_READY }, 0, 1>),
+            Some(mask::<{ constants::STATUS_F2_RX_READY }, 0, 1>),
         ),
-        GspiTask::write32(Bp, utils::REG_BACKPLANE_PULL_UP, Byte, 0x0),
-        GspiTask::read32(Bp, utils::REG_BACKPLANE_PULL_UP, Byte, None),
-        GspiTask::write32(Bp, utils::REG_BACKPLANE_CHIP_CLOCK_CSR, Byte, 0x10),
+        GspiTask::write32(Bp, constants::REG_BACKPLANE_PULL_UP, Byte, 0x0),
+        GspiTask::read32(Bp, constants::REG_BACKPLANE_PULL_UP, Byte, None),
+        GspiTask::write32(Bp, constants::REG_BACKPLANE_CHIP_CLOCK_CSR, Byte, 0x10),
         GspiTask::read32(
             Bp,
-            utils::REG_BACKPLANE_CHIP_CLOCK_CSR,
+            constants::REG_BACKPLANE_CHIP_CLOCK_CSR,
             Byte,
             Some(mask::<0x80, 0, 1>),
         ),
@@ -834,7 +834,7 @@ mod wakeup {
 
 mod task {
     use super::{cmd16, cmd32};
-    use crate::cyw4343::{bus, utils};
+    use crate::cyw4343::{bus, constants};
     use bus::{common, Function, RegLen, Type};
 
     type Cmd = u32;
@@ -892,9 +892,9 @@ mod task {
         }
 
         pub(super) const fn read_bp(addr: u32, len: RegLen, jmp: Option<fn(u32, &mut u8)>) -> Self {
-            let mut cmd_addr = addr & utils::BACKPLANE_ADDRESS_MASK;
+            let mut cmd_addr = addr & constants::BACKPLANE_ADDRESS_MASK;
             if let RegLen::Word = len {
-                cmd_addr |= utils::BACKPLANE_WINDOW_SIZE
+                cmd_addr |= constants::BACKPLANE_WINDOW_SIZE
             }
 
             Self::ReadBackplane(
@@ -907,9 +907,9 @@ mod task {
         pub(super) const fn write_bp(addr: u32, len: RegLen, val: u32) -> Self {
             assert!(addr % 4 == 0);
 
-            let mut cmd_addr = addr & utils::BACKPLANE_ADDRESS_MASK;
+            let mut cmd_addr = addr & constants::BACKPLANE_ADDRESS_MASK;
             if let RegLen::Word = len {
-                cmd_addr |= utils::BACKPLANE_WINDOW_SIZE
+                cmd_addr |= constants::BACKPLANE_WINDOW_SIZE
             }
 
             Self::WriteBackplane(
