@@ -610,13 +610,14 @@ impl Dma<'_> {
     }
 
     #[inline]
-    fn handle_channels(&self, ints: u32) {
-        for channel in 0..12u32 {
-            if ints & (1 << channel) != 0 {
-                self.channels[channel as usize]
-                    .client
-                    .map(|client| client.transfer_done());
-            }
+    fn handle_channels(&self, mut ints: u32) {
+        ints &= 0xfff;
+        while ints != 0 {
+            let channel = ints.trailing_zeros();
+            self.channels[channel as usize]
+                .client
+                .map(|client| client.transfer_done());
+            ints ^= 1 << channel;
         }
     }
 }
