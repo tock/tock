@@ -102,9 +102,9 @@ Much of IPC research focuses on optimal performance to enable microkernel
 designs. Our focus is instead of client-server interactions between userspace
 applications which may not require the best possible performance. Where
 possible, performance should be valued, but we will weigh that value when in
-conflict with other issues such as usability. Nonetheless, where possible, the
-IPC system should be extensible for downstream users to stricter accomodate
-performance requirements.
+conflict with other issues such as usability. However, the IPC system should
+be extensible to enable performance-focused designs for downstream users with
+stricter performance requirements.
 
 **One perfect mechanism.**
 We do not believe that there is any single best IPC mechanism that would
@@ -159,18 +159,23 @@ locations where it could later be connected if implemented. Callbacks will be
 given on registration and discovery, allowing asynchronous operations to take
 place before they are completed.
 
+Registration and discovery is performed by matching "names", which are
+twenty-byte arrays. Allowed buffers must be exactly twenty bytes in length
+or commands using them will fail. The byte values can be anything, but are
+typically ASCII values, which do not need to be null-terminated. The default
+name value of all-zero-values cannot be used for discovery. Values will be
+copied from the allowed buffer into a fixed-size allocation in the grant
+region.
+
+An alternative mechanism of using package identifiers was considered, but was
+less flexible than having arbitrary process-specified identifiers. Package
+identifiers have some advantages that they are 1) arbitrary length, and 2) are
+unable to be modified at runtime. A downside is that they are encoded as part
+of the build system, and not part of the application.
+
 **Commands**:
 * Existence
 * Register as service with allowed string name
-
-  <!-- This seems problematic implementation-wise: we'd need to store this
-  string name somewhere, possibly using dynamic grant-allocation in the app, or
-  require the app to keep it allowed permanently -- which would enable it to
-  modify it over time. We should think about whether, for now, it makes sense to
-  only allow identifying apps through the package identifier. This is a
-  pre-allocated string stored in flash, app ID checks close over it, and the app
-  is unable to modify it. -->
-
 * Discover service with allowed string name
 
 **Allows**:
@@ -206,12 +211,12 @@ accepted immediately or dropped. Typical behavior for a server will be to yield
 until a request is waiting. Then it can service that request and check for any
 more before yielding again.
 
-The implementation for synchronous mailbox should use a single copy from allowed
-memory to allowed memory. No message is ever stored within the capsule
+The implementation for synchronous mailbox should use a single copy from
+allowed memory to allowed memory. No message is ever stored within the capsule
 itself. Clients will allow two buffers, one containing the request and one for
-the response to be written to. Upcalls occur on request or response. If a client
-is not large enough for a server's reply, the reply is not, or only partially
-copied, and the client upcall will indicate this error.
+the response to be written to. Upcalls occur on request or response. If a
+client has not allowed sufficient memory to hold  a server's reply, the reply
+is only partially copied and the client upcall will indicate this error.
 
 **Commands**:
 * Existence
@@ -254,9 +259,9 @@ or more messages have been appended for them.
 
 Servers allow a buffer to be appended to the StreamingProcessSlice for a
 specific client. Each message in the buffer is prepended the process ID of the
-server that sent the message, and the message length. In case the client lacked
-space to receive a server's message, the next upcall will indicate this error
-condition.
+server that sent the message, and the message length. If the client
+StreamingProcessSlice lacks space to receive a server's message, the next
+upcall will indicate this error condition.
 
 In the case that a server in the allowlist of a client has a state change (faults),
 the client will be notified in a separate callback.
@@ -322,17 +327,18 @@ table would limit the number of other applications communicated with, but could
 be configured at initialization time. A dynamic-size table would require
 dynamic allocation of grant space and could fail at runtime.
 
-The initial design will likely skip an implementation of process descriptor
-tables and instead utilize ProcessIDs directly. Client authentication could be
-ignored and instead systems desiring authentication could use standard process
-authentication mechanisms that already exist in Tock.
+Another alternative access control implementation could be to push
+authentication into userspace. This would extend the allowlist idea from
+Asynchronous Mailbox to other capsules. To add ProcessIDs to the allowlist,
+they would need to be determined via some other mechanism. For example, a
+"knock" mechanism could request access from a server which would either
+permanently allow or deny that ProcessID. This would avoid kernel effort at the
+cost of additional userspace complexity.
 
-<!-- We could also push this into userspace: apps can allow a buffer to the "IPC
-registration capsule", with an allow-list of applications that can send it IPC
-messages. That would be a generalization of the asynchronous-mailbox ACL
-design. For getting clients onto that list, they could use a special "knock"
-call with the server, which then adds them to the list. This avoids a central
-data structure in the kernel. -->
+The initial design will likely skip an implementation of any client access
+control, and instead utilize ProcessIDs directly. Systems desiring client
+authentication could use standard process authentication mechanisms that
+already exist in Tock.
 
 
 ### Process Status Callback
