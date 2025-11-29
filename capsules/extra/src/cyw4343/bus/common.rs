@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-//! Definition of common operations that are independent of
-//! the bus implementation.
+//! Definition of the common operations that are independent of
+//! the bus implementation: resetting or disabling a backplane component,
+//! such as the WLAN core or the SoC RAM.
 
 use super::{RegAddr, RegLen};
 
@@ -50,13 +51,12 @@ pub(crate) fn mask<const MASK: u32, const IDX_EQ_0: u8, const IDX_NEQ_0: u8>(
     }
 }
 
-/// Disable a core
+/// Disable a core (SoC component) by configuring its RESETCTRL and IOCTRL registers
 pub(crate) mod core_disable {
     use super::{mask, BackplaneTask as Task};
     use crate::cyw4343::{bus, constants};
     use bus::RegLen::Byte;
 
-    #[inline]
     pub(crate) const fn ops<const BASE_ADDR: u32>() -> [Task; 7] {
         [
             Task::read(BASE_ADDR + constants::AI_RESETCTRL_OFFSET, Byte, None),
@@ -78,13 +78,12 @@ pub(crate) mod core_disable {
     }
 }
 
-/// Reset a core
+/// Reset a core (SoC component) by configuring its RESETCTRL and IOCTRL registers
 pub(crate) mod core_reset {
     use super::BackplaneTask as Task;
     use crate::cyw4343::{bus, constants};
     use bus::RegLen::Byte;
 
-    #[inline]
     pub(crate) const fn ops<const BASE_ADDR: u32>() -> [Task; 7] {
         [
             Task::write(
