@@ -2,6 +2,43 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
+//! CYW4343x components.
+//!
+//! This provides two components:
+//!
+//! 1. `CYW4343xSpiBusComponent` provides the SPI implementation for the `CYW4343xBus` interface
+//! 2. `CYW4343xComponent` provides the CYW4343 driver
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! // Bus component
+//! let cyw4343_spi_bus = components::cyw4343::CYW4343xSpiBusComponent::new(
+//!     mux_alarm, // Mux alarm
+//!     pio_gspi,  // Should implement the `SpiMasterDevice` interface
+//!     fw, nvram, // Firmware buffers
+//! )
+//! .finalize(!components::cyw4343x_spi_bus_component_static!(
+//!     PioGSpi<'static>, // Type of the Spi peripheral
+//!     RPTimer           // Underlying alarm peripheral
+//! ));
+//! // ...
+//!
+//! // Driver component
+//! let cyw4343_device = components::cyw4343::CYW4343xComponent::new(
+//!     pwr,             // Power pin
+//!     mux_alarm,       // Mux alarm
+//!     cyw4343_spi_bus, // Bus
+//!     clm,             // CLM (Country-Locale Matrix) buffer
+//! )
+//! .finalize(components::cyw4343_component_static!(
+//!     RPGpioPin,
+//!     RPTimer,
+//!     CYW4343xSpiBus
+//! ));
+//! ```
+
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::cyw4343::spi_bus;
 use capsules_extra::cyw4343::CYW4343x;
