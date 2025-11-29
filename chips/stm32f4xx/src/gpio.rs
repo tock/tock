@@ -491,7 +491,7 @@ impl<'a> GpioPorts<'a> {
         self.pins[usize::from(port_num)][usize::from(pin_num)].as_ref()
     }
 
-    pub fn get_port(&self, pinid: PinId) -> &Port {
+    pub fn get_port(&self, pinid: PinId) -> &Port<'_> {
         let mut port_num: u8 = pinid as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
@@ -499,7 +499,7 @@ impl<'a> GpioPorts<'a> {
         &self.ports[usize::from(port_num)]
     }
 
-    pub fn get_port_from_port_id(&self, portid: PortId) -> &Port {
+    pub fn get_port_from_port_id(&self, portid: PortId) -> &Port<'_> {
         &self.ports[portid as usize]
     }
 }

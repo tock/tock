@@ -228,7 +228,7 @@ impl Sha256Software<'_> {
     }
 
     fn right_rotate(&self, x: u32, rotate: u32) -> u32 {
-        (x >> rotate) | (x << (32 - rotate))
+        x.rotate_right(rotate)
     }
 
     // Note: slice MUST be >= 64 bytes long

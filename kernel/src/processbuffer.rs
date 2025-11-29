@@ -508,7 +508,7 @@ impl ReadWriteProcessBuffer {
     /// ```
     pub const fn const_default() -> Self {
         Self {
-            ptr: 0x0 as *mut u8,
+            ptr: core::ptr::null_mut::<u8>(),
             len: 0,
             process_id: None,
         }

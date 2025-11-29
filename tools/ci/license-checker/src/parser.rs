@@ -127,7 +127,7 @@ impl<'cache> Parser<'cache> {
 
     /// Parses the next line and returns its contents. Returns
     /// Err(ParseError::Eof) at EOF.
-    pub fn next(&mut self) -> Result<LineContents, ParseError> {
+    pub fn next(&mut self) -> Result<LineContents<'_>, ParseError> {
         self.line.clear();
         let bytes_read = match self.reader.read_line(&mut self.line) {
             Err(error) if error.kind() == ErrorKind::InvalidData => return Err(ParseError::Binary),

@@ -153,7 +153,7 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
                 self.state.set(State::Write);
                 self.length.set(length);
 
-                if address % page_size == 0 && length >= page_size {
+                if address.is_multiple_of(page_size) && length >= page_size {
                     // This write is aligned to a page and we are writing an entire
                     // page or more.
 

@@ -533,7 +533,7 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
                 }
 
                 // Stop writing after `ENTRIES_PER_WRITE` entries have been written.
-                if (self.write_val.get() + 1) % ENTRIES_PER_WRITE == 0 {
+                if (self.write_val.get() + 1).is_multiple_of(ENTRIES_PER_WRITE) {
                     debug!(
                         "WRITE DONE: READ OFFSET: {:?} / WRITE OFFSET: {:?}",
                         self.log.next_read_entry_id(),

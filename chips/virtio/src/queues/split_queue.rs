@@ -473,9 +473,11 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
         available_ring: &'a mut VirtqueueAvailableRing<MAX_QUEUE_SIZE>,
         used_ring: &'a mut VirtqueueUsedRing<MAX_QUEUE_SIZE>,
     ) -> Self {
-        assert!(core::ptr::from_ref(descriptors) as usize % DESCRIPTOR_ALIGNMENT == 0);
-        assert!(core::ptr::from_ref(available_ring) as usize % AVAILABLE_RING_ALIGNMENT == 0);
-        assert!(core::ptr::from_ref(used_ring) as usize % USED_RING_ALIGNMENT == 0);
+        assert!((core::ptr::from_ref(descriptors) as usize).is_multiple_of(DESCRIPTOR_ALIGNMENT));
+        assert!(
+            (core::ptr::from_ref(available_ring) as usize).is_multiple_of(AVAILABLE_RING_ALIGNMENT)
+        );
+        assert!((core::ptr::from_ref(used_ring) as usize).is_multiple_of(USED_RING_ALIGNMENT));
 
         SplitVirtqueue {
             descriptors,

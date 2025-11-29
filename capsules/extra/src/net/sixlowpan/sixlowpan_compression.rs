@@ -763,7 +763,7 @@ pub fn decompress(
                 // Length in 8-octet units after the first 8 octets
                 // (per the IPv6 ext hdr spec)
                 let mut hdr_len_field = (len - 6) / 8;
-                if (len - 6) % 8 != 0 {
+                if !(len - 6).is_multiple_of(8) {
                     hdr_len_field += 1;
                 }
 
