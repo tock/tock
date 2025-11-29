@@ -667,7 +667,6 @@ mod init {
         };
     }
     use super::task::GspiTask;
-    pub(crate) use copy_from_arr;
 
     pub(crate) static OPS: [GspiTask; 55] = const {
         let mut curr = 0;
@@ -905,7 +904,7 @@ mod task {
         }
 
         pub(super) const fn write_bp(addr: u32, len: RegLen, val: u32) -> Self {
-            assert!(addr % 4 == 0);
+            assert!(addr.is_multiple_of(4));
 
             let mut cmd_addr = addr & constants::BACKPLANE_ADDRESS_MASK;
             if let RegLen::Word = len {
