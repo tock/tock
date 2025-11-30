@@ -8,7 +8,7 @@
 ///
 /// ## Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// // Usage
 ///
 /// parse!{
