@@ -54,33 +54,35 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
     ptr: *const u8,
     len: usize,
 ) -> &'a ReadableProcessSlice {
-    // Transmute a reference to a slice of Cell<u8>s into a reference
-    // to a ReadableProcessSlice. This is possible as
-    // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
-    // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
-    // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
-    // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
-    // wraps a [u8]
-    core::mem::transmute::<&[u8], &ReadableProcessSlice>(
-        // Rust has very strict requirements on pointer validity[1]
-        // which also in part apply to accesses of length 0. We allow
-        // an application to supply arbitrary pointers if the buffer
-        // length is 0, but this is not allowed for Rust slices. For
-        // instance, a null pointer is _never_ valid, not even for
-        // accesses of size zero.
-        //
-        // To get a pointer which does not point to valid (allocated)
-        // memory, but is safe to construct for accesses of size zero,
-        // we must call NonNull::dangling(). The resulting pointer is
-        // guaranteed to be well-aligned and uphold the guarantees
-        // required for accesses of size zero.
-        //
-        // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
-        match len {
-            0 => core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts(ptr, len),
-        },
-    )
+    unsafe {
+        // Transmute a reference to a slice of Cell<u8>s into a reference
+        // to a ReadableProcessSlice. This is possible as
+        // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
+        // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
+        // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
+        // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
+        // wraps a [u8]
+        core::mem::transmute::<&[u8], &ReadableProcessSlice>(
+            // Rust has very strict requirements on pointer validity[1]
+            // which also in part apply to accesses of length 0. We allow
+            // an application to supply arbitrary pointers if the buffer
+            // length is 0, but this is not allowed for Rust slices. For
+            // instance, a null pointer is _never_ valid, not even for
+            // accesses of size zero.
+            //
+            // To get a pointer which does not point to valid (allocated)
+            // memory, but is safe to construct for accesses of size zero,
+            // we must call NonNull::dangling(). The resulting pointer is
+            // guaranteed to be well-aligned and uphold the guarantees
+            // required for accesses of size zero.
+            //
+            // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
+            match len {
+                0 => core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
+                _ => core::slice::from_raw_parts(ptr, len),
+            },
+        )
+    }
 }
 
 /// Convert an process buffers's internal representation to a
@@ -114,33 +116,38 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
     ptr: *mut u8,
     len: usize,
 ) -> &'a WriteableProcessSlice {
-    // Transmute a reference to a slice of Cell<u8>s into a reference
-    // to a ReadableProcessSlice. This is possible as
-    // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
-    // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
-    // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
-    // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
-    // wraps a [u8]
-    core::mem::transmute::<&[u8], &WriteableProcessSlice>(
-        // Rust has very strict requirements on pointer validity[1]
-        // which also in part apply to accesses of length 0. We allow
-        // an application to supply arbitrary pointers if the buffer
-        // length is 0, but this is not allowed for Rust slices. For
-        // instance, a null pointer is _never_ valid, not even for
-        // accesses of size zero.
-        //
-        // To get a pointer which does not point to valid (allocated)
-        // memory, but is safe to construct for accesses of size zero,
-        // we must call NonNull::dangling(). The resulting pointer is
-        // guaranteed to be well-aligned and uphold the guarantees
-        // required for accesses of size zero.
-        //
-        // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
-        match len {
-            0 => core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts_mut(ptr, len),
-        },
-    )
+    unsafe {
+        // Transmute a reference to a slice of Cell<u8>s into a reference
+        // to a ReadableProcessSlice. This is possible as
+        // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
+        // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
+        // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
+        // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
+        // wraps a [u8]
+        core::mem::transmute::<&[u8], &WriteableProcessSlice>(
+            // Rust has very strict requirements on pointer validity[1]
+            // which also in part apply to accesses of length 0. We allow
+            // an application to supply arbitrary pointers if the buffer
+            // length is 0, but this is not allowed for Rust slices. For
+            // instance, a null pointer is _never_ valid, not even for
+            // accesses of size zero.
+            //
+            // To get a pointer which does not point to valid (allocated)
+            // memory, but is safe to construct for accesses of size zero,
+            // we must call NonNull::dangling(). The resulting pointer is
+            // guaranteed to be well-aligned and uphold the guarantees
+            // required for accesses of size zero.
+            //
+            // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
+            match len {
+                0 => core::slice::from_raw_parts_mut(
+                    core::ptr::NonNull::<u8>::dangling().as_ptr(),
+                    0,
+                ),
+                _ => core::slice::from_raw_parts_mut(ptr, len),
+            },
+        )
+    }
 }
 
 /// A readable region of userspace process memory.
@@ -292,7 +299,7 @@ impl ReadOnlyProcessBuffer {
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
-        Self::new(ptr, len, process_id)
+        unsafe { Self::new(ptr, len, process_id) }
     }
 
     /// Consumes the ReadOnlyProcessBuffer, returning its constituent
@@ -389,9 +396,11 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
     pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
-        Self {
-            buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
-            _phantom: PhantomData,
+        unsafe {
+            Self {
+                buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
+                _phantom: PhantomData,
+            }
         }
     }
 }
@@ -478,7 +487,7 @@ impl ReadWriteProcessBuffer {
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
-        Self::new(ptr, len, process_id)
+        unsafe { Self::new(ptr, len, process_id) }
     }
 
     /// Consumes the ReadWriteProcessBuffer, returning its constituent
@@ -626,9 +635,11 @@ impl ReadWriteProcessBufferRef<'_> {
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
     pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
-        Self {
-            buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
-            _phantom: PhantomData,
+        unsafe {
+            Self {
+                buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
+                _phantom: PhantomData,
+            }
         }
     }
 }

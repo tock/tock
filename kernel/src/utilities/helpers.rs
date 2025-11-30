@@ -62,8 +62,8 @@ macro_rules! create_capability {
 #[macro_export]
 macro_rules! count_expressions {
     () => (0usize);
-    ($head:expr $(,)?) => (1usize);
-    ($head:expr, $($tail:expr),* $(,)?) => (1usize + count_expressions!($($tail),*));
+    ($head:expr_2021 $(,)?) => (1usize);
+    ($head:expr_2021, $($tail:expr_2021),* $(,)?) => (1usize + count_expressions!($($tail),*));
 }
 
 /// Executables must specify their stack size by using the `stack_size!` macro.
@@ -77,7 +77,7 @@ macro_rules! count_expressions {
 // size the stack.
 #[macro_export]
 macro_rules! stack_size {
-    {$size:expr} => {
+    {$size:expr_2021} => {
         /// Size to allocate for the stack.
         ///
         /// This creates a static buffer inserted into the `.stack_buffer`
