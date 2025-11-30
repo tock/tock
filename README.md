@@ -1,6 +1,6 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
-[![tock-ci](https://github.com/tock/tock/actions/workflows/ci.yml/badge.svg)](https://github.com/tock/tock/actions/workflows/ci.yml)
+[![tock-ci](https://github.com/tock/tock/actions/workflows/ci.yml/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 [![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
 
@@ -16,7 +16,7 @@ device drivers as well as isolate device drivers from each other. Second, Tock
 uses memory protection units to isolate applications from each other and the
 kernel.
 
-[tock-ci]: https://github.com/tock/tock/actions?query=branch%3Amaster+workflow%3Atock-ci
+[tock-ci]: https://github.com/tock/tock/actions/workflows/ci.yml
 
 Tock 2.x!
 ---------
