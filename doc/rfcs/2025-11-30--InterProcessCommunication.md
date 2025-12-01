@@ -1,6 +1,6 @@
 # Interprocess Communication
 
-- Initial Proposal: TBD
+- Initial Proposal: 2025-11-30
 - RFC PR: TBD
 
 ## Summary
@@ -12,13 +12,14 @@ goal is to document the system before implementation.
 ## Overview
 
 The current (Tock 2.2) IPC mechanism is based on shared memory implemented as a
-special kernel driver:
-https://github.com/tock/tock/blob/release-2.2/kernel/src/ipc.rs It was
-initially implemented early in the Tock effort and has shown to have several
-issues in practice: https://github.com/tock/tock/issues/1993 Primarily, while
-shared memory is a useful mechanism, some microcontrollers are quite limited in
-their ability to share memory chunks. An alternative system that uses message
-passing has been long-discussed but never implemented.
+[special kernel
+driver](https://github.com/tock/tock/blob/release-2.2/kernel/src/ipc.rs). It
+was initially implemented early in the Tock effort and has shown to have
+several issues in practice:
+[https://github.com/tock/tock/issues/1993](https://github.com/tock/tock/issues/1993).
+Primarily, while shared memory is a useful mechanism, some microcontrollers are
+quite limited in their ability to share memory chunks. An alternative system
+that uses message passing has been long-discussed but never implemented.
 
 This RFC proposes replacing the current IPC kernel driver entirely with a new
 IPC ecosystem of capsules which will provide various mechanisms for
@@ -32,31 +33,18 @@ Some portions of enabling IPC will still need to exist in the kernel. These
 will take the form of capability-limited interfaces and will be limited to
 necessary features for managing processes and memory.
 
-The initial IPC mechanisms will primarily focus on client-server interactions.
-A review of users' use cases has shown that enabling service applications is
-a primary goal for a new IPC system. Servers will register with the OS and wait
-for communications. Clients will discover servers and trigger communication.
-Some mechanisms may also support peer-to-peer communication, but this is not a
-first-order priority.
-
-<!--
-
-Leon: I don't agree with the above. I think that some of the use-cases we
-discussed (such as a "network stack service") will have more complex
-communication patterns than mere request-response. For instance, to avoid
-entirely blocking a client that waits for the next request, they should have at
-least a notification mechanism to indicate that a new packet arrived. This is
-closer to what I remember from our previous discussions. Also, I don't know why
-the document needs to set this premise explicitly, given that we want to design
-an ecosystem of mechanisms instead of a single one, implementing a single
-pattern.
-
--->
-
+The initial IPC mechanisms will primarily focus on client-server pattern where
+a server contains some resources that it provides to one or more clients. A
+review of users' use cases has shown that enabling service applications is a
+primary goal for a new IPC system. Servers register with the OS and wait for a
+client to reach out to it. Clients discover servers and initiate communication.
+After initiation, long-term communication can be triggered bidirectionally,
+depending on which mechanisms are used.
 
 Basic mechanisms in the IPC ecosystem will include: registration and discovery
 of services, message passing both synchronous and asynchronous, and shared
-memory.
+memory. Each of these is replaceable with different implementations without
+affecting the others.
 
 
 ### Goals
@@ -74,7 +62,9 @@ seems unlikely that those mechanisms will suffice for all use cases. Instead,
 the IPC system should be extensible through the creation of additional
 capsules. These could be created by downstream users, possibly without
 additional kernel interfaces, and the most useful could be upstreamed into
-mainline Tock.
+mainline Tock. This includes the registration and discovery system, which can
+be substituted with other implementations as long as it provides process
+identifiers usable by other capsules.
 
 **Support a wide variety of microcontrollers.**
 Any microcontroller that Tock supports should be able to use some IPC
@@ -114,39 +104,21 @@ as-needed. Additional capsules should be creatable downstream which could
 revise the interface of existing mechanisms, optimize existing mechanisms for a
 particular use case, or provide altogether new mechanisms.
 
-**Peer-to-peer communication.**
-The primary focus of the IPC design is to support client-server interactions.
-The current belief is that true peer-to-peer communication is not as commonly
-needed by Tock applications. However, the design should not preclude the
-future addition of peer-to-peer communication mechanisms if possible.
-
-<!--
-
-I think we should do a better job of deliminating what "peer-to-peer"
-communication means.
-
-When we talk about the simplest form of client--server communication, it's clear
-how to distinguish it: in P2P, you can have the "server" initate requests to the
-client. However, when we're adding features like asynchronous messages being
-delivered from a server to a client (as we'd need for a network stack exposing
-an "IPC server"), then you kind of have all primitives required for "P2P
-communication", in the sense that both sides can initiate communication by
-sending a type of signal (either a client->server request, or a server->client
-signal).
-
-I think that we should instead define that the IPC system assumes that there are
-two entities with different roles: there is a client to initate communication,
-and a server offering a discoverable service.
-
-This says little about the communication patterns that these entities will
-engage in, once communication is established. And I think that's good, because
-those patterns are ultimately going to be governed by the interfaces offered by
-the IPC capsules.
-
--->
+**Peer-to-Peer Discovery and Initiation.**
+The primary focus of the IPC design is to support client-server interactions
+where clients discover servers and initiate a connection. The current belief is
+that most applications will have a clear differentiation between servers which
+have resources and clients which take actions to connect with them. As an
+example of how this is applied to designs, in the current design servers
+"discover" clients when the client first contacts it, usually via the
+Synchronous Mailbox. An alternative design where any process could discover and
+reach out to any other process is possible, but is not the current focus. Note
+that this does not restrain communication patterns after initiation. Both
+client requests and asynchronous server notifications are supported in
+communication mechanisms.
 
 
-## IPC Manager Capsule
+## IPC Name Registry Capsule
 
 This capsule provides registration for services and discovery for clients.
 Upon discovery, it provides opaque process IDs which can be used to refer to
@@ -170,8 +142,9 @@ region.
 An alternative mechanism of using package identifiers was considered, but was
 less flexible than having arbitrary process-specified identifiers. Package
 identifiers have some advantages that they are 1) arbitrary length, and 2) are
-unable to be modified at runtime. A downside is that they are encoded as part
-of the build system, and not part of the application.
+unable to be modified at runtime. A downside of package identifiers is that
+they are encoded as part of the build system, and not part of the application
+code.
 
 **Commands**:
 * Existence
@@ -197,7 +170,7 @@ cancel their request at any time.
 
 Servers do not need to be aware of clients in advance, as they will receive a
 process ID with each request. Clients do need to have previously discovered a
-process ID for the server, possibly via the IPC Manager or possibly via a
+process ID for the server, possibly via the IPC Name Registry or possibly via a
 separate mechanism (for example, they could be hard-coded).
 
 Each client can only have one outstanding request at a time. However, they can
@@ -248,10 +221,11 @@ if space is available.
 
 Servers must know the process ID of the client they are sending to. This could
 have previously been received through a request via the Synchronous Mailbox
-mechanism or possibly via a separate mechanism (IPC Manager or hard-coded).
-Clients also need to be aware of the process ID for any server they wish to
-receive from, which they will specify in an allowlist. Again, this could
-previously have been received from the IPC Manager mechanism or alternatively.
+mechanism or possibly via a separate mechanism (IPC Name Registry or
+hard-coded). Clients also need to be aware of the process ID for any server
+they wish to receive from, which they will specify in an allowlist. Again, this
+could previously have been received from the IPC Name Registry mechanism or
+alternatively.
 
 Clients provide an allowlist of services which can send messages to them and a
 buffer containing a StreamingProcessSlice. Clients receive a callback when one
@@ -317,7 +291,7 @@ One remaining challenge is that ProcessIDs as designed are insufficient as an
 access control mechanism. Nothing is stops an application from crafting their
 own identifier value to refer to attempt to refer to another process. This
 is helpful for testing and debugging, but also means that access control of
-clients through a system like the IPC Manager capsule is insecure.
+clients through a system like the IPC Name Registry capsule is insecure.
 
 A secure implementation for client authentication would require some type of
 process descriptor, which is used to access a kernel-managed table of other
@@ -402,25 +376,25 @@ messages and register to receive incoming messages on a certain port or IP
 address. Other applications act as clients to this server.
 
 The mechanisms used are:
- * IPC Manager - registration and discovery
+ * IPC Name Registry - registration and discovery
  * Synchronous Mailbox - requests to Thread server, mostly outgoing Thread packets from a client
  * Asynchronous Mailbox - incoming Thread packets for a client
 
-The Thread server would first register with the IPC Manager, initialize the
-Thread network, and then yield until either Thread work occurs or an incoming
-Synchronous Mailbox request arrives. Requests would take the form of either
-outgoing Thread packets, to be sent and then confirmed in a response, or
+The Thread server would first register with the IPC Name Registry, initialize
+the Thread network, and then yield until either Thread work occurs or an
+incoming Synchronous Mailbox request arrives. Requests would take the form of
+either outgoing Thread packets, to be sent and then confirmed in a response, or
 opening an incoming port/address for packets to arrive for the client. In the
 later case, the server stores information about the registration, including the
 client's ProcessID. Later, if an incoming packet destined for that client
 arrives, the server uses the Asynchronous Mailbox to append it to the client's
 StreamingProcessSlice.
 
-Thread clients would first discover the server with the IPC Manager. They could
-make requests of the server over the Synchronous Mailbox. A local queue in the
-client could be used to store multiple outgoing packets while the first request
-is still outstanding. Typically clients would yield on their own mechanisms
-such as timers or sensor data arrival.
+Thread clients would first discover the server with the IPC Name Registry. They
+could make requests of the server over the Synchronous Mailbox. A local queue
+in the client could be used to store multiple outgoing packets while the first
+request is still outstanding. Typically clients would yield on their own
+mechanisms such as timers or sensor data arrival.
 
 A thread client wishing to receive incoming packets would create a
 StreamingProcessSlice which it would allow to the Asynchronous Mailbox for
@@ -443,4 +417,24 @@ TBD
 
 ## Alternative Mechanisms Considered
 TBD
+
+### Discovery and Registration
+Package names
+
+Dynamically-allocated names
+
+
+### Communication
+
+Kernel queue
+
+Single value
+
+Notifications
+
+
+### Shared Memory
+
+Kernel-owned memory chunk
+
 
