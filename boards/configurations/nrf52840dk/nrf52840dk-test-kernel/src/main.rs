@@ -13,6 +13,7 @@ use core::cell::Cell;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::cells::NumericCellExt;
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -164,7 +165,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     // Apply errata fixes and enable interrupts.
-    nrf52840::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

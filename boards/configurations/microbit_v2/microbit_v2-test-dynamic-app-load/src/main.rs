@@ -16,6 +16,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
@@ -233,7 +234,7 @@ unsafe fn start() -> (
     MicroBit,
     &'static nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>,
 ) {
-    nrf52833::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
