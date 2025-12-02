@@ -240,6 +240,14 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type ThreadIdProvider = cortexm4::thread_id::CortexMThreadIdProvider;
 
+    fn init() {
+        unsafe {
+            cortexm4::nvic::disable_all();
+            cortexm4::nvic::clear_all_pending();
+            cortexm4::nvic::enable_all();
+        }
+    }
+
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm4::nvic::next_pending() {

@@ -60,6 +60,8 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
     type ThreadIdProvider = cortexm0p::thread_id::CortexMThreadIdProvider;
 
+    fn init() {}
+
     fn service_pending_interrupts(&self) {
         unsafe {
             let mask = match self.sio.get_processor() {

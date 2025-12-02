@@ -124,6 +124,8 @@ impl<I2: InterruptService, const PR: u16> Pc<'static, PcDefaultPeripherals<PR>, 
 impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<'a, I1, I2, PR> {
     type ThreadIdProvider = x86::thread_id::X86ThreadIdProvider;
 
+    fn init() {}
+
     type MPU = PagingMPU<'a>;
     fn mpu(&self) -> &Self::MPU {
         &self.paging

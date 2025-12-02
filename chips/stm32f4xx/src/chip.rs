@@ -167,6 +167,8 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
     type ThreadIdProvider = cortexm4f::thread_id::CortexMThreadIdProvider;
 
+    fn init() {}
+
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm4f::nvic::next_pending() {

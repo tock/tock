@@ -44,6 +44,8 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
     type UserspaceKernelBoundary = cortexm33::syscall::SysCall;
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
+    fn init() {}
+
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm33::nvic::next_pending() {

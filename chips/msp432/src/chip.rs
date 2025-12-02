@@ -109,6 +109,8 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type ThreadIdProvider = cortexm4::thread_id::CortexMThreadIdProvider;
 
+    fn init() {}
+
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm4::nvic::next_pending() {
