@@ -4,6 +4,8 @@
 
 use kernel::ErrorCode;
 
+pub mod virtio_gpu;
+pub mod virtio_input;
 pub mod virtio_net;
 pub mod virtio_rng;
 
@@ -36,15 +38,15 @@ pub enum VirtIODeviceType {
     RPROCSerial = 11,
     VirtIOCAIF = 12,
     MemoryBalloon = 13,
-    GPUDevice = 14,
-    TimerClockDevice = 15,
-    InputDevice = 16,
-    SocketDevice = 17,
-    CryptoDevice = 18,
-    SignalDistributionModule = 19,
-    PstoreDevice = 20,
-    IOMMUDevice = 21,
-    MemoryDevice = 22,
+    GPUDevice = 16,
+    TimerClockDevice = 17,
+    InputDevice = 18,
+    SocketDevice = 19,
+    CryptoDevice = 20,
+    SignalDistributionModule = 21,
+    PstoreDevice = 22,
+    IOMMUDevice = 23,
+    MemoryDevice = 24,
 }
 
 impl VirtIODeviceType {
@@ -67,15 +69,15 @@ impl VirtIODeviceType {
             11 => Some(DT::RPROCSerial),
             12 => Some(DT::VirtIOCAIF),
             13 => Some(DT::MemoryBalloon),
-            14 => Some(DT::GPUDevice),
-            15 => Some(DT::TimerClockDevice),
-            16 => Some(DT::InputDevice),
-            17 => Some(DT::SocketDevice),
-            18 => Some(DT::CryptoDevice),
-            19 => Some(DT::SignalDistributionModule),
-            20 => Some(DT::PstoreDevice),
-            21 => Some(DT::IOMMUDevice),
-            22 => Some(DT::MemoryDevice),
+            16 => Some(DT::GPUDevice),
+            17 => Some(DT::TimerClockDevice),
+            18 => Some(DT::InputDevice),
+            19 => Some(DT::SocketDevice),
+            20 => Some(DT::CryptoDevice),
+            21 => Some(DT::SignalDistributionModule),
+            22 => Some(DT::PstoreDevice),
+            23 => Some(DT::IOMMUDevice),
+            24 => Some(DT::MemoryDevice),
             _ => None,
         }
     }

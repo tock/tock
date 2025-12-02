@@ -192,9 +192,8 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> hil::buzzer::BuzzerClient for Buzzer<'a, B>
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|processid| {
             let _ = self.apps.enter(processid, |_app, upcalls| {
-                upcalls
-                    .schedule_upcall(0, (kernel::errorcode::into_statuscode(status), 0, 0))
-                    .ok();
+                let _ =
+                    upcalls.schedule_upcall(0, (kernel::errorcode::into_statuscode(status), 0, 0));
             });
         });
 

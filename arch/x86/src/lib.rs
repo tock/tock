@@ -50,6 +50,7 @@ pub mod support;
 pub mod mpu;
 
 pub mod registers;
+pub mod thread_id;
 
 #[cfg(target_arch = "x86")]
 mod start;

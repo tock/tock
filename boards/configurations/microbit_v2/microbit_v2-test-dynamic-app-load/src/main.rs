@@ -70,18 +70,15 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+type ChipHw = nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
-// debug mode requires more stack space
-// static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+kernel::stack_size! {0x2000}
 
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52::temperature::Temp<'static>>;
@@ -237,6 +234,11 @@ unsafe fn start() -> (
 ) {
     nrf52833::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52833::ieee802154_radio::ACK_BUF_SIZE],
         [0; nrf52833::ieee802154_radio::ACK_BUF_SIZE]
@@ -292,11 +294,14 @@ unsafe fn start() -> (
     // Configure kernel debug GPIOs as early as possible. These are used by the
     // `debug_gpio!(0, toggle)` macro. We uconfigure these early so that the
     // macro is available during most of the setup code and kernel exection.
-    kernel::debug::assign_gpios(
-        Some(&nrf52833_peripherals.gpio_port[LED_KERNEL_PIN]),
-        None,
-        None,
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [&nrf52833_peripherals.gpio_port[LED_KERNEL_PIN]]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     //--------------------------------------------------------------------------
     // GPIO
@@ -465,7 +470,9 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

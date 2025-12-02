@@ -70,9 +70,11 @@ const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolic
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
+type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
+static mut CHIP: Option<&'static ChipHw> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 static mut CDC_REF_FOR_PANIC: Option<
@@ -84,10 +86,7 @@ static mut CDC_REF_FOR_PANIC: Option<
 > = None;
 static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 // Function for the CDC/USB stack to use to enter the bootloader.
 fn baud_rate_reset_bootloader_enter() {
@@ -172,7 +171,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules_extra::screen::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
@@ -226,6 +225,11 @@ pub unsafe fn start() -> (
     &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
 ) {
     nrf52840::init();
+
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
 
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
@@ -285,7 +289,14 @@ pub unsafe fn start() -> (
     // Configure kernel debug GPIOs as early as possible. These are used by the
     // `debug_gpio!(0, toggle)` macro. We configure these early so that the
     // macro is available during most of the setup code and kernel execution.
-    kernel::debug::assign_gpios(Some(&nrf52840_peripherals.gpio_port[LED_PIN]), None, None);
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [&nrf52840_peripherals.gpio_port[LED_PIN]]
+    );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     //--------------------------------------------------------------------------
     // GPIO
@@ -413,7 +424,9 @@ pub unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -513,30 +526,30 @@ pub unsafe fn start() -> (
     // Create a Driver for userspace access to the screen.
     // let screen = components::screen::ScreenComponent::new(
     //     board_kernel,
-    //     capsules_extra::screen::DRIVER_NUM,
+    //     capsules_extra::screen::screen::DRIVER_NUM,
     //     ssd1306,
     //     Some(ssd1306),
     // )
     // .finalize(components::screen_component_static!(1032));
 
     let apps_regions = static_init!(
-        [capsules_extra::screen_shared::AppScreenRegion; 3],
+        [capsules_extra::screen::screen_shared::AppScreenRegion; 3],
         [
-            capsules_extra::screen_shared::AppScreenRegion::new(
+            capsules_extra::screen::screen_shared::AppScreenRegion::new(
                 kernel::process::ShortId::Fixed(core::num::NonZeroU32::new(crc("circle")).unwrap()),
                 0,     // x
                 0,     // y
                 8 * 8, // width
                 8 * 8  // height
             ),
-            capsules_extra::screen_shared::AppScreenRegion::new(
+            capsules_extra::screen::screen_shared::AppScreenRegion::new(
                 kernel::process::ShortId::Fixed(core::num::NonZeroU32::new(crc("count")).unwrap()),
                 8 * 8, // x
                 0,     // y
                 8 * 8, // width
                 4 * 8  // height
             ),
-            capsules_extra::screen_shared::AppScreenRegion::new(
+            capsules_extra::screen::screen_shared::AppScreenRegion::new(
                 kernel::process::ShortId::Fixed(
                     core::num::NonZeroU32::new(crc("tock-scroll")).unwrap()
                 ),
@@ -550,7 +563,7 @@ pub unsafe fn start() -> (
 
     let screen = components::screen::ScreenSharedComponent::new(
         board_kernel,
-        capsules_extra::screen::DRIVER_NUM,
+        capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306,
         apps_regions,
     )

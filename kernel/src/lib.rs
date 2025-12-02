@@ -95,14 +95,65 @@
 /// Kernel major version.
 ///
 /// This is compiled with the crate to enable for checking of compatibility with
-/// loaded apps. Both major and minor version constants are updated during a
+/// loaded apps. Major, minor and patch version constants are updated during a
 /// release.
 pub const KERNEL_MAJOR_VERSION: u16 = 2;
 /// Kernel minor version.
 ///
 /// This is compiled with the crate to enable for checking of compatibility with
 /// loaded apps.
-pub const KERNEL_MINOR_VERSION: u16 = 1;
+pub const KERNEL_MINOR_VERSION: u16 = 3;
+/// Kernel patch version.
+pub const KERNEL_PATCH_VERSION: u16 = 0;
+/// Kernel in-development version counter.
+///
+/// Use to distinguish development kernels from release kernels, and can be used
+/// to have applications or tools depend on in-development kernel features that
+/// are not yet included in any release.
+///
+/// A value of `0` indicates that this a release, of the version indicated by
+/// [`KERNEL_MAJOR_VERSION`], [`KERNEL_MINOR_VERSION`] and
+/// [`KERNEL_PATCH_VERSION`].
+///
+/// A value other than `0` indicates that this is a development revision, before
+/// (older than) the next release described by [`KERNEL_MAJOR_VERSION`],
+/// [`KERNEL_MINOR_VERSION`] and [`KERNEL_PATCH_VERSION`].
+pub const KERNEL_PRERELEASE_VERSION: u16 = 1;
+
+/// Tock kernel attributes structure for version information.
+#[repr(C)]
+struct TockAttributesKernelVersion {
+    major: u16,
+    minor: u16,
+    patch: u16,
+    prerelease: u16,
+    tlv_type: u16,
+    tlv_len: u16,
+}
+
+/// Create a data structure which follows the Tock Kernel Attributes format
+/// for specifying the version of the Tock kernel.
+///
+/// More information on kernel attributes is
+/// [here](https://book.tockos.org/doc/kernel_attributes.html).
+///
+/// This is inserted into a specific section (`.tock.attr.kernel_version`) that
+/// the linker script includes at the correct location to be included in the
+/// attributes.
+///
+/// When compiling for a macOS host, this section attribute is elided as it is
+/// incompatible with Mach-O objects and yields the following error: `mach-o
+/// section specifier requires a segment and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".tock.attr.kernel_version")]
+#[used]
+static TOCK_ATTRIBUTES_KERNEL_VERSION: TockAttributesKernelVersion = TockAttributesKernelVersion {
+    major: KERNEL_MAJOR_VERSION,
+    minor: KERNEL_MINOR_VERSION,
+    patch: KERNEL_PATCH_VERSION,
+    prerelease: KERNEL_PRERELEASE_VERSION,
+    tlv_type: 0x0103,
+    tlv_len: 8,
+};
 
 pub mod capabilities;
 pub mod collections;

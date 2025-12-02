@@ -419,6 +419,7 @@ impl<'b> SharedDescriptorBuffer<'b> {
 ///
 /// The [`SplitVirtqueue`] does not actually enfore that a VirtIO device adheres
 /// to the `device_writeable` flag, although compliant devices should.
+#[derive(Debug)]
 pub struct VirtqueueBuffer<'b> {
     pub buf: &'b mut [u8],
     pub len: usize,
@@ -472,9 +473,11 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
         available_ring: &'a mut VirtqueueAvailableRing<MAX_QUEUE_SIZE>,
         used_ring: &'a mut VirtqueueUsedRing<MAX_QUEUE_SIZE>,
     ) -> Self {
-        assert!(core::ptr::from_ref(descriptors) as usize % DESCRIPTOR_ALIGNMENT == 0);
-        assert!(core::ptr::from_ref(available_ring) as usize % AVAILABLE_RING_ALIGNMENT == 0);
-        assert!(core::ptr::from_ref(used_ring) as usize % USED_RING_ALIGNMENT == 0);
+        assert!((core::ptr::from_ref(descriptors) as usize).is_multiple_of(DESCRIPTOR_ALIGNMENT));
+        assert!(
+            (core::ptr::from_ref(available_ring) as usize).is_multiple_of(AVAILABLE_RING_ALIGNMENT)
+        );
+        assert!((core::ptr::from_ref(used_ring) as usize).is_multiple_of(USED_RING_ALIGNMENT));
 
         SplitVirtqueue {
             descriptors,
@@ -554,7 +557,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
         pending_chains as usize
     }
 
-    /// Remove an element from the Virtqueue's used ring.q
+    /// Remove an element from the Virtqueue's used ring.
     ///
     /// If `self.last_used_idx.get() == self.used_ring.idx.get()` (e.g. we don't
     /// have an unprocessed used buffer chain) this will return

@@ -77,6 +77,8 @@ const NUM_PROCS: usize = 8;
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
+type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+
 // Static reference to chip for panic dumps
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps
@@ -84,10 +86,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
     None;
 static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
@@ -219,6 +218,11 @@ pub unsafe fn start_particle_boron() -> (
 ) {
     nrf52840::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let nrf52840_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
@@ -255,7 +259,14 @@ pub unsafe fn start_particle_boron() -> (
     // Configure kernel debug GPIOs as early as possible. These are used by the
     // `debug_gpio!(0, toggle)` macro. We configure these early so that the
     // macro is available during most of the setup code and kernel execution.
-    kernel::debug::assign_gpios(Some(&gpio_port[LED2_R_PIN]), None, None);
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [&gpio_port[LED2_R_PIN]]
+    );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     let uart_channel = UartChannel::Pins(UartPins::new(None, UART_TXD, None, UART_RXD));
 
@@ -399,7 +410,9 @@ pub unsafe fn start_particle_boron() -> (
     )
     .finalize(components::console_component_static!(132, 132));
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

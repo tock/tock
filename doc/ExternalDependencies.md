@@ -11,10 +11,12 @@ External Dependencies
 - [External Dependency Selection](#external-dependency-selection)
   * [General Guidelines for Dependency Selection](#general-guidelines-for-dependency-selection)
     + [Provide Important Functionality](#provide-important-functionality)
-    + [Project Maturity](#project-maturity)
+    + [Project Understandability](#project-understandability)
     + [Limited Sub-dependencies](#limited-sub-dependencies)
   * [Board-Specific External Dependencies](#board-specific-external-dependencies)
   * [Capsule Crate-Specific External Dependencies](#capsule-crate-specific-external-dependencies)
+  * [Core Kernel External Dependencies](#core-kernel-external-dependencies)
+    + [Approved Exceptions for Core Kernel External Dependencies](#approved-exceptions-for-core-kernel-external-dependencies)
 - [Including the Dependency](#including-the-dependency)
   * [Including Capsule Crate-Specific External Dependencies](#including-capsule-crate-specific-external-dependencies)
   * [Including Board-Specific External Dependencies](#including-board-specific-external-dependencies)
@@ -112,10 +114,12 @@ Such functionality includes:
   high-quality cryptographic libraries instead of Tock-specific cryptographic
   code increases the security of the Tock kernel.
 
-#### Project Maturity
+#### Project Understandability
 
-The external crate being added should be a mature project, with a high quality
-of code. The project must be well regarded in the Rust community.
+The external crate should be focused to a particular, understandable operation
+or feature set. The code should be high quality and straightforward to
+encourage confident auditing. The crate should only use standard and commonly
+used Rust and Rust ecosystem mechanisms.
 
 #### Limited Sub-dependencies
 
@@ -174,6 +178,54 @@ without this dependency.
 
 Newly contributed code or code from `capsules/extra` can be moved to a new
 capsule crate when deemed necessary; this is evaluated on a case-by-case basis.
+
+### Core Kernel External Dependencies
+
+Tock does not permit any external dependencies for core kernel crates, with one
+exception. As these Tock crates are not optional, Tock users cannot opt-out of
+the external dependencies as they can with board-level and capsule-level
+external dependencies. In general, external dependencies for `arch/`, `chips/`,
+and `kernel/` crates must be vendored into the Tock repository.
+
+The lone exception is for significant crates enumerated here that are maintained
+by the Tock project itself. These can only be crates that have significant
+value to the greater Rust and/or embedded development community, whose
+development in a standalone repository is necessary for the continued
+development, improvement, and impact of the crate.
+
+All crates permitted by this exception MUST NOT have any external dependencies
+themselves.
+
+Any crates included in this exception list, with their associated justification,
+do not imply any predisposition to allowing an exception for any future
+crates. All exceptions will be considered independently.
+
+#### Approved Exceptions for Core Kernel External Dependencies
+
+- **tock-registers** ([repo](https://github.com/tock/tock-registers)): This
+  crate provides an interface for using MMIO registers which are extensively
+  used in `chips/` crates.
+
+  Justification: This crate has moved to an external dependency to encourage its
+  development and use in projects beyond Tock. Specifically, the benefits of
+  development in a separate repository include:
+
+  1. Encouraging more rigorous backwards compatibility considerations for
+     external users. The close interplay of Tock and tock-registers means
+     breaking changes for external users can be hidden in Tock-specific pull
+     requests. Having a separate development area limits the risk of inadvertent
+     breaking changes.
+  2. Encouraging regular releases. The close interplay of Tock and
+     tock-registers minimizes the benefit of formal tock-register releases.
+     However, the broader community would benefit from more frequent releases,
+     and a separate development space with separate release tracking (i.e., in
+     Github) helps facilitate that.
+  3. Easing engagement with external users. Having a dedicated development site
+     makes it more obvious where to post issues and propose changes.
+  4. Encouraging external contributions. Having tock-registers in its own
+     repository makes it clear it is a standalone project and can be developed
+     independently of Tock. This should help contributions that benefit
+     tock-registers but not necessarily Tock as well.
 
 ## Including the Dependency
 

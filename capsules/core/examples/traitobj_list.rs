@@ -49,7 +49,7 @@ impl<'a> Manager<'a> {
         }
     }
 
-    pub fn manage(&mut self, thing: &'a (dyn Funky<'a>)) {
+    pub fn manage(&mut self, thing: &'a dyn Funky<'a>) {
         self.funky_things.push_head(thing);
     }
 

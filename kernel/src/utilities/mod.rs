@@ -14,6 +14,7 @@ pub mod machine_register;
 pub mod math;
 pub mod mut_imut_buffer;
 pub mod peripheral_management;
+pub mod single_thread_value;
 pub mod static_init;
 pub mod storage_volume;
 pub mod streaming_process_slice;
@@ -23,8 +24,9 @@ pub use self::static_ref::StaticRef;
 
 /// The Tock Register Interface.
 ///
-/// This is a re-export of the `tock-register-interface` crate provided for
-/// convenience.
+/// This is a re-export of the
+/// [`tock-registers`](https://github.com/tock/tock-registers) crate provided
+/// for convenience.
 ///
 /// The Tock Register Interface provides a mechanism for accessing hardware
 /// registers and MMIO interfaces.

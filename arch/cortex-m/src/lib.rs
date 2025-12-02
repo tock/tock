@@ -16,6 +16,7 @@ pub mod scb;
 pub mod support;
 pub mod syscall;
 pub mod systick;
+pub mod thread_id;
 
 // These constants are defined in the linker script.
 extern "C" {
@@ -118,9 +119,11 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 
     // IPSR[8:0] holds the currently active interrupt
     asm!(
-        "mrs r0, ipsr",
+        "
+    mrs r0, ipsr
+        ",
         out("r0") interrupt_number,
-        options(nomem, nostack, preserves_flags)
+        options(nomem, nostack, preserves_flags),
     );
 
     interrupt_number &= 0x1ff;
@@ -147,7 +150,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 
     movs r2, #0         // r2 = 0
 
-  100: // bss_init_loop
+100: // bss_init_loop
     cmp r1, r0          // We increment r0. Check if we have reached r1
                         // (end of .bss), and stop if so.
     beq 101f            // If r0 == r1, we are done.
@@ -157,7 +160,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
                         // bang allows us to also increment r0 automatically.
     b 100b              // Continue the loop.
 
-  101: // bss_init_done
+101: // bss_init_done
 
     // Now initialize .data memory. This involves coping the values right at the
     // end of the .text section (in flash) into the .data section (in RAM).
@@ -165,7 +168,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     ldr r1, ={edata}    // r1 = first address after data section in RAM
     ldr r2, ={etext}    // r2 = address of stored data initial values
 
-  200: // data_init_loop
+200: // data_init_loop
     cmp r1, r0          // We increment r0. Check if we have reached the end
                         // of the data section, and if so we are done.
     beq 201f            // r0 == r1, and we have iterated through the .data section
@@ -175,12 +178,12 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
                         // increment r0.
     b 200b              // Continue the loop.
 
-  201: // data_init_done
+201: // data_init_done
 
     // Now that memory has been initialized, we can jump to main() where the
     // board initialization takes place and Rust code starts.
     bl main
-    ",
+        ",
         sbss = sym _szero,
         ebss = sym _ezero,
         sdata = sym _srelocate,

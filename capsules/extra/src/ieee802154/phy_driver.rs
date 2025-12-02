@@ -307,12 +307,10 @@ impl<'a, R: hil::radio::Radio<'a>> hil::radio::TxClient for RadioDriver<'a, R> {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|processid| {
             let _ = self.apps.enter(processid, |_app, upcalls| {
-                upcalls
-                    .schedule_upcall(
-                        upcall::FRAME_TRANSMITTED,
-                        (kernel::errorcode::into_statuscode(result), acked.into(), 0),
-                    )
-                    .ok();
+                let _ = upcalls.schedule_upcall(
+                    upcall::FRAME_TRANSMITTED,
+                    (kernel::errorcode::into_statuscode(result), acked.into(), 0),
+                );
             });
         });
         self.do_next_tx();
@@ -379,7 +377,8 @@ impl<'a, R: hil::radio::Radio<'a>> hil::radio::RxClient for RadioDriver<'a, R> {
                         // conditional check (due to unsigned integer
                         // arithmetic).
                         if rbuf.len() <= RING_BUF_METADATA_SIZE
-                            || (rbuf.len() - RING_BUF_METADATA_SIZE) % USER_FRAME_MAX_SIZE != 0
+                            || !(rbuf.len() - RING_BUF_METADATA_SIZE)
+                                .is_multiple_of(USER_FRAME_MAX_SIZE)
                         {
                             return false;
                         }
@@ -441,9 +440,7 @@ impl<'a, R: hil::radio::Radio<'a>> hil::radio::RxClient for RadioDriver<'a, R> {
                 .unwrap_or(false);
             if read_present {
                 // Place lqi as argument to be included in upcall.
-                kernel_data
-                    .schedule_upcall(upcall::FRAME_RECEIVED, (lqi as usize, 0, 0))
-                    .ok();
+                let _ = kernel_data.schedule_upcall(upcall::FRAME_RECEIVED, (lqi as usize, 0, 0));
             }
         });
 

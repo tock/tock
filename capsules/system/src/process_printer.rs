@@ -250,3 +250,23 @@ fn exceeded_check(size: usize, allocated: usize) -> &'static str {
         "          "
     }
 }
+
+/// A Process Printer that does nothing.
+pub struct ProcessPrinterNull {}
+
+impl ProcessPrinterNull {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl ProcessPrinter for ProcessPrinterNull {
+    fn print_overview(
+        &self,
+        _process: &dyn Process,
+        _writer: &mut dyn BinaryWrite,
+        _context: Option<ProcessPrinterContext>,
+    ) -> Option<ProcessPrinterContext> {
+        None
+    }
+}

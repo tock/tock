@@ -242,10 +242,9 @@ impl SpiHost<'_> {
     //Determine if transfer complete or if we need to keep
     //writing from an offset.
     fn continue_transfer(&self) -> Result<SpiHostStatus, ErrorCode> {
-        let rc = self
-            .rx_buf
-            .take()
-            .map(|mut rx_buf| -> Result<SpiHostStatus, ErrorCode> {
+        let rc = self.rx_buf.take().map_or(
+            Err(ErrorCode::FAIL),
+            |mut rx_buf| -> Result<SpiHostStatus, ErrorCode> {
                 let regs = self.registers;
                 let mut val32: u32;
                 let mut val8: u8;
@@ -262,7 +261,7 @@ impl SpiHost<'_> {
                             break;
                         }
                         val8 = ((val32 & shift_mask) >> (i * 8)) as u8;
-                        if let Some(ptr) = rx_buf.as_slice().get_mut(self.rx_offset.get()) {
+                        if let Some(ptr) = rx_buf.as_mut_slice().get_mut(self.rx_offset.get()) {
                             *ptr = val8;
                         } else {
                             // We have run out of rx buffer size
@@ -281,8 +280,8 @@ impl SpiHost<'_> {
                     //Theres more to transfer, continue writing from the offset
                     self.spi_transfer_progress()
                 }
-            })
-            .map_or_else(|| Err(ErrorCode::FAIL), |rc| rc);
+            },
+        );
 
         rc
     }
@@ -293,7 +292,7 @@ impl SpiHost<'_> {
         if self
             .tx_buf
             .take()
-            .map(|mut tx_buf| -> Result<(), ErrorCode> {
+            .map(|tx_buf| -> Result<(), ErrorCode> {
                 let regs = self.registers;
                 let mut t_byte: u32;
                 let mut tx_slice: [u8; 4];
@@ -536,7 +535,7 @@ impl SpiHost<'_> {
 
         //Increase scaler if the division was not exact, ensuring that it does not overflow
         //or exceed divider specification where tsck is at most <= Tclk/2
-        if self.cpu_clk % (2 * rate) != 0 && scaler != 0xFF {
+        if !self.cpu_clk.is_multiple_of(2 * rate) && scaler != 0xFF {
             scaler += 1;
         }
         Ok(scaler as u16)

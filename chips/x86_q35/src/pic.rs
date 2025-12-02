@@ -57,7 +57,7 @@ const POST_PORT: u16 = 0x80;
 /// Calling this function will cause interrupts to start firing. This means the IDT must already be
 /// initialized with valid handlers for all possible interrupt numbers (i.e. by a call to
 /// [`handlers::init`][super::handlers::init]).
-pub(crate) unsafe fn init() {
+pub unsafe fn init() {
     unsafe {
         let wait = || io::outb(POST_PORT, 0);
 
@@ -105,6 +105,54 @@ pub(crate) unsafe fn eoi(num: u32) {
             io::outb(PIC1_CMD, PIC_CMD_EOI);
         } else if (PIC2_OFFSET..PIC2_OFFSET + 8).contains(&num) {
             io::outb(PIC2_CMD, PIC_CMD_EOI);
+            io::outb(PIC1_CMD, PIC_CMD_EOI);
+        }
+    });
+}
+
+/// Masks interrupt `num`, disabling its delivery to the CPU.
+///
+/// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
+///
+/// ## Safety
+///
+/// Must be called with interrupts disabled or from within an interrupt handler to avoid race
+/// conditions updating the IMR.
+pub(crate) unsafe fn mask(num: u32) {
+    let _ = u8::try_from(num).map(|n| unsafe {
+        if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&n) {
+            let bit = n - PIC1_OFFSET; // 0-7
+            let current = io::inb(PIC1_DATA);
+            io::outb(PIC1_DATA, current | (1u8 << bit));
+        } else if (PIC2_OFFSET..PIC2_OFFSET + 8).contains(&n) {
+            let bit = n - PIC2_OFFSET; // 0-7
+            let current = io::inb(PIC2_DATA);
+            io::outb(PIC2_DATA, current | (1u8 << bit));
+        }
+    });
+}
+
+/// Unmasks interrupt `num`, enabling its delivery to the CPU.
+///
+/// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
+///
+/// ## Safety
+///
+/// Must be called with interrupts disabled or from within an interrupt handler to avoid race
+/// conditions updating the IMR.
+///
+/// There must be an interrupt handler registered to properly handle `num`, as the interrupt may
+/// fire at any time once this function is called.
+pub(crate) unsafe fn unmask(num: u32) {
+    let _ = u8::try_from(num).map(|n| unsafe {
+        if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&n) {
+            let bit = n - PIC1_OFFSET; // 0-7
+            let current = io::inb(PIC1_DATA);
+            io::outb(PIC1_DATA, current & !(1u8 << bit));
+        } else if (PIC2_OFFSET..PIC2_OFFSET + 8).contains(&n) {
+            let bit = n - PIC2_OFFSET; // 0-7
+            let current = io::inb(PIC2_DATA);
+            io::outb(PIC2_DATA, current & !(1u8 << bit));
         }
     });
 }

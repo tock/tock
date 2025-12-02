@@ -2,16 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-use core::arch::global_asm;
+use core::arch::naked_asm;
 
-global_asm!(
-    "
-.section .text
-
-.global main
-
-.global _start
-_start:
+#[unsafe(link_section = ".x86.start")]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn start() {
+    naked_asm!(
+        "
     # Initialize the stack
     lea     esp, _estack
     lea     ebp, _estack
@@ -19,27 +17,27 @@ _start:
     # Zero out the .bss section
     mov     eax, _szero
     mov     ebx, _ezero
-100:
+200:
     cmp     eax, ebx
-    je      101f
+    je      201f
     mov     byte ptr [eax], 0
     inc     eax
-    jmp     100b
-101:
+    jmp     200b
+201:
 
     # Initialize contents of the .data section
     mov     eax, _srelocate
     mov     ebx, _erelocate
     mov     ecx, _etext
-200:
+300:
     cmp     eax, ebx
-    je      201f
+    je      301f
     mov     dl, byte ptr [ecx]
     mov     byte ptr [eax], dl
     inc     eax
     inc     ecx
-    jmp     200b
-201:
+    jmp     300b
+301:
 
     # Now we hand control over to the Rust main function
     call    main
@@ -50,4 +48,5 @@ _start:
     jmp     3b
 
 "
-);
+    );
+}

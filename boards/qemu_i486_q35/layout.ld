@@ -22,6 +22,24 @@ MEMORY
  */
 PAGE_SIZE = 4K;
 
+/**
+ * The order matters here as we need to make sure that qemu finds the multiboot header within the
+ * first 8K of the ELF. The multiboot header is placed at the beginning of the .text section, so
+ * this section has to be is placed first in the file.
+ *  
+ * The multiboot header's documentation is available at
+ * https://www.gnu.org/software/grub/manual/multiboot/multiboot.html.
+ * This allows Tock to be booted using a bootloader that supports multiboot v1.
+ * QEMU provides for x86 such a bootloader when used with the `-kernel` flag.
+ *
+ * The bootloader is responsable for loading the kernel into RAM and executing it. Without it,
+ * the Tock kernel should provide a bootloader that starts reading the kernel into RAM.
+ *
+ * This is the reason why this INCLUDE has to be before the .pages declaration
+ */
+
+INCLUDE tock_kernel_layout.ld
+
 SECTIONS
 {
     /**
@@ -36,4 +54,3 @@ SECTIONS
     } > pages
 }
 
-INCLUDE tock_kernel_layout.ld

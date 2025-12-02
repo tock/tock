@@ -99,13 +99,11 @@ impl hil::sensors::AirQualityClient for AirQualitySensor<'_> {
         for cntr in self.apps.iter() {
             cntr.enter(|app, upcalls| {
                 if app.operation == Operation::CO2 {
-                    value
-                        .map(|co2| {
-                            self.busy.set(false);
-                            app.operation = Operation::None;
-                            upcalls.schedule_upcall(0, (co2 as usize, 0, 0)).ok();
-                        })
-                        .ok();
+                    let _ = value.map(|co2| {
+                        self.busy.set(false);
+                        app.operation = Operation::None;
+                        let _ = upcalls.schedule_upcall(0, (co2 as usize, 0, 0));
+                    });
                 }
             });
         }
@@ -115,13 +113,11 @@ impl hil::sensors::AirQualityClient for AirQualitySensor<'_> {
         for cntr in self.apps.iter() {
             cntr.enter(|app, upcalls| {
                 if app.operation == Operation::TVOC {
-                    value
-                        .map(|tvoc| {
-                            self.busy.set(false);
-                            app.operation = Operation::None;
-                            upcalls.schedule_upcall(0, (tvoc as usize, 0, 0)).ok();
-                        })
-                        .ok();
+                    let _ = value.map(|tvoc| {
+                        self.busy.set(false);
+                        app.operation = Operation::None;
+                        let _ = upcalls.schedule_upcall(0, (tvoc as usize, 0, 0));
+                    });
                 }
             });
         }

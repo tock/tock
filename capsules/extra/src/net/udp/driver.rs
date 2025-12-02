@@ -208,12 +208,10 @@ impl<'a> UDPDriver<'a> {
         let result = self.perform_tx_sync(processid);
         if result != Ok(()) {
             let _ = self.apps.enter(processid, |_app, upcalls| {
-                upcalls
-                    .schedule_upcall(
-                        upcall::PACKET_TRANSMITTED,
-                        (kernel::errorcode::into_statuscode(result), 0, 0),
-                    )
-                    .ok();
+                let _ = upcalls.schedule_upcall(
+                    upcall::PACKET_TRANSMITTED,
+                    (kernel::errorcode::into_statuscode(result), 0, 0),
+                );
             });
         }
     }
@@ -562,12 +560,10 @@ impl UDPSendClient for UDPDriver<'_> {
         self.kernel_buffer.replace(dgram);
         self.current_app.get().map(|processid| {
             let _ = self.apps.enter(processid, |_app, upcalls| {
-                upcalls
-                    .schedule_upcall(
-                        upcall::PACKET_TRANSMITTED,
-                        (kernel::errorcode::into_statuscode(result), 0, 0),
-                    )
-                    .ok();
+                let _ = upcalls.schedule_upcall(
+                    upcall::PACKET_TRANSMITTED,
+                    (kernel::errorcode::into_statuscode(result), 0, 0),
+                );
             });
         });
         self.current_app.set(None);
@@ -613,9 +609,7 @@ impl UDPRecvClient for UDPDriver<'_> {
                             addr: src_addr,
                             port: src_port,
                         };
-                        kernel_data
-                            .schedule_upcall(upcall::PACKET_RECEIVED, (len, 0, 0))
-                            .ok();
+                        let _ = kernel_data.schedule_upcall(upcall::PACKET_RECEIVED, (len, 0, 0));
                         const CFG_LEN: usize = 2 * size_of::<UDPEndpoint>();
                         let _ = kernel_data
                             .get_readwrite_processbuffer(rw_allow::RX_CFG)

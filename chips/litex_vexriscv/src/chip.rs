@@ -62,6 +62,7 @@ impl<I: 'static + InterruptService> LiteXVexRiscv<I> {
 impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRiscv<I> {
     type MPU = PMPUserMPU<4, KernelProtectionPMP<16>>;
     type UserspaceKernelBoundary = SysCall;
+    type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp_mpu
@@ -94,20 +95,23 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
         let _ = writer.write_fmt(format_args!(
             "\r\n---| LiteX configuration for {} |---",
-            self.soc_identifier,
+            this.map_or("unknown board (in trap handler thread)", |t| t
+                .soc_identifier),
         ));
         rv32i::print_riscv_state(writer);
-        let _ = writer.write_fmt(format_args!("{}", self.pmp_mpu.pmp));
+        if let Some(t) = this {
+            let _ = writer.write_fmt(format_args!("{}", t.pmp_mpu.pmp));
+        }
     }
 }
 
@@ -203,3 +207,11 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
         }
     }
 }
+
+/// Array used to track the "trap handler active" state per hart.
+///
+/// The `riscv` crate requires chip crates to allocate an array to
+/// track whether any given hart is currently in a trap handler. The
+/// array must be zero-initialized.
+#[export_name = "_trap_handler_active"]
+static mut TRAP_HANDLER_ACTIVE: [usize; 1] = [0; 1];

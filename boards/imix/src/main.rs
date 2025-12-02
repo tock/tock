@@ -94,16 +94,15 @@ const PAN_ID: u16 = 0xABCD;
 const FAULT_RESPONSE: capsules_system::process_policies::StopFaultPolicy =
     capsules_system::process_policies::StopFaultPolicy {};
 
+type ChipHw = sam4l::chip::Sam4l<Sam4lDefaultPeripherals>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+kernel::stack_size! {0x2000}
 
 type SI7021Sensor = components::si7021::SI7021ComponentType<
     capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -314,6 +313,12 @@ unsafe fn start() -> (
     &'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
 ) {
     sam4l::init();
+
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
     let peripherals = static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm));
 
@@ -403,7 +408,7 @@ unsafe fn start() -> (
     .finalize(components::console_ordered_component_static!(
         sam4l::ast::Ast
     ));
-    DebugWriterComponent::new(
+    DebugWriterComponent::new::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

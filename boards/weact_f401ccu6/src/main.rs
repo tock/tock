@@ -32,10 +32,11 @@ pub mod io;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+type ChipHw = stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPeripherals<'static>>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static stm32f401cc::chip::Stm32f4xx<Stm32f401ccDefaultPeripherals>> =
-    None;
+static mut CHIP: Option<&'static ChipHw> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
@@ -43,10 +44,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+kernel::stack_size! {0x2000}
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -191,7 +189,11 @@ unsafe fn set_pin_primary_functions(
     gpio_ports.get_pin(PinId::PC13).map(|pin| {
         pin.make_output();
         // Configure kernel debug gpios as early as possible
-        kernel::debug::assign_gpios(Some(pin), None, None);
+        let debug_gpios = static_init!([&'static dyn kernel::hil::gpio::Pin; 1], [pin]);
+        kernel::debug::initialize_debug_gpio::<
+            <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+        >();
+        kernel::debug::assign_gpios(debug_gpios);
     });
 
     // Enable clocks for GPIO Ports
@@ -222,6 +224,11 @@ unsafe fn start() -> (
     &'static stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPeripherals<'static>>,
 ) {
     stm32f401cc::init();
+
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
 
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f401cc::rcc::Rcc, stm32f401cc::rcc::Rcc::new());
@@ -295,7 +302,9 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

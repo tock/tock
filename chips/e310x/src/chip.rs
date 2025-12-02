@@ -105,7 +105,7 @@ impl<'a, I: InterruptService + 'a> E310x<'a, I> {
             if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
-            self.atomic(|| {
+            self.with_interrupts_disabled(|| {
                 self.plic.complete(interrupt);
             });
         }
@@ -115,6 +115,7 @@ impl<'a, I: InterruptService + 'a> E310x<'a, I> {
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I> {
     type MPU = PMPUserMPU<4, SimplePMP<8>>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
+    type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
@@ -167,14 +168,14 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I>
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
         rv32i::print_riscv_state(writer);
     }
 }
@@ -282,3 +283,11 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
         }
     }
 }
+
+/// Array used to track the "trap handler active" state per hart.
+///
+/// The `riscv` crate requires chip crates to allocate an array to
+/// track whether any given hart is currently in a trap handler. The
+/// array must be zero-initialized.
+#[export_name = "_trap_handler_active"]
+static mut TRAP_HANDLER_ACTIVE: [usize; 1] = [0; 1];

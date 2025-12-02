@@ -115,7 +115,7 @@ impl Hmac<'_> {
             regs.msg_fifo.set(d);
         }
 
-        if (count % 4) != 0 {
+        if !count.is_multiple_of(4) {
             for i in 0..(count % 4) {
                 let data_idx = (count - (count % 4)) + i;
                 regs.msg_fifo_8.set(data[data_idx]);
@@ -401,7 +401,7 @@ impl hil::digest::HmacSha256 for Hmac<'_> {
             key_idx = i + 1;
         }
 
-        if (key.len() % 4) != 0 {
+        if !key.len().is_multiple_of(4) {
             let mut k = 0;
 
             for i in 0..(key.len() % 4) {

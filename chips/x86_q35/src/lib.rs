@@ -15,12 +15,15 @@
 #![no_std]
 
 mod chip;
-pub use chip::{Pc, PcComponent};
+pub use chip::{Pc, PcDefaultPeripherals};
 
 mod interrupts;
 
-mod pic;
+pub mod pic;
 
 pub mod pit;
 
 pub mod serial;
+
+pub mod vga;
+pub mod vga_uart_driver;

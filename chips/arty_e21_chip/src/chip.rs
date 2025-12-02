@@ -111,20 +111,20 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
         use core::arch::asm;
         asm!(
             "
-            // The csrw instruction writes a Control and Status Register (CSR)
-            // with a new value.
-            //
-            // CSR 0x305 (mtvec, 'Machine trap-handler base address.') sets the
-            // address of the trap handler. We do not care about its old value,
-            // so we don't bother reading it. We want to enable direct CLIC mode
-            // so we set the second lowest bit.
-            lui  t0, %hi({start_trap})
-            addi t0, t0, %lo({start_trap})
-            ori  t0, t0, 0x02 // Set CLIC direct mode
-            csrw 0x305, t0    // Write the mtvec CSR.
+    // The csrw instruction writes a Control and Status Register (CSR)
+    // with a new value.
+    //
+    // CSR 0x305 (mtvec, 'Machine trap-handler base address.') sets the
+    // address of the trap handler. We do not care about its old value,
+    // so we don't bother reading it. We want to enable direct CLIC mode
+    // so we set the second lowest bit.
+    lui  t0, %hi({start_trap})
+    addi t0, t0, %lo({start_trap})
+    ori  t0, t0, 0x02 // Set CLIC direct mode
+    csrw 0x305, t0    // Write the mtvec CSR.
             ",
             start_trap = sym rv32i::_start_trap,
-            out("t0") _
+            out("t0") _,
         );
     }
 
@@ -146,6 +146,7 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, I> {
     type MPU = PMPUserMPU<2, SimplePMP<4>>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
+    type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
@@ -179,14 +180,14 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, write: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
         rv32i::print_riscv_state(write);
     }
 }
@@ -231,3 +232,11 @@ pub extern "C" fn disable_interrupt_trap_handler(mcause: u32) {
         rv32i::clic::disable_interrupt(interrupt_index);
     }
 }
+
+/// Array used to track the "trap handler active" state per hart.
+///
+/// The `riscv` crate requires chip crates to allocate an array to
+/// track whether any given hart is currently in a trap handler. The
+/// array must be zero-initialized.
+#[export_name = "_trap_handler_active"]
+static mut TRAP_HANDLER_ACTIVE: [usize; 1] = [0; 1];

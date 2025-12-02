@@ -15,7 +15,7 @@ but the approximate definitions:
  - **Tier 2:** Platforms seeing reasonably regular use. These generally
                have broader, but still incomplete, peripheral support.
                They may also be 'relatives' of Tier 1 boards (e.g. a
-               less-used varient in the nrf52 family) – likely in good
+               less-used variant in the nrf52 family) – likely in good
                shape, but not heavily tested. Some Tier 2 boards may
                have known issues, which are documented in release notes
                during release testing.
@@ -97,6 +97,7 @@ but the approximate definitions:
 | [Digilent Arty A-7 100T](arty_e21/README.md)                      | RISC-V RV32IMAC  | SiFive E21     | openocd    | tockloader                  | No            |
 | [MSP432 Evaluation kit MSP432P401R](msp_exp432p401r/README.md)    | ARM Cortex-M4    | MSP432P401R    | openocd    | custom                      | No            |
 | [CY8CPROTO-062-4343W](cy8cproto_62_4343_w/README.md)              | ARM Cortex-M0+   | PSoC62         | openocd    | custom                      | No            |
+| [Raspberry Pi Pico 2](raspberry_pi_pico_2/README.md)              | ARM Cortex-M33   | RP2350         | openocd    | openocd                     | No            |
 
 
 ### Other

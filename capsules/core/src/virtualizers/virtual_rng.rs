@@ -102,7 +102,7 @@ pub struct VirtualRngMasterDevice<'a> {
 
 // Implement ListNode trait for virtual rng device
 impl<'a> ListNode<'a, VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
-    fn next(&self) -> &'a ListLink<VirtualRngMasterDevice<'a>> {
+    fn next(&self) -> &'a ListLink<'_, VirtualRngMasterDevice<'a>> {
         &self.next
     }
 }

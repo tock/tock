@@ -65,7 +65,6 @@ pub struct MLFQSched<'a, A: 'static + time::Alarm<'static>> {
     pub processes: [List<'a, MLFQProcessNode<'a>>; 3], // Using Self::NUM_QUEUES causes rustc to crash..
     next_reset: Cell<A::Ticks>,
     last_reset_check: Cell<A::Ticks>,
-    last_timeslice: Cell<u32>,
     last_queue_idx: Cell<usize>,
 }
 
@@ -80,7 +79,6 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
             processes: [List::new(), List::new(), List::new()],
             next_reset: Cell::new(A::Ticks::from(0)),
             last_reset_check: Cell::new(A::Ticks::from(0)),
-            last_timeslice: Cell::new(0),
             last_queue_idx: Cell::new(0),
         }
     }
@@ -150,10 +148,10 @@ impl<A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'_, 
             return SchedulingDecision::TrySleep;
         }
         let node_ref = node_ref_opt.unwrap();
+        // Schedule for (timeslice - runtime) us
         let timeslice = self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
         let next = node_ref.proc.get().unwrap().processid();
         self.last_queue_idx.set(queue_idx);
-        self.last_timeslice.set(timeslice);
 
         SchedulingDecision::RunProcess((next, NonZeroU32::new(timeslice)))
     }
@@ -163,14 +161,10 @@ impl<A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'_, 
         let queue_idx = self.last_queue_idx.get();
         // Last executed node will always be at head of its queue
         let node_ref = self.processes[queue_idx].head().unwrap();
-        node_ref
-            .state
-            .us_used_this_queue
-            .set(self.last_timeslice.get() - execution_time_us);
 
         let punish = result == StoppedExecutingReason::TimesliceExpired;
         if punish {
-            node_ref.state.us_used_this_queue.set(0);
+            node_ref.state.us_used_this_queue.set(0); // Reset runtime to 0 since we are moving queues
             let next_queue = if queue_idx == Self::NUM_QUEUES - 1 {
                 queue_idx
             } else {
@@ -178,6 +172,11 @@ impl<A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'_, 
             };
             self.processes[next_queue].push_tail(self.processes[queue_idx].pop_head().unwrap());
         } else {
+            // Increment runtime in the current queue with execution_time_us
+            node_ref
+                .state
+                .us_used_this_queue
+                .update(|runtime| runtime + execution_time_us);
             self.processes[queue_idx].push_tail(self.processes[queue_idx].pop_head().unwrap());
         }
     }

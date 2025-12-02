@@ -37,6 +37,8 @@ mod tests;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+type ChipHw = apollo3::chip::Apollo3<Apollo3DefaultPeripherals>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
@@ -73,10 +75,7 @@ static mut BME280: Option<
 > = None;
 static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 type BME280Sensor = components::bme280::Bme280ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
@@ -182,6 +181,11 @@ unsafe fn setup() -> (
     &'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
     &'static Apollo3DefaultPeripherals,
 ) {
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
 
     // No need to statically allocate mcu/pwr/clk_ctrl because they are only used in main!
@@ -230,11 +234,17 @@ unsafe fn setup() -> (
         .enable_i2c_slave(&peripherals.gpio_port[1], &peripherals.gpio_port[0]);
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&peripherals.gpio_port[19]), // Blue LED
-        None,
-        None,
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [
+            // Blue LED
+            &peripherals.gpio_port[19]
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
@@ -248,7 +258,9 @@ unsafe fn setup() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

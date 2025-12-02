@@ -102,6 +102,10 @@ unsafe fn init_tss() -> Descriptor {
 /// complete details.
 ///
 /// When calling this function, the stack frame referenced by `esp` must meet these expectations.
+// `allow(unsupported_calling_conventions)`: cdecl is not valid when testing
+// this code on an x86_64 machine. This avoids a warning until a more permanent
+// fix is decided. See: https://github.com/tock/tock/pull/4662
+#[allow(unsupported_calling_conventions)]
 #[no_mangle]
 pub unsafe extern "cdecl" fn set_tss_esp0(esp: u32) {
     unsafe {

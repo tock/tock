@@ -279,7 +279,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                 .take()
                 .map(move |pagebuffer| {
                     // Determine if pagebuffer should be reset or copied from flash.
-                    let mut copy_pagebuffer = last_page_len % self.page_size != 0;
+                    let mut copy_pagebuffer = !last_page_len.is_multiple_of(self.page_size);
                     if !copy_pagebuffer {
                         // Last page full, reset pagebuffer for next page.
                         copy_pagebuffer = !self.reset_pagebuffer(pagebuffer);
@@ -311,7 +311,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
                 let mut entry_id = self.read_entry_id.get();
 
                 // Skip page header if at start of page or skip padded bytes if at end of page.
-                if entry_id % self.page_size == 0 {
+                if entry_id.is_multiple_of(self.page_size) {
                     entry_id += PAGE_HEADER_SIZE;
                 } else if self.get_byte(entry_id, pagebuffer) == PAD_BYTE {
                     entry_id += self.page_size - entry_id % self.page_size + PAGE_HEADER_SIZE;
@@ -434,7 +434,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     fn flush_pagebuffer(&self, pagebuffer: &'static mut F::Page) -> Result<(), ErrorCode> {
         // Pad end of page.
         let mut pad_ptr = self.append_entry_id.get();
-        while pad_ptr % self.page_size != 0 {
+        while !pad_ptr.is_multiple_of(self.page_size) {
             pagebuffer.as_mut()[pad_ptr % self.page_size] = PAD_BYTE;
             pad_ptr += 1;
         }
@@ -481,7 +481,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         }
 
         // Increment append entry ID to point at start of next page.
-        if append_entry_id % self.page_size != 0 {
+        if !append_entry_id.is_multiple_of(self.page_size) {
             append_entry_id += self.page_size - append_entry_id % self.page_size;
         }
 
@@ -708,7 +708,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
                 // Check if previous page needs to be flushed and new entry will fit within space
                 // remaining in current page.
                 let append_entry_id = self.append_entry_id.get();
-                let flush_prev_page = append_entry_id % self.page_size == 0;
+                let flush_prev_page = append_entry_id.is_multiple_of(self.page_size);
                 let space_remaining = self.page_size - append_entry_id % self.page_size;
                 if !flush_prev_page && entry_size <= space_remaining {
                     // Entry fits, append it.
@@ -812,7 +812,7 @@ impl<F: Flash + 'static> flash::Client<F> for Log<'_, F> {
                     }
                     State::Sync => {
                         // Reset pagebuffer if synced page was full.
-                        if self.append_entry_id.get() % self.page_size == 0 {
+                        if self.append_entry_id.get().is_multiple_of(self.page_size) {
                             self.reset_pagebuffer(pagebuffer);
                         }
 

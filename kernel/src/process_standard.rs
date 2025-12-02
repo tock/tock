@@ -775,7 +775,20 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(config);
+            // # Safety
+            //
+            // `configure_mpu` is unsafe, as invoking it with an incorrect
+            // configuration can allow an untrusted application to access
+            // kernel-private memory.
+            //
+            // This call is safe given we trust that the implementation of
+            // `ProcessStandard` correctly provisions a set of MPU regions that
+            // does not grant access to any kernel-private memory, and
+            // `ProcessStandard` does not provide safe, publically accessible
+            // APIs to add other arbitrary MPU regions to this configuration.
+            unsafe {
+                self.chip.mpu().configure_mpu(config);
+            }
         });
     }
 
@@ -856,7 +869,22 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             } else {
                 let old_break = self.app_break.get();
                 self.app_break.set(new_break);
-                self.chip.mpu().configure_mpu(config);
+
+                // # Safety
+                //
+                // `configure_mpu` is unsafe, as invoking it with an incorrect
+                // configuration can allow an untrusted application to access
+                // kernel-private memory.
+                //
+                // This call is safe given we trust that the implementation of
+                // `ProcessStandard` correctly provisions a set of MPU regions
+                // that does not grant access to any kernel-private memory, and
+                // `ProcessStandard` does not provide safe, publically
+                // accessible APIs to add other arbitrary MPU regions to this
+                // configuration.
+                unsafe {
+                    self.chip.mpu().configure_mpu(config);
+                }
 
                 let base = self.mem_start() as usize;
                 let break_result = unsafe {

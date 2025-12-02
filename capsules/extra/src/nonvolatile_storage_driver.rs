@@ -464,9 +464,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        kernel_data
-                            .schedule_upcall(upcall::READ_DONE, (length, 0, 0))
-                            .ok();
+                        let _ = kernel_data.schedule_upcall(upcall::READ_DONE, (length, 0, 0));
                     });
                 }
             }
@@ -490,9 +488,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                         self.buffer.replace(buffer);
 
                         // And then signal the app.
-                        kernel_data
-                            .schedule_upcall(upcall::WRITE_DONE, (length, 0, 0))
-                            .ok();
+                        let _ = kernel_data.schedule_upcall(upcall::WRITE_DONE, (length, 0, 0));
                     });
                 }
             }

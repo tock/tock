@@ -13,5 +13,5 @@
     "stack-probes": {
         "kind": "call"
     },
-    "target-pointer-width": "32"
+    "target-pointer-width": 32
 }

@@ -28,6 +28,8 @@ pub mod io;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+type ChipHw = arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
@@ -40,10 +42,7 @@ static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeri
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -127,6 +126,11 @@ unsafe fn start() -> (
     ArtyE21,
     &'static arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>,
 ) {
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
     peripherals.init();
 
@@ -147,11 +151,20 @@ unsafe fn start() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&peripherals.gpio_port[0]), // Blue
-        Some(&peripherals.gpio_port[1]), // Green
-        Some(&peripherals.gpio_port[8]),
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 3],
+        [
+            // Blue
+            &peripherals.gpio_port[0],
+            // Green
+            &peripherals.gpio_port[1],
+            &peripherals.gpio_port[8],
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -254,7 +267,9 @@ unsafe fn start() -> (
     };
 
     // Create virtual device for kernel debug.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

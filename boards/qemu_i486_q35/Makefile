@@ -15,13 +15,19 @@ WORKING_QEMU_VERSION := 7.2.0
 
 # Peripherals attached by default:
 # - 16550 UART (attached to stdio by default)
+# - VGA display (pass NOVGA=1 to disable)
+# - Virtio EntropySource RNG (attached to /dev/urandom)
 QEMU_BASE_CMDLINE := \
   $(QEMU_CMD) \
     -cpu 486 \
     -machine q35 \
     -net none \
-    -nographic \
-    -device isa-debug-exit,iobase=0xf4,iosize=0x04
+    -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+    -device virtio-rng-pci,disable-legacy=on
+
+ifeq ($(NOVGA),1)
+QEMU_BASE_CMDLINE += -nographic
+endif
 
 # Run the kernel inside a qemu-system-i386 "q35" machine type simulation
 #
@@ -34,12 +40,12 @@ QEMU_BASE_CMDLINE := \
 # sections within the ELF file such that .text comes first and the Multiboot header is discoverable.
 #
 # If tock fails to boot with the following error: "qemu_i486_q35: cannot execute binary file",
-# replace objcopy with the full path to GNU objcopy.
+# replace objcopy with the full path to GNU objcopy and uncomment the "@$(OBJCOPY) $<".
 .PHONY: run
 run: $(TARGET_PATH)/release/$(PLATFORM).elf
 	@echo
-	@echo Reordering ELF file sections
-	@$(OBJCOPY)  $<
+#	@echo Reordering ELF file sections
+#	@$(OBJCOPY)  $<
 	@echo
 	@echo -e "Running $$(qemu-system-i386 --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\

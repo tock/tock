@@ -133,8 +133,8 @@ mod dma_config {
     }
 }
 
-type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
-static mut CHIP: Option<&'static Chip> = None;
+type ChipHw = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
+static mut CHIP: Option<&'static ChipHw> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
@@ -176,8 +176,13 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
+unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
     imxrt1060::init();
+
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
 
     let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
     let peripherals = static_init!(
@@ -247,7 +252,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     cortexm7::nvic::Nvic::new(imxrt1060::nvic::GPT1).enable();
     dma_config::enable_interrupts();
 
-    let chip = static_init!(Chip, Chip::new(peripherals));
+    let chip = static_init!(ChipHw, ChipHw::new(peripherals));
     CHIP = Some(chip);
 
     // Start loading the kernel
@@ -265,7 +270,9 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
         .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -375,13 +382,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
 
-/// Space for the stack buffer
-///
-/// Justified in tock's `kernel_layout.ld`.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-#[used]
-static mut STACK_BUFFER: [u8; 0x2000] = [0; 0x2000];
+kernel::stack_size! {0x2000}
 
 const FCB_SIZE: usize = core::mem::size_of::<fcb::FCB>();
 
@@ -392,7 +393,11 @@ const FCB_SIZE: usize = core::mem::size_of::<fcb::FCB>();
 ///
 /// See justification for the `".stack_buffer"` section to understand why we need
 /// explicit padding for the FCB.
+///
+/// When compiling for a macOS host, the `link_section` attribute is elided as
+/// it yields the following error: `mach-o section specifier requires a segment
+/// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".fcb_buffer")]
 #[no_mangle]
-#[link_section = ".fcb_buffer"]
 #[used]
 static mut FCB_BUFFER: [u8; 0x1000 - FCB_SIZE] = [0xFF; 0x1000 - FCB_SIZE];

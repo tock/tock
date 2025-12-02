@@ -25,6 +25,8 @@ pub mod io;
 /// Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+type ChipHw = msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPeripherals<'static>>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
@@ -39,10 +41,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -195,6 +194,11 @@ unsafe fn start() -> (
 ) {
     startup_intilialisation();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(
         msp432::chip::Msp432DefaultPeripherals,
         msp432::chip::Msp432DefaultPeripherals::new()
@@ -219,11 +223,17 @@ unsafe fn start() -> (
     dbg_gpio0.make_output();
     dbg_gpio1.make_output();
     dbg_gpio2.make_output();
-    debug::assign_gpios(
-        Some(dbg_gpio0), // Red LED
-        Some(dbg_gpio1),
-        Some(dbg_gpio2),
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 3],
+        [
+            // Red LED
+            dbg_gpio0, dbg_gpio1, dbg_gpio2
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Setup pins for UART0
     peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_2 as usize].enable_primary_function();
@@ -344,7 +354,9 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

@@ -17,8 +17,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::led::LedLow;
-use kernel::platform::chip::Chip;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -30,6 +28,11 @@ use rv32i::csr;
 pub mod io;
 
 pub const NUM_PROCS: usize = 4;
+
+type ChipHw = e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<'static>>;
+type AlarmHw = e310_g002::chip::E310xClint<'static>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -43,10 +46,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
+kernel::stack_size! {0x900}
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -66,9 +66,7 @@ struct HiFive1 {
         VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>,
     >,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer: &'static VirtualSchedulerTimer<
-        VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>,
-    >,
+    scheduler_timer: &'static SchedulerTimerHw,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -94,8 +92,7 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = CooperativeSched<'static>;
-    type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>>;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -126,7 +123,10 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
 /// main. By wrapping it in a non-inlined function, this reduces the stack utilization once
 /// processes are running.
 #[inline(never)]
-fn load_processes_not_inlined<C: Chip>(board_kernel: &'static Kernel, chip: &'static C) {
+fn load_processes_not_inlined<C: kernel::platform::chip::Chip>(
+    board_kernel: &'static Kernel,
+    chip: &'static C,
+) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -180,6 +180,11 @@ unsafe fn start() -> (
     // only machine mode
     rv32i::configure_trap_handler();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(
         E310G002DefaultPeripherals,
         E310G002DefaultPeripherals::new(344_000_000)
@@ -208,11 +213,17 @@ unsafe fn start() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&peripherals.e310x.gpio_port[22]), // Red
-        None,
-        None,
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [
+            // Red
+            &peripherals.e310x.gpio_port[22]
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.e310x.uart0, 115200)
@@ -250,12 +261,6 @@ unsafe fn start() -> (
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
-
-    let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, e310_g002::chip::E310xClint>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    systick_virtual_alarm.setup();
 
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let alarm = static_init!(
@@ -310,7 +315,9 @@ unsafe fn start() -> (
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     const DEBUG_BUFFER_KB: usize = 1;
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -332,10 +339,11 @@ unsafe fn start() -> (
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>>,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
 
     let hifive1 = HiFive1 {
         led,

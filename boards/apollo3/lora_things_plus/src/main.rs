@@ -79,6 +79,8 @@ const NUM_PROCS: usize = 4;
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
+type ChipHw = apollo3::chip::Apollo3<Apollo3DefaultPeripherals>;
+
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps.
@@ -113,10 +115,7 @@ static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = No
 #[cfg(feature = "atecc508a")]
 static mut ATECC508A: Option<&'static capsules_extra::atecc508a::Atecc508a<'static>> = None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
@@ -199,7 +198,7 @@ struct LoRaThingsPlus {
     systick: cortexm4::systick::SysTick,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
-        capsules_extra::virtual_kv::VirtualKVPermissions<
+        capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<
             'static,
             capsules_extra::kv_store_permissions::KVStorePermissions<
                 'static,
@@ -414,6 +413,11 @@ unsafe fn setup() -> (
     &'static LoRaThingsPlus,
     &'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
 ) {
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
     PERIPHERALS = Some(peripherals);
 
@@ -462,7 +466,14 @@ unsafe fn setup() -> (
     peripherals.gpio_port.enable_sx1262_radio_pins();
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(Some(&peripherals.gpio_port[26]), None, None);
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 1],
+        [&peripherals.gpio_port[26]]
+    );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
@@ -476,7 +487,9 @@ unsafe fn setup() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -775,7 +788,7 @@ unsafe fn setup() -> (
         capsules_extra::kv_driver::DRIVER_NUM,
     )
     .finalize(components::kv_driver_component_static!(
-        capsules_extra::virtual_kv::VirtualKVPermissions<
+        capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<
             capsules_extra::kv_store_permissions::KVStorePermissions<
                 capsules_extra::tickv_kv_store::TicKVKVStore<
                     capsules_extra::tickv::TicKVSystem<

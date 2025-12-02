@@ -24,9 +24,9 @@ pub unsafe fn wfi() {
     asm!("wfi", options(nomem, preserves_flags));
 }
 
-/// Atomic operation
+/// Single-core critical section operation
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-pub unsafe fn atomic<F, R>(f: F) -> R
+pub unsafe fn with_interrupts_disabled<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
@@ -54,9 +54,9 @@ pub unsafe fn wfi() {
     unimplemented!()
 }
 
-/// Atomic operation (mock)
+/// Single-core critical section operation (mock)
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe fn atomic<F, R>(_f: F) -> R
+pub unsafe fn with_interrupts_disabled<F, R>(_f: F) -> R
 where
     F: FnOnce() -> R,
 {
@@ -73,4 +73,35 @@ pub fn reset() -> ! {
         // warning #[warn(clippy::empty_loop)]
         nop();
     }
+}
+
+/// Check if we are executing in an interrupt handler or not.
+///
+/// Returns `true` if the CPU is executing in an interrupt handler. Returns
+/// `false` if the chip is executing in thread mode.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub fn is_interrupt_context() -> bool {
+    use core::arch::asm;
+    let mut interrupt_number: u32;
+
+    // # Safety
+    //
+    // This only reads a register and has no effects.
+    unsafe {
+        // IPSR[8:0] holds the currently active interrupt
+        asm!(
+            "mrs r0, ipsr",
+            out("r0") interrupt_number,
+            options(nomem, nostack, preserves_flags)
+        );
+    }
+
+    // If IPSR[8:0] is 0 then we are in thread mode. Otherwise an interrupt has
+    // occurred and we are in some interrupt service routine.
+    (interrupt_number & 0x1FF) != 0
+}
+
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn is_interrupt_context() -> bool {
+    unimplemented!()
 }

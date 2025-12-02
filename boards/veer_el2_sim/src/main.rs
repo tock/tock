@@ -12,7 +12,6 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -29,6 +28,10 @@ pub mod io;
 pub const NUM_PROCS: usize = 4;
 
 pub type VeeRChip = veer_el2::chip::VeeR<'static, VeeRDefaultPeripherals>;
+pub type ChipHw = VeeRChip;
+type AlarmHw = Clint<'static>;
+type SchedulerTimerHw =
+    components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -42,10 +45,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
+kernel::stack_size! {0x900}
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -56,7 +56,7 @@ struct VeeR {
         VirtualMuxAlarm<'static, Clint<'static>>,
     >,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer: &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, Clint<'static>>>,
+    scheduler_timer: &'static SchedulerTimerHw,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -78,7 +78,7 @@ impl KernelResources<VeeRChip> for VeeR {
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = CooperativeSched<'static>;
-    type SchedulerTimer = VirtualSchedulerTimer<VirtualMuxAlarm<'static, Clint<'static>>>;
+    type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -113,6 +113,11 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     // only machine mode
     rv32i::configure_trap_handler();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state_unsafe::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(VeeRDefaultPeripherals, VeeRDefaultPeripherals::new());
     peripherals.init();
 
@@ -127,9 +132,6 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
-
-    // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(None, None, None);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.sim_uart, 115200)
@@ -148,12 +150,6 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
-
-    let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, Clint>,
-        VirtualMuxAlarm::new(mux_alarm)
-    );
-    systick_virtual_alarm.setup();
 
     let alarm = static_init!(
         capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, Clint>>,
@@ -199,9 +195,14 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
+        || unsafe {
+            kernel::debug::initialize_debug_writer_wrapper_unsafe::<
+                <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+            >();
+        },
     )
     .finalize(components::debug_writer_component_static!());
 
@@ -223,10 +224,11 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, Clint<'static>>>,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(
+                AlarmHw
+            ));
 
     let veer = VeeR {
         console,

@@ -8,7 +8,7 @@ use capsules_extra::kv_driver::KVStoreDriver;
 use capsules_extra::kv_store_permissions::KVStorePermissions;
 use capsules_extra::tickv::{KVSystem, KeyType};
 use capsules_extra::tickv_kv_store::TicKVKVStore;
-use capsules_extra::virtual_kv::{MuxKVPermissions, VirtualKVPermissions};
+use capsules_extra::virtualizers::virtual_kv::{MuxKVPermissions, VirtualKVPermissions};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -80,7 +80,9 @@ impl<V: hil::kv::KVPermissions<'static>> Component for KVDriverComponent<V> {
 #[macro_export]
 macro_rules! kv_permissions_mux_component_static {
     ($V:ty $(,)?) => {{
-        let mux = kernel::static_buf!(capsules_extra::virtual_kv::MuxKVPermissions<'static, $V>);
+        let mux = kernel::static_buf!(
+            capsules_extra::virtualizers::virtual_kv::MuxKVPermissions<'static, $V>
+        );
 
         mux
     };};
@@ -117,15 +119,16 @@ impl<V: hil::kv::KVPermissions<'static> + 'static> Component for KVPermissionsMu
 #[macro_export]
 macro_rules! virtual_kv_permissions_component_static {
     ($V:ty $(,)?) => {{
-        let virtual_kv =
-            kernel::static_buf!(capsules_extra::virtual_kv::VirtualKVPermissions<'static, $V>);
+        let virtual_kv = kernel::static_buf!(
+            capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<'static, $V>
+        );
 
         virtual_kv
     };};
 }
 
 pub type VirtualKVPermissionsComponentType<V> =
-    capsules_extra::virtual_kv::VirtualKVPermissions<'static, V>;
+    capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<'static, V>;
 
 pub struct VirtualKVPermissionsComponent<V: hil::kv::KVPermissions<'static> + 'static> {
     mux_kv: &'static MuxKVPermissions<'static, V>,

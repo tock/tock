@@ -40,7 +40,7 @@ struct InputBuffer<'a, const PIXEL_BITS: usize> {
 }
 
 impl<const PIXEL_BITS: usize> InputBuffer<'_, PIXEL_BITS> {
-    fn rows(&self) -> impl Iterator<Item = Row> {
+    fn rows(&self) -> impl Iterator<Item = Row<'_>> {
         let chunk_width = if PIXEL_BITS < 8 {
             self.frame.width as usize / (8 / PIXEL_BITS)
         } else {
@@ -108,7 +108,7 @@ struct RowMut<'a> {
 }
 
 impl RowMut<'_> {
-    fn iter_mut(&self) -> impl Iterator<Item = PixelMut> {
+    fn iter_mut(&self) -> impl Iterator<Item = PixelMut<'_>> {
         self.data
             .iter()
             .flat_map(|data| [PixelMut { data, top: true }, PixelMut { data, top: false }])
@@ -270,12 +270,15 @@ impl<'a> FrameBuffer<'a> {
         }
     }
 
-    fn rows(&mut self) -> impl Iterator<Item = RowMut> {
-        self.data.as_slice().chunks_mut(LINE_LEN).map_while(|c| {
-            c.get_mut(2..).map(|data| RowMut {
-                data: Cell::from_mut(data).as_slice_of_cells(),
+    fn rows(&mut self) -> impl Iterator<Item = RowMut<'_>> {
+        self.data
+            .as_mut_slice()
+            .chunks_mut(LINE_LEN)
+            .map_while(|c| {
+                c.get_mut(2..).map(|data| RowMut {
+                    data: Cell::from_mut(data).as_slice_of_cells(),
+                })
             })
-        })
     }
 }
 

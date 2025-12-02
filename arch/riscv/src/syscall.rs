@@ -556,7 +556,29 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // which are saved. Thus we don't have to worry about the function
           // call clobbering these registers.
           //
+          // However, before we can execute any Rust code within a trap handler
+          // context, we must set the hart-specific 'are we in a trap handler'
+          // flag as an offset to the `_trap_handler_active` symbol. The chip
+          // crate is responsible for defining this symbol, and ensuring it is
+          // large enough to fit `max(mhartid) * MXLEN` bytes.
+          //
+          // First, calculate its address and save it in a callee-saved
+          // register. We use `s2`: the app's `s2` has already been saved, and
+          // its not one of the register's we've already restored:
+          la   s2, _trap_handler_active // s2 = addr(_trap_handler_active)
+          csrr t0, mhartid              // t0 = hartid
+          slli t0, t0, 2                // t0 = t0 * 4
+          add  s2, s2, t0               // s2 = addr(_trap_handler_active[hartid])
+
+          // Indicate that we are in a trap handler on this hart:
+          li   t0, 1
+          sw   t0, 0(s2)
+
           jal  ra, _disable_interrupt_trap_rust_from_app
+
+          // Indicate that we are no longer going to be in a trap handler on
+          // this hart:
+          sw   x0, 0(s2)
 
         200: // _start_app_trap_continue
 

@@ -66,6 +66,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
+type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 // Static reference to chip for panic dumps
@@ -74,10 +76,7 @@ static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripheral
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
@@ -195,6 +194,11 @@ pub unsafe fn start() -> (
 ) {
     nrf52840::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
@@ -301,11 +305,18 @@ pub unsafe fn start() -> (
     let gpio_port = &nrf52840_peripherals.gpio_port;
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&gpio_port[LED2_R_PIN]),
-        Some(&gpio_port[LED2_G_PIN]),
-        Some(&gpio_port[LED2_B_PIN]),
+    let debug_gpios = static_init!(
+        [&'static dyn kernel::hil::gpio::Pin; 3],
+        [
+            &gpio_port[LED2_R_PIN],
+            &gpio_port[LED2_G_PIN],
+            &gpio_port[LED2_B_PIN]
+        ]
     );
+    kernel::debug::initialize_debug_gpio::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+    kernel::debug::assign_gpios(debug_gpios);
 
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
@@ -354,7 +365,9 @@ pub unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -410,11 +423,15 @@ pub unsafe fn start() -> (
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
+    let analog_comparator_channel = static_init!(
+        nrf52840::acomp::Channel,
+        nrf52840::acomp::Channel::new(nrf52840::acomp::ChannelNumber::AC0)
+    );
     let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
-            &*addr_of!(nrf52840::acomp::CHANNEL_AC0)
+            analog_comparator_channel,
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,

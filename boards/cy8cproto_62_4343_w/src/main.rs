@@ -10,10 +10,7 @@
 
 mod io;
 
-/// Kernel stack memory
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+kernel::stack_size! {0x2000}
 
 use core::ptr::addr_of_mut;
 
@@ -41,6 +38,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+
+type ChipHw = Psoc62xa<'static, PsoC62xaDefaultPeripherals<'static>>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -123,6 +122,11 @@ pub unsafe fn main() {
     // Set the offset of the vector table
     cortexm0p::scb::set_vector_table_offset(0x10000000 as *const ());
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state_unsafe::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(
         PsoC62xaDefaultPeripherals,
         PsoC62xaDefaultPeripherals::new()
@@ -173,9 +177,14 @@ pub unsafe fn main() {
         uart_mux,
     )
     .finalize(components::console_component_static!());
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
+        || unsafe {
+            kernel::debug::initialize_debug_writer_wrapper_unsafe::<
+                <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+            >();
+        },
     )
     .finalize(components::debug_writer_component_static!());
 

@@ -56,12 +56,8 @@ doc/rustdoc
 
 /.idea
 
-# Cargo.lock files have a lot of noisy churn during development. Instead they
-# are manually included for releases.
-Cargo.lock
-
 # The QEMU directory
-tools/qemu
+tools/ci/qemu
 
 # Python scripts
 __pycache__
@@ -88,3 +84,6 @@ boards/esp32-c3-devkitM-1/binary.hex
 
 # Redboard Artemis Nano test binary
 boards/apollo3/redboard_artemis_nano/redboard-artemis-nano-tests.bin
+
+# We include a Cargo.lock file for the main Tock workspace, for not for the tools/ workspace
+/tools/Cargo.lock

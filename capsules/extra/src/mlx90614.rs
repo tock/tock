@@ -130,9 +130,7 @@ impl<S: i2c::SMBusDevice> i2c::I2CClient for Mlx90614SMBus<'_, S> {
 
                 self.owning_process.map(|pid| {
                     let _ = self.apps.enter(pid, |_app, upcalls| {
-                        upcalls
-                            .schedule_upcall(0, (usize::from(present), 0, 0))
-                            .ok();
+                        let _ = upcalls.schedule_upcall(0, (usize::from(present), 0, 0));
                     });
                 });
                 self.buffer.replace(buffer);
@@ -153,13 +151,13 @@ impl<S: i2c::SMBusDevice> i2c::I2CClient for Mlx90614SMBus<'_, S> {
                 if let Ok(temp) = values {
                     self.owning_process.map(|pid| {
                         let _ = self.apps.enter(pid, |_app, upcalls| {
-                            upcalls.schedule_upcall(0, (temp as usize, 0, 0)).ok();
+                            let _ = upcalls.schedule_upcall(0, (temp as usize, 0, 0));
                         });
                     });
                 } else {
                     self.owning_process.map(|pid| {
                         let _ = self.apps.enter(pid, |_app, upcalls| {
-                            upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                            let _ = upcalls.schedule_upcall(0, (0, 0, 0));
                         });
                     });
                 }

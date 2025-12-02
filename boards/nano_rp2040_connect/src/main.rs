@@ -41,14 +41,15 @@ use rp2040::sysinfo;
 
 mod flash_bootloader;
 
-/// Allocate memory for the stack
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
+kernel::stack_size! {0x1500}
 
 // Manually setting the boot header section that contains the FCB header
+//
+// When compiling for a macOS host, the `link_section` attribute is elided as it
+// yields the following error: `mach-o section specifier requires a segment and
+// section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".flash_bootloader")]
 #[used]
-#[link_section = ".flash_bootloader"]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
 // State for loading and holding applications.
@@ -58,6 +59,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+
+type ChipHw = Rp2040<'static, Rp2040DefaultPeripherals<'static>>;
 
 /// Static variables used by io.rs.
 static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
@@ -169,7 +172,7 @@ pub unsafe extern "C" fn jump_to_bootloader() {
     ldmia r0!, {{r1, r2}}
     msr msp, r1
     bx r2
-    ",
+        "
     );
 }
 
@@ -253,6 +256,11 @@ pub unsafe fn start() -> (
 ) {
     // Loads relocations and clears BSS
     rp2040::init();
+
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state_unsafe::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
 
     let peripherals = static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new());
     peripherals.resolve_dependencies();
@@ -376,9 +384,14 @@ pub unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(
+    components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
+        || unsafe {
+            kernel::debug::initialize_debug_writer_wrapper_unsafe::<
+                <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+            >();
+        },
     )
     .finalize(components::debug_writer_component_static!());
 

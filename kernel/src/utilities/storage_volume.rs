@@ -25,7 +25,10 @@
 #[macro_export]
 macro_rules! storage_volume {
     ($N:ident, $kB:expr $(,)?) => {
-        #[link_section = ".storage"]
+        // When compiling for a macOS host, the `link_section` attribute is
+        // elided as it yields the following error: `mach-o section specifier
+        // requires a segment and section separated by a comma`.
+        #[cfg_attr(not(target_os = "macos"), link_section = ".storage")]
         #[used]
         #[no_mangle]
         pub static $N: [u8; $kB * 1024] = [0x00; $kB * 1024];

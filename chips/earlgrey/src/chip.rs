@@ -196,7 +196,7 @@ impl<
                         // In order to stop an interrupt loop, we first disable the
                         // interrupt. `service_pending_interrupts()` will re-enable
                         // interrupts once they are all handled.
-                        self.atomic(|| {
+                        self.with_interrupts_disabled(|| {
                             // Safe as interrupts are disabled
                             self.plic.disable(interrupt);
                             self.plic.complete(interrupt);
@@ -211,7 +211,7 @@ impl<
             match interrupt {
                 interrupts::HMAC_HMACDONE..=interrupts::HMAC_HMACERR => {}
                 _ => {
-                    self.atomic(|| {
+                    self.with_interrupts_disabled(|| {
                         self.plic.complete(interrupt);
                     });
                 }
@@ -264,6 +264,7 @@ impl<
 {
     type MPU = PMPUserMPU<MPU_REGIONS, PMP>;
     type UserspaceKernelBoundary = SysCall;
+    type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
@@ -304,20 +305,22 @@ impl<
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
+    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
         let _ = writer.write_fmt(format_args!(
             "\r\n---| OpenTitan Earlgrey configuration for {} |---",
             CFG::NAME
         ));
         rv32i::print_riscv_state(writer);
-        let _ = writer.write_fmt(format_args!("{}", self.mpu.pmp));
+        if let Some(t) = this {
+            let _ = writer.write_fmt(format_args!("{}", t.mpu.pmp));
+        }
     }
 }
 
@@ -465,39 +468,47 @@ pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
     // range of vectored traps.
     naked_asm!(
         "
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
         ",
         start_trap = sym rv32i::_start_trap,
     );
 }
+
+/// Array used to track the "trap handler active" state per hart.
+///
+/// The `riscv` crate requires chip crates to allocate an array to
+/// track whether any given hart is currently in a trap handler. The
+/// array must be zero-initialized.
+#[export_name = "_trap_handler_active"]
+static mut TRAP_HANDLER_ACTIVE: [usize; 1] = [0; 1];

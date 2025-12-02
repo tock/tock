@@ -33,16 +33,13 @@
 // return_from_user, which performs the inverse of the above steps and returns control back to
 // the original caller of switch_to_user. See return_from_user.rs for more information.
 
-use core::arch::global_asm;
+use core::arch::naked_asm;
 
-global_asm!(
-    "
-.section .text
-.global switch_to_user
-.global _switch_to_user
-switch_to_user:
-_switch_to_user:
-
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub extern "C" fn switch_to_user() {
+    naked_asm!(
+        "
     # Save kernel state
     push    edi
     push    esi
@@ -96,4 +93,5 @@ _switch_to_user:
     pop     eax
 
     iretd"
-);
+    );
+}

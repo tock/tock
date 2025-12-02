@@ -266,13 +266,13 @@ impl hil::sensors::ProximityClient for ProximitySensor<'_> {
                         // Case: ReadProximityOnInterrupt
                         // Only callback to those apps which we expect would want to know about this threshold reading.
                         if (temp_val > app.upper_proximity) || (temp_val < app.lower_proximity) {
-                            upcalls.schedule_upcall(0, (temp_val as usize, 0, 0)).ok();
+                            let _ = upcalls.schedule_upcall(0, (temp_val as usize, 0, 0));
                             app.subscribed = false; // dequeue
                         }
                     } else {
                         // Case: ReadProximity
                         // Upcall to all apps waiting on read_proximity.
-                        upcalls.schedule_upcall(0, (temp_val as usize, 0, 0)).ok();
+                        let _ = upcalls.schedule_upcall(0, (temp_val as usize, 0, 0));
                         app.subscribed = false; // dequeue
                     }
                 }

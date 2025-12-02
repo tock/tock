@@ -105,6 +105,7 @@ impl InterruptService for Imxrt10xxDefaultPeripherals {
 impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     type MPU = cortexm7::mpu::MPU;
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
+    type ThreadIdProvider = cortexm7::thread_id::CortexMThreadIdProvider;
 
     fn service_pending_interrupts(&self) {
         unsafe {
@@ -137,14 +138,14 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        cortexm7::support::atomic(f)
+        cortexm7::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(&self, write: &mut dyn Write) {
+    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
         CortexM7::print_cortexm_state(write);
     }
 }

@@ -47,13 +47,13 @@ impl<'a, T: Timer<'a>> TestRandomTimer<'a, T> {
         let counter = self.counter.get();
         if counter == 0 {
             let mut us: u32 = (iv * 745939) % 115843;
-            if us % 11 == 0 {
+            if us.is_multiple_of(11) {
                 // Try delays of zero in 1 of 11 cases
                 us = 0;
             }
             let new_interval = self.timer.ticks_from_us(us);
             self.interval.set(new_interval.into_u32());
-            if us % 7 == 0 {
+            if us.is_multiple_of(7) {
                 let new_counter = 2 + self.interval.get() * 23 % 13;
                 self.counter.set(new_counter);
                 //debug!("Timer{} repeating with interval {}", self._id, self.interval.get());

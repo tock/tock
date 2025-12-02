@@ -12,17 +12,72 @@
 //! hardware:
 //!
 //! ```ignore
-//! kernel::debug::assign_gpios(
-//!     Some(&sam4l::gpio::PA[13]),
-//!     Some(&sam4l::gpio::PA[15]),
-//!     None,
+//! let debug_gpios = static_init!(
+//!     [&'static dyn kernel::hil::gpio::Pin; 2],
+//!     [
+//!         &sam4l::gpio::PA[13],
+//!         &sam4l::gpio::PA[15],
+//!     ]
 //! );
+//! kernel::debug::initialize_debug_gpio::<
+//!     <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+//! >();
+//! kernel::debug::assign_gpios(debug_gpios);
 //!
 //! components::debug_writer::DebugWriterComponent::new(
 //!     uart_mux,
 //!     create_capability!(kernel::capabilities::SetDebugWriterCapability)
 //! )
 //! .finalize(components::debug_writer_component_static!());
+//! ```
+//!
+//! An alternative to using the default `DebugWriterComponent`, which defaults
+//! to sending over UART, is to implement a custom [`DebugWriter`] that can be
+//! used for other types of output. For example a simple "endless" FIFO with
+//! fixed "push" address:
+//!
+//! ```ignore
+//! use kernel::debug::DebugWriter;
+//!
+//! pub struct SyncDebugWriter;
+//!
+//! impl DebugWriter for SyncDebugWriter {
+//!    fn write(&self, buf: &[u8], _overflow: &[u8]) -> usize {
+//!        let out_reg = 0x4000 as *mut u8; // Replace with the actual address of the FIFO
+//!        for c in buf.iter() {
+//!            unsafe { out_reg.write_volatile(*c) };
+//!        }
+//!        buf.len()
+//!    }
+//!
+//!    fn available_len(&self) -> usize {
+//!        usize::MAX
+//!    }
+//!
+//!    fn to_write_len(&self) -> usize {
+//!        0
+//!    }
+//!
+//!    fn publish(&self) -> usize {
+//!        0
+//!    }
+//!
+//!    fn flush(&self, _writer: &mut dyn IoWrite) { }
+//! ```
+//! And instantiate it in the main board file:
+//!
+//! ```ignore
+//! let debug_writer = static_init!(
+//!     utils::SyncDebugWriter,
+//!     utils::SyncDebugWriter
+//! );
+//!
+//! kernel::debug::set_debug_writer_wrapper(
+//!     static_init!(
+//!         kernel::debug::DebugWriterWrapper,
+//!         kernel::debug::DebugWriterWrapper::new(debug_writer)
+//!     ),
+//! );
 //! ```
 //!
 //! Example
@@ -46,23 +101,22 @@
 //! ```
 
 use core::cell::Cell;
-use core::fmt::{write, Arguments, Result, Write};
+use core::fmt::{write, Arguments, Write};
 use core::panic::PanicInfo;
-use core::ptr::addr_of_mut;
 use core::str;
 
 use crate::capabilities::SetDebugWriterCapability;
-use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::platform::chip::Chip;
+use crate::platform::chip::ThreadIdProvider;
 use crate::process::ProcessPrinter;
 use crate::process::ProcessSlot;
 use crate::processbuffer::ReadableProcessSlice;
 use crate::utilities::binary_write::BinaryToWriteWrapper;
+use crate::utilities::cells::MapCell;
 use crate::utilities::cells::NumericCellExt;
-use crate::utilities::cells::{MapCell, TakeCell};
-use crate::ErrorCode;
+use crate::utilities::single_thread_value::SingleThreadValue;
 
 /// Implementation of `std::io::Write` for `no_std`.
 ///
@@ -176,10 +230,22 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
     let _ = writer.write_fmt(format_args!("\r\n{}\r\n", panic_info));
 
     // Print version of the kernel
-    let _ = writer.write_fmt(format_args!(
-        "\tKernel version {}\r\n",
-        option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
-    ));
+    if crate::KERNEL_PRERELEASE_VERSION != 0 {
+        let _ = writer.write_fmt(format_args!(
+            "\tKernel version {}.{}.{}-dev{}\r\n",
+            crate::KERNEL_MAJOR_VERSION,
+            crate::KERNEL_MINOR_VERSION,
+            crate::KERNEL_PATCH_VERSION,
+            crate::KERNEL_PRERELEASE_VERSION,
+        ));
+    } else {
+        let _ = writer.write_fmt(format_args!(
+            "\tKernel version {}.{}.{}\r\n",
+            crate::KERNEL_MAJOR_VERSION,
+            crate::KERNEL_MINOR_VERSION,
+            crate::KERNEL_PATCH_VERSION,
+        ));
+    }
 }
 
 /// Print current machine (CPU) state.
@@ -189,9 +255,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
     chip: &'static Option<&'static C>,
     writer: &mut W,
 ) {
-    chip.map(|c| {
-        c.print_state(writer);
-    });
+    C::print_state(*chip, writer);
 }
 
 /// More detailed prints about all processes.
@@ -234,19 +298,29 @@ pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
 /// appropriate to blink multiple LEDs (e.g. one on the top and one on the
 /// bottom), thus this method accepts an array, however most will only need one.
 pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&L]) -> ! {
-    leds.iter_mut().for_each(|led| led.init());
+    for led in leds.iter_mut() {
+        led.init();
+    }
     loop {
         for _ in 0..1000000 {
-            leds.iter_mut().for_each(|led| led.on());
+            for led in leds.iter_mut() {
+                led.on();
+            }
         }
         for _ in 0..100000 {
-            leds.iter_mut().for_each(|led| led.off());
+            for led in leds.iter_mut() {
+                led.off();
+            }
         }
         for _ in 0..1000000 {
-            leds.iter_mut().for_each(|led| led.on());
+            for led in leds.iter_mut() {
+                led.on();
+            }
         }
         for _ in 0..500000 {
-            leds.iter_mut().for_each(|led| led.off());
+            for led in leds.iter_mut() {
+                led.off();
+            }
         }
     }
 }
@@ -257,22 +331,35 @@ pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&L]) -> ! {
 ///////////////////////////////////////////////////////////////////
 // debug_gpio! support
 
-/// Object to hold the assigned debugging GPIOs.
-pub static mut DEBUG_GPIOS: (
-    Option<&'static dyn hil::gpio::Pin>,
-    Option<&'static dyn hil::gpio::Pin>,
-    Option<&'static dyn hil::gpio::Pin>,
-) = (None, None, None);
+/// Static variable that holds an array of debug GPIO references.
+pub static DEBUG_GPIOS: SingleThreadValue<MapCell<&'static [&'static dyn hil::gpio::Pin]>> =
+    SingleThreadValue::new(MapCell::empty());
 
-/// Map up to three GPIO pins to use for debugging.
-pub unsafe fn assign_gpios(
-    gpio0: Option<&'static dyn hil::gpio::Pin>,
-    gpio1: Option<&'static dyn hil::gpio::Pin>,
-    gpio2: Option<&'static dyn hil::gpio::Pin>,
-) {
-    DEBUG_GPIOS.0 = gpio0;
-    DEBUG_GPIOS.1 = gpio1;
-    DEBUG_GPIOS.2 = gpio2;
+/// Initialize the static debug gpio variable.
+///
+/// This ensures it can safely be used as a global variable.
+#[cfg(target_has_atomic = "ptr")]
+pub fn initialize_debug_gpio<P: ThreadIdProvider>() {
+    DEBUG_GPIOS.bind_to_thread::<P>();
+}
+
+/// Initialize the static debug gpio variable.
+///
+/// This ensures it can safely be used as a global variable.
+///
+/// # Safety
+///
+/// Callers of this function must ensure that this function is never called
+/// concurrently with other calls to [`initialize_debug_gpio_unsafe`].
+pub unsafe fn initialize_debug_gpio_unsafe<P: ThreadIdProvider>() {
+    DEBUG_GPIOS.bind_to_thread_unsafe::<P>();
+}
+
+/// Map an array of GPIO pins to use for debugging.
+pub fn assign_gpios(gpio: &'static [&'static dyn hil::gpio::Pin]) {
+    DEBUG_GPIOS.get().map(|gpio_array_cell| {
+        gpio_array_cell.replace(gpio);
+    });
 }
 
 /// In-kernel gpio debugging that accepts any GPIO HIL method.
@@ -281,7 +368,11 @@ macro_rules! debug_gpio {
     ($i:tt, $method:ident $(,)?) => {{
         #[allow(unused_unsafe)]
         unsafe {
-            $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method());
+            $crate::debug::DEBUG_GPIOS.get().map(|debug_gpio_cell| {
+                debug_gpio_cell.map(|debug_gpio_array| {
+                    debug_gpio_array.get($i).map(|g| g.$method());
+                });
+            });
         }
     }};
 }
@@ -289,269 +380,178 @@ macro_rules! debug_gpio {
 ///////////////////////////////////////////////////////////////////
 // debug! and debug_verbose! support
 
-/// Wrapper type that we need a mutable reference to for the
-/// [`core::fmt::Write`] interface.
-pub struct DebugWriterWrapper {
-    dw: MapCell<&'static DebugWriter>,
-}
+/// A trait for writing debug output.
+///
+/// This can be used for example to implement asynchronous or synchronous
+/// writers, and buffered or unbuffered writers. Various platforms may have
+/// in-memory logs, memory mapped "endless" FIFOs, JTAG support for output,
+/// etc.
+pub trait DebugWriter {
+    /// Write bytes to output with overflow notification.
+    ///
+    /// The `overflow` slice is used as a message to be appended to the end of
+    /// the available buffer if it becomes full.
+    fn write(&self, bytes: &[u8], overflow_message: &[u8]) -> usize;
 
-/// Main type that we share with the UART provider and this debug module.
-pub struct DebugWriter {
-    // What provides the actual writing mechanism.
-    uart: &'static dyn hil::uart::Transmit<'static>,
-    // The buffer that is passed to the writing mechanism.
-    output_buffer: TakeCell<'static, [u8]>,
-    // An internal buffer that is used to hold debug!() calls as they come in.
-    internal_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
-    // Number of debug!() calls.
-    count: Cell<usize>,
+    /// Available length of the internal buffer if limited.
+    ///
+    /// If the buffer can support a write of any size, it should lie and return
+    /// `usize::MAX`.
+    ///
+    /// Across subsequent calls to this function, without invoking `write()` in
+    /// between, this returned value may only increase, but never decrease.
+    fn available_len(&self) -> usize;
+
+    /// How many bytes are buffered and not yet written.
+    fn to_write_len(&self) -> usize;
+
+    /// Publish bytes from the internal buffer to the output.
+    ///
+    /// Returns how many bytes were written.
+    fn publish(&self) -> usize;
+
+    /// Flush any buffered bytes to the provided output writer.
+    ///
+    /// `flush()` should be used to write an buffered bytes to a new `writer`
+    /// instead of the internal writer that `publish()` would use.
+    fn flush(&self, writer: &mut dyn IoWrite);
 }
 
 /// Static variable that holds the kernel's reference to the debug tool.
 ///
 /// This is needed so the `debug!()` macros have a reference to the object to
 /// use.
-static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
+static DEBUG_WRITER: SingleThreadValue<MapCell<&'static dyn DebugWriter>> =
+    SingleThreadValue::new(MapCell::empty());
 
-unsafe fn try_get_debug_writer() -> Option<&'static mut DebugWriterWrapper> {
-    (*addr_of_mut!(DEBUG_WRITER)).as_deref_mut()
+/// Static variable that holds how many times `debug!()` has been called.
+///
+/// This enables printing a verbose header message that enumerates independent
+/// debug messages.
+static DEBUG_WRITER_COUNT: SingleThreadValue<Cell<usize>> = SingleThreadValue::new(Cell::new(0));
+
+/// Initialize the static debug writer.
+///
+/// This ensures it can safely be used as a global variable.
+#[cfg(target_has_atomic = "ptr")]
+pub fn initialize_debug_writer_wrapper<P: ThreadIdProvider>() {
+    DEBUG_WRITER.bind_to_thread::<P>();
+    DEBUG_WRITER_COUNT.bind_to_thread::<P>();
 }
 
-unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
-    try_get_debug_writer().unwrap() // Unwrap fail = Must call `set_debug_writer_wrapper` in board initialization.
+/// Initialize the static debug writer.
+///
+/// This ensures it can safely be used as a global variable.
+///
+/// # Safety
+///
+/// Callers of this function must ensure that this function is never called
+/// concurrently with other calls to [`initialize_debug_writer_wrapper_unsafe`].
+pub unsafe fn initialize_debug_writer_wrapper_unsafe<P: ThreadIdProvider>() {
+    DEBUG_WRITER.bind_to_thread_unsafe::<P>();
+    DEBUG_WRITER_COUNT.bind_to_thread_unsafe::<P>();
+}
+
+fn try_get_debug_writer<F, R>(closure: F) -> Option<R>
+where
+    F: FnOnce(&dyn DebugWriter) -> R,
+{
+    DEBUG_WRITER
+        .get()
+        .and_then(|dw| dw.map_or(None, |writer| Some(closure(*writer))))
 }
 
 /// Function used by board main.rs to set a reference to the writer.
 pub fn set_debug_writer_wrapper<C: SetDebugWriterCapability>(
-    debug_writer: &'static mut DebugWriterWrapper,
+    debug_writer: &'static dyn DebugWriter,
     _cap: C,
 ) {
-    unsafe {
-        DEBUG_WRITER = Some(debug_writer);
-    }
+    DEBUG_WRITER.get().map(|dw| dw.replace(debug_writer));
 }
 
-impl DebugWriterWrapper {
-    pub fn new(dw: &'static DebugWriter) -> DebugWriterWrapper {
-        DebugWriterWrapper {
-            dw: MapCell::new(dw),
-        }
-    }
-}
-
-impl DebugWriter {
-    pub fn new(
-        uart: &'static dyn hil::uart::Transmit,
-        out_buffer: &'static mut [u8],
-        internal_buffer: &'static mut RingBuffer<'static, u8>,
-    ) -> DebugWriter {
-        DebugWriter {
-            uart,
-            output_buffer: TakeCell::new(out_buffer),
-            internal_buffer: TakeCell::new(internal_buffer),
-            count: Cell::new(0), // how many debug! calls
-        }
-    }
-
-    fn increment_count(&self) {
-        self.count.increment();
-    }
-
-    fn get_count(&self) -> usize {
-        self.count.get()
-    }
-
-    /// Write as many of the bytes from the internal_buffer to the output
-    /// mechanism as possible, returning the number written.
-    fn publish_bytes(&self) -> usize {
-        // Can only publish if we have the output_buffer. If we don't that is
-        // fine, we will do it when the transmit done callback happens.
-        self.internal_buffer.map_or(0, |ring_buffer| {
-            if let Some(out_buffer) = self.output_buffer.take() {
-                let mut count = 0;
-
-                for dst in out_buffer.iter_mut() {
-                    match ring_buffer.dequeue() {
-                        Some(src) => {
-                            *dst = src;
-                            count += 1;
-                        }
-                        None => {
-                            break;
-                        }
-                    }
-                }
-
-                if count != 0 {
-                    // Transmit the data in the output buffer.
-                    if let Err((_err, buf)) = self.uart.transmit_buffer(out_buffer, count) {
-                        self.output_buffer.put(Some(buf));
-                    } else {
-                        self.output_buffer.put(None);
-                    }
-                }
-                count
-            } else {
-                0
-            }
-        })
-    }
-
-    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
-        self.internal_buffer.take()
-    }
-
-    fn available_len(&self) -> usize {
-        self.internal_buffer.map_or(0, |rb| rb.available_len())
-    }
-}
-
-impl hil::uart::TransmitClient for DebugWriter {
-    fn transmitted_buffer(
-        &self,
-        buffer: &'static mut [u8],
-        _tx_len: usize,
-        _rcode: core::result::Result<(), ErrorCode>,
-    ) {
-        // Replace this buffer since we are done with it.
-        self.output_buffer.replace(buffer);
-
-        if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
-            // Buffer not empty, go around again
-            self.publish_bytes();
-        }
-    }
-    fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
-}
-
-/// Pass through functions.
-impl DebugWriterWrapper {
-    fn increment_count(&self) {
-        self.dw.map(|dw| {
-            dw.increment_count();
-        });
-    }
-
-    fn get_count(&self) -> usize {
-        self.dw.map_or(0, |dw| dw.get_count())
-    }
-
-    fn publish_bytes(&self) -> usize {
-        self.dw.map_or(0, |dw| dw.publish_bytes())
-    }
-
-    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
-        self.dw.map_or(None, |dw| dw.extract())
-    }
-
-    fn available_len(&self) -> usize {
-        const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
-        self.dw
-            .map_or(0, |dw| dw.available_len().saturating_sub(FULL_MSG.len()))
-    }
-}
-
-impl IoWrite for DebugWriterWrapper {
-    fn write(&mut self, bytes: &[u8]) -> usize {
-        const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
-        self.dw.map_or(0, |dw| {
-            dw.internal_buffer.map_or(0, |ring_buffer| {
-                let available_len_for_msg =
-                    ring_buffer.available_len().saturating_sub(FULL_MSG.len());
-
-                if available_len_for_msg >= bytes.len() {
-                    for &b in bytes {
-                        ring_buffer.enqueue(b);
-                    }
-                    bytes.len()
-                } else {
-                    for &b in &bytes[..available_len_for_msg] {
-                        ring_buffer.enqueue(b);
-                    }
-                    // When the buffer is close to full, print a warning and drop the current
-                    // string.
-                    for &b in FULL_MSG {
-                        ring_buffer.enqueue(b);
-                    }
-                    available_len_for_msg
-                }
-            })
-        })
-    }
-}
-
-impl Write for DebugWriterWrapper {
-    fn write_str(&mut self, s: &str) -> Result {
-        self.write(s.as_bytes());
+impl Write for &dyn DebugWriter {
+    fn write_str(&mut self, s: &str) -> Result<(), core::fmt::Error> {
+        self.write(s.as_bytes(), b"");
         Ok(())
     }
 }
 
 /// Write a debug message without a trailing newline.
 pub fn debug_print(args: Arguments) {
-    let writer = unsafe { get_debug_writer() };
-
-    let _ = write(writer, args);
-    writer.publish_bytes();
+    try_get_debug_writer(|mut writer| {
+        let _ = write(&mut writer, args);
+        writer.publish();
+    });
 }
 
 /// Write a debug message with a trailing newline.
 pub fn debug_println(args: Arguments) {
-    let writer = unsafe { get_debug_writer() };
-
-    let _ = write(writer, args);
-    let _ = writer.write_str("\r\n");
-    writer.publish_bytes();
+    try_get_debug_writer(|mut writer| {
+        let _ = write(&mut writer, args);
+        let _ = writer.write_str("\r\n");
+        writer.publish();
+    });
 }
 
 /// Write a [`ReadableProcessSlice`] to the debug output.
-pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
-    let writer = unsafe { get_debug_writer() };
-    let mut total = 0;
-    for b in slice.iter() {
-        let buf: [u8; 1] = [b.get(); 1];
-        let count = writer.write(&buf);
-        if count > 0 {
-            total += count;
-        } else {
-            break;
+///
+/// # Errors
+///
+/// Will return `Err` if it is not possible to write any output.
+pub fn debug_slice(slice: &ReadableProcessSlice) -> Result<usize, ()> {
+    try_get_debug_writer(|writer| {
+        let mut total = 0;
+        for b in slice.iter() {
+            let buf: [u8; 1] = [b.get(); 1];
+            let count = writer.write(&buf, b"");
+            if count > 0 {
+                total += count;
+            } else {
+                break;
+            }
         }
-    }
-    writer.publish_bytes();
-    total
+        writer.publish();
+        total
+    })
+    .ok_or(())
 }
 
 /// Return how many bytes are remaining in the internal debug buffer.
 pub fn debug_available_len() -> usize {
-    let writer = unsafe { get_debug_writer() };
-    writer.available_len()
+    try_get_debug_writer(|writer| writer.available_len()).unwrap_or(0)
 }
 
-fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
-    writer.increment_count();
-    let count = writer.get_count();
+fn write_header(
+    writer: &mut &dyn DebugWriter,
+    (file, line): &(&'static str, u32),
+) -> Result<(), core::fmt::Error> {
+    let count = DEBUG_WRITER_COUNT.get().map_or(0, |count| {
+        count.increment();
+        count.get()
+    });
+
     writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line))
 }
 
 /// Write a debug message with file and line information without a trailing
 /// newline.
 pub fn debug_verbose_print(args: Arguments, file_line: &(&'static str, u32)) {
-    let writer = unsafe { get_debug_writer() };
-
-    let _ = write_header(writer, file_line);
-    let _ = write(writer, args);
-    writer.publish_bytes();
+    try_get_debug_writer(|mut writer| {
+        let _ = write_header(&mut writer, file_line);
+        let _ = write(&mut writer, args);
+        writer.publish();
+    });
 }
 
 /// Write a debug message with file and line information with a trailing
 /// newline.
 pub fn debug_verbose_println(args: Arguments, file_line: &(&'static str, u32)) {
-    let writer = unsafe { get_debug_writer() };
-
-    let _ = write_header(writer, file_line);
-    let _ = write(writer, args);
-    let _ = writer.write_str("\r\n");
-    writer.publish_bytes();
+    try_get_debug_writer(|mut writer| {
+        let _ = write_header(&mut writer, file_line);
+        let _ = write(&mut writer, args);
+        let _ = writer.write_str("\r\n");
+        writer.publish();
+    });
 }
 
 /// In-kernel `println()` debugging.
@@ -634,20 +634,18 @@ macro_rules! debug_expr {
 
 /// Flush any stored messages to the output writer.
 pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
-    if let Some(debug_writer) = try_get_debug_writer() {
-        if let Some(ring_buffer) = debug_writer.extract() {
-            if ring_buffer.has_elements() {
-                let _ = writer.write_str(
+    try_get_debug_writer(|debug_writer|{
+        if debug_writer.to_write_len() > 0 {
+            let _ = writer.write_str(
                     "\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n",
                 );
-
-                writer.write_ring_buffer(ring_buffer);
-            }
+            debug_writer.flush(writer);
         }
-    } else {
+    }).or_else(||{
         let _ = writer.write_str(
             "\r\n---| Global debug writer not registered.\
              \r\n     Call `set_debug_writer_wrapper` in board initialization.\r\n",
         );
-    }
+        None
+    });
 }

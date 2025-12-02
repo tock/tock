@@ -45,7 +45,7 @@ jobs:
       - name: Update packages and install dependencies
         run: |
           sudo apt update
-          sudo apt install python3-pip python3-venv gcc-riscv64-unknown-elf \
+          sudo apt install -q python3-pip python3-venv gcc-riscv64-unknown-elf \
             verilator libevent-dev libjson-c-dev libz-dev libzmq3-dev
 
       # Install elf2tab to be able to build userspace apps
@@ -134,5 +134,5 @@ jobs:
       # Run the LiteX simulation with required options for Tock
       - name: Run various tests in the LiteX simulation using the litex-ci-runner
         run: |
-          pushd tools/litex-ci-runner
+          pushd tools/ci/litex-ci-runner
           cargo run

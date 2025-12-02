@@ -33,7 +33,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install --user cxxfilt
-          sudo apt install llvm
+          sudo apt install -q llvm
       - name: size report
         run: |
-          ./tools/github_actions_size_changes.sh
+          ./tools/ci/github_actions_size_changes.sh

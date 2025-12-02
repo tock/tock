@@ -250,7 +250,7 @@ impl<T: Configure> StandardBitTiming for T {
         for prescaler in
             cmp::max(clock_rate / (ts * bitrate), 1)..Self::MAX_BIT_TIMINGS.baud_rate_prescaler
         {
-            if clock_rate % (prescaler * bitrate) != 0 {
+            if !clock_rate.is_multiple_of(prescaler * bitrate) {
                 continue;
             }
             ts = clock_rate / (prescaler * bitrate);

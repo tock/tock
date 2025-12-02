@@ -47,7 +47,7 @@ impl Bitmap {
         let start_byte_idx = start_idx / 8;
         let end_byte_idx = end_idx / 8;
         let first = 0xff << (start_idx % 8);
-        let second = if end_idx % 8 == 0 {
+        let second = if end_idx.is_multiple_of(8) {
             0x00
         } else {
             0xff >> (8 - (end_idx % 8))

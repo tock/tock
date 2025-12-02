@@ -14,7 +14,14 @@ compact design, security, high performance, and reliability.
 
 ## Setup
 
-Install the ESP tool
+Install the ESP tool:
+
+```shell
+# macOS
+brew install esptool
+```
+
+of from source:
 
 ```shell
 git clone https://github.com/espressif/esptool.git
@@ -26,12 +33,13 @@ The first time you are installing Tock you probably want to erase the
 flash first. This can be done with:
 
 ```shell
-esptool.py --port /dev/ttyUSB0 --chip esp32c3 erase_flash
+esptool.py --chip esp32c3 erase_flash
 ```
 
 After that you can run:
 
 ```shell
+make init
 make flash
 ```
 
@@ -72,14 +80,21 @@ Apps are built out-of-tree, for example:
 
 ```bash
 $ cd libtock-c/examples/<app>
-$ make RISCV=1
+$ make
 ```
 
-Then to flash an app:
+To "flash" an app, we first write it to a binary file that is combined with the
+kernel which we will write in its entirety to the board.
+
+```bash
+$ tockloader install --local-board
+```
+
+Then to flash the kernel with the app:
 
 ```
 $ cd tock/boards/esp32-c3-devkitM-1
-$ make flash-app APP=../../../libtock-c/examples/<app>/build/rv32imac/rv32imac.0x403B0060.0x3FCC0000.tbf
+$ make flash
 ```
 
 ## JTAG Debugging

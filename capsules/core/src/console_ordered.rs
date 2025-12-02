@@ -254,8 +254,11 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
                     app.writing = true;
                     self.tx_in_progress.set(true);
                     if real_write_len > 0 {
-                        let count = debug_process_slice!(remaining_data);
-                        count
+                        // If the debug printing fails we have no recourse. Just
+                        // pretend like we wrote everything so we make forward
+                        // progress, and maybe the debug writer will start
+                        // working in the future.
+                        debug_process_slice!(remaining_data).unwrap_or(real_write_len)
                     } else {
                         0
                     }
@@ -521,31 +524,21 @@ impl<'a, A: Alarm<'a>> uart::ReceiveClient for ConsoleOrdered<'a, A> {
                                     // case.
                                     (rcode, rx_len)
                                 };
-                                kernel_data
-                                    .schedule_upcall(
-                                        2,
-                                        (
-                                            kernel::errorcode::into_statuscode(ret),
-                                            received_length,
-                                            0,
-                                        ),
-                                    )
-                                    .ok();
+                                let _ = kernel_data.schedule_upcall(
+                                    2,
+                                    (kernel::errorcode::into_statuscode(ret), received_length, 0),
+                                );
                             }
                             _ => {
                                 // Some UART error occurred
-                                kernel_data
-                                    .schedule_upcall(
-                                        2,
-                                        (
-                                            kernel::errorcode::into_statuscode(Err(
-                                                ErrorCode::FAIL,
-                                            )),
-                                            0,
-                                            0,
-                                        ),
-                                    )
-                                    .ok();
+                                let _ = kernel_data.schedule_upcall(
+                                    2,
+                                    (
+                                        kernel::errorcode::into_statuscode(Err(ErrorCode::FAIL)),
+                                        0,
+                                        0,
+                                    ),
+                                );
                             }
                         }
                     })

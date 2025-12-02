@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use cortexm4f::support::atomic;
+use cortexm4f::support::with_interrupts_disabled;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::hil;
@@ -476,7 +476,7 @@ impl<'a> GpioPorts<'a> {
         self.pins[usize::from(port_num)][usize::from(pin_num)].as_ref()
     }
 
-    pub fn get_port(&self, pinid: PinId) -> &Port {
+    pub fn get_port(&self, pinid: PinId) -> &Port<'_> {
         let mut port_num: u8 = pinid as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
@@ -484,7 +484,7 @@ impl<'a> GpioPorts<'a> {
         &self.ports[usize::from(port_num)]
     }
 
-    pub fn get_port_from_port_id(&self, portid: PortId) -> &Port {
+    pub fn get_port_from_port_id(&self, portid: PortId) -> &Port<'_> {
         &self.ports[portid as usize]
     }
 }
@@ -1115,7 +1115,7 @@ impl hil::gpio::Input for Pin<'_> {
 impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 self.exti_lineid.map(|lineid| {
                     let l = lineid;
 
@@ -1146,7 +1146,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
 
     fn disable_interrupts(&self) {
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 self.exti_lineid.map(|lineid| {
                     let l = lineid;
                     self.exti.mask_interrupt(l);
