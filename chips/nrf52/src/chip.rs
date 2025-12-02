@@ -125,6 +125,9 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         unsafe {
             nvic::enable_all();
         }
+
+        // Initialize deferred calls very early.
+        kernel::deferred_call::initialize_deferred_call_state::<Self::ThreadIdProvider>();
     }
 
     fn mpu(&self) -> &Self::MPU {

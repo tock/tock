@@ -407,11 +407,6 @@ pub unsafe fn start_no_pconsole() -> (
     // Apply errata fixes and enable interrupts.
     ChipHw::init();
 
-    // Initialize deferred calls very early.
-    kernel::deferred_call::initialize_deferred_call_state::<
-        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >();
-
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let ieee802154_ack_buf = static_init!(
