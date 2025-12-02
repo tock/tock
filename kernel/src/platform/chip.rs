@@ -28,6 +28,17 @@ pub trait Chip {
     /// chips may have various custom requirements.
     type UserspaceKernelBoundary: syscall::UserspaceKernelBoundary;
 
+    /// Run any necessary initialization for this chip.
+    ///
+    /// This should be called first by the board in its `main()` function.
+    ///
+    /// This should contain any necessary initialization steps, including:
+    ///
+    /// - Any architecture-specific setup
+    /// - Any errata fixes
+    /// - Any configuration needed for the chip to continue booting the kernel
+    fn init();
+
     /// The kernel calls this function to tell the chip to check for all pending
     /// interrupts and to correctly dispatch them to the peripheral drivers for
     /// the chip.
