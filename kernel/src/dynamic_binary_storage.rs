@@ -438,7 +438,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
             }
             State::Uninstall => {
                 self.buffer.replace(buffer);
-                // Reset metadata and let client know we are done aborting.
+                // Reset metadata and let client know we are done uninstalling.
                 self.reset_process_loading_metadata();
                 self.storage_client.map(|client| {
                     client.uninstall_done(Ok(()));

@@ -811,7 +811,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
     }
 
-    /// Try to find memory for new process
+    /// Try to find memory slot for new process
     ///
     /// Returns a memory address if available, or
     /// None, if there isn't one
