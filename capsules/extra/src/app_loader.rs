@@ -306,7 +306,7 @@ impl<
                 app.pending_command = false;
 
                 self.current_process.take();
-                kernel_data
+                let _ = kernel_data
                     .schedule_upcall(upcall::UNINSTALL_DONE, (into_statuscode(result), 0, 0))
                     .ok();
             });

@@ -392,7 +392,7 @@ fn find_ram_region(
     for i in 0..count.saturating_sub(1) {
         let gap_start = process_memory_end_addresses[i];
         let gap_end = process_memory_start_addresses[i + 1];
-        
+
         if gap_start < gap_end {
             let aligned = (gap_start + alignment - 1) & !(alignment - 1);
             if aligned < gap_end {
@@ -418,21 +418,30 @@ fn find_ram_region(
     }
 
     match (best_addr, second_best_addr) {
-    (Some(best), Some(second)) => {
-        debug!("Best RAM address: {:#010x} with size: {:?}", best, best_size);
-        debug!("Second Best RAM address: {:#010x} with size: {:?}", second, second_best_size);
-    },
-    (Some(best), None) => {
-        debug!("Only one RAM address available: {:#010x} with size: {:?}", best, best_size);
-    },
-    (None, None) => {
-        debug!("No suitable RAM addresses found");
-    },
-    (None, Some(_)) => {
-        // This shouldn't happen in practice with our algorithm
-        debug!("Unexpected state: second best without best");
+        (Some(best), Some(second)) => {
+            debug!(
+                "Best RAM address: {:#010x} with size: {:?}",
+                best, best_size
+            );
+            debug!(
+                "Second Best RAM address: {:#010x} with size: {:?}",
+                second, second_best_size
+            );
+        }
+        (Some(best), None) => {
+            debug!(
+                "Only one RAM address available: {:#010x} with size: {:?}",
+                best, best_size
+            );
+        }
+        (None, None) => {
+            debug!("No suitable RAM addresses found");
+        }
+        (None, Some(_)) => {
+            // This shouldn't happen in practice with our algorithm
+            debug!("Unexpected state: second best without best");
+        }
     }
-}
 
     (best_addr, second_best_addr)
 }
@@ -517,13 +526,13 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
     // if config::CONFIG.debug_load_processes {
-        debug!(
-            "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
-            process_binary.flash.as_ptr() as usize,
-            process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
-        );
+    debug!(
+        "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
+        process_binary.flash.as_ptr() as usize,
+        process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
+        app_memory.as_ptr() as usize,
+        app_memory.as_ptr() as usize + app_memory.len() - 1
+    );
     // }
 
     // Need to reassign remaining_memory in every iteration so the compiler
@@ -833,7 +842,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         ) {
             (Some(address), Some(_second_address)) => Some(address),
             (None, None) => None,
-             (None, Some(address)) | (Some(address), None) => Some(address),
+            (None, Some(address)) | (Some(address), None) => Some(address),
         }
     }
 
