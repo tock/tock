@@ -109,6 +109,24 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
     type ThreadIdProvider = cortexm4f::thread_id::CortexMThreadIdProvider;
 
+    fn init() {
+        // # Safety
+        //
+        // We are setting up the nRF52 chip, so these memory locations are valid
+        // on the nRF52 and this is OK to call.
+        unsafe {
+            crate::crt1::fix_errata();
+        }
+        crate::crt1::initialize_vector_table();
+
+        // # Safety
+        //
+        // Need to enable interrupts.
+        unsafe {
+            nvic::enable_all();
+        }
+    }
+
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
     }
