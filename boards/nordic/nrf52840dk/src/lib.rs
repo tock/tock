@@ -80,6 +80,7 @@ use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -404,7 +405,7 @@ pub unsafe fn start_no_pconsole() -> (
     //--------------------------------------------------------------------------
 
     // Apply errata fixes and enable interrupts.
-    nrf52840::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
