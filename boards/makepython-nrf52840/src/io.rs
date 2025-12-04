@@ -119,8 +119,6 @@ impl IoWrite for Writer {
     }
 }
 
-/// Default panic handler for the Adafruit CLUE nRF52480 Express Board.
-///
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[panic_handler]
