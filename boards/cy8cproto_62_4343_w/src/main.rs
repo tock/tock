@@ -122,6 +122,11 @@ pub unsafe fn main() {
     // Set the offset of the vector table
     cortexm0p::scb::set_vector_table_offset(0x10000000 as *const ());
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state_unsafe::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(
         PsoC62xaDefaultPeripherals,
         PsoC62xaDefaultPeripherals::new()

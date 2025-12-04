@@ -221,9 +221,18 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
         &()
     }
 }
+// `allow(unsupported_calling_conventions)`: cdecl is not valid when testing
+// this code on an x86_64 machine. This avoids a warning until a more permanent
+// fix is decided. See: https://github.com/tock/tock/pull/4662
+#[allow(unsupported_calling_conventions)]
 #[no_mangle]
 unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
+
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
 
     // Basic setup of the i486 platform
     // Allocate statics for default peripherals and build them via the chip helper

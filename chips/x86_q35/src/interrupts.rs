@@ -17,6 +17,10 @@ use super::pic;
 ///
 /// This function must only be called when handling an interrupt. It should _never_ be called by
 /// other Rust code.
+// `allow(unsupported_calling_conventions)`: cdecl is not valid when testing
+// this code on an x86_64 machine. This avoids a warning until a more permanent
+// fix is decided. See: https://github.com/tock/tock/pull/4662
+#[allow(unsupported_calling_conventions)]
 #[no_mangle]
 unsafe extern "cdecl" fn handle_external_interrupt(num: u32) {
     unsafe {

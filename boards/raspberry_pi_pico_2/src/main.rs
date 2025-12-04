@@ -256,6 +256,11 @@ unsafe fn get_peripherals() -> &'static mut Rp2350DefaultPeripherals<'static> {
 pub unsafe fn main() {
     rp2350::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = get_peripherals();
     peripherals.resolve_dependencies();
 

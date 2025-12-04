@@ -257,6 +257,11 @@ pub unsafe fn start() -> (
     // Loads relocations and clears BSS
     rp2040::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state_unsafe::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
     let peripherals = static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new());
     peripherals.resolve_dependencies();
 

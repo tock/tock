@@ -19,7 +19,7 @@ pub struct VirtualMuxAccel<'a> {
 }
 
 impl<'a> ListNode<'a, VirtualMuxAccel<'a>> for VirtualMuxAccel<'a> {
-    fn next(&self) -> &'a ListLink<VirtualMuxAccel<'a>> {
+    fn next(&self) -> &'a ListLink<'_, VirtualMuxAccel<'a>> {
         &self.next
     }
 }

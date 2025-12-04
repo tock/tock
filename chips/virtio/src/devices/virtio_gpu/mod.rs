@@ -924,7 +924,7 @@ impl<'a> Screen<'a> for VirtIOGPU<'a, '_> {
 
         // Ensure that this buffer is evenly divisible by PIXEL_STRIDE and that
         // it can fit into the remaining part of the draw area:
-        if buffer.len() % PIXEL_STRIDE != 0 {
+        if !buffer.len().is_multiple_of(PIXEL_STRIDE) {
             return Err(ErrorCode::INVAL);
         }
         if buffer.len() / PIXEL_STRIDE > remaining_pixels {

@@ -80,6 +80,10 @@ mod switch_to_user;
 #[cfg(target_arch = "x86")]
 mod return_from_user;
 
+// `allow(unsupported_calling_conventions)`: cdecl is not valid when testing
+// this code on an x86_64 machine. This avoids a warning until a more permanent
+// fix is decided. See: https://github.com/tock/tock/pull/4662
+#[allow(unsupported_calling_conventions)]
 extern "cdecl" {
     /// Performs a context switch to the given process.
     ///
