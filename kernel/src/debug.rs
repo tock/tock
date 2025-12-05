@@ -108,6 +108,7 @@ use core::str;
 use crate::capabilities::SetDebugWriterCapability;
 use crate::hil;
 use crate::platform::chip::Chip;
+use crate::platform::chip::PanicWriter;
 use crate::platform::chip::ThreadIdProvider;
 use crate::process::ProcessPrinter;
 use crate::process::ProcessSlot;
@@ -153,20 +154,23 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
-    writer: &mut W,
+pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+    writer_config: PW::Config,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     panic_resources: Option<&PanicResources<C, PP>>,
 ) {
+    // Create the synchronous writer we can use to output the panic message.
+    let mut writer = PW::create_panic_writer(writer_config);
+
     panic_begin(nop);
     // Flush debug buffer if needed
-    flush(writer);
-    panic_banner(writer, panic_info);
+    flush(&mut writer);
+    panic_banner(&mut writer, panic_info);
 
     panic_resources.map(|pr| {
         let chip = pr.chip.take();
-        panic_cpu_state(chip, writer);
+        panic_cpu_state(chip, &mut writer);
 
         chip.map(|c| {
             // Some systems may enforce memory protection regions for the kernel,
@@ -177,7 +181,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
             c.mpu().disable_app_mpu()
         });
         pr.processes.take().map(|p| {
-            panic_process_info(p, pr.printer.take(), writer);
+            panic_process_info(p, pr.printer.take(), &mut writer);
         });
     });
 }
@@ -188,16 +192,16 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
-    writer: &mut W,
+    writer_config: PW::Config,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     panic_resources: Option<&PanicResources<C, PP>>,
 ) -> ! {
     // Call `panic_print` first which will print out the panic information and
     // return
-    panic_print(writer, panic_info, nop, panic_resources);
+    panic_print::<PW, C, PP>(writer_config, panic_info, nop, panic_resources);
 
     // The system is no longer in a well-defined state, we cannot
     // allow this function to return
