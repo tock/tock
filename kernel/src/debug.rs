@@ -106,7 +106,6 @@ use core::panic::PanicInfo;
 use core::str;
 
 use crate::capabilities::SetDebugWriterCapability;
-use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::platform::chip::Chip;
 use crate::platform::chip::ThreadIdProvider;
@@ -116,35 +115,8 @@ use crate::processbuffer::ReadableProcessSlice;
 use crate::utilities::binary_write::BinaryToWriteWrapper;
 use crate::utilities::cells::MapCell;
 use crate::utilities::cells::NumericCellExt;
+use crate::utilities::io_write::IoWrite;
 use crate::utilities::single_thread_value::SingleThreadValue;
-
-/// Implementation of `std::io::Write` for `no_std`.
-///
-/// This takes bytes instead of a string (contrary to [`core::fmt::Write`]), but
-/// we cannot use `std::io::Write' as it isn't available in `no_std` (due to
-/// `std::io::Error` not being available).
-///
-/// Also, in our use cases, writes are infallible, so the write function cannot
-/// return an `Err`, however it might not be able to write everything, so it
-/// returns the number of bytes written.
-///
-/// See also the tracking issue:
-/// <https://github.com/rust-lang/rfcs/issues/2262>.
-pub trait IoWrite: Write {
-    fn write(&mut self, buf: &[u8]) -> usize;
-
-    fn write_ring_buffer(&mut self, buf: &RingBuffer<'_, u8>) -> usize {
-        let (left, right) = buf.as_slices();
-        let mut total = 0;
-        if let Some(slice) = left {
-            total += self.write(slice);
-        }
-        if let Some(slice) = right {
-            total += self.write(slice);
-        }
-        total
-    }
-}
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -168,26 +140,6 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
             printer: MapCell::empty(),
         }
     }
-}
-
-/// Interface for chips to create a synchronous writer for panics.
-///
-/// Any mechanism that can output a panic message during a panic must implement
-/// [`PanicWriter`] to enable the `panic()` functions to write the output. This
-/// requires the mechanism to provide a new constructor for the writer that
-/// creates a synchronous writer that implements [`IoWrite`].
-pub trait PanicWriter {
-    /// The configuration data the mechanism needs to configure the writer for
-    /// panic output.
-    type Config;
-
-    /// Create a new synchronous writer capable of sending panic messages.
-    ///
-    /// The constructed writer must be created on the stack. Because panic
-    /// will never return this is effectively a static allocation.
-    ///
-    /// The writer must implement [`IoWrite`].
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite;
 }
 
 /// Tock panic routine, without the infinite LED-blinking loop.

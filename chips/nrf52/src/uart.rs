@@ -12,9 +12,9 @@
 
 use core::cell::Cell;
 use core::cmp::min;
-use kernel::debug::{IoWrite, PanicWriter};
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
@@ -186,7 +186,7 @@ struct UartPanicWriter<'a> {
     inner: Uarte<'a>,
 }
 
-impl kernel::debug::IoWrite for UartPanicWriter<'_> {
+impl IoWrite for UartPanicWriter<'_> {
     fn write(&mut self, buf: &[u8]) -> usize {
         for &c in buf {
             unsafe {
@@ -213,12 +213,10 @@ pub struct UartPanicWriterConfig {
     pub rts: Option<Pin>,
 }
 
-impl PanicWriter for Uarte<'_> {
+impl kernel::platform::chip::PanicWriter for Uarte<'_> {
     type Config = UartPanicWriterConfig;
 
-    unsafe fn create_panic_writer(
-        config: Self::Config,
-    ) -> impl kernel::debug::IoWrite {
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite {
         use uart::Configure as _;
 
         let inner = Uarte::new(UARTE0_BASE);
