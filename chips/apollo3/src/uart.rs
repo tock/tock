@@ -486,3 +486,62 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         Err(ErrorCode::FAIL)
     }
 }
+
+use kernel::utilities::io_write::IoWrite;
+
+/// A synchronous writer for the apollo3 useful for panics.
+///
+/// For boards that want to use the UART to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+struct UartPanicWriter<'a> {
+    uart: Uart<'a>,
+}
+
+impl IoWrite for UartPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.uart.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for the synchronous UART panic writer.
+///
+/// This captures everything needed to setup the UART for panic display, even
+/// if the normal kernel had initialized it differently.
+pub struct UartPanicWriterConfig {
+    pub params: uart::Parameters,
+    pub tx_pin_index: usize,
+    pub rx_pin_index: usize,
+}
+
+impl kernel::platform::chip::PanicWriter for Uart<'_> {
+    type Config = UartPanicWriterConfig;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite {
+        use uart::Configure as _;
+
+        let uart = Uart::new_uart_0();
+        let gpio_port = crate::gpio::Port::new();
+
+        // Configure the UART correctly for panics.
+        gpio_port.enable_uart(
+            &gpio_port[config.tx_pin_index],
+            &gpio_port[config.rx_pin_index],
+        );
+        let _ = uart.configure(config.params);
+
+        UartPanicWriter { uart }
+    }
+}
