@@ -2,34 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of_mut;
 
 use kernel::debug;
 use kernel::hil::led;
 use kernel::utilities::io_write::IoWrite;
-
-/// Writer is used by kernel::debug to panic message to the serial port.
-pub struct Writer {}
-
-/// Global static for debug writer
-pub static mut WRITER: Writer = Writer {};
-
-impl Write for Writer {
-    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        let uart = apollo3::uart::Uart::new_uart_0(); // Aliases memory for uart0. Okay bc we are panicking.
-        uart.transmit_sync(buf);
-        buf.len()
-    }
-}
 
 /// Panic handler.
 #[panic_handler]
@@ -42,11 +19,20 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         apollo3::gpio::Pin::Pin19,
     );
     let led = &mut led::LedLow::new(led_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_old(
+    debug::panic::<_, apollo3::uart::Uart, _, _>(
         &mut [led],
-        writer,
+        apollo3::uart::UartPanicWriterConfig {
+            params: kernel::hil::uart::Parameters {
+                baud_rate: 115200,
+                stop_bits: kernel::hil::uart::StopBits::One,
+                parity: kernel::hil::uart::Parity::None,
+                hw_flow_control: false,
+                width: kernel::hil::uart::Width::Eight,
+            },
+            tx_pin_index: 48,
+            rx_pin_index: 49,
+        },
         info,
         &cortexm4::support::nop,
         crate::PANIC_RESOURCES.get(),
