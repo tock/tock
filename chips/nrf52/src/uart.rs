@@ -182,55 +182,6 @@ pub struct UARTParams {
     pub baud_rate: u32,
 }
 
-struct UartPanicWriter<'a> {
-    inner: Uarte<'a>,
-}
-
-impl IoWrite for UartPanicWriter<'_> {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        for &c in buf {
-            unsafe {
-                self.inner.send_byte(c);
-            }
-            while !self.inner.tx_ready() {}
-        }
-        buf.len()
-    }
-}
-
-impl core::fmt::Write for UartPanicWriter<'_> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-pub struct UartPanicWriterConfig {
-    pub params: uart::Parameters,
-    pub txd: Pin,
-    pub rxd: Pin,
-    pub cts: Option<Pin>,
-    pub rts: Option<Pin>,
-}
-
-impl kernel::platform::chip::PanicWriter for Uarte<'_> {
-    type Config = UartPanicWriterConfig;
-
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite {
-        use uart::Configure as _;
-
-        let inner = Uarte::new(UARTE0_BASE);
-        inner.initialize(
-            pinmux::Pinmux::from_pin(config.txd),
-            pinmux::Pinmux::from_pin(config.rxd),
-            config.cts.map(|c| unsafe { pinmux::Pinmux::from_pin(c) }),
-            config.rts.map(|r| unsafe { pinmux::Pinmux::from_pin(r) }),
-        );
-        let _ = inner.configure(config.params);
-        UartPanicWriter { inner }
-    }
-}
-
 impl<'a> Uarte<'a> {
     /// Constructor
     // This should only be constructed once
@@ -611,6 +562,68 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
             self.registers.task_stoprx.write(Task::ENABLE::SET);
             Err(ErrorCode::BUSY)
         }
+    }
+}
+
+/// A synchronous writer for the nRF52 useful for panics.
+///
+/// For boards that want to use the UART to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+struct UartPanicWriter<'a> {
+    inner: Uarte<'a>,
+}
+
+impl IoWrite for UartPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        for &c in buf {
+            unsafe {
+                self.inner.send_byte(c);
+            }
+            while !self.inner.tx_ready() {}
+        }
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for the synchronous UART panic writer.
+///
+/// This captures everything needed to setup the UART for panic display, even
+/// if the normal kernel had initialized it differently.
+pub struct UartPanicWriterConfig {
+    pub params: uart::Parameters,
+    pub txd: Pin,
+    pub rxd: Pin,
+    pub cts: Option<Pin>,
+    pub rts: Option<Pin>,
+}
+
+impl kernel::platform::chip::PanicWriter for Uarte<'_> {
+    type Config = UartPanicWriterConfig;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite {
+        use uart::Configure as _;
+
+        let inner = Uarte::new(UARTE0_BASE);
+        inner.initialize(
+            pinmux::Pinmux::from_pin(config.txd),
+            pinmux::Pinmux::from_pin(config.rxd),
+            config.cts.map(|c| unsafe { pinmux::Pinmux::from_pin(c) }),
+            config.rts.map(|r| unsafe { pinmux::Pinmux::from_pin(r) }),
+        );
+        let _ = inner.configure(config.params);
+        UartPanicWriter { inner }
     }
 }
 
