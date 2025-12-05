@@ -31,6 +31,7 @@ pub struct Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
     pub subghz_spi: crate::spi::Spi<'a>,
     pub subghz_radio_interrupt: crate::subghz_radio::SubGhzRadioInterrupt<'a>,
     pub pwr: crate::pwr::Pwr,
+    pub uid64: crate::device_signature::Uid64,
 }
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
@@ -52,6 +53,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32wle5xxDefaultPeripherals<'a, ChipSpecs>
             subghz_spi: crate::spi::Spi::new_subghzspi(clocks),
             subghz_radio_interrupt: crate::subghz_radio::SubGhzRadioInterrupt::new(),
             pwr: crate::pwr::Pwr::new(),
+            uid64: crate::device_signature::Uid64::new(),
         }
     }
 

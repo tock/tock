@@ -15,6 +15,7 @@ pub mod chip_specific;
 pub mod nvic;
 
 // Peripherals
+pub mod device_signature;
 pub mod exti;
 pub mod gpio;
 pub mod i2c;
