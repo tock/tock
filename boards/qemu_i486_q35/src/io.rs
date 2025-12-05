@@ -3,14 +3,11 @@
 // Copyright Tock Contributors 2024.
 
 use core::fmt::Write;
-use core::ptr;
 use core::{arch::asm, panic::PanicInfo};
 
 use kernel::debug;
 
 use x86_q35::serial::{BlockingSerialPort, COM1_BASE};
-
-use crate::{CHIP, PROCESSES, PROCESS_PRINTER};
 
 /// Exists QEMU
 ///
@@ -57,9 +54,7 @@ unsafe fn panic_handler(pi: &PanicInfo) -> ! {
         &mut com1,
         pi,
         &x86::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*ptr::addr_of!(CHIP),
-        &*ptr::addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     );
 
     exit_qemu();

@@ -1,32 +1,22 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2024.
 
 use core::fmt::Write;
-use core::panic::PanicInfo;
-use cortexm4;
-use kernel::debug;
 use kernel::debug::IoWrite;
-use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
-use nrf52840::gpio::Pin;
+
 use nrf52840::uart::{Uarte, UARTE0_BASE};
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
-
-enum Writer {
-    WriterUart(/* initialized */ bool),
-    WriterRtt(&'static segger::rtt::SeggerRttMemory<'static>),
+struct Writer {
+    initialized: bool,
 }
 
-static mut WRITER: Writer = Writer::WriterUart(false);
-
-/// Set the RTT memory buffer used to output panic messages.
-pub unsafe fn set_rtt_memory(rtt_memory: &'static segger::rtt::SeggerRttMemory<'static>) {
-    WRITER = Writer::WriterRtt(rtt_memory);
+impl Writer {
+    fn new() -> Self {
+        Self { initialized: false }
+    }
 }
 
 impl Write for Writer {
@@ -38,29 +28,27 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        match self {
-            Writer::WriterUart(ref mut initialized) => {
-                // Here, we create a second instance of the Uarte struct.
-                // This is okay because we only call this during a panic, and
-                // we will never actually process the interrupts
-                let uart = Uarte::new(UARTE0_BASE);
-                if !*initialized {
-                    *initialized = true;
-                    let _ = uart.configure(uart::Parameters {
-                        baud_rate: 115200,
-                        stop_bits: uart::StopBits::One,
-                        parity: uart::Parity::None,
-                        hw_flow_control: false,
-                        width: uart::Width::Eight,
-                    });
-                }
-                for &c in buf {
-                    unsafe { uart.send_byte(c) }
-                    while !uart.tx_ready() {}
-                }
-            }
-            Writer::WriterRtt(rtt_memory) => rtt_memory.write_sync(buf),
+        // Here, we create a second instance of the Uarte struct.
+        // This is okay because we only call this during a panic, and
+        // we will never actually process the interrupts
+        let uart = Uarte::new(UARTE0_BASE);
+        if !self.initialized {
+            self.initialized = true;
+            let _ = uart.configure(uart::Parameters {
+                baud_rate: 115200,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+                width: uart::Width::Eight,
+            });
         }
+        for &c in buf {
+            unsafe {
+                uart.send_byte(c);
+            }
+            while !uart.tx_ready() {}
+        }
+
         buf.len()
     }
 }
@@ -68,20 +56,20 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[panic_handler]
 /// Panic handler
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    // The nRF52840DK LEDs (see back of board)
+pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
+    use kernel::debug;
+    use kernel::hil::led;
+    use nrf52840::gpio::Pin;
 
-    use core::ptr::{addr_of, addr_of_mut};
+    // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
+    let mut writer = Writer::new();
     debug::panic(
         &mut [led],
-        writer,
+        &mut writer,
         pi,
         &cortexm4::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     )
 }
