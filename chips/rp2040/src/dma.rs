@@ -3,12 +3,9 @@
 // Copyright OxidOS Automotive 2025.
 
 use crate::pio;
-use core::cell::Cell;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    register_bitfields, register_structs, FieldValue, LocalRegisterCopy, ReadWrite,
-};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, FieldValue, ReadWrite};
 use kernel::utilities::StaticRef;
 
 register_structs! {
@@ -345,6 +342,9 @@ register_bitfields![u32,
     ]
 ];
 
+const DMA_BASE: StaticRef<DmaRegisters> =
+    unsafe { StaticRef::new(0x50000000 as *const DmaRegisters) };
+
 #[derive(Clone, Copy)]
 pub enum Channel {
     Channel0 = 0,
@@ -447,154 +447,44 @@ pub enum Irq {
     Irq1,
 }
 
-const DMA_BASE: StaticRef<DmaRegisters> =
-    unsafe { StaticRef::new(0x50000000 as *const DmaRegisters) };
-
 pub trait DmaChannelClient {
     fn transfer_done(&self);
 }
 
+#[derive(Clone, Copy)]
 pub struct DmaChannel<'a> {
-    registers: StaticRef<DmaRegisters>,
+    dma: &'a Dma<'a>,
     ch: Channel,
-    client: OptionalCell<&'a dyn DmaChannelClient>,
 }
 
 impl<'a> DmaChannel<'a> {
-    pub const fn new(ch: Channel) -> Self {
-        Self {
-            registers: DMA_BASE,
-            ch,
-            client: OptionalCell::empty(),
-        }
+    pub const fn new(dma: &'a Dma<'a>, ch: Channel) -> Self {
+        Self { dma, ch }
     }
     pub fn set_client(&self, client: &'a dyn DmaChannelClient) {
-        self.client.set(client);
+        self.dma.set_channel_client(self.ch, client);
     }
 }
 
 pub struct Dma<'a> {
     registers: StaticRef<DmaRegisters>,
-    interrupt0: Cell<LocalRegisterCopy<u32, INTE::Register>>,
-    interrupt1: Cell<LocalRegisterCopy<u32, INTE::Register>>,
-    channels: [DmaChannel<'a>; 12],
+    clients: [OptionalCell<&'a dyn DmaChannelClient>; 12],
 }
 
 impl<'a> Dma<'a> {
     pub const fn new() -> Self {
         Self {
             registers: DMA_BASE,
-            interrupt0: Cell::new(LocalRegisterCopy::new(0)),
-            interrupt1: Cell::new(LocalRegisterCopy::new(0)),
-            channels: [
-                DmaChannel::new(Channel::Channel0),
-                DmaChannel::new(Channel::Channel1),
-                DmaChannel::new(Channel::Channel2),
-                DmaChannel::new(Channel::Channel3),
-                DmaChannel::new(Channel::Channel4),
-                DmaChannel::new(Channel::Channel5),
-                DmaChannel::new(Channel::Channel6),
-                DmaChannel::new(Channel::Channel7),
-                DmaChannel::new(Channel::Channel8),
-                DmaChannel::new(Channel::Channel9),
-                DmaChannel::new(Channel::Channel10),
-                DmaChannel::new(Channel::Channel11),
-            ],
+            clients: [const { OptionalCell::empty() }; 12],
         }
     }
 
-    pub fn channel(&'a self, ch: Channel) -> &'a DmaChannel<'a> {
-        &self.channels[ch as usize]
+    pub fn channel(&'a self, ch: Channel) -> DmaChannel<'a> {
+        DmaChannel::new(self, ch)
     }
 }
 
-impl Dma<'_> {
-    pub fn enable_interrupt(&self, channel: Channel, irq: Irq) {
-        let inte = match channel {
-            Channel::Channel0 => INTE::CH0::SET,
-            Channel::Channel1 => INTE::CH1::SET,
-            Channel::Channel2 => INTE::CH2::SET,
-            Channel::Channel3 => INTE::CH3::SET,
-            Channel::Channel4 => INTE::CH4::SET,
-            Channel::Channel5 => INTE::CH5::SET,
-            Channel::Channel6 => INTE::CH6::SET,
-            Channel::Channel7 => INTE::CH7::SET,
-            Channel::Channel8 => INTE::CH8::SET,
-            Channel::Channel9 => INTE::CH9::SET,
-            Channel::Channel10 => INTE::CH10::SET,
-            Channel::Channel11 => INTE::CH11::SET,
-        };
-
-        match irq {
-            Irq::Irq0 => {
-                self.registers.inte0.modify(inte);
-                let mut interrupt0 = self.interrupt0.get();
-                interrupt0.modify(inte);
-                self.interrupt0.set(interrupt0);
-            }
-            Irq::Irq1 => {
-                self.registers.inte1.modify(inte);
-                let mut interrupt1 = self.interrupt1.get();
-                interrupt1.modify(inte);
-                self.interrupt1.set(interrupt1);
-            }
-        }
-    }
-
-    pub fn disable_interrupt(&self, channel: Channel, irq: Irq) {
-        let inte = match channel {
-            Channel::Channel0 => INTE::CH0::CLEAR,
-            Channel::Channel1 => INTE::CH1::CLEAR,
-            Channel::Channel2 => INTE::CH2::CLEAR,
-            Channel::Channel3 => INTE::CH3::CLEAR,
-            Channel::Channel4 => INTE::CH4::CLEAR,
-            Channel::Channel5 => INTE::CH5::CLEAR,
-            Channel::Channel6 => INTE::CH6::CLEAR,
-            Channel::Channel7 => INTE::CH7::CLEAR,
-            Channel::Channel8 => INTE::CH8::CLEAR,
-            Channel::Channel9 => INTE::CH9::CLEAR,
-            Channel::Channel10 => INTE::CH10::CLEAR,
-            Channel::Channel11 => INTE::CH11::CLEAR,
-        };
-
-        match irq {
-            Irq::Irq0 => {
-                self.registers.inte0.modify(inte);
-                let mut interrupt0 = self.interrupt0.get();
-                interrupt0.modify(inte);
-                self.interrupt0.set(interrupt0);
-            }
-            Irq::Irq1 => {
-                self.registers.inte1.modify(inte);
-                let mut interrupt1 = self.interrupt1.get();
-                interrupt1.modify(inte);
-                self.interrupt1.set(interrupt1);
-            }
-        }
-    }
-
-    pub fn clear_interrupt(&self, channel: Channel, irq: Irq) {
-        let ints = match channel {
-            Channel::Channel0 => INTS::CH0::SET,
-            Channel::Channel1 => INTS::CH1::SET,
-            Channel::Channel2 => INTS::CH2::SET,
-            Channel::Channel3 => INTS::CH3::SET,
-            Channel::Channel4 => INTS::CH4::SET,
-            Channel::Channel5 => INTS::CH5::SET,
-            Channel::Channel6 => INTS::CH6::SET,
-            Channel::Channel7 => INTS::CH7::SET,
-            Channel::Channel8 => INTS::CH8::SET,
-            Channel::Channel9 => INTS::CH9::SET,
-            Channel::Channel10 => INTS::CH10::SET,
-            Channel::Channel11 => INTS::CH11::SET,
-        };
-
-        match irq {
-            Irq::Irq0 => self.registers.ints0.modify(ints),
-            Irq::Irq1 => self.registers.ints1.modify(ints),
-        }
-    }
-
+impl<'a> Dma<'a> {
     pub fn handle_interrupt0(&self) {
         let value = self.registers.ints0.get();
         self.registers.ints0.set(value);
@@ -614,28 +504,48 @@ impl Dma<'_> {
         ints &= 0xfff;
         while ints != 0 {
             let channel = ints.trailing_zeros();
-            self.channels[channel as usize]
-                .client
-                .map(|client| client.transfer_done());
+            self.clients[channel as usize].map(|client| client.transfer_done());
             ints ^= 1 << channel;
         }
     }
-}
 
-impl Dma<'_> {
-    pub fn channel_registers(&self, channel: Channel) -> &ChannelRegisters {
+    fn enable_interrupt(&self, channel: Channel, irq: Irq) {
+        let irq = match irq {
+            Irq::Irq0 => &self.registers.inte0,
+            Irq::Irq1 => &self.registers.inte1,
+        };
+        let mut value = irq.get();
+        value |= 1 << (channel as usize);
+        irq.set(value);
+    }
+
+    fn disable_interrupt(&self, channel: Channel, irq: Irq) {
+        let irq = match irq {
+            Irq::Irq0 => &self.registers.inte0,
+            Irq::Irq1 => &self.registers.inte1,
+        };
+        let mut value = irq.get();
+        value &= !(1 << (channel as usize));
+        irq.set(value);
+    }
+
+    fn channel_registers(&self, channel: Channel) -> &ChannelRegisters {
         &self.registers.channels[channel as usize]
+    }
+
+    fn set_channel_client(&self, channel: Channel, client: &'a dyn DmaChannelClient) {
+        self.clients[channel as usize].set(client)
     }
 }
 
 impl DmaChannel<'_> {
     pub fn trans_count(&self) -> u32 {
-        let regs = &self.registers.channels[self.ch as usize];
+        let regs = &self.dma.channel_registers(self.ch);
         regs.trans_count.get()
     }
 
     pub fn busy(&self) -> bool {
-        let regs = &self.registers.channels[self.ch as usize];
+        let regs = &self.dma.channel_registers(self.ch);
         match regs.ctrl_trig.read(CTRL_TRIG::BUSY) {
             0 => false,
             _ => true,
@@ -643,38 +553,26 @@ impl DmaChannel<'_> {
     }
 
     pub fn set_read_addr(&self, addr: u32) {
-        let regs = &self.registers.channels[self.ch as usize];
+        let regs = &self.dma.channel_registers(self.ch);
         regs.read_addr.write(READ_ADDR::READ_ADDR.val(addr));
     }
 
     pub fn set_write_addr(&self, addr: u32) {
-        let regs = &self.registers.channels[self.ch as usize];
+        let regs = &self.dma.channel_registers(self.ch);
         regs.write_addr.write(WRITE_ADDR::WRITE_ADDR.val(addr));
     }
 
     pub fn set_len(&self, len: u32) {
-        let regs = &self.registers.channels[self.ch as usize];
+        let regs = &self.dma.channel_registers(self.ch);
         regs.trans_count.write(TRANS_COUNT::TRANS_COUNT.val(len));
     }
 
     pub fn enable_interrupt(&self, irq: Irq) {
-        let irq = match irq {
-            Irq::Irq0 => &self.registers.inte0,
-            Irq::Irq1 => &self.registers.inte1,
-        };
-        let mut value = irq.get();
-        value |= 1 << (self.ch as usize);
-        irq.set(value);
+        self.dma.enable_interrupt(self.ch, irq);
     }
 
     pub fn disable_interrupt(&self, irq: Irq) {
-        let irq = match irq {
-            Irq::Irq0 => &self.registers.inte0,
-            Irq::Irq1 => &self.registers.inte1,
-        };
-        let mut value = irq.get();
-        value &= !(1 << (self.ch as usize));
-        irq.set(value);
+        self.dma.disable_interrupt(self.ch, irq);
     }
 
     pub fn enable(
@@ -684,7 +582,7 @@ impl DmaChannel<'_> {
         transfer: Transfer,
         bswap: bool,
     ) {
-        let regs = &self.registers.channels[self.ch as usize];
+        let regs = &self.dma.channel_registers(self.ch);
 
         let bswap = match bswap {
             true => CTRL_TRIG::BSWAP::SET,

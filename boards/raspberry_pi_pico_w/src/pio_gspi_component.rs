@@ -16,7 +16,7 @@ macro_rules! pio_gpsi_component_static {
 pub(super) use pio_gpsi_component_static;
 
 pub struct PioGspiComponent {
-    dma_channel: &'static dma::DmaChannel<'static>,
+    dma_channel: dma::DmaChannel<'static>,
     dma_irq: dma::Irq,
     pio: &'static pio::Pio,
     pio_sm: pio::SMNumber,
@@ -29,7 +29,7 @@ impl PioGspiComponent {
     pub fn new(
         pio: &'static pio::Pio,
         pio_sm: pio::SMNumber,
-        dma_channel: &'static dma::DmaChannel<'static>,
+        dma_channel: dma::DmaChannel<'static>,
         dma_irq: dma::Irq,
         clk: RPGpio,
         dio: RPGpio,
