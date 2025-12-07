@@ -33,7 +33,7 @@ const PROG: [u16; 11] = [
 /// The gSPI PIO peripheral driver
 pub struct PioGSpi<'a> {
     pio: &'a Pio,
-    dma: &'a DmaChannel<'a>,
+    dma: DmaChannel<'a>,
     clock_pin: u32,
     dio_pin: u32,
     cs_pin: &'a RPGpioPin<'a>,
@@ -55,7 +55,7 @@ impl<'a> PioGSpi<'a> {
     /// Create a new `PioCyw43Spi` instance
     pub fn new(
         pio: &'a Pio,
-        dma: &'a DmaChannel<'a>,
+        dma: DmaChannel<'a>,
         clock_pin: u32,
         dio_pin: u32,
         cs_pin: &'a RPGpioPin<'a>,
