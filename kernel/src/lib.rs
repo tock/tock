@@ -144,7 +144,10 @@ struct TockAttributesKernelVersion {
 /// When compiling for a macOS host, this section attribute is elided as it is
 /// incompatible with Mach-O objects and yields the following error: `mach-o
 /// section specifier requires a segment and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".tock.attr.kernel_version")]
+#[cfg_attr(
+    not(target_os = "macos"),
+    unsafe(link_section = ".tock.attr.kernel_version")
+)]
 #[used]
 static TOCK_ATTRIBUTES_KERNEL_VERSION: TockAttributesKernelVersion = TockAttributesKernelVersion {
     major: KERNEL_MAJOR_VERSION,
