@@ -39,7 +39,7 @@ impl Pinmux {
         let pin_idx: usize = (pin as usize) % PIN_PER_PORT;
         let used_pins = USED_PINS[port].get();
         if used_pins & (1 << pin_idx) != 0 {
-            panic!("Pin {} is already in use!", pin as usize);
+            panic!("Pin {:?} is already in use!", pin);
         } else {
             USED_PINS[port].set(used_pins | 1 << pin_idx);
             Pinmux(pin)
@@ -47,7 +47,7 @@ impl Pinmux {
     }
 
     pub unsafe fn from_pin(pin: crate::gpio::Pin) -> Pinmux {
-        Pinmux(pin as _)
+        Pinmux(pin)
     }
 }
 
