@@ -33,7 +33,6 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::priority::PrioritySched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -166,6 +165,12 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x1400}
 
+struct ProcessManagementCapabilityObj {}
+unsafe impl capabilities::ProcessManagementCapability for ProcessManagementCapabilityObj {}
+
+type SchedulerInUse =
+    components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct EarlGrey {
@@ -231,7 +236,7 @@ struct EarlGrey {
         >,
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
-    scheduler: &'static PrioritySched,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     watchdog: &'static lowrisc::aon_timer::AonTimer,
 }
@@ -263,7 +268,7 @@ impl KernelResources<EarlGreyChip> for EarlGrey {
     type SyscallDriverLookup = Self;
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
     type ProcessFault = ();
-    type Scheduler = PrioritySched;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = lowrisc::aon_timer::AonTimer;
     type ContextSwitchCallback = ();
@@ -858,8 +863,13 @@ unsafe fn setup() -> (
     hil::symmetric_encryption::AES128::set_client(gcm_client, ccm_client);
 
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
-        .finalize(components::priority_component_static!());
+    let scheduler = components::sched::priority::PriorityComponent::new(
+        board_kernel,
+        ProcessManagementCapabilityObj {},
+    )
+    .finalize(components::priority_component_static!(
+        ProcessManagementCapabilityObj
+    ));
     let watchdog = &peripherals.watchdog;
 
     let earlgrey = static_init!(

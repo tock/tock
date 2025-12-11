@@ -15,7 +15,6 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::mlfq::MLFQSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::utilities::StaticRef;
@@ -94,6 +93,7 @@ type AlarmHw =
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
+type SchedulerInUse = components::sched::mlfq::MLFQComponentType<AlarmHw>;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
@@ -131,7 +131,7 @@ struct LiteXSim {
     >,
     alarm: &'static capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, AlarmHw>>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static MLFQSched<'static, VirtualMuxAlarm<'static, AlarmHw>>,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
 }
 
@@ -160,7 +160,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = MLFQSched<'static, VirtualMuxAlarm<'static, AlarmHw>>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -575,17 +575,8 @@ unsafe fn start() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, processes).finalize(
-        components::mlfq_component_static!(
-            litex_vexriscv::timer::LiteXAlarm<
-                'static,
-                'static,
-                socc::SoCRegisterFmt,
-                socc::ClockFrequency,
-            >,
-            NUM_PROCS
-        ),
-    );
+    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, processes)
+        .finalize(components::mlfq_component_static!(AlarmHw, NUM_PROCS));
 
     let litex_sim = LiteXSim {
         gpio_driver,

@@ -20,7 +20,6 @@ use kernel::debug::PanicResources;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use stm32f446re::chip_specs::Stm32f446Specs;
@@ -56,6 +55,8 @@ type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponent
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
 
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF446RE {
@@ -76,7 +77,7 @@ struct NucleoF446RE {
     temperature: &'static TemperatureDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f446re::gpio::Pin<'static>>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -111,7 +112,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

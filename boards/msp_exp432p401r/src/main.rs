@@ -16,7 +16,6 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
@@ -39,6 +38,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 kernel::stack_size! {0x1000}
 
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct MspExp432P401R {
@@ -60,7 +61,7 @@ struct MspExp432P401R {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules_core::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
     wdt: &'static msp432::wdt::Wdt,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -70,7 +71,7 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = msp432::wdt::Wdt;
     type ContextSwitchCallback = ();

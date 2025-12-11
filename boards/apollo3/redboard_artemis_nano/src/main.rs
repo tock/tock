@@ -25,7 +25,6 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
@@ -79,6 +78,7 @@ type BME280Sensor = components::bme280::Bme280ComponentType<
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<BME280Sensor>;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -111,7 +111,7 @@ struct RedboardArtemisNano {
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -141,7 +141,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

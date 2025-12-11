@@ -25,7 +25,6 @@ use kernel::hil::i2c::I2CSlave;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
@@ -66,6 +65,8 @@ static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'sta
 
 kernel::stack_size! {0x1000}
 
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct RedboardArtemisAtp {
@@ -100,7 +101,7 @@ struct RedboardArtemisAtp {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -127,7 +128,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
