@@ -4,7 +4,6 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
 
 use kernel::debug;
@@ -15,10 +14,6 @@ use kernel::hil::uart::Configure;
 
 use stm32f429zi::chip_specs::Stm32f429Specs;
 use stm32f429zi::gpio::PinId;
-
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -91,8 +86,6 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         writer,
         info,
         &cortexm4::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     )
 }
