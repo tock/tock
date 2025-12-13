@@ -222,6 +222,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                         match load_result {
                             Ok((new_mem, proc)) => {
                                 remaining_memory = new_mem;
+
                                 match proc {
                                     Some(p) => {
                                         if config::CONFIG.debug_load_processes {
@@ -259,7 +260,6 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                             ProcessBinaryError::TbfHeaderParseFailure(_)
                             | ProcessBinaryError::IncompatibleKernelVersion { .. }
                             | ProcessBinaryError::IncorrectFlashAddress { .. }
-                            | ProcessBinaryError::NotEnabledProcess
                             | ProcessBinaryError::Padding => {
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Unable to use process binary: {:?}.", err);
@@ -287,6 +287,164 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
 ////////////////////////////////////////////////////////////////////////////////
 // HELPER FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
+/// Find an available region of RAM for a new process that needs to be loaded.
+fn find_ram_region(
+    memory: &'static [u8],
+    process_memory_start_addresses: &mut [usize],
+    process_memory_end_addresses: &mut [usize],
+    required_size: usize,
+    alignment: usize,
+) -> (Option<usize>, Option<usize>) {
+    // let app_memory_start = memory.as_ptr() as usize;
+    // let app_memory_end = app_memory_start + memory.len();
+
+    // let mut count = 0;
+    // for i in 0..process_memory_start_addresses.len() {
+    //     if process_memory_start_addresses[i] != 0 {
+    //         process_memory_start_addresses[count] = process_memory_start_addresses[i];
+    //         process_memory_end_addresses[count] = process_memory_end_addresses[i];
+    //         count += 1;
+    //     }
+    // }
+
+    // // If no processes, return start of memory
+    // if count == 0 {
+    //     return Some((app_memory_start + alignment - 1) & !(alignment - 1));
+    // }
+
+    // // Scan for gaps
+    // let mut current = app_memory_start;
+    // for i in 0..count {
+    //     let start = process_memory_start_addresses[i];
+    //     let end = process_memory_end_addresses[i];
+
+    //     let aligned = (current + alignment - 1) & !(alignment - 1);
+
+    //     if aligned + required_size <= start {
+    //         return Some(aligned);
+    //     }
+
+    //     current = core::cmp::max(current, end);
+    // }
+
+    // // Check remaining space after last process
+    // let aligned = (current + alignment - 1) & !(alignment - 1);
+    // if aligned + required_size <= app_memory_end {
+    //     Some(aligned)
+    // } else {
+    //     None
+    // }
+    let app_memory_start = memory.as_ptr() as usize;
+    let app_memory_end = app_memory_start + memory.len();
+
+    let mut count = 0;
+    for i in 0..process_memory_start_addresses.len() {
+        if process_memory_start_addresses[i] != 0 {
+            process_memory_start_addresses[count] = process_memory_start_addresses[i];
+            process_memory_end_addresses[count] = process_memory_end_addresses[i];
+            count += 1;
+        }
+    }
+
+    for i in 0..count {
+        for j in i + 1..count {
+            if process_memory_start_addresses[i] > process_memory_start_addresses[j] {
+                process_memory_start_addresses.swap(i, j);
+                process_memory_end_addresses.swap(i, j);
+            }
+        }
+    }
+
+    let mut best_addr = None;
+    let mut best_size = usize::MAX;
+    let mut second_best_addr = None;
+    let mut second_best_size = usize::MAX;
+
+    let mut update_best_fits = |addr: usize, size: usize| {
+        if size < best_size {
+            second_best_addr = best_addr;
+            second_best_size = best_size;
+            best_addr = Some(addr);
+            best_size = size;
+        } else if size < second_best_size && Some(addr) != best_addr {
+            second_best_addr = Some(addr);
+            second_best_size = size;
+        }
+    };
+
+    // Check all regions (same logic as above)
+    if count > 0 {
+        let aligned = (app_memory_start + alignment - 1) & !(alignment - 1);
+        if aligned < process_memory_start_addresses[0] {
+            let available_size = process_memory_start_addresses[0] - aligned;
+            if available_size >= required_size {
+                update_best_fits(aligned, available_size);
+            }
+        }
+    } else {
+        let aligned = (app_memory_start + alignment - 1) & !(alignment - 1);
+        let available_size = app_memory_end - aligned;
+        if available_size >= required_size {
+            update_best_fits(aligned, available_size);
+        }
+    }
+
+    for i in 0..count.saturating_sub(1) {
+        let gap_start = process_memory_end_addresses[i];
+        let gap_end = process_memory_start_addresses[i + 1];
+
+        if gap_start < gap_end {
+            let aligned = (gap_start + alignment - 1) & !(alignment - 1);
+            if aligned < gap_end {
+                let available_size = gap_end - aligned;
+                if available_size >= required_size {
+                    update_best_fits(aligned, available_size);
+                }
+            }
+        }
+    }
+
+    if count > 0 {
+        let gap_start = process_memory_end_addresses[count - 1];
+        if gap_start < app_memory_end {
+            let aligned = (gap_start + alignment - 1) & !(alignment - 1);
+            if aligned < app_memory_end {
+                let available_size = app_memory_end - aligned;
+                if available_size >= required_size {
+                    update_best_fits(aligned, available_size);
+                }
+            }
+        }
+    }
+
+    match (best_addr, second_best_addr) {
+        (Some(best), Some(second)) => {
+            debug!(
+                "Best RAM address: {:#010x} with size: {:?}",
+                best, best_size
+            );
+            debug!(
+                "Second Best RAM address: {:#010x} with size: {:?}",
+                second, second_best_size
+            );
+        }
+        (Some(best), None) => {
+            debug!(
+                "Only one RAM address available: {:#010x} with size: {:?}",
+                best, best_size
+            );
+        }
+        (None, None) => {
+            debug!("No suitable RAM addresses found");
+        }
+        (None, Some(_)) => {
+            // This shouldn't happen in practice with our algorithm
+            debug!("Unexpected state: second best without best");
+        }
+    }
+
+    (best_addr, second_best_addr)
+}
 
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
@@ -367,15 +525,15 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
-    if config::CONFIG.debug_load_processes {
-        debug!(
-            "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
-            process_binary.flash.as_ptr() as usize,
-            process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
-        );
-    }
+    // if config::CONFIG.debug_load_processes {
+    debug!(
+        "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
+        process_binary.flash.as_ptr() as usize,
+        process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
+        app_memory.as_ptr() as usize,
+        app_memory.as_ptr() as usize + app_memory.len() - 1
+    );
+    // }
 
     // Need to reassign remaining_memory in every iteration so the compiler
     // knows it will not be re-borrowed.
@@ -508,6 +666,8 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     flash_bank: Cell<&'static [u8]>,
     /// Flash memory region to load processes from.
     flash: Cell<&'static [u8]>,
+    /// Total available memory for processes on this board.
+    memory_bank: Cell<&'static [u8]>,
     /// Memory available to assign to applications.
     app_memory: Cell<&'static mut [u8]>,
     /// Mechanism for generating async callbacks.
@@ -539,6 +699,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         kernel: &'static Kernel,
         chip: &'static C,
         flash: &'static [u8],
+        memory_bank: &'static [u8],
         app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
         storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
@@ -556,6 +717,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             chip,
             flash_bank: Cell::new(flash),
             flash: Cell::new(flash),
+            memory_bank: Cell::new(memory_bank),
             app_memory: Cell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
@@ -647,6 +809,43 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
     }
 
+    /// Scans the RAM regions alloted to current processes
+    fn scan_memory_for_ram_regions(
+        &self,
+        process_memory_start_addresses: &mut [usize],
+        process_memory_end_addresses: &mut [usize],
+    ) {
+        for (i, proc) in self.kernel.get_process_iter().enumerate() {
+            process_memory_start_addresses[i] = proc.get_addresses().sram_start;
+            process_memory_end_addresses[i] = proc.get_addresses().sram_end;
+        }
+    }
+
+    /// Try to find memory slot for new process
+    ///
+    /// Returns a memory address if available, or
+    /// None, if there isn't one
+    fn find_ram_region(
+        &self,
+        memory: &'static [u8],
+        process_memory_start_addresses: &mut [usize],
+        process_memory_end_addresses: &mut [usize],
+        required_size: usize,
+        alignment: usize,
+    ) -> Option<usize> {
+        match find_ram_region(
+            memory,
+            process_memory_start_addresses,
+            process_memory_end_addresses,
+            required_size,
+            alignment,
+        ) {
+            (Some(address), Some(_second_address)) => Some(address),
+            (None, None) => None,
+            (None, Some(address)) | (Some(address), None) => Some(address),
+        }
+    }
+
     /// Create process objects from the discovered process binaries.
     ///
     /// This verifies that the discovered processes are valid to run.
@@ -659,6 +858,20 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             // We are either going to load this process binary or discard it, so
             // we can use `take()` here.
             if let Some(process_binary) = proc_binaries[i].take() {
+                // This means the app is disabled, and does not have to be
+                // loaded
+                if !process_binary.header.enabled() {
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "Skipping disabled process: {}",
+                            process_binary
+                                .header
+                                .get_package_name()
+                                .unwrap_or("unknown_app")
+                        );
+                    }
+                    continue;
+                }
                 // We assume the process can be loaded. This is not the case
                 // if there is a conflicting process.
                 let mut ok_to_load = true;
@@ -706,54 +919,94 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                             policy.to_short_id(&process_binary)
                         });
 
-                        // Try to create a `Process` object.
-                        let load_result = load_process(
-                            self.kernel,
-                            self.chip,
-                            process_binary,
-                            self.app_memory.take(),
-                            short_app_id,
-                            index,
-                            self.fault_policy,
-                            self.storage_policy,
-                        );
-                        match load_result {
-                            Ok((new_mem, proc)) => {
-                                self.app_memory.set(new_mem);
-                                match proc {
-                                    Some(p) => {
-                                        if config::CONFIG.debug_load_processes {
-                                            debug!(
-                                                "Loading: Loaded process {}",
-                                                p.get_process_name()
-                                            )
-                                        }
+                        // Scan for a new memory regions
+                        const MAX_PROCS: usize = 10;
+                        let mut start_addrs = [0; MAX_PROCS];
+                        let mut end_addrs = [0; MAX_PROCS];
+                        let app_memory = self.memory_bank.get();
 
-                                        // Store the `ProcessStandard` object in the `PROCESSES`
-                                        // array.
-                                        slot.set(p);
-                                        // Notify the client the process was loaded
-                                        // successfully.
-                                        self.get_current_client().map(|client| {
-                                            client.process_loaded(Ok(()));
-                                        });
-                                    }
-                                    None => {
-                                        if config::CONFIG.debug_load_processes {
-                                            debug!("No process loaded.");
+                        let new_app_memory_size =
+                            process_binary.header.get_minimum_app_ram_size() as usize;
+
+                        // Check to ensure that the new process does not require more
+                        // memory than what the board can offer
+                        if new_app_memory_size > app_memory.len() {
+                            self.get_current_client().map(|client| {
+                                client.process_loaded(Err(ProcessLoadError::NotEnoughMemory));
+                            });
+                        }
+
+                        self.scan_memory_for_ram_regions(&mut start_addrs, &mut end_addrs);
+
+                        let available_ram_address = self.find_ram_region(
+                            app_memory,
+                            &mut start_addrs,
+                            &mut end_addrs,
+                            new_app_memory_size,
+                            new_app_memory_size.next_power_of_two(),
+                        );
+
+                        if let Some(ram_address) = available_ram_address {
+                            let ram_slice: &mut [u8] = unsafe {
+                                core::slice::from_raw_parts_mut(
+                                    ram_address as *mut u8,
+                                    new_app_memory_size.next_power_of_two(),
+                                )
+                            };
+
+                            // Try to create a `Process` object.
+                            let load_result = load_process(
+                                self.kernel,
+                                self.chip,
+                                process_binary,
+                                ram_slice,
+                                short_app_id,
+                                index,
+                                self.fault_policy,
+                                self.storage_policy,
+                            );
+                            match load_result {
+                                Ok((new_mem, proc)) => {
+                                    self.app_memory.set(new_mem);
+                                    match proc {
+                                        Some(p) => {
+                                            if config::CONFIG.debug_load_processes {
+                                                debug!(
+                                                    "Loading: Loaded process {}",
+                                                    p.get_process_name()
+                                                )
+                                            }
+
+                                            // Store the `ProcessStandard` object in the `PROCESSES`
+                                            // array.
+                                            slot.set(p);
+                                            // Notify the client the process was loaded
+                                            // successfully.
+                                            self.get_current_client().map(|client| {
+                                                client.process_loaded(Ok(()));
+                                            });
+                                        }
+                                        None => {
+                                            if config::CONFIG.debug_load_processes {
+                                                debug!("No process loaded.");
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            Err((new_mem, err)) => {
-                                self.app_memory.set(new_mem);
-                                if config::CONFIG.debug_load_processes {
-                                    debug!("Could not load process: {:?}.", err);
+                                Err((new_mem, err)) => {
+                                    self.app_memory.set(new_mem);
+                                    if config::CONFIG.debug_load_processes {
+                                        debug!("Could not load process: {:?}.", err);
+                                    }
+                                    self.get_current_client().map(|client| {
+                                        client.process_loaded(Err(err));
+                                    });
                                 }
-                                self.get_current_client().map(|client| {
-                                    client.process_loaded(Err(err));
-                                });
                             }
+                        } else {
+                            self.get_current_client().map(|client| {
+                                client.process_loaded(Err(ProcessLoadError::NotEnoughMemory));
+                            });
                         }
                     }
                     Err(()) => {
@@ -1229,6 +1482,96 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 ProcessBinaryError::TbfHeaderNotFound,
             )),
         }
+    }
+
+    /// Function to check if the ShortId and version of the binary matches supplied values.
+    fn app_match_check(
+        &self,
+        shortid: ShortId,
+        app_short_id: core::num::NonZeroU32,
+        version: u32,
+        app_version: u32,
+    ) -> bool {
+        if matches!(shortid, ShortId::Fixed(id) if id == app_short_id) && version == app_version {
+            return true;
+        }
+        false
+    }
+
+    /// Function to return the address and size of the binary whose ShortId and version are passed
+    /// as input arguments.
+    pub fn fetch_app_details(
+        &self,
+        shortid: ShortId,
+        version: u32,
+    ) -> Result<(u32, u32), ProcessLoadError> {
+        const MAX_PROCS: usize = 10;
+        let mut pb_start_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+        let mut pb_end_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+
+        let total_flash = self.flash_bank.get();
+
+        self.scan_flash_for_process_binaries(
+            total_flash,
+            &mut pb_start_address,
+            &mut pb_end_address,
+        )
+        .map_err(|()| ProcessLoadError::CheckError(ProcessCheckError::InternalError))?;
+
+        let mut start_count = 0;
+        let mut end_count = 0;
+
+        // Remove zeros from addresses in place.
+        for i in 0..pb_start_address.len() {
+            if pb_start_address[i] != 0 {
+                pb_start_address[start_count] = pb_start_address[i];
+                start_count += 1;
+            }
+        }
+
+        for i in 0..pb_end_address.len() {
+            if pb_end_address[i] != 0 {
+                pb_end_address[end_count] = pb_end_address[i];
+                end_count += 1;
+            }
+        }
+
+        for i in 0..start_count {
+            let app_binary_start_address = pb_start_address[i] - total_flash.as_ptr() as usize;
+            let app_binary_end_address = pb_end_address[i] - total_flash.as_ptr() as usize;
+
+            let app_flash = total_flash
+                .get(app_binary_start_address..app_binary_end_address)
+                .ok_or(ProcessLoadError::BinaryError(
+                    ProcessBinaryError::NotEnoughFlash,
+                ))?;
+
+            if let Ok((_remaining_flash, process_binary)) = discover_process_binary(app_flash) {
+                let app_short_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
+                    policy.to_short_id(&process_binary)
+                });
+
+                let app_version: u32 = process_binary.header.get_binary_version();
+
+                if let ShortId::Fixed(app_id) = app_short_id {
+                    if self.app_match_check(shortid, app_id, version, app_version) {
+                        return Ok((
+                            pb_start_address[i] as u32,
+                            (pb_end_address[i] - pb_start_address[i]) as u32,
+                        ));
+                    }
+                }
+            }
+        }
+
+        Err(ProcessLoadError::CheckError(
+            ProcessCheckError::CredentialsRejected(0),
+        ))
+    }
+
+    /// Function to terminate process and remove it from process array
+    pub fn reclaim_memory(&self, shortid: ShortId) {
+        self.kernel.reclaim_app_memory(shortid)
     }
 }
 
