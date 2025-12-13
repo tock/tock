@@ -346,6 +346,7 @@ register_bitfields! [u32,
 
 enum_from_primitive! {
     #[derive(Copy, Clone, Debug, PartialEq)]
+    #[repr(u32)]
     #[rustfmt::skip]
     pub enum Pin {
         P0_00, P0_01, P0_02, P0_03, P0_04, P0_05, P0_06, P0_07,
