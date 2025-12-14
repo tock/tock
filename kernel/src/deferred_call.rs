@@ -251,7 +251,7 @@ impl DeferredCall {
     /// deferred call.
     pub fn is_pending(&self) -> bool {
         if let Some(bitmask) = BITMASK.get() {
-            bitmask.get() & (1 << self.idx) == 1
+            bitmask.get() & (1 << self.idx) != 0
         } else {
             false
         }
