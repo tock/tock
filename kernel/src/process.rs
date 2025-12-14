@@ -435,6 +435,13 @@ pub trait Process {
     /// running.
     fn set_yielded_for_state(&self, upcall_id: UpcallId);
 
+    /// Modify the yielded-for-state to signal that there is an upcall
+    /// scheduled for `UpcallId`.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not previously
+    /// running.
+    fn set_yielded_for_state_return_available(&self, upcall_id: UpcallId);
+
     /// Move this process from running or yielded state into the stopped state.
     ///
     /// This will fail (i.e. not do anything) if the process was not either
@@ -976,7 +983,13 @@ pub enum State {
     /// the `WaitFor` variant of the `yield` syscall. The process should not be
     /// scheduled until the specified driver attempts to execute the specified
     /// upcall.
-    YieldedFor(UpcallId),
+    ///
+    /// The second item in the tuple stores whether the process is ready to run
+    /// (meaning an upcall with `UpcallId` has been scheduled).
+    YieldedFor {
+        upcall_id: UpcallId,
+        return_available: bool,
+    },
 
     /// The process is stopped and the previous state the process was in when it
     /// was stopped. This is used if the kernel forcibly stops a process. This
@@ -1011,7 +1024,10 @@ pub enum StoppedState {
     Yielded,
     /// The process was in the yielded for state when it was stopped with a
     /// particular upcall it was waiting for.
-    YieldedFor(UpcallId),
+    YieldedFor {
+        upcall_id: UpcallId,
+        return_available: bool,
+    },
 }
 
 /// The action the kernel should take when a process encounters a fault.

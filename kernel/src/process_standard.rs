@@ -22,8 +22,8 @@ use crate::errorcode::ErrorCode;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
-use crate::process::BinaryVersion;
 use crate::process::ProcessBinary;
+use crate::process::{BinaryVersion, ReturnArguments};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifier, ProcessId};
 use crate::process::{ProcessAddresses, ProcessSizes, ShortId};
@@ -548,8 +548,17 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn ready(&self) -> bool {
-        self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
-            || self.state.get() == State::Running
+        self.state.get() == State::Running
+            || if let State::YieldedFor {
+                return_available: true,
+                ..
+            } = self.state.get()
+            {
+                true
+            } else {
+                false
+            }
+            || self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
     }
 
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize {
@@ -580,7 +589,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     fn is_running(&self) -> bool {
         match self.state.get() {
-            State::Running | State::Yielded | State::YieldedFor(_) | State::Stopped(_) => true,
+            State::Running | State::Yielded | State::YieldedFor { .. } | State::Stopped(_) => true,
             _ => false,
         }
     }
@@ -597,7 +606,35 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     fn set_yielded_for_state(&self, upcall_id: UpcallId) {
         if self.state.get() == State::Running {
-            self.state.set(State::YieldedFor(upcall_id));
+            self.state.set(State::YieldedFor {
+                upcall_id,
+                // Verify is there is a scheduled Upcall with `upcall_id`.
+                return_available: self.tasks.map_or(false, |tasks| {
+                    tasks
+                        .find_first_matching(|task| match task {
+                            Task::ReturnValue(ReturnArguments { upcall_id: id, .. }) => {
+                                upcall_id == *id
+                            }
+                            Task::FunctionCall(FunctionCall {
+                                source: FunctionCallSource::Driver(id),
+                                ..
+                            }) => upcall_id == *id,
+                            _ => false,
+                        })
+                        .is_some()
+                }),
+            });
+        }
+    }
+
+    fn set_yielded_for_state_return_available(&self, upcall_id: UpcallId) {
+        if let State::YieldedFor { upcall_id: id, .. } = self.state.get() {
+            if id == upcall_id {
+                self.state.set(State::YieldedFor {
+                    upcall_id,
+                    return_available: false,
+                });
+            }
         }
     }
 
@@ -605,9 +642,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         match self.state.get() {
             State::Running => self.state.set(State::Stopped(StoppedState::Running)),
             State::Yielded => self.state.set(State::Stopped(StoppedState::Yielded)),
-            State::YieldedFor(upcall_id) => self
-                .state
-                .set(State::Stopped(StoppedState::YieldedFor(upcall_id))),
+            State::YieldedFor {
+                upcall_id,
+                return_available,
+            } => self.state.set(State::Stopped(StoppedState::YieldedFor {
+                upcall_id,
+                return_available,
+            })),
             State::Stopped(_stopped_state) => {
                 // Already stopped, nothing to do.
             }
@@ -622,7 +663,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             match stopped_state {
                 StoppedState::Running => self.state.set(State::Running),
                 StoppedState::Yielded => self.state.set(State::Yielded),
-                StoppedState::YieldedFor(upcall_id) => self.state.set(State::YieldedFor(upcall_id)),
+                StoppedState::YieldedFor {
+                    upcall_id,
+                    return_available,
+                } => self.state.set(State::YieldedFor {
+                    upcall_id,
+                    return_available,
+                }),
             }
         }
     }

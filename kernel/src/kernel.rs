@@ -654,12 +654,15 @@ impl Kernel {
                         },
                     }
                 }
-                process::State::YieldedFor(upcall_id) => {
+                process::State::YieldedFor {
+                    upcall_id,
+                    return_available: true,
+                } => {
                     // If this process is waiting for a specific upcall, see if
                     // it is ready. If so, dequeue it and return its values to
                     // the process without scheduling the callback.
                     match process.remove_upcall(upcall_id) {
-                        None => break,
+                        None => panic!("Yield-WaitFor return should be available"),
                         Some(task) => {
                             let (a0, a1, a2) = match task {
                                 // There is no callback function registered, we
@@ -700,6 +703,12 @@ impl Kernel {
                                 .set_syscall_return_value(SyscallReturn::YieldWaitFor(a0, a1, a2));
                         }
                     }
+                }
+                process::State::YieldedFor {
+                    return_available: false,
+                    ..
+                } => {
+                    break;
                 }
                 process::State::Faulted | process::State::Terminated => {
                     // We should never be scheduling an unrunnable process.

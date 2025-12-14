@@ -138,7 +138,9 @@ impl Upcall {
                     argument0: r0,
                     argument1: r1,
                     argument2: r2,
-                }))
+                }))?;
+                process.set_yielded_for_state_return_available(self.upcall_id);
+                Ok(())
             },
             |fp| {
                 process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
@@ -148,7 +150,9 @@ impl Upcall {
                     argument2: r2,
                     argument3: self.appdata,
                     pc: *fp,
-                }))
+                }))?;
+                process.set_yielded_for_state_return_available(self.upcall_id);
+                Ok(())
             },
         );
 
