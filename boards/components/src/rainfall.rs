@@ -21,6 +21,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! rainfall_component_static {
@@ -33,14 +34,14 @@ pub type RainFallComponentType<H> = capsules_extra::rainfall::RainFallSensor<'st
 
 pub struct RainFallComponent<T: 'static + hil::sensors::RainFallDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     sensor: &'static T,
 }
 
 impl<T: 'static + hil::sensors::RainFallDriver<'static>> RainFallComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         sensor: &'static T,
     ) -> RainFallComponent<T> {
         RainFallComponent {

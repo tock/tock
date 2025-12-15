@@ -35,6 +35,7 @@ use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
+use crate::syscall_driver::DriverNumber;
 use crate::upcall::UpcallId;
 use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
@@ -335,7 +336,7 @@ struct GrantPointerEntry {
     /// This defaults to 0 if the grant has not been allocated. Note, however,
     /// that 0 is a valid driver_num, and therefore cannot be used to check if a
     /// grant is allocated or not.
-    driver_num: usize,
+    driver_num: DriverNumber,
 
     /// The start of the memory location where the grant has been allocated, or
     /// null if the grant has not been allocated.
@@ -567,7 +568,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             let count_after = tasks.len();
             if config::CONFIG.trace_syscalls {
                 debug!(
-                    "[{:?}] remove_pending_upcalls[{:#x}:{}] = {} upcall(s) removed",
+                    "[{:?}] remove_pending_upcalls[{}:{}] = {} upcall(s) removed",
                     self.processid(),
                     upcall_id.driver_num,
                     upcall_id.subscribe_num,
@@ -742,8 +743,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         self.tasks.map_or(0, |tasks| tasks.len())
     }
 
-    fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
-        self.header.get_command_permissions(driver_num, offset)
+    fn get_command_permissions(
+        &self,
+        driver_num: DriverNumber,
+        offset: usize,
+    ) -> CommandPermissions {
+        self.header
+            .get_command_permissions(driver_num.into(), offset)
     }
 
     fn get_storage_permissions(&self) -> StoragePermissions {
@@ -1069,7 +1075,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     fn allocate_grant(
         &self,
         grant_num: usize,
-        driver_num: usize,
+        driver_num: DriverNumber,
         size: usize,
         align: usize,
     ) -> Result<(), ()> {
@@ -1250,7 +1256,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
-    fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error> {
+    fn lookup_grant_from_driver_num(&self, driver_num: DriverNumber) -> Result<usize, Error> {
         self.grant_pointers
             .map_or(Err(Error::KernelError), |grant_pointers| {
                 // Filter our list of grant pointers into just the non null
@@ -1498,7 +1504,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                                 writer.write_fmt(format_args!("  Grant {:>2} : --        ", index));
                         } else {
                             let _ = writer.write_fmt(format_args!(
-                                "  Grant {:>2} {:#x}: {:p}",
+                                "  Grant {:>2} {}: {:p}",
                                 index, grant_entry.driver_num, grant_entry.grant_ptr
                             ));
                         }
@@ -1874,7 +1880,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             grant_ptrs_num,
         );
         for grant_entry in grant_pointers.iter_mut() {
-            grant_entry.driver_num = 0;
+            grant_entry.driver_num = 0.into();
             grant_entry.grant_ptr = ptr::null_mut();
         }
 
@@ -2232,7 +2238,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     unsafe fn grant_ptrs_reset(&self) {
         self.grant_pointers.map(|grant_pointers| {
             for grant_entry in grant_pointers.iter_mut() {
-                grant_entry.driver_num = 0;
+                grant_entry.driver_num = 0.into();
                 grant_entry.grant_ptr = ptr::null_mut();
             }
         });

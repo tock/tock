@@ -109,7 +109,6 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::debug;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
@@ -118,11 +117,12 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::copy_slice::CopyOrErr;
+use kernel::{debug, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::BleAdvertising as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::BleAdvertising as usize);
 
 /// Ids for read-only allow buffers
 mod ro_allow {

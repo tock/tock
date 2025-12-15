@@ -22,10 +22,10 @@
 use core::mem::MaybeUninit;
 
 use capsules_extra::date_time::DateTimeCapsule;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::date_time;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! date_time_component_static {
@@ -37,14 +37,14 @@ macro_rules! date_time_component_static {
 
 pub struct DateTimeComponent<D: 'static + date_time::DateTime<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     rtc: &'static D,
 }
 
 impl<D: 'static + date_time::DateTime<'static>> DateTimeComponent<D> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         rtc: &'static D,
     ) -> DateTimeComponent<D> {
         DateTimeComponent {

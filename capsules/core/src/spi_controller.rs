@@ -16,11 +16,11 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Spi as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Spi as usize);
 
 /// Ids for read-only allow buffers
 mod ro_allow {

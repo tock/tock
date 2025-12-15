@@ -37,6 +37,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::dynamic_binary_storage;
+use kernel::DriverNumber;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -54,7 +55,7 @@ pub struct AppLoaderComponent<
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     storage_driver: &'static S,
     load_driver: &'static L,
 }
@@ -66,7 +67,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         storage_driver: &'static S,
         load_driver: &'static L,
     ) -> Self {

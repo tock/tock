@@ -9,10 +9,10 @@
 #![deny(missing_docs)]
 
 use kernel::component::Component;
-use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::static_init;
 use kernel::{capabilities, create_capability};
+use kernel::{debug, DriverNumber};
 use nrf52840::gpio::Pin;
 
 // State for loading and holding applications.
@@ -35,7 +35,7 @@ struct Platform {
 }
 
 impl SyscallDriverLookup for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

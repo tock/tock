@@ -38,6 +38,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! screen_split_mux_component_static {
@@ -147,7 +148,7 @@ pub type ScreenComponentType = capsules_extra::screen::screen::Screen<'static>;
 
 pub struct ScreenComponent<const SCREEN_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     screen: &'static dyn kernel::hil::screen::Screen<'static>,
     screen_setup: Option<&'static dyn kernel::hil::screen::ScreenSetup<'static>>,
 }
@@ -155,7 +156,7 @@ pub struct ScreenComponent<const SCREEN_BUF_LEN: usize> {
 impl<const SCREEN_BUF_LEN: usize> ScreenComponent<SCREEN_BUF_LEN> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         screen: &'static dyn kernel::hil::screen::Screen,
         screen_setup: Option<&'static dyn kernel::hil::screen::ScreenSetup>,
     ) -> ScreenComponent<SCREEN_BUF_LEN> {
@@ -215,7 +216,7 @@ pub struct ScreenSharedComponent<
     S: hil::screen::Screen<'static> + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     screen: &'static S,
     apps_regions: &'static [capsules_extra::screen::screen_shared::AppScreenRegion],
 }
@@ -225,7 +226,7 @@ impl<const SCREEN_BUF_LEN: usize, S: hil::screen::Screen<'static>>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         screen: &'static S,
         apps_regions: &'static [capsules_extra::screen::screen_shared::AppScreenRegion],
     ) -> ScreenSharedComponent<SCREEN_BUF_LEN, S> {

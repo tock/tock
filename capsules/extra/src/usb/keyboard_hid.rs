@@ -122,7 +122,7 @@ impl<'a, U: hil::usb::UsbController<'a>> KeyboardHid<'a, U> {
         }];
 
         let endpoints: &[&[EndpointDescriptor]] = &[&[EndpointDescriptor {
-            endpoint_address: EndpointAddress::new_const(
+            endpoint_address: EndpointAddress::from_const(
                 ENDPOINT_NUM,
                 TransferDirection::DeviceToHost,
             ),

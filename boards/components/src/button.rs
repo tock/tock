@@ -34,11 +34,11 @@
 
 use capsules_core::button::Button;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::gpio::InterruptWithValue;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! button_component_helper_owned {
@@ -88,7 +88,7 @@ pub type ButtonComponentType<IP> = capsules_core::button::Button<'static, IP>;
 
 pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     button_pins: &'static [(
         &'static gpio::InterruptValueWrapper<'static, IP>,
         gpio::ActivationMode,
@@ -99,7 +99,7 @@ pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
 impl<IP: 'static + gpio::InterruptPin<'static>> ButtonComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         button_pins: &'static [(
             &'static gpio::InterruptValueWrapper<'static, IP>,
             gpio::ActivationMode,

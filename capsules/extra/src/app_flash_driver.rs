@@ -29,15 +29,15 @@
 use core::cmp;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::AppFlash as usize);
 
 /// IDs for subscribed upcalls.
 mod upcall {

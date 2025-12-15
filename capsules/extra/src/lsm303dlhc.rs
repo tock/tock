@@ -92,7 +92,7 @@ use kernel::hil::i2c;
 use kernel::hil::sensors;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
@@ -102,7 +102,7 @@ use crate::lsm303xx::{
 use capsules_core::driver;
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::Lsm303dlch as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Lsm303dlch as usize);
 
 /// Register values
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;

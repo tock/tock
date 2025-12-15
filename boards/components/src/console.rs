@@ -41,12 +41,12 @@ use capsules_core::console_ordered::ConsoleOrdered;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::time::{self, Alarm};
 use kernel::hil::uart;
+use kernel::{capabilities, DriverNumber};
 
 use capsules_core::console::DEFAULT_BUF_SIZE;
 
@@ -126,14 +126,14 @@ macro_rules! console_component_static {
 
 pub struct ConsoleComponent<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     uart_mux: &'static MuxUart<'static>,
 }
 
 impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         uart_mux: &'static MuxUart,
     ) -> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN> {
         ConsoleComponent {
@@ -191,7 +191,7 @@ macro_rules! console_ordered_component_static {
 
 pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     uart_mux: &'static MuxUart<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     atomic_size: usize,
@@ -202,7 +202,7 @@ pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
 impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         uart_mux: &'static MuxUart<'static>,
         alarm_mux: &'static MuxAlarm<'static, A>,
         atomic_size: usize,

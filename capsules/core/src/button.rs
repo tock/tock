@@ -61,11 +61,11 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Button as usize);
 
 /// Keeps track which buttons each app has a registered interrupt for.
 ///

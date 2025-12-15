@@ -31,10 +31,10 @@
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::i2c;
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -58,7 +58,7 @@ pub struct Lsm6dsoxtrI2CComponent<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<I: 'static + i2c::I2CMaster<'static>> Lsm6dsoxtrI2CComponent<I> {
@@ -66,7 +66,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Lsm6dsoxtrI2CComponent<I> {
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Lsm6dsoxtrI2CComponent<I> {
         Lsm6dsoxtrI2CComponent {
             i2c_mux,

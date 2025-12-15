@@ -24,6 +24,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! nrf51822_component_static {
@@ -45,7 +46,7 @@ pub struct Nrf51822Component<
     G: 'static + hil::gpio::Pin,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     uart: &'static U,
     reset_pin: &'static G,
 }
@@ -55,7 +56,7 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         uart: &'static U,
         reset_pin: &'static G,
     ) -> Nrf51822Component<U, G> {

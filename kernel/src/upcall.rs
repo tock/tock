@@ -9,9 +9,11 @@ use crate::debug;
 use crate::process;
 use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
+use crate::syscall_driver::DriverNumber;
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
 use crate::ErrorCode;
+use core::fmt::Debug;
 
 /// Type to uniquely identify an upcall subscription across all drivers.
 ///
@@ -20,7 +22,7 @@ use crate::ErrorCode;
 pub struct UpcallId {
     /// The [`SyscallDriver`](crate::syscall_driver::SyscallDriver)
     /// implementation this upcall corresponds to.
-    pub driver_num: usize,
+    pub driver_num: DriverNumber,
     /// The subscription index the upcall corresponds to. Subscribe numbers
     /// start at 0 and increment for each upcall defined for a particular
     /// [`SyscallDriver`](crate::syscall_driver::SyscallDriver).
@@ -173,7 +175,7 @@ impl Upcall {
 
         if config::CONFIG.trace_syscalls {
             debug!(
-                "[{:?}] schedule[{:#x}:{}] @{:#x}({:#x}, {:#x}, {:#x}, {:#x}) = {:?}",
+                "[{:?}] schedule[{}:{}] @{:#x}({:#x}, {:#x}, {:#x}, {:#x}) = {:?}",
                 self.process_id,
                 self.upcall_id.driver_num,
                 self.upcall_id.subscribe_num,

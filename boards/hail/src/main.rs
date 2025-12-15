@@ -20,6 +20,7 @@ use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
@@ -94,7 +95,7 @@ struct Hail {
 
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for Hail {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

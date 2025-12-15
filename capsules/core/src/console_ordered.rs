@@ -73,7 +73,7 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::debug::debug_available_len;
-use kernel::debug_process_slice;
+use kernel::{debug_process_slice, DriverNumber};
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
@@ -85,7 +85,7 @@ use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Console as usize);
 
 /// Ids for read-only allow buffers
 mod ro_allow {

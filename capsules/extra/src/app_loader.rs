@@ -68,7 +68,6 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::dynamic_binary_storage;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::process::ProcessLoadError;
@@ -76,11 +75,12 @@ use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::{dynamic_binary_storage, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::AppLoader as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::AppLoader as usize);
 
 /// IDs for subscribed upcalls.
 mod upcall {

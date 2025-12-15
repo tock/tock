@@ -68,10 +68,10 @@
 
 use core::fmt::Write;
 
-use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
+use crate::{errorcode::ErrorCode, syscall_driver::DriverNumber};
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
@@ -153,7 +153,7 @@ pub enum Syscall {
     /// Structure representing an invocation of the Subscribe system call class.
     Subscribe {
         /// The driver identifier.
-        driver_number: usize,
+        driver_number: DriverNumber,
         /// The subscribe identifier.
         subdriver_number: usize,
         /// Upcall pointer to the upcall function.
@@ -165,7 +165,7 @@ pub enum Syscall {
     /// Structure representing an invocation of the Command system call class.
     Command {
         /// The driver identifier.
-        driver_number: usize,
+        driver_number: DriverNumber,
         /// The command identifier.
         subdriver_number: usize,
         /// Value passed to the `Command` implementation.
@@ -178,7 +178,7 @@ pub enum Syscall {
     /// class.
     ReadWriteAllow {
         /// The driver identifier.
-        driver_number: usize,
+        driver_number: DriverNumber,
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
@@ -191,7 +191,7 @@ pub enum Syscall {
     /// system call class that allows shared kernel and app access.
     UserspaceReadableAllow {
         /// The driver identifier.
-        driver_number: usize,
+        driver_number: DriverNumber,
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
@@ -204,7 +204,7 @@ pub enum Syscall {
     /// class.
     ReadOnlyAllow {
         /// The driver identifier.
-        driver_number: usize,
+        driver_number: DriverNumber,
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
@@ -253,31 +253,31 @@ impl Syscall {
                 param_b: r2.as_usize(),
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
-                driver_number: r0,
+                driver_number: r0.into(),
                 subdriver_number: r1.as_usize(),
                 upcall_ptr: r2.as_capability_ptr(),
                 appdata: r3,
             }),
             Ok(SyscallClass::Command) => Some(Syscall::Command {
-                driver_number: r0,
+                driver_number: r0.into(),
                 subdriver_number: r1.as_usize(),
                 arg0: r2.as_usize(),
                 arg1: r3.as_usize(),
             }),
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
-                driver_number: r0,
+                driver_number: r0.into(),
                 subdriver_number: r1.as_usize(),
                 allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
-                driver_number: r0,
+                driver_number: r0.into(),
                 subdriver_number: r1.as_usize(),
                 allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
-                driver_number: r0,
+                driver_number: r0.into(),
                 subdriver_number: r1.as_usize(),
                 allow_address: r2.as_capability_ptr().as_ptr(),
                 allow_size: r3.as_usize(),
@@ -295,7 +295,7 @@ impl Syscall {
     }
 
     /// Get the `driver_number` for the syscall classes that use driver numbers.
-    pub fn driver_number(&self) -> Option<usize> {
+    pub fn driver_number(&self) -> Option<DriverNumber> {
         match *self {
             Syscall::Subscribe {
                 driver_number,

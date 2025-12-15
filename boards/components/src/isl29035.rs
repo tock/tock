@@ -31,12 +31,12 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::ambient_light::AmbientLight;
 use capsules_extra::isl29035::Isl29035;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -117,14 +117,14 @@ impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> Co
 
 pub struct AmbientLightComponent<L: 'static + hil::sensors::AmbientLight<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     light_sensor: &'static L,
 }
 
 impl<L: 'static + hil::sensors::AmbientLight<'static>> AmbientLightComponent<L> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         light_sensor: &'static L,
     ) -> Self {
         AmbientLightComponent {

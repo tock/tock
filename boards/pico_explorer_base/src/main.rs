@@ -23,6 +23,7 @@ use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 use kernel::{capabilities, create_capability, static_init};
 use kernel::{debug, hil};
 
@@ -110,7 +111,7 @@ pub struct PicoExplorerBase {
 }
 
 impl SyscallDriverLookup for PicoExplorerBase {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

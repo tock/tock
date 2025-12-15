@@ -20,6 +20,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::priority::PrioritySched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 use kernel::{create_capability, debug, hil, static_init};
 use rv32i::csr;
 
@@ -88,7 +89,7 @@ struct Esp32C3Board {
 
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for Esp32C3Board {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

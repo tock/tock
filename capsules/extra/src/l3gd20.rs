@@ -114,10 +114,10 @@ use kernel::hil::spi;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::L3gd20 as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::L3gd20 as usize);
 
 /* Identification number */
 const L3GD20_WHO_AM_I: u8 = 0xD4;

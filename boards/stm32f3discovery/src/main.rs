@@ -25,6 +25,7 @@ use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 use kernel::{create_capability, debug, static_init};
 use stm32f303xc::chip::Stm32f3xxDefaultPeripherals;
 use stm32f303xc::wdt;
@@ -97,7 +98,7 @@ struct STM32F3Discovery {
 
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for STM32F3Discovery {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

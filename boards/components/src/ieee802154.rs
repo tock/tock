@@ -37,11 +37,11 @@ use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_extra::ieee802154::device::MacDevice;
 use capsules_extra::ieee802154::mac::{AwakeMac, Mac};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::radio::{self, MAX_BUF_SIZE};
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
+use kernel::{capabilities, DriverNumber};
 
 // This buffer is used as an intermediate buffer for AES CCM encryption. An
 // upper bound on the required size is `3 * BLOCK_SIZE + radio::MAX_BUF_SIZE`.
@@ -174,7 +174,7 @@ pub struct Ieee802154Component<
     A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     radio: &'static R,
     aes_mux: &'static MuxAES128CCM<'static, A>,
     pan_id: capsules_extra::net::ieee802154::PanID,
@@ -189,7 +189,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         radio: &'static R,
         aes_mux: &'static MuxAES128CCM<'static, A>,
         pan_id: capsules_extra::net::ieee802154::PanID,
@@ -376,14 +376,14 @@ pub type Ieee802154RawComponentType<R> =
 
 pub struct Ieee802154RawComponent<R: 'static + kernel::hil::radio::Radio<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     radio: &'static R,
 }
 
 impl<R: 'static + kernel::hil::radio::Radio<'static>> Ieee802154RawComponent<R> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         radio: &'static R,
     ) -> Self {
         Self {

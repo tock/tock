@@ -21,10 +21,10 @@
 use capsules_core::virtualizers::virtual_i2c::{MuxI2C, SMBusDevice};
 use capsules_extra::mlx90614::Mlx90614SMBus;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::i2c::{self, NoSMBus};
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -45,7 +45,7 @@ pub struct Mlx90614SMBusComponent<
     i2c_mux: &'static MuxI2C<'static, I, S>,
     i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static>>
@@ -55,7 +55,7 @@ impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static
         i2c: &'static MuxI2C<'static, I, S>,
         i2c_address: u8,
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Self {
         Mlx90614SMBusComponent {
             i2c_mux: i2c,

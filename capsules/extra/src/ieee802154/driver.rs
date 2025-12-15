@@ -65,7 +65,7 @@ use kernel::hil::radio;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -106,7 +106,7 @@ mod rw_allow {
 }
 
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Ieee802154 as usize);
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 struct DeviceDescriptor {

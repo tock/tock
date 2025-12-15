@@ -36,9 +36,9 @@
 //! ```
 use capsules_extra::touch::Touch;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! touch_component_static {
@@ -49,7 +49,7 @@ macro_rules! touch_component_static {
 
 pub struct TouchComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     touch: &'static dyn kernel::hil::touch::Touch<'static>,
     gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
     screen: Option<&'static dyn kernel::hil::screen::Screen<'static>>,
@@ -58,7 +58,7 @@ pub struct TouchComponent {
 impl TouchComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         touch: &'static dyn kernel::hil::touch::Touch<'static>,
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen<'static>>,
@@ -99,7 +99,7 @@ impl Component for TouchComponent {
 
 pub struct MultiTouchComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
     gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
     screen: Option<&'static dyn kernel::hil::screen::Screen<'static>>,
@@ -108,7 +108,7 @@ pub struct MultiTouchComponent {
 impl MultiTouchComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen>,

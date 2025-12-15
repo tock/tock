@@ -13,11 +13,11 @@ use crate::kernel::Kernel;
 use crate::process;
 use crate::process::ProcessId;
 use crate::processbuffer::ReadableProcessBuffer;
-use crate::syscall_driver::{CommandReturn, SyscallDriver};
+use crate::syscall_driver::{CommandReturn, DriverNumber, SyscallDriver};
 use crate::ErrorCode;
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x10000;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(0x10000);
 
 /// Ids for read-only allow buffers
 mod ro_allow {
@@ -55,7 +55,7 @@ pub struct IPC<const NUM_PROCS: u8> {
 impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
     pub fn new(
         kernel: &'static Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         capability: &dyn MemoryAllocationCapability,
     ) -> Self {
         Self {

@@ -15,12 +15,12 @@
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::CycleCount as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::CycleCount as usize);
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
-use kernel::{hil, ErrorCode, ProcessId};
+use kernel::{hil, DriverNumber, ErrorCode, ProcessId};
 
 #[derive(Default)]
 pub struct App;

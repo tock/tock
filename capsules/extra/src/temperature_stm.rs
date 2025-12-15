@@ -8,10 +8,11 @@ use core::cell::Cell;
 use kernel::hil::adc;
 use kernel::hil::sensors;
 use kernel::utilities::cells::OptionalCell;
+use kernel::DriverNumber;
 use kernel::ErrorCode;
 
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Temperature as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Temperature as usize);
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Status {

@@ -63,10 +63,10 @@ use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 const SECURITY_SUITE_ENCRYP: u8 = 0;
-pub const DRIVER_NUM: usize = driver::NUM::Thread as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Thread as usize);
 
 /// Ids for read-only allow buffers
 mod ro_allow {

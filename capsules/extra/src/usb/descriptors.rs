@@ -676,7 +676,7 @@ impl EndpointAddress {
     // TODO: Until https://github.com/rust-lang/rust/issues/49146 is resolved, we cannot use `match`
     // in const functions. As we need to initialize static endpoint addresses for the USB client
     // capsule, this function offers a workaround to have a const constructor.
-    pub const fn new_const(endpoint: usize, direction: TransferDirection) -> Self {
+    pub const fn from_const(endpoint: usize, direction: TransferDirection) -> Self {
         EndpointAddress(endpoint as u8 & 0xf | (direction as u8) << 7)
     }
 }

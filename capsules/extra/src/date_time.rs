@@ -41,9 +41,9 @@ use kernel::hil::date_time;
 use kernel::errorcode::into_statuscode;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
-pub const DRIVER_NUM: usize = NUM::DateTime as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(NUM::DateTime as usize);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DateTimeCommand {

@@ -21,6 +21,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! moisture_component_static {
@@ -33,14 +34,14 @@ pub type MoistureComponentType<H> = capsules_extra::moisture::MoistureSensor<'st
 
 pub struct MoistureComponent<T: 'static + hil::sensors::MoistureDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     sensor: &'static T,
 }
 
 impl<T: 'static + hil::sensors::MoistureDriver<'static>> MoistureComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         sensor: &'static T,
     ) -> MoistureComponent<T> {
         MoistureComponent {

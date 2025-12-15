@@ -7,10 +7,10 @@
 use capsules_core::virtualizers::virtual_pwm::{MuxPwm, PwmPinUser};
 use capsules_extra::pwm::Pwm;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::pwm;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! pwm_mux_component_static {
@@ -94,13 +94,13 @@ impl<P: 'static + pwm::Pwm> Component for PwmPinUserComponent<P> {
 
 pub struct PwmDriverComponent<const NUM_PINS: usize> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<const NUM_PINS: usize> PwmDriverComponent<NUM_PINS> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> PwmDriverComponent<NUM_PINS> {
         PwmDriverComponent {
             board_kernel,

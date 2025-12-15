@@ -18,10 +18,10 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::hil;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
@@ -30,7 +30,7 @@ pub const BUFFER_LENGTH: usize = 256;
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::I2cMasterSlave as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::I2cMasterSlave as usize);
 
 /// Ids for read-only allow buffers
 mod ro_allow {

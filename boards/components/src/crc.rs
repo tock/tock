@@ -20,10 +20,10 @@
 
 use capsules_extra::crc::CrcDriver;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::crc::Crc;
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -38,14 +38,14 @@ macro_rules! crc_component_static {
 
 pub struct CrcComponent<C: 'static + Crc<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     crc: &'static C,
 }
 
 impl<C: 'static + Crc<'static>> CrcComponent<C> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         crc: &'static C,
     ) -> CrcComponent<C> {
         CrcComponent {

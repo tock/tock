@@ -31,10 +31,11 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::DriverNumber;
 use kernel::{ErrorCode, ProcessId};
 
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Udp as usize);
 
 /// IDs for subscribed upcalls.
 mod upcall {

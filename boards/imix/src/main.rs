@@ -33,6 +33,7 @@ use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
@@ -173,7 +174,7 @@ struct Imix {
 }
 
 impl SyscallDriverLookup for Imix {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

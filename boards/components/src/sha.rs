@@ -19,10 +19,10 @@
 
 use capsules_extra::sha::ShaDriver;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::digest;
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -45,14 +45,14 @@ macro_rules! sha_component_static {
 
 pub struct ShaComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     sha: &'static A,
 }
 
 impl<A: 'static + digest::Digest<'static, L>, const L: usize> ShaComponent<A, L> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         sha: &'static A,
     ) -> ShaComponent<A, L> {
         ShaComponent {

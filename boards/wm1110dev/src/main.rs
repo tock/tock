@@ -22,6 +22,7 @@ use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -61,8 +62,10 @@ const LR_DIO9: Pin = Pin::P1_08;
 /// GPIO pin that controls VCC for the I2C bus and sensors.
 const I2C_PWR: Pin = Pin::P0_07;
 
-const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
-const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
+const LORA_SPI_DRIVER_NUM: DriverNumber =
+    DriverNumber::from_const(capsules_core::driver::NUM::LoRaPhySPI as usize);
+const LORA_GPIO_DRIVER_NUM: DriverNumber =
+    DriverNumber::from_const(capsules_core::driver::NUM::LoRaPhyGPIO as usize);
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -129,7 +132,7 @@ pub struct Platform {
 }
 
 impl SyscallDriverLookup for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

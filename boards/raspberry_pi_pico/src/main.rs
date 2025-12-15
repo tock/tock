@@ -29,6 +29,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 use kernel::{capabilities, create_capability, static_init};
 
 use rp2040::adc::{Adc, Channel};
@@ -100,7 +101,7 @@ pub struct RaspberryPiPico {
 }
 
 impl SyscallDriverLookup for RaspberryPiPico {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {

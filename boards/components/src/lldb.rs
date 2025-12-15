@@ -23,10 +23,10 @@
 use capsules_core::low_level_debug::LowLevelDebug;
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! low_level_debug_component_static {
@@ -47,14 +47,14 @@ macro_rules! low_level_debug_component_static {
 
 pub struct LowLevelDebugComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     uart_mux: &'static MuxUart<'static>,
 }
 
 impl LowLevelDebugComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         uart_mux: &'static MuxUart,
     ) -> LowLevelDebugComponent {
         LowLevelDebugComponent {

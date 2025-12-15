@@ -26,10 +26,10 @@ use core::mem::MaybeUninit;
 
 use capsules_core::alarm::AlarmDriver;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::time::{self, Alarm};
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -86,14 +86,14 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmMuxComponent<A> {
 
 pub struct AlarmDriverComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
 impl<A: 'static + time::Alarm<'static>> AlarmDriverComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         mux: &'static MuxAlarm<'static, A>,
     ) -> AlarmDriverComponent<A> {
         AlarmDriverComponent {

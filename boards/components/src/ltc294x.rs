@@ -23,6 +23,7 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! ltc294x_component_static {
@@ -95,14 +96,14 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for Ltc294xComponent<I> {
 pub struct Ltc294xDriverComponent<I: 'static + i2c::I2CMaster<'static>> {
     ltc294x: &'static LTC294X<'static, I2CDevice<'static, I>>,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<I: 'static + i2c::I2CMaster<'static>> Ltc294xDriverComponent<I> {
     pub fn new(
         ltc294x: &'static LTC294X<'static, I2CDevice<'static, I>>,
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Self {
         Ltc294xDriverComponent {
             ltc294x,

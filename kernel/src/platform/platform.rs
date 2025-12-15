@@ -11,6 +11,7 @@ use crate::platform::watchdog;
 use crate::process;
 use crate::scheduler::Scheduler;
 use crate::syscall;
+use crate::syscall_driver::DriverNumber;
 use crate::syscall_driver::SyscallDriver;
 
 /// Combination trait that boards provide to the kernel that includes all of
@@ -90,7 +91,7 @@ pub trait KernelResources<C: Chip> {
 /// }
 ///
 /// impl SyscallDriverLookup for Hail {
-///     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+///     fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
 ///     where
 ///         F: FnOnce(Option<&dyn kernel::SyscallDriver>) -> R,
 ///     {
@@ -110,7 +111,7 @@ pub trait SyscallDriverLookup {
     ///
     ///
     /// An implementation
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn SyscallDriver>) -> R;
 }

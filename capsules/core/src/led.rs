@@ -60,11 +60,11 @@
 
 use kernel::hil::led;
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Led as usize);
 
 /// Holds the array of LEDs and implements a `Driver` interface to
 /// control them.

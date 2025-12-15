@@ -12,12 +12,13 @@ use core::cell::Cell;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::uart::{Transmit, TransmitClient};
 use kernel::syscall::CommandReturn;
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
 pub use fmt::BUF_LEN;
 
-pub const DRIVER_NUM: usize = crate::driver::NUM::LowLevelDebug as usize;
+pub const DRIVER_NUM: DriverNumber =
+    DriverNumber::from_const(crate::driver::NUM::LowLevelDebug as usize);
 
 pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     buffer: Cell<Option<&'static mut [u8]>>,

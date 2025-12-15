@@ -11,6 +11,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
+use kernel::DriverNumber;
 use kernel::{create_capability, debug};
 
 // How should the kernel respond when a process faults.
@@ -25,7 +26,7 @@ struct Platform {
 }
 
 impl SyscallDriverLookup for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

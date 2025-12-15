@@ -56,16 +56,16 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
 use crate::virtualizers::virtual_adc::Operation;
-pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Adc as usize);
 
 /// Multiplexed ADC syscall driver, used by applications and capsules.
 ///

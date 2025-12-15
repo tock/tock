@@ -16,11 +16,11 @@
 use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules_extra::l3gd20::L3gd20Spi;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::spi;
 use kernel::hil::spi::SpiMasterDevice;
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -52,7 +52,7 @@ pub struct L3gd20Component<
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: CS,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<
@@ -64,7 +64,7 @@ impl<
         spi_mux: &'static MuxSpiMaster<'static, S>,
         chip_select: CS,
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Self {
         Self {
             spi_mux,

@@ -3,14 +3,14 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Pwm as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Pwm as usize);
 
 // An empty app, for potential uses in future updates of the driver
 #[derive(Default)]

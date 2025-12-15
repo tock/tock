@@ -8,9 +8,9 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability};
+use kernel::{debug, DriverNumber};
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -25,7 +25,7 @@ struct Platform {
 }
 
 impl SyscallDriverLookup for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

@@ -5,10 +5,10 @@
 //! Provides an EUI-64 (Extended Unique Identifier) interface for userspace.
 
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Eui64 as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Eui64 as usize);
 
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 pub struct Eui64 {
     eui64: u64,

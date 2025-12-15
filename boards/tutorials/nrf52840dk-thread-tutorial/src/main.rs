@@ -12,7 +12,7 @@ use core::ptr::addr_of;
 
 use kernel::component::Component;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::{capabilities, create_capability, static_init};
+use kernel::{capabilities, create_capability, static_init, DriverNumber};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52840dk_lib::{self, NUM_PROCS};
@@ -49,7 +49,7 @@ struct Platform {
 }
 
 impl SyscallDriverLookup for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

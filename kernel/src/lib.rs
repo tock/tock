@@ -192,3 +192,4 @@ pub use crate::errorcode::ErrorCode;
 pub use crate::kernel::Kernel;
 pub use crate::process::ProcessId;
 pub use crate::scheduler::Scheduler;
+pub use crate::syscall_driver::DriverNumber;

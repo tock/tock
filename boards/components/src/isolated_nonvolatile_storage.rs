@@ -32,6 +32,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 // How much storage space to allocate per-app. Currently, regions are not
 // growable, so this will be all the space the app gets.
@@ -67,7 +68,7 @@ pub struct IsolatedNonvolatileStorageComponent<
     const APP_REGION_SIZE: usize,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     flash: &'static F,
     userspace_start: usize,
     userspace_length: usize,
@@ -82,7 +83,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         flash: &'static F,
         userspace_start: usize,
         userspace_length: usize,

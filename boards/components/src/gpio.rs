@@ -50,11 +50,11 @@
 
 use capsules_core::gpio::GPIO;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::gpio::InterruptWithValue;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! gpio_component_helper_max_pin {
@@ -123,14 +123,14 @@ pub type GpioComponentType<IP> = GPIO<'static, IP>;
 
 pub struct GpioComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
 }
 
 impl<IP: 'static + gpio::InterruptPin<'static>> GpioComponent<IP> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
     ) -> Self {
         Self {

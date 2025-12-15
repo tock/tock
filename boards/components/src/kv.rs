@@ -10,10 +10,10 @@ use capsules_extra::tickv::{KVSystem, KeyType};
 use capsules_extra::tickv_kv_store::TicKVKVStore;
 use capsules_extra::virtualizers::virtual_kv::{MuxKVPermissions, VirtualKVPermissions};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::{capabilities, DriverNumber};
 
 ///////////////////////
 // KV Userspace Driver
@@ -35,11 +35,15 @@ pub type KVDriverComponentType<V> = capsules_extra::kv_driver::KVStoreDriver<'st
 pub struct KVDriverComponent<V: hil::kv::KVPermissions<'static> + 'static> {
     kv: &'static V,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<V: hil::kv::KVPermissions<'static>> KVDriverComponent<V> {
-    pub fn new(kv: &'static V, board_kernel: &'static kernel::Kernel, driver_num: usize) -> Self {
+    pub fn new(
+        kv: &'static V,
+        board_kernel: &'static kernel::Kernel,
+        driver_num: DriverNumber,
+    ) -> Self {
         Self {
             kv,
             board_kernel,

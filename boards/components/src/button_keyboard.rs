@@ -13,6 +13,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! keyboard_button_component_static {
@@ -25,7 +26,7 @@ pub type KeyboardButtonComponentType = capsules_extra::button_keyboard::ButtonKe
 
 pub struct KeyboardButtonComponent<K: 'static + hil::keyboard::Keyboard<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     keyboard: &'static K,
     key_codes: &'static [u16],
 }
@@ -33,7 +34,7 @@ pub struct KeyboardButtonComponent<K: 'static + hil::keyboard::Keyboard<'static>
 impl<K: 'static + hil::keyboard::Keyboard<'static>> KeyboardButtonComponent<K> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         keyboard: &'static K,
         key_codes: &'static [u16],
     ) -> Self {

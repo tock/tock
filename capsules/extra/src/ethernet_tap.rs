@@ -169,11 +169,12 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::streaming_process_slice::StreamingProcessSlice;
-use kernel::ErrorCode;
 use kernel::ProcessId;
+use kernel::{DriverNumber, ErrorCode};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = capsules_core::driver::NUM::EthernetTap as usize;
+pub const DRIVER_NUM: DriverNumber =
+    DriverNumber::from_const(capsules_core::driver::NUM::EthernetTap as usize);
 
 /// Maximum size of a frame which can be transmitted over the underlying
 /// [`EthernetAdapterDatapath`] device.

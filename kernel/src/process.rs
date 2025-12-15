@@ -18,6 +18,7 @@ use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
+use crate::syscall_driver::DriverNumber;
 use crate::upcall::UpcallId;
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
@@ -660,7 +661,11 @@ pub trait Process {
     /// they are returned as a 64 bit bitmask for sequential command numbers.
     /// The offset indicates the multiple of 64 command numbers to get
     /// permissions for.
-    fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions;
+    fn get_command_permissions(
+        &self,
+        driver_num: DriverNumber,
+        offset: usize,
+    ) -> CommandPermissions;
 
     /// Get the storage permissions for the process.
     ///
@@ -714,7 +719,7 @@ pub trait Process {
     fn allocate_grant(
         &self,
         grant_num: usize,
-        driver_num: usize,
+        driver_num: DriverNumber,
         size: usize,
         align: usize,
     ) -> Result<(), ()>;
@@ -789,7 +794,7 @@ pub trait Process {
 
     /// Get the grant number (grant_num) associated with a given driver number
     /// if there is a grant associated with that driver_num.
-    fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error>;
+    fn lookup_grant_from_driver_num(&self, driver_num: DriverNumber) -> Result<usize, Error>;
 
     // subscribe
 

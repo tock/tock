@@ -12,6 +12,7 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! lps25hb_component_static {
@@ -35,7 +36,7 @@ pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster<'static>> {
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<I: 'static + i2c::I2CMaster<'static>> Lps25hbComponent<I> {
@@ -44,7 +45,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Lps25hbComponent<I> {
         i2c_address: u8,
         interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Self {
         Lps25hbComponent {
             i2c_mux,

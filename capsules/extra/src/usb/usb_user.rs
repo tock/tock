@@ -31,13 +31,13 @@
 //! ```
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::UsbUser as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::UsbUser as usize);
 
 #[derive(Default)]
 pub struct App {

@@ -17,6 +17,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! proximity_component_static {
@@ -28,14 +29,14 @@ macro_rules! proximity_component_static {
 pub struct ProximityComponent<P: hil::sensors::ProximityDriver<'static> + 'static> {
     sensor: &'static P,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<P: hil::sensors::ProximityDriver<'static>> ProximityComponent<P> {
     pub fn new(
         sensor: &'static P,
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> ProximityComponent<P> {
         ProximityComponent {
             sensor,

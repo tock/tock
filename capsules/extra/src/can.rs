@@ -57,11 +57,11 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::streaming_process_slice::StreamingProcessSlice;
-use kernel::ErrorCode;
 use kernel::ProcessId;
+use kernel::{DriverNumber, ErrorCode};
 
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Can as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Can as usize);
 pub const BYTE4_MASK: usize = 0xff000000;
 pub const BYTE3_MASK: usize = 0xff0000;
 pub const BYTE2_MASK: usize = 0xff00;

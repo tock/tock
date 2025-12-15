@@ -14,9 +14,9 @@
 
 use capsules_extra::ninedof::NineDof;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! ninedof_component_static {
@@ -38,11 +38,14 @@ macro_rules! ninedof_component_static {
 
 pub struct NineDofComponent {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl NineDofComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> NineDofComponent {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: DriverNumber,
+    ) -> NineDofComponent {
         NineDofComponent {
             board_kernel,
             driver_num,

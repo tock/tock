@@ -15,11 +15,11 @@ use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::SpiPeripheral as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::SpiPeripheral as usize);
 
 /// Ids for read-only allow buffers
 mod ro_allow {

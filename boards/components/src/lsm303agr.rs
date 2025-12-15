@@ -27,10 +27,10 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::lsm303agr::Lsm303agrI2C;
 use capsules_extra::lsm303xx;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::i2c;
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -57,7 +57,7 @@ pub struct Lsm303agrI2CComponent<I: 'static + i2c::I2CMaster<'static>> {
     accelerometer_i2c_address: u8,
     magnetometer_i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<I: 'static + i2c::I2CMaster<'static>> Lsm303agrI2CComponent<I> {
@@ -66,7 +66,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Lsm303agrI2CComponent<I> {
         accelerometer_i2c_address: Option<u8>,
         magnetometer_i2c_address: Option<u8>,
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Lsm303agrI2CComponent<I> {
         Lsm303agrI2CComponent {
             i2c_mux,

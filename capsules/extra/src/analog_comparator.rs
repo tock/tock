@@ -39,12 +39,13 @@
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
+pub const DRIVER_NUM: DriverNumber =
+    DriverNumber::from_const(driver::NUM::AnalogComparator as usize);
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 pub struct AnalogComparator<'a, A: hil::analog_comparator::AnalogComparator<'a> + 'a> {

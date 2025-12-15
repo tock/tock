@@ -54,6 +54,7 @@ use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 use kernel::{create_capability, debug, static_init};
 
 #[cfg(feature = "atecc508a")]
@@ -114,8 +115,10 @@ static mut ATECC508A: Option<&'static capsules_extra::atecc508a::Atecc508a<'stat
 
 kernel::stack_size! {0x1000}
 
-const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
-const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
+const LORA_SPI_DRIVER_NUM: DriverNumber =
+    DriverNumber::from_const(capsules_core::driver::NUM::LoRaPhySPI as usize);
+const LORA_GPIO_DRIVER_NUM: DriverNumber =
+    DriverNumber::from_const(capsules_core::driver::NUM::LoRaPhyGPIO as usize);
 
 type ChirpI2cMoistureType = components::chirp_i2c_moisture::ChirpI2cMoistureComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
@@ -327,7 +330,7 @@ unsafe fn setup_dfrobot_i2c_rainfall(
 
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for LoRaThingsPlus {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

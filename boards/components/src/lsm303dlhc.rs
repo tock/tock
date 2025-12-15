@@ -28,6 +28,7 @@ use capsules_extra::lsm303xx;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::DriverNumber;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -54,7 +55,7 @@ pub struct Lsm303dlhcI2CComponent<I: 'static + i2c::I2CMaster<'static>> {
     accelerometer_i2c_address: u8,
     magnetometer_i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<I: 'static + i2c::I2CMaster<'static>> Lsm303dlhcI2CComponent<I> {
@@ -63,7 +64,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Lsm303dlhcI2CComponent<I> {
         accelerometer_i2c_address: Option<u8>,
         magnetometer_i2c_address: Option<u8>,
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Lsm303dlhcI2CComponent<I> {
         Lsm303dlhcI2CComponent {
             i2c_mux,

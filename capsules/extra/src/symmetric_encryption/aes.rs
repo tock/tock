@@ -6,7 +6,7 @@
 
 use capsules_core::driver;
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::Aes as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Aes as usize);
 
 use core::cell::Cell;
 
@@ -18,7 +18,7 @@ use kernel::hil::symmetric_encryption::{
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 /// Ids for read-only allow buffers
 mod ro_allow {

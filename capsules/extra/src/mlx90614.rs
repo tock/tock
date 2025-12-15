@@ -29,12 +29,12 @@ use kernel::hil::sensors;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::register_bitfields;
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 use capsules_core::driver;
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::Mlx90614 as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Mlx90614 as usize);
 
 register_bitfields![u16,
     CONFIG [

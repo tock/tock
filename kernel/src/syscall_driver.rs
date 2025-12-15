@@ -6,11 +6,47 @@
 //!
 //! Drivers implement these interfaces to expose operations to processes.
 
+use core::fmt::{Debug, Display};
+
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::process::ProcessId;
 use crate::processbuffer::UserspaceReadableProcessBuffer;
 use crate::syscall::SyscallReturn;
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct DriverNumber(usize);
+
+impl DriverNumber {
+    pub const fn from_const(driver_num: usize) -> DriverNumber {
+        DriverNumber(driver_num)
+    }
+}
+
+impl From<DriverNumber> for usize {
+    fn from(driver_num: DriverNumber) -> Self {
+        driver_num.0
+    }
+}
+
+impl From<usize> for DriverNumber {
+    fn from(driver_num: usize) -> Self {
+        DriverNumber(driver_num)
+    }
+}
+
+impl Debug for DriverNumber {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#x}", self.0)
+    }
+}
+
+impl Display for DriverNumber {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:#x}", self.0)
+    }
+}
 
 /// Possible return values of a `command` driver method, as specified in TRD104.
 ///

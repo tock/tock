@@ -42,10 +42,9 @@
 
 use capsules_core::driver;
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::Kv as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Kv as usize);
 
 use core::cmp;
-use kernel::errorcode;
 use kernel::grant::Grant;
 use kernel::grant::{AllowRoCount, AllowRwCount, UpcallCount};
 use kernel::hil::kv;
@@ -53,6 +52,7 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::{errorcode, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// IDs for read-only allow buffers.

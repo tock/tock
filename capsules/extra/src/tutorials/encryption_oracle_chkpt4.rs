@@ -9,10 +9,10 @@ use kernel::hil::symmetric_encryption::{AES128Ctr, Client, AES128, AES128_BLOCK_
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 use kernel::ProcessId;
+use kernel::{DriverNumber, ErrorCode};
 
-pub const DRIVER_NUM: usize = 0x99999;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(0x99999);
 
 pub static KEY: &[u8; kernel::hil::symmetric_encryption::AES128_KEY_SIZE] = b"InsecureAESKey12";
 

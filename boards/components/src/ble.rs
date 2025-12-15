@@ -12,11 +12,11 @@
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::ble_advertising::BleConfig;
 use kernel::hil::time::Alarm;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! ble_component_static {
@@ -42,7 +42,7 @@ pub struct BLEComponent<
     B: kernel::hil::ble_advertising::BleAdvertisementDriver<'static> + BleConfig + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     radio: &'static B,
     mux_alarm: &'static capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, A>,
 }
@@ -54,7 +54,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         radio: &'static B,
         mux_alarm: &'static capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, A>,
     ) -> Self {

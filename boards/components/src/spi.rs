@@ -35,11 +35,11 @@ use capsules_core::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_
 use capsules_core::spi_peripheral::SpiPeripheral;
 use capsules_core::virtualizers::virtual_spi;
 use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -117,13 +117,13 @@ pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster<'static>> {
     board_kernel: &'static kernel::Kernel,
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave<'static>> {
     board_kernel: &'static kernel::Kernel,
     spi_slave: &'static S,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 pub struct SpiComponent<
@@ -165,7 +165,7 @@ impl<S: 'static + spi::SpiMaster<'static>> SpiSyscallComponent<S> {
         board_kernel: &'static kernel::Kernel,
         mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Self {
         SpiSyscallComponent {
             board_kernel,
@@ -211,7 +211,7 @@ impl<S: 'static + spi::SpiSlave<'static>> SpiSyscallPComponent<S> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         slave: &'static S,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Self {
         SpiSyscallPComponent {
             board_kernel,
@@ -289,14 +289,14 @@ impl<
 pub struct SpiPeripheralComponent<S: 'static + spi::SpiSlave<'static>> {
     board_kernel: &'static kernel::Kernel,
     device: &'static S,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<S: 'static + spi::SpiSlave<'static>> SpiPeripheralComponent<S> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         device: &'static S,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Self {
         SpiPeripheralComponent {
             board_kernel,

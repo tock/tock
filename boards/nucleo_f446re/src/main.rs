@@ -22,6 +22,7 @@ use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 use kernel::{create_capability, debug, static_init};
 use stm32f446re::chip_specs::Stm32f446Specs;
 use stm32f446re::clocks::hsi::HSI_FREQUENCY_MHZ;
@@ -82,7 +83,7 @@ struct NucleoF446RE {
 
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for NucleoF446RE {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {

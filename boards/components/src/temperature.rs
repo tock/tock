@@ -17,6 +17,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! temperature_component_static {
@@ -29,14 +30,14 @@ pub type TemperatureComponentType<T> = capsules_extra::temperature::TemperatureS
 
 pub struct TemperatureComponent<T: 'static + hil::sensors::TemperatureDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     temp_sensor: &'static T,
 }
 
 impl<T: 'static + hil::sensors::TemperatureDriver<'static>> TemperatureComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         temp_sensor: &'static T,
     ) -> TemperatureComponent<T> {
         TemperatureComponent {

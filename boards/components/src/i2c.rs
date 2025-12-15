@@ -23,10 +23,10 @@
 
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::i2c::{self, NoSMBus};
+use kernel::{capabilities, DriverNumber};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -125,12 +125,16 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CComponent<I> {
 
 pub struct I2CMasterSlaveDriverComponent<I: 'static + i2c::I2CMasterSlave<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     i2c: &'static I,
 }
 
 impl<I: 'static + i2c::I2CMasterSlave<'static>> I2CMasterSlaveDriverComponent<I> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, i2c: &'static I) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: DriverNumber,
+        i2c: &'static I,
+    ) -> Self {
         I2CMasterSlaveDriverComponent {
             board_kernel,
             driver_num,

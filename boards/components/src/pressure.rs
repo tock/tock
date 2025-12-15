@@ -17,6 +17,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! pressure_component_static {
@@ -27,14 +28,14 @@ macro_rules! pressure_component_static {
 
 pub struct PressureComponent<T: 'static + hil::sensors::PressureDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     pressure_sensor: &'static T,
 }
 
 impl<T: 'static + hil::sensors::PressureDriver<'static>> PressureComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         pressure_sensor: &'static T,
     ) -> PressureComponent<T> {
         PressureComponent {

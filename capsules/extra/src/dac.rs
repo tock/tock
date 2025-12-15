@@ -17,10 +17,10 @@
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Dac as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Dac as usize);
 
-use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 pub struct Dac<'a> {

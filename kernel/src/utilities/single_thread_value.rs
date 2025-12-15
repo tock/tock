@@ -78,7 +78,7 @@ enum BoundToThreadStage {
 ///
 /// ```
 /// use core::cell::Cell;
-/// use kernel::utilities::single_thread_value::SingleThreadValue;
+/// use kernel::utilities::single_thread_value::SingleThreadValue; use kernel::DriverNumber;
 ///
 /// // Binding to a thread requires a "ThreadIdProvider", used to query the
 /// // thread ID of the currently running thread at runtime:

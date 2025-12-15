@@ -28,9 +28,9 @@ use kernel::hil::sensors::{NineDof, NineDofClient};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::LocalRegisterCopy;
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
-pub const DRIVER_NUM: usize = driver::NUM::Lsm6dsoxtr as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Lsm6dsoxtr as usize);
 
 use kernel::utilities::registers::register_bitfields;
 

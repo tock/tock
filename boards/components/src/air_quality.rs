@@ -17,6 +17,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! air_quality_component_static {
@@ -27,14 +28,14 @@ macro_rules! air_quality_component_static {
 
 pub struct AirQualityComponent<T: 'static + hil::sensors::AirQualityDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     temp_sensor: &'static T,
 }
 
 impl<T: 'static + hil::sensors::AirQualityDriver<'static>> AirQualityComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         temp_sensor: &'static T,
     ) -> AirQualityComponent<T> {
         AirQualityComponent {

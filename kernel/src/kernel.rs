@@ -33,6 +33,7 @@ use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
+use crate::syscall_driver::DriverNumber;
 use crate::upcall::{Upcall, UpcallId};
 use crate::utilities::cells::NumericCellExt;
 
@@ -250,7 +251,7 @@ impl Kernel {
         AllowRWs: AllowRwSize,
     >(
         &'static self,
-        driver_num: usize,
+        driver_num: DriverNumber,
         _capability: &dyn capabilities::MemoryAllocationCapability,
     ) -> Grant<T, Upcalls, AllowROs, AllowRWs> {
         if self.grants_finalized.get() {
@@ -853,7 +854,7 @@ impl Kernel {
 
                     Ok(YieldCall::WaitFor) => {
                         let upcall_id = UpcallId {
-                            driver_num: param_a,
+                            driver_num: param_a.into(),
                             subscribe_num: param_b,
                         };
                         process.set_yielded_for_state(upcall_id);
@@ -997,11 +998,11 @@ impl Kernel {
                                                             alloc_failure,
                                                         ) {
                                                             (true, AllocResult::NoAllocation) => {
-                                                                debug!("[{:?}] WARN driver #{:x} did not allocate grant",
+                                                                debug!("[{:?}] WARN driver #{} did not allocate grant",
                                                                            process.processid(), driver_number);
                                                             }
                                                             (true, AllocResult::SameAllocation) => {
-                                                                debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
+                                                                debug!("[{:?}] ERROR driver #{} allocated wrong grant counts",
                                                                            process.processid(), driver_number);
                                                             }
                                                             _ => {}
@@ -1033,7 +1034,7 @@ impl Kernel {
 
                         if config::CONFIG.trace_syscalls {
                             debug!(
-                                "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
+                                "[{:?}] subscribe({}, {}, @{:#x}, {:#x}) = {:?}",
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
@@ -1060,7 +1061,7 @@ impl Kernel {
 
                         if config::CONFIG.trace_syscalls {
                             debug!(
-                                "[{:?}] cmd({:#x}, {}, {:#x}, {:#x}) = {:?}",
+                                "[{:?}] cmd({}, {}, {:#x}, {:#x}) = {:?}",
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
@@ -1141,11 +1142,11 @@ impl Kernel {
                                                             alloc_failure,
                                                         ) {
                                                             (true, AllocResult::NoAllocation) => {
-                                                                debug!("[{:?}] WARN driver #{:x} did not allocate grant",
+                                                                debug!("[{:?}] WARN driver #{} did not allocate grant",
                                                                            process.processid(), driver_number);
                                                             }
                                                             (true, AllocResult::SameAllocation) => {
-                                                                debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
+                                                                debug!("[{:?}] ERROR driver #{} allocated wrong grant counts",
                                                                            process.processid(), driver_number);
                                                             }
                                                             _ => {}
@@ -1185,7 +1186,7 @@ impl Kernel {
 
                         if config::CONFIG.trace_syscalls {
                             debug!(
-                                "[{:?}] read-write allow({:#x}, {}, @{:#x}, {}) = {:?}",
+                                "[{:?}] read-write allow({}, {}, @{:#x}, {}) = {:?}",
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
@@ -1265,7 +1266,7 @@ impl Kernel {
 
                         if config::CONFIG.trace_syscalls {
                             debug!(
-                                "[{:?}] userspace readable allow({:#x}, {}, @{:#x}, {}) = {:?}",
+                                "[{:?}] userspace readable allow({}, {}, @{:#x}, {}) = {:?}",
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
@@ -1346,11 +1347,11 @@ impl Kernel {
                                                             alloc_failure,
                                                         ) {
                                                             (true, AllocResult::NoAllocation) => {
-                                                                debug!("[{:?}] WARN driver #{:x} did not allocate grant",
+                                                                debug!("[{:?}] WARN driver #{} did not allocate grant",
                                                                            process.processid(), driver_number);
                                                             }
                                                             (true, AllocResult::SameAllocation) => {
-                                                                debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
+                                                                debug!("[{:?}] ERROR driver #{} allocated wrong grant counts",
                                                                            process.processid(), driver_number);
                                                             }
                                                             _ => {}
@@ -1390,7 +1391,7 @@ impl Kernel {
 
                         if config::CONFIG.trace_syscalls {
                             debug!(
-                                "[{:?}] read-only allow({:#x}, {}, @{:#x}, {}) = {:?}",
+                                "[{:?}] read-only allow({}, {}, @{:#x}, {}) = {:?}",
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,

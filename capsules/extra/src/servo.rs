@@ -35,13 +35,13 @@
 //! );
 //! ```
 
-use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Servo as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Servo as usize);
 
 pub struct Servo<'a, const SERVO_COUNT: usize> {
     /// The service capsule servo.

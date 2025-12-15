@@ -95,7 +95,7 @@
 //! ```text,ignore
 //!                         ┌──────────────────────────┐
 //!                         │ struct Grant<T, ...> {   │
-//!                         │   driver_num: usize      │
+//!                         │   driver_num: DriverNumber      │
 //!                         │   grant_num: usize       │
 //!                         │ }                        ├───┐
 //! Entering a Grant for a  └──┬───────────────────────┘   │
@@ -140,6 +140,7 @@ use crate::process::ProcessSlot;
 use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
+use crate::syscall_driver::DriverNumber;
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
@@ -564,7 +565,7 @@ pub struct GrantKernelData<'a> {
     /// We need to keep track of the driver number so we can properly identify
     /// the Upcall that is called. We need to keep track of its source so we can
     /// remove it if the Upcall is unsubscribed.
-    driver_num: usize,
+    driver_num: DriverNumber,
 
     /// A reference to the process that these upcalls are for. This is used for
     /// actually scheduling the upcalls.
@@ -578,7 +579,7 @@ impl<'a> GrantKernelData<'a> {
         upcalls: &'a [SavedUpcall],
         allow_ro: &'a [SavedAllowRo],
         allow_rw: &'a [SavedAllowRw],
-        driver_num: usize,
+        driver_num: DriverNumber,
         process: &'a dyn Process,
     ) -> GrantKernelData<'a> {
         Self {
@@ -607,7 +608,7 @@ impl<'a> GrantKernelData<'a> {
             || {
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] schedule[{:#x}:{}] invalid subscribe_num",
+                        "[{:?}] schedule[{}:{}] invalid subscribe_num",
                         self.process.processid(),
                         self.driver_num,
                         subscribe_num,
@@ -815,7 +816,7 @@ unsafe fn write_default_array<T: Default>(base: *mut T, num: usize) {
 /// element).
 fn enter_grant_kernel_managed(
     process: &dyn Process,
-    driver_num: usize,
+    driver_num: DriverNumber,
 ) -> Result<EnteredGrantKernelManagedLayout<'_>, ErrorCode> {
     let grant_num = process.lookup_grant_from_driver_num(driver_num)?;
 
@@ -889,7 +890,7 @@ pub(crate) fn subscribe(
 /// stored at the same allow_num id is returned.
 pub(crate) fn allow_ro(
     process: &dyn Process,
-    driver_num: usize,
+    driver_num: DriverNumber,
     allow_num: usize,
     buffer: ReadOnlyProcessBuffer,
 ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
@@ -937,7 +938,7 @@ pub(crate) fn allow_ro(
 /// stored at the same allow_num id is returned.
 pub(crate) fn allow_rw(
     process: &dyn Process,
-    driver_num: usize,
+    driver_num: DriverNumber,
     allow_num: usize,
     buffer: ReadWriteProcessBuffer,
 ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
@@ -1005,7 +1006,7 @@ pub struct ProcessGrant<
     process: &'a dyn Process,
 
     /// The syscall driver number this grant is associated with.
-    driver_num: usize,
+    driver_num: DriverNumber,
 
     /// The identifier of the Grant this is applied for.
     grant_num: usize,
@@ -1040,7 +1041,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         // the grant was only just allocated).
         fn new_inner<'a>(
             grant_num: usize,
-            driver_num: usize,
+            driver_num: DriverNumber,
             grant_t_size: GrantDataSize,
             grant_t_align: GrantDataAlign,
             num_upcalls: UpcallItems,
@@ -1714,7 +1715,7 @@ pub struct Grant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRW
     /// Keep track of the syscall driver number assigned to the capsule that is
     /// using this grant. This allows us to uniquely identify upcalls stored in
     /// this grant.
-    driver_num: usize,
+    driver_num: DriverNumber,
 
     /// The identifier for this grant. Having an identifier allows the Process
     /// implementation to lookup the memory for this grant in the specific
@@ -1733,7 +1734,11 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// This must only be called from the main kernel so that it can ensure that
     /// `grant_index` is a valid index.
-    pub(crate) fn new(kernel: &'static Kernel, driver_num: usize, grant_index: usize) -> Self {
+    pub(crate) fn new(
+        kernel: &'static Kernel,
+        driver_num: DriverNumber,
+        grant_index: usize,
+    ) -> Self {
         Self {
             kernel,
             driver_num,

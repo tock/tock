@@ -17,6 +17,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! sound_pressure_component_static {
@@ -27,14 +28,14 @@ macro_rules! sound_pressure_component_static {
 
 pub struct SoundPressureComponent<S: 'static + hil::sensors::SoundPressure<'static>> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     sound_sensor: &'static S,
 }
 
 impl<S: 'static + hil::sensors::SoundPressure<'static>> SoundPressureComponent<S> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         sound_sensor: &'static S,
     ) -> SoundPressureComponent<S> {
         SoundPressureComponent {

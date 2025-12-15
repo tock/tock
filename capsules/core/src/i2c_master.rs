@@ -11,11 +11,11 @@ use kernel::hil::i2c;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::I2cMaster as usize);
 
 /// Ids for read-write allow buffers
 mod rw_allow {

@@ -32,6 +32,7 @@ use kernel::hil;
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB, AES128GCM,
 };
+use kernel::DriverNumber;
 
 const CRYPT_SIZE: usize = 7 * hil::symmetric_encryption::AES128_BLOCK_SIZE;
 
@@ -101,7 +102,7 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
 
 pub struct AesDriverComponent<A: AES128<'static> + AES128CCM<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     aes: &'static A,
 }
 
@@ -110,7 +111,7 @@ impl<A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         aes: &'static A,
     ) -> AesDriverComponent<A> {
         AesDriverComponent {

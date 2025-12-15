@@ -63,10 +63,10 @@
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = 0xF001;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(0xF001);
 
 /// Need a grant for the process.
 #[derive(Default)]

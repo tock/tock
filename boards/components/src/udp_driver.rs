@@ -32,11 +32,11 @@ use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_recv::UDPReceiver;
 use capsules_extra::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::time::Alarm;
+use kernel::{capabilities, DriverNumber};
 
 const MAX_PAYLOAD_LEN: usize = super::udp_mux::MAX_PAYLOAD_LEN;
 
@@ -70,7 +70,7 @@ macro_rules! udp_driver_component_static {
 
 pub struct UDPDriverComponent<A: Alarm<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     udp_send_mux:
         &'static MuxUdpSender<'static, IP6SendStruct<'static, VirtualMuxAlarm<'static, A>>>,
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
@@ -81,7 +81,7 @@ pub struct UDPDriverComponent<A: Alarm<'static> + 'static> {
 impl<A: Alarm<'static>> UDPDriverComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         udp_send_mux: &'static MuxUdpSender<
             'static,
             IP6SendStruct<'static, VirtualMuxAlarm<'static, A>>,

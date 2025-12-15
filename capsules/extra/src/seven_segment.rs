@@ -154,12 +154,12 @@ use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::TakeCell;
-use kernel::ErrorCode;
 use kernel::ProcessId;
+use kernel::{DriverNumber, ErrorCode};
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::SevenSegment as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::SevenSegment as usize);
 
 /// Digit patterns
 //

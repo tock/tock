@@ -233,14 +233,14 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
 
         let endpoints: &[&[EndpointDescriptor]] = &[
             &[EndpointDescriptor {
-                endpoint_address: EndpointAddress::new_const(4, TransferDirection::DeviceToHost),
+                endpoint_address: EndpointAddress::from_const(4, TransferDirection::DeviceToHost),
                 transfer_type: TransferType::Interrupt,
                 max_packet_size: 8,
                 interval: 16,
             }],
             &[
                 EndpointDescriptor {
-                    endpoint_address: EndpointAddress::new_const(
+                    endpoint_address: EndpointAddress::from_const(
                         2,
                         TransferDirection::DeviceToHost,
                     ),
@@ -249,7 +249,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
                     interval: 0,
                 },
                 EndpointDescriptor {
-                    endpoint_address: EndpointAddress::new_const(
+                    endpoint_address: EndpointAddress::from_const(
                         3,
                         TransferDirection::HostToDevice,
                     ),

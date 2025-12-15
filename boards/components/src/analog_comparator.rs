@@ -25,9 +25,9 @@
 
 use capsules_extra::analog_comparator::AnalogComparator;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! analog_comparator_component_helper {
@@ -58,7 +58,7 @@ pub struct AnalogComparatorComponent<
     comp: &'static AC,
     ac_channels: &'static [&'static AC::Channel],
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
 }
 
 impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>>
@@ -68,7 +68,7 @@ impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>>
         comp: &'static AC,
         ac_channels: &'static [&'static AC::Channel],
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
     ) -> Self {
         Self {
             comp,

@@ -29,6 +29,7 @@ use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::DriverNumber;
 use kernel::{create_capability, static_init};
 use virtio::devices::virtio_rng::VirtIORng;
 use virtio::devices::VirtIODeviceType;
@@ -160,7 +161,7 @@ pub struct QemuI386Q35Platform {
 }
 
 impl SyscallDriverLookup for QemuI386Q35Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {

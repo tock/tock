@@ -6,10 +6,10 @@
 
 use capsules_extra::process_info_driver::{self, ProcessInfo};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::capabilities::{ProcessManagementCapability, ProcessStartCapability};
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! process_info_component_static {
@@ -26,12 +26,16 @@ macro_rules! process_info_component_static {
 
 pub struct ProcessInfoComponent<C: ProcessManagementCapability + ProcessStartCapability> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     capability: C,
 }
 
 impl<C: ProcessManagementCapability + ProcessStartCapability> ProcessInfoComponent<C> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, capability: C) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: DriverNumber,
+        capability: C,
+    ) -> Self {
         Self {
             board_kernel,
             driver_num,

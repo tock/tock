@@ -19,10 +19,10 @@
 
 use capsules_extra::hmac::HmacDriver;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::digest;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! hmac_component_static {
@@ -40,14 +40,14 @@ pub type HmacComponentType<H, const L: usize> = capsules_extra::hmac::HmacDriver
 
 pub struct HmacComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     hmac: &'static A,
 }
 
 impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacComponent<A, L> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         hmac: &'static A,
     ) -> HmacComponent<A, L> {
         HmacComponent {

@@ -32,11 +32,11 @@
 
 use capsules_core::rng;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! rng_component_static {
@@ -58,12 +58,16 @@ pub type RngComponentType<E> =
 
 pub struct RngComponent<E: Entropy32<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     trng: &'static E,
 }
 
 impl<E: Entropy32<'static>> RngComponent<E> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, trng: &'static E) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: DriverNumber,
+        trng: &'static E,
+    ) -> Self {
         Self {
             board_kernel,
             driver_num,
@@ -115,12 +119,16 @@ pub type RngRandomComponentType<R> = rng::RngDriver<'static, R>;
 
 pub struct RngRandomComponent<R: Rng<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     rng: &'static R,
 }
 
 impl<R: Rng<'static>> RngRandomComponent<R> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, rng: &'static R) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: DriverNumber,
+        rng: &'static R,
+    ) -> Self {
         Self {
             board_kernel,
             driver_num,

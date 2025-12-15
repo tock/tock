@@ -31,7 +31,7 @@ use capsules_core::driver;
 use kernel::errorcode::into_statuscode;
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::Sha as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::Sha as usize);
 
 /// Ids for read-only allow buffers
 mod ro_allow {
@@ -57,7 +57,7 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::{ErrorCode, ProcessId};
+use kernel::{DriverNumber, ErrorCode, ProcessId};
 
 enum ShaOperation {
     Sha256,

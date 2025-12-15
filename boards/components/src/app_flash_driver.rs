@@ -23,6 +23,7 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::nonvolatile_storage::NonvolatileStorage;
+use kernel::DriverNumber;
 
 #[macro_export]
 macro_rules! app_flash_component_static {
@@ -42,7 +43,7 @@ pub struct AppFlashComponent<
     const BUF_LEN: usize,
 > {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     storage: &'static F,
 }
 
@@ -55,7 +56,7 @@ impl<
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         storage: &'static F,
     ) -> AppFlashComponent<F, BUF_LEN> {
         AppFlashComponent {

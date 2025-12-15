@@ -37,15 +37,15 @@
 
 use kernel::capabilities::{ProcessManagementCapability, ProcessStartCapability};
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::process;
 use kernel::processbuffer::WriteableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::Kernel;
+use kernel::{process, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::ProcessInfo as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::ProcessInfo as usize);
 
 mod rw_allow {
     pub const INFO: usize = 0;

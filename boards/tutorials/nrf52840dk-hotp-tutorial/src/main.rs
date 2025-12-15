@@ -9,11 +9,11 @@
 #![deny(missing_docs)]
 
 use kernel::component::Component;
-use kernel::debug;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::static_init;
 use kernel::{capabilities, create_capability};
+use kernel::{debug, DriverNumber};
 use nrf52840::gpio::Pin;
 
 // State for loading and holding applications.
@@ -41,10 +41,11 @@ struct Platform {
     base: nrf52840dk_lib::Platform,
 }
 
-const KEYBOARD_HID_DRIVER_NUM: usize = capsules_core::driver::NUM::KeyboardHid as usize;
+const KEYBOARD_HID_DRIVER_NUM: DriverNumber =
+    DriverNumber::from_const(capsules_core::driver::NUM::KeyboardHid as usize);
 
 impl SyscallDriverLookup for Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: DriverNumber, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
@@ -179,7 +180,7 @@ pub unsafe fn main() {
     // Generic HID Keyboard component usage
     let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
         board_kernel,
-        capsules_core::driver::NUM::KeyboardHid as usize,
+        (capsules_core::driver::NUM::KeyboardHid as usize).into(),
         usb_device,
         0x1915, // Nordic Semiconductor
         0x503a,

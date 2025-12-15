@@ -68,13 +68,13 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
 
         let endpoints: &[&[EndpointDescriptor]] = &mut [&[
             EndpointDescriptor {
-                endpoint_address: EndpointAddress::new_const(1, TransferDirection::DeviceToHost),
+                endpoint_address: EndpointAddress::from_const(1, TransferDirection::DeviceToHost),
                 transfer_type: TransferType::Bulk,
                 max_packet_size: 8,
                 interval: 0,
             },
             EndpointDescriptor {
-                endpoint_address: EndpointAddress::new_const(2, TransferDirection::HostToDevice),
+                endpoint_address: EndpointAddress::from_const(2, TransferDirection::HostToDevice),
                 transfer_type: TransferType::Bulk,
                 max_packet_size: 8,
                 interval: 0,

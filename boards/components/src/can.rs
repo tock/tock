@@ -27,7 +27,7 @@ use capsules_extra::can::CanCapsule;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::can;
-use kernel::{capabilities, create_capability};
+use kernel::{capabilities, create_capability, DriverNumber};
 
 #[macro_export]
 macro_rules! can_component_static {
@@ -46,14 +46,14 @@ macro_rules! can_component_static {
 
 pub struct CanComponent<A: 'static + can::Can> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     can: &'static A,
 }
 
 impl<A: 'static + can::Can> CanComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         can: &'static A,
     ) -> CanComponent<A> {
         CanComponent {

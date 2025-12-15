@@ -23,14 +23,14 @@
 //! ```
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
+use kernel::{hil, DriverNumber};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::NINEDOF as usize;
+pub const DRIVER_NUM: DriverNumber = DriverNumber::from_const(driver::NUM::NINEDOF as usize);
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NineDofCommand {

@@ -25,9 +25,9 @@
 
 use capsules_extra::text_screen::TextScreen;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::{capabilities, DriverNumber};
 
 #[macro_export]
 macro_rules! text_screen_component_static {
@@ -41,14 +41,14 @@ macro_rules! text_screen_component_static {
 
 pub struct TextScreenComponent<const SCREEN_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
+    driver_num: DriverNumber,
     text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
 }
 
 impl<const SCREEN_BUF_LEN: usize> TextScreenComponent<SCREEN_BUF_LEN> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
+        driver_num: DriverNumber,
         text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
     ) -> TextScreenComponent<SCREEN_BUF_LEN> {
         TextScreenComponent {
