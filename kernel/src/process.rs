@@ -986,10 +986,7 @@ pub enum State {
     ///
     /// The second item in the tuple stores whether the process is ready to run
     /// (meaning an upcall with `UpcallId` has been scheduled).
-    YieldedFor {
-        upcall_id: UpcallId,
-        return_available: bool,
-    },
+    YieldedFor { upcall_id: UpcallId, ready: bool },
 
     /// The process is stopped and the previous state the process was in when it
     /// was stopped. This is used if the kernel forcibly stops a process. This
@@ -1024,10 +1021,7 @@ pub enum StoppedState {
     Yielded,
     /// The process was in the yielded for state when it was stopped with a
     /// particular upcall it was waiting for.
-    YieldedFor {
-        upcall_id: UpcallId,
-        return_available: bool,
-    },
+    YieldedFor { upcall_id: UpcallId, ready: bool },
 }
 
 /// The action the kernel should take when a process encounters a fault.

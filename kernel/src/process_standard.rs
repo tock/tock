@@ -549,11 +549,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     fn ready(&self) -> bool {
         self.state.get() == State::Running
-            || if let State::YieldedFor {
-                return_available: true,
-                ..
-            } = self.state.get()
-            {
+            || if let State::YieldedFor { ready: true, .. } = self.state.get() {
                 true
             } else {
                 false
@@ -609,7 +605,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             self.state.set(State::YieldedFor {
                 upcall_id,
                 // Verify is there is a scheduled Upcall with `upcall_id`.
-                return_available: self.tasks.map_or(false, |tasks| {
+                ready: self.tasks.map_or(false, |tasks| {
                     tasks
                         .find_first_matching(|task| match task {
                             Task::ReturnValue(ReturnArguments { upcall_id: id, .. }) => {
@@ -632,7 +628,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             if id == upcall_id {
                 self.state.set(State::YieldedFor {
                     upcall_id,
-                    return_available: false,
+                    ready: true,
                 });
             }
         }
@@ -642,13 +638,12 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         match self.state.get() {
             State::Running => self.state.set(State::Stopped(StoppedState::Running)),
             State::Yielded => self.state.set(State::Stopped(StoppedState::Yielded)),
-            State::YieldedFor {
-                upcall_id,
-                return_available,
-            } => self.state.set(State::Stopped(StoppedState::YieldedFor {
-                upcall_id,
-                return_available,
-            })),
+            State::YieldedFor { upcall_id, ready } => {
+                self.state.set(State::Stopped(StoppedState::YieldedFor {
+                    upcall_id,
+                    ready,
+                }))
+            }
             State::Stopped(_stopped_state) => {
                 // Already stopped, nothing to do.
             }
@@ -663,13 +658,9 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             match stopped_state {
                 StoppedState::Running => self.state.set(State::Running),
                 StoppedState::Yielded => self.state.set(State::Yielded),
-                StoppedState::YieldedFor {
-                    upcall_id,
-                    return_available,
-                } => self.state.set(State::YieldedFor {
-                    upcall_id,
-                    return_available,
-                }),
+                StoppedState::YieldedFor { upcall_id, ready } => {
+                    self.state.set(State::YieldedFor { upcall_id, ready })
+                }
             }
         }
     }

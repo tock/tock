@@ -656,7 +656,7 @@ impl Kernel {
                 }
                 process::State::YieldedFor {
                     upcall_id,
-                    return_available: true,
+                    ready: true,
                 } => {
                     // If this process is waiting for a specific upcall, see if
                     // it is ready. If so, dequeue it and return its values to
@@ -704,10 +704,7 @@ impl Kernel {
                         }
                     }
                 }
-                process::State::YieldedFor {
-                    return_available: false,
-                    ..
-                } => {
+                process::State::YieldedFor { ready: false, .. } => {
                     break;
                 }
                 process::State::Faulted | process::State::Terminated => {
