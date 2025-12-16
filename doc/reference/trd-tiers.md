@@ -5,9 +5,9 @@ Code Tiers
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Brad Campbell<br/>
-**Draft-Created:** 2025/09/12 <br/>
-**Draft-Modified:** 2025/09/12 <br/>
+**Author:** Brad Campbell, Amit Levy<br/>
+**Draft-Created:** 2025/12/15 <br/>
+**Draft-Modified:** 2025/12/15 <br/>
 **Draft-Version:** 1 <br/>
 **Draft-Discuss:** devel@lists.tockos.org<br/>
 
@@ -28,7 +28,45 @@ document is in full compliance with[TRD1][TRD1].
 1 Introduction
 ===============================
 
+Software development is commonly structured based on stability
+guarantees where during code review developers ensure that
+functionality that was promised to remain unchanged is in fact
+unchanged, or, the version number is incremented. Tock does include
+stability guarantees, and we find that established software
+engineering practices are sufficient to maintain these (e.g., semantic
+versioning and unit testing).
 
+What is less commonly expressed in software projects is the degree to
+which particular code has been reviewed, validated, considered, and
+audited. Certain interfaces and modules within Tock feature subtle
+correctness requirements, have non-obvious yet wide-ranging
+implications for the OS, or were notoriously buggy in earlier
+implementations. These get extra scrutiny, and developers gain an
+intuition over time as to which code has been highly vetted, and the
+bar for its modification is very high. However, the trusted and vetted
+nature of particular modules is difficult for new developers or
+contributors to perceive, which leads to frustration and confusion
+when a small or simple seeming change requires extensive discussion.
+More importantly, code reviewers must be able to identify when a
+change impacts vetted code and review it appropriately. Otherwise,
+seemingly innocuous (but incorrect) changes could have significant
+impacts to Tock security.
+
+Marking code's "trust tier" explicitly can have major benefits to code
+review as well as user trust in Tock's security. For reviewers and
+contributors alike, it can help guide and prepare contributors for the
+level of scrutiny their contributions might receive. For example, if a
+contribution changes code marked "Critical," it should be clearer that
+such changes will require more scrutiny than code marked
+"Experimental." Similarly, explicit annotations might deter
+contributors from _unnecessarily_ modifying code in higher trust tiers
+in contributions that are otherwise unrelated. For users, it can help
+inform which subsystems are the most well-scrutinized and tested and
+which are unwise to rely on without further auditing.
+
+Explicit annotations in the code itself can also enable tools to
+enforce related rules. For example, functions in highly scrutinized
+code should not call functions in experimenal code.
 
 2 Tiers
 ===============================
@@ -36,13 +74,13 @@ document is in full compliance with[TRD1][TRD1].
 Tock code is grouped into five tiers, with higher numbered tiers denoting more
 important code.
 
-| Tier # | Tier         | Default | Description                                                     |
-|--------|--------------|---------|-----------------------------------------------------------------|
-| 5      | Verified     | No      | Formally verified code with necessary proof                     |
-| 4      | Critical     | No      | High-priority code directly relevant to the Tock security model |
-| 3      | Priority     | No      | Important, long-standing code with significant scrutiny         |
-| 2      | Normal       | Yes     | Typical Tock code                                               |
-| 1      | Experimental | No      | Explicitly experimental code likely to change                   |
+| Tier # | Tier         | Description                                                     |
+|--------|--------------|-----------------------------------------------------------------|
+| 5      | Verified     | Formally verified code with necessary proof                     |
+| 4      | Critical     | High-priority code directly relevant to the Tock security model |
+| 3      | Priority     | Important, long-standing code with significant scrutiny         |
+| 2      | Normal       | Typical Tock code                                               |
+| 1      | Experimental | Explicitly experimental code likely to change                   |
 
 By default, all Tock code not otherwise categorized is considered "Normal".
 
@@ -76,16 +114,14 @@ By default, all Tock code not otherwise categorized is considered "Normal".
 
 3 Annotation Mechanism
 ===============================
- 
+
 Code is assigned a tier in Tock using...
 
 3.1 Default Tier
 -------------------------------
 
-If there is not annotation present the code is in the Normal tier.
-
-
-
+If there is no annotation present code is, by default, in the Normal
+tier.
 
 Author Addresses
 =================================
@@ -98,6 +134,9 @@ P.O. Box 400336
 Charlottesville, Virginia 22904
 
 email: Brad Campbell <bradjc@virginia.edu>
+
+Amit Levy
+email: Amit Levy <amit@betterbytes.org>
 ```
 
 [TRD1]: trd1-trds.md "Tock Reference Document (TRD) Structure and Keywords"
