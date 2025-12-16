@@ -81,6 +81,7 @@ use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
@@ -406,12 +407,7 @@ pub unsafe fn start_no_pconsole() -> (
     //--------------------------------------------------------------------------
 
     // Apply errata fixes and enable interrupts.
-    nrf52840::init();
-
-    // Initialize deferred calls very early.
-    kernel::deferred_call::initialize_deferred_call_state::<
-        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >();
+    ChipHw::init();
 
     // Bind global variables to this thread.
     PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
