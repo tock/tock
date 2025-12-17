@@ -548,13 +548,11 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn ready(&self) -> bool {
-        self.state.get() == State::Running
-            || if let State::YieldedFor { ready: true, .. } = self.state.get() {
-                true
-            } else {
-                false
-            }
-            || self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
+        match self.state.get() {
+            State::Running | State::YieldedFor { ready: true, .. } => true,
+            State::Yielded => self.tasks.map_or(false, |ring_buf| ring_buf.has_elements()),
+            _ => false,
+        }
     }
 
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize {
@@ -623,7 +621,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
-    fn set_yielded_for_state_return_available(&self, upcall_id: UpcallId) {
+    fn set_yielded_for_state_ready(&self, upcall_id: UpcallId) {
         if let State::YieldedFor { upcall_id: id, .. } = self.state.get() {
             if id == upcall_id {
                 self.state.set(State::YieldedFor {

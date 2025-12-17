@@ -139,7 +139,7 @@ impl Upcall {
                     argument1: r1,
                     argument2: r2,
                 }))?;
-                process.set_yielded_for_state_return_available(self.upcall_id);
+                process.set_yielded_for_state_ready(self.upcall_id);
                 Ok(())
             },
             |fp| {
@@ -151,7 +151,7 @@ impl Upcall {
                     argument3: self.appdata,
                     pc: *fp,
                 }))?;
-                process.set_yielded_for_state_return_available(self.upcall_id);
+                process.set_yielded_for_state_ready(self.upcall_id);
                 Ok(())
             },
         );

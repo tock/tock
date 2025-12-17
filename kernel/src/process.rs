@@ -440,7 +440,7 @@ pub trait Process {
     ///
     /// This will fail (i.e. not do anything) if the process was not previously
     /// running.
-    fn set_yielded_for_state_return_available(&self, upcall_id: UpcallId);
+    fn set_yielded_for_state_ready(&self, upcall_id: UpcallId);
 
     /// Move this process from running or yielded state into the stopped state.
     ///
