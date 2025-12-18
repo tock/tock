@@ -440,7 +440,7 @@ unsafe fn start() -> (
         capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
         capsules_core::virtualizers::virtual_pwm::PwmPinUser::new(
             mux_pwm,
-            nrf52840::pinmux::Pinmux::new(SPEAKER_PIN as u32)
+            nrf52840::pinmux::Pinmux::new(SPEAKER_PIN)
         )
     );
     virtual_pwm_buzzer.add_to_mux();
@@ -625,8 +625,8 @@ unsafe fn start() -> (
     );
     kernel::deferred_call::DeferredCallClient::register(sensors_i2c_bus);
     base_peripherals.twi1.configure(
-        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
-        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
     );
     base_peripherals.twi1.set_master_client(sensors_i2c_bus);
 
@@ -675,9 +675,9 @@ unsafe fn start() -> (
         .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
 
     base_peripherals.spim0.configure(
-        nrf52840::pinmux::Pinmux::new(ST7789H2_MOSI as u32),
-        nrf52840::pinmux::Pinmux::new(ST7789H2_MISO as u32),
-        nrf52840::pinmux::Pinmux::new(ST7789H2_SCK as u32),
+        nrf52840::pinmux::Pinmux::new(ST7789H2_MOSI),
+        nrf52840::pinmux::Pinmux::new(ST7789H2_MISO),
+        nrf52840::pinmux::Pinmux::new(ST7789H2_SCK),
     );
 
     let bus = components::bus::SpiMasterBusComponent::new(

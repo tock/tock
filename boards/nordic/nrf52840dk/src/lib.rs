@@ -735,9 +735,9 @@ pub unsafe fn start_no_pconsole() -> (
     ));
 
     base_peripherals.spim0.configure(
-        nrf52840::pinmux::Pinmux::new(SPI_MOSI as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_MISO as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_CLK as u32),
+        nrf52840::pinmux::Pinmux::new(SPI_MOSI),
+        nrf52840::pinmux::Pinmux::new(SPI_MISO),
+        nrf52840::pinmux::Pinmux::new(SPI_CLK),
     );
 
     //--------------------------------------------------------------------------
@@ -832,8 +832,8 @@ pub unsafe fn start_no_pconsole() -> (
     ));
 
     base_peripherals.twi1.configure(
-        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
-        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
     );
     base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K400);
 
