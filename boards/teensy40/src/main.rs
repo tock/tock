@@ -25,7 +25,6 @@ use kernel::debug::PanicResources;
 use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::platform::chip::ClockInterface;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
@@ -42,6 +41,8 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterI
 /// What should we do if a process faults?
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Teensy 4 platform
 struct Teensy40 {
@@ -60,7 +61,7 @@ struct Teensy40 {
         >,
     >,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm7::systick::SysTick,
 }
 
@@ -85,7 +86,7 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

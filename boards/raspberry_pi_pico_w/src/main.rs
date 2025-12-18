@@ -13,8 +13,8 @@ use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability};
-use kernel::{scheduler::round_robin::RoundRobinSched, syscall::SyscallDriver};
 use pio_gspi_component::{pio_gpsi_component_static, PioGspiComponent};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::gpio::{RPGpio, RPGpioPin};
@@ -69,7 +69,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = raspberry_pi_pico::SchedulerInUse;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

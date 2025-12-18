@@ -19,7 +19,6 @@ use kernel::hil::gpio::FloatingState;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::usb::Client;
 use kernel::platform::SyscallDriverLookup;
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::Kernel;
@@ -50,12 +49,12 @@ mod flash_bootloader;
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
 // Number of concurrent processes this platform supports.
-pub const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 4;
 
 pub type ChipHw = Rp2040<'static, Rp2040DefaultPeripherals<'static>>;
-pub type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-/// Resources for when a board panics.
+/// Resources for when a board panics used by io.rs.
 pub static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new(PanicResources::new());
 
@@ -64,11 +63,13 @@ type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureRp2040Sensor>;
 
+pub type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// Base drivers for the Raspberry Pi Pico boards
 pub struct Platform {
     pub systick: cortexm0p::systick::SysTick,
     pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    pub scheduler: &'static RoundRobinSched<'static>,
+    pub scheduler: &'static SchedulerInUse,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,

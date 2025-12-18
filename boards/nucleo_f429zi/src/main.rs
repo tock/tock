@@ -19,7 +19,6 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
@@ -57,6 +56,8 @@ type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponent
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
 type RngDriver = components::rng::RngComponentType<stm32f429zi::trng::Trng<'static>>;
 
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// Nucleo F429ZI HSE frequency in MHz
 pub const NUCLEO_F429ZI_HSE_FREQUENCY_MHZ: usize = 8;
 
@@ -81,7 +82,7 @@ struct NucleoF429ZI {
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
     rng: &'static RngDriver,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
     can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
     date_time: &'static capsules_extra::date_time::DateTimeCapsule<
@@ -125,7 +126,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

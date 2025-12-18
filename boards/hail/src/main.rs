@@ -18,7 +18,6 @@ use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -52,6 +51,8 @@ type SI7021Sensor = components::si7021::SI7021ComponentType<
 type TemperatureDriver = components::temperature::TemperatureComponentType<SI7021Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<SI7021Sensor>;
 type RngDriver = components::rng::RngComponentType<sam4l::trng::Trng<'static>>;
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -88,7 +89,7 @@ struct Hail {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     crc: &'static capsules_extra::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules_extra::dac::Dac<'static>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -129,7 +130,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

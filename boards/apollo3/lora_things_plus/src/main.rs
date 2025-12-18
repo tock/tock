@@ -52,7 +52,6 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
@@ -146,6 +145,8 @@ type SignatureVerifyInMemoryKeys =
         64,
     >;
 
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LoRaThingsPlus {
@@ -191,7 +192,7 @@ struct LoRaThingsPlus {
             >,
         >,
     >,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
@@ -374,7 +375,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for LoRa
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();

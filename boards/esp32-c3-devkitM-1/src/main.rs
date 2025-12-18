@@ -17,7 +17,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::priority::PrioritySched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, hil, static_init};
@@ -49,7 +48,9 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 static mut PERIPHERALS: Option<&'static Esp32C3DefaultPeripherals> = None;
 // Test access to scheduler
 #[cfg(test)]
-static mut SCHEDULER: Option<&PrioritySched> = None;
+static mut SCHEDULER: Option<
+    &capsules_system::scheduler::priority::PrioritySched<ProcessManagementCapabilityObj>,
+> = None;
 // Test access to board
 #[cfg(test)]
 static mut BOARD: Option<&'static kernel::Kernel> = None;
@@ -70,6 +71,12 @@ type LedHw = components::sk68xx::Sk68xxLedComponentType<GpioHw, 3>;
 type LedDriver = components::led::LedsComponentType<LedHw, 3>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 
+struct ProcessManagementCapabilityObj {}
+unsafe impl capabilities::ProcessManagementCapability for ProcessManagementCapabilityObj {}
+
+type SchedulerInUse =
+    components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct Esp32C3Board {
@@ -79,7 +86,7 @@ struct Esp32C3Board {
         'static,
         VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static>>,
     >,
-    scheduler: &'static PrioritySched,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     rng: &'static RngDriver,
     led: &'static LedDriver,
@@ -111,7 +118,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type SyscallFilter = ();
     type ProcessFault = ();
     type ContextSwitchCallback = ();
-    type Scheduler = PrioritySched;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
 
@@ -324,8 +331,13 @@ unsafe fn setup() -> (
         )
         .finalize(components::virtual_scheduler_timer_no_mux_component_static!(AlarmHw));
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
-        .finalize(components::priority_component_static!());
+    let scheduler = components::sched::priority::PriorityComponent::new(
+        board_kernel,
+        ProcessManagementCapabilityObj {},
+    )
+    .finalize(components::priority_component_static!(
+        ProcessManagementCapabilityObj
+    ));
 
     //
     // PROCESS CONSOLE
@@ -468,8 +480,13 @@ fn test_runner(tests: &[&dyn Fn()]) {
         PLATFORM = Some(&esp32_c3_board);
         PERIPHERALS = Some(peripherals);
         SCHEDULER = Some(
-            components::sched::priority::PriorityComponent::new(board_kernel)
-                .finalize(components::priority_component_static!()),
+            components::sched::priority::PriorityComponent::new(
+                board_kernel,
+                ProcessManagementCapabilityObj {},
+            )
+            .finalize(components::priority_component_static!(
+                ProcessManagementCapabilityObj
+            )),
         );
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
