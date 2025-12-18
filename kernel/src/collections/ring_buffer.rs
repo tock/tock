@@ -111,6 +111,26 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    /// Finds the first element for which the provided closure returns `true`.
+    ///
+    /// This walks the ring buffer and, upon finding a matching element, returns a
+    /// reference to it.
+    fn find_first_matching<F>(&mut self, f: F) -> Option<&T>
+    where
+        F: Fn(&T) -> bool,
+    {
+        let len = self.ring.len();
+        let mut slot = self.head;
+        while slot != self.tail {
+            if f(&self.ring[slot]) {
+                // This is the desired element, return a reference to it
+                return Some(&self.ring[slot]);
+            }
+            slot = (slot + 1) % len;
+        }
+        None
+    }
+
     /// Removes the first element for which the provided closure returns `true`.
     ///
     /// This walks the ring buffer and, upon finding a matching element, removes
