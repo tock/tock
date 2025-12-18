@@ -123,6 +123,31 @@ Code is assigned a tier in Tock using...
 If there is no annotation present code is, by default, in the Normal
 tier.
 
+4 Using the Code Tier Annotations
+===============================
+
+Annotating code tiers enables some automated processes to aid Tock development.
+This list is not comprehensive, but outlines some anticipated benefits of
+annotating code tiers.
+
+1. Detecting code which relies on a lower tier. Code in the highest tiers
+   (i.e., critical and verified) may have an implicit assumption that it only
+   uses or calls code in the same or higher tier. As an extreme example,
+   critical code should not rely on experimental code for normal operation. With
+   annotated code, static analysis can determine if there are any possible
+   execution paths where any code relies on lower-tier code.
+
+   With Tock's modularity, it is possible that certain kernel configurations
+   would unexpectedly cause high tier code to rely on low tier code. This
+   analysis would help Tock developers and users detect these scenarios.
+
+2. Code review assistance. Reviewing Tock PRs does not require the same scrutiny
+   across all code. However, the required scrutiny is typically determined
+   based on experience and intuition. With labeled code tiers, the expectation
+   for code review is made explicit.
+
+
+
 Author Addresses
 =================================
 
