@@ -12,11 +12,12 @@ use crate::syscall::SyscallReturn;
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
 use crate::ErrorCode;
+use core::fmt::Debug;
 
 /// Type to uniquely identify an upcall subscription across all drivers.
 ///
 /// This contains the driver number and the subscribe number within the driver.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct UpcallId {
     /// The [`SyscallDriver`](crate::syscall_driver::SyscallDriver)
     /// implementation this upcall corresponds to.
@@ -25,6 +26,15 @@ pub struct UpcallId {
     /// start at 0 and increment for each upcall defined for a particular
     /// [`SyscallDriver`](crate::syscall_driver::SyscallDriver).
     pub subscribe_num: usize,
+}
+
+impl Debug for UpcallId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("UpcallId")
+            .field("driver_num", &format_args!("{:#x}", &self.driver_num))
+            .field("subscribe_num", &self.subscribe_num)
+            .finish()
+    }
 }
 
 /// Errors which can occur when scheduling a process Upcall.

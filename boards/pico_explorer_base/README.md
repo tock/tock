@@ -66,7 +66,7 @@ To install OpenOCD on the Raspberry Pi run the following commands on the Pi:
 ```bash
 $ sudo apt update
 $ sudo apt install automake autoconf build-essential texinfo libtool libftdi-dev libusb-1.0-0-dev git
-$ git clone https://github.com/raspberrypi/openocd.git --recursive --branch rp2040 --depth=1
+$ git clone https://github.com/raspberrypi/openocd.git --recursive --depth=1
 $ cd openocd
 $ ./bootstrap
 $ ./configure --enable-ftdi --enable-sysfsgpio --enable-bcm2835gpio
@@ -86,7 +86,7 @@ To install OpenOCD on Debian/Ubuntu run the following commands:
 ```bash
 $ sudo apt update
 $ sudo apt install automake autoconf build-essential texinfo libtool libftdi-dev libusb-1.0-0-dev git
-$ git clone https://github.com/raspberrypi/openocd.git --recursive --branch rp2040 --depth=1
+$ git clone https://github.com/raspberrypi/openocd.git --recursive --depth=1
 $ cd openocd
 $ ./bootstrap
 $ ./configure --enable-picoprobe

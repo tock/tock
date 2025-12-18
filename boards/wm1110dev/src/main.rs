@@ -318,8 +318,8 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     base_peripherals.uarte0.initialize(
-        nrf52::pinmux::Pinmux::new(UART_TX_PIN as u32),
-        nrf52::pinmux::Pinmux::new(UART_RX_PIN as u32),
+        nrf52::pinmux::Pinmux::new(UART_TX_PIN),
+        nrf52::pinmux::Pinmux::new(UART_RX_PIN),
         None,
         None,
     );
@@ -356,8 +356,8 @@ pub unsafe fn start() -> (
     let mux_i2c = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
     base_peripherals.twi1.configure(
-        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
-        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
     );
 
     let sht4x = components::sht4x::SHT4xComponent::new(
@@ -405,9 +405,9 @@ pub unsafe fn start() -> (
     ));
 
     base_peripherals.spim0.configure(
-        nrf52840::pinmux::Pinmux::new(SPI_MOSI_PIN as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_MISO_PIN as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_SCK_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(SPI_MOSI_PIN),
+        nrf52840::pinmux::Pinmux::new(SPI_MISO_PIN),
+        nrf52840::pinmux::Pinmux::new(SPI_SCK_PIN),
     );
 
     base_peripherals

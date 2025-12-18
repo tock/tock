@@ -11,6 +11,8 @@
 
 use kernel::utilities::cells::VolatileCell;
 
+use crate::gpio::Pin;
+
 // Note: only the nrf52840 has two ports, but we create two ports to avoid
 // gating this code by a feature.
 const NUM_PORTS: usize = 2;
@@ -22,7 +24,7 @@ static mut USED_PINS: [VolatileCell<u32>; NUM_PORTS] = [VolatileCell::new(0), Vo
 
 /// An opaque wrapper around a configurable pin.
 #[derive(Copy, Clone)]
-pub struct Pinmux(u32);
+pub struct Pinmux(Pin);
 
 impl Pinmux {
     /// Creates a new `Pinmux` wrapping the numbered pin.
@@ -32,21 +34,31 @@ impl Pinmux {
     /// If a `Pinmux` for this pin has already
     /// been created.
     ///
-    pub unsafe fn new(pin: u32) -> Pinmux {
+    pub unsafe fn new(pin: Pin) -> Pinmux {
         let port: usize = (pin as usize) / PIN_PER_PORT;
         let pin_idx: usize = (pin as usize) % PIN_PER_PORT;
         let used_pins = USED_PINS[port].get();
         if used_pins & (1 << pin_idx) != 0 {
-            panic!("Pin {} is already in use!", pin);
+            panic!("Pin {:?} is already in use!", pin);
         } else {
             USED_PINS[port].set(used_pins | 1 << pin_idx);
             Pinmux(pin)
         }
     }
+
+    pub unsafe fn from_pin(pin: crate::gpio::Pin) -> Pinmux {
+        Pinmux(pin)
+    }
+}
+
+impl From<Pinmux> for crate::gpio::Pin {
+    fn from(val: Pinmux) -> Self {
+        val.0
+    }
 }
 
 impl From<Pinmux> for u32 {
     fn from(val: Pinmux) -> Self {
-        val.0
+        val.0 as _
     }
 }
