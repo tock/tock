@@ -66,7 +66,7 @@ which are unwise to rely on without further auditing.
 
 Explicit annotations in the code itself can also enable tools to
 enforce related rules. For example, functions in highly scrutinized
-code should not call functions in experimenal code.
+code should not call functions in experimental code.
 
 2 Tiers
 ===============================
