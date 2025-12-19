@@ -1993,6 +1993,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             Cell::new(None),
         ];
         process.tasks = MapCell::new(tasks);
+        process.is_yield_wait_for_ready = Cell::new(false);
 
         process.debug = D::default();
         if let Some(fix_addr_flash) = fixed_address_flash {
