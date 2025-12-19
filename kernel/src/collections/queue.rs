@@ -24,6 +24,12 @@ pub trait Queue<T> {
     /// Remove the element from the front of the queue.
     fn dequeue(&mut self) -> Option<T>;
 
+    /// Find and return a reference to one (the first) element
+    /// that matches the predicate.
+    fn find_first_matching<F>(&mut self, f: F) -> Option<&T>
+    where
+        F: Fn(&T) -> bool;
+
     /// Remove and return one (the first) element that matches the predicate.
     fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
