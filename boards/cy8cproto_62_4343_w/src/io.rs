@@ -49,7 +49,7 @@ pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
     let led_kernel_pin = &GpioPin::new(psoc62xa::gpio::PsocPin::P13_7);
     let led = &mut LedHigh::new(led_kernel_pin);
 
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         panic_info,

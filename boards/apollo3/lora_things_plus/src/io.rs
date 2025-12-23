@@ -44,7 +44,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     let led = &mut led::LedLow::new(led_pin);
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         info,

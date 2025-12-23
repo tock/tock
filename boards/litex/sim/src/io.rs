@@ -45,7 +45,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         ),
     };
 
-    debug::panic_print(
+    debug::panic_print_old(
         &mut writer,
         pi,
         &rv32i::support::nop,

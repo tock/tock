@@ -56,7 +56,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut *addr_of_mut!(WRITER);
 
     #[cfg(feature = "sim_verilator")]
-    debug::panic(
+    debug::panic_old(
         &mut [first_led],
         writer,
         pi,
@@ -65,7 +65,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     );
 
     #[cfg(not(feature = "sim_verilator"))]
-    debug::panic(
+    debug::panic_old(
         &mut [first_led],
         writer,
         pi,
@@ -80,9 +80,9 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
     #[cfg(feature = "sim_verilator")]
-    debug::panic_print(writer, pi, &|| {}, crate::PANIC_RESOURCES.get());
+    debug::panic_print_old(writer, pi, &|| {}, crate::PANIC_RESOURCES.get());
     #[cfg(not(feature = "sim_verilator"))]
-    debug::panic_print(
+    debug::panic_print_old(
         writer,
         pi,
         &rv32i::support::nop,
