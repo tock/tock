@@ -9,11 +9,11 @@ use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::Transmit;
 use kernel::hil::uart::{self};
 use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::io_write::IoWrite;
 use nrf52840::gpio::Pin;
 
 struct Writer {

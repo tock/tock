@@ -7,7 +7,7 @@ use core::panic::PanicInfo;
 use core::str;
 use earlgrey::chip_config::EarlGreyConfig;
 use kernel::debug;
-use kernel::debug::IoWrite;
+use kernel::utilities::io_write::IoWrite;
 
 struct Writer {}
 

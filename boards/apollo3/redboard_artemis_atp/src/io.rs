@@ -7,8 +7,8 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
+use kernel::utilities::io_write::IoWrite;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {}

@@ -6,7 +6,7 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
 use kernel::debug;
-use kernel::debug::IoWrite;
+use kernel::utilities::io_write::IoWrite;
 
 struct Writer {}
 

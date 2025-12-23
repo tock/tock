@@ -4,11 +4,12 @@
 
 use core::fmt::{self, Write};
 
-use kernel::debug::{self, IoWrite};
+use kernel::debug;
 use kernel::hil::{
     led,
     uart::{self, Configure},
 };
+use kernel::utilities::io_write::IoWrite;
 
 use crate::imxrt1060::gpio;
 use crate::imxrt1060::lpuart;

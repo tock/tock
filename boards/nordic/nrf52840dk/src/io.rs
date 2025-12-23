@@ -3,9 +3,9 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use kernel::debug::IoWrite;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
+use kernel::utilities::io_write::IoWrite;
 
 use nrf52840::uart::{Uarte, UARTE0_BASE};
 

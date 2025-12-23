@@ -7,9 +7,9 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 use core::str;
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::gpio;
 use kernel::hil::led;
+use kernel::utilities::io_write::IoWrite;
 
 struct Writer {}
 

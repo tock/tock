@@ -5,10 +5,10 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
+use kernel::utilities::io_write::IoWrite;
 use nrf52840::gpio::Pin;
 use nrf52840::uart::{Uarte, UARTE0_BASE};
 

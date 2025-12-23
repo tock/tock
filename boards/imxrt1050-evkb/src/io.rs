@@ -7,10 +7,10 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
+use kernel::utilities::io_write::IoWrite;
 
 use crate::imxrt1050;
 use imxrt1050::gpio::PinId;
