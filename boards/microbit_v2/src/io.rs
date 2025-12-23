@@ -6,9 +6,9 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
+use kernel::utilities::io_write::IoWrite;
 use nrf52833::gpio::Pin;
 use nrf52833::uart::{Uarte, UARTE0_BASE};
 

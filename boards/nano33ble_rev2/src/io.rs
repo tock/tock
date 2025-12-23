@@ -8,9 +8,9 @@ use core::ptr::{addr_of, addr_of_mut};
 
 use cortexm4;
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self};
+use kernel::utilities::io_write::IoWrite;
 use kernel::ErrorCode;
 use nrf52840::gpio::Pin;
 

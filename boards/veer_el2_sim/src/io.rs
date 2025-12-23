@@ -7,7 +7,7 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 use core::ptr::write_volatile;
 use kernel::debug;
-use kernel::debug::IoWrite;
+use kernel::utilities::io_write::IoWrite;
 
 struct Writer {}
 

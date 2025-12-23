@@ -8,8 +8,9 @@ use kernel::utilities::cells::OptionalCell;
 use psoc62xa::gpio::GpioPin;
 use psoc62xa::scb::Scb;
 
-use kernel::debug::{self, IoWrite};
+use kernel::debug;
 use kernel::hil::led::LedHigh;
+use kernel::utilities::io_write::IoWrite;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {

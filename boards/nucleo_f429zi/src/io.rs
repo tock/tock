@@ -7,10 +7,10 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
+use kernel::utilities::io_write::IoWrite;
 
 use stm32f429zi::chip_specs::Stm32f429Specs;
 use stm32f429zi::gpio::PinId;

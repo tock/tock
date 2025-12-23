@@ -5,9 +5,9 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
+use kernel::utilities::io_write::IoWrite;
 
 struct Writer {
     initialized: bool,
