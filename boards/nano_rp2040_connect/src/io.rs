@@ -90,7 +90,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = &mut LedHigh::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         pi,

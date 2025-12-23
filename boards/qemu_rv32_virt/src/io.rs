@@ -36,7 +36,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_print::<_, _, _>(
+    debug::panic_print_old::<_, _, _>(
         writer,
         pi,
         &rv32i::support::nop,

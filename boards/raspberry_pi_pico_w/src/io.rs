@@ -88,7 +88,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_print(
+    debug::panic_print_old(
         writer,
         pi,
         &cortexm0p::support::nop,

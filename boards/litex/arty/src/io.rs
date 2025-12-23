@@ -60,7 +60,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     );
     let panic_led = led0.panic_led(0);
 
-    debug::panic(
+    debug::panic_old(
         &mut [&mut panic_led.unwrap()],
         &mut writer,
         pi,
