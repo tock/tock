@@ -216,7 +216,7 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
                                                     match process.get_state() {
                                                         process::State::Running => 0,
                                                         process::State::Yielded => 1,
-                                                        process::State::YieldedFor(_) => 2,
+                                                        process::State::YieldedFor { .. } => 2,
                                                         process::State::Stopped(_) => 3,
                                                         process::State::Faulted => 4,
                                                         process::State::Terminated => 5,
