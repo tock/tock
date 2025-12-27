@@ -82,7 +82,6 @@
 //! ```
 
 use crate::platform::chip::ThreadIdProvider;
-use crate::utilities::cells::MapCell;
 use crate::utilities::cells::OptionalCell;
 use crate::utilities::single_thread_value::SingleThreadValue;
 use core::cell::Cell;
@@ -158,8 +157,8 @@ static BITMASK: SingleThreadValue<Cell<u32>> = SingleThreadValue::new(Cell::new(
 /// An array that stores references to up to 32 `DeferredCall`s via the low-cost
 /// [`DynDefCallRef`].
 // This is a 256 byte array, but at least resides in `.bss`.
-static DEFCALLS: SingleThreadValue<MapCell<[OptionalCell<DynDefCallRef<'static>>; 32]>> =
-    SingleThreadValue::new(MapCell::new([const { OptionalCell::empty() }; 32]));
+static DEFCALLS: SingleThreadValue<[OptionalCell<DynDefCallRef<'static>>; 32]> =
+    SingleThreadValue::new([const { OptionalCell::empty() }; 32]);
 
 /// Initialize the static state used by deferred calls.
 ///
@@ -215,18 +214,16 @@ impl DeferredCall {
     // moved into this function without generic parameters.
     #[inline(never)]
     fn register_internal_non_generic(&self, handler: DynDefCallRef<'static>) {
-        if let Some(defcalls_cell) = DEFCALLS.get() {
-            defcalls_cell.map(|defcalls| {
-                if self.idx >= defcalls.len() {
-                    // This error will be caught by the scheduler at the beginning of
-                    // the kernel loop, which is much better than panicking here, before
-                    // the debug writer is setup. Also allows a single panic for
-                    // creating too many deferred calls instead of NUM_DCS panics (this
-                    // function is monomorphized).
-                    return;
-                }
-                defcalls[self.idx].set(handler);
-            });
+        if let Some(defcalls) = DEFCALLS.get() {
+            if self.idx >= defcalls.len() {
+                // This error will be caught by the scheduler at the beginning of
+                // the kernel loop, which is much better than panicking here, before
+                // the debug writer is setup. Also allows a single panic for
+                // creating too many deferred calls instead of NUM_DCS panics (this
+                // function is monomorphized).
+                return;
+            }
+            defcalls[self.idx].set(handler);
         }
     }
 
@@ -260,22 +257,20 @@ impl DeferredCall {
     /// Services and clears the next pending [`DeferredCall`], returns which
     /// index was serviced.
     pub fn service_next_pending() -> Option<usize> {
-        let defcalls_cell = DEFCALLS.get()?;
-        defcalls_cell.map_or(None, |defcalls| {
-            let bitmask = BITMASK.get()?;
-            let val = bitmask.get();
-            if val == 0 {
-                None
-            } else {
-                let bit = val.trailing_zeros() as usize;
-                let new_val = val & !(1 << bit);
-                bitmask.set(new_val);
-                defcalls[bit].map(|dc| {
-                    dc.handle_deferred_call();
-                    bit
-                })
-            }
-        })
+        let defcalls = DEFCALLS.get()?;
+        let bitmask = BITMASK.get()?;
+        let val = bitmask.get();
+        if val == 0 {
+            None
+        } else {
+            let bit = val.trailing_zeros() as usize;
+            let new_val = val & !(1 << bit);
+            bitmask.set(new_val);
+            defcalls[bit].map(|dc| {
+                dc.handle_deferred_call();
+                bit
+            })
+        }
     }
 
     /// Returns true if any deferred calls are waiting to be serviced, false
@@ -310,22 +305,20 @@ impl DeferredCall {
     // IntoIterator is not implemented for OptionalCell.
     #[allow(clippy::iter_filter_is_some)]
     pub fn verify_setup() {
-        if let Some(defcalls_cell) = DEFCALLS.get() {
-            defcalls_cell.map(|defcalls| {
-                if let Some(ctr) = CTR.get() {
-                    let num_deferred_calls = ctr.get();
-                    let num_registered_calls = defcalls.iter().filter(|opt| opt.is_some()).count();
-                    if num_deferred_calls > defcalls.len() {
-                        panic!("ERROR: too many deferred calls: {}", num_deferred_calls);
-                    } else if num_deferred_calls != num_registered_calls {
-                        panic!(
-                            "ERROR: {} deferred calls, {} registered. \
+        if let Some(defcalls) = DEFCALLS.get() {
+            if let Some(ctr) = CTR.get() {
+                let num_deferred_calls = ctr.get();
+                let num_registered_calls = defcalls.iter().filter(|opt| opt.is_some()).count();
+                if num_deferred_calls > defcalls.len() {
+                    panic!("ERROR: too many deferred calls: {}", num_deferred_calls);
+                } else if num_deferred_calls != num_registered_calls {
+                    panic!(
+                        "ERROR: {} deferred calls, {} registered. \
 A component may have forgotten to register a deferred call.",
-                            num_deferred_calls, num_registered_calls
-                        );
-                    }
+                        num_deferred_calls, num_registered_calls
+                    );
                 }
-            });
+            }
         } else {
             // The board must call initialize_deferred_call_state() or
             // initialize_deferred_call_state_unsafe() before creating any
