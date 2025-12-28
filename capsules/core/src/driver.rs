@@ -25,7 +25,7 @@ pub enum NUM {
     Pwm                   = 0x00010,
 
     // Kernel
-    Ipc                   = 0x10000,
+    OldIpc                = 0x10000,
     AppLoader             = 0x10001,
     ProcessInfo           = 0x10002,
 
@@ -102,5 +102,9 @@ pub enum NUM {
     DateTime              = 0x90007,
     CycleCount            = 0x90008,
     Servo                 = 0x90009,
+
+    // IPC Mechanisms
+    IpcRegistryStringName  = 0xA0000,
+    IpcRegistryPackageName = 0xA0001,
 }
 }
