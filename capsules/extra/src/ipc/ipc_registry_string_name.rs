@@ -180,8 +180,6 @@ impl SyscallDriver for IpcRegistryStringName {
     /// - `0`: Check driver presence
     /// - `1`: Register as service with allowed name
     /// - `2`: Discover service with allowed name
-    /// - `3`: Get notifications when a service registers
-    /// - `4`: Stop notifications when a service registers
     fn command(
         &self,
         command_num: usize,
