@@ -139,7 +139,7 @@ pub struct MicroBit {
     pwm: &'static PwmDriver,
     app_flash: &'static AppFlashDriver,
     sound_pressure: &'static SoundPressureDriver,
-
+    ipc_registry: &'static capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
@@ -167,6 +167,7 @@ impl SyscallDriverLookup for MicroBit {
             capsules_extra::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
+            capsules_extra::ipc::ipc_registry_string_name::DRIVER_NUM => f(Some(self.ipc_registry)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -663,6 +664,20 @@ unsafe fn start() -> (
     );
 
     //--------------------------------------------------------------------------
+    // Interprocess Communication
+    //--------------------------------------------------------------------------
+
+    let ipc_registry = static_init!(
+        capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName,
+        capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName::new(
+            board_kernel.create_grant(
+                capsules_extra::ipc::ipc_registry_string_name::DRIVER_NUM,
+                &memory_allocation_capability
+            )
+        )
+    );
+
+    //--------------------------------------------------------------------------
     // Process Console
     //--------------------------------------------------------------------------
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -714,6 +729,7 @@ unsafe fn start() -> (
         adc: adc_syscall,
         alarm,
         app_flash,
+        ipc_registry,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
