@@ -77,8 +77,8 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
     ) -> Self {
         Self {
             apps: grant,
-            kernel: kernel,
-            capability: capability,
+            kernel,
+            capability,
         }
     }
 
@@ -106,14 +106,13 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
                 Ok(())
             })
             .unwrap_or_else(|err| err.into())
-            .and_then(|_| {
+            .map(|()| {
                 // Notify all other apps of a new registration. Only apps that are subscribed will get the notification.
                 self.apps.each(|otherid, _, kerneldata| {
                     if otherid != processid {
                         let _ = kerneldata.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0));
                     }
                 });
-                Ok(())
             })
     }
 

@@ -94,14 +94,13 @@ impl IpcRegistryStringName {
                     })
             })
             .unwrap_or_else(|err| err.into())
-            .and_then(|_| {
+            .map(|()| {
                 // Notify all other apps of a new registration. Only apps that are subscribed will get the notification.
                 self.apps.each(|otherid, _, kerneldata| {
                     if otherid != processid {
                         let _ = kerneldata.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0));
                     }
                 });
-                Ok(())
             })
     }
 
@@ -112,21 +111,23 @@ impl IpcRegistryStringName {
             .enter(processid, |_, this_kerneldata| {
                 this_kerneldata
                     .get_readonly_processbuffer(ro_allow::STRING_NAME)
-                    .map(|allow_name| {
-                        allow_name
-                            .enter(|buf| {
-                                if buf.len() != 20 {
-                                    // Error if allowed name is not exactly 20 bytes
-                                    Err(ErrorCode::SIZE)
-                                } else {
-                                    let n = core::cmp::min(buf.len(), this_name.len());
-                                    buf[0..n].copy_to_slice(&mut this_name[0..n]);
-                                    Ok(())
-                                }
-                            })
-                            .unwrap_or_else(|err| err.into())
-                    })
-                    .unwrap_or_else(|err| err.into())
+                    .map_or_else(
+                        |err| err.into(),
+                        |allow_name| {
+                            allow_name
+                                .enter(|buf| {
+                                    if buf.len() != 20 {
+                                        // Error if allowed name is not exactly 20 bytes
+                                        Err(ErrorCode::SIZE)
+                                    } else {
+                                        let n = core::cmp::min(buf.len(), this_name.len());
+                                        buf[0..n].copy_to_slice(&mut this_name[0..n]);
+                                        Ok(())
+                                    }
+                                })
+                                .unwrap_or_else(|err| err.into())
+                        },
+                    )
             })
             .unwrap_or_else(|err| err.into())?;
 
