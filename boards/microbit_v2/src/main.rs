@@ -87,6 +87,10 @@ type Ieee802154RawDriver =
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+/// Needed for IPC registry package name capsule.
+pub struct PMCapability;
+unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
+
 /// Supported drivers by the platform
 pub struct MicroBit {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -144,7 +148,11 @@ pub struct MicroBit {
     pwm: &'static capsules_extra::pwm::Pwm<'static, 1>,
     app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules_extra::sound_pressure::SoundPressureSensor<'static>,
-    ipc_registry: &'static capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName,
+
+    //ipc_registry: &'static capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName,
+    ipc_registry: &'static capsules_extra::ipc::ipc_registry_package_name::IpcRegistryPackageName<
+        PMCapability,
+    >,
 
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
@@ -173,7 +181,10 @@ impl SyscallDriverLookup for MicroBit {
             capsules_extra::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
-            capsules_extra::ipc::ipc_registry_string_name::DRIVER_NUM => f(Some(self.ipc_registry)),
+            //capsules_extra::ipc::ipc_registry_string_name::DRIVER_NUM => f(Some(self.ipc_registry)),
+            capsules_extra::ipc::ipc_registry_package_name::DRIVER_NUM => {
+                f(Some(self.ipc_registry))
+            }
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -728,13 +739,25 @@ unsafe fn start() -> (
     // Interprocess Communication
     //--------------------------------------------------------------------------
 
+    // let ipc_registry = static_init!(
+    //     capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName,
+    //     capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName::new(
+    //         board_kernel.create_grant(
+    //             capsules_extra::ipc::ipc_registry_string_name::DRIVER_NUM,
+    //             &memory_allocation_capability
+    //         )
+    //     )
+    // );
+
     let ipc_registry = static_init!(
-        capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName,
-        capsules_extra::ipc::ipc_registry_string_name::IpcRegistryStringName::new(
+        capsules_extra::ipc::ipc_registry_package_name::IpcRegistryPackageName<PMCapability>,
+        capsules_extra::ipc::ipc_registry_package_name::IpcRegistryPackageName::new(
             board_kernel.create_grant(
-                capsules_extra::ipc::ipc_registry_string_name::DRIVER_NUM,
+                capsules_extra::ipc::ipc_registry_package_name::DRIVER_NUM,
                 &memory_allocation_capability
-            )
+            ),
+            board_kernel,
+            PMCapability
         )
     );
 
