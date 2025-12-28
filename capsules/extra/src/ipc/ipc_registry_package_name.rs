@@ -36,8 +36,10 @@ mod upcall {
     pub const REGISTRATION_COMPLETE: usize = 0;
     /// Subscribe to discovery complete callback.
     pub const DISCOVERY_COMPLETE: usize = 1;
+    /// Subscribe to callbacks whenever a new service registers.
+    pub const NEW_REGISTRATION: usize = 2;
     /// Number of upcalls.
-    pub const COUNT: u8 = 2;
+    pub const COUNT: u8 = 3;
 }
 
 /// Per-process metadata
@@ -104,6 +106,15 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
                 Ok(())
             })
             .unwrap_or_else(|err| err.into())
+            .and_then(|_| {
+                // Notify all other apps of a new registration. Only apps that are subscribed will get the notification.
+                self.apps.each(|otherid, _, kerneldata| {
+                    if otherid != processid {
+                        let _ = kerneldata.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0));
+                    }
+                });
+                Ok(())
+            })
     }
 
     fn compare_names(&self, clientid: ProcessId, serverid: ProcessId) -> bool {
@@ -165,7 +176,12 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
                 }
             }
         }
-        Err(ErrorCode::UNINSTALLED)
+
+        // No match found, return successfully but upcall that discovery failed
+        let _ = self.apps.enter(processid, |_, kernel_data| {
+            kernel_data.schedule_upcall(upcall::DISCOVERY_COMPLETE, (0, 0, 0))
+        });
+        Ok(())
     }
 }
 

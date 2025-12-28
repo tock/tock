@@ -42,7 +42,6 @@ mod upcall {
 #[derive(Default)]
 pub struct App {
     registered_name: [u8; 20],
-    get_registration_notifications: bool,
 }
 
 pub struct IpcRegistryStringName {
@@ -96,21 +95,12 @@ impl IpcRegistryStringName {
             })
             .unwrap_or_else(|err| err.into())
             .and_then(|_| {
-                // TODO: Should we remove the get_registration_notification flag and commands and just notify all apps regardless? The notification would be dropped if they haven't subscribed to it.
-
-                // Notify any other apps waiting on a registration to occur
-                for cntr in self.apps.iter() {
-                    if cntr.processid() != processid {
-                        let otherid = cntr.processid();
-
-                        if cntr.enter(|other_app, _| other_app.get_registration_notifications) {
-                            // Notify this app
-                            let _ = self.apps.enter(otherid, |_, kernel_data| {
-                                kernel_data.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0))
-                            });
-                        }
+                // Notify all other apps of a new registration. Only apps that are subscribed will get the notification.
+                self.apps.each(|otherid, _, kerneldata| {
+                    if otherid != processid {
+                        let _ = kerneldata.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0));
                     }
-                }
+                });
                 Ok(())
             })
     }
@@ -163,29 +153,17 @@ impl IpcRegistryStringName {
                             .schedule_upcall(upcall::DISCOVERY_COMPLETE, (1, otherid.id(), 0))
                     });
 
+                    // Discovery complete
                     return Ok(());
                 }
             }
         }
-        Err(ErrorCode::UNINSTALLED)
-    }
 
-    fn enable_registration_notifications(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        self.apps
-            .enter(processid, |app, _| {
-                app.get_registration_notifications = true;
-                Ok(())
-            })
-            .unwrap_or_else(|err| err.into())
-    }
-
-    fn disable_registration_notifications(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        self.apps
-            .enter(processid, |app, _| {
-                app.get_registration_notifications = false;
-                Ok(())
-            })
-            .unwrap_or_else(|err| err.into())
+        // No match found, return successfully but upcall that discovery failed
+        let _ = self.apps.enter(processid, |_, kernel_data| {
+            kernel_data.schedule_upcall(upcall::DISCOVERY_COMPLETE, (0, 0, 0))
+        });
+        Ok(())
     }
 }
 
@@ -214,8 +192,6 @@ impl SyscallDriver for IpcRegistryStringName {
             0 => CommandReturn::success(),
             1 => self.register(processid).into(),
             2 => self.discover(processid).into(),
-            3 => self.enable_registration_notifications(processid).into(),
-            4 => self.disable_registration_notifications(processid).into(),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
