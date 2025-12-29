@@ -6,8 +6,8 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
+use kernel::utilities::io_write::IoWrite;
 use msp432::gpio::IntPinNr;
 use msp432::wdt::Wdt;
 
@@ -42,7 +42,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     let wdt = Wdt::new();
 
     wdt.disable();
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         info,
