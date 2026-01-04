@@ -45,56 +45,6 @@ register_bitfields![u16,
     ],
 ];
 
-// This is an unsafe workaround of an unsafe workaround.
-//
-// Unfortunately, the Rust core library defines defaults on arrays not in a
-// generic way, but only for arrays up to 32 elements. Hence, for arrays using a
-// const-generic argument for their length, `Default::<[$SOMETHING_NON_DEFAULT;
-// CONST_GENERIC_USIZE]>::default()` does not work in Rust (as of
-// 2022-11-26). Instead, we need to use this horrible and unsafe hack as
-// documented here, which initializes an array of `MaybeUninit`s and transmutes:
-// (https://doc.rust-lang.org/stable/std/mem/union.MaybeUninit.html#initializing-an-array-element-by-element)
-//
-// However, Rust is also unable to transmute from a `MaybeUninit<T>` to a
-// generic `T`, even though the former is explicitly layout-compatible with the
-// latter. Hence, we have to use another hack described in the following
-// comment:
-// https://github.com/rust-lang/rust/issues/62875#issuecomment-513834029
-//
-// This function encapsulates all of this unsafe code and should be safe to use
-// until Rust adds support for constructing arrays over a const-generic length
-// from the contained types' default values.
-//
-// In large parts, this function is a verbatim copy of Rust's example for
-// element-wise array initialization using `MaybeUninit`:
-// https://doc.rust-lang.org/stable/std/mem/union.MaybeUninit.html#initializing-an-array-element-by-element
-fn init_constgeneric_default_array<const N: usize, T: Default>() -> [T; N] {
-    // Create an uninitialized array of `MaybeUninit`. The `assume_init` is safe
-    // because the type we are claiming to have initialized here is a bunch of
-    // `MaybeUninit`s, which do not require initialization.
-    let mut uninit_arr: [core::mem::MaybeUninit<T>; N] =
-        unsafe { core::mem::MaybeUninit::uninit().assume_init() };
-
-    // Dropping a `MaybeUninit` does nothing, so if there is a panic during this
-    // loop, we have a memory leak, but there is no memory safety issue.
-    for elem in &mut uninit_arr[..] {
-        elem.write(T::default());
-    }
-
-    // Everything is initialized. We'd like to transmute the `[MaybeUnit<T>; N]`
-    // array into a `[T; N]`, but transmuting `MaybeUninit<T>` to `T` (where T
-    // is generic) is not (yet) supported. Hence we need to take a pointer to
-    // this array, cast it to the correct type, read the pointer back and forget
-    // the original `[MaybeUnit<T>; N]` array, as described here:
-    // https://github.com/rust-lang/rust/issues/62875#issuecomment-513834029
-    let uninit_arr_ptr: *mut [core::mem::MaybeUninit<T>; N] = &mut uninit_arr as *mut _;
-    let transmuted: [T; N] = unsafe { core::ptr::read(uninit_arr_ptr.cast::<[T; N]>()) };
-
-    // With the original value forgotten and new value recreated from its
-    // pointer, return it:
-    transmuted
-}
-
 /// A single Virtqueue descriptor.
 ///
 /// Implements the memory layout of a single Virtqueue descriptor of a
@@ -142,7 +92,7 @@ pub struct VirtqueueDescriptors<const MAX_QUEUE_SIZE: usize>([VirtqueueDescripto
 
 impl<const MAX_QUEUE_SIZE: usize> Default for VirtqueueDescriptors<MAX_QUEUE_SIZE> {
     fn default() -> Self {
-        VirtqueueDescriptors(init_constgeneric_default_array())
+        VirtqueueDescriptors(core::array::from_fn(|_| VirtqueueDescriptor::default()))
     }
 }
 
@@ -201,7 +151,7 @@ impl<const MAX_QUEUE_SIZE: usize> Default for VirtqueueAvailableRing<MAX_QUEUE_S
         VirtqueueAvailableRing {
             flags: InMemoryRegister::new(0),
             idx: InMemoryRegister::new(0),
-            ring: init_constgeneric_default_array(),
+            ring: core::array::from_fn(|_| VirtqueueAvailableElement::default()),
             used_event: InMemoryRegister::new(0),
         }
     }
@@ -244,7 +194,7 @@ impl<const MAX_QUEUE_SIZE: usize> Default for VirtqueueUsedRing<MAX_QUEUE_SIZE> 
         VirtqueueUsedRing {
             flags: InMemoryRegister::new(0),
             idx: InMemoryRegister::new(0),
-            ring: init_constgeneric_default_array(),
+            ring: core::array::from_fn(|_| VirtqueueUsedElement::default()),
             avail_event: InMemoryRegister::new(0),
         }
     }
@@ -493,7 +443,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
             queue_number: Cell::new(0),
             max_elements: Cell::new(MAX_QUEUE_SIZE),
 
-            descriptor_buffers: init_constgeneric_default_array(),
+            descriptor_buffers: core::array::from_fn(|_| OptionalCell::empty()),
 
             client: OptionalCell::empty(),
             used_callbacks_enabled: Cell::new(false),
@@ -731,8 +681,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
     ) -> [Option<VirtqueueBuffer<'b>>; MAX_QUEUE_SIZE] {
         assert!(self.initialized.get());
 
-        let mut res: [Option<VirtqueueBuffer<'b>>; MAX_QUEUE_SIZE] =
-            init_constgeneric_default_array();
+        let mut res: [Option<VirtqueueBuffer<'b>>; MAX_QUEUE_SIZE] = [const { None }; _];
 
         let mut i = 0;
         let mut next_index: Option<usize> = Some(top_descriptor_index);
