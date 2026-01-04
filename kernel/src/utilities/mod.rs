@@ -7,6 +7,7 @@
 pub mod arch_helpers;
 pub mod binary_write;
 pub mod capability_ptr;
+pub mod copy_range;
 pub mod copy_slice;
 pub mod helpers;
 pub mod leasable_buffer;
