@@ -230,6 +230,7 @@ impl<'a, T> From<&'a [T]> for SubSlice<'a, T> {
 /// In cases where code needs to support either a mutable or immutable SubSlice,
 /// `SubSliceMutImmut` allows the code to store a single type which can
 /// represent either option.
+#[derive(Debug)]
 pub enum SubSliceMutImmut<'a, T> {
     Immutable(SubSlice<'a, T>),
     Mutable(SubSliceMut<'a, T>),
