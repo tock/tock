@@ -6,22 +6,26 @@ use core::cell::Cell;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::rng::{Client as RngClient, Continue as RngCont, Rng};
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
-use super::super::queues::split_queue::{SplitVirtqueue, SplitVirtqueueClient, VirtqueueBuffer};
+use super::super::queues::split_queue::{
+    SplitVirtqueue, SplitVirtqueueClient, VirtqueueBuffer, VirtqueueReturnBuffer,
+};
 
-pub struct VirtIORng<'a, 'b> {
-    virtqueue: &'a SplitVirtqueue<'a, 'b, 1>,
+pub struct VirtIORng<'a, 'b, F: DmaFence> {
+    virtqueue: &'a SplitVirtqueue<'a, 'b, 1, F>,
     buffer_capacity: Cell<usize>,
     callback_pending: Cell<bool>,
     deferred_call: DeferredCall,
     client: OptionalCell<&'a dyn RngClient>,
 }
 
-impl<'a, 'b> VirtIORng<'a, 'b> {
-    pub fn new(virtqueue: &'a SplitVirtqueue<'a, 'b, 1>) -> VirtIORng<'a, 'b> {
+impl<'a, 'b, F: DmaFence> VirtIORng<'a, 'b, F> {
+    pub fn new(virtqueue: &'a SplitVirtqueue<'a, 'b, 1, F>) -> VirtIORng<'a, 'b, F> {
         VirtIORng {
             virtqueue,
             buffer_capacity: Cell::new(0),
@@ -42,11 +46,9 @@ impl<'a, 'b> VirtIORng<'a, 'b> {
             return Err((buf, ErrorCode::INVAL));
         }
 
-        let mut buffer_chain = [Some(VirtqueueBuffer {
+        let mut buffer_chain = [Some(VirtqueueBuffer::DeviceWriteable(SubSliceMut::new(
             buf,
-            len,
-            device_writeable: true,
-        })];
+        )))];
 
         let res = self.virtqueue.provide_buffer_chain(&mut buffer_chain);
 
@@ -54,8 +56,12 @@ impl<'a, 'b> VirtIORng<'a, 'b> {
             Err(ErrorCode::NOMEM) => {
                 // Hand back the buffer, the queue MUST NOT write partial
                 // buffer chains
-                let buf = buffer_chain[0].take().unwrap().buf;
-                Err((buf, ErrorCode::NOMEM))
+                let VirtqueueBuffer::DeviceWriteable(sub_slice_mut) =
+                    buffer_chain[0].take().unwrap()
+                else {
+                    panic!("SplitVirtqueue returned DeviceReadable buffer!")
+                };
+                Err((sub_slice_mut.take(), ErrorCode::NOMEM))
             }
             Err(e) => panic!("Unexpected error {:?}", e),
             Ok(()) => {
@@ -69,7 +75,7 @@ impl<'a, 'b> VirtIORng<'a, 'b> {
 
     fn buffer_chain_callback(
         &self,
-        buffer_chain: &mut [Option<VirtqueueBuffer<'b>>],
+        buffer_chain: &mut [Option<VirtqueueReturnBuffer<'b>>],
         bytes_used: usize,
     ) {
         // Disable further callbacks, until we're sure we need them
@@ -79,10 +85,16 @@ impl<'a, 'b> VirtIORng<'a, 'b> {
         self.virtqueue.disable_used_callbacks();
 
         // We only have buffer chains of a single buffer
-        let buf = buffer_chain[0].take().unwrap().buf;
+        let virtqueue_return_buffer = buffer_chain[0].take().unwrap();
+        let VirtqueueBuffer::DeviceWriteable(sub_slice_mut) =
+            virtqueue_return_buffer.virtqueue_buffer
+        else {
+            panic!("SplitVirtqueue returned DeviceReadable buffer!")
+        };
+        let buf = sub_slice_mut.take();
 
         // We have taken out a buffer, hence decrease the available capacity
-        assert!(self.buffer_capacity.get() >= buf.len());
+        assert!(self.buffer_capacity.get() >= virtqueue_return_buffer.device_len);
 
         // It could've happened that we don't require the callback any
         // more, hence check beforehand
@@ -120,7 +132,7 @@ impl<'a, 'b> VirtIORng<'a, 'b> {
     }
 }
 
-impl<'a> Rng<'a> for VirtIORng<'a, '_> {
+impl<'a, F: DmaFence> Rng<'a> for VirtIORng<'a, '_, F> {
     fn get(&self) -> Result<(), ErrorCode> {
         // Minimum buffer capacity must be 4 bytes for a single 32-bit
         // word
@@ -164,18 +176,18 @@ impl<'a> Rng<'a> for VirtIORng<'a, '_> {
     }
 }
 
-impl<'b> SplitVirtqueueClient<'b> for VirtIORng<'_, 'b> {
+impl<'b, F: DmaFence> SplitVirtqueueClient<'b> for VirtIORng<'_, 'b, F> {
     fn buffer_chain_ready(
         &self,
         _queue_number: u32,
-        buffer_chain: &mut [Option<VirtqueueBuffer<'b>>],
+        buffer_chain: &mut [Option<VirtqueueReturnBuffer<'b>>],
         bytes_used: usize,
     ) {
         self.buffer_chain_callback(buffer_chain, bytes_used)
     }
 }
 
-impl DeferredCallClient for VirtIORng<'_, '_> {
+impl<F: DmaFence> DeferredCallClient for VirtIORng<'_, '_, F> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
@@ -196,7 +208,7 @@ impl DeferredCallClient for VirtIORng<'_, '_> {
     }
 }
 
-impl VirtIODeviceDriver for VirtIORng<'_, '_> {
+impl<F: DmaFence> VirtIODeviceDriver for VirtIORng<'_, '_, F> {
     fn negotiate_features(&self, _offered_features: u64) -> Option<u64> {
         // We don't support any special features and do not care about
         // what the device offers.
