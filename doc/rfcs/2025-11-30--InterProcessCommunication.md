@@ -180,6 +180,8 @@ the callback demonstrates that something has changed and it's possibly worth
 attempting again. Alternatively, applications could repeatedly attempt to
 discovery after a short delay.
 
+TODO: THERE"S A PROBLEM WITH THIS CALLBACK, AS ANOTHER APP CAN CLOG YOUR UPCALL QUEUE
+
 **Commands**:
 * Existence
 * Register as service
