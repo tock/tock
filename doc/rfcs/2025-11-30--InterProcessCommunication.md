@@ -118,7 +118,7 @@ client requests and asynchronous server notifications are supported in
 communication mechanisms.
 
 
-## IPC Name Registry Capsule
+## IPC Registry Capsule
 
 This capsule provides registration for services and discovery for clients.
 Upon discovery, it provides opaque process IDs which can be used to refer to
@@ -131,24 +131,47 @@ locations where it could later be connected if implemented. Callbacks will be
 given on registration and discovery, allowing asynchronous operations to take
 place before they are completed.
 
+Two separate registration mechanisms are implemented, allowing boards to choose
+which they want to use. This was chosen first because there were tradeoffs in
+which implementation was most useful as a default, and second as an example of
+supporting alternative capsule implementations as part of the IPC ecosystem.
+
+The first option is the **string name** registry.
 Registration and discovery is performed by matching "names", which are
 twenty-byte arrays. Allowed buffers must be exactly twenty bytes in length
 or commands using them will fail. The byte values can be anything, but are
-typically ASCII values, which do not need to be null-terminated. The default
+typically UTF-8 values, which do not need to be null-terminated. The default
 name value of all-zero-values cannot be used for discovery. Values will be
 copied from the allowed buffer into a fixed-size allocation in the grant
 region.
 
-An alternative mechanism of using package identifiers was considered, but was
-less flexible than having arbitrary process-specified identifiers. Package
-identifiers have some advantages that they are 1) arbitrary length, and 2) are
-unable to be modified at runtime. A downside of package identifiers is that
-they are encoded as part of the build system, and not part of the application
-code.
+The second option is the **package name** registry.
+Registration uses the "package name" field from the application's TBF header.
+This is an arbitrary-length string, which cannot be modified at runtime. An
+application with an empty or missing package name field cannot register.
+Discovery is performed by allowing an arbitrary-length string name, which must
+contain UTF-8 values without a null terminator.
+
+The string name registry has the advantage of being set by the application code
+and clearly visible to developers reading the source code. It could also be
+modified at runtime if desired. It's likely most useful for testing/development
+and for tutorials, where ease of use and flexibility are desired more than
+security. A downside is that any application could pretend to be some other
+service, which is likely unacceptable for secure deployments.
+
+The package name registry has the advantage of being fixed for a given
+application. If the application is signed, that includes the TBF header field,
+giving some amount of validation (assuming the application developer is
+trusted). It's likely most useful for security-concious deployments where all
+applications are signed by the same developer. A downside for new users is that
+the package name field is encoded as part of the build system, rather than being
+visible in the application source code.
 
 **Commands**:
 * Existence
-* Register as service with allowed string name
+* Register as service
+   * Uses provided string name if using the string name registry
+   * Uses TBF header package name if using the package name registry
 * Discover service with allowed string name
 
 **Allows**:
@@ -156,7 +179,8 @@ code.
 
 **Subscribes**:
 * Registration complete (success or failure)
-* Discovery complete (provides process ID)
+* Discovery complete (success or failure, and process ID)
+* New service registration occurred (no provided information)
 
 
 ## Synchronous Mailbox Capsule
