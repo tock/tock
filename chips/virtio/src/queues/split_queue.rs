@@ -15,11 +15,11 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::marker::PhantomData;
-use core::ptr::NonNull;
-use core::slice;
 
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::dma_slice::{DmaSubSliceMut, DmaSubSliceMutImmut};
+use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, InMemoryRegister};
 use kernel::ErrorCode;
@@ -310,70 +310,104 @@ impl AvailableRingHelper {
     }
 }
 
-/// Internal representation of a slice of memory passed held in the Virtqueue.
+/// A slice of memory to be shared with a VirtIO device, either as
+/// device-readable or device-writeable.
 ///
-/// Because of Tock's architecture combined with Rust's reference lifetime
-/// rules, buffers are generally passed around as `&mut [u8]` slices with a
-/// `'static` lifetime. Thus, clients pass a mutable static reference into the
-/// Virtqueue, losing access. When the device has processed the provided buffer,
-/// access is restored by passing the slice back to the client.
+/// We can use either mutable or immutable Rust slices to expose device-readable
+/// buffers. The VirtIO Specification Version 1.3 states that, for Split
+/// Virtqueues:
 ///
-/// However, clients may not wish to expose the full slice length to the
-/// device. They cannot simply subslice the slice, as that would mean that
-/// clients loose access to the "sliced off" portion of the slice. Instead,
-/// clients pass a seperate `length` parameter when inserting a buffer into a
-/// virtqueue, by means of the [`VirtqueueBuffer`] struct. This information is
-/// then written to the VirtIO descriptor.
-///
-/// Yet, to be able to reconstruct the entire buffer and hand it back to the
-/// client, information such as the original length must be recorded. We cannot
-/// retain the `&'static mut [u8]` in scope though, as the VirtIO device (host)
-/// writing to it would violate Rust's memory aliasing rules. Thus, we convert a
-/// slice into this struct (converting the slice into its raw parts) for
-/// safekeeping, until we reconstruct a byte-slice from it to hand it back to
-/// the client.
-///
-/// While we technically retain an identical pointer in the
-/// [`VirtqueueDescriptors`] descriptor table, we record it here nonetheless, as
-/// a method to sanity check internal buffer management consistency.
-struct SharedDescriptorBuffer<'b> {
-    ptr: NonNull<u8>,
-    len: usize,
-    _lt: PhantomData<&'b mut [u8]>,
+///    A device MUST NOT write to a device-readable buffer, and a device SHOULD
+///    NOT read a device-writable buffer (it MAY do so for debugging or
+///    diagnostic purposes).
+#[derive(Debug)]
+pub enum VirtqueueBuffer<'b> {
+    DeviceReadable(SubSliceMutImmut<'b, u8>),
+    DeviceWriteable(SubSliceMut<'b, u8>),
 }
 
-impl<'b> SharedDescriptorBuffer<'b> {
-    pub fn from_slice(slice: &'b mut [u8]) -> SharedDescriptorBuffer<'b> {
-        SharedDescriptorBuffer {
-            ptr: NonNull::new(slice.as_mut_ptr()).unwrap(),
-            len: slice.len(),
-            _lt: PhantomData,
+/// A [`VirtqueueBuffer`] as returned by the device.
+///
+/// In addition to the same [`VirtqueueBuffer`] that was original passed to the
+/// device, it contains a `device_len` field that indicates how many bytes the
+/// device has read from or written to the buffer.
+#[derive(Debug)]
+pub struct VirtqueueReturnBuffer<'b> {
+    pub virtqueue_buffer: VirtqueueBuffer<'b>,
+    pub device_len: usize,
+}
+
+/// Internal, DMA-safe version of the [`VirtqueueBuffer`].
+///
+/// This has identical semantics to the [`VirtqueueBuffer`] enum, but does not
+/// hold onto Rust slices during a DMA operation and uses DMA fences to ensure
+/// that Rust writes are correctly exposed to DMA operations, and DMA writes are
+/// visible to Rust reads.
+#[derive(Debug)]
+enum VirtqueueDmaBuffer<'b> {
+    DeviceReadable(DmaSubSliceMutImmut<'b, u8>),
+    DeviceWriteable(DmaSubSliceMut<'b, u8>),
+}
+
+impl<'b> VirtqueueDmaBuffer<'b> {
+    unsafe fn from_virtqueue_buffer(
+        virtqueue_buffer: VirtqueueBuffer<'b>,
+        fence: impl DmaFence,
+    ) -> Self {
+        match virtqueue_buffer {
+            VirtqueueBuffer::DeviceReadable(sub_slice_mut_immut) => {
+                VirtqueueDmaBuffer::DeviceReadable(DmaSubSliceMutImmut::from_sub_slice_mut_immut(
+                    sub_slice_mut_immut,
+                    fence,
+                ))
+            }
+            VirtqueueBuffer::DeviceWriteable(sub_slice_mut) => VirtqueueDmaBuffer::DeviceWriteable(
+                DmaSubSliceMut::from_sub_slice_mut(sub_slice_mut, fence),
+            ),
         }
     }
 
-    pub fn into_slice(self) -> &'b mut [u8] {
-        // SAFETY: This is guaranteed to be safe because this struct can only be
-        // using the `from_slice()` constructor, `ptr` and `len` cannot be
-        // modified after this struct is created, and this method consumes the
-        // struct.
-        unsafe { slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
+    unsafe fn into_virtqueue_buffer(self, fence: impl DmaFence) -> VirtqueueBuffer<'b> {
+        match self {
+            VirtqueueDmaBuffer::DeviceReadable(dma_sub_slice_mut_immut) => {
+                VirtqueueBuffer::DeviceReadable(
+                    dma_sub_slice_mut_immut.restore_sub_slice_mut_immut(),
+                )
+            }
+            VirtqueueDmaBuffer::DeviceWriteable(dma_sub_slice_mut) => {
+                VirtqueueBuffer::DeviceWriteable(unsafe {
+                    dma_sub_slice_mut.restore_sub_slice_mut(fence)
+                })
+            }
+        }
     }
-}
 
-/// A slice of memory to be shared with a VirtIO device.
-///
-/// The [`VirtqueueBuffer`] allows to limit the portion of the passed slice to
-/// be shared with the device through the `len` field. Furthermore, the device
-/// can be asked to not write to the shared buffer by setting `device_writeable`
-/// to `false`.
-///
-/// The [`SplitVirtqueue`] does not actually enfore that a VirtIO device adheres
-/// to the `device_writeable` flag, although compliant devices should.
-#[derive(Debug)]
-pub struct VirtqueueBuffer<'b> {
-    pub buf: &'b mut [u8],
-    pub len: usize,
-    pub device_writeable: bool,
+    fn as_ptr(&self) -> *const u8 {
+        match self {
+            VirtqueueDmaBuffer::DeviceReadable(dma_sub_slice_mut_immut) => {
+                dma_sub_slice_mut_immut.as_ptr()
+            }
+            VirtqueueDmaBuffer::DeviceWriteable(dma_sub_slice_mut) => {
+                dma_sub_slice_mut.as_mut_ptr() as *const u8
+            }
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            VirtqueueDmaBuffer::DeviceReadable(dma_sub_slice_mut_immut) => {
+                dma_sub_slice_mut_immut.len()
+            }
+            VirtqueueDmaBuffer::DeviceWriteable(dma_sub_slice_mut) => dma_sub_slice_mut.len(),
+        }
+    }
+
+    fn device_writeable(&self) -> bool {
+        match self {
+            VirtqueueDmaBuffer::DeviceReadable(_) => false,
+            VirtqueueDmaBuffer::DeviceWriteable(_) => true,
+        }
+    }
 }
 
 /// A VirtIO split Virtqueue.
@@ -397,7 +431,9 @@ pub struct VirtqueueBuffer<'b> {
 /// This is in constrast to _packed Virtqueues_, which use memory regions that
 /// are read and written by both the VirtIO device (host) and VirtIO driver
 /// (guest).
-pub struct SplitVirtqueue<'a, 'b, const MAX_QUEUE_SIZE: usize> {
+pub struct SplitVirtqueue<'a, 'b, const MAX_QUEUE_SIZE: usize, F: DmaFence> {
+    fence: F,
+
     descriptors: &'a mut VirtqueueDescriptors<MAX_QUEUE_SIZE>,
     available_ring: &'a mut VirtqueueAvailableRing<MAX_QUEUE_SIZE>,
     used_ring: &'a mut VirtqueueUsedRing<MAX_QUEUE_SIZE>,
@@ -411,17 +447,18 @@ pub struct SplitVirtqueue<'a, 'b, const MAX_QUEUE_SIZE: usize> {
     queue_number: Cell<u32>,
     max_elements: Cell<usize>,
 
-    descriptor_buffers: [OptionalCell<SharedDescriptorBuffer<'b>>; MAX_QUEUE_SIZE],
+    descriptor_buffers: [OptionalCell<VirtqueueDmaBuffer<'b>>; MAX_QUEUE_SIZE],
 
     client: OptionalCell<&'a dyn SplitVirtqueueClient<'b>>,
     used_callbacks_enabled: Cell<bool>,
 }
 
-impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE> {
+impl<'a, 'b, const MAX_QUEUE_SIZE: usize, F: DmaFence> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE, F> {
     pub fn new(
         descriptors: &'a mut VirtqueueDescriptors<MAX_QUEUE_SIZE>,
         available_ring: &'a mut VirtqueueAvailableRing<MAX_QUEUE_SIZE>,
         used_ring: &'a mut VirtqueueUsedRing<MAX_QUEUE_SIZE>,
+        fence: F,
     ) -> Self {
         assert!((core::ptr::from_ref(descriptors) as usize).is_multiple_of(DESCRIPTOR_ALIGNMENT));
         assert!(
@@ -430,6 +467,8 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
         assert!((core::ptr::from_ref(used_ring) as usize).is_multiple_of(USED_RING_ALIGNMENT));
 
         SplitVirtqueue {
+            fence,
+
             descriptors,
             available_ring,
             used_ring,
@@ -613,10 +652,6 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
             // Take the queuebuf out of the caller array
             let taken_queuebuf = queuebuf.take().expect("queuebuf is None");
 
-            // Sanity check the buffer: the subslice length may never
-            // exceed the slice length
-            assert!(taken_queuebuf.buf.len() >= taken_queuebuf.len);
-
             while self.descriptor_buffers[i].is_some() {
                 i += 1;
 
@@ -632,16 +667,28 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
                 head = Some(i);
             }
 
+            // Convert the VirtqueueBuffer into a DMA-safe variant:
+            //
+            // # Safety
+            //
+            // This function requires that we don't drop or mem::forget the
+            // returned result (which captures the buffer's lifetime), and
+            // eventually restore the original `VirtqueueBuffer` after the DMA
+            // operation is complete:
+            let virtqueue_dma_buffer =
+                unsafe { VirtqueueDmaBuffer::from_virtqueue_buffer(taken_queuebuf, self.fence) };
+
             // Write out the descriptor
             let desc = &self.descriptors.0[i];
-            desc.len.set(taken_queuebuf.len as u32);
+            desc.len.set(virtqueue_dma_buffer.len() as u32);
             assert!(desc.len.get() > 0);
-            desc.addr.set(taken_queuebuf.buf.as_ptr() as u64);
-            desc.flags.write(if taken_queuebuf.device_writeable {
-                DescriptorFlags::WriteOnly::SET
-            } else {
-                DescriptorFlags::WriteOnly::CLEAR
-            });
+            desc.addr.set(virtqueue_dma_buffer.as_ptr() as u64);
+            desc.flags
+                .write(if virtqueue_dma_buffer.device_writeable() {
+                    DescriptorFlags::WriteOnly::SET
+                } else {
+                    DescriptorFlags::WriteOnly::CLEAR
+                });
 
             // Now that we know our descriptor position, check whether
             // we must chain ourself to a previous descriptor
@@ -660,8 +707,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
             // This can be changed to something slightly more elegant, once the
             // NonNull functions around slices have been stabilized:
             // https://doc.rust-lang.org/stable/std/ptr/struct.NonNull.html#method.slice_from_raw_parts
-            self.descriptor_buffers[i]
-                .replace(SharedDescriptorBuffer::from_slice(taken_queuebuf.buf));
+            self.descriptor_buffers[i].replace(virtqueue_dma_buffer);
 
             // Set ourself as the previous descriptor, as we know the position
             // of `next` only in the next loop iteration.
@@ -678,10 +724,10 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
     fn remove_descriptor_chain(
         &self,
         top_descriptor_index: usize,
-    ) -> [Option<VirtqueueBuffer<'b>>; MAX_QUEUE_SIZE] {
+    ) -> [Option<VirtqueueReturnBuffer<'b>>; MAX_QUEUE_SIZE] {
         assert!(self.initialized.get());
 
-        let mut res: [Option<VirtqueueBuffer<'b>>; MAX_QUEUE_SIZE] = [const { None }; _];
+        let mut res: [Option<VirtqueueReturnBuffer<'b>>; MAX_QUEUE_SIZE] = [const { None }; _];
 
         let mut i = 0;
         let mut next_index: Option<usize> = Some(top_descriptor_index);
@@ -704,17 +750,19 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
             // but indicated to only provide a subslice to VirtIO,
             // hence we'll use the stored original slice and also
             // return the subslice length
-            let supplied_slice = self.descriptor_buffers[current_index]
+            let dma_virtqueue_buffer = self.descriptor_buffers[current_index]
                 .take()
-                .expect("Virtqueue descriptors and slices out of sync")
-                .into_slice();
-            assert!(supplied_slice.as_mut_ptr() as u64 == current_desc.addr.get());
+                .expect("Virtqueue descriptors and slices out of sync");
+            assert!(dma_virtqueue_buffer.as_ptr() as u64 == current_desc.addr.get());
 
-            // Reconstruct the input VirtqueueBuffer to hand it back
-            res[i] = Some(VirtqueueBuffer {
-                buf: supplied_slice,
-                len: current_desc.len.get() as usize,
-                device_writeable: current_desc.flags.is_set(DescriptorFlags::WriteOnly),
+            // Return the original VirtqueueBuffer (which we obtain from the DMA
+            // buffer, now that the operation is over), and hand it back with
+            // the device-indicated length:
+            let virtqueue_buffer =
+                unsafe { dma_virtqueue_buffer.into_virtqueue_buffer(self.fence) };
+            res[i] = Some(VirtqueueReturnBuffer {
+                virtqueue_buffer,
+                device_len: current_desc.len.get() as usize,
             });
 
             // Zero the descriptor
@@ -773,7 +821,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
     /// Returns `None` if the used ring is empty.
     pub fn pop_used_buffer_chain(
         &self,
-    ) -> Option<([Option<VirtqueueBuffer<'b>>; MAX_QUEUE_SIZE], usize)> {
+    ) -> Option<([Option<VirtqueueReturnBuffer<'b>>; MAX_QUEUE_SIZE], usize)> {
         assert!(self.initialized.get());
 
         self.remove_used_chain()
@@ -809,7 +857,9 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
     }
 }
 
-impl<const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'_, '_, MAX_QUEUE_SIZE> {
+impl<const MAX_QUEUE_SIZE: usize, F: DmaFence> Virtqueue
+    for SplitVirtqueue<'_, '_, MAX_QUEUE_SIZE, F>
+{
     fn used_interrupt(&self) {
         assert!(self.initialized.get());
         // A buffer MAY have been put into the used in by the device
@@ -864,7 +914,7 @@ pub trait SplitVirtqueueClient<'b> {
     fn buffer_chain_ready(
         &self,
         queue_number: u32,
-        buffer_chain: &mut [Option<VirtqueueBuffer<'b>>],
+        buffer_chain: &mut [Option<VirtqueueReturnBuffer<'b>>],
         bytes_used: usize,
     );
 }

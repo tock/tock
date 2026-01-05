@@ -32,6 +32,7 @@ use kernel::{create_capability, static_init};
 use virtio::devices::virtio_rng::VirtIORng;
 use virtio::devices::VirtIODeviceType;
 use virtio_pci_x86::VirtIOPCIDevice;
+use x86::dma_fence::X86DmaFence;
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
@@ -157,7 +158,7 @@ pub struct QemuI386Q35Platform {
     ipc: IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
-    rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static>>>,
+    rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static, X86DmaFence>>>,
 }
 
 impl SyscallDriverLookup for QemuI386Q35Platform {
@@ -285,6 +286,9 @@ unsafe extern "cdecl" fn main() {
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
+    // We use the default x86 implementation of `DmaFence`:
+    let dma_fence = X86DmaFence::new();
+
     // ---------- QEMU-SYSTEM-I386 "Q35" MACHINE PERIPHERALS ----------
 
     // Create a shared UART channel for the console and for kernel
@@ -370,7 +374,8 @@ unsafe extern "cdecl" fn main() {
 
     // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
     // driver and expose it to userspace though the RngDriver
-    let virtio_rng: Option<&'static VirtIORng> = if let Some(rng_dev) = virtio_rng_dev {
+    let virtio_rng: Option<&'static VirtIORng<X86DmaFence>> = if let Some(rng_dev) = virtio_rng_dev
+    {
         use virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
@@ -388,13 +393,13 @@ unsafe extern "cdecl" fn main() {
             static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
         let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
         let queue = static_init!(
-            SplitVirtqueue<1>,
-            SplitVirtqueue::new(descriptors, available_ring, used_ring),
+            SplitVirtqueue<1, X86DmaFence>,
+            SplitVirtqueue::new(descriptors, available_ring, used_ring, dma_fence),
         );
         queue.set_transport(transport);
 
         // VirtIO EntropySource device driver instantiation
-        let rng = static_init!(VirtIORng, VirtIORng::new(queue));
+        let rng = static_init!(VirtIORng<X86DmaFence>, VirtIORng::new(queue));
         DeferredCallClient::register(rng);
         queue.set_client(rng);
 
@@ -480,7 +485,9 @@ unsafe extern "cdecl" fn main() {
     // Userspace RNG driver over the VirtIO EntropySource
     let rng_driver = virtio_rng.map(|rng| {
         components::rng::RngRandomComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
-            .finalize(components::rng_random_component_static!(VirtIORng))
+            .finalize(components::rng_random_component_static!(
+                VirtIORng<X86DmaFence>
+            ))
     });
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
