@@ -59,11 +59,11 @@ cases.
 **Enable extensions with alternative IPC mechanisms.**
 While Tock should provide a variety of mechanisms to cover common use cases, it
 seems unlikely that those mechanisms will suffice for all use cases. Instead,
-the IPC system should be extensible through the creation of additional
-capsules. These could be created by downstream users, possibly without
-additional kernel interfaces, and the most useful could be upstreamed into
-mainline Tock. This includes the registration and discovery system, which can
-be substituted with other implementations as long as it provides process
+the IPC system should be extensible through the creation of additional or
+alternative capsules. These could be created by downstream users, possibly
+without additional kernel interfaces, and the most useful could be upstreamed
+into mainline Tock. This includes the registration and discovery system, which
+can be substituted with other implementations as long as it provides process
 identifiers usable by other capsules.
 
 **Support a wide variety of microcontrollers.**
@@ -124,12 +124,12 @@ This capsule provides registration for services and discovery for clients.
 Upon discovery, it provides opaque process IDs which can be used to refer to
 processes in other IPC mechanisms.
 
-If validation of services or clients is desired, this capsule could perform
-that operation at registration-time. The initial design will likely skip that
-feature but the design should enable it to be possible and provide clear
-locations where it could later be connected if implemented. Callbacks will be
-given on registration and discovery, allowing asynchronous operations to take
-place before they are completed.
+If services or clients should be authenticated and/or authorized, this capsule
+could perform that operation at registration-time. The initial design will
+likely skip that feature but the design should enable it to be possible and
+provide clear locations where it could later be connected if implemented.
+Callbacks will be given on registration and discovery, allowing asynchronous
+operations to take place before they are completed.
 
 Two separate registration mechanisms are implemented, allowing boards to choose
 which they want to use. This was chosen first because there were tradeoffs in
@@ -166,6 +166,19 @@ trusted). It's likely most useful for security-concious deployments where all
 applications are signed by the same developer. A downside for new users is that
 the package name field is encoded as part of the build system, rather than being
 visible in the application source code.
+
+Discovery in both cases is nearly identical. Applications provide an allowed
+buffer containing data specifying the name they are searching for, likely in
+UTF-8. If no such service exists, discovery fails, otherwise a process ID is
+provided on success.
+
+Discovery can fail because a service has not managed to register yet. There's
+no guarantee that registration occurs before discovery starts. To overcome
+this, applications can subscribe for a callback after a new registration
+occurs. There's no guarantee that this is the service they are looking for, but
+the callback demonstrates that something has changed and it's possibly worth
+attempting again. Alternatively, applications could repeatedly attempt to
+discovery after a short delay.
 
 **Commands**:
 * Existence
@@ -385,6 +398,17 @@ TBD
 ### Allow Changes
 TBD
 
+
+## Security
+
+TBD
+
+Things to discuss here include:
+ * Designs targeted: development without security concern, all apps signed by a single developer (both could use either registry implementation)
+ * Designs not targeted: apps signed by multiple developers which may be partially trusted (app store model)
+   * In current design, applications could spoof being a service
+   * AppID could be a way to trust specific applications in this case, but it's not fully implemented in the Tock kernel (not ShortID, but rather a full AppID). Idea would be that application source has a 48-byte buffer with the full AppID value and discovers based on that. Kernel sets that as a hash of the application, so it can't be spoofed. 
+ * Why not implement more authentication right now? What would authentication/authorization do? Reference Process Descriptor Tables.
 
 ## Use Case Examples
 
