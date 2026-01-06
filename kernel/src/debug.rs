@@ -63,6 +63,7 @@
 //!    }
 //!
 //!    fn flush(&self, _writer: &mut dyn IoWrite) { }
+//! }
 //! ```
 //! And instantiate it in the main board file:
 //!
@@ -160,7 +161,7 @@ pub struct PanicResources<C: Chip + 'static, PP: ProcessPrinter + 'static> {
 }
 
 impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
-    /// Create a new [`BoardPanic`] with nothing stored.
+    /// Create a new [`PanicResources`] with nothing stored.
     pub const fn new() -> Self {
         Self {
             processes: MapCell::empty(),
