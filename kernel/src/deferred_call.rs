@@ -288,7 +288,7 @@ impl DeferredCall {
     ///    [`initialize_deferred_call_state`] or
     ///    [`initialize_deferred_call_state_unsafe`].
     ///
-    /// 2. That <= [`DEFCALLS.len()`] deferred calls have been created, which is
+    /// 2. That <= `DEFCALLS::len` deferred calls have been created, which is
     ///    the maximum this interface supports.
     ///
     /// 3. That exactly as many deferred calls were registered as were created,
