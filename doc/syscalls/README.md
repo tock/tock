@@ -83,7 +83,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 |2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x30000       | BLE              | Bluetooth Low Energy                       |
-|   | 0x30001       | 802.15.4         | IEEE 802.15.4                              |
+|   | 0x30001       | [802.15.4](30001_ieee802154.md) | IEEE 802.15.4               |
 |   | 0x30002       | [UDP](30002_udp.md)  | UDP / 6LoWPAN Interface                |
 
 ### Cryptography
