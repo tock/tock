@@ -259,7 +259,6 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                             ProcessBinaryError::TbfHeaderParseFailure(_)
                             | ProcessBinaryError::IncompatibleKernelVersion { .. }
                             | ProcessBinaryError::IncorrectFlashAddress { .. }
-                            | ProcessBinaryError::NotEnabledProcess
                             | ProcessBinaryError::Padding => {
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Unable to use process binary: {:?}.", err);
@@ -659,6 +658,20 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             // We are either going to load this process binary or discard it, so
             // we can use `take()` here.
             if let Some(process_binary) = proc_binaries[i].take() {
+                // This means the app is disabled, and does not have to be
+                // loaded
+                if !process_binary.header.enabled() {
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "Skipping disabled process: {}",
+                            process_binary
+                                .header
+                                .get_package_name()
+                                .unwrap_or("unknown_app")
+                        );
+                    }
+                    continue;
+                }
                 // We assume the process can be loaded. This is not the case
                 // if there is a conflicting process.
                 let mut ok_to_load = true;
