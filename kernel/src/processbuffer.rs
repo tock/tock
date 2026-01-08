@@ -32,113 +32,134 @@ use crate::capabilities;
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
 
-/// Convert a process buffer's internal representation to a
+/// Convert a process buffer's internal pointer+length representation to a
 /// [`ReadableProcessSlice`].
 ///
-/// This function will automatically convert zero-length process
-/// buffers into valid zero-sized Rust slices regardless of the value
-/// of `ptr`.
+/// This function will automatically convert zero-length process buffers into
+/// valid zero-sized Rust slices, regardless of the value of `ptr` (i.e., `ptr`
+/// is allowed to be null for these slices).
 ///
-/// # Safety requirements
+/// # Safety
 ///
-/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be
-/// within a single process' address space, and `ptr` must be
-/// nonzero. This memory region must be mapped as _readable_, and
-/// optionally _writable_ and _executable_. It must be allocated
-/// within a single process' address space for the entire lifetime
-/// `'a`.
+/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be assigned to
+/// one or more processes, and `ptr` must be nonzero. This memory region must be
+/// mapped as _readable_, and optionally _writable_. It must remain a valid,
+/// readable allocation assigned to one or more processes for the entire
+/// lifetime `'a`, and must not be used as backing memory for any Rust
+/// allocations (apart from other process slices).
 ///
-/// It is sound for multiple overlapping [`ReadableProcessSlice`]s or
-/// [`WriteableProcessSlice`]s to be in scope at the same time.
+/// Callers must ensure that, for its lifetime `'a`, no other programs (other
+/// than this Tock kernel instance) modify the memory behind a
+/// [`ReadableProcessSlice`]. This includes userspace programs, which must not
+/// run in parallel to the Tock kernel holding a process slice reference, or
+/// other Tock kernel instances executing in parallel.
+///
+/// It is sound for multiple (partially) aliased [`ReadableProcessSlice`]s or
+/// [`WriteableProcessSlice`]s to be in scope at the same time, as they use
+/// interior mutability, and their memory is not accessed in parallel by
+/// userspace or other programs running concurrently.
 unsafe fn raw_processbuf_to_roprocessslice<'a>(
     ptr: *const u8,
     len: usize,
 ) -> &'a ReadableProcessSlice {
-    // Transmute a reference to a slice of Cell<u8>s into a reference
-    // to a ReadableProcessSlice. This is possible as
-    // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
-    // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
-    // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
-    // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
-    // wraps a [u8]
-    core::mem::transmute::<&[u8], &ReadableProcessSlice>(
-        // Rust has very strict requirements on pointer validity[1]
-        // which also in part apply to accesses of length 0. We allow
-        // an application to supply arbitrary pointers if the buffer
-        // length is 0, but this is not allowed for Rust slices. For
-        // instance, a null pointer is _never_ valid, not even for
-        // accesses of size zero.
+    // Transmute a slice reference over readable (read-only or read-write, and
+    // potentially aliased) bytes into a `ReadableProcessSlice` reference.
+    //
+    // This is sound, as `ReadableProcessSlice` is merely a
+    // `#[repr(transparent)]` wrapper around `[ReadableProcessByte]`. However,
+    // we cannot build this struct safely from an intermediate
+    // `[ReadableProcessByte]` slice reference, as we cannot dereference this
+    // unsized type.
+    core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(
+        // Create a slice of `ReadableProcessByte`s from the supplied
+        // pointer. `ReadableProcessByte` itself permits interior mutability,
+        // and hence this intermediate reference is safe to construct given the
+        // safety contract of this function.
         //
-        // To get a pointer which does not point to valid (allocated)
-        // memory, but is safe to construct for accesses of size zero,
-        // we must call NonNull::dangling(). The resulting pointer is
-        // guaranteed to be well-aligned and uphold the guarantees
-        // required for accesses of size zero.
+        // Rust has very strict requirements on pointer validity[1] which also
+        // in part apply to accesses of length 0. We allow an application to
+        // supply arbitrary pointers if the buffer length is 0, but this is not
+        // allowed for Rust slices. For instance, a null pointer is _never_
+        // valid, not even for accesses of size zero.
+        //
+        // To get a pointer which does not point to valid (allocated) memory,
+        // but is safe to construct for accesses of size zero, we must call
+        // NonNull::dangling(). The resulting pointer is guaranteed to be
+        // well-aligned and uphold the guarantees required for accesses of size
+        // zero.
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match len {
-            0 => core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts(ptr, len),
+            0 => core::slice::from_raw_parts(
+                core::ptr::NonNull::<ReadableProcessByte>::dangling().as_ptr(),
+                0,
+            ),
+            _ => core::slice::from_raw_parts(ptr as *const ReadableProcessByte, len),
         },
     )
 }
 
-/// Convert an process buffers's internal representation to a
+/// Convert a process buffer's internal pointer+length representation to a
 /// [`WriteableProcessSlice`].
 ///
-/// This function will automatically convert zero-length process
-/// buffers into valid zero-sized Rust slices regardless of the value
-/// of `ptr`.
+/// This function will automatically convert zero-length process buffers into
+/// valid zero-sized Rust slices, regardless of the value of `ptr` (i.e., `ptr`
+/// is allowed to be null for these slices).
 ///
-/// # Safety requirements
+/// # Safety
 ///
-/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be
-/// within a single process' address space, and `ptr` must be
-/// nonzero. This memory region must be mapped as _readable_ and
-/// _writable_, and optionally _executable_. It must be allocated
-/// within a single process' address space for the entire lifetime
-/// `'a`.
+/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be assigned to
+/// one or more processes, and `ptr` must be nonzero. This memory region must be
+/// mapped as _readable_ and _writable_. It must remain a valid, readable and
+/// writeable allocation assigned to one or more processes for the entire
+/// lifetime `'a`, and must not be used as backing memory for any Rust
+/// allocations (apart from other process slices).
 ///
-/// No other mutable or immutable Rust reference pointing to an
-/// overlapping memory region, which is not also created over
-/// `UnsafeCell`, may exist over the entire lifetime `'a`. Even though
-/// this effectively returns a slice of [`Cell`]s, writing to some
-/// memory through a [`Cell`] while another reference is in scope is
-/// unsound. Because a process is free to modify its memory, this is
-/// -- in a broader sense -- true for all process memory.
+/// Callers must ensure that, for its lifetime `'a`, no other programs (other
+/// than this Tock kernel instance) modify the memory behind a
+/// [`ReadableProcessSlice`]. This includes userspace programs, which must not
+/// run in parallel to the Tock kernel holding a process slice reference, or
+/// other Tock kernel instances executing in parallel.
 ///
-/// However, it is sound for multiple overlapping
-/// [`ReadableProcessSlice`]s or [`WriteableProcessSlice`]s to be in
-/// scope at the same time.
+/// It is sound for multiple (partially) aliased [`ReadableProcessSlice`]s or
+/// [`WriteableProcessSlice`]s to be in scope at the same time, as they use
+/// interior mutability, and their memory is not accessed in parallel by
+/// userspace or other programs running concurrently.
 unsafe fn raw_processbuf_to_rwprocessslice<'a>(
     ptr: *mut u8,
     len: usize,
 ) -> &'a WriteableProcessSlice {
-    // Transmute a reference to a slice of Cell<u8>s into a reference
-    // to a ReadableProcessSlice. This is possible as
-    // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
-    // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
-    // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
-    // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
-    // wraps a [u8]
-    core::mem::transmute::<&[u8], &WriteableProcessSlice>(
-        // Rust has very strict requirements on pointer validity[1]
-        // which also in part apply to accesses of length 0. We allow
-        // an application to supply arbitrary pointers if the buffer
-        // length is 0, but this is not allowed for Rust slices. For
-        // instance, a null pointer is _never_ valid, not even for
-        // accesses of size zero.
+    // Transmute a slice reference over writeable and potentially aliased bytes
+    // into a `WriteableProcessSlice` reference.
+    //
+    // This is sound, as `WriteableProcessSlice` is merely a
+    // `#[repr(transparent)]` wrapper around `[Cell<u8>]`. However, we cannot
+    // build this struct safely from an intermediate `[WriteableProcessByte]`
+    // slice reference, as we cannot dereference this unsized type.
+    core::mem::transmute::<&[Cell<u8>], &WriteableProcessSlice>(
+        // Create a slice of `Cell<u8>`s from the supplied pointer. `Cell<u8>`
+        // itself permits interior mutability, and hence this intermediate
+        // reference is safe to construct given the safety contract of this
+        // function.
         //
-        // To get a pointer which does not point to valid (allocated)
-        // memory, but is safe to construct for accesses of size zero,
-        // we must call NonNull::dangling(). The resulting pointer is
-        // guaranteed to be well-aligned and uphold the guarantees
-        // required for accesses of size zero.
+        // Rust has very strict requirements on pointer validity[1] which also
+        // in part apply to accesses of length 0. We allow an application to
+        // supply arbitrary pointers if the buffer length is 0, but this is not
+        // allowed for Rust slices. For instance, a null pointer is _never_
+        // valid, not even for accesses of size zero.
+        //
+        // To get a pointer which does not point to valid (allocated) memory,
+        // but is safe to construct for accesses of size zero, we must call
+        // NonNull::dangling(). The resulting pointer is guaranteed to be
+        // well-aligned and uphold the guarantees required for accesses of size
+        // zero.
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match len {
-            0 => core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts_mut(ptr, len),
+            0 => {
+                core::slice::from_raw_parts(core::ptr::NonNull::<Cell<u8>>::dangling().as_ptr(), 0)
+            }
+            _ => core::slice::from_raw_parts(ptr as *const Cell<u8>, len),
         },
     )
 }
