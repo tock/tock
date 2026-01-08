@@ -19,8 +19,7 @@ $ make flash-debug
 
 > **Note:** Unlike other Tock platforms, the default kernel image for this
 > board will clear flashed apps when the kernel is loaded. This is to support
-> the non-tockloader based app flash procedure below. To preserve loaded apps,
-> comment out the `APP_HACK` variable in `src/main.rs`.
+> the non-tockloader based app flash procedure below.
 
 ## Flashing app
 
