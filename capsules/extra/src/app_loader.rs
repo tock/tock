@@ -94,8 +94,10 @@ mod upcall {
     pub const LOAD_DONE: usize = 3;
     /// Abort done callback.
     pub const ABORT_DONE: usize = 4;
+    /// Uninstall done callback.
+    pub const UNINSTALL_DONE: usize = 5;
     /// Number of upcalls.
-    pub const COUNT: u8 = 5;
+    pub const COUNT: u8 = 6;
 }
 
 // Ids for read-only allow buffers
@@ -296,6 +298,21 @@ impl<
             });
         });
     }
+
+    /// Let the app know we have uninstalled the app
+    fn uninstall_done(&self, result: Result<(), ErrorCode>) {
+        self.current_process.map(|processid| {
+            let _ = self.apps.enter(processid, move |app, kernel_data| {
+                // And then signal the app.
+                app.pending_command = false;
+
+                self.current_process.take();
+                let _ = kernel_data
+                    .schedule_upcall(upcall::UNINSTALL_DONE, (into_statuscode(result), 0, 0))
+                    .ok();
+            });
+        });
+    }
 }
 
 impl<
@@ -387,6 +404,9 @@ impl<
     ///  - Returns ErrorCode::BUSY when the abort fails
     ///  (due to padding app being unable to be written, so try again)
     ///  - Returns ErrorCode::FAIL if the driver is not dedicated to this process
+    /// - `6`: Request kernel to uninstall an application
+    ///  - Returns Ok(()) when the application is successfully scheduled for uninstall
+    ///  - Returns ErrorCode::FAIL when the uninstall fails
     ///
     /// The driver returns ErrorCode::INVAL if any operation is called before the
     /// preceeding operation was invoked. For example, `write()` cannot be called before
@@ -510,6 +530,20 @@ impl<
                     }
                 }
             }
+
+            6 => {
+                // Request the kernel to uninstall an app/binary
+                // by specifying its ShortId and version
+                let result = self.storage_driver.uninstall(arg1, arg2);
+                match result {
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => {
+                        self.current_process.take();
+                        CommandReturn::failure(e)
+                    }
+                }
+            }
+
             // Unsupported command numbers.
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
