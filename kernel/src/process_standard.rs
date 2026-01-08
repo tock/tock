@@ -2119,6 +2119,9 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         kernel_memory_break =
             unsafe { kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize)) };
 
+        // Set up ring buffer for upcalls to the process.
+        let upcall_buf: *mut MaybeUninit<Task> = kernel_memory_break.cast();
+
         // # Safety
         //
         // This is safe today, as MPU constraints ensure that `memory_start`
@@ -2130,9 +2133,27 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
-        // Set up ring buffer for upcalls to the process.
-        let upcall_buf: *mut Task = kernel_memory_break.cast();
         let upcall_buf = unsafe { slice::from_raw_parts_mut(upcall_buf, Self::CALLBACK_LEN) };
+        for upcall_task in upcall_buf.iter_mut() {
+            // TODO: Task does not implement Default, nor should it need
+            // to. Instead, RingBuffer should need to be constructed over a
+            // fully initialized slice. It should internally use MaybeUninit,
+            // which would absolve us from coming with non-sensical default
+            // values here:
+            upcall_task.write(Task::ReturnValue(super::process::ReturnArguments {
+                upcall_id: UpcallId {
+                    driver_num: 0,
+                    subscribe_num: 0,
+                },
+                argument0: 0,
+                argument1: 0,
+                argument2: 0,
+            }));
+        }
+        // # Safety
+        //
+        // All values in this slice have been properly initialized.
+        let upcall_buf = unsafe { maybe_uninit_slice_assume_init_mut(upcall_buf) };
         let tasks = RingBuffer::new(upcall_buf);
 
         // Last thing in the kernel region of process RAM is the process struct.
