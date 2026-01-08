@@ -1252,10 +1252,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         version: u32,
         app_version: u32,
     ) -> bool {
-        if matches!(shortid, ShortId::Fixed(id) if id == app_short_id) && version == app_version {
-            return true;
-        }
-        false
+        matches!(shortid, ShortId::Fixed(id) if id == app_short_id) && version == app_version
     }
 
     /// Function to return the address and size of the binary whose ShortId and version are passed
