@@ -992,6 +992,30 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     self.chip.mpu().configure_mpu(config);
                 }
 
+                if new_break > old_break {
+                    // We need to initialize (zero) the newly accessible memory
+                    // region at `[old_break; new_break)`. This serves two
+                    // purposes:
+                    //
+                    // 1. It prevents a process from accessing any information
+                    //    still contained in this memory from prior kernel
+                    //    instances or processes.
+                    //
+                    // 2. It satisfies Rust's requirements that all
+                    //    dereferencable memory be properly initialized. This is
+                    //    important, as we'll be creating references into this
+                    //    process-accessible memory region through the process
+                    //    buffer infrastructure.
+                    unsafe {
+                        core::ptr::write_bytes(
+                            old_break as *mut u8,
+                            // Set the newly app-accessible memory to `0`:
+                            0,
+                            new_break as usize - old_break as usize,
+                        );
+                    }
+                }
+
                 let base = self.mem_start() as usize;
                 let break_result = unsafe {
                     CapabilityPtr::new_with_authority(
@@ -1951,6 +1975,23 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // Slice off the process-accessible memory:
         let (app_accessible_memory, allocated_kernel_memory) =
             raw_slice_split_at_mut(allocated_memory, min_process_memory_size);
+
+        // Initialize (zero) the initial process-accessible memory region. This
+        // serves two purposes:
+        //
+        // 1. It prevents a process from accessing any information still
+        //    contained in this memory from prior kernel instances or processes.
+        //
+        // 2. It satisfies Rust's requirements that all dereferencable memory be
+        //    properly initialized. This is important, as we'll be creating
+        //    references into this process-accessible memory region through the
+        //    process buffer infrastructure.
+        core::ptr::write_bytes(
+            app_accessible_memory as *mut u8,
+            // Set the entire app-accessible memory region to `0`:
+            0,
+            app_accessible_memory.len(),
+        );
 
         // Set the initial process-accessible memory:
         let initial_app_brk = app_accessible_memory
