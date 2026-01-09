@@ -431,9 +431,6 @@ mod flux_specs {
     // 1. Bad usage of the RingBuffer API that leads to kernel panics
     // 2. Bad implementation of the RingBuffer API that leads to kernel panics
 
-    use crate::collections::queue::Queue;
-    use crate::collections::ring_buffer::RingBuffer;
-
     // 1. Flux will prevent Tock from using the RingBuffer API incorrectly,
     // leading to panics
     #[allow(dead_code)]
