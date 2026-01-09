@@ -390,7 +390,7 @@ impl IoWrite for RttPanicWriter<'_> {
     }
 }
 
-impl<'a> core::fmt::Write for RttPanicWriter<'a> {
+impl core::fmt::Write for RttPanicWriter<'_> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.write(s.as_bytes());
         Ok(())
