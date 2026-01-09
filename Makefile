@@ -600,7 +600,7 @@ ci-setup-flux:
 
 define ci_job_flux
 	$(call banner,CI-Job: Flux)
-	source tools/ci/flux-ci-runner/deps.sh check && cargo flux
+	source tools/ci/flux-ci-runner/deps.sh check && cargo flux --features=flux
 	$(call banner,CI-Job: Flux - Complete; all verification rules satisfied!)
 endef
 
