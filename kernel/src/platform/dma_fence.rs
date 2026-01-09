@@ -3,8 +3,16 @@
 // Copyright Leon Schuermann <leon@is.currently.online> 2026.
 // Copyright Tock Contributors 2026.
 
+//! DMA fence synchronization primitives for sharing memory with DMA
+//! peripherals.
+
+/// Synchronization primitives for safely sharing memory with DMA peripherals.
+///
 /// An implementation of _acquire_ and _release_ memory fence operations to
 /// expose memory reads and writes by Rust and DMA peripherals to each other.
+/// These operations are from the perspective of Rust and the Tock kernel: a
+/// memory buffer is _released_ to the DMA peripheral, and then after the DMA
+/// operation is fully completed, _aquired_ back from the DMA peripheral.
 ///
 /// When starting a DMA operation over a buffer prepared from Rust, it is
 /// important that the buffer's current contents are actually observable by the
@@ -13,7 +21,7 @@
 /// peripheral. However, instruction reordering by both the compiler, hardware,
 /// and non cache-coherent platforms complicate this story. These optimizations
 /// can mean that a write from within Rust may not be visible to a DMA
-/// periperhal, or a write performed by a DMA peripheral may not be visible to
+/// peripheral, or a write performed by a DMA peripheral may not be visible to
 /// Rust.
 ///
 /// This trait provides [`acquire`](Self::acquire) and

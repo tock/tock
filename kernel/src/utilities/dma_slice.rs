@@ -3,6 +3,8 @@
 // Copyright Leon Schuermann <leon@is.currently.online> 2026.
 // Copyright Tock Contributors 2026.
 
+//! Mechanism for sharing buffers with DMA peripherals.
+
 use core::marker::PhantomData;
 use core::ops::Range;
 use core::ptr::NonNull;
@@ -121,7 +123,7 @@ impl<'a, T> DmaSlice<'a, T> {
 /// constructing the [`DmaSliceMut`], and only in the memory region described by
 /// [`as_mut_ptr`](Self::as_mut_ptr) and [`len`](Self::len).
 ///
-/// Users are resposible to ensure that, after the DMA operation completes and
+/// Users are responsible to ensure that, after the DMA operation completes and
 /// before calling [`restore_mut_slice_ref`](Self::restore_mut_slice_ref), every
 /// element in the underlying slice represents a well-initialized and valid
 /// instance of its type (with the exception of padding bytes). See the
@@ -180,7 +182,7 @@ impl<'a, T> DmaSliceMut<'a, T> {
     ///
     /// Refer the safety documentation of the [`DmaSliceMut`] type.
     ///
-    /// In constrast to [`from_mut_slice_ref`](Self::from_mut_slice_ref) this
+    /// In contrast to [`from_mut_slice_ref`](Self::from_mut_slice_ref) this
     /// function is safe, as dropping or forgetting its return value is safe, it
     /// would merely leak memory and make the underlying slice inaccessible.
     pub fn from_static_mut_slice_ref(
@@ -244,7 +246,7 @@ impl<'a, T> DmaSliceMut<'a, T> {
 /// memory or an MMIO register).
 ///
 /// [`DmaSliceMutImmut`] may wrap an immutable, shared Rust slice
-/// reference. Furthermore, in constrast to `DmaSliceMut`, `DmaSliceMutImmut`
+/// reference. Furthermore, in contrast to `DmaSliceMut`, `DmaSliceMutImmut`
 /// may not expose writes performed by a DMA operation back to Rust. As such,
 /// its contents *must* not be modified by the DMA operation. For a DMA
 /// operation that may write to the supplied buffer, use [`DmaSliceMut`]
@@ -426,7 +428,7 @@ impl<'a, T> DmaSubSlice<'a, T> {
 /// constructing the [`DmaSubSliceMut`], and only in the memory region described
 /// by [`as_mut_ptr`](Self::as_mut_ptr) and [`len`](Self::len).
 ///
-/// Users are resposible to ensure that, after the DMA operation completes and
+/// Users are responsible to ensure that, after the DMA operation completes and
 /// before calling [`restore_mut_slice_ref`](Self::restore_sub_slice_mut), every
 /// element in the underlying slice represents a well-initialized and valid
 /// instance of its type (with the exception of padding bytes). See the
@@ -492,7 +494,7 @@ impl<'a, T> DmaSubSliceMut<'a, T> {
     ///
     /// Refer the safety documentation of the [`DmaSubSliceMut`] type.
     ///
-    /// In constrast to `from_slice_ref` this function is safe, as dropping or
+    /// In contrast to `from_slice_ref` this function is safe, as dropping or
     /// forgetting its return value is safe, it would merely leak memory and
     /// make the underlying slice inaccessible.
     pub fn from_static_sub_slice_mut(
@@ -590,7 +592,7 @@ impl<'a, T> DmaSubSliceMut<'a, T> {
 /// an MMIO register).
 ///
 /// [`DmaSliceMutImmut`] may wrap an immutable, shared Rust slice
-/// reference. Furthermore, in constrast to `DmaSubSliceMut`,
+/// reference. Furthermore, in contrast to `DmaSubSliceMut`,
 /// `DmaSubSliceMutImmut` may not expose writes performed by a DMA operation
 /// back to Rust. As such, its contents *must* not be modified by the DMA
 /// operation. For a DMA operation that may write to the active range of the
