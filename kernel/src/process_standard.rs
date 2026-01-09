@@ -98,7 +98,7 @@ unsafe fn raw_slice_split_at_mut<T>(slice: *mut [T], mid: usize) -> (*mut [T], *
     assert!(mid <= slice.len());
 
     let len = slice.len();
-    let ptr = slice as *mut T;
+    let ptr = slice.cast::<T>();
 
     // SAFETY: Caller must pass a valid pointer and an index that is in-bounds.
     let tail = unsafe { ptr.add(mid) };
@@ -1776,19 +1776,19 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let remaining_memory = if let Some(fixed_memory_start) = pb
             .header
             .get_fixed_address_ram()
-            .map(|addr| addr as *mut u8)
+            .map(|addr: u32| remaining_memory.cast::<u8>().with_addr(addr as usize))
         {
             // The process does have a fixed address.
-            if fixed_memory_start == remaining_memory as *mut u8 {
+            if fixed_memory_start == remaining_memory.cast() {
                 // Address already matches.
                 remaining_memory
-            } else if fixed_memory_start > remaining_memory as *mut u8 {
+            } else if fixed_memory_start > remaining_memory.cast() {
                 // Process wants a memory address farther in memory. Try to
                 // advance the memory region to make the address match.
-                let diff = fixed_memory_start as usize - remaining_memory as *mut u8 as usize;
+                let diff = fixed_memory_start.addr() - remaining_memory.addr();
                 if diff > remaining_memory.len() {
                     // We ran out of memory.
-                    let actual_address = (remaining_memory as *mut u8)
+                    let actual_address = (remaining_memory.cast::<u8>())
                         .wrapping_byte_add(remaining_memory.len())
                         .wrapping_byte_sub(1);
                     let expected_address = fixed_memory_start;
@@ -1809,7 +1809,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 }
             } else {
                 // Address is earlier in memory, nothing we can do.
-                let actual_address = remaining_memory as *mut u8;
+                let actual_address = remaining_memory.cast();
                 let expected_address = fixed_memory_start;
                 return Err((
                     ProcessLoadError::MemoryAddressMismatch {
@@ -1834,7 +1834,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //   of this allocation, `initial_kernel_memory_size` bytes long.
         //
         let (allocation_start, allocation_size) = match chip.mpu().allocate_app_memory_region(
-            remaining_memory as *mut u8,
+            remaining_memory.cast(),
             remaining_memory.len(),
             min_total_memory_size,
             min_process_memory_size,
@@ -1864,8 +1864,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // overflow if the MPU implementation is incorrect; a compliant
         // implementation must return a memory allocation within the
         // `remaining_memory` slice.
-        let app_memory_start_offset =
-            allocation_start as usize - (remaining_memory as *mut u8) as usize;
+        let app_memory_start_offset = allocation_start.addr() - remaining_memory.addr();
 
         // Check if the memory region is valid for the process. If a process
         // included a fixed address for the start of RAM in its TBF header (this
@@ -1875,10 +1874,11 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         if let Some(fixed_memory_start) = pb
             .header
             .get_fixed_address_ram()
-            .map(|addr| addr as *mut u8)
+            .map(|addr: u32| remaining_memory.cast::<u8>().with_addr(addr as usize))
         {
-            let actual_address =
-                (remaining_memory as *mut u8).wrapping_byte_add(app_memory_start_offset);
+            let actual_address = remaining_memory
+                .cast::<u8>()
+                .wrapping_byte_add(app_memory_start_offset);
             let expected_address = fixed_memory_start;
             if actual_address != expected_address {
                 return Err((
@@ -1945,7 +1945,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // We continue to sub-slice the `allocated_memory` into
         // process-accessible and kernel-owned memory. Prior to that, store the
         // start and length ofthe overall allocation:
-        let allocated_memory_start = allocated_memory as *mut u8;
+        let allocated_memory_start = allocated_memory.cast();
         let allocated_memory_len = allocated_memory.len();
 
         // Slice off the process-accessible memory:
@@ -1953,11 +1953,13 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             raw_slice_split_at_mut(allocated_memory, min_process_memory_size);
 
         // Set the initial process-accessible memory:
-        let initial_app_brk = (app_accessible_memory as *mut u8).add(app_accessible_memory.len());
+        let initial_app_brk = app_accessible_memory
+            .cast::<u8>()
+            .add(app_accessible_memory.len());
 
         // Set the initial allow high water mark to the start of process memory
         // since no `allow` calls have been made yet.
-        let initial_allow_high_water_mark = app_accessible_memory as *mut u8;
+        let initial_allow_high_water_mark = app_accessible_memory.cast();
 
         // Set up initial grant region.
         //
@@ -1973,8 +1975,9 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // Calling `wrapping_sub` is safe here, as we've factored in an optional
         // padding of at most `sizeof(usize)` bytes in the calculation of
         // `initial_kernel_memory_size` above.
-        let mut kernel_memory_break =
-            (allocated_kernel_memory as *mut u8).add(allocated_kernel_memory.len());
+        let mut kernel_memory_break = allocated_kernel_memory
+            .cast::<u8>()
+            .add(allocated_kernel_memory.len());
 
         kernel_memory_break = kernel_memory_break
             .wrapping_sub(kernel_memory_break as usize % core::mem::size_of::<usize>());
@@ -2091,7 +2094,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // TODO: https://github.com/tock/tock/issues/1739
         match process.stored_state.map(|stored_state| {
             chip.userspace_kernel_boundary().initialize_process(
-                app_accessible_memory as *mut u8,
+                app_accessible_memory.cast(),
                 initial_app_brk,
                 stored_state,
             )
