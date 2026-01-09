@@ -1178,3 +1178,332 @@ impl<I: ProcessSliceIndex<Self>> Index<I> for WriteableProcessSlice {
         index.index(self)
     }
 }
+
+#[cfg(test)]
+mod miri_tests {
+    use super::*;
+    use core::cell::UnsafeCell;
+
+    // Helper to get a raw mutable pointer to the backing memory we use to
+    // create process slices over. This backing memory, though allocated by
+    // Rust, contains only `UnsafeCell`s and thus is suitable for creating
+    // process slice references over.
+    fn get_backing_memory_ptr<const N: usize>(mem: &[UnsafeCell<u8>; N]) -> *mut u8 {
+        mem as *const _ as *mut u8
+    }
+
+    #[test]
+    fn test_basic_read_write() {
+        let memory = [const { UnsafeCell::new(0u8) }; 16];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+
+        // Test writing via the slice
+        slice[0].set(42);
+        slice[5].set(100);
+
+        // Test reading back
+        assert_eq!(slice[0].get(), 42);
+        assert_eq!(slice[5].get(), 100);
+
+        // Verify backing memory was actually updated
+        assert_eq!(unsafe { *memory[0].get() }, 42);
+    }
+
+    #[test]
+    fn test_concurrent_rw_rw_aliasing() {
+        // Ensure multiple mutable slices to the same memory do not violate tree
+        // borrows. This works because WriteableProcessSlice uses Cell
+        // internally.
+        let memory = [const { UnsafeCell::new(0u8) }; 16];
+        let ptr = get_backing_memory_ptr(&memory);
+
+        // Create two overlapping slices
+        let slice1 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+        let slice2 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+
+        slice1[0].set(10);
+        assert_eq!(slice2[0].get(), 10);
+
+        slice2[0].set(20);
+        assert_eq!(slice1[0].get(), 20);
+
+        // Test interleaved access
+        let sub1 = slice1.get(0..4).unwrap();
+        let sub2 = slice2.get(2..6).unwrap();
+
+        // sub1: [0, 1, 2, 3]
+        // sub2:       [2, 3, 4, 5]
+        // Intersection at indices 2 and 3 of the original buffer
+
+        sub1[2].set(55); // Index 2 of backing
+        assert_eq!(sub2[0].get(), 55); // Idx 0 of sub2 is idx 2 of backing
+    }
+
+    #[test]
+    fn test_concurrent_ro_rw_aliasing() {
+        // Ensure multiple mutable slices to the same memory do not violate tree
+        // borrows. This works because ReadnableProcessSlice and
+        // WriteableProcessSlice both use Cell internally.
+        let memory = [const { UnsafeCell::new(0u8) }; 16];
+        let ptr = get_backing_memory_ptr(&memory);
+
+        // Create two overlapping slices
+        let slice1 = unsafe { raw_processbuf_to_roprocessslice(ptr, memory.len()) };
+        let slice2 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+
+        slice2[0].set(20);
+        assert_eq!(slice1[0].get(), 20);
+
+        // Test interleaved access
+        let sub1 = slice1.get(0..4).unwrap();
+        let sub2 = slice2.get(2..6).unwrap();
+
+        // sub1: [0, 1, 2, 3]
+        // sub2:       [2, 3, 4, 5]
+        // Intersection at indices 2 and 3 of the original buffer
+
+        sub2[0].set(55); // Index 0 of sub2 is index 2 of backing
+        assert_eq!(sub1[2].get(), 55); // Index 2 of backing
+    }
+
+    #[test]
+    fn test_zero_length_null_ptr_ro() {
+        // Should be safe to create a 0-len slice from a null pointer
+        let slice = unsafe { raw_processbuf_to_roprocessslice(core::ptr::null_mut(), 0) };
+        assert_eq!(slice.len(), 0);
+        assert!(slice.get(0).is_none());
+
+        // Iteration should simply yield nothing
+        let mut count = 0;
+        for _ in slice.iter() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+
+        // Slice should be created over a non-null pointer
+        // (NonNull::dangling()):
+        assert_eq!(
+            slice as *const ReadableProcessSlice as *const u8,
+            core::ptr::NonNull::<u8>::dangling().as_ptr(),
+        );
+    }
+
+    #[test]
+    fn test_zero_length_non_null_ptr_ro() {
+        // Should be safe to create a 0-len slice from any arbitrary
+        // non-null pointer:
+        let slice = unsafe {
+            raw_processbuf_to_roprocessslice(
+                // Under strict provenance, we cannot simply cast an arbitrary
+                // integer into a pointer. However, with a zero-length process
+                // slice, the pointer passed to this function must never be
+                // dereferencable anyways. Thus we simply start from a
+                // null-pointer, and derive another pointer from it (and its
+                // provenance) at an offset.
+                core::ptr::null_mut::<u8>().wrapping_byte_add(42),
+                0,
+            )
+        };
+        assert_eq!(slice.len(), 0);
+        assert!(slice.get(0).is_none());
+
+        // Iteration should simply yield nothing
+        let mut count = 0;
+        for _ in slice.iter() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+
+        // Slice should not retain its pointer, and return a non-null
+        // (dangling) pointer instead:
+        assert_eq!(
+            slice as *const ReadableProcessSlice as *const u8,
+            core::ptr::NonNull::<u8>::dangling().as_ptr()
+        );
+    }
+
+    #[test]
+    fn test_zero_length_null_ptr_rw() {
+        // Should be safe to create a 0-len slice from a null pointer
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(core::ptr::null_mut(), 0) };
+        assert_eq!(slice.len(), 0);
+        assert!(slice.get(0).is_none());
+
+        // Iteration should simply yield nothing
+        let mut count = 0;
+        for _ in slice.iter() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+
+        // Slice should be created over a non-null pointer
+        // (NonNull::dangling()):
+        assert_eq!(
+            slice as *const WriteableProcessSlice as *const u8,
+            core::ptr::NonNull::<u8>::dangling().as_ptr(),
+        );
+    }
+
+    #[test]
+    fn test_zero_length_non_null_ptr_rw() {
+        // Should be safe to create a 0-len slice from any arbitrary
+        // non-null pointer:
+        let slice = unsafe {
+            raw_processbuf_to_rwprocessslice(
+                // Under strict provenance, we cannot simply cast an arbitrary
+                // integer into a pointer. However, with a zero-length process
+                // slice, the pointer passed to this function must never be
+                // dereferencable anyways. Thus we simply start from a
+                // null-pointer, and derive another pointer from it (and its
+                // provenance) at an offset.
+                core::ptr::null_mut::<u8>().wrapping_byte_add(42),
+                0,
+            )
+        };
+        assert_eq!(slice.len(), 0);
+        assert!(slice.get(0).is_none());
+
+        // Iteration should simply yield nothing
+        let mut count = 0;
+        for _ in slice.iter() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+
+        // Slice should not retain its pointer, and return a non-null
+        // (dangling) pointer instead:
+        assert_eq!(
+            slice as *const WriteableProcessSlice as *const u8,
+            core::ptr::NonNull::<u8>::dangling().as_ptr()
+        );
+    }
+
+    #[test]
+    fn test_out_of_bounds_ro() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_roprocessslice(ptr, 4) };
+
+        assert!(slice.get(3).is_some());
+        assert!(slice.get(4).is_none());
+        assert!(slice.get(100).is_none());
+
+        // Range OOB
+        assert!(slice.get(2..5).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "index out of bounds: the len is 4 but the index is 4")]
+    fn test_out_of_bounds_panic_ro() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_roprocessslice(ptr, 4) };
+
+        assert_eq!(slice[3].get(), 0);
+
+        // This is out of bounds and will panic:
+        assert_eq!(slice[4].get(), 0);
+    }
+
+    #[test]
+    fn test_out_of_bounds_rw() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
+
+        assert!(slice.get(3).is_some());
+        assert!(slice.get(4).is_none());
+        assert!(slice.get(100).is_none());
+
+        // Range OOB
+        assert!(slice.get(2..5).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "index out of bounds: the len is 4 but the index is 4")]
+    fn test_out_of_bounds_panic_rw() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
+
+        assert_eq!(slice[3].get(), 0);
+
+        // This is out of bounds and will panic:
+        assert_eq!(slice[4].get(), 0);
+    }
+
+    #[test]
+    fn test_copy_logic() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let src_data = [10, 20, 30, 40];
+        let mut dst_data = [0u8; 4];
+
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
+
+        // Copy into slice
+        slice.copy_from_slice(&src_data);
+        assert_eq!(slice[0].get(), 10);
+        assert_eq!(slice[3].get(), 40);
+
+        // Copy out of slice
+        slice.copy_to_slice(&mut dst_data);
+        assert_eq!(dst_data, src_data);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "source slice length (4) does not match destination slice length (2)"
+    )]
+    fn test_copy_panic_len_mismatch() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let mut small_dst = [0u8; 2];
+
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
+        slice.copy_to_slice(&mut small_dst);
+    }
+
+    #[test]
+    fn test_transmute_from_immutable_slice() {
+        // This test exercises the `From<&[u8]>` implementation for
+        // ReadableProcessSlice.
+        //
+        // We take a standard, immutable Rust slice (`&[u8]`). This creates a
+        // shared, read-only borrow of the stack memory.  We then convert it
+        // into a `&ReadableProcessSlice`. This struct wraps
+        // `ReadableProcessByte`, which wraps `Cell<u8>`.
+        //
+        // This is problematic under stacked-borrows, as we are transmuting
+        // `&[u8]` (immutable, noalias) to `&[Cell<u8>]` (shared, interior
+        // mutability).
+        //
+        // Therefore, we expect the following results:
+        //
+        // - Stacked Borrows (Default Miri as of Jan 2026): FAIL.
+        //
+        //   Stacked Borrows forbids "upgrading" a SharedReadOnly reference to
+        //   one that claims it can mutate (SharedReadWrite), even if we don't
+        //   actually write.
+        //
+        // - Tree Borrows (`-Zmiri-tree-borrows`): PASS.
+        //
+        //   Tree Borrows is experimental and handles "retagging" differently.
+        //   It tolerates this transmute as long as we do not actually perform a
+        //   write operation through the Cell while the original data is frozen.
+        //
+        let data = [10u8, 20, 30, 40];
+        let slice: &[u8] = &data;
+
+        // 1. Convert &u8 to &ReadableProcessSlice (which wraps Cell<u8>)
+        let proc_slice: &ReadableProcessSlice = slice.into();
+
+        // 2. Read from it.
+        //
+        // Even though we only read, the type of `proc_slice` implies the
+        // *capability* to mutate, which contradicts the provenance of `slice`.
+        assert_eq!(proc_slice[0].get(), 10);
+        assert_eq!(proc_slice[3].get(), 40);
+    }
+}
