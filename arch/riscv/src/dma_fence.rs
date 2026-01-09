@@ -3,7 +3,7 @@
 // Copyright Leon Schuermann <leon@is.currently.online> 2026.
 // Copyright Tock Contributors 2026.
 
-use kernel::utilities::dma_slice::DmaFence;
+use kernel::platform::dma_fence::DmaFence;
 
 /// An implementation of [`DmaFence`] for RISC-V systems with cache-coherent DMA
 /// memory accesses.

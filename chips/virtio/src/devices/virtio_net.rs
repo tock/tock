@@ -5,8 +5,8 @@
 use core::cell::Cell;
 
 use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::dma_slice::DmaFence;
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
 use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
 use kernel::ErrorCode;

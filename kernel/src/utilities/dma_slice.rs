@@ -8,64 +8,7 @@ use core::ops::Range;
 use core::ptr::NonNull;
 
 use super::leasable_buffer::{SubSlice, SubSliceMut, SubSliceMutImmut};
-
-/// An implementation of _acquire_ and _release_ memory fence operations to
-/// expose memory reads and writes by Rust and DMA peripherals to each other.
-///
-/// When starting a DMA operation over a buffer prepared from Rust, it is
-/// important that the buffer's current contents are actually observable by the
-/// DMA hardware. Similarly, when a DMA operation is finished, we must ensure
-/// that Rust can see the latest buffer contents, as written by a DMA
-/// peripheral. However, instruction reordering by both the compiler, hardware,
-/// and non cache-coherent platforms complicate this story. These optimizations
-/// can mean that a write from within Rust may not be visible to a DMA
-/// periperhal, or a write performed by a DMA peripheral may not be visible to
-/// Rust.
-///
-/// This trait provides [`acquire`](Self::acquire) and
-/// [`release`](Self::release) memory fences that recover these guarantees for
-/// DMA buffers in the presence of compiler reordering and, if present on the
-/// target platform, hardware reordering or non-coherent caches.
-///
-/// Ordinarily, we'd use the built-in [`core::sync::atomic::fence`] for this,
-/// but that explicitly cannot be used to establish synchronization among
-/// non-atomic accesses. Additionally, certain platforms require
-/// platform-specific instructions to synchronize memory: for instance, the
-/// RISC-V unprivileged spec (version 20250508) states that "\[n\]on-coherent
-/// DMA may need additional synchronization (such as cache flush or invalidate
-/// mechanisms); currently any such extra synchronization will be
-/// device-specific" [1]. Therefore, Tock uses a DMA-specific trait implemented
-/// by its target architecture and platform crates.
-///
-/// [1]: https://docs.riscv.org/reference/isa/_attachments/riscv-unprivileged.pdf
-///
-/// # Safety
-///
-/// This is an `unsafe` trait, as users of it rely on correct
-/// [`acquire`](Self::acquire) and [`release`](Self::acquire) implementations to
-/// maintain soundness. Specifically, an incorrect [`acquire`](Self::acquire)
-/// operation could cause DMA-issued writes to memory to be visible to Rust only
-/// *after* a shared or immutable reference to this buffer is made accessible,
-/// which effectively violates Rust's no-alias assumptions.
-pub unsafe trait DmaFence: core::fmt::Debug + Send + Sync + Copy + Clone + 'static {
-    /// Expose prior writes to in-memory buffers to subsequent DMA operations.
-    ///
-    /// Specifically, this function must ensure that any writes from Rust to the
-    /// buffer described by `ptr` and `len` _before_ this function, are visible
-    /// to any DMA operations initiated by an MMIO read or write operation
-    /// _after_ this function returns.
-    fn release<T>(&self, ptr: *mut T, len: usize);
-
-    /// Expose prior writes by DMA peripherals to subsequent memory reads.
-    ///
-    /// Specifically, this function must ensure that any reads from Rust to the
-    /// buffer described by `ptr` and `len` _after_ this function returns
-    /// reflect all writes made by DMA operations finished _before_ this
-    /// function ran. Implementations can assume that this function is called
-    /// _after_ the program observed that the DMA operation finished, by reading
-    /// a status field through an MMIO or memory read.
-    fn acquire<T>(&self, ptr: *mut T, len: usize);
-}
+use crate::platform::dma_fence::DmaFence;
 
 // Using the Nightly `slice_ptr_get` feature, we can use `.as_mut_ptr()` on a
 // slice pointer (`*mut [T]`) to obtain the "thin", raw pointer to its first

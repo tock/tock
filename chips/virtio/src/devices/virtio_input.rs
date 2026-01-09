@@ -10,8 +10,8 @@
 //! [event code](https://www.kernel.org/doc/Documentation/input/event-codes.txt)
 //! format that Linux uses.
 
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::dma_slice::DmaFence;
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
 
 use crate::devices::{VirtIODeviceDriver, VirtIODeviceType};
