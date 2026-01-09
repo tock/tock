@@ -76,7 +76,7 @@ important code.
 
 | Tier # | Tier         | Description                                                     |
 |--------|--------------|-----------------------------------------------------------------|
-| 5      | Verified     | Formally verified code with necessary proof                     |
+| 5      | Validated    | Critical code that is formally verified or extensively tested   |
 | 4      | Critical     | High-priority code directly relevant to the Tock security model |
 | 3      | Priority     | Important, long-standing code with significant scrutiny         |
 | 2      | Normal       | Typical Tock code                                               |
@@ -87,10 +87,13 @@ By default, all Tock code not otherwise categorized is considered "Normal".
 2.1 Tier Descriptions
 -------------------------------
 
-- **Verified**: This code has been checked by a static verification tool. The
-  necessary annotations and proofs are included in the Tock source code. The
-  verification is checked by CI. Any changes must include updated annotations
-  and proofs.
+- **Validated**: This code meets the requirements of the Critical tier, but is
+  also extensively checked during CI beyond the normal CI run on all Tock code.
+  This includes checks by a static verification tool with the necessary
+  annotations and proofs included in the Tock source code. This also includes
+  code with extensive test cases, including on-hardware tests. Any changes must
+  include updated checks, such as the necessary annotations and proofs or new
+  tests.
 
 - **Critical**: This code is directly related to Tock's system-level security
   guarantees. Correctness is critical for Tock to uphold its threat model.
