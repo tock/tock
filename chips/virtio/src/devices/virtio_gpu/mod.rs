@@ -7,8 +7,8 @@ use core::ops::Range;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::dma_slice::DmaFence;
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
 use kernel::ErrorCode;
 
