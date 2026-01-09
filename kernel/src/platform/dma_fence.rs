@@ -41,6 +41,18 @@
 ///
 /// [1]: https://docs.riscv.org/reference/isa/_attachments/riscv-unprivileged.pdf
 ///
+/// # Implementations
+///
+/// Implementations may assume this trait is only used for DMA peripherals,
+/// where hardware has access to memory separate from normal load and store
+/// instructions executed on the CPU. Implementations do not need to provide
+/// any synchronization between loads and stores, for example to support
+/// multi-core execution. Implementations must correctly synchronize for all
+/// possible DMA operations on the chip.
+///
+/// Implementations may use any chip-specific DMA synchronization features that
+/// may exist on a particular microcontroller.
+///
 /// # Safety
 ///
 /// This is an `unsafe` trait, as users of it rely on correct
