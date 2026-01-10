@@ -376,6 +376,10 @@ pub unsafe fn main() {
         core::ptr::addr_of!(_sapps),
         core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
     );
+    let memory_bank = core::slice::from_raw_parts(
+        core::ptr::addr_of_mut!(_sappmem),
+        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+    );
     let app_memory = core::slice::from_raw_parts_mut(
         core::ptr::addr_of_mut!(_sappmem),
         core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
@@ -390,6 +394,7 @@ pub unsafe fn main() {
         assigner,
         storage_permissions_policy,
         app_flash,
+        memory_bank,
         app_memory,
     )
     .finalize(components::process_loader_sequential_component_static!(
