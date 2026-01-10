@@ -22,8 +22,8 @@ use crate::errorcode::ErrorCode;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
-use crate::process::BinaryVersion;
 use crate::process::ProcessBinary;
+use crate::process::{BinaryVersion, ReturnArguments};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifier, ProcessId};
 use crate::process::{ProcessAddresses, ProcessSizes, ShortId};
@@ -492,6 +492,10 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     /// be stored as `Some(completion code)`.
     completion_code: OptionalCell<Option<u32>>,
 
+    /// Flag that stores whether this process has a task that is ready when
+    /// the process is in the [`State::YieldedFor`] state.
+    is_yield_wait_for_ready: Cell<bool>,
+
     /// Values kept so that we can print useful debug messages when apps fault.
     debug: D,
 }
@@ -527,6 +531,20 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         let ret = self.tasks.map_or(Err(ErrorCode::FAIL), |tasks| {
             match tasks.enqueue(task) {
                 true => {
+                    // If the process is yielded-for this task, set the ready flag.
+                    if let State::YieldedFor(yielded_upcall_id) = self.state.get() {
+                        if let Some(upcall_id) = match task {
+                            Task::FunctionCall(FunctionCall {
+                                source: FunctionCallSource::Driver(upcall_id),
+                                ..
+                            }) => Some(upcall_id),
+                            Task::ReturnValue(ReturnArguments { upcall_id, .. }) => Some(upcall_id),
+                            _ => None,
+                        } {
+                            self.is_yield_wait_for_ready
+                                .set(upcall_id == yielded_upcall_id);
+                        }
+                    }
                     // The task has been successfully enqueued.
                     Ok(())
                 }
@@ -548,8 +566,12 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn ready(&self) -> bool {
-        self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
-            || self.state.get() == State::Running
+        match self.state.get() {
+            State::Running => true,
+            State::YieldedFor(_) => self.is_yield_wait_for_ready.get(),
+            State::Yielded => self.tasks.map_or(false, |ring_buf| ring_buf.has_elements()),
+            _ => false,
+        }
     }
 
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize {
@@ -598,6 +620,23 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     fn set_yielded_for_state(&self, upcall_id: UpcallId) {
         if self.state.get() == State::Running {
             self.state.set(State::YieldedFor(upcall_id));
+
+            // Verify if the process has a task that this yield waits for
+            self.is_yield_wait_for_ready
+                .set(self.tasks.map_or(false, |tasks| {
+                    tasks
+                        .find_first_matching(|task| match task {
+                            Task::ReturnValue(ReturnArguments { upcall_id: id, .. }) => {
+                                upcall_id == *id
+                            }
+                            Task::FunctionCall(FunctionCall {
+                                source: FunctionCallSource::Driver(id),
+                                ..
+                            }) => upcall_id == *id,
+                            _ => false,
+                        })
+                        .is_some()
+                }));
         }
     }
 
@@ -622,7 +661,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             match stopped_state {
                 StoppedState::Running => self.state.set(State::Running),
                 StoppedState::Yielded => self.state.set(State::Yielded),
-                StoppedState::YieldedFor(upcall_id) => self.state.set(State::YieldedFor(upcall_id)),
+                StoppedState::YieldedFor(upcall_id) => self.set_yielded_for_state(upcall_id),
             }
         }
     }
@@ -1308,6 +1347,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // now needing to be resumed. Either way we can set the state to
                 // running.
                 self.state.set(State::Running);
+                // The task is running, if it was yielded-for an upcall,
+                // the upcall must have been scheduled, unset
+                // the ready flag.
+                self.is_yield_wait_for_ready.set(false);
             }
 
             Some(Err(())) => {
@@ -1950,6 +1993,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             Cell::new(None),
         ];
         process.tasks = MapCell::new(tasks);
+        process.is_yield_wait_for_ready = Cell::new(false);
 
         process.debug = D::default();
         if let Some(fix_addr_flash) = fixed_address_flash {
