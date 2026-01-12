@@ -192,8 +192,8 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
             "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
             app_flash.as_ptr() as usize,
             app_flash.as_ptr() as usize + app_flash.len() - 1,
-            app_memory as *mut u8 as usize,
-            app_memory as *mut u8 as usize + app_memory.len() - 1
+            app_memory.addr(),
+            app_memory.addr() + app_memory.len() - 1
         );
     }
 
@@ -371,8 +371,8 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
             "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
             process_binary.flash.as_ptr() as usize,
             process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
-            app_memory as *mut u8 as usize,
-            app_memory as *mut u8 as usize + app_memory.len() - 1
+            app_memory.addr(),
+            app_memory.addr() + app_memory.len() - 1
         );
     }
 
