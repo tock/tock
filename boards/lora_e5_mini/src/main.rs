@@ -403,7 +403,7 @@ pub unsafe fn main() {
         capsules_core::i2c_master::DRIVER_NUM,
         &base_peripherals.i2c2,
     )
-    .finalize(components::i2c_master_component_static!(
+    .finalize(components::i2c_master_driver_component_static!(
         stm32wle5jc::i2c::I2C
     ));
 
