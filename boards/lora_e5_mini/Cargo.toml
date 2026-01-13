@@ -3,7 +3,7 @@
 # Copyright Tock Contributors 2025.
 
 [package]
-name = "seeed_studio_lora_e5_mini"
+name = "lora_e5_mini"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

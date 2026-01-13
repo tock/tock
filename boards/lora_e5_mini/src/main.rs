@@ -75,7 +75,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
-struct SeeedStudioLoraE5Mini {
+struct LoraE5Mini {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     console: &'static capsules_core::console::Console<'static>,
@@ -106,7 +106,7 @@ struct SeeedStudioLoraE5Mini {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDriverLookup for SeeedStudioLoraE5Mini {
+impl SyscallDriverLookup for LoraE5Mini {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -129,7 +129,7 @@ impl
             'static,
             stm32wle5jc::interrupt_service::Stm32wle5jcDefaultPeripherals<'static>,
         >,
-    > for SeeedStudioLoraE5Mini
+    > for LoraE5Mini
 {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
@@ -428,7 +428,7 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
-    let seeed_studio_lora_e5_mini = SeeedStudioLoraE5Mini {
+    let lora_e5_mini = LoraE5Mini {
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(
             (MSI_FREQUENCY_MHZ * 1_000_000) as u32,
@@ -480,7 +480,7 @@ pub unsafe fn main() {
     .run();*/
 
     board_kernel.kernel_loop(
-        &seeed_studio_lora_e5_mini,
+        &lora_e5_mini,
         chip,
         None::<&kernel::ipc::IPC<2>>,
         &main_loop_capability,
