@@ -5,7 +5,7 @@
 # connect.gdb - GDB startup script for STM32 (Cortex-M4)
 
 # Load ELF file with symbols
-file ../../target/thumbv7em-none-eabi/debug/seeed_studio_lora_e5_mini.elf
+file ../../target/thumbv7em-none-eabi/debug/lora_e5_mini.elf
 
 # Connect to OpenOCD (or other gdbserver)
 target remote localhost:3333
