@@ -67,7 +67,7 @@ macro_rules! i2c_master_slave_component_static {
 }
 
 #[macro_export]
-macro_rules! i2c_master_component_static {
+macro_rules! i2c_master_driver_component_static {
     ($I:ty $(,)?) => {{
         let i2c_master_buffer = kernel::static_buf!([u8; 32]);
 
