@@ -21,7 +21,6 @@ use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -45,15 +44,6 @@ pub type ChipHw = stm32wle5jc::chip::Stm32wle5xx<
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
-
-// Actual memory for holding the active process structures.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-
-static mut CHIP: Option<&'static stm32wle5jc::chip::Stm32wle5xx<Stm32wle5jcDefaultPeripherals>> =
-    None;
-
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
 
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
@@ -231,7 +221,6 @@ pub unsafe fn main() {
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -240,8 +229,6 @@ pub unsafe fn main() {
         stm32wle5jc::chip::Stm32wle5xx<Stm32wle5jcDefaultPeripherals>,
         stm32wle5jc::chip::Stm32wle5xx::new(peripherals)
     );
-
-    CHIP = Some(chip);
 
     setup_peripherals(&base_peripherals.tim2, &base_peripherals.subghz_spi);
 
@@ -314,7 +301,6 @@ pub unsafe fn main() {
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
 
     //--------------------------------------------------------------------
     // LED
