@@ -7,10 +7,10 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
+use kernel::utilities::io_write::IoWrite;
 
 use stm32f303xc::gpio::PinId;
 
@@ -75,7 +75,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     let led = &mut led::LedHigh::new(&pin);
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         info,

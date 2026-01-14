@@ -107,9 +107,9 @@ use core::panic::PanicInfo;
 use core::str;
 
 use crate::capabilities::SetDebugWriterCapability;
-use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::platform::chip::Chip;
+use crate::platform::chip::PanicWriter;
 use crate::platform::chip::ThreadIdProvider;
 use crate::process::ProcessPrinter;
 use crate::process::ProcessSlot;
@@ -117,35 +117,8 @@ use crate::processbuffer::ReadableProcessSlice;
 use crate::utilities::binary_write::BinaryToWriteWrapper;
 use crate::utilities::cells::MapCell;
 use crate::utilities::cells::NumericCellExt;
+use crate::utilities::io_write::IoWrite;
 use crate::utilities::single_thread_value::SingleThreadValue;
-
-/// Implementation of `std::io::Write` for `no_std`.
-///
-/// This takes bytes instead of a string (contrary to [`core::fmt::Write`]), but
-/// we cannot use `std::io::Write' as it isn't available in `no_std` (due to
-/// `std::io::Error` not being available).
-///
-/// Also, in our use cases, writes are infallible, so the write function cannot
-/// return an `Err`, however it might not be able to write everything, so it
-/// returns the number of bytes written.
-///
-/// See also the tracking issue:
-/// <https://github.com/rust-lang/rfcs/issues/2262>.
-pub trait IoWrite {
-    fn write(&mut self, buf: &[u8]) -> usize;
-
-    fn write_ring_buffer(&mut self, buf: &RingBuffer<'_, u8>) -> usize {
-        let (left, right) = buf.as_slices();
-        let mut total = 0;
-        if let Some(slice) = left {
-            total += self.write(slice);
-        }
-        if let Some(slice) = right {
-            total += self.write(slice);
-        }
-        total
-    }
-}
 
 ///////////////////////////////////////////////////////////////////
 // panic! support routines
@@ -182,7 +155,74 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+    writer_config: PW::Config,
+    panic_info: &PanicInfo,
+    nop: &dyn Fn(),
+    panic_resources: Option<&PanicResources<C, PP>>,
+) {
+    // Create the synchronous writer we can use to output the panic message.
+    let mut writer = PW::create_panic_writer(writer_config);
+
+    panic_begin(nop);
+    // Flush debug buffer if needed
+    flush(&mut writer);
+    panic_banner(&mut writer, panic_info);
+
+    panic_resources.map(|pr| {
+        let chip = pr.chip.take();
+        panic_cpu_state(chip, &mut writer);
+
+        chip.map(|c| {
+            // Some systems may enforce memory protection regions for the kernel,
+            // making application memory inaccessible. However, printing process
+            // information will attempt to access memory. If we are provided a chip
+            // reference, attempt to disable userspace memory protection first:
+            use crate::platform::mpu::MPU;
+            c.mpu().disable_app_mpu()
+        });
+        pr.processes.take().map(|p| {
+            panic_process_info(p, pr.printer.take(), &mut writer);
+        });
+    });
+}
+
+/// Tock default panic routine.
+///
+/// **NOTE:** The supplied `writer` must be synchronous.
+///
+/// This will print a detailed debugging message and then loop forever while
+/// blinking an LED in a recognizable pattern.
+pub unsafe fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+    leds: &mut [&L],
+    writer_config: PW::Config,
+    panic_info: &PanicInfo,
+    nop: &dyn Fn(),
+    panic_resources: Option<&PanicResources<C, PP>>,
+) -> ! {
+    // Call `panic_print` first which will print out the panic information and
+    // return
+    panic_print::<PW, C, PP>(writer_config, panic_info, nop, panic_resources);
+
+    // The system is no longer in a well-defined state, we cannot
+    // allow this function to return
+    //
+    // Forever blink LEDs in an infinite loop
+    panic_blink_forever(leds)
+}
+
+/// Tock panic routine, without the infinite LED-blinking loop.
+///
+/// This is useful for boards which do not feature LEDs to blink or want to
+/// implement their own behavior. This method returns after performing the panic
+/// dump.
+///
+/// After this method returns, the system is no longer in a well-defined state.
+/// Care must be taken on how one interacts with the system once this function
+/// returns.
+///
+/// **NOTE:** The supplied `writer` must be synchronous.
+pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
@@ -217,7 +257,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_old<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer: &mut W,
     panic_info: &PanicInfo,
@@ -226,7 +266,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
 ) -> ! {
     // Call `panic_print` first which will print out the panic information and
     // return
-    panic_print(writer, panic_info, nop, panic_resources);
+    panic_print_old(writer, panic_info, nop, panic_resources);
 
     // The system is no longer in a well-defined state, we cannot
     // allow this function to return

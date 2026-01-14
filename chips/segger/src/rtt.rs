@@ -90,6 +90,7 @@ use kernel::hil;
 use kernel::hil::time::ConvertTicks;
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::ErrorCode;
 
 /// Suggested length for the up buffer to pass to the Segger RTT capsule.
@@ -366,5 +367,40 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
         Ok(())
+    }
+}
+
+/// A synchronous writer for Segger RTT.
+///
+/// For boards that want to use RTT to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+struct RttPanicWriter<'a> {
+    inner: &'a SeggerRttMemory<'a>,
+}
+
+impl IoWrite for RttPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.inner.write_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for RttPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+impl<'a> kernel::platform::chip::PanicWriter for SeggerRttMemory<'a> {
+    type Config = &'a SeggerRttMemory<'a>;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite {
+        RttPanicWriter { inner: config }
     }
 }
