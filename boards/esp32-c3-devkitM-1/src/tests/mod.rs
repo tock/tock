@@ -3,8 +3,8 @@
 // Copyright Tock Contributors 2022.
 
 use crate::BOARD;
-use crate::CHIP;
 use crate::MAIN_CAP;
+use crate::PANIC_RESOURCES;
 use crate::PLATFORM;
 use kernel::debug;
 
@@ -13,7 +13,7 @@ fn run_kernel_op(loops: usize) {
         for _i in 0..loops {
             BOARD.unwrap().kernel_loop_operation(
                 PLATFORM.unwrap(),
-                CHIP.unwrap(),
+                PANIC_RESOURCES.get().and_then(|pr| pr.chip.get()).unwrap(),
                 None::<&kernel::ipc::IPC<0>>,
                 true,
                 MAIN_CAP.unwrap(),

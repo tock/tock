@@ -16,13 +16,13 @@ use core::ptr::addr_of;
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::led::LedLow;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -67,14 +67,11 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 const NUM_PROCS: usize = 8;
 
 type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-// Static reference to chip for panic dumps
-static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
-// Static reference to process printer for panic dumps
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
 
 kernel::stack_size! {0x1000}
 
@@ -86,6 +83,8 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
     nrf52840::ieee802154_radio::Radio<'static>,
     nrf52840::aes::AesECB<'static>,
 >;
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -123,7 +122,7 @@ pub struct Platform {
             nrf52840::rtc::Rtc<'static>,
         >,
     >,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -155,7 +154,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -199,6 +198,9 @@ pub unsafe fn start() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
@@ -216,7 +218,9 @@ pub unsafe fn start() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -286,7 +290,9 @@ pub unsafe fn start() -> (
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
         nrf52840::chip::NRF52::new(nrf52840_peripherals)
     );
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     nrf52_components::startup::NrfStartupComponent::new(
         false,
@@ -340,7 +346,9 @@ pub unsafe fn start() -> (
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(channel, 115200)

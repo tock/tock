@@ -16,10 +16,10 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
 use stm32f401cc::chip_specs::Stm32f401Specs;
@@ -33,18 +33,19 @@ pub mod io;
 const NUM_PROCS: usize = 4;
 
 type ChipHw = stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPeripherals<'static>>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static ChipHw> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 kernel::stack_size! {0x2000}
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -63,7 +64,7 @@ struct WeactF401CC {
         VirtualMuxAlarm<'static, stm32f401cc::tim2::Tim2<'static>>,
     >,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -92,7 +93,7 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -230,6 +231,9 @@ unsafe fn start() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f401cc::rcc::Rcc, stm32f401cc::rcc::Rcc::new());
     let clocks = static_init!(
@@ -268,7 +272,9 @@ unsafe fn start() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -277,7 +283,9 @@ unsafe fn start() -> (
         stm32f401cc::chip::Stm32f4xx<Stm32f401ccDefaultPeripherals>,
         stm32f401cc::chip::Stm32f4xx::new(peripherals)
     );
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     // UART
 
@@ -433,7 +441,9 @@ unsafe fn start() -> (
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(

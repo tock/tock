@@ -19,15 +19,15 @@ use core::ptr;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
+use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::ipc::IPC;
 use kernel::platform::chip::InterruptService;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 use virtio::devices::virtio_rng::VirtIORng;
 use virtio::devices::VirtIODeviceType;
@@ -53,26 +53,23 @@ static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 
 const NUM_PROCS: usize = 4;
 
-type ChipHw = Pc<'static, (), ()>;
+type ChipHw = Pc<'static, PcDefaultPeripherals, VirtioDevices>;
 type AlarmHw = Pit<'static, RELOAD_1KHZ>;
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-
-// Reference to the chip for panic dumps
-static mut CHIP: Option<&'static ChipHw> = None;
-
-// Reference to the process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 kernel::stack_size! {0x1000}
+
+type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 // Static allocations used for page tables
 //
@@ -158,7 +155,7 @@ pub struct QemuI386Q35Platform {
         VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
     >,
     ipc: IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static CooperativeSched<'static>,
+    scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static>>>,
 }
@@ -201,7 +198,7 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
         &()
     }
 
-    type Scheduler = CooperativeSched<'static>;
+    type Scheduler = SchedulerInUse;
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
     }
@@ -269,6 +266,9 @@ unsafe extern "cdecl" fn main() {
             ),
         )
     };
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -278,7 +278,9 @@ unsafe extern "cdecl" fn main() {
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -428,7 +430,9 @@ unsafe extern "cdecl" fn main() {
     // Create the process printer used in panic prints, etc.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // ProcessConsole stays on COM1 because we have no keyboard input yet.
     // As soon as keyboard support will be added, the process console

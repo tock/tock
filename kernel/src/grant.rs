@@ -507,7 +507,7 @@ impl Drop for EnteredGrantKernelManagedLayout<'_> {
 /// grant for a specific process.
 ///
 /// The [`GrantData`] type is templated on `T`, the actual type of the object in
-/// the grant. [`GrantData'] holds a mutable reference to the type, allowing
+/// the grant. [`GrantData`] holds a mutable reference to the type, allowing
 /// users access to the object in process memory.
 ///
 /// Capsules gain access to a [`GrantData`] object by calling

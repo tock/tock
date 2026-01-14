@@ -19,11 +19,11 @@ use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use rp2350::chip::{Rp2350, Rp2350DefaultPeripherals};
@@ -76,19 +76,19 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 const NUM_PROCS: usize = 4;
 
 type ChipHw = Rp2350<'static, Rp2350DefaultPeripherals<'static>>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
 
-static mut CHIP: Option<&'static Rp2350<Rp2350DefaultPeripherals<'static>>> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct RaspberryPiPico2 {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     console: &'static capsules_core::console::Console<'static>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm33::systick::SysTick,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -118,7 +118,7 @@ impl KernelResources<Rp2350<'static, Rp2350DefaultPeripherals<'static>>> for Ras
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm33::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -261,6 +261,9 @@ pub unsafe fn main() {
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     let peripherals = get_peripherals();
     peripherals.resolve_dependencies();
 
@@ -295,13 +298,16 @@ pub unsafe fn main() {
         Rp2350<Rp2350DefaultPeripherals>,
         Rp2350::new(peripherals, &peripherals.sio)
     );
-
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     let board_kernel = static_init!(Kernel, Kernel::new(processes.as_slice()));
 
@@ -388,7 +394,9 @@ pub unsafe fn main() {
     // PROCESS CONSOLE
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,

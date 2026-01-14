@@ -46,6 +46,7 @@ pub enum NUM {
     Thread                = 0x30005,
     Eui64                 = 0x30006,
     EthernetTap           = 0x30007,
+    Wifi                  = 0x30008,
 
     // Cryptography
     Rng                   = 0x40001,

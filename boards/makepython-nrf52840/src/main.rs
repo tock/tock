@@ -14,12 +14,13 @@ use core::ptr::addr_of;
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -71,12 +72,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolic
 const NUM_PROCS: usize = 8;
 
 type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static ChipHw> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
 static mut CDC_REF_FOR_PANIC: Option<
     &'static capsules_extra::usb::cdc::CdcAcm<
         'static,
@@ -84,7 +81,11 @@ static mut CDC_REF_FOR_PANIC: Option<
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
-static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
+    SingleThreadValue::new(PanicResources::new());
+static NRF52_POWER: SingleThreadValue<MapCell<&'static nrf52840::power::Power>> =
+    SingleThreadValue::new(MapCell::empty());
 
 kernel::stack_size! {0x1000}
 
@@ -92,7 +93,11 @@ kernel::stack_size! {0x1000}
 fn baud_rate_reset_bootloader_enter() {
     unsafe {
         // 0x90 is the magic value the bootloader expects
-        NRF52_POWER.unwrap().set_gpregret(0x90);
+        NRF52_POWER.get().map(|power_cell| {
+            power_cell.map(|power| {
+                power.set_gpregret(0x90);
+            });
+        });
         cortexm4::scb::reset();
     }
 }
@@ -119,6 +124,8 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
     nrf52840::aes::AesECB<'static>,
 >;
 type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -154,7 +161,7 @@ pub struct Platform {
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     screen: &'static ScreenDriver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -187,7 +194,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -231,6 +238,10 @@ pub unsafe fn start() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    NRF52_POWER.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
@@ -248,12 +259,16 @@ pub unsafe fn start() -> (
 
     // Save a reference to the power module for resetting the board into the
     // bootloader.
-    NRF52_POWER = Some(&base_peripherals.pwr_clk);
+    NRF52_POWER.get().map(|power_cell| {
+        power_cell.put(&base_peripherals.pwr_clk);
+    });
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -272,7 +287,9 @@ pub unsafe fn start() -> (
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
         nrf52840::chip::NRF52::new(nrf52840_peripherals)
     );
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -399,7 +416,9 @@ pub unsafe fn start() -> (
     // Process Printer for displaying process information.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
@@ -511,8 +530,8 @@ pub unsafe fn start() -> (
     let i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
     base_peripherals.twi1.configure(
-        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
-        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
     );
 
     // I2C address is b011110X, and on this board D/C̅ is GND.

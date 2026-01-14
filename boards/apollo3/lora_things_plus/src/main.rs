@@ -44,6 +44,7 @@ use components::bme280::Bme280Component;
 use components::ccs811::Ccs811Component;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::flash::HasClient;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
@@ -51,8 +52,7 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
 #[cfg(feature = "atecc508a")]
@@ -76,16 +76,12 @@ mod tests;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-
 type ChipHw = apollo3::chip::Apollo3<Apollo3DefaultPeripherals>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-// Static reference to chip for panic dumps.
-static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
-// Static reference to process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -149,6 +145,8 @@ type SignatureVerifyInMemoryKeys =
         64,
     >;
 
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LoRaThingsPlus {
@@ -194,7 +192,7 @@ struct LoRaThingsPlus {
             >,
         >,
     >,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
@@ -377,7 +375,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for LoRa
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -418,6 +416,9 @@ unsafe fn setup() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
     PERIPHERALS = Some(peripherals);
 
@@ -434,7 +435,9 @@ unsafe fn setup() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
@@ -534,7 +537,9 @@ unsafe fn setup() -> (
     // Create a process printer for panic.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // Enable SDA and SCL for I2C (exposed via Qwiic)
     peripherals
@@ -856,7 +861,9 @@ unsafe fn setup() -> (
         apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
         apollo3::chip::Apollo3::new(peripherals)
     );
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     let checking_policy;
     #[cfg(feature = "atecc508a")]

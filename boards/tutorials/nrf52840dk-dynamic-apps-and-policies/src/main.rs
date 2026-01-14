@@ -29,7 +29,6 @@ const SCREEN_I2C_SCL_PIN: Pin = Pin::P1_11;
 const NUM_PROCS: usize = 8;
 
 type ChipHw = nrf52840dk_lib::ChipHw;
-static mut CHIP: Option<&'static ChipHw> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
@@ -213,8 +212,6 @@ pub unsafe fn main() {
     let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
         nrf52840dk_lib::start();
 
-    CHIP = Some(chip);
-
     //--------------------------------------------------------------------------
     // SCREEN
     //--------------------------------------------------------------------------
@@ -222,8 +219,8 @@ pub unsafe fn main() {
     let i2c_bus = components::i2c::I2CMuxComponent::new(&nrf52840_peripherals.nrf52.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
     nrf52840_peripherals.nrf52.twi1.configure(
-        nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SCL_PIN as u32),
-        nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SDA_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SCL_PIN),
+        nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SDA_PIN),
     );
     nrf52840_peripherals
         .nrf52

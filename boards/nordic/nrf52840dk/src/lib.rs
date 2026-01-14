@@ -76,13 +76,12 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -137,15 +136,17 @@ const USB_DEBUGGING: bool = false;
 
 /// This platform's chip type:
 pub type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+/// Type for the process details printer.
+type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+use kernel::utilities::single_thread_value::SingleThreadValue;
+
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
+    SingleThreadValue::new(PanicResources::new());
 
 kernel::stack_size! {0x2000}
 
@@ -194,6 +195,8 @@ pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
 /// Userspace EUI64 driver.
 pub type Eui64Driver = components::eui64::Eui64ComponentType;
 
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -237,7 +240,7 @@ pub struct Platform {
         >,
     >,
     kv_driver: &'static KVDriver,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -270,7 +273,7 @@ impl KernelResources<ChipHw> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -411,6 +414,8 @@ pub unsafe fn start_no_pconsole() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let ieee802154_ack_buf = static_init!(
@@ -464,7 +469,9 @@ pub unsafe fn start_no_pconsole() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -472,7 +479,9 @@ pub unsafe fn start_no_pconsole() -> (
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
     let chip = static_init!(ChipHw, nrf52840::chip::NRF52::new(nrf52840_peripherals));
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
@@ -604,7 +613,9 @@ pub unsafe fn start_no_pconsole() -> (
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // Virtualize the UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
@@ -725,9 +736,9 @@ pub unsafe fn start_no_pconsole() -> (
     ));
 
     base_peripherals.spim0.configure(
-        nrf52840::pinmux::Pinmux::new(SPI_MOSI as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_MISO as u32),
-        nrf52840::pinmux::Pinmux::new(SPI_CLK as u32),
+        nrf52840::pinmux::Pinmux::new(SPI_MOSI),
+        nrf52840::pinmux::Pinmux::new(SPI_MISO),
+        nrf52840::pinmux::Pinmux::new(SPI_CLK),
     );
 
     //--------------------------------------------------------------------------
@@ -822,8 +833,8 @@ pub unsafe fn start_no_pconsole() -> (
     ));
 
     base_peripherals.twi1.configure(
-        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
-        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
     );
     base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K400);
 

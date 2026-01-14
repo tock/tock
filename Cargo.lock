@@ -1236,6 +1236,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "raspberry_pi_pico_w"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm0p",
+ "kernel",
+ "raspberry_pi_pico",
+ "rp2040",
+ "tock-firmware-cyw43",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "redboard_artemis_atp"
 version = "0.2.3-dev"
 dependencies = [
@@ -1533,6 +1549,11 @@ version = "2.0.0"
 [[package]]
 name = "tock-cells"
 version = "0.1.0"
+
+[[package]]
+name = "tock-firmware-cyw43"
+version = "0.1.0"
+source = "git+https://github.com/tock/firmware.git#86ad8b00315dc5f44593722ece80ad077d7ebdb7"
 
 [[package]]
 name = "tock-registers"

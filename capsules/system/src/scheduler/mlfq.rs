@@ -24,12 +24,12 @@
 use core::cell::Cell;
 use core::num::NonZeroU32;
 
-use crate::collections::list::{List, ListLink, ListNode};
-use crate::hil::time::{self, ConvertTicks, Ticks};
-use crate::platform::chip::Chip;
-use crate::process::ProcessSlot;
-use crate::process::StoppedExecutingReason;
-use crate::scheduler::{Scheduler, SchedulingDecision};
+use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::hil::time::{self, ConvertTicks, Ticks};
+use kernel::platform::chip::Chip;
+use kernel::process::ProcessSlot;
+use kernel::process::StoppedExecutingReason;
+use kernel::scheduler::{Scheduler, SchedulingDecision};
 
 #[derive(Default)]
 struct MfProcState {

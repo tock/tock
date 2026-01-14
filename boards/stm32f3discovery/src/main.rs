@@ -14,17 +14,16 @@ use core::ptr::addr_of_mut;
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::lsm303xx;
-use capsules_system::process_printer::ProcessPrinterText;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use stm32f303xc::chip::Stm32f3xxDefaultPeripherals;
 use stm32f303xc::wdt;
@@ -40,14 +39,11 @@ mod virtual_uart_rx_test;
 const NUM_PROCS: usize = 4;
 
 type ChipHw = stm32f303xc::chip::Stm32f3xx<'static, Stm32f3xxDefaultPeripherals<'static>>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-
-// Static reference to chip for panic dumps.
-static mut CHIP: Option<&'static ChipHw> = None;
-// Static reference to process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static ProcessPrinterText> = None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -62,6 +58,8 @@ type L3GD20Sensor = components::l3gd20::L3gd20ComponentType<
     >,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<L3GD20Sensor>;
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -93,7 +91,7 @@ struct STM32F3Discovery {
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
     watchdog: &'static wdt::WindoWdg<'static>,
 }
@@ -135,7 +133,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = wdt::WindoWdg<'static>;
     type ContextSwitchCallback = ();
@@ -381,6 +379,9 @@ unsafe fn start() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     // We use the default HSI 8Mhz clock
     let rcc = static_init!(stm32f303xc::rcc::Rcc, stm32f303xc::rcc::Rcc::new());
     let syscfg = static_init!(
@@ -411,7 +412,9 @@ unsafe fn start() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -420,7 +423,9 @@ unsafe fn start() -> (
         stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>,
         stm32f303xc::chip::Stm32f3xx::new(peripherals)
     );
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     // UART
 
@@ -785,7 +790,9 @@ unsafe fn start() -> (
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(

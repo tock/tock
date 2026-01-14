@@ -17,10 +17,10 @@ use core::ptr::addr_of_mut;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::led::LedsComponent;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
 
 #[allow(unused)]
@@ -40,12 +40,13 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 const NUM_PROCS: usize = 4;
 
 type ChipHw = Psoc62xa<'static, PsoC62xaDefaultPeripherals<'static>>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static Psoc62xa<PsoC62xaDefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Cy8cproto0624343w {
@@ -57,7 +58,7 @@ pub struct Cy8cproto0624343w {
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, GpioPin<'static>>, 1>,
     button: &'static capsules_core::button::Button<'static, GpioPin<'static>>,
     gpio: &'static capsules_core::gpio::GPIO<'static, psoc62xa::gpio::GpioPin<'static>>,
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm0p::systick::SysTick,
 }
 
@@ -81,7 +82,7 @@ impl KernelResources<Psoc62xa<'static, PsoC62xaDefaultPeripherals<'static>>> for
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -127,6 +128,10 @@ pub unsafe fn main() {
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     let peripherals = static_init!(
         PsoC62xaDefaultPeripherals,
         PsoC62xaDefaultPeripherals::new()
@@ -162,7 +167,9 @@ pub unsafe fn main() {
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -208,7 +215,9 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -302,7 +311,9 @@ pub unsafe fn main() {
         systick: cortexm0p::systick::SysTick::new_with_calibration(8_000_000),
     };
 
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
     (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb);
 
     kernel::debug!("Initialization complete. Entering main loop.");

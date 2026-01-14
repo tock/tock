@@ -10,12 +10,12 @@
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
+use crate::debug::PanicResources;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
-use kernel::scheduler::priority::PrioritySched;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
 #[allow(dead_code)]
@@ -34,15 +34,20 @@ type ChipHw = arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'s
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
+type Chip = arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>;
+type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
-// Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<Chip, ProcessPrinter>> =
+    SingleThreadValue::new(PanicResources::new());
 
 kernel::stack_size! {0x1000}
+
+struct ProcessManagementCapabilityObj {}
+unsafe impl capabilities::ProcessManagementCapability for ProcessManagementCapabilityObj {}
+
+type SchedulerInUse =
+    components::sched::priority::PriorityComponentType<ProcessManagementCapabilityObj>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -60,7 +65,7 @@ struct ArtyE21 {
     >,
     button: &'static capsules_core::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
-    scheduler: &'static PrioritySched,
+    scheduler: &'static SchedulerInUse,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -89,7 +94,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = PrioritySched;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = ();
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -131,6 +136,8 @@ unsafe fn start() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    PANIC_RESOURCES.bind_to_thread::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
     peripherals.init();
 
@@ -138,7 +145,9 @@ unsafe fn start() -> (
         arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>,
         arty_e21_chip::chip::ArtyExx::new(&peripherals.machinetimer, peripherals)
     );
-    CHIP = Some(chip);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
     chip.initialize();
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -146,7 +155,9 @@ unsafe fn start() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
@@ -168,7 +179,9 @@ unsafe fn start() -> (
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
@@ -253,8 +266,13 @@ unsafe fn start() -> (
 
     chip.enable_all_interrupts();
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
-        .finalize(components::priority_component_static!());
+    let scheduler = components::sched::priority::PriorityComponent::new(
+        board_kernel,
+        ProcessManagementCapabilityObj {},
+    )
+    .finalize(components::priority_component_static!(
+        ProcessManagementCapabilityObj
+    ));
 
     let artye21 = ArtyE21 {
         console,

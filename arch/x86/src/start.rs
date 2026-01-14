@@ -11,12 +11,12 @@ pub unsafe extern "C" fn start() {
     naked_asm!(
         "
     # Initialize the stack
-    lea     esp, _estack
-    lea     ebp, _estack
+    lea     esp, [_estack]
+    lea     ebp, [_estack]
 
     # Zero out the .bss section
-    mov     eax, _szero
-    mov     ebx, _ezero
+    lea     eax, [_szero]
+    lea     ebx, [_ezero]
 200:
     cmp     eax, ebx
     je      201f
@@ -26,9 +26,9 @@ pub unsafe extern "C" fn start() {
 201:
 
     # Initialize contents of the .data section
-    mov     eax, _srelocate
-    mov     ebx, _erelocate
-    mov     ecx, _etext
+    lea     eax, [_srelocate]
+    lea     ebx, [_erelocate]
+    lea     ecx, [_etext]
 300:
     cmp     eax, ebx
     je      301f
