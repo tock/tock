@@ -19,10 +19,10 @@
 //!
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
-use crate::{LPCPin, PROCESS_PRINTER};
+use crate::LPCPin;
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of_mut;
 use kernel::debug::{self, IoWrite};
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;

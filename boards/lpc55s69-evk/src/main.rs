@@ -17,7 +17,6 @@ use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
 use lpc55s6x::chip::{Lpc55s69, Lpc55s69DefaultPeripheral};
