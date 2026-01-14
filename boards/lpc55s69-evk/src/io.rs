@@ -19,7 +19,7 @@
 //!
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
-use crate::{LPCPin, CHIP, PROCESSES, PROCESS_PRINTER};
+use crate::{LPCPin, PROCESS_PRINTER};
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::ptr::{addr_of, addr_of_mut};
@@ -138,8 +138,6 @@ pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
         writer,
         panic_info,
         &cortexm33::support::nop,
-        PROCESSES.unwrap().as_slice(),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
+        crate::PANIC_RESOURCES.get(),
     )
 }

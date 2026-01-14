@@ -10,13 +10,15 @@ mod io;
 use core::ptr::addr_of_mut;
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_system::scheduler::round_robin::RoundRobinSched;
 use components::led::LedsComponent;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
-use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
 use lpc55s6x::chip::{Lpc55s69, Lpc55s69DefaultPeripheral};
 use lpc55s6x::clocks::{self, Clock, FrgClockSource, FrgId};
@@ -49,8 +51,10 @@ const NUM_PROCS: usize = 4;
 type ChipHw = Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>;
 
 /// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static Lpc55s69<Lpc55s69DefaultPeripheral>> = None;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
+
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
 
 pub struct Lpc55s69evk {
     console: &'static capsules_core::console::Console<'static>,
@@ -136,7 +140,10 @@ unsafe fn start() -> (
 
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
+
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     peripherals.ctimer0.init(96_000_000);
