@@ -14,6 +14,7 @@ cortexm33 = { path = "../../arch/cortex-m33" }
 kernel = { path = "../../kernel"}
 lpc55s6x = { path = "../../chips/lpc55s6x" }
 components = { path = "../components" }
+segger = { path = "../../chips/segger" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 capsules-core = { path = "../../capsules/core" }
 capsules-system = { path = "../../capsules/system" }

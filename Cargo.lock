@@ -626,6 +626,7 @@ dependencies = [
  "enum_primitive",
  "kernel",
  "lpc55s6x",
+ "segger",
  "tock_build_scripts",
 ]
 

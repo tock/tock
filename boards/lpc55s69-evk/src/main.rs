@@ -124,6 +124,14 @@ unsafe fn start() -> (
 ) {
     lpc55s6x::init();
 
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     system_init();
 
     let peripherals = get_peripherals();
@@ -141,6 +149,12 @@ unsafe fn start() -> (
         .finalize(components::process_array_component_static!(NUM_PROCS));
     PANIC_RESOURCES.get().map(|resources| {
         resources.processes.put(processes.as_slice());
+    });
+
+    // Create (and save for panic debugging) a chip object to setup low-level
+    // resources (e.g. MPU, systick).
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
     });
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -314,6 +328,11 @@ unsafe fn start() -> (
 
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
 
+    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+        .finalize(components::segger_rtt_memory_component_static!());
+
+    (*addr_of_mut!(io::WRITER)).set_rtt_memory(rtt_memory.rtt_memory);
+
     let uart_mux = components::console::UartMuxComponent::new(uart, 115200)
         .finalize(components::uart_mux_component_static!());
 
@@ -396,6 +415,7 @@ unsafe fn start() -> (
         kernel::debug!("Error loading processes!");
         kernel::debug!("{:?}", err);
     });
+    kernel::debug!("LPC55S69-EVK Booting (Fixed Version)");
     (board_kernel, lpc55, chip)
 }
 
