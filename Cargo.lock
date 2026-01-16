@@ -593,6 +593,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "lora_e5_mini"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "stm32wle5jc",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "lora_things_plus"
 version = "0.2.3-dev"
 dependencies = [
@@ -1495,6 +1509,25 @@ name = "stm32f4xx"
 version = "0.2.3-dev"
 dependencies = [
  "cortexm4f",
+ "enum_primitive",
+ "kernel",
+]
+
+[[package]]
+name = "stm32wle5jc"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm4",
+ "enum_primitive",
+ "kernel",
+ "stm32wle5xx",
+]
+
+[[package]]
+name = "stm32wle5xx"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm4",
  "enum_primitive",
  "kernel",
 ]

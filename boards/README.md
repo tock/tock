@@ -118,7 +118,7 @@ Virtual hardware platforms that are regularly tested as part of the CI.
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |
 | [VeeR EL2 simulation](veer_el2_sim/README.md)                     | RISC-V RV32IMC   | VeeR EL2       | custom     | custom                      | No            |
 | [QEMU i486 Q53](qemu_i486_q35/README.md)                          | i468             | Q35            | custom     | custom                      | Yes           |
-
+| [Seeed Studio LoRa E5 Mini](lora_e5_mini/README.md)               | ARM Cortex-M4    | STM32WLE5JC    | openocd    | tockloader                  | No            |
 [^1]: Tockloader is not able to interact with this board directly, but
       can be used to work on a flash-image of the board, which can in
       turn be flashed onto / read from the board. For more specific
