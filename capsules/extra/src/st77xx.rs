@@ -359,7 +359,14 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
                         }
                     }
                     self.dc.map(|dc| dc.set());
-                    let _ = self.bus.write(DataWidth::Bits8, buffer, len);
+                    match self.bus.write(DataWidth::Bits8, buffer, len) {
+                        Ok(()) => (),
+                        Err((e, buf)) => {
+                            self.buffer.replace(buf);
+                            self.status.set(Status::Error(e));
+                            self.do_next_op();
+                        }
+                    }
                 },
             );
         } else {
@@ -373,7 +380,14 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
             |buffer| {
                 self.status.set(Status::SendParametersSlice);
                 self.dc.map(|dc| dc.set());
-                let _ = self.bus.write(DataWidth::Bits16BE, buffer, len / 2);
+                match self.bus.write(DataWidth::Bits16BE, buffer, len / 2) {
+                    Ok(()) => (),
+                    Err((e, buf)) => {
+                        self.write_buffer.replace(buf);
+                        self.status.set(Status::Error(e));
+                        self.do_next_op();
+                    }
+                }
             },
         );
     }
@@ -585,6 +599,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
                 let _ = self.send_sequence(self.screen.init_sequence);
             }
             Status::Error(error) => {
+                self.status.set(Status::Idle);
                 if self.setup_command.get() {
                     self.setup_command.set(false);
                     self.setup_client.map(|setup_client| {
@@ -602,7 +617,6 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
                         }
                     });
                 }
-                self.status.set(Status::Idle);
             }
             _ => {
                 panic!("ST77XX status Idle");
