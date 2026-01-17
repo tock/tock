@@ -1029,6 +1029,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nucleo_l476rg"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "stm32l476rg",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1492,6 +1506,25 @@ dependencies = [
 
 [[package]]
 name = "stm32f4xx"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm4f",
+ "enum_primitive",
+ "kernel",
+]
+
+[[package]]
+name = "stm32l476rg"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm4f",
+ "enum_primitive",
+ "kernel",
+ "stm32l4xx",
+]
+
+[[package]]
+name = "stm32l4xx"
 version = "0.2.3-dev"
 dependencies = [
  "cortexm4f",
