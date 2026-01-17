@@ -32,113 +32,134 @@ use crate::capabilities;
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
 
-/// Convert a process buffer's internal representation to a
+/// Convert a process buffer's internal pointer+length representation to a
 /// [`ReadableProcessSlice`].
 ///
-/// This function will automatically convert zero-length process
-/// buffers into valid zero-sized Rust slices regardless of the value
-/// of `ptr`.
+/// This function will automatically convert zero-length process buffers into
+/// valid zero-sized Rust slices, regardless of the value of `ptr` (i.e., `ptr`
+/// is allowed to be null for these slices).
 ///
-/// # Safety requirements
+/// # Safety
 ///
-/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be
-/// within a single process' address space, and `ptr` must be
-/// nonzero. This memory region must be mapped as _readable_, and
-/// optionally _writable_ and _executable_. It must be allocated
-/// within a single process' address space for the entire lifetime
-/// `'a`.
+/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be assigned to
+/// one or more processes, and `ptr` must be nonzero. This memory region must be
+/// mapped as _readable_, and optionally _writable_. It must remain a valid,
+/// readable allocation assigned to one or more processes for the entire
+/// lifetime `'a`, and must not be used as backing memory for any Rust
+/// allocations (apart from other process slices).
 ///
-/// It is sound for multiple overlapping [`ReadableProcessSlice`]s or
-/// [`WriteableProcessSlice`]s to be in scope at the same time.
+/// Callers must ensure that, for its lifetime `'a`, no other programs (other
+/// than this Tock kernel instance) modify the memory behind a
+/// [`ReadableProcessSlice`]. This includes userspace programs, which must not
+/// run in parallel to the Tock kernel holding a process slice reference, or
+/// other Tock kernel instances executing in parallel.
+///
+/// It is sound for multiple (partially) aliased [`ReadableProcessSlice`]s or
+/// [`WriteableProcessSlice`]s to be in scope at the same time, as they use
+/// interior mutability, and their memory is not accessed in parallel by
+/// userspace or other programs running concurrently.
 unsafe fn raw_processbuf_to_roprocessslice<'a>(
     ptr: *const u8,
     len: usize,
 ) -> &'a ReadableProcessSlice {
-    // Transmute a reference to a slice of Cell<u8>s into a reference
-    // to a ReadableProcessSlice. This is possible as
-    // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
-    // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
-    // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
-    // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
-    // wraps a [u8]
-    core::mem::transmute::<&[u8], &ReadableProcessSlice>(
-        // Rust has very strict requirements on pointer validity[1]
-        // which also in part apply to accesses of length 0. We allow
-        // an application to supply arbitrary pointers if the buffer
-        // length is 0, but this is not allowed for Rust slices. For
-        // instance, a null pointer is _never_ valid, not even for
-        // accesses of size zero.
+    // Transmute a slice reference over readable (read-only or read-write, and
+    // potentially aliased) bytes into a `ReadableProcessSlice` reference.
+    //
+    // This is sound, as `ReadableProcessSlice` is merely a
+    // `#[repr(transparent)]` wrapper around `[ReadableProcessByte]`. However,
+    // we cannot build this struct safely from an intermediate
+    // `[ReadableProcessByte]` slice reference, as we cannot dereference this
+    // unsized type.
+    core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(
+        // Create a slice of `ReadableProcessByte`s from the supplied
+        // pointer. `ReadableProcessByte` itself permits interior mutability,
+        // and hence this intermediate reference is safe to construct given the
+        // safety contract of this function.
         //
-        // To get a pointer which does not point to valid (allocated)
-        // memory, but is safe to construct for accesses of size zero,
-        // we must call NonNull::dangling(). The resulting pointer is
-        // guaranteed to be well-aligned and uphold the guarantees
-        // required for accesses of size zero.
+        // Rust has very strict requirements on pointer validity[1] which also
+        // in part apply to accesses of length 0. We allow an application to
+        // supply arbitrary pointers if the buffer length is 0, but this is not
+        // allowed for Rust slices. For instance, a null pointer is _never_
+        // valid, not even for accesses of size zero.
+        //
+        // To get a pointer which does not point to valid (allocated) memory,
+        // but is safe to construct for accesses of size zero, we must call
+        // NonNull::dangling(). The resulting pointer is guaranteed to be
+        // well-aligned and uphold the guarantees required for accesses of size
+        // zero.
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match len {
-            0 => core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts(ptr, len),
+            0 => core::slice::from_raw_parts(
+                core::ptr::NonNull::<ReadableProcessByte>::dangling().as_ptr(),
+                0,
+            ),
+            _ => core::slice::from_raw_parts(ptr as *const ReadableProcessByte, len),
         },
     )
 }
 
-/// Convert an process buffers's internal representation to a
+/// Convert a process buffer's internal pointer+length representation to a
 /// [`WriteableProcessSlice`].
 ///
-/// This function will automatically convert zero-length process
-/// buffers into valid zero-sized Rust slices regardless of the value
-/// of `ptr`.
+/// This function will automatically convert zero-length process buffers into
+/// valid zero-sized Rust slices, regardless of the value of `ptr` (i.e., `ptr`
+/// is allowed to be null for these slices).
 ///
-/// # Safety requirements
+/// # Safety
 ///
-/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be
-/// within a single process' address space, and `ptr` must be
-/// nonzero. This memory region must be mapped as _readable_ and
-/// _writable_, and optionally _executable_. It must be allocated
-/// within a single process' address space for the entire lifetime
-/// `'a`.
+/// In the case of `len != 0`, the memory `[ptr; ptr + len)` must be assigned to
+/// one or more processes, and `ptr` must be nonzero. This memory region must be
+/// mapped as _readable_ and _writable_. It must remain a valid, readable and
+/// writeable allocation assigned to one or more processes for the entire
+/// lifetime `'a`, and must not be used as backing memory for any Rust
+/// allocations (apart from other process slices).
 ///
-/// No other mutable or immutable Rust reference pointing to an
-/// overlapping memory region, which is not also created over
-/// `UnsafeCell`, may exist over the entire lifetime `'a`. Even though
-/// this effectively returns a slice of [`Cell`]s, writing to some
-/// memory through a [`Cell`] while another reference is in scope is
-/// unsound. Because a process is free to modify its memory, this is
-/// -- in a broader sense -- true for all process memory.
+/// Callers must ensure that, for its lifetime `'a`, no other programs (other
+/// than this Tock kernel instance) modify the memory behind a
+/// [`ReadableProcessSlice`]. This includes userspace programs, which must not
+/// run in parallel to the Tock kernel holding a process slice reference, or
+/// other Tock kernel instances executing in parallel.
 ///
-/// However, it is sound for multiple overlapping
-/// [`ReadableProcessSlice`]s or [`WriteableProcessSlice`]s to be in
-/// scope at the same time.
+/// It is sound for multiple (partially) aliased [`ReadableProcessSlice`]s or
+/// [`WriteableProcessSlice`]s to be in scope at the same time, as they use
+/// interior mutability, and their memory is not accessed in parallel by
+/// userspace or other programs running concurrently.
 unsafe fn raw_processbuf_to_rwprocessslice<'a>(
     ptr: *mut u8,
     len: usize,
 ) -> &'a WriteableProcessSlice {
-    // Transmute a reference to a slice of Cell<u8>s into a reference
-    // to a ReadableProcessSlice. This is possible as
-    // ReadableProcessSlice is a #[repr(transparent)] wrapper around a
-    // [ReadableProcessByte], which is a #[repr(transparent)] wrapper
-    // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
-    // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
-    // wraps a [u8]
-    core::mem::transmute::<&[u8], &WriteableProcessSlice>(
-        // Rust has very strict requirements on pointer validity[1]
-        // which also in part apply to accesses of length 0. We allow
-        // an application to supply arbitrary pointers if the buffer
-        // length is 0, but this is not allowed for Rust slices. For
-        // instance, a null pointer is _never_ valid, not even for
-        // accesses of size zero.
+    // Transmute a slice reference over writeable and potentially aliased bytes
+    // into a `WriteableProcessSlice` reference.
+    //
+    // This is sound, as `WriteableProcessSlice` is merely a
+    // `#[repr(transparent)]` wrapper around `[Cell<u8>]`. However, we cannot
+    // build this struct safely from an intermediate `[WriteableProcessByte]`
+    // slice reference, as we cannot dereference this unsized type.
+    core::mem::transmute::<&[Cell<u8>], &WriteableProcessSlice>(
+        // Create a slice of `Cell<u8>`s from the supplied pointer. `Cell<u8>`
+        // itself permits interior mutability, and hence this intermediate
+        // reference is safe to construct given the safety contract of this
+        // function.
         //
-        // To get a pointer which does not point to valid (allocated)
-        // memory, but is safe to construct for accesses of size zero,
-        // we must call NonNull::dangling(). The resulting pointer is
-        // guaranteed to be well-aligned and uphold the guarantees
-        // required for accesses of size zero.
+        // Rust has very strict requirements on pointer validity[1] which also
+        // in part apply to accesses of length 0. We allow an application to
+        // supply arbitrary pointers if the buffer length is 0, but this is not
+        // allowed for Rust slices. For instance, a null pointer is _never_
+        // valid, not even for accesses of size zero.
+        //
+        // To get a pointer which does not point to valid (allocated) memory,
+        // but is safe to construct for accesses of size zero, we must call
+        // NonNull::dangling(). The resulting pointer is guaranteed to be
+        // well-aligned and uphold the guarantees required for accesses of size
+        // zero.
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match len {
-            0 => core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts_mut(ptr, len),
+            0 => {
+                core::slice::from_raw_parts(core::ptr::NonNull::<Cell<u8>>::dangling().as_ptr(), 0)
+            }
+            _ => core::slice::from_raw_parts(ptr as *const Cell<u8>, len),
         },
     )
 }
@@ -148,7 +169,14 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
 /// This trait can be used to gain read-only access to memory regions
 /// wrapped in either a [`ReadOnlyProcessBuffer`] or a
 /// [`ReadWriteProcessBuffer`] type.
-pub trait ReadableProcessBuffer {
+///
+/// # Safety
+///
+/// This is an `unsafe trait` as users of this trait need to trust that the
+/// implementation of [`ReadableProcessBuffer::ptr`] is correct. Implementors of
+/// this trait must ensure that the [`ReadableProcessBuffer::ptr`] method
+/// follows the semantics and invariants described in its documentation.
+pub unsafe trait ReadableProcessBuffer {
     /// Length of the memory region.
     ///
     /// If the process is no longer alive and the memory has been
@@ -159,16 +187,29 @@ pub trait ReadableProcessBuffer {
     /// A default instance of a process buffer must return 0.
     fn len(&self) -> usize;
 
-    /// Pointer to the first byte of the userspace memory region.
+    /// Pointer to the first byte of the userspace-allowed memory region.
+    ///
+    /// If [`ReadableProcessBuffer::len`] returns a non-zero value,
+    /// then this method is guaranteed to return a pointer to the
+    /// start address of a memory region (of length returned by
+    /// `len`), allowable by a userspace process, and allowed to the
+    /// kernel for read operations. The memory region must not be
+    /// written to through this pointer.
     ///
     /// If the length of the initially shared memory region
     /// (irrespective of the return value of
-    /// [`len`](ReadableProcessBuffer::len)) is 0, this function returns
-    /// a pointer to address `0x0`. This is because processes may
-    /// allow buffers with length 0 to share no memory with the
+    /// [`len`](ReadableProcessBuffer::len)) is 0, this function
+    /// returns a pointer to address `0x0`. This is because processes
+    /// may allow zero-length buffer to share no memory with the
     /// kernel. Because these buffers have zero length, they may have
-    /// any pointer value. However, these _dummy addresses_ should not
-    /// be leaked, so this method returns 0 for zero-length slices.
+    /// any arbitrary pointer value. However, these "dummy addresses"
+    /// should not be leaked, so this method returns 0 for zero-length
+    /// slices. Care must be taken to not create a Rust (slice)
+    /// reference over a null-pointer, as that is undefined behavior.
+    ///
+    /// Users of this pointer must not produce any mutable aliasing, such as by
+    /// creating a reference from this pointer concurrently with calling
+    /// [`WriteableProcessBuffer::mut_enter`].
     ///
     /// # Default Process Buffer
     ///
@@ -200,7 +241,58 @@ pub trait ReadableProcessBuffer {
 ///
 /// This is a supertrait of [`ReadableProcessBuffer`], which features
 /// methods allowing mutable access.
-pub trait WriteableProcessBuffer: ReadableProcessBuffer {
+///
+/// # Safety
+///
+/// This is an `unsafe trait` as users of this trait need to trust that the
+/// implementation of [`WriteableProcessBuffer::mut_ptr`] is
+/// correct.
+///
+/// Implementors of this trait must ensure that the
+/// [`WriteableProcessBuffer::mut_ptr`] method follows the semantics and
+/// invariants described in its documentation, and that the length of the
+/// [`WriteableProcessBuffer`] is identical to the value returned by the
+/// [`ReadableProcessBuffer::len`] supertrait method.
+///
+/// Additionally, when using the default implementation of `mut_ptr` provided by
+/// this trait, implementors guarantee that the readable pointer returned by
+/// [`ReadableProcessBuffer::ptr`] points to the same read-write allowed shared
+/// memory region as described by the [`WriteableProcessBuffer`], and that
+/// writes through the pointer returned by [`ReadableProcessBuffer::ptr`] are
+/// sound for [`ReadableProcessBuffer::len`] bytes, notwithstanding any aliasing
+/// requirements.
+pub unsafe trait WriteableProcessBuffer: ReadableProcessBuffer {
+    /// Pointer to the first byte of the userspace-allowed memory region.
+    ///
+    /// If [`ReadableProcessBuffer::len`] returns a non-zero value,
+    /// then this method is guaranteed to return a pointer to the
+    /// start address of a memory region (of length returned by
+    /// `len`), allowable by a userspace process, and allowed to the
+    /// kernel for read or write operations.
+    ///
+    /// If the length of the initially shared memory region
+    /// (irrespective of the return value of
+    /// [`len`](ReadableProcessBuffer::len)) is 0, this function
+    /// returns a pointer to address `0x0`. This is because processes
+    /// may allow zero-length buffer to share no memory with the
+    /// kernel. Because these buffers have zero length, they may have
+    /// any arbitrary pointer value. However, these "dummy addresses"
+    /// should not be leaked, so this method returns 0 for zero-length
+    /// slices. Care must be taken to not create a Rust (slice)
+    /// reference over a null-pointer, as that is undefined behavior.
+    ///
+    /// Users of this pointer must not produce any mutable aliasing, such as by
+    /// creating a reference from this pointer concurrently with calling
+    /// [`WriteableProcessBuffer::mut_enter`].
+    ///
+    /// # Default Process Buffer
+    ///
+    /// A default instance of a process buffer must return a pointer
+    /// to address `0x0`.
+    fn mut_ptr(&self) -> *mut u8 {
+        ReadableProcessBuffer::ptr(self).cast_mut()
+    }
+
     /// Applies a function to the mutable process slice reference
     /// pointed to by the [`ReadWriteProcessBuffer`].
     ///
@@ -308,7 +400,7 @@ impl ReadOnlyProcessBuffer {
     }
 }
 
-impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
+unsafe impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
     /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
         self.process_id
@@ -515,7 +607,7 @@ impl ReadWriteProcessBuffer {
     }
 }
 
-impl ReadableProcessBuffer for ReadWriteProcessBuffer {
+unsafe impl ReadableProcessBuffer for ReadWriteProcessBuffer {
     /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
         self.process_id
@@ -568,7 +660,7 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
     }
 }
 
-impl WriteableProcessBuffer for ReadWriteProcessBuffer {
+unsafe impl WriteableProcessBuffer for ReadWriteProcessBuffer {
     fn mut_enter<F, R>(&self, fun: F) -> Result<R, process::Error>
     where
         F: FnOnce(&WriteableProcessSlice) -> R,
@@ -1155,5 +1247,334 @@ impl<I: ProcessSliceIndex<Self>> Index<I> for WriteableProcessSlice {
 
     fn index(&self, index: I) -> &Self::Output {
         index.index(self)
+    }
+}
+
+#[cfg(test)]
+mod miri_tests {
+    use super::*;
+    use core::cell::UnsafeCell;
+
+    // Helper to get a raw mutable pointer to the backing memory we use to
+    // create process slices over. This backing memory, though allocated by
+    // Rust, contains only `UnsafeCell`s and thus is suitable for creating
+    // process slice references over.
+    fn get_backing_memory_ptr<const N: usize>(mem: &[UnsafeCell<u8>; N]) -> *mut u8 {
+        mem as *const _ as *mut u8
+    }
+
+    #[test]
+    fn test_basic_read_write() {
+        let memory = [const { UnsafeCell::new(0u8) }; 16];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+
+        // Test writing via the slice
+        slice[0].set(42);
+        slice[5].set(100);
+
+        // Test reading back
+        assert_eq!(slice[0].get(), 42);
+        assert_eq!(slice[5].get(), 100);
+
+        // Verify backing memory was actually updated
+        assert_eq!(unsafe { *memory[0].get() }, 42);
+    }
+
+    #[test]
+    fn test_concurrent_rw_rw_aliasing() {
+        // Ensure multiple mutable slices to the same memory do not violate tree
+        // borrows. This works because WriteableProcessSlice uses Cell
+        // internally.
+        let memory = [const { UnsafeCell::new(0u8) }; 16];
+        let ptr = get_backing_memory_ptr(&memory);
+
+        // Create two overlapping slices
+        let slice1 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+        let slice2 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+
+        slice1[0].set(10);
+        assert_eq!(slice2[0].get(), 10);
+
+        slice2[0].set(20);
+        assert_eq!(slice1[0].get(), 20);
+
+        // Test interleaved access
+        let sub1 = slice1.get(0..4).unwrap();
+        let sub2 = slice2.get(2..6).unwrap();
+
+        // sub1: [0, 1, 2, 3]
+        // sub2:       [2, 3, 4, 5]
+        // Intersection at indices 2 and 3 of the original buffer
+
+        sub1[2].set(55); // Index 2 of backing
+        assert_eq!(sub2[0].get(), 55); // Idx 0 of sub2 is idx 2 of backing
+    }
+
+    #[test]
+    fn test_concurrent_ro_rw_aliasing() {
+        // Ensure multiple mutable slices to the same memory do not violate tree
+        // borrows. This works because ReadnableProcessSlice and
+        // WriteableProcessSlice both use Cell internally.
+        let memory = [const { UnsafeCell::new(0u8) }; 16];
+        let ptr = get_backing_memory_ptr(&memory);
+
+        // Create two overlapping slices
+        let slice1 = unsafe { raw_processbuf_to_roprocessslice(ptr, memory.len()) };
+        let slice2 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+
+        slice2[0].set(20);
+        assert_eq!(slice1[0].get(), 20);
+
+        // Test interleaved access
+        let sub1 = slice1.get(0..4).unwrap();
+        let sub2 = slice2.get(2..6).unwrap();
+
+        // sub1: [0, 1, 2, 3]
+        // sub2:       [2, 3, 4, 5]
+        // Intersection at indices 2 and 3 of the original buffer
+
+        sub2[0].set(55); // Index 0 of sub2 is index 2 of backing
+        assert_eq!(sub1[2].get(), 55); // Index 2 of backing
+    }
+
+    #[test]
+    fn test_zero_length_null_ptr_ro() {
+        // Should be safe to create a 0-len slice from a null pointer
+        let slice = unsafe { raw_processbuf_to_roprocessslice(core::ptr::null_mut(), 0) };
+        assert_eq!(slice.len(), 0);
+        assert!(slice.get(0).is_none());
+
+        // Iteration should simply yield nothing
+        let mut count = 0;
+        for _ in slice.iter() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+
+        // Slice should be created over a non-null pointer
+        // (NonNull::dangling()):
+        assert_eq!(
+            slice as *const ReadableProcessSlice as *const u8,
+            core::ptr::NonNull::<u8>::dangling().as_ptr(),
+        );
+    }
+
+    #[test]
+    fn test_zero_length_non_null_ptr_ro() {
+        // Should be safe to create a 0-len slice from any arbitrary
+        // non-null pointer:
+        let slice = unsafe {
+            raw_processbuf_to_roprocessslice(
+                // Under strict provenance, we cannot simply cast an arbitrary
+                // integer into a pointer. However, with a zero-length process
+                // slice, the pointer passed to this function must never be
+                // dereferencable anyways. Thus we simply start from a
+                // null-pointer, and derive another pointer from it (and its
+                // provenance) at an offset.
+                core::ptr::null_mut::<u8>().wrapping_byte_add(42),
+                0,
+            )
+        };
+        assert_eq!(slice.len(), 0);
+        assert!(slice.get(0).is_none());
+
+        // Iteration should simply yield nothing
+        let mut count = 0;
+        for _ in slice.iter() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+
+        // Slice should not retain its pointer, and return a non-null
+        // (dangling) pointer instead:
+        assert_eq!(
+            slice as *const ReadableProcessSlice as *const u8,
+            core::ptr::NonNull::<u8>::dangling().as_ptr()
+        );
+    }
+
+    #[test]
+    fn test_zero_length_null_ptr_rw() {
+        // Should be safe to create a 0-len slice from a null pointer
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(core::ptr::null_mut(), 0) };
+        assert_eq!(slice.len(), 0);
+        assert!(slice.get(0).is_none());
+
+        // Iteration should simply yield nothing
+        let mut count = 0;
+        for _ in slice.iter() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+
+        // Slice should be created over a non-null pointer
+        // (NonNull::dangling()):
+        assert_eq!(
+            slice as *const WriteableProcessSlice as *const u8,
+            core::ptr::NonNull::<u8>::dangling().as_ptr(),
+        );
+    }
+
+    #[test]
+    fn test_zero_length_non_null_ptr_rw() {
+        // Should be safe to create a 0-len slice from any arbitrary
+        // non-null pointer:
+        let slice = unsafe {
+            raw_processbuf_to_rwprocessslice(
+                // Under strict provenance, we cannot simply cast an arbitrary
+                // integer into a pointer. However, with a zero-length process
+                // slice, the pointer passed to this function must never be
+                // dereferencable anyways. Thus we simply start from a
+                // null-pointer, and derive another pointer from it (and its
+                // provenance) at an offset.
+                core::ptr::null_mut::<u8>().wrapping_byte_add(42),
+                0,
+            )
+        };
+        assert_eq!(slice.len(), 0);
+        assert!(slice.get(0).is_none());
+
+        // Iteration should simply yield nothing
+        let mut count = 0;
+        for _ in slice.iter() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+
+        // Slice should not retain its pointer, and return a non-null
+        // (dangling) pointer instead:
+        assert_eq!(
+            slice as *const WriteableProcessSlice as *const u8,
+            core::ptr::NonNull::<u8>::dangling().as_ptr()
+        );
+    }
+
+    #[test]
+    fn test_out_of_bounds_ro() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_roprocessslice(ptr, 4) };
+
+        assert!(slice.get(3).is_some());
+        assert!(slice.get(4).is_none());
+        assert!(slice.get(100).is_none());
+
+        // Range OOB
+        assert!(slice.get(2..5).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "index out of bounds: the len is 4 but the index is 4")]
+    fn test_out_of_bounds_panic_ro() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_roprocessslice(ptr, 4) };
+
+        assert_eq!(slice[3].get(), 0);
+
+        // This is out of bounds and will panic:
+        assert_eq!(slice[4].get(), 0);
+    }
+
+    #[test]
+    fn test_out_of_bounds_rw() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
+
+        assert!(slice.get(3).is_some());
+        assert!(slice.get(4).is_none());
+        assert!(slice.get(100).is_none());
+
+        // Range OOB
+        assert!(slice.get(2..5).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "index out of bounds: the len is 4 but the index is 4")]
+    fn test_out_of_bounds_panic_rw() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
+
+        assert_eq!(slice[3].get(), 0);
+
+        // This is out of bounds and will panic:
+        assert_eq!(slice[4].get(), 0);
+    }
+
+    #[test]
+    fn test_copy_logic() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let src_data = [10, 20, 30, 40];
+        let mut dst_data = [0u8; 4];
+
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
+
+        // Copy into slice
+        slice.copy_from_slice(&src_data);
+        assert_eq!(slice[0].get(), 10);
+        assert_eq!(slice[3].get(), 40);
+
+        // Copy out of slice
+        slice.copy_to_slice(&mut dst_data);
+        assert_eq!(dst_data, src_data);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "source slice length (4) does not match destination slice length (2)"
+    )]
+    fn test_copy_panic_len_mismatch() {
+        let memory = [const { UnsafeCell::new(0u8) }; 4];
+        let ptr = get_backing_memory_ptr(&memory);
+        let mut small_dst = [0u8; 2];
+
+        let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
+        slice.copy_to_slice(&mut small_dst);
+    }
+
+    #[test]
+    fn test_transmute_from_immutable_slice() {
+        // This test exercises the `From<&[u8]>` implementation for
+        // ReadableProcessSlice.
+        //
+        // We take a standard, immutable Rust slice (`&[u8]`). This creates a
+        // shared, read-only borrow of the stack memory.  We then convert it
+        // into a `&ReadableProcessSlice`. This struct wraps
+        // `ReadableProcessByte`, which wraps `Cell<u8>`.
+        //
+        // This is problematic under stacked-borrows, as we are transmuting
+        // `&[u8]` (immutable, noalias) to `&[Cell<u8>]` (shared, interior
+        // mutability).
+        //
+        // Therefore, we expect the following results:
+        //
+        // - Stacked Borrows (Default Miri as of Jan 2026): FAIL.
+        //
+        //   Stacked Borrows forbids "upgrading" a SharedReadOnly reference to
+        //   one that claims it can mutate (SharedReadWrite), even if we don't
+        //   actually write.
+        //
+        // - Tree Borrows (`-Zmiri-tree-borrows`): PASS.
+        //
+        //   Tree Borrows is experimental and handles "retagging" differently.
+        //   It tolerates this transmute as long as we do not actually perform a
+        //   write operation through the Cell while the original data is frozen.
+        //
+        let data = [10u8, 20, 30, 40];
+        let slice: &[u8] = &data;
+
+        // 1. Convert &u8 to &ReadableProcessSlice (which wraps Cell<u8>)
+        let proc_slice: &ReadableProcessSlice = slice.into();
+
+        // 2. Read from it.
+        //
+        // Even though we only read, the type of `proc_slice` implies the
+        // *capability* to mutate, which contradicts the provenance of `slice`.
+        assert_eq!(proc_slice[0].get(), 10);
+        assert_eq!(proc_slice[3].get(), 40);
     }
 }
