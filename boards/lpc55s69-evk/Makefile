@@ -5,37 +5,68 @@
 # Makefile for building the tock kernel for the LPC55S69-EVK platform
 #
 
+# Include common Makefile definitions (Tock build system)
 include ../Makefile.common
 
-PROBE_RS=probe-rs
+# --- CONFIGURATION START ---
 
-# The specific chip on the LPC55S69-EVK board.
-# probe-rs needs this to know what it's flashing.
+# Detect Windows to add .exe extension
+ifdef OS
+   EXT = .exe
+else
+   EXT =
+endif
+
+# Tool definition:
+LINKSERVER ?= LinkServer$(EXT)
+
+# Device name for LinkServer:
+LS_DEVICE ?= LPC55S69
+
+# Probe selection:
+# Defaults to "#1" (the first connected probe).
+# IMPORTANT: We use `\#` here so Make passes the literal hash to the shell command.
+# Without the backslash, Make might interpret it as a comment start.
+PROBE_ID ?= \#1
+
+# --- CONFIGURATION END ---
+
+# The specific chip identifier (Part Number).
 CHIP=LPC55S69JBD100
 
+# Paths to the userspace application and the kernel binaries
 APP=/home/pc1/Projects/libtock-c/examples/blink/build/cortex-m7/cortex-m7.tbf
 KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
 
-# Default target for installing the kernel.
+# Default target: `make install` triggers the `flash` target (usually maps to `program`)
 .PHONY: install
 install: flash
 
-# flash-debug is no longer needed as a separate target, but kept for
-# compatibility. `make debug` is the new recommended command.
+# Legacy target for compatibility.
+# `flash-debug` is just an alias for `debug`.
 .PHONY: flash-debug
 flash-debug: debug
 
 
-# Flash the debug version and attach an RTT console to view kernel logs.
-# This is the recommended command for debugging.
+# TARGET: debug
+# Usage: `make debug`
+# Builds the debug version of the kernel (handled by ../Makefile.common rules) and flashes it.
+#
+# LinkServer Command Breakdown:
+#   flash       -> Enter flash programming mode
+#   --probe ""  -> Selects the probe.
+#   load        -> The specific action to write the binary to flash.
+#   "$<"        -> Automatic variable for the prerequisite (the .elf file).
 .PHONY: debug
 debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-	$(PROBE_RS) run --chip $(CHIP) $<
+	$(LINKSERVER) flash --probe "$(PROBE_ID)" $(LS_DEVICE) load "$<"
 
-# An alias for the default `install` target.
+# TARGET: program
+# Usage: `make program`
+# Builds the release version, merges the userspace app, and flashes the result.
 .PHONY: program
 program: release
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
-	$(PROBE_RS) run --chip $(CHIP) $(KERNEL_WITH_APP)
+	$(LINKSERVER) flash --probe "$(PROBE_ID)" $(LS_DEVICE) load "$(KERNEL_WITH_APP)"
