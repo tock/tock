@@ -8,13 +8,14 @@
 //! during runtime without requiring the user to restart the device.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 
 use crate::config;
 use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::platform::chip::Chip;
-use crate::process::ProcessLoadingAsyncClient;
+use crate::process::{ProcessLoadingAsyncClient, ShortId};
 use crate::process_loading::{
     PaddingRequirement, ProcessLoadError, SequentialProcessLoaderMachine,
 };
@@ -36,6 +37,8 @@ pub enum State {
     AppWrite,
     Load,
     Abort,
+    Finalize,
+    Uninstall,
     PaddingWrite,
     Fail,
 }
@@ -87,6 +90,9 @@ pub trait DynamicBinaryStore {
     /// Call to abort the setup/writing process.
     fn abort(&self) -> Result<(), ErrorCode>;
 
+    /// Call to uninstall an app with given ShortId and app version.
+    fn uninstall(&self, short_id: usize, app_version: usize) -> Result<(), ErrorCode>;
+
     /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
     /// When the client operation is done, it calls the `setup_done()`,
@@ -108,6 +114,9 @@ pub trait DynamicBinaryStoreClient {
 
     /// Canceled any setup or writing operation and freed up reserved space.
     fn abort_done(&self, result: Result<(), ErrorCode>);
+
+    /// Terminated app (if running), reclaimed memory and uninstalled binary from storage.
+    fn uninstall_done(&self, result: Result<(), ErrorCode>);
 }
 
 /// This interface supports loading processes at runtime.
@@ -210,9 +219,14 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             // If we are going to write the padding header, we already know
             // where to write in flash, so we don't have to add the start
             // address
-            State::Setup | State::Load | State::PaddingWrite | State::Abort => Ok(offset),
+            State::Setup
+            | State::Load
+            | State::PaddingWrite
+            | State::Abort
+            | State::Uninstall
+            | State::Finalize => Ok(offset),
             // We aren't supposed to be able to write unless we are in one of
-            // the first two write states
+            // the above states
             _ => Err(ErrorCode::FAIL),
         }
     }
@@ -411,6 +425,37 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                     }
                 }
             }
+            State::Finalize => {
+                self.buffer.replace(buffer);
+                self.state.set(State::Load);
+                if let Some(metadata) = self.process_metadata.get() {
+                    match metadata.padding_requirement {
+                        PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
+                            let previous_app_end_addr = metadata.previous_app_end_addr;
+                            let pre_pad_length =
+                                metadata.new_app_start_addr - previous_app_end_addr;
+                            match self.write_padding_app(pre_pad_length, previous_app_end_addr) {
+                                Ok(()) => {
+                                    if config::CONFIG.debug_load_processes {
+                                        debug!("Successfully wrote pre-padding app");
+                                    }
+                                }
+                                Err(_) => {
+                                    self.reset_process_loading_metadata();
+                                }
+                            }
+                        }
+                        PaddingRequirement::None | PaddingRequirement::PostPad => {
+                            if config::CONFIG.debug_load_processes {
+                                debug!("No PrePad app to write.");
+                            }
+                            self.storage_client.map(|client| {
+                                client.finalize_done(Ok(()));
+                            });
+                        }
+                    }
+                }
+            }
             State::Load => {
                 // We finished writing pre-padding and we need to Load the app.
                 self.buffer.replace(buffer);
@@ -424,6 +469,14 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 self.reset_process_loading_metadata();
                 self.storage_client.map(|client| {
                     client.abort_done(Ok(()));
+                });
+            }
+            State::Uninstall => {
+                self.buffer.replace(buffer);
+                // Reset metadata and let client know we are done aborting.
+                self.reset_process_loading_metadata();
+                self.storage_client.map(|client| {
+                    client.uninstall_done(Ok(()));
                 });
             }
             State::Idle => {
@@ -559,52 +612,77 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     }
 
     fn finalize(&self) -> Result<(), ErrorCode> {
-        match self.state.get() {
-            State::AppWrite => {
-                if let Some(metadata) = self.process_metadata.get() {
-                    match metadata.padding_requirement {
-                        // If we decided we need to write a padding app before the new
-                        // app, we go ahead and do it.
-                        PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
-                            // Calculate the distance between our app and the previous
-                            // app.
-                            let previous_app_end_addr = metadata.previous_app_end_addr;
-                            let pre_pad_length =
-                                metadata.new_app_start_addr - previous_app_end_addr;
-                            self.state.set(State::Load);
-                            let padding_result =
-                                self.write_padding_app(pre_pad_length, previous_app_end_addr);
-                            match padding_result {
-                                Ok(()) => {
-                                    if config::CONFIG.debug_load_processes {
-                                        debug!("Successfully writing prepadding app");
-                                    }
-                                    Ok(())
-                                }
-                                Err(_e) => {
-                                    // This means we were unable to write the padding
-                                    // app.
-                                    self.reset_process_loading_metadata();
-                                    Err(ErrorCode::FAIL)
-                                }
-                            }
+        if self.state.get() != State::AppWrite {
+            return Err(ErrorCode::INVAL);
+        }
+        let metadata = self.process_metadata.get().ok_or(ErrorCode::INVAL)?;
+        let loader_finalize = self
+            .loader_driver
+            .finalize(metadata.new_app_start_addr, metadata.new_app_length);
+        match loader_finalize {
+            Ok(Some((prev_addr, prev_size))) => {
+                // Found a previous version — write padding over it to reclaim space
+                if config::CONFIG.debug_load_processes {
+                    debug!(
+                        "Previous version found at {:#010x} with size {} bytes",
+                        prev_addr, prev_size
+                    );
+                }
+
+                self.state.set(State::Finalize);
+                match self.write_padding_app(prev_size as usize, prev_addr as usize) {
+                    Ok(()) => {
+                        if config::CONFIG.debug_load_processes {
+                            debug!("Successfully wrote padding over previous version");
                         }
-                        // We should never reach here if we are not writing a prepad
-                        // app.
-                        PaddingRequirement::None | PaddingRequirement::PostPad => {
-                            if config::CONFIG.debug_load_processes {
-                                debug!("No PrePad app to write.");
-                            }
-                            self.state.set(State::Load);
-                            self.deferred_call.set();
-                            Ok(())
-                        }
+                        Ok(())
                     }
-                } else {
-                    Err(ErrorCode::INVAL)
+                    Err(_) => {
+                        self.reset_process_loading_metadata();
+                        Err(ErrorCode::FAIL)
+                    }
                 }
             }
-            _ => Err(ErrorCode::INVAL),
+
+            Ok(None) => {
+                // No previous app found, so continue with padding
+                if config::CONFIG.debug_load_processes {
+                    debug!("No previous version of app found");
+                }
+
+                match metadata.padding_requirement {
+                    PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
+                        let previous_app_end_addr = metadata.previous_app_end_addr;
+                        let pre_pad_length = metadata.new_app_start_addr - previous_app_end_addr;
+
+                        self.state.set(State::Load);
+
+                        match self.write_padding_app(pre_pad_length, previous_app_end_addr) {
+                            Ok(()) => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("Successfully wrote pre-padding app");
+                                }
+                                Ok(())
+                            }
+                            Err(_) => {
+                                self.reset_process_loading_metadata();
+                                Err(ErrorCode::FAIL)
+                            }
+                        }
+                    }
+
+                    PaddingRequirement::None | PaddingRequirement::PostPad => {
+                        if config::CONFIG.debug_load_processes {
+                            debug!("No PrePad app to write.");
+                        }
+                        self.state.set(State::Load);
+                        self.deferred_call.set();
+                        Ok(())
+                    }
+                }
+            }
+
+            Err(_) => Err(ErrorCode::INVAL),
         }
     }
 
@@ -621,6 +699,54 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                         Ok(()) => Ok(()),
                         // If abort() returns ErrorCode::BUSY,
                         // the userland app is expected to retry abort.
+                        Err(_) => Err(ErrorCode::BUSY),
+                    }
+                } else {
+                    Err(ErrorCode::FAIL)
+                }
+            }
+            _ => {
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                Err(ErrorCode::INVAL)
+            }
+        }
+    }
+
+    fn uninstall(&self, short_id: usize, app_version: usize) -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Idle => {
+                self.process_metadata.set(ProcessLoadMetadata::default());
+                self.state.set(State::Uninstall);
+
+                let shortid = NonZeroU32::new(short_id as u32)
+                    .map(ShortId::Fixed)
+                    .ok_or(ErrorCode::INVAL)?;
+
+                let (app_address, app_size) = match self
+                    .loader_driver
+                    .fetch_app_details(shortid, app_version as u32)
+                {
+                    Ok((addr, size)) => (addr, size),
+                    Err(_) => return Err(ErrorCode::FAIL),
+                };
+
+                if let Some(mut metadata) = self.process_metadata.get() {
+                    metadata.new_app_start_addr = app_address as usize;
+                    metadata.new_app_length = app_size as usize;
+                    self.process_metadata.set(metadata);
+                }
+
+                // Passing the ShortId is enough because only one
+                // version of an app can be run at any given
+                // time, so ShortId is a unique identifier
+                self.loader_driver.reclaim_memory(shortid);
+                if let Some(metadata) = self.process_metadata.get() {
+                    match self
+                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
+                    {
+                        Ok(()) => Ok(()),
                         Err(_) => Err(ErrorCode::BUSY),
                     }
                 } else {
