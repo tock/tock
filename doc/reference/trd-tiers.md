@@ -23,7 +23,7 @@ addresses this, by adding annotations in the source directly to denote the
 importance and scrutiny applied to each code module. This helps clarify to
 contributors the expectations for changes to a particular module and signals to
 reviewers the level of scrutiny that should be applied to those changes. This
-document is in full compliance with[TRD1][TRD1].
+document is in full compliance with [TRD1][TRD1].
 
 1 Introduction
 ===============================
