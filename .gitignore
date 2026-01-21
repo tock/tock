@@ -87,4 +87,4 @@ boards/apollo3/redboard_artemis_nano/redboard-artemis-nano-tests.bin
 
 # We include a Cargo.lock file for the main Tock workspace, for not for the tools/ workspace
 /tools/Cargo.lock
-/tools/secure-boot/Cargo.lock
+/secure-boot/Cargo.lock
