@@ -115,7 +115,7 @@ members = [
     "libraries/tock-cells",
     "libraries/tickv",
 ]
-exclude = ["tools/"]
+exclude = ["secure-boot", "tools/"]
 resolver = "2"
 
 [workspace.package]
