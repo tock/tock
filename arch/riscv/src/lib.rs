@@ -59,7 +59,8 @@ extern "C" {
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[link_section = ".riscv.start"]
 #[unsafe(naked)]
-pub extern "C" fn _start() {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn _start() {
     use core::arch::naked_asm;
     naked_asm!(
         "
