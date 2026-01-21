@@ -1,0 +1,18 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+
+[package]
+name = "sign-kernel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+p256 = { version = "0.13", features = ["ecdsa", "pem", "pkcs8"] }
+ecdsa = "0.16"
+sha2 = "0.10"
+signature = "2.2"
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+goblin = "0.8"  # For ELF parsing
+hex = "0.4"
