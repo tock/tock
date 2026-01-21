@@ -5,7 +5,7 @@
 attrs==23.2.0
 cattrs==23.2.3
 certifi==2024.7.4
-cffi==1.16.0
+cffi==2.0.0
 charset-normalizer==3.3.2
 cryptography==44.0.1
 Deprecated==1.2.14
