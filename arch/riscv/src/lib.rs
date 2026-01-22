@@ -59,6 +59,11 @@ extern "C" {
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[link_section = ".riscv.start"]
 #[unsafe(naked)]
+// We don't want the function name symbol to be mangled in order to be able to refer to
+// it the linker script. It is not currently being used in the provided linker script
+// for the supported boards, however it might be needed in the future or for downstream developers
+// providing their own linker scripts, where this symbol might be used to point to the entry point
+// (i.e. ENTRY(_start), or verify the placement via asserts or perform memory layout calculations).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn _start() {
     use core::arch::naked_asm;
