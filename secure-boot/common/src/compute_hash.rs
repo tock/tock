@@ -19,49 +19,79 @@ fn range_ok(start: usize, end: usize) -> bool {
     start <= end && in_flash(start) && in_flash(end)
 }
 
-/// Wrapper to verifies all address ranges before reading.
-/// Hashes [region.start .. kernel_end) with the 64-byte signature zeroed.
+/// Computes hash over kernel binary and attributes regions separately
+/// 
+/// - Kernel binary: [kernel_start .. kernel_end)
+/// - Attributes: [attr_start .. attr_end)
+/// 
+/// This hashes the kernel binary, then the attributes section,
+/// zeroing out the 64-byte signature during hashing.
 pub fn compute_kernel_hash(
     region: &KernelRegion,
     signature: &SignatureAttribute,
-    kernel_end: usize,
+    attributes_end: usize,
 ) -> Result<[u8; 32], BootError> {
     let kernel_start = region.start;
-    let kernel_end = kernel_end;
+    let attributes_start = region.attributes_start;
+    let attributes_end = attributes_end;
     let (signature_start, signature_end) = signature.location;
 
     // Basic checks
-    if !(range_ok(kernel_start, kernel_end) && kernel_end > kernel_start) {
+    if !range_ok(kernel_start, attributes_start) {
+        return Err(BootError::HashError);
+    }
+    if !range_ok(attributes_start, attributes_end) {
         return Err(BootError::HashError);
     }
     if signature_end.checked_sub(signature_start).unwrap_or(0) != 64 {
         return Err(BootError::InvalidSignature);
     }
-    if signature_start < kernel_start || signature_end > kernel_end {
+    
+    // Signature must be within attributes section
+    if signature_start < attributes_start || signature_end > attributes_end {
         return Err(BootError::InvalidSignature);
     }
 
     let mut hasher = Sha256::new();
 
     unsafe {
-        // Hash [kernel_start .. signature_start)
-        if signature_start > kernel_start {
-            if !range_ok(kernel_start, signature_start) {
+        // Hash entire kernel binary region [kernel_start .. kernel_end)
+        let kernel_end = region.end;
+        if kernel_end > kernel_start {
+            if !range_ok(kernel_start, kernel_end) {
                 return Err(BootError::HashError);
             }
-            let pre_signature = core::slice::from_raw_parts(kernel_start as *const u8, signature_start - kernel_start);
+            let kernel_data = core::slice::from_raw_parts(
+                kernel_start as *const u8, 
+                kernel_end - kernel_start
+            );
+            hasher.update(kernel_data);
+        }
+        
+        // Hash [attributes_start .. signature_start)
+        if signature_start > attributes_start {
+            if !range_ok(attributes_start, signature_start) {
+                return Err(BootError::HashError);
+            }
+            let pre_signature = core::slice::from_raw_parts(
+                attributes_start as *const u8, 
+                signature_start - attributes_start
+            );
             hasher.update(pre_signature);
         }
 
-        // Hash 64 zeros instead of the key
+        // Hash 64 zeros instead of the signature
         hasher.update(&[0u8; 64]);
 
-        // Hash [signature_end .. kernel_end)
-        if kernel_end > signature_end {
-            if !range_ok(signature_end, kernel_end) {
+        // Hash [signature_end .. attributes_end)
+        if attributes_end > signature_end {
+            if !range_ok(signature_end, attributes_end) {
                 return Err(BootError::HashError);
             }
-            let post_signature = core::slice::from_raw_parts(signature_end as *const u8, kernel_end - signature_end);
+            let post_signature = core::slice::from_raw_parts(
+                signature_end as *const u8, 
+                attributes_end - signature_end
+            );
             hasher.update(post_signature);
         }
     }

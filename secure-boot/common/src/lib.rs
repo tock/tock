@@ -16,14 +16,9 @@ pub mod compute_hash;
 pub mod locate_tlvs;
 pub mod types;
 pub mod signature_verifier;
-// pub mod binary_discovery_table;
-// pub mod table_writer;
-// pub mod flash_hal;
-// pub mod kernel_relocator;
 
 use crate::error::BootError;
 use crate::types::{KernelVersion, KernelRegion};
-// use crate::binary_discovery_table::BinaryEntry;
 
 /// Trait that boards must implement for bootloader I/O operations
 pub trait BootloaderIO {
@@ -44,13 +39,8 @@ pub trait BootloaderIO {
 
 /// Board-specific configuration that must be provided
 pub trait BoardConfig {
-    // /// Applications start address (_sapps)
-    // const APP_START: usize;
-    
-    // /// Kernel start address
-    // const KERNEL_START: usize;
 
-    /// Available flash start address (after the discovery table)
+    /// Available flash start address (after the bootloader)
     const AVAILABLE_FLASH_START: usize;
 
     /// Available flash end address (board specific)
@@ -248,17 +238,16 @@ pub fn verify_single_kernel<C: BoardConfig, IO: BootloaderIO>(
     // io.debug("signature tlv present");
 
     // Check flash TLV validity
-    let _ = attributes.kernel_flash.ok_or(BootError::InvalidTLV)?;
+    // let _ = attributes.kernel_flash.ok_or(BootError::InvalidTLV)?;
+    let (kernel_start, kernel_len) =
+    attributes.kernel_flash.ok_or(BootError::InvalidTLV)?;
+
+    let kernel_end = kernel_start as usize + kernel_len as usize;
     
-
-    // let (flash_start, _flash_len) = attributes.kernel_flash.ok_or(BootError::InvalidTLV)?;
-
-    // io.debug("flash start:");
-    // io.format(flash_start as usize, &mut buf);
 
     let region = KernelRegion {
         start: kernel.start_address,
-        end:   kernel.attributes_end,
+        end:   kernel_end,
         entry_point: kernel.start_address,
         attributes_start: kernel.attributes_start,
     };

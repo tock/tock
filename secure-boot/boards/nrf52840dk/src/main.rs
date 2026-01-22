@@ -92,10 +92,7 @@ pub extern "C" fn main() -> ! {
                 BootError::SignatureMissing => 9,
                 BootError::VersionTooOld => 10,
                 BootError::HashError => 11,
-                BootError::InvalidBDT => 12,
-                BootError::BDTChecksumFailed => 13,
-                BootError::NoValidKernel => 14,
-                BootError::FlashOperationFailed => 15,
+                BootError::NoValidKernel => 12,
             };
             
             // io.debug_blink(LED2_PIN, blink_count);

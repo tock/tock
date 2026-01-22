@@ -3,7 +3,7 @@
 # Copyright Tock Contributors 2025.
 
 [package]
-name = "sign-kernel"
+name = "kernel-signer"
 version = "0.1.0"
 edition = "2021"
 

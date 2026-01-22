@@ -32,16 +32,7 @@ pub enum BootError {
     
     /// Hash computation failed
     HashError,
-
-    /// BDT invalid or corrupted
-    InvalidBDT,
-    
-    /// BDT checksum failed
-    BDTChecksumFailed,
     
     /// No valid kernel found in BDT
     NoValidKernel,
-
-    /// Flash Operation Failed
-    FlashOperationFailed,
 }

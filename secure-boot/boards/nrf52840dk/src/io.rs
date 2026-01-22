@@ -121,7 +121,7 @@ impl Nrf52840IO {
             }
             
             core::ptr::write_volatile(EVENTS_ENDTX, 0);
-            core::ptr::write_volatile(TXD_PTR, UART_BUF.as_ptr() as u32);
+            core::ptr::write_volatile(TXD_PTR, core::ptr::addr_of!(UART_BUF) as u32);
             core::ptr::write_volatile(TXD_MAXCNT, len as u32);
             core::ptr::write_volatile(TASKS_STARTTX, 1);
             

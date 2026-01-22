@@ -59,24 +59,24 @@ pub struct KernelAttributes {
     pub kernel_flash: Option<(u32, u32)>,
 }
 
-/// Relocation information from TLV
-#[derive(Clone, Copy)]
-pub struct RelocationInfo {
-    pub link_address: u32,       // Address kernel was linked for
-    pub num_entries: u32,        // Number of relocation entries
-    pub entries_start: usize,    // Flash address of first entry
-}
+// /// Relocation information from TLV
+// #[derive(Clone, Copy)]
+// pub struct RelocationInfo {
+//     pub link_address: u32,       // Address kernel was linked for
+//     pub num_entries: u32,        // Number of relocation entries
+//     pub entries_start: usize,    // Flash address of first entry
+// }
 
-/// Single relocation entry
-#[derive(Clone, Copy)]
-pub struct RelocationEntry {
-    pub offset: u32,           // Offset from kernel start
-    pub original_value: u32,   // Value before relocation
-    pub rel_type: u8,          // Relocation type (R_ARM_ABS32 = 2)
-    pub reserved: [u8; 3],     // Padding
-}
+// /// Single relocation entry
+// #[derive(Clone, Copy)]
+// pub struct RelocationEntry {
+//     pub offset: u32,           // Offset from kernel start
+//     pub original_value: u32,   // Value before relocation
+//     pub rel_type: u8,          // Relocation type (R_ARM_ABS32 = 2)
+//     pub reserved: [u8; 3],     // Padding
+// }
 
-impl RelocationEntry {
-    /// Size of one entry in bytes
-    pub const SIZE: usize = 12;
-}
+// impl RelocationEntry {
+//     /// Size of one entry in bytes
+//     pub const SIZE: usize = 12;
+// }

@@ -10,6 +10,13 @@ use crate::attributes_parser;
 
 const TOCK: [u8; 4] = [84, 79, 67, 75];
 
+const VALID_TLV_TYPES: [u16; 4] = [
+    0x0101, // App Memory
+    0x0102, // Kernel Flash
+    0x0103, // Kernel Version
+    0x0104, // Kernel Signature
+];
+
 /// Potential kernel found in flash
 #[derive(Debug, Clone, Copy)]
 pub struct PotentialKernel {
@@ -119,14 +126,14 @@ fn parse_kernel_info<IO: BootloaderIO>(
     // _io.debug("parsed attributes");
     
     // Get kernel flash TLV
-    let (_kernel_start, kernel_len) = attributes.kernel_flash
+    let (kernel_start, kernel_len) = attributes.kernel_flash
         .ok_or(BootError::InvalidTLV)?;
     
     // // let kernel_start = kernel_start as usize;
     let kernel_size = kernel_len as usize;
     // let kernel_size = attributes_end - kernel_start;
-    let actual_kernel_start = attributes_start.checked_sub(kernel_size)
-        .ok_or(BootError::InvalidKernelRegion)?;
+    // let actual_kernel_start = attributes_start.checked_sub(kernel_size)
+    //     .ok_or(BootError::InvalidKernelRegion)?;
 
     // _io.debug("Kernel start and size:");
     // _io.format(kernel_start, &mut buf);
@@ -134,14 +141,14 @@ fn parse_kernel_info<IO: BootloaderIO>(
     // _io.format(kernel_size, &mut buf);
     
     // Sanity checks
-    if actual_kernel_start >= attributes_start {
+    if kernel_start as usize >= attributes_start {
         return Err(BootError::InvalidKernelRegion);
     }
 
     // _io.debug("kernel start sanity check passed");
 
     Ok(PotentialKernel {
-        start_address: actual_kernel_start,
+        start_address: kernel_start as usize,
         size: kernel_size,
         attributes_start,
         attributes_end,
@@ -162,13 +169,6 @@ fn scan_tlvs_backward<IO: BootloaderIO>(sentinel_address: usize, _io: &IO) -> Re
         return Err(BootError::InvalidTLV);
     }
     pos -= 4; // Now at Version/Reserved (end of TLV chain)
-
-    const VALID_TLV_TYPES: [u16; 4] = [
-        0x0101, // App Memory
-        0x0102, // Kernel Flash
-        0x0103, // Version
-        0x0104, // Signature
-    ];
     
     // Walk backward through TLV chain
     loop {
@@ -187,7 +187,7 @@ fn scan_tlvs_backward<IO: BootloaderIO>(sentinel_address: usize, _io: &IO) -> Re
         // _io.format(tlv_len, &mut buf);
 
         if !VALID_TLV_TYPES.contains(&tlv_type) {
-            // Hit garbage data - we've gone past the start
+            // Hit garbage data, we've gone past the start
             return Ok(pos);
         }
         
