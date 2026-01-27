@@ -10,6 +10,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt::Write;
+use core::mem::MaybeUninit;
 use core::num::NonZeroU32;
 use core::ptr::NonNull;
 use core::{mem, ptr, slice, str};
@@ -40,6 +41,28 @@ use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
 
 use tock_tbf::types::CommandPermissions;
+
+/// Gets a mutable (unique) reference to the contained value.
+///
+/// TODO: this is copied from the standard library, where it is available under
+/// the `maybe_uninit_slice` nightly feature. Remove and switch to the core
+/// library variant once that is stable.
+///
+/// # Safety
+///
+/// Calling this when the content is not yet fully initialized causes undefined
+/// behavior: it is up to the caller to guarantee that every `MaybeUninit<T>` in the
+/// slice really is in an initialized state. For instance, `.assume_init_mut()` cannot
+/// be used to initialize a `MaybeUninit` slice.
+#[inline(always)]
+const unsafe fn maybe_uninit_slice_assume_init_mut<T>(src: &mut [MaybeUninit<T>]) -> &mut [T] {
+    // SAFETY: similar to safety notes for `slice_get_ref`, but we have a
+    // mutable reference which is also guaranteed to be valid for writes.
+    #[allow(clippy::ref_as_ptr)]
+    unsafe {
+        &mut *(src as *mut [MaybeUninit<T>] as *mut [T])
+    }
+}
 
 /// Interface supported by [`ProcessStandard`] for recording debug information.
 ///
@@ -1912,14 +1935,18 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // and `grant_ptrs_offset` is a multiple of the word size.
         #[allow(clippy::cast_ptr_alignment)]
         // Set all grant pointers to null.
-        let grant_pointers = slice::from_raw_parts_mut(
-            kernel_memory_break as *mut GrantPointerEntry,
+        let grant_pointers: &mut [MaybeUninit<GrantPointerEntry>] = slice::from_raw_parts_mut(
+            kernel_memory_break as *mut MaybeUninit<GrantPointerEntry>,
             grant_ptrs_num,
         );
         for grant_entry in grant_pointers.iter_mut() {
-            grant_entry.driver_num = 0;
-            grant_entry.grant_ptr = ptr::null_mut();
+            grant_entry.write(GrantPointerEntry {
+                driver_num: 0,
+                grant_ptr: core::ptr::null_mut(),
+            });
         }
+        // Safety: All values in this slice have been properly initialized.
+        let grant_pointers = maybe_uninit_slice_assume_init_mut(grant_pointers);
 
         // Now that we know we have the space we can setup the memory for the
         // upcalls.
