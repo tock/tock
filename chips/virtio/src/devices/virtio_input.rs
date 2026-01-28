@@ -10,10 +10,14 @@
 //! [event code](https://www.kernel.org/doc/Documentation/input/event-codes.txt)
 //! format that Linux uses.
 
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
 
 use crate::devices::{VirtIODeviceDriver, VirtIODeviceType};
-use crate::queues::split_queue::{SplitVirtqueue, SplitVirtqueueClient, VirtqueueBuffer};
+use crate::queues::split_queue::{
+    SplitVirtqueue, SplitVirtqueueClient, VirtqueueBuffer, VirtqueueReturnBuffer,
+};
 
 /// Event: separate events.
 const EV_SYN: u16 = 0;
@@ -21,11 +25,11 @@ const EV_SYN: u16 = 0;
 const EV_KEY: u16 = 1;
 
 /// VirtIO for input devices (e.g., keyboards).
-pub struct VirtIOInput<'a> {
+pub struct VirtIOInput<'a, F: DmaFence> {
     /// Queue of events from the device (e.g., keyboard).
-    eventq: &'a SplitVirtqueue<'static, 'static, 3>,
+    eventq: &'a SplitVirtqueue<'static, 'static, 3, F>,
     /// Queue of status updates from this driver (e.g., turn on LED).
-    statusq: &'a SplitVirtqueue<'static, 'static, 1>,
+    statusq: &'a SplitVirtqueue<'static, 'static, 1, F>,
     /// Buffer to hold status updates.
     status_buffer: OptionalCell<&'static mut [u8]>,
     /// Store keys sent across multiple events.
@@ -34,10 +38,10 @@ pub struct VirtIOInput<'a> {
     client: OptionalCell<&'a dyn kernel::hil::keyboard::KeyboardClient>,
 }
 
-impl<'a> VirtIOInput<'a> {
+impl<'a, F: DmaFence> VirtIOInput<'a, F> {
     pub fn new(
-        eventq: &'a SplitVirtqueue<'static, 'static, 3>,
-        statusq: &'a SplitVirtqueue<'static, 'static, 1>,
+        eventq: &'a SplitVirtqueue<'static, 'static, 3, F>,
+        statusq: &'a SplitVirtqueue<'static, 'static, 1, F>,
         status_buffer: &'static mut [u8],
     ) -> Self {
         eventq.enable_used_callbacks();
@@ -59,37 +63,28 @@ impl<'a> VirtIOInput<'a> {
     ) {
         // Provide the device three buffers to hold up to two keys and a sync
         // event.
-        let event_buffer_len = event_buffer1.len();
-        let mut buffer_chain = [Some(VirtqueueBuffer {
-            buf: event_buffer1,
-            len: event_buffer_len,
-            device_writeable: true,
-        })];
+        let mut buffer_chain = [Some(VirtqueueBuffer::DeviceWriteable(SubSliceMut::new(
+            event_buffer1,
+        )))];
         self.eventq.provide_buffer_chain(&mut buffer_chain).unwrap();
 
-        let event_buffer_len = event_buffer2.len();
-        let mut buffer_chain = [Some(VirtqueueBuffer {
-            buf: event_buffer2,
-            len: event_buffer_len,
-            device_writeable: true,
-        })];
+        let mut buffer_chain = [Some(VirtqueueBuffer::DeviceWriteable(SubSliceMut::new(
+            event_buffer2,
+        )))];
         self.eventq.provide_buffer_chain(&mut buffer_chain).unwrap();
 
-        let event_buffer_len = event_buffer3.len();
-        let mut buffer_chain = [Some(VirtqueueBuffer {
-            buf: event_buffer3,
-            len: event_buffer_len,
-            device_writeable: true,
-        })];
+        let mut buffer_chain = [Some(VirtqueueBuffer::DeviceWriteable(SubSliceMut::new(
+            event_buffer3,
+        )))];
         self.eventq.provide_buffer_chain(&mut buffer_chain).unwrap();
     }
 }
 
-impl SplitVirtqueueClient<'static> for VirtIOInput<'_> {
+impl<F: DmaFence> SplitVirtqueueClient<'static> for VirtIOInput<'_, F> {
     fn buffer_chain_ready(
         &self,
         queue_number: u32,
-        buffer_chain: &mut [Option<VirtqueueBuffer<'static>>],
+        buffer_chain: &mut [Option<VirtqueueReturnBuffer<'static>>],
         _bytes_used: usize,
     ) {
         fn parse_event(buf: &[u8]) -> Result<(u16, u16, u32), ()> {
@@ -104,30 +99,39 @@ impl SplitVirtqueueClient<'static> for VirtIOInput<'_> {
 
             // Process the incoming key. If this is the SYN_REPORT then our key
             // press is finished and we can call the client.
-            let end = if let Some(event_buffer) = &buffer_chain[0] {
-                if let Ok((event_type, event_code, event_value)) = parse_event(event_buffer.buf) {
-                    if event_type == EV_KEY {
-                        // This is a key down press. Save in the next available
-                        // slot.
-                        if self.keys[0].is_none() {
-                            self.keys[0].set((event_code, event_value == 1));
-                        } else {
-                            if self.keys[1].is_none() {
-                                self.keys[1].set((event_code, event_value == 1));
-                            }
+            let VirtqueueBuffer::DeviceWriteable(event_sub_slice_mut) = buffer_chain[0]
+                .take()
+                .expect("Split Virtqueue buffer_chain_ready but no buffer!")
+                .virtqueue_buffer
+            else {
+                panic!("Split Virtqueue returned DeviceReadable buffer for VirtIO input driver")
+            };
+            let event_slice = event_sub_slice_mut.take();
+
+            let end = if let Ok((event_type, event_code, event_value)) = parse_event(event_slice) {
+                if event_type == EV_KEY {
+                    // This is a key down press. Save in the next available
+                    // slot.
+                    if self.keys[0].is_none() {
+                        self.keys[0].set((event_code, event_value == 1));
+                    } else {
+                        if self.keys[1].is_none() {
+                            self.keys[1].set((event_code, event_value == 1));
                         }
                     }
-
-                    // If this is a SYN_REPORT return true
-                    event_type == EV_SYN && event_code == 0 && event_value == 0
-                } else {
-                    false
                 }
+
+                // If this is a SYN_REPORT return true
+                event_type == EV_SYN && event_code == 0 && event_value == 0
             } else {
                 false
             };
 
-            self.eventq.provide_buffer_chain(buffer_chain).unwrap();
+            self.eventq
+                .provide_buffer_chain(&mut [Some(VirtqueueBuffer::DeviceWriteable(
+                    SubSliceMut::new(event_slice),
+                ))])
+                .unwrap();
 
             if end {
                 // Signal to client that we got key presses.
@@ -148,14 +152,21 @@ impl SplitVirtqueueClient<'static> for VirtIOInput<'_> {
         } else if queue_number == self.statusq.queue_number().unwrap() {
             // Sent a status update
 
-            let status_buffer = buffer_chain[0].take().expect("No status buffer").buf;
+            let VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(status_sub_slice_mut)) =
+                buffer_chain[0]
+                    .take()
+                    .expect("No status buffer")
+                    .virtqueue_buffer
+            else {
+                panic!("VirtIO input returned either DeviceWritable buffer or Immutable sub slice for status queue")
+            };
 
-            self.status_buffer.replace(status_buffer);
+            self.status_buffer.replace(status_sub_slice_mut.take());
         }
     }
 }
 
-impl VirtIODeviceDriver for VirtIOInput<'_> {
+impl<F: DmaFence> VirtIODeviceDriver for VirtIOInput<'_, F> {
     fn negotiate_features(&self, _offered_features: u64) -> Option<u64> {
         // We don't support any special features and do not care about
         // what the device offers.
@@ -167,7 +178,7 @@ impl VirtIODeviceDriver for VirtIOInput<'_> {
     }
 }
 
-impl<'a> kernel::hil::keyboard::Keyboard<'a> for VirtIOInput<'a> {
+impl<'a, F: DmaFence> kernel::hil::keyboard::Keyboard<'a> for VirtIOInput<'a, F> {
     fn set_client(&self, client: &'a dyn kernel::hil::keyboard::KeyboardClient) {
         self.client.set(client);
     }

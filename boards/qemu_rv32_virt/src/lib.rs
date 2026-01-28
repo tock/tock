@@ -19,6 +19,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use rv32i::csr;
+use rv32i::dma_fence::RiscvCoherentDmaFence;
 
 pub mod io;
 
@@ -28,9 +29,17 @@ pub type ChipHw = QemuRv32VirtChip<'static, QemuRv32VirtDefaultPeripherals<'stat
 type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
 type RngDriver = components::rng::RngRandomComponentType<
-    qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
+    qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<
+        'static,
+        'static,
+        RiscvCoherentDmaFence,
+    >,
 >;
-pub type ScreenHw = qemu_rv32_virt_chip::virtio::devices::virtio_gpu::VirtIOGPU<'static, 'static>;
+pub type ScreenHw = qemu_rv32_virt_chip::virtio::devices::virtio_gpu::VirtIOGPU<
+    'static,
+    'static,
+    RiscvCoherentDmaFence,
+>;
 
 type AlarmHw = qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>;
 type SchedulerTimerHw =
@@ -71,7 +80,10 @@ pub struct QemuRv32VirtPlatform {
     virtio_ethernet_tap: Option<
         &'static capsules_extra::ethernet_tap::EthernetTapDriver<
             'static,
-            qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+            qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<
+                'static,
+                RiscvCoherentDmaFence,
+            >,
         >,
     >,
     pub virtio_gpu_screen: Option<
@@ -80,8 +92,12 @@ pub struct QemuRv32VirtPlatform {
             ScreenHw,
         >,
     >,
-    pub virtio_input_keyboard:
-        Option<&'static qemu_rv32_virt_chip::virtio::devices::virtio_input::VirtIOInput<'static>>,
+    pub virtio_input_keyboard: Option<
+        &'static qemu_rv32_virt_chip::virtio::devices::virtio_input::VirtIOInput<
+            'static,
+            RiscvCoherentDmaFence,
+        >,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -247,6 +263,11 @@ pub unsafe fn start() -> (
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
+    // Create a DmaFence instance. Under QEMU, DMA peripherals are
+    // cache-coherent with the main CPU, and therefore we can use the
+    // `RiscvCoherentDmaFence`:
+    let dma_fence = RiscvCoherentDmaFence::new();
+
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
     let peripherals = static_init!(
@@ -354,8 +375,8 @@ pub unsafe fn start() -> (
             static_init!(VirtqueueAvailableRing<2>, VirtqueueAvailableRing::default(),);
         let used_ring = static_init!(VirtqueueUsedRing<2>, VirtqueueUsedRing::default(),);
         let control_queue = static_init!(
-            SplitVirtqueue<2>,
-            SplitVirtqueue::new(descriptors, available_ring, used_ring),
+            SplitVirtqueue<2, RiscvCoherentDmaFence>,
+            SplitVirtqueue::new(descriptors, available_ring, used_ring, dma_fence),
         );
         control_queue.set_transport(&peripherals.virtio_mmio[gpu_idx]);
 
@@ -369,7 +390,7 @@ pub unsafe fn start() -> (
 
         // VirtIO GPU device driver instantiation
         let gpu = static_init!(
-            VirtIOGPU,
+            VirtIOGPU<RiscvCoherentDmaFence>,
             VirtIOGPU::new(
                 control_queue,
                 req_buffer,
@@ -413,49 +434,49 @@ pub unsafe fn start() -> (
 
     // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
     // driver and expose it to userspace though the RngDriver
-    let virtio_rng: Option<&'static qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng> =
-        if let Some(rng_idx) = virtio_rng_idx {
-            use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
-            use qemu_rv32_virt_chip::virtio::queues::split_queue::{
-                SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
-            };
-            use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
-            use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
-
-            // EntropySource requires a single Virtqueue for retrieved entropy
-            let descriptors =
-                static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
-            let available_ring =
-                static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
-            let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
-            let queue = static_init!(
-                SplitVirtqueue<1>,
-                SplitVirtqueue::new(descriptors, available_ring, used_ring),
-            );
-            queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
-
-            // VirtIO EntropySource device driver instantiation
-            let rng = static_init!(VirtIORng, VirtIORng::new(queue));
-            kernel::deferred_call::DeferredCallClient::register(rng);
-            queue.set_client(rng);
-
-            // Register the queues and driver with the transport, so interrupts
-            // are routed properly
-            let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
-            peripherals.virtio_mmio[rng_idx]
-                .initialize(rng, mmio_queues)
-                .unwrap();
-
-            // Provide an internal randomness buffer
-            let rng_buffer = static_init!([u8; 64], [0; 64]);
-            rng.provide_buffer(rng_buffer)
-                .expect("rng: providing initial buffer failed");
-
-            Some(rng)
-        } else {
-            // No VirtIO EntropySource discovered
-            None
+    let virtio_rng: Option<
+        &'static qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<RiscvCoherentDmaFence>,
+    > = if let Some(rng_idx) = virtio_rng_idx {
+        use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
+        use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+        use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+        // EntropySource requires a single Virtqueue for retrieved entropy
+        let descriptors = static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
+        let available_ring =
+            static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
+        let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
+        let queue = static_init!(
+            SplitVirtqueue<1, RiscvCoherentDmaFence>,
+            SplitVirtqueue::new(descriptors, available_ring, used_ring, dma_fence),
+        );
+        queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
+
+        // VirtIO EntropySource device driver instantiation
+        let rng = static_init!(VirtIORng<RiscvCoherentDmaFence>, VirtIORng::new(queue));
+        kernel::deferred_call::DeferredCallClient::register(rng);
+        queue.set_client(rng);
+
+        // Register the queues and driver with the transport, so interrupts
+        // are routed properly
+        let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
+        peripherals.virtio_mmio[rng_idx]
+            .initialize(rng, mmio_queues)
+            .unwrap();
+
+        // Provide an internal randomness buffer
+        let rng_buffer = static_init!([u8; 64], [0; 64]);
+        rng.provide_buffer(rng_buffer)
+            .expect("rng: providing initial buffer failed");
+
+        Some(rng)
+    } else {
+        // No VirtIO EntropySource discovered
+        None
+    };
 
     // If there is a VirtIO NetworkCard present, use the appropriate VirtIONet
     // driver, and expose this device through the Ethernet Tap driver
@@ -463,7 +484,10 @@ pub unsafe fn start() -> (
     let virtio_ethernet_tap: Option<
         &'static capsules_extra::ethernet_tap::EthernetTapDriver<
             'static,
-            qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+            qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<
+                'static,
+                RiscvCoherentDmaFence,
+            >,
         >,
     > = if let Some(net_idx) = virtio_net_idx {
         use capsules_extra::ethernet_tap::EthernetTapDriver;
@@ -487,8 +511,8 @@ pub unsafe fn start() -> (
             static_init!(VirtqueueAvailableRing<2>, VirtqueueAvailableRing::default(),);
         let tx_used_ring = static_init!(VirtqueueUsedRing<2>, VirtqueueUsedRing::default(),);
         let tx_queue = static_init!(
-            SplitVirtqueue<2>,
-            SplitVirtqueue::new(tx_descriptors, tx_available_ring, tx_used_ring),
+            SplitVirtqueue<2, RiscvCoherentDmaFence>,
+            SplitVirtqueue::new(tx_descriptors, tx_available_ring, tx_used_ring, dma_fence),
         );
         tx_queue.set_transport(&peripherals.virtio_mmio[net_idx]);
 
@@ -499,8 +523,8 @@ pub unsafe fn start() -> (
             static_init!(VirtqueueAvailableRing<2>, VirtqueueAvailableRing::default(),);
         let rx_used_ring = static_init!(VirtqueueUsedRing<2>, VirtqueueUsedRing::default(),);
         let rx_queue = static_init!(
-            SplitVirtqueue<2>,
-            SplitVirtqueue::new(rx_descriptors, rx_available_ring, rx_used_ring),
+            SplitVirtqueue<2, RiscvCoherentDmaFence>,
+            SplitVirtqueue::new(rx_descriptors, rx_available_ring, rx_used_ring, dma_fence),
         );
         rx_queue.set_transport(&peripherals.virtio_mmio[net_idx]);
 
@@ -515,7 +539,7 @@ pub unsafe fn start() -> (
 
         // Instantiate the VirtIONet (NetworkCard) driver and set the queues
         let virtio_net = static_init!(
-            VirtIONet<'static>,
+            VirtIONet<'static, RiscvCoherentDmaFence>,
             VirtIONet::new(tx_queue, tx_header_buf, rx_queue, rx_header_buf, rx_buffer),
         );
         tx_queue.set_client(virtio_net);
@@ -534,7 +558,7 @@ pub unsafe fn start() -> (
             [0; capsules_extra::ethernet_tap::MAX_MTU],
         );
         let virtio_ethernet_tap = static_init!(
-            EthernetTapDriver<'static, VirtIONet<'static>>,
+            EthernetTapDriver<'static, VirtIONet<'static, RiscvCoherentDmaFence>>,
             EthernetTapDriver::new(
                 virtio_net,
                 board_kernel.create_grant(
@@ -549,14 +573,19 @@ pub unsafe fn start() -> (
         // This enables reception on the underlying device:
         virtio_ethernet_tap.initialize();
 
-        Some(virtio_ethernet_tap as &'static EthernetTapDriver<'static, VirtIONet<'static>>)
+        Some(
+            virtio_ethernet_tap
+                as &'static EthernetTapDriver<'static, VirtIONet<'static, RiscvCoherentDmaFence>>,
+        )
     } else {
         // No VirtIO NetworkCard discovered
         None
     };
 
     let virtio_input_keyboard: Option<
-        &'static qemu_rv32_virt_chip::virtio::devices::virtio_input::VirtIOInput,
+        &'static qemu_rv32_virt_chip::virtio::devices::virtio_input::VirtIOInput<
+            RiscvCoherentDmaFence,
+        >,
     > = if let Some(input_idx) = virtio_input_idx {
         use qemu_rv32_virt_chip::virtio::devices::virtio_input::VirtIOInput;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
@@ -572,8 +601,8 @@ pub unsafe fn start() -> (
             static_init!(VirtqueueAvailableRing<3>, VirtqueueAvailableRing::default(),);
         let event_used_ring = static_init!(VirtqueueUsedRing<3>, VirtqueueUsedRing::default(),);
         let event_queue = static_init!(
-            SplitVirtqueue<3>,
-            SplitVirtqueue::new(event_descriptors, event_available_ring, event_used_ring),
+            SplitVirtqueue<3, RiscvCoherentDmaFence>,
+            SplitVirtqueue::new(event_descriptors, event_available_ring, event_used_ring, dma_fence),
         );
         event_queue.set_transport(&peripherals.virtio_mmio[input_idx]);
 
@@ -584,8 +613,8 @@ pub unsafe fn start() -> (
             static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
         let status_used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
         let status_queue = static_init!(
-            SplitVirtqueue<1>,
-            SplitVirtqueue::new(status_descriptors, status_available_ring, status_used_ring),
+            SplitVirtqueue<1, RiscvCoherentDmaFence>,
+            SplitVirtqueue::new(status_descriptors, status_available_ring, status_used_ring, dma_fence),
         );
         status_queue.set_transport(&peripherals.virtio_mmio[input_idx]);
 
@@ -597,7 +626,7 @@ pub unsafe fn start() -> (
 
         // Instantiate the input driver
         let virtio_input = static_init!(
-            VirtIOInput<'static>,
+            VirtIOInput<'static, RiscvCoherentDmaFence>,
             VirtIOInput::new(event_queue, status_queue, status_buf),
         );
         event_queue.set_client(virtio_input);
@@ -687,7 +716,7 @@ pub unsafe fn start() -> (
     let rng_driver = virtio_rng.map(|rng| {
         components::rng::RngRandomComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
             .finalize(components::rng_random_component_static!(
-                qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng
+                qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<RiscvCoherentDmaFence>
             ))
     });
 
