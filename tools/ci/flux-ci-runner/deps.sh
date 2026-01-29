@@ -146,9 +146,9 @@ DESIRED_FLUX_COMMIT=$(grep 'flux-rs.*rev' ../../../kernel/Cargo.toml | cut -d'"'
 # nominal output is "cargo-flux SHORT_HASH (DATE)"
 DESIRED_FLUX_VERSION="cargo-flux $DESIRED_FLUX_COMMIT"
 
-if [[ $(cargo flux --version | cut -d' ' -f1,2 2>/dev/null) == "$DESIRED_FLUX_VERSION" ]]; then
+if [[ $(cargo flux -Vv | cut -d' ' -f1,2 2>/dev/null) == "$DESIRED_FLUX_VERSION" ]]; then
   if $VERBOSE; then
-    echo "flux version: $(cargo flux --version)"
+    echo "flux version: $(cargo flux -Vv)"
   fi
 else
   if $DO_INSTALL; then
@@ -161,7 +161,7 @@ else
     cargo build --release
     popd
     # Verify install
-    [[ $(cargo flux --version | cut -d' ' -f1,2 2>/dev/null) == "$DESIRED_FLUX_VERSION" ]]
+    [[ $(cargo flux -Vv | cut -d' ' -f1,2 2>/dev/null) == "$DESIRED_FLUX_VERSION" ]]
   else
     echo "Missing required dependency: flux"
     return 1
