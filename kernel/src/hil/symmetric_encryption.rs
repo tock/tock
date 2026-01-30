@@ -4,14 +4,19 @@
 
 //! Interface for symmetric-cipher encryption
 //!
-//! see boards/imix/src/aes_test.rs for example usage
+//! (TODO) Update usage example.
 
-use crate::ErrorCode;
+use crate::{utilities::leasable_buffer::SubSliceMut, ErrorCode};
 
 /// Implement this trait and use `set_client()` in order to receive callbacks from an `AES128`
-/// instance.
+/// instance. This returns the provided source. The `dest` contains the result of the operation
+/// and in both cases the `SubSliceMut` provided to `crypt()` will be returned.
 pub trait Client<'a> {
-    fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]);
+    fn crypt_done(
+        &'a self,
+        source: Option<SubSliceMut<'static, u8>>,
+        dest: Result<SubSliceMut<'static, u8>, (ErrorCode, SubSliceMut<'static, u8>)>,
+    );
 }
 
 /// The number of bytes used for AES block operations.  Keys and IVs must have this length,
@@ -19,23 +24,28 @@ pub trait Client<'a> {
 pub const AES128_BLOCK_SIZE: usize = 16;
 pub const AES128_KEY_SIZE: usize = 16;
 
+/// Implement this trait for hardware supported AES128 operation.
 pub trait AES128<'a> {
-    /// Enable the AES hardware.
-    /// Must be called before any other methods
-    fn enable(&self);
+    /// Convience associated type for configuring the AES128 peripheral.
+    /// This is intended to allows users the ability to pass any
+    /// relevant information to configure the given hardware.
+    type T;
 
-    /// Disable the AES hardware
+    // (todo) likely want to remove enable / disable per discussion on
+    // https://github.com/tock/tock/pull/4500
+    fn enable(&self);
     fn disable(&self);
+    fn configure(&self, typer: Self::T);
 
     /// Set the client instance which will receive `crypt_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn Client<'a>);
+    fn set_client(&self, client: &'a dyn Client<'a>);
 
     /// Set the encryption key.
-    /// Returns `INVAL` if length is not `AES128_KEY_SIZE`
-    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
+    fn set_key(&self, key: &[u8; AES128_KEY_SIZE]);
 
     /// Set the IV (or initial counter).
-    /// Returns `INVAL` if length is not `AES128_BLOCK_SIZE`
+    /// Returns `INVAL` if length is greater than `AES128_BLOCK_SIZE`.
+    /// Note: some AES modes use IVs of different lengths.
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode>;
 
     /// Begin a new message (with the configured IV) when `crypt()` is
@@ -49,31 +59,25 @@ pub trait AES128<'a> {
 
     /// Request an encryption/decryption
     ///
-    /// If the source buffer is not `None`, the encryption input
-    /// will be that entire buffer.  Otherwise the destination buffer
-    /// at indices between `start_index` and `stop_index` will
-    /// provide the input, which will be overwritten.
+    /// If the source buffer is `Some`, the active region of the source
+    /// SubSlice serves as the crypt input. Otherwise the destination buffer
+    /// from the active subslice region will provide the input, which
+    /// will be overwritten.
     ///
-    /// If `None` is returned, the client's `crypt_done` method will eventually
-    /// be called, and the portion of the data buffer between `start_index`
-    /// and `stop_index` will hold the result of the encryption/decryption.
+    /// If `Ok(())` is returned, the client's `crypt_done` method will eventually
+    /// be called, and the portion of the active region of the destination buffer
+    /// will hold the result of the encryption/decryption.
     ///
-    /// If `Some(result, source, dest)` is returned, `result` is the
+    /// If `Err(result, source, dest)` is returned, `result` is the
     /// error condition and `source` and `dest` are the buffers that
     /// were passed to `crypt`.
     ///
-    /// The indices `start_index` and `stop_index` must be valid
-    /// offsets in the destination buffer, and the length
-    /// `stop_index - start_index` must be a multiple of
-    /// `AES128_BLOCK_SIZE`.  Otherwise, `Some(INVAL, ...)` will be
-    /// returned.
-    ///
-    /// If the source buffer is not `None`, its length must be
-    /// `stop_index - start_index`.  Otherwise, `Some(INVAL, ...)`
-    /// will be returned.
+    /// The active regions of the `source` and `dest` subslice must be the same
+    /// length (if a source buffer is provided) and a multiple of `AES128_BLOCK_SIZE`.
+    /// Otherwise, `Err(INVAL, ...)` will be returned.
     ///
     /// If an encryption operation is already in progress,
-    /// `Some(BUSY, ...)` will be returned.
+    /// `Err(BUSY, ...)` will be returned.
     ///
     /// For correct operation, the methods `set_key` and `set_iv` must have
     /// previously been called to set the buffers containing the
@@ -83,100 +87,44 @@ pub trait AES128<'a> {
     ///
     fn crypt(
         &self,
-        source: Option<&'static mut [u8]>,
-        dest: &'static mut [u8],
-        start_index: usize,
-        stop_index: usize,
-    ) -> Option<(
-        Result<(), ErrorCode>,
-        Option<&'static mut [u8]>,
-        &'static mut [u8],
-    )>;
+        source: Option<SubSliceMut<'static, u8>>,
+        dest: SubSliceMut<'static, u8>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<SubSliceMut<'static, u8>>,
+            SubSliceMut<'static, u8>,
+        ),
+    >;
 }
 
-pub trait AES128Ctr {
-    /// Call before `AES128::crypt()` to perform AES128Ctr
-    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode>;
+/// Implement this trait for AES128 hardware that supports Ctr mode.
+pub trait AES128Ctr<'a>: AES128<'a> {
+    /// Call before `AES128::crypt()` to perform AES128Ctr.
+    fn set_mode_aes128ctr(&self) -> Result<(), ErrorCode>;
 }
 
-pub trait AES128CBC {
-    /// Call before `AES128::crypt()` to perform AES128CBC
-    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode>;
+/// Implement this trait for AES128 hardware that supports CBC mode.
+pub trait AES128CBC<'a>: AES128<'a> {
+    /// Call before `AES128::crypt()` to perform AES128CBC.
+    fn set_mode_aes128cbc(&self) -> Result<(), ErrorCode>;
 }
 
-pub trait AES128ECB {
-    /// Call before `AES128::crypt()` to perform AES128ECB
-    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode>;
+/// Implement this trait for AES128 hardware that supports ECB mode.
+pub trait AES128ECB<'a>: AES128<'a> {
+    /// Call before `AES128::crypt()` to perform AES128ECB.
+    fn set_mode_aes128ecb(&self) -> Result<(), ErrorCode>;
 }
 
-pub trait CCMClient {
-    /// `res` is Ok(()) if the encryption/decryption process succeeded. This
-    /// does not mean that the message has been verified in the case of
-    /// decryption.
-    /// If we are encrypting: `tag_is_valid` is `true` iff `res` is Ok(()).
-    /// If we are decrypting: `tag_is_valid` is `true` iff `res` is Ok(()) and the
-    /// message authentication tag is valid.
-    fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool);
+/// Implement this trait for AES128 hardware that supports CCM mode.
+pub trait AES128CCM<'a>: AES128<'a> {
+    /// Call before `AES128::crypt()` to perform AES128CCM.
+    fn set_mode_aes128ccm(&self) -> Result<(), ErrorCode>;
 }
 
-pub const CCM_NONCE_LENGTH: usize = 13;
-
-pub trait AES128CCM<'a> {
-    /// Set the client instance which will receive `crypt_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn CCMClient);
-
-    /// Set the key to be used for CCM encryption
-    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
-
-    /// Set the nonce (length NONCE_LENGTH) to be used for CCM encryption
-    fn set_nonce(&self, nonce: &[u8]) -> Result<(), ErrorCode>;
-
-    /// Try to begin the encryption/decryption process
-    fn crypt(
-        &self,
-        buf: &'static mut [u8],
-        a_off: usize,
-        m_off: usize,
-        m_len: usize,
-        mic_len: usize,
-        confidential: bool,
-        encrypting: bool,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
-}
-
-pub trait GCMClient {
-    /// `res` is Ok(()) if the encryption/decryption process succeeded. This
-    /// does not mean that the message has been verified in the case of
-    /// decryption.
-    /// If we are encrypting: `tag_is_valid` is `true` iff `res` is Ok(()).
-    /// If we are decrypting: `tag_is_valid` is `true` iff `res` is Ok(()) and the
-    /// message authentication tag is valid.
-    fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool);
-}
-
-pub trait AES128GCM<'a> {
-    /// Set the client instance which will receive `crypt_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn GCMClient);
-
-    /// Set the key to be used for GCM encryption
-    /// Returns `INVAL` if length is not `AES128_KEY_SIZE`
-    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
-
-    /// Set the IV to be used for GCM encryption. The IV should be less
-    /// or equal to 12 bytes (96 bits) as recommened in NIST-800-38D.
-    /// Returns `INVAL` if length is greater then 12 bytes
-    fn set_iv(&self, nonce: &[u8]) -> Result<(), ErrorCode>;
-
-    /// Try to begin the encryption/decryption process
-    /// The possible ErrorCodes are:
-    ///     - `BUSY`: An operation is already in progress
-    ///     - `SIZE`: The offset and lengths don't fit inside the buffer
-    fn crypt(
-        &self,
-        buf: &'static mut [u8],
-        aad_offset: usize,
-        message_offset: usize,
-        message_len: usize,
-        encrypting: bool,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+/// Implement this trait for AES128 hardware that supports GCM mode.
+pub trait AES128GCM<'a>: AES128<'a> {
+    /// Call before `AES128::crypt()` to perform AES128GCM.
+    fn set_mode_aes128gcm(&self) -> Result<(), ErrorCode>;
 }

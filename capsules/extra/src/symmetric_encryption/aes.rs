@@ -1,975 +1,435 @@
-// Licensed under the Apache License, Version 2.0 or the MIT License.
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
-
-//! AES.
-
-use capsules_core::driver;
-/// Syscall driver number.
+// (todo) add copyright header
+use capsules_core::{aes::Aes128Ctr, driver};
 pub const DRIVER_NUM: usize = driver::NUM::Aes as usize;
-
-use core::cell::Cell;
-
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::symmetric_encryption::{
-    AES128Ctr, CCMClient, Client, GCMClient, AES128, AES128CBC, AES128CCM, AES128ECB, AES128GCM,
-    AES128_BLOCK_SIZE,
+use capsules_core::aes::Aes128Ecb;
+use kernel::{
+    grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount},
+    hil::symmetric_encryption,
+    processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer},
+    syscall::{CommandReturn, SyscallDriver},
+    utilities::{
+        cells::{OptionalCell, TakeCell},
+        leasable_buffer::SubSliceMut,
+    },
+    ErrorCode, ProcessId,
 };
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
-use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::{ErrorCode, ProcessId};
 
-/// Ids for read-only allow buffers
+// each app can only do 1 aes op at a time
 mod ro_allow {
-    pub const KEY: usize = 0;
-    pub const IV: usize = 1;
-    pub const SOURCE: usize = 2;
-    /// The number of allow buffers the kernel stores for this grant
+    pub const IV: usize = 0;
+    pub const KEY: usize = 1;
+    pub const SRC_BUF: usize = 2;
     pub const COUNT: u8 = 3;
 }
 
-/// Ids for read-write allow buffers
 mod rw_allow {
-    pub const DEST: usize = 0;
-    /// The number of allow buffers the kernel stores for this grant
+    pub const DST_BUF: usize = 0;
+    pub const COUNT: u8 = 2;
+}
+
+mod upcall {
+    pub const CRYPT_DONE: usize = 0;
     pub const COUNT: u8 = 1;
 }
 
-pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static> + AES128GCM<'static>> {
-    aes: &'a A,
+pub struct AesOperators<'a, ECB: Aes128Ecb<'a>, CTR: Aes128Ctr<'a>> {
+    ecb: &'a ECB,
+    ctr: &'a CTR,
+}
 
-    active: Cell<bool>,
+impl<'a, ECB: Aes128Ecb<'a>, CTR: Aes128Ctr<'a>> AesOperators<'a, ECB, CTR> {
+    pub fn new(ecb: &'a ECB, ctr: &'a CTR) -> Self {
+        AesOperators { ecb, ctr }
+    }
+}
 
+// (todo) this is currently a wip prototype to demonstrate how
+// the updated interface greatly simplifies writing the syscall
+// driver. The driver will require `A` to implement CTR CCM GCM etc as well.
+// Only require Ecb / Ctr for now for simplicity and to avoid
+// having to update all other interfaces. We select Ecb / Ctr
+// since the prototype is for nrf5x hardware (which supports hw
+// ecb) and we build ctr in software to demonstrate updated
+// crypto interface in hw support and sw support for crypto
+// modes.
+pub struct AesDriver<'a, ECB: Aes128Ecb<'a>, CTR: Aes128Ctr<'a>> {
+    aes: AesOperators<'a, ECB, CTR>,
     apps: Grant<
         App,
-        UpcallCount<1>,
+        UpcallCount<{ upcall::COUNT }>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
-    processid: OptionalCell<ProcessId>,
-
-    source_buffer: TakeCell<'static, [u8]>,
-    data_copied: Cell<usize>,
-    dest_buffer: TakeCell<'static, [u8]>,
+    current_process: OptionalCell<ProcessId>,
+    kernel_dest_buf: TakeCell<'static, [u8]>,
+    kernel_src_buf: TakeCell<'static, [u8]>,
 }
 
-impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > AesDriver<'static, A>
-{
+impl<'a, ECB: Aes128Ecb<'a>, CTR: Aes128Ctr<'a>> AesDriver<'a, ECB, CTR> {
     pub fn new(
-        aes: &'static A,
-        source_buffer: &'static mut [u8],
-        dest_buffer: &'static mut [u8],
+        aes_ecb: &'a ECB,
+        aes_ctr: &'a CTR,
         grant: Grant<
             App,
-            UpcallCount<1>,
+            UpcallCount<{ upcall::COUNT }>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> AesDriver<'static, A> {
+        kernel_dest_buf: &'static mut [u8],
+        kernel_src_buf: &'static mut [u8],
+    ) -> Self {
         AesDriver {
-            aes,
-            active: Cell::new(false),
+            aes: AesOperators::new(aes_ecb, aes_ctr),
             apps: grant,
-            processid: OptionalCell::empty(),
-            source_buffer: TakeCell::new(source_buffer),
-            data_copied: Cell::new(0),
-            dest_buffer: TakeCell::new(dest_buffer),
+            current_process: OptionalCell::empty(),
+            kernel_dest_buf: TakeCell::new(kernel_dest_buf),
+            kernel_src_buf: TakeCell::new(kernel_src_buf),
         }
     }
 
-    fn run(&self) -> Result<(), ErrorCode> {
-        self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
-            self.apps
-                .enter(processid, |app, kernel_data| {
-                    self.aes.enable();
-                    match app.aes_operation {
-                        Some(AesOperation::AES128Ctr(encrypt)) => {
-                            self.aes.set_mode_aes128ctr(encrypt)?
-                        }
-                        Some(AesOperation::AES128CBC(encrypt)) => {
-                            self.aes.set_mode_aes128cbc(encrypt)?
-                        }
-                        Some(AesOperation::AES128ECB(encrypt)) => {
-                            self.aes.set_mode_aes128ecb(encrypt)?
-                        }
-                        Some(AesOperation::AES128CCM(_encrypt)) => {}
-                        Some(AesOperation::AES128GCM(_encrypt)) => {}
-                        _ => return Err(ErrorCode::INVAL),
-                    }
-
-                    kernel_data
-                        .get_readonly_processbuffer(ro_allow::KEY)
-                        .and_then(|key| {
-                            key.enter(|key| {
-                                let mut static_buffer_len = 0;
-                                self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                    // Determine the size of the static buffer we have
-                                    static_buffer_len = buf.len();
-
-                                    if static_buffer_len > key.len() {
-                                        static_buffer_len = key.len()
-                                    }
-
-                                    // Copy the data into the static buffer
-                                    key[..static_buffer_len]
-                                        .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                    if let Some(op) = app.aes_operation.as_ref() {
-                                        match op {
-                                            AesOperation::AES128Ctr(_)
-                                            | AesOperation::AES128CBC(_)
-                                            | AesOperation::AES128ECB(_) => {
-                                                AES128::set_key(self.aes, buf)?;
-                                                Ok(())
-                                            }
-                                            AesOperation::AES128CCM(_) => {
-                                                AES128CCM::set_key(self.aes, buf)?;
-                                                Ok(())
-                                            }
-                                            AesOperation::AES128GCM(_) => {
-                                                AES128GCM::set_key(self.aes, buf)?;
-                                                Ok(())
-                                            }
-                                        }
-                                    } else {
-                                        Err(ErrorCode::FAIL)
-                                    }
-                                })
-                            })
-                        })
-                        .unwrap_or(Err(ErrorCode::RESERVE))?;
-
-                    kernel_data
-                        .get_readonly_processbuffer(ro_allow::IV)
-                        .and_then(|iv| {
-                            iv.enter(|iv| {
-                                let mut static_buffer_len = 0;
-                                self.source_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                    // Determine the size of the static buffer we have
-                                    static_buffer_len = buf.len();
-
-                                    if static_buffer_len > iv.len() {
-                                        static_buffer_len = iv.len()
-                                    }
-
-                                    // Copy the data into the static buffer
-                                    iv[..static_buffer_len]
-                                        .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                    if let Some(op) = app.aes_operation.as_ref() {
-                                        match op {
-                                            AesOperation::AES128Ctr(_)
-                                            | AesOperation::AES128CBC(_)
-                                            | AesOperation::AES128ECB(_) => {
-                                                AES128::set_iv(self.aes, buf)?;
-                                                Ok(())
-                                            }
-                                            AesOperation::AES128CCM(_) => {
-                                                AES128CCM::set_nonce(self.aes, &buf[0..13])?;
-                                                Ok(())
-                                            }
-                                            AesOperation::AES128GCM(_) => {
-                                                AES128GCM::set_iv(self.aes, &buf[0..13])?;
-                                                Ok(())
-                                            }
-                                        }
-                                    } else {
-                                        Err(ErrorCode::FAIL)
-                                    }
-                                })
-                            })
-                        })
-                        .unwrap_or(Err(ErrorCode::RESERVE))?;
-
-                    kernel_data
-                        .get_readonly_processbuffer(ro_allow::SOURCE)
-                        .and_then(|source| {
-                            source.enter(|source| {
-                                let mut static_buffer_len = 0;
-
-                                if let Some(op) = app.aes_operation.as_ref() {
-                                    match op {
-                                        AesOperation::AES128Ctr(_)
-                                        | AesOperation::AES128CBC(_)
-                                        | AesOperation::AES128ECB(_) => {
-                                            self.source_buffer.map_or(
-                                                Err(ErrorCode::NOMEM),
-                                                |buf| {
-                                                    // Determine the size of the static buffer we have
-                                                    static_buffer_len = buf.len();
-
-                                                    if static_buffer_len > source.len() {
-                                                        static_buffer_len = source.len()
-                                                    }
-
-                                                    // Copy the data into the static buffer
-                                                    source[..static_buffer_len].copy_to_slice(
-                                                        &mut buf[..static_buffer_len],
-                                                    );
-
-                                                    self.data_copied.set(static_buffer_len);
-
-                                                    Ok(())
-                                                },
-                                            )?;
-                                        }
-                                        AesOperation::AES128CCM(_) => {
-                                            self.dest_buffer.map_or(
-                                                Err(ErrorCode::NOMEM),
-                                                |buf| {
-                                                    // Determine the size of the static buffer we have
-                                                    static_buffer_len = buf.len();
-
-                                                    if static_buffer_len > source.len() {
-                                                        static_buffer_len = source.len()
-                                                    }
-
-                                                    // Copy the data into the static buffer
-                                                    source[..static_buffer_len].copy_to_slice(
-                                                        &mut buf[..static_buffer_len],
-                                                    );
-
-                                                    self.data_copied.set(static_buffer_len);
-
-                                                    Ok(())
-                                                },
-                                            )?;
-                                        }
-                                        AesOperation::AES128GCM(_) => {
-                                            self.dest_buffer.map_or(
-                                                Err(ErrorCode::NOMEM),
-                                                |buf| {
-                                                    // Determine the size of the static buffer we have
-                                                    static_buffer_len = buf.len();
-
-                                                    if static_buffer_len > source.len() {
-                                                        static_buffer_len = source.len()
-                                                    }
-
-                                                    // Copy the data into the static buffer
-                                                    source[..static_buffer_len].copy_to_slice(
-                                                        &mut buf[..static_buffer_len],
-                                                    );
-
-                                                    self.data_copied.set(static_buffer_len);
-
-                                                    Ok(())
-                                                },
-                                            )?;
-                                        }
-                                    }
-
-                                    self.calculate_output(
-                                        op,
-                                        app.aoff.get(),
-                                        app.moff.get(),
-                                        app.mlen.get(),
-                                        app.mic_len.get(),
-                                        app.confidential.get(),
-                                    )?;
-                                    Ok(())
-                                } else {
-                                    Err(ErrorCode::FAIL)
-                                }
-                            })
-                        })
-                        .unwrap_or(Err(ErrorCode::RESERVE))?;
-
-                    Ok(())
-                })
-                .unwrap_or_else(|err| Err(err.into()))
-        })
-    }
-
-    fn calculate_output(
-        &self,
-        op: &AesOperation,
-        aoff: usize,
-        moff: usize,
-        mlen: usize,
-        mic_len: usize,
-        confidential: bool,
-    ) -> Result<(), ErrorCode> {
-        match op {
-            AesOperation::AES128Ctr(_)
-            | AesOperation::AES128CBC(_)
-            | AesOperation::AES128ECB(_) => {
-                if let Some(dest_buf) = self.dest_buffer.take() {
-                    if let Some((e, source, dest)) = AES128::crypt(
-                        self.aes,
-                        self.source_buffer.take(),
-                        dest_buf,
-                        0,
-                        AES128_BLOCK_SIZE,
-                    ) {
-                        // Error, clear the processid and data
-                        self.aes.disable();
-                        self.processid.clear();
-                        if let Some(source_buf) = source {
-                            self.source_buffer.replace(source_buf);
-                        }
-                        self.dest_buffer.replace(dest);
-
-                        return e;
-                    }
-                } else {
-                    return Err(ErrorCode::FAIL);
-                }
+    fn enqueue(&self, pid: ProcessId) -> Result<(), ErrorCode> {
+        self.apps.enter(pid, |app, _| {
+            // Determine if this app is already queued for work and that the
+            // AES mode has been set.
+            if !app.pending || app.aes_mode.is_some() {
+                app.pending = true;
+                Ok(())
+            } else {
+                Err(ErrorCode::BUSY)
             }
-            AesOperation::AES128CCM(encrypting) => {
-                if let Some(buf) = self.dest_buffer.take() {
-                    if let Err((e, dest)) = AES128CCM::crypt(
-                        self.aes,
-                        buf,
-                        aoff,
-                        moff,
-                        mlen,
-                        mic_len,
-                        confidential,
-                        *encrypting,
-                    ) {
-                        // Error, clear the processid and data
-                        self.aes.disable();
-                        self.processid.clear();
-                        self.dest_buffer.replace(dest);
+        })??;
 
-                        return Err(e);
+        if self.current_process.is_none() {
+            for cntr in self.apps.iter() {
+                let processid = cntr.processid();
+                let mut res = None;
+                cntr.enter(|mut app, kernel_data| {
+                    if app.pending {
+                        self.current_process.set(processid);
+                        res = self.app_crypt_op(&mut app, kernel_data);
                     }
-                } else {
-                    return Err(ErrorCode::FAIL);
-                }
-            }
-            AesOperation::AES128GCM(encrypting) => {
-                if let Some(buf) = self.dest_buffer.take() {
-                    if let Err((e, dest)) =
-                        AES128GCM::crypt(self.aes, buf, aoff, moff, mlen, *encrypting)
-                    {
-                        // Error, clear the appid and data
-                        self.aes.disable();
-                        self.processid.clear();
-                        self.dest_buffer.replace(dest);
+                });
 
-                        return Err(e);
-                    }
-                } else {
-                    return Err(ErrorCode::FAIL);
+                if res.is_some() {
+                    break;
                 }
             }
         }
-
         Ok(())
     }
 
-    fn check_queue(&self) {
-        for appiter in self.apps.iter() {
-            let started_command = appiter.enter(|app, _| {
-                // If an app is already running let it complete
-                if self.processid.is_some() {
-                    return true;
+    fn perform_crypt(
+        &self,
+        mode: AesMode,
+        iv: Option<&[u8; symmetric_encryption::AES128_BLOCK_SIZE]>,
+        key: &[u8; symmetric_encryption::AES128_KEY_SIZE],
+        src: Option<SubSliceMut<'static, u8>>,
+        dest: SubSliceMut<'static, u8>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<SubSliceMut<'static, u8>>,
+            SubSliceMut<'static, u8>,
+        ),
+    > {
+        match mode {
+            AesMode::AesEcb => {
+                if let Err(error_code) = self.aes.ecb.setup_cipher(key) {
+                    return Err((error_code, src, dest));
                 }
 
-                // If this app has a pending command let's use it.
-                app.pending_run_app.take().is_some_and(|processid| {
-                    // Mark this driver as being in use.
-                    self.processid.set(processid);
-                    // Actually make the buzz happen.
-                    self.run() == Ok(())
+                self.aes.ecb.crypt(src, dest)
+            }
+            AesMode::AesCtr => {
+                let iv = if let Some(iv) = iv {
+                    iv
+                } else {
+                    // CTR mode requires an IV, so return error if not provided.
+                    return Err((ErrorCode::INVAL, src, dest));
+                };
+
+                if let Err(error_code) = self.aes.ctr.setup_cipher(key, iv) {
+                    return Err((error_code, src, dest));
+                }
+
+                self.aes.ctr.crypt(src, dest)
+            }
+            AesMode::AesCbc => {
+                todo!()
+            }
+            AesMode::AesCcm => {
+                todo!()
+            }
+            AesMode::AesGcm => {
+                todo!()
+            }
+        }
+    }
+
+    fn app_crypt_op(&self, app: &mut App, kernel_data: &GrantKernelData) -> Option<()> {
+        app.pending = false;
+        let aes_mode = if let Some(mode) = app.aes_mode {
+            mode
+        } else {
+            // AES mode not set, so no encryption operation can be performed.
+            // Short-circuit here and mark this app as no longer having work.
+            let _ =
+                kernel_data.schedule_upcall(upcall::CRYPT_DONE, (ErrorCode::INVAL.into(), 0, 0));
+            return None;
+        };
+
+        // Obtain key shared from userspace.
+        let key_copy_result = kernel_data
+            .get_readonly_processbuffer(ro_allow::KEY)
+            .and_then(|key_processbuffer| {
+                key_processbuffer.enter(|user_key| {
+                    let mut key = [0u8; symmetric_encryption::AES128_KEY_SIZE];
+                    if let Err(_) = user_key.copy_to_slice_or_err(&mut key) {
+                        return Err(kernel::process::Error::KernelError);
+                    };
+
+                    Ok(key)
                 })
             });
-            if started_command {
-                break;
+
+        let key = if let Ok(Ok(key)) = key_copy_result {
+            key
+        } else {
+            // Without a key, no encryption mode will succeed, so short-circuit
+            // here and mark this app as no longer having work.
+            let _ =
+                kernel_data.schedule_upcall(upcall::CRYPT_DONE, (ErrorCode::INVAL.into(), 0, 0));
+            return None;
+        };
+
+        // Obtain IV shared from userspace (not needed for ECB so not necessarily an error
+        // if not shared).
+        let iv = kernel_data
+            .get_readonly_processbuffer(ro_allow::IV)
+            .map_or_else(
+                |_| None,
+                |iv_processbuf| {
+                    iv_processbuf
+                        .enter(|user_iv| {
+                            let mut iv = [0u8; symmetric_encryption::AES128_BLOCK_SIZE];
+                            if let Err(_) = user_iv.copy_to_slice_or_err(&mut iv) {
+                                return Err(kernel::process::Error::KernelError);
+                            }
+
+                            Ok(iv)
+                        })
+                        .map_or_else(
+                            // Upon error, treat IV as not provided. If the requested
+                            // AES mode requires an IV, the error will be caught later.
+                            |_| None,
+                            |iv_res| match iv_res {
+                                Ok(iv) => Some(iv),
+                                Err(_) => None,
+                            },
+                        )
+                },
+            );
+
+        let kernel_src_buf = self.kernel_src_buf.take().unwrap();
+        let kernel_dest_buf = self.kernel_dest_buf.take().unwrap();
+
+        // Obtain dest (and possibly src) buffers shared from userspace.
+        let buffer_copy_result = kernel_data
+            .get_readwrite_processbuffer(rw_allow::DST_BUF)
+            .and_then(|dst_processbuf| {
+                dst_processbuf
+                    .enter(|user_dst_buf| {
+                        // Dest buffer must be provided and fit in the kernel buffer.
+                        if user_dst_buf.len() == 0 {
+                            return Err(kernel::process::Error::KernelError);
+                        }
+
+                        user_dst_buf
+                            .copy_to_slice_or_err(&mut kernel_dest_buf[..user_dst_buf.len()])
+                            .map_err(|_| kernel::process::Error::KernelError)
+                    })
+                    .and_then(|_| {
+                        // Now see if user has provided a src buf.
+                        kernel_data
+                            .get_readonly_processbuffer(ro_allow::SRC_BUF)
+                            .and_then(|src_processbuf| {
+                                src_processbuf.enter(|user_src_buf| {
+                                    if user_src_buf.len() == 0 {
+                                        // no src buffer provided, this is not an error,
+                                        // as it is valid to not provide a src buffer.
+                                        self.kernel_src_buf.replace(kernel_src_buf);
+                                        return Ok(None);
+                                    }
+
+                                    // If a src buffer is provided, but is too large for the
+                                    // kernel buffer, return an error.
+                                    if let Err(_) = user_src_buf.copy_to_slice_or_err(
+                                        &mut kernel_src_buf[..user_src_buf.len()],
+                                    ) {
+                                        self.kernel_src_buf.replace(kernel_src_buf);
+                                        Err(kernel::process::Error::OutOfMemory)
+                                    } else {
+                                        Ok(Some(kernel_src_buf))
+                                    }
+                                })
+                            })
+                    })
+            });
+
+        match buffer_copy_result {
+            Ok(Ok(src_buf)) => {
+                let src = src_buf.map(|buf| SubSliceMut::new(buf));
+                let dest = SubSliceMut::new(kernel_dest_buf);
+                self.perform_crypt(aes_mode, iv.as_ref(), &key, src, dest)
+                    .map_or_else(
+                        |(code, src, dest)| {
+                            self.kernel_dest_buf.replace(dest.take());
+                            if let Some(src) = src {
+                                self.kernel_src_buf.replace(src.take());
+                            }
+
+                            // an error occurred during crypt
+                            let _ = kernel_data
+                                .schedule_upcall(upcall::CRYPT_DONE, (code.into(), 0, 0));
+                            None
+                        },
+                        |_| {
+                            // Success, AES operation is in progress.
+                            Some(())
+                        },
+                    )
+            }
+            _ => {
+                // Unable to obtain dest buffer, so no encryption operation can be
+                // performed.  Short-circuit here and mark this app as no longer
+                // having work.
+                let _ = kernel_data
+                    .schedule_upcall(upcall::CRYPT_DONE, (ErrorCode::INVAL.into(), 0, 0));
+                None
             }
         }
     }
 }
 
-impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > Client<'static> for AesDriver<'static, A>
-{
-    fn crypt_done(&self, source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
-        if let Some(source_buf) = source {
-            self.source_buffer.replace(source_buf);
+#[derive(Copy, Clone)]
+enum AesMode {
+    AesEcb,
+    AesCtr,
+    AesCbc,
+    AesCcm,
+    AesGcm,
+}
+
+impl TryFrom<usize> for AesMode {
+    type Error = ErrorCode;
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(AesMode::AesEcb),
+            1 => Ok(AesMode::AesCtr),
+            2 => Ok(AesMode::AesCbc),
+            3 => Ok(AesMode::AesCcm),
+            4 => Ok(AesMode::AesGcm),
+            _ => Err(ErrorCode::INVAL),
         }
-        self.dest_buffer.replace(destination);
+    }
+}
 
-        self.processid.map(|id| {
-            self.apps
-                .enter(id, |app, kernel_data| {
-                    let mut data_len = 0;
-                    let mut exit = false;
-                    let mut static_buffer_len = 0;
+pub struct App {
+    aes_mode: Option<AesMode>,
+    pending: bool,
+}
 
-                    let source_len = kernel_data
-                        .get_readonly_processbuffer(ro_allow::SOURCE)
-                        .map_or(0, |source| source.len());
+impl Default for App {
+    fn default() -> Self {
+        App {
+            aes_mode: None,
+            pending: false,
+        }
+    }
+}
 
-                    let subtract = self
-                        .source_buffer
-                        .map_or(0, |buf| core::cmp::min(buf.len(), source_len));
+impl<'a, ECB: Aes128Ecb<'a>, CTR: Aes128Ctr<'a>> symmetric_encryption::Client<'a>
+    for AesDriver<'a, ECB, CTR>
+{
+    fn crypt_done(
+        &'a self,
+        _source: Option<SubSliceMut<'static, u8>>,
+        dest: Result<SubSliceMut<'static, u8>, (ErrorCode, SubSliceMut<'static, u8>)>,
+    ) {
+        let pid = self
+            .current_process
+            .take()
+            .expect("[AES Driver] invalid state.");
 
-                    self.dest_buffer.map(|buf| {
-                        let ret = kernel_data
-                            .get_readwrite_processbuffer(rw_allow::DEST)
-                            .and_then(|dest| {
-                                dest.mut_enter(|dest| {
-                                    let offset = self.data_copied.get() - subtract;
-                                    let app_len = dest.len();
-                                    let static_len = self.source_buffer.map_or(0, |source_buf| {
-                                        core::cmp::min(source_buf.len(), buf.len())
-                                    });
-
-                                    if app_len < static_len {
-                                        if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
-                                        }
-                                    } else {
-                                        if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
-                                        }
-                                    }
-                                })
-                            });
-
-                        if let Err(e) = ret {
-                            // No data buffer, clear the processid and data
-                            self.aes.disable();
-                            self.processid.clear();
-                            let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
-                            exit = true;
-                        }
-                    });
-
-                    if exit {
-                        return;
-                    }
-
-                    self.source_buffer.map(|buf| {
-                        let ret = kernel_data
-                            .get_readonly_processbuffer(ro_allow::SOURCE)
-                            .and_then(|source| {
-                                source.enter(|source| {
-                                    // Determine the size of the static buffer we have
-                                    static_buffer_len = buf.len();
-                                    // Determine how much data we have already copied
-                                    let copied_data = self.data_copied.get();
-
-                                    data_len = source.len();
-
-                                    if data_len > copied_data {
-                                        let remaining_data = &source[copied_data..];
-                                        let remaining_len = data_len - copied_data;
-
-                                        if remaining_len < static_buffer_len {
-                                            remaining_data.copy_to_slice(&mut buf[..remaining_len]);
-                                        } else {
-                                            remaining_data[..static_buffer_len].copy_to_slice(buf);
-                                        }
-                                    }
-                                    Ok(())
-                                })
+        // (todo) add error handling
+        let _ = self.apps.enter(pid, |_, kernel_data| {
+            // Determine if an error occured in crypt.
+            let res = match dest {
+                Ok(mut dest) => {
+                    // Copy dest buffer to userspace rw allow buffer.
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::DST_BUF)
+                        .and_then(|rw_processbuf| {
+                            rw_processbuf.mut_enter(|buf| {
+                                dest.slice(..buf.len());
+                                buf.copy_from_slice_or_err(dest.as_slice())
                             })
-                            .unwrap_or(Err(ErrorCode::RESERVE));
+                        })
+                        .map_or_else(|error| Err(error.into()), |res| res)
+                }
+                Err((error_code, _)) => Err(error_code),
+            };
 
-                        if let Err(e) = ret {
-                            // No data buffer, clear the processid and data
-                            self.aes.disable();
-                            self.processid.clear();
-                            let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
-                            exit = true;
-                        }
-                    });
-
-                    if exit {
-                        return;
-                    }
-
-                    if static_buffer_len > 0 {
-                        let copied_data = self.data_copied.get();
-
-                        if data_len > copied_data {
-                            // Update the amount of data copied
-                            self.data_copied.set(copied_data + static_buffer_len);
-
-                            if let Some(op) = app.aes_operation.as_ref() {
-                                if self
-                                    .calculate_output(
-                                        op,
-                                        app.aoff.get(),
-                                        app.moff.get(),
-                                        app.mlen.get(),
-                                        app.mic_len.get(),
-                                        app.confidential.get(),
-                                    )
-                                    .is_err()
-                                {
-                                    // Error, clear the processid and data
-                                    self.aes.disable();
-                                    self.processid.clear();
-                                    self.check_queue();
-                                    return;
-                                }
-                            }
-
-                            // Return as we don't want to run the digest yet
-                            return;
-                        }
-                    }
-
-                    // If we get here we have finished all the crypto operations
-                    let _ = kernel_data.schedule_upcall(0, (0, self.data_copied.get(), 0));
-                    self.data_copied.set(0);
-                })
-                .map_err(|err| {
-                    if err == kernel::process::Error::NoSuchApp
-                        || err == kernel::process::Error::InactiveApp
-                    {
-                        self.processid.clear();
-                    }
-                })
+            // Notify app of crypt operation outcome.
+            // (TODO) fix / add correct values to pass since 0,0 is not correct.
+            if let Err(error_code) = res {
+                let _ = kernel_data.schedule_upcall(upcall::CRYPT_DONE, (error_code.into(), 0, 0));
+            } else {
+                // todo check values for r2/r3
+                let _ = kernel_data.schedule_upcall(
+                    upcall::CRYPT_DONE,
+                    (kernel::errorcode::into_statuscode(Ok(())), 0, 0),
+                );
+            }
         });
     }
 }
 
-impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > CCMClient for AesDriver<'static, A>
-{
-    fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
-        self.dest_buffer.replace(buf);
-
-        self.processid.map(|id| {
-            self.apps
-                .enter(id, |_, kernel_data| {
-                    let mut exit = false;
-
-                    if let Err(e) = res {
-                        let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
-                        return;
-                    }
-
-                    self.dest_buffer.map(|buf| {
-                        let ret = kernel_data
-                            .get_readwrite_processbuffer(rw_allow::DEST)
-                            .and_then(|dest| {
-                                dest.mut_enter(|dest| {
-                                    let offset = self.data_copied.get()
-                                        - (core::cmp::min(buf.len(), dest.len()));
-                                    let app_len = dest.len();
-                                    let static_len = buf.len();
-
-                                    if app_len < static_len {
-                                        if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
-                                        }
-                                    } else {
-                                        if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
-                                        }
-                                    }
-                                })
-                            });
-
-                        if let Err(e) = ret {
-                            // No data buffer, clear the processid and data
-                            self.aes.disable();
-                            self.processid.clear();
-                            let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
-                            exit = true;
-                        }
-                    });
-
-                    if exit {
-                        return;
-                    }
-
-                    // AES CCM is online only we can't send any more data in, so
-                    // just report what we did to the app.
-                    let _ = kernel_data
-                        .schedule_upcall(0, (0, self.data_copied.get(), tag_is_valid as usize));
-                    self.data_copied.set(0);
-                })
-                .map_err(|err| {
-                    if err == kernel::process::Error::NoSuchApp
-                        || err == kernel::process::Error::InactiveApp
-                    {
-                        self.processid.clear();
-                    }
-                })
-        });
-    }
-}
-
-impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > GCMClient for AesDriver<'static, A>
-{
-    fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
-        self.dest_buffer.replace(buf);
-
-        self.processid.map(|id| {
-            self.apps
-                .enter(id, |_, kernel_data| {
-                    let mut exit = false;
-
-                    if let Err(e) = res {
-                        let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
-                        return;
-                    }
-
-                    self.dest_buffer.map(|buf| {
-                        let ret = kernel_data
-                            .get_readwrite_processbuffer(rw_allow::DEST)
-                            .and_then(|dest| {
-                                dest.mut_enter(|dest| {
-                                    let offset = self.data_copied.get()
-                                        - (core::cmp::min(buf.len(), dest.len()));
-                                    let app_len = dest.len();
-                                    let static_len = buf.len();
-
-                                    if app_len < static_len {
-                                        if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
-                                        }
-                                    } else {
-                                        if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
-                                        }
-                                    }
-                                })
-                            });
-
-                        if let Err(e) = ret {
-                            // No data buffer, clear the appid and data
-                            self.aes.disable();
-                            self.processid.clear();
-                            let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
-                            exit = true;
-                        }
-                    });
-
-                    if exit {
-                        return;
-                    }
-
-                    // AES GCM is online only we can't send any more data in, so
-                    // just report what we did to the app.
-                    let _ = kernel_data
-                        .schedule_upcall(0, (0, self.data_copied.get(), tag_is_valid as usize));
-                    self.data_copied.set(0);
-                })
-                .map_err(|err| {
-                    if err == kernel::process::Error::NoSuchApp
-                        || err == kernel::process::Error::InactiveApp
-                    {
-                        self.processid.clear();
-                    }
-                })
-        });
-    }
-}
-
-impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > SyscallDriver for AesDriver<'static, A>
-{
+impl<'a, ECB: Aes128Ecb<'a>, CTR: Aes128Ctr<'a>> SyscallDriver for AesDriver<'a, ECB, CTR> {
     fn command(
         &self,
         command_num: usize,
         data1: usize,
-        data2: usize,
+        _data2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
-        let match_or_empty_or_nonexistant = self.processid.map_or(true, |owning_app| {
-            // We have recorded that an app has ownership of the HMAC.
+        match command_num {
+            // Existence Check
+            0 => CommandReturn::success(),
 
-            // If the HMAC is still active, then we need to wait for the operation
-            // to finish and the app, whether it exists or not (it may have crashed),
-            // still owns this capsule. If the HMAC is not active, then
-            // we need to verify that that application still exists, and remove
-            // it as owner if not.
-            if self.active.get() {
-                owning_app == processid
-            } else {
-                // Check the app still exists.
-                //
-                // If the `.enter()` succeeds, then the app is still valid, and
-                // we can check if the owning app matches the one that called
-                // the command. If the `.enter()` fails, then the owning app no
-                // longer exists and we return `true` to signify the
-                // "or_nonexistant" case.
-                self.apps
-                    .enter(owning_app, |_, _| owning_app == processid)
-                    .unwrap_or(true)
-            }
-        });
-
-        let app_match = self.processid.map_or(false, |owning_app| {
-            // We have recorded that an app has ownership of the HMAC.
-
-            // If the HMAC is still active, then we need to wait for the operation
-            // to finish and the app, whether it exists or not (it may have crashed),
-            // still owns this capsule. If the HMAC is not active, then
-            // we need to verify that that application still exists, and remove
-            // it as owner if not.
-            if self.active.get() {
-                owning_app == processid
-            } else {
-                // Check the app still exists.
-                //
-                // If the `.enter()` succeeds, then the app is still valid, and
-                // we can check if the owning app matches the one that called
-                // the command. If the `.enter()` fails, then the owning app no
-                // longer exists and we return `true` to signify the
-                // "or_nonexistant" case.
-                self.apps
-                    .enter(owning_app, |_, _| owning_app == processid)
-                    .unwrap_or(true)
-            }
-        });
-
-        // Try the commands where we want to start an operation *not* entered in
-        // an app grant first.
-        if match_or_empty_or_nonexistant && command_num == 2 {
-            self.processid.set(processid);
-            let ret = self.run();
-
-            return if let Err(e) = ret {
-                self.aes.disable();
-                self.processid.clear();
-                self.check_queue();
-                CommandReturn::failure(e)
-            } else {
-                CommandReturn::success()
-            };
-        }
-
-        let ret = self
-            .apps
-            .enter(processid, |app, kernel_data| {
-                match command_num {
-                    // check if present
-                    0 => CommandReturn::success(),
-
-                    // set_algorithm
-                    1 => match data1 {
-                        0 => {
-                            app.aes_operation = Some(AesOperation::AES128Ctr(data2 != 0));
-                            CommandReturn::success()
-                        }
-                        1 => {
-                            app.aes_operation = Some(AesOperation::AES128CBC(data2 != 0));
-                            CommandReturn::success()
-                        }
-                        2 => {
-                            app.aes_operation = Some(AesOperation::AES128ECB(data2 != 0));
-                            CommandReturn::success()
-                        }
-                        3 => {
-                            app.aes_operation = Some(AesOperation::AES128CCM(data2 != 0));
-                            CommandReturn::success()
-                        }
-                        4 => {
-                            app.aes_operation = Some(AesOperation::AES128GCM(data2 != 0));
-                            CommandReturn::success()
-                        }
-                        _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-                    },
-
-                    // setup
-                    // Copy in the key and IV and run the first encryption operation
-                    // This will trigger a callback
-                    2 => {
-                        // Some app is using the storage, we must wait.
-                        if app.pending_run_app.is_some() {
-                            // No more room in the queue, nowhere to store this
-                            // request.
-                            CommandReturn::failure(ErrorCode::NOMEM)
-                        } else {
-                            // We can store this, so lets do it.
-                            app.pending_run_app = Some(processid);
-                            CommandReturn::success()
-                        }
-                    }
-
-                    // crypt
-                    // Generate the encrypted output
-                    // Multiple calls to crypt will re-use the existing state
-                    // This will trigger a callback
-                    3 => {
-                        if app_match {
-                            if let Err(e) = kernel_data
-                                .get_readonly_processbuffer(ro_allow::SOURCE)
-                                .and_then(|source| {
-                                    source.enter(|source| {
-                                        let mut static_buffer_len = 0;
-                                        self.source_buffer.map_or(
-                                            Err(ErrorCode::NOMEM),
-                                            |buf| {
-                                                // Determine the size of the static buffer we have
-                                                static_buffer_len = buf.len();
-
-                                                if static_buffer_len > source.len() {
-                                                    static_buffer_len = source.len()
-                                                }
-
-                                                // Copy the data into the static buffer
-                                                source[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                                self.data_copied.set(static_buffer_len);
-
-                                                Ok(())
-                                            },
-                                        )?;
-
-                                        if let Some(op) = app.aes_operation.as_ref() {
-                                            self.calculate_output(
-                                                op,
-                                                app.aoff.get(),
-                                                app.moff.get(),
-                                                app.mlen.get(),
-                                                app.mic_len.get(),
-                                                app.confidential.get(),
-                                            )?;
-                                            Ok(())
-                                        } else {
-                                            Err(ErrorCode::FAIL)
-                                        }
-                                    })
-                                })
-                                .unwrap_or(Err(ErrorCode::RESERVE))
-                            {
-                                let _ = kernel_data.schedule_upcall(
-                                    0,
-                                    (kernel::errorcode::into_statuscode(e.into()), 0, 0),
-                                );
-                            }
-                            CommandReturn::success()
-                        } else {
-                            // We don't queue this request, the user has to call
-                            // `setup` first.
-                            CommandReturn::failure(ErrorCode::OFF)
-                        }
-                    }
-
-                    // Finish
-                    // Complete the operation and reset the AES
-                    // This will not trigger a callback and will not process any data from userspace
-                    4 => {
-                        if app_match {
-                            self.aes.disable();
-                            self.processid.clear();
-
-                            CommandReturn::success()
-                        } else {
-                            // We don't queue this request, the user has to call
-                            // `setup` first.
-                            CommandReturn::failure(ErrorCode::OFF)
-                        }
-                    }
-
-                    // Set aoff for CCM
-                    // This will not trigger a callback and will not process any data from userspace
-                    5 => {
-                        app.aoff.set(data1);
-                        CommandReturn::success()
-                    }
-
-                    // Set moff for CCM
-                    // This will not trigger a callback and will not process any data from userspace
-                    6 => {
-                        app.moff.set(data1);
-                        CommandReturn::success()
-                    }
-
-                    // Set mic_len for CCM
-                    // This will not trigger a callback and will not process any data from userspace
-                    7 => {
-                        app.mic_len.set(data1);
-                        CommandReturn::success()
-                    }
-
-                    // Set confidential boolean for CCM
-                    // This will not trigger a callback and will not process any data from userspace
-                    8 => {
-                        app.confidential.set(data1 > 0);
-                        CommandReturn::success()
-                    }
-
-                    // default
-                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+            // Perform crypt operation with the provided mode.
+            1 => {
+                // Get aes mode from provided data1 arg
+                let mode = data1.try_into();
+                if let Ok(mode) = mode {
+                    let _ = self.apps.enter(processid, |app, _| {
+                        app.aes_mode = Some(mode);
+                    });
+                    CommandReturn::success()
+                } else {
+                    CommandReturn::failure(ErrorCode::INVAL)
                 }
-            })
-            .unwrap_or_else(|err| err.into());
-
-        if command_num == 4
-            || command_num == 5
-            || command_num == 6
-            || command_num == 7
-            || command_num == 8
-        {
-            self.check_queue();
+            }
+            2 => match self.enqueue(processid) {
+                Ok(()) => CommandReturn::success(),
+                Err(e) => CommandReturn::failure(e),
+            },
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
-
-        ret
     }
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
-        self.apps.enter(processid, |_, _| {})
+    fn allocate_grant(&self, process_id: ProcessId) -> Result<(), kernel::process::Error> {
+        self.apps.enter(process_id, |_, _| {})
     }
-}
-
-enum AesOperation {
-    AES128Ctr(bool),
-    AES128CBC(bool),
-    AES128ECB(bool),
-    AES128CCM(bool),
-    AES128GCM(bool),
-}
-
-#[derive(Default)]
-pub struct App {
-    pending_run_app: Option<ProcessId>,
-    aes_operation: Option<AesOperation>,
-
-    aoff: Cell<usize>,
-    moff: Cell<usize>,
-    mlen: Cell<usize>,
-    mic_len: Cell<usize>,
-    confidential: Cell<bool>,
 }

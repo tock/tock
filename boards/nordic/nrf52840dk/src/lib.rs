@@ -78,6 +78,7 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
+use kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
@@ -242,6 +243,20 @@ pub struct Platform {
     kv_driver: &'static KVDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
+    aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
+        'static,
+        capsules_core::virtualizers::virtual_aes::AesVirtualHw<
+            'static,
+            nrf52840::aes::AesECB<'static>,
+        >,
+        capsules_aes_ctr::aes_ctr::Aes128CtrEcbBase<
+            'static,
+            capsules_core::virtualizers::virtual_aes::AesVirtualHw<
+                'static,
+                nrf52840::aes::AesECB<'static>,
+            >,
+        >,
+    >,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -257,6 +272,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
@@ -862,6 +878,85 @@ pub unsafe fn start_no_pconsole() -> (
     ));
 
     //--------------------------------------------------------------------------
+    // AES
+    //-------------------------------------------------------------------------
+
+    // (todo) bundle into components
+
+    // (todo) not fully implemented for CCM / GCM, but shows how we have 1 hw mux / virtualizer
+    // per underlying hardware that underpins the crypto functionality.
+    let aes_hw_mux = static_init!(
+        capsules_core::virtualizers::virtual_aes::AesHwMux<'static, nrf52840::aes::AesECB<'static>>,
+        capsules_core::virtualizers::virtual_aes::AesHwMux::new(&base_peripherals.ecb)
+    );
+
+    let key_buf = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+    let iv_buf = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+
+    let virtual_aes_ecb = static_init!(
+        capsules_core::virtualizers::virtual_aes::AesVirtualHw<
+            'static,
+            nrf52840::aes::AesECB<'static>,
+        >,
+        capsules_core::virtualizers::virtual_aes::AesVirtualHw::new(aes_hw_mux, key_buf, iv_buf)
+    );
+
+    let key_buf = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+    let iv_buf = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+    let ecb_for_ctr = static_init!(
+        capsules_core::virtualizers::virtual_aes::AesVirtualHw<
+            'static,
+            nrf52840::aes::AesECB<'static>,
+        >,
+        capsules_core::virtualizers::virtual_aes::AesVirtualHw::new(aes_hw_mux, key_buf, iv_buf)
+    );
+
+    let ctr_buf = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+    let sw_ctr = static_init!(
+        capsules_aes_ctr::aes_ctr::Aes128CtrEcbBase<
+            'static,
+            capsules_core::virtualizers::virtual_aes::AesVirtualHw<
+                'static,
+                nrf52840::aes::AesECB<'static>,
+            >,
+        >,
+        capsules_aes_ctr::aes_ctr::Aes128CtrEcbBase::new(ecb_for_ctr, ctr_buf)
+    );
+
+    let grant = board_kernel.create_grant(
+        capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
+        &memory_allocation_capability,
+    );
+
+    const AES128_CRYPT_BUF_SIZE: usize = AES128_BLOCK_SIZE * 16;
+    let crypt_dest_buf = static_init!([u8; AES128_CRYPT_BUF_SIZE], [0; AES128_CRYPT_BUF_SIZE]);
+    let crypt_src_buf = static_init!([u8; AES128_CRYPT_BUF_SIZE], [0; AES128_CRYPT_BUF_SIZE]);
+
+    let aes_driver = static_init!(
+        capsules_extra::symmetric_encryption::aes::AesDriver<
+            'static,
+            capsules_core::virtualizers::virtual_aes::AesVirtualHw<
+                'static,
+                nrf52840::aes::AesECB<'static>,
+            >,
+            capsules_aes_ctr::aes_ctr::Aes128CtrEcbBase<
+                'static,
+                capsules_core::virtualizers::virtual_aes::AesVirtualHw<
+                    'static,
+                    nrf52840::aes::AesECB<'static>,
+                >,
+            >,
+        >,
+        capsules_extra::symmetric_encryption::aes::AesDriver::new(
+            virtual_aes_ecb,
+            sw_ctr,
+            grant,
+            crypt_dest_buf,
+            crypt_src_buf,
+        )
+    );
+
+    //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
     //--------------------------------------------------------------------------
 
@@ -943,6 +1038,7 @@ pub unsafe fn start_no_pconsole() -> (
         kv_driver,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+        aes: aes_driver,
     };
 
     base_peripherals.adc.calibrate();

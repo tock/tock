@@ -1,0 +1,20 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Western Digital 2023.
+
+[package]
+name = "capsules-aes-ctr"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+kernel = { path = "../../kernel" }
+capsules-core = { path = "../core"}
+enum_primitive = { path = "../../libraries/enum_primitive" }
+tickv = { path = "../../libraries/tickv" }
+ctr = "0.9.2"
+aes = "0.8.4" 
+
+[lints]
+workspace = true
