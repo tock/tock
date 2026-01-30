@@ -1024,7 +1024,7 @@ the value in `error` is undefined.
 5.3 Command
 -----------------------------------
 
-The subscribe system call has this function prototype:
+The command system call has this function prototype:
 
 ```c
 typedef struct {
