@@ -20,12 +20,12 @@ with builtins;
 let
   inherit (pkgs) stdenv lib;
 
-  # Tockloader v1.12.0
   tockloader = import (pkgs.fetchFromGitHub {
     owner = "tock";
     repo = "tockloader";
-    rev = "v1.14.0";
-    sha256 = "sha256-TsJEPQhJVTJt1g/EEIaGuwVIjD5Q65mHKkpbY5ru+JI=";
+    # v1.60.0 with nrfutil patch
+    rev = "886c3e76c1fc80883de64de96df8fab7cffb0659";
+    sha256 = "sha256-ql5quhRdLKfQI+ajL6lgKmnASoJNWDKmEufNVLhfOPA=";
   }) { inherit pkgs withUnfreePkgs; };
 
   rust_overlay = import "${pkgs.fetchFromGitHub {
@@ -54,7 +54,7 @@ in
       openocd
 
       # --- Convenience and support packages ---
-      python3Full
+      python3
       tockloader
 
       # Required for tools/print_tock_memory_usage.py
