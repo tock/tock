@@ -146,19 +146,19 @@ impl DynDefCallRef<'_> {
 // thread. TODO: Once Tock decides on an approach to replace `static mut` with
 // some sort of `SyncCell`, migrate all three of these to that approach
 // (https://github.com/tock/tock/issues/1545).
-static CTR: SingleThreadValue<Cell<usize>> = SingleThreadValue::new(Cell::new(0));
+static CTR: SingleThreadValue<Cell<usize>> = SingleThreadValue::new(|| Cell::new(0));
 
 /// This bitmask tracks which of the up to 32 existing deferred calls have been
 /// scheduled. Any bit that is set in that mask indicates the deferred call with
 /// its [`DeferredCall::idx`] field set to the index of that bit has been
 /// scheduled and not yet serviced.
-static BITMASK: SingleThreadValue<Cell<u32>> = SingleThreadValue::new(Cell::new(0));
+static BITMASK: SingleThreadValue<Cell<u32>> = SingleThreadValue::new(|| Cell::new(0));
 
 /// An array that stores references to up to 32 `DeferredCall`s via the low-cost
 /// [`DynDefCallRef`].
 // This is a 256 byte array, but at least resides in `.bss`.
 static DEFCALLS: SingleThreadValue<[OptionalCell<DynDefCallRef<'static>>; 32]> =
-    SingleThreadValue::new([const { OptionalCell::empty() }; 32]);
+    SingleThreadValue::new(|| [const { OptionalCell::empty() }; 32]);
 
 /// Initialize the static state used by deferred calls.
 ///
