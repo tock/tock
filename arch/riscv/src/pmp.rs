@@ -1789,12 +1789,22 @@ pub mod kernel_protection {
                 );
             }
 
-            // Set the kernel `.text`, flash, RAM and MMIO regions, in no
-            // particular order, with the exception of `.text` and flash:
-            // `.text` must precede flash, as otherwise we'd be revoking execute
-            // permissions temporarily. Given that we can currently execute
-            // code, this should not have any impact on our accessible memory,
-            // assuming that the provided regions are not otherwise aliased.
+            // Set the kernel `.text`, flash, RAM and MMIO regions,
+            // with a few ordering constraints:
+            //
+            // - setting `.text` permissions must precede disabling execute
+            //   permissions for flash, as otherwise we'd be revoking execute
+            //   permissions for code we're currently running.
+            //
+            //   Given that we can currently execute code, this should not have
+            //   any impact on our accessible memory, assuming that the provided
+            //   regions are not otherwise aliased.
+            //
+            // - `.text` should be configured before before `RAM`. This allows
+            //   configuring a discontinuous RAM region where `.text` is located
+            //   in the middle of it, which is useful for when the kernel is
+            //   executing from RAM instead of XIP flash (see
+            //   https://github.com/tock/tock/issues/4733).
 
             // MMIO at n - 2:
             write_pmpaddr_pmpcfg(
@@ -1806,18 +1816,6 @@ pub mod kernel_protection {
                     + pmpcfg_octet::l::SET)
                     .into(),
                 mmio.0.pmpaddr(),
-            );
-
-            // RAM at n - 3:
-            write_pmpaddr_pmpcfg(
-                AVAILABLE_ENTRIES - 3,
-                (pmpcfg_octet::a::NAPOT
-                    + pmpcfg_octet::r::SET
-                    + pmpcfg_octet::w::SET
-                    + pmpcfg_octet::x::CLEAR
-                    + pmpcfg_octet::l::SET)
-                    .into(),
-                ram.0.pmpaddr(),
             );
 
             // `.text` at n - 6 and n - 5 (TOR region):
@@ -1840,6 +1838,18 @@ pub mod kernel_protection {
                     + pmpcfg_octet::l::SET)
                     .into(),
                 kernel_text.0.pmpaddr_b(),
+            );
+
+            // RAM at n - 3:
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 3,
+                (pmpcfg_octet::a::NAPOT
+                    + pmpcfg_octet::r::SET
+                    + pmpcfg_octet::w::SET
+                    + pmpcfg_octet::x::CLEAR
+                    + pmpcfg_octet::l::SET)
+                    .into(),
+                ram.0.pmpaddr(),
             );
 
             // flash at n - 4:
