@@ -28,9 +28,6 @@ use lpc55s6x::pint::Edge;
 
 kernel::stack_size! {0x4000}
 
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
-
 fn system_init() {
     let clocks = Clock::new();
     clocks.start_gpio_clocks();
@@ -355,7 +352,9 @@ unsafe fn start() -> (
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
