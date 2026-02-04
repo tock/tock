@@ -508,7 +508,7 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     /// Flash memory region to load processes from.
     flash: Cell<&'static [u8]>,
     /// Memory available to assign to applications.
-    app_memory: Cell<*mut [u8]>,
+    app_memory: MapCell<*mut [u8]>,
     /// Mechanism for generating async callbacks.
     deferred_call: DeferredCall,
     /// Reference to the kernel object for creating Processes.
@@ -555,7 +555,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             chip,
             flash_bank: Cell::new(flash),
             flash: Cell::new(flash),
-            app_memory: Cell::new(app_memory),
+            app_memory: MapCell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
             storage_policy,
@@ -710,7 +710,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                             self.kernel,
                             self.chip,
                             process_binary,
-                            self.app_memory.get(),
+                            // If this fails, this indicates a bug in the code
+                            // here: we must've failed to place the `new_mem`
+                            // pointer back into the `MapCell` below:
+                            self.app_memory.take().unwrap(),
                             short_app_id,
                             index,
                             self.fault_policy,
@@ -718,7 +721,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                         );
                         match load_result {
                             Ok((new_mem, proc)) => {
-                                self.app_memory.set(new_mem);
+                                self.app_memory.replace(new_mem);
                                 match proc {
                                     Some(p) => {
                                         if config::CONFIG.debug_load_processes {
@@ -745,7 +748,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                                 }
                             }
                             Err((new_mem, err)) => {
-                                self.app_memory.set(new_mem);
+                                self.app_memory.replace(new_mem);
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Could not load process: {:?}.", err);
                                 }
