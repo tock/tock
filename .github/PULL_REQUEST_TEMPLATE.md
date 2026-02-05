@@ -20,3 +20,7 @@ This pull request still needs...
 ### Formatting
 
 - [ ] Ran `make prepush`.
+
+### AI Use
+
+- [ ] AI coding tools authored some or all of the code in this PR. If you check this box, please describe how AI coding tools were used below.
