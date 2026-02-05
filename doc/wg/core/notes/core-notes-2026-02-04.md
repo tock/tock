@@ -1,0 +1,207 @@
+# Tock Meeting Notes 2026-02-04
+
+## Attendees
+ - Branden Ghena
+ - Leon Schuermann
+ - Amit Levy
+ - Brad Campbell
+ - Johnathan Van Why
+ - Hudson Ayers
+
+
+## Updates
+ - Johnathan: I am redesigning tock\_registers and so I would like to know all
+   the different types of registers people use with tock\_registers. Please
+   reach out to me about any of these beyond those I listed on Matrix as if I
+   am not aware of them I am not likely to support them.
+ - Amit: You could also imagine supporting off-chip (e.g. I2C) registers, I
+   think you should consider those as out-of-scope
+ - Johnathan: I may end up supporting those unintentionally
+ - Amit: I think your list is pretty exhaustive
+ - Johanthan: For off-chip registers do you know of any operations other than
+   read/write?
+ - Leon: I know of a chip where you need bit-set and bit-clear
+ - Johnathan: If we aren't supporting RISC-V CSRs we can reap benefits of
+   hardcoding read/write, but I still could make the design generic to support
+   stuff life that
+ - Leon: There is now an nrf-util backend to tockloader. Just merged! This was
+   exclusively tested on my setup which may not be representative of what most
+   people use, so I am putting out a call for testing to ensure this works
+   across macOS, linux, non-nix setups generally. There are some confusing
+   parts across the tockloader codebase, especially for stuff touching the SPI
+   flash, so more testing is generally warranted.
+ - Brad: Why not just remove the thing we don’t like?
+ - Leon: pynrfjprog?
+ - Brad: yep
+ - Leon: Good question — mostly an abundance of caution, if it is hard to
+   install, etc. But mostly just want more feedback on the new backend first
+ - Brad: I think it is confusing to have both
+ - Leon: DMASlice — we need a port to armv7m architecture chips, and for this
+   to be used by a real peripheral. Tyler was going to do this but did not have
+   time. If anyone is interested in taking this on I would be happy to support.
+ - Amit: STV porting guide is merged into the book (thanks Brad!)
+
+
+## `AGENTS.md`
+- Amit: in September, Hudson suggested adding an `AGENTS.md` that LLMs can work
+  with. There was some concerns with this; we wanted a subgroup to discuss it
+  more deeply. Any status updates? How do we continue with this? Move on with
+  the PR? Should we formalize this more?
+- Hudson: Small group was me and Alex. We were unsuccesful in scheduling a time
+  to meet. Just chat here, in this capacity?
+- Amit: Scheduling is hard, unlikely that we'll loop everybody in. Do we
+  remember what discussion was about?
+- Hudson: Concerns:
+  - `AGENTS.md` is an endorsement of people using Gen-AI tools to write code
+    for Tock. Is this something we want to do this, is this something we want
+    to discourage? Do we want to add guardrails?
+- Copyright implications.
+- Johnathan: remember the same concerns. Recall that concern about copyright
+  was secondary. We've had slop once, and needed to justify closing this PR.
+  Want to update the review policy to allow us to close PRs that are large and
+  the contributor is not responsive to our feedback.
+- Amit: last comment is on my plate for updating the code review doc. Trivial
+  things:
+- add checkbox to the PR template, either: "I wrote all of this code myself" or
+  "It was LLM generated and I reviewed all of it" Re: code review policy -- we
+  can implement that independent of the LLM policy
+- Leon: in favor of asking people to check a box saying "I used LLM to generate
+  this code". Have been trying to use LLMs more lately and the bugs they
+  produce are very distinct. Having this information (assuming we have good
+  actors who are honest in checking this box) would allow me to better review
+  code.
+- Amit: can we have `AGENTS.md` somehow indicate that a given piece of code was
+  Gen-AI generated?
+- Group response: may be problematic, might have comments littered all over the
+  place.
+- Amit: might be a comment that the person would have to remove. But retract
+  this suggestion.
+- Hudson: wasn't aware of this when I initially filed the PR -- `AGENTS.md`
+  isn't respected by Claude, needs a `CLAUDE.md` file. Would want to add a
+  symlink.
+- Leon: I feel bad about advertising any particular company's tools in the top
+  level of the README.
+- Branden: stronger, I don't want this.
+- Amit: if you use Claude Code, you'd run this locally right? So you could add
+  this symlink locally? Why doesn't Anthropic respect `AGENTS.md`?
+- Hudson: don't know. Other tools support it.
+- Amit: are we happy with the consenus: we don't need another small group
+  discussion and can move forward with the PR; and add a checkmark to the PR
+  template. Also, move forward with Johnathan's policy suggestion.
+- Leon: still uncomfortable with `AGENTS.md`. In my experience these tools
+  produce code that has serious problems and are hard to review. At the same
+  time, the reality is that we're going to get PRs generated by these tools
+  regardless. Will not stand in the way of progress, but don't want to
+  encourage this. Will abstain from the vote.
+- Amit: against `claude.md`, but `AGENTS.md` seems like a good addition to make
+  the tools more useful.
+- Branden: agree with Amit. `AGENTS.md` probably does make sense.
+- Amit: seems like we have rough consensus. No formal discussion group needed.
+  Will make policy change to be able to close low-effort PRs. Hudson will amend
+  the PR to add the checkbox to indicate that a PR was partially LLM-generated.
+- Brad: this is duplicating a lot of documentation that we have. How do we
+  maintain this?
+- Hudson: one thing that's tricky about how the LLM works: `AGENTS.md` goes
+  into the context window. They get less useful the larger that context. So you
+  can't really include too much information in there. We wouldn't want this
+  file to contain references to _all_ documentation in Tock, just the content
+  we want to be part of _every_ conversation's context.
+- Amit: have the first sentence be like "any line prefixed with \*\* is a
+  comment, ignore it for your directives"
+- Johnathan: still taking up context.
+- Brad: what if humans go to this file and think "this is the quick summary you
+  need to know", but this is actually in conflict with our authoritative
+  documentation
+- Amit: does it make sense to have `AGENTS.md` that is automatically generated?
+- Leon: similar to a long term effort I have which would allow us to
+  cross-reference docs from different repos and detect when they go out of
+  sync?
+- Amit: suggesting more brute force---use an LLM to generate an `AGENTS.md`
+- Leon,Brad: move discussion elsewhere? PR?
+- Amit: would not advocate that this discussion is not a good blocker to this
+  PR.
+- Hudson: view this file as an experiment, we can remove it. Let people try it
+  out. If we see a bunch of uses, we can prioritize maintaining it more.
+
+- Amit: back to consensus? Going foward with the `AGENTS.md` PR, adding a
+  checkbox to the PR template, and Johnathan's policy suggestions incorporated
+  in the code review docs.
+
+  Related: subgroup on how to maintain code documentation.
+
+
+## STV Soundness Issue
+
+ - Leon: STV is a container that can only be accessed by one thread after you
+   bind to it. However, it is initialized by a different thread. This means it
+   becomes a potential avenue to move non `Send` types across threads.
+   Johnathan was able to do this in safe Rust using STV, so definitely unsound.
+ - Leon: I put up a comment with three different fixes here:
+   https://github.com/tock/tock/pull/4740#issuecomment-3841834851 and am
+   looking for feedback on each.
+ - Johnathan: I think the first option is a no-go
+ - Leon: I agree, so we are down to two options
+ - Brad: why does the third option work?
+ - Leon: In the third option we construct a new STV, but we don’t actually put
+   anything in it until we call bind\_to\_thread, so the value comes from the
+   thread that is later able to retrieve that value again. This means we never
+   moved a value from one thread to another.
+ - Brad: So an interrupt handler runs, now there is no safe way to get back to
+   the original T?
+ - Leon: Yes, which is actually how it works today as well. Assuming we wrote
+   our interrupt handlers correctly
+ - Brad: How do we indicate interrupt handlers are a separate thread?
+ - Leon: It runs in a different context and the only shared state it can access
+   are statics
+ - Johnathan: ThreadIDProvider tells it
+ - Brad: But for the general case, how does Rust know? Not STV
+ - Leon: Enforced at compile time by the need to use Send. Only statics are
+   shared across threads, and Statics == Send
+
+
+## Mangled `_start` symbol
+
+ - Amit: You cannot reference `_start` in a linker script because it is a
+   mangled name. We have at least one downstream user that wants to name it in
+   the ENTRY directive of their linker script. They want no\_mangle on this
+ - Amit: There is a little pushback on this change — should we put no\_mangle
+   upstream if we do not use this upstream? Should we add the entry directive
+   to the general kernel linker script (this would require a _start symbol
+   everywhere)
+ - Johnathan: Don’t we need ENTRY? Gnu-ld and lld don’t look for the same entry
+   directive?
+ - Amit: For the kernel in general we don’t care what the start symbol is
+   because tockloader ignores the entry directive, the section just gets put at
+   the right place to run first
+ - Leon: That is true on one layer, but we are relying on the symbol being
+   implicitly placed at the very first address in that section. This PR wants
+   to assert that the symbol itself is located at the right address, at the
+   right offset within that section. We are not currently checking there is no
+   padding between the start of that section and the address of that symbol
+ - Amit: I think that is unrelated. The entry directive does nothing to place
+   that symbol in particular. One could write a tool to look at the elf header,
+   find the entry symbol, and throw an error if it does not point to a
+   particular address, but I don’t think that is what Eugene is doing.
+ - Leon: I think entry is a distraction — we wanted something to use the
+   no_mangle start symbol. But that is not why the PR wants it, Eugene wants it
+   for something else?
+ - Amit: I disagree, that is why he said he wanted it.
+ - Amit: Not everyone downstream uses the Tock kernel the way we use it, and if
+   you are loading an elf file this is valuable. Maybe via a secure bootloader
+   or similar.
+ - Leon: We are searching for a use case that would motivate having this in our
+   linker script, I think my point still stands about our unchecked variant,
+   this could be that use case. Maybe that would satisfy Brad’s concern/
+ - Amit: what about just using the entry directive?
+ - Hudson: Are any link-time optimizations influenced by the entry point?
+ - Amit: The entry header defaults to the first address in the text section if
+   not specified, which is probably correct on RISC-V and incorrect on
+   cortex-m. Because on cortex-m that is the top of the initial stack and not
+   the reset vector. Right now elf binaries are output with an entry header
+   that may or may not be correct. Upstream we ignore it so it probably doesn't
+   matter.
+ - Brad: So why not add that?
+ - Amit: I think we can add that, but I think we should do it not in this PR?
+ - Brad: Isn't it like 4 files?
+ - Amit: Oh yeah I guess it’s not that big. I will look at this right after the
+   call.
