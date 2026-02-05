@@ -11,7 +11,7 @@ functionality and should adhere to the rules in the [Tock Style Guide](./doc/Sty
 - All rust code (except in `tools/`) is embedded Rust code and limited to use of the core library
   (e.g. `use core::cell:Cell`). The std library (e.g. use `std::x`) is not allowed.
 - Tock does not allow dynamic allocation in the kernel. There is a limited mechanism for dynamic allocation
-  available via the `Grant` mechanism, which is only availablel to capsules.
+  available via the `Grant` mechanism, which is only available to capsules.
 - Tock does not allow unwinding panics.
 - Tock heavily discourages panicking -- Results should be used whenever possible to convey error states.
 - Tock uses a nightly compiler, but does not allow any new unstable features.
