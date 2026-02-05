@@ -17,6 +17,8 @@ External Dependencies
   * [Capsule Crate-Specific External Dependencies](#capsule-crate-specific-external-dependencies)
   * [Core Kernel External Dependencies](#core-kernel-external-dependencies)
     + [Approved Exceptions for Core Kernel External Dependencies](#approved-exceptions-for-core-kernel-external-dependencies)
+      - [**tock-registers**](#tock-registers)
+      - [**flux-rs**](#flux-rs)
 - [Including the Dependency](#including-the-dependency)
   * [Including Capsule Crate-Specific External Dependencies](#including-capsule-crate-specific-external-dependencies)
   * [Including Board-Specific External Dependencies](#including-board-specific-external-dependencies)
@@ -202,13 +204,14 @@ crates. All exceptions will be considered independently.
 
 #### Approved Exceptions for Core Kernel External Dependencies
 
-- **tock-registers** ([repo](https://github.com/tock/tock-registers)): This
-  crate provides an interface for using MMIO registers which are extensively
-  used in `chips/` crates.
+##### **tock-registers**
+This crate provides an interface for using MMIO registers which are extensively
+used in `chips/` crates.
 
-  Justification: This crate has moved to an external dependency to encourage its
-  development and use in projects beyond Tock. Specifically, the benefits of
-  development in a separate repository include:
+- **Repository:** https://github.com/tock/tock-registers
+- **Justification:** This crate has moved to an external dependency to
+  encourage its development and use in projects beyond Tock. Specifically, the
+  benefits of development in a separate repository include:
 
   1. Encouraging more rigorous backwards compatibility considerations for
      external users. The close interplay of Tock and tock-registers means
@@ -226,6 +229,51 @@ crates. All exceptions will be considered independently.
      repository makes it clear it is a standalone project and can be developed
      independently of Tock. This should help contributions that benefit
      tock-registers but not necessarily Tock as well.
+
+##### **flux-rs**
+This crate provides support for formal verification of Rust code via
+_refinement types_. This is an __optional dependency__ and is __used only
+during testing__.  `flux` does not affect built artifacts.
+
+- **Repository:** https://github.com/flux-rs/flux
+- **Justification:** Tock is interested in maximizing safety and correctness,
+  and formal verification is a key facet for going beyond the capabilities
+  afforded by out of the box Rust. Most formal verification tools are also
+  highly experimental, however. To allow for experimentation with emerging
+  formal verification tools, Tock allows for inclusion of verification
+  infrastructure in the primary repository, so long as such infrastructure is
+  fully optional and is not required to produce a kernel image.
+- **Implementation Nuances:** Conceptually, Tock would like to use `flux` as a
+  [development dependency][dev-dep], i.e., it is a dependency that is only
+  used during testing and is not a dependency that is used when building
+  actual code artifacts. Currently, `cargo` hard-codes a one-to-one
+  relationship between `dev-dependencies` and the `cfg(test)` feature flag.
+  As `flux` aims to verify the code in the final built artifact (e.g., it
+  verifies arch-specific code such as context switch logic) it cannot run under
+  the `cfg(test)` context, and thus it cannot be listed in `dev-dependencies`.
+  For this reason, it is listed as an __optional__ dependency for the primary
+  workspace.
+  - _Impact on `Cargo.lock`:_ While `flux` is an optional dependency,
+    [cargo limitations](https://github.com/rust-lang/cargo/issues/10801) are
+    such that `flux` and its dependencies will be included in the lockfile
+    even if they are unused. `flux` adds the following packages to the
+    lockfile: `flux-attrs`, `flux-attrs-impl`, `flux-rs`, `proc-macro2`,
+    `quote`, `syn`, and `unicode-ident`.
+- **Scope and Usage:** `flux` refinements in Tock aim to parallel established
+  conventions around unit testing. I.e.,
+   - Refinements are located at the end of the file in a dedicated module
+     (after `mod test` if-present).
+   - Inclusion of the `flux` module must be conditioned on the `flux` feature
+     flag, like this:
+
+         #[cfg(feature = "flux")]
+         mod flux_specs {
+          ...
+         }
+
+   - The `flux` feature flag must not be used anywhere else, nor may any
+     `flux`-related concepts be used outside of a `mod flux_specs` block.
+
 
 ## Including the Dependency
 
@@ -305,3 +353,6 @@ deemed too burdensome for the expected benefit.
 We explicitly document the goals to help motivate the specific design in the
 remainder of this document. Also, this policy may change in the future, but
 these goals should be considered in any future updates.
+
+
+[dev-dep]: https://doc.rust-lang.org/rust-by-example/testing/dev_dependencies.html
