@@ -23,4 +23,7 @@ This pull request still needs...
 
 ### AI Use
 
-- [ ] AI coding tools authored some or all of the code in this PR. If you check this box, please describe how AI coding tools were used below.
+- [ ] The entirety of this PR was hand-written by a human and no AI was involved.
+- [ ] AI coding or other tools authored some or all of this PR and I have manually checked and personally certify all of it. Describe AI usage below.
+
+\[ AI tool use description if applicable \]
