@@ -21,7 +21,7 @@ pub mod mpu {
     }
 }
 
-pub use cortexm::initialize_ram_jump_to_main;
+pub use cortexm::_start;
 pub use cortexm::nvic;
 pub use cortexm::scb;
 pub use cortexm::support;

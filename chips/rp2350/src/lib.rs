@@ -17,7 +17,7 @@ pub mod timer;
 pub mod uart;
 pub mod xosc;
 
-use cortexm33::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM33, CortexMVariant};
+use cortexm33::{_start, unhandled_interrupt, CortexM33, CortexMVariant};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -33,7 +33,7 @@ extern "C" {
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
-    initialize_ram_jump_to_main,
+    _start,
     unhandled_interrupt,           // NMI
     CortexM33::HARD_FAULT_HANDLER, // Hard Fault
     unhandled_interrupt,           // MemManage

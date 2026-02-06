@@ -23,7 +23,7 @@ pub mod iomuxc_snvs;
 pub mod lpi2c;
 pub mod lpuart;
 
-use cortexm7::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM7, CortexMVariant};
+use cortexm7::{_start, unhandled_interrupt, CortexM7, CortexMVariant};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -39,7 +39,7 @@ extern "C" {
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
-    initialize_ram_jump_to_main,
+    _start,
     unhandled_interrupt,          // NMI
     CortexM7::HARD_FAULT_HANDLER, // Hard Fault
     unhandled_interrupt,          // MemManage

@@ -149,7 +149,7 @@ pub unsafe extern "C" fn _start() {
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
-pub extern "C" fn _start() {
+pub unsafe extern "C" fn _start() {
     unimplemented!()
 }
 

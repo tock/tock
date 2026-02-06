@@ -139,7 +139,8 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 /// See <https://github.com/tock/tock/issues/2222> for more information.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
-pub unsafe extern "C" fn initialize_ram_jump_to_main() {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn _start() {
     use core::arch::naked_asm;
     naked_asm!(
         "
@@ -383,6 +384,6 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 }
 
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn initialize_ram_jump_to_main() {
+pub unsafe extern "C" fn _start() {
     unimplemented!()
 }

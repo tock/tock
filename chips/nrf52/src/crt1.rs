@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use cortexm4f::{
-    initialize_ram_jump_to_main, nvic, scb, unhandled_interrupt, CortexM4F, CortexMVariant,
-};
+use cortexm4f::{_start, nvic, scb, unhandled_interrupt, CortexM4F, CortexMVariant};
 
 /*
  * Adapted from crt1.c which was relicensed by the original author from
@@ -32,7 +30,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // Stack Pointer
     _estack,
     // Reset Handler
-    initialize_ram_jump_to_main,
+    _start,
     // NMI
     unhandled_interrupt,
     // Hard Fault

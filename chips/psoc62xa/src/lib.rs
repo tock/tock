@@ -7,7 +7,7 @@
 // and requires a deeper recursion limit than the default to fully expand.
 #![recursion_limit = "512"]
 
-use cortexm0p::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM0P, CortexMVariant};
+use cortexm0p::{_start, unhandled_interrupt, CortexM0P, CortexMVariant};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -23,7 +23,7 @@ extern "C" {
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
-    initialize_ram_jump_to_main,
+    _start,
     unhandled_interrupt,           // NMI
     CortexM0P::HARD_FAULT_HANDLER, // Hard Fault
     unhandled_interrupt,           // MemManage

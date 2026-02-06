@@ -9,6 +9,6 @@ MEMORY
   	ram (rwx) : ORIGIN = 0x08000000, LENGTH = 1M
 }
 
-ENTRY(initialize_ram_jump_to_main)
+ENTRY(_start)
 
 INCLUDE tock_kernel_layout.ld
