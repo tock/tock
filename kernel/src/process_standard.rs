@@ -951,7 +951,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 let base = self.mem_start() as usize;
                 let break_result = unsafe {
                     CapabilityPtr::new_with_authority(
-                        old_break as *const (),
+                        old_break.cast::<()>(),
                         base,
                         (new_break as usize) - base,
                         CapabilityPtrPermissions::ReadWrite,
@@ -1329,7 +1329,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn is_valid_upcall_function_pointer(&self, upcall_fn: *const ()) -> bool {
-        let ptr = upcall_fn as *const u8;
+        let ptr = upcall_fn.cast::<u8>();
         let size = mem::size_of::<*const u8>();
 
         // It is okay if this function is in memory or flash.
@@ -2359,7 +2359,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 self.kernel_memory_break.set(new_break);
 
                 // We need `grant_ptr` as a mutable pointer.
-                let grant_ptr = new_break as *mut u8;
+                let grant_ptr = new_break.cast_mut();
 
                 // ### Safety
                 //

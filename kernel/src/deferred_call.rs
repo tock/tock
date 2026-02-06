@@ -123,7 +123,7 @@ impl<'a> DynDefCallRef<'a> {
     // same calling convention for any type.
     fn new<T: DeferredCallClient>(x: &'a T) -> Self {
         Self {
-            data: core::ptr::from_ref(x) as *const (),
+            data: core::ptr::from_ref(x).cast::<()>(),
             callback: |p| unsafe { T::handle_deferred_call(&*p.cast()) },
             _lifetime: PhantomData,
         }
