@@ -331,8 +331,6 @@ iter_without_into_iter = "allow"
 
 
 semicolon_if_nothing_returned = "allow"
-ptr_as_ptr = "allow"
-ptr_cast_constness = "allow"
 mut_mut = "allow"
 cast_ptr_alignment = "allow"
 used_underscore_binding = "allow"

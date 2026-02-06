@@ -308,7 +308,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             let r3 = ptr::read(new_stack_pointer.offset(3));
 
             // Get the actual SVC number.
-            let pcptr = ptr::read((new_stack_pointer as *const *const u16).offset(6));
+            let pcptr = ptr::read(new_stack_pointer.cast::<*const u16>().offset(6));
             let svc_instr = ptr::read(pcptr.offset(-1));
             let svc_num = (svc_instr & 0xff) as u8;
 
@@ -332,7 +332,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             kernel::syscall::ContextSwitchReason::Interrupted
         };
 
-        (switch_reason, Some(new_stack_pointer as *const u8))
+        (switch_reason, Some(new_stack_pointer.cast::<u8>()))
     }
 
     unsafe fn print_context(

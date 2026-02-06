@@ -395,7 +395,7 @@ impl<'a> Lpuart<'a> {
         dma_channel.set_client(self, self.tx_dma_source);
         unsafe {
             // Safety: pointing to static memory
-            dma_channel.set_destination(core::ptr::addr_of!(self.registers.data) as *const u8);
+            dma_channel.set_destination(core::ptr::addr_of!(self.registers.data).cast::<u8>());
         }
         dma_channel.set_interrupt_on_completion(true);
         dma_channel.set_disable_on_completion(true);
@@ -407,7 +407,7 @@ impl<'a> Lpuart<'a> {
         dma_channel.set_client(self, self.rx_dma_source);
         unsafe {
             // Safety: pointing to static memory
-            dma_channel.set_source(core::ptr::addr_of!(self.registers.data) as *const u8);
+            dma_channel.set_source(core::ptr::addr_of!(self.registers.data).cast::<u8>());
         }
         dma_channel.set_interrupt_on_completion(true);
         dma_channel.set_disable_on_completion(true);

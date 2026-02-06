@@ -227,7 +227,7 @@ pub unsafe fn init() {
     cortexm7::nvic::disable_all();
     cortexm7::nvic::clear_all_pending();
 
-    cortexm7::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS) as *const ());
+    cortexm7::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS).cast::<()>());
 
     cortexm7::nvic::enable_all();
 }

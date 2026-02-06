@@ -399,7 +399,7 @@ impl Adc<'_> {
                     self.setup_sample_count(1);
 
                     // Where to put the reading.
-                    self.registers.result_ptr.set(addr_of!(SAMPLE) as *const _);
+                    self.registers.result_ptr.set(addr_of!(SAMPLE).cast());
 
                     // No automatic sampling, will trigger manually.
                     self.registers.samplerate.write(SAMPLERATE::MODE::Task);
@@ -580,7 +580,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
             .result_maxcnt
             .write(RESULT_MAXCNT::MAXCNT.val(1));
         // Where to put the reading.
-        self.registers.result_ptr.set(addr_of!(SAMPLE) as *const _);
+        self.registers.result_ptr.set(addr_of!(SAMPLE).cast());
 
         // No automatic sampling, will trigger manually.
         self.registers.samplerate.write(SAMPLERATE::MODE::Task);

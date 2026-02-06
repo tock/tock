@@ -94,7 +94,7 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
                 core::ptr::NonNull::<ReadableProcessByte>::dangling().as_ptr(),
                 0,
             ),
-            _ => core::slice::from_raw_parts(ptr as *const ReadableProcessByte, len),
+            _ => core::slice::from_raw_parts(ptr.cast::<ReadableProcessByte>(), len),
         },
     )
 }

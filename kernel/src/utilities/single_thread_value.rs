@@ -484,7 +484,7 @@ impl<T> SingleThreadValue<T> {
         //
         // Thus, this operation is sound.
         let maybe_thread_id_and_fn: &MaybeUninit<(fn() -> usize, usize)> =
-            unsafe { &*(ptr_thread_id_and_fn as *const _) };
+            unsafe { &*ptr_thread_id_and_fn.cast_const() };
 
         // # Safety
         //

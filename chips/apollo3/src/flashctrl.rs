@@ -241,7 +241,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         let addr = (page_number * PAGE_SIZE) as u32;
         let addr_ptr = addr as *mut u32;
 
-        let source_ptr = buf.0.as_mut_ptr() as *mut u32;
+        let source_ptr = buf.0.as_mut_ptr().cast::<u32>();
 
         let ret = unsafe {
             flash_program_main(
