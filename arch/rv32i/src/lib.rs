@@ -12,13 +12,13 @@ pub mod machine_timer;
 // Re-export shared libraries so that dependent crates do not have to have
 // both rv32i and riscv as dependencies.
 pub use riscv::csr;
+pub use riscv::initialize_ram_jump_to_main;
 pub use riscv::pmp;
 pub use riscv::print_riscv_state;
 pub use riscv::support;
 pub use riscv::syscall;
 pub use riscv::thread_id;
 pub use riscv::PermissionMode;
-pub use riscv::_start;
 pub use riscv::_start_trap;
 pub use riscv::configure_trap_handler;
 pub use riscv::print_mcause;
