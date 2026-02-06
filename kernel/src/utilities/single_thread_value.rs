@@ -171,7 +171,15 @@ enum BoundToThreadStage {
 // necessary for certain use cases within Tock, this should not be used lightly.
 pub struct SingleThreadValue<T> {
     /// The contained value, made accessible to a single thread only.
-    value: T,
+    ///
+    /// To avoid imposing a constraint of `T: Send`, the value is initialized on
+    /// the same thread that the `SingleThreadValue` is bound to, using the
+    /// `init_fn` function.
+    value: UnsafeCell<MaybeUninit<T>>,
+
+    /// A function to produce a new value of type `T`, used to initialize
+    /// `value` when binding to a thread.
+    init_fn: fn() -> T,
 
     /// Shared atomic state to indicate whether this type is already bound to a
     /// particular thread, or in the process of being bound to a particular
@@ -204,9 +212,10 @@ impl<T> SingleThreadValue<T> {
     /// It must first be bound to a particular thread, using the
     /// [`bind_to_thread`](SingleThreadValue::bind_to_thread) or
     /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe) methods.
-    pub const fn new(value: T) -> Self {
+    pub const fn new(init_fn: fn() -> T) -> Self {
         Self {
-            value,
+            value: UnsafeCell::new(MaybeUninit::uninit()),
+            init_fn,
             bound_to_thread: AtomicUsize::new(BoundToThreadStage::Unbound as usize),
             thread_id_and_fn: UnsafeCell::new(MaybeUninit::uninit()),
         }
@@ -318,6 +327,13 @@ impl<T> SingleThreadValue<T> {
                 MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
         }
 
+        // Initialize the contained value, constructed on the same (currently
+        // running) thread that we are binding the `SingleThreadValue` to. This
+        // avoids a requirement of `T: Send`:
+        unsafe {
+            *self.value.get() = MaybeUninit::new((self.init_fn)());
+        }
+
         // When initializing the `SingleThreadValue`, we must use `Release`
         // ordering on the `bound_to_thread` store. This ensures that any
         // subsequent atomic load of this value with at least `Acquire`
@@ -402,6 +418,13 @@ impl<T> SingleThreadValue<T> {
         unsafe {
             *ptr_thread_id_and_fn =
                 MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
+        }
+
+        // Initialize the contained value, constructed on the same (currently
+        // running) thread that we are binding the `SingleThreadValue` to. This
+        // avoids a requirement of `T: Send`:
+        unsafe {
+            *self.value.get() = MaybeUninit::new((self.init_fn)());
         }
 
         // When initializing the `SingleThreadValue`, we must use `Release`
@@ -514,7 +537,7 @@ impl<T> SingleThreadValue<T> {
     /// reference to its contained value.
     pub fn get(&self) -> Option<&T> {
         if self.bound_to_current_thread() {
-            Some(&self.value)
+            Some(unsafe { (&*self.value.get()).assume_init_ref() })
         } else {
             None
         }

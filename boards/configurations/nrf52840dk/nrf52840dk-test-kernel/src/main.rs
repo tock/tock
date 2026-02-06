@@ -42,7 +42,7 @@ type ProcessPrinter = capsules_system::process_printer::ProcessPrinterNull;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new(PanicResources::new);
 
 kernel::stack_size! {0x2000}
 
