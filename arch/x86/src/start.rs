@@ -7,7 +7,7 @@ use core::arch::naked_asm;
 #[unsafe(link_section = ".x86.start")]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn start() {
+pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     naked_asm!(
         "
     # Initialize the stack

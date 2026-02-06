@@ -40,6 +40,7 @@
  */
 
 PAGE_SIZE = DEFINED(PAGE_SIZE) ? PAGE_SIZE : 512;
+ENTRY(initialize_ram_jump_to_main)
 
 SECTIONS
 {
