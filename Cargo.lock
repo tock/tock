@@ -643,6 +643,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "lpc55s69-evk"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+ "lpc55s6x",
+ "segger",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "lpc55s6x"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+]
+
+[[package]]
 name = "makepython-nrf52840"
 version = "0.2.3-dev"
 dependencies = [
