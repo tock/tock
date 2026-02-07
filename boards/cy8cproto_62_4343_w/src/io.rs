@@ -8,8 +8,9 @@ use kernel::utilities::cells::OptionalCell;
 use psoc62xa::gpio::GpioPin;
 use psoc62xa::scb::Scb;
 
-use kernel::debug::{self, IoWrite};
+use kernel::debug;
 use kernel::hil::led::LedHigh;
+use kernel::utilities::io_write::IoWrite;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -48,7 +49,7 @@ pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
     let led_kernel_pin = &GpioPin::new(psoc62xa::gpio::PsocPin::P13_7);
     let led = &mut LedHigh::new(led_kernel_pin);
 
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         panic_info,
