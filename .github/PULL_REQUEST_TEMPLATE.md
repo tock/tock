@@ -20,3 +20,10 @@ This pull request still needs...
 ### Formatting
 
 - [ ] Ran `make prepush`.
+
+### AI Use
+
+- [ ] The entirety of this PR was hand-written by a human and no AI was involved.
+- [ ] AI coding or other tools authored some or all of this PR and I have manually checked and personally certify all of it. Describe AI usage below.
+
+\[ AI tool use description if applicable \]
