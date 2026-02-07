@@ -381,6 +381,11 @@ SECTIONS
      */
     .attributes : AT (ORIGIN(rom) + LENGTH(rom) - SIZEOF(.attributes))
     {
+        /* TLV: Kernel Signature
+         * This field specifies the signature of the kernel image. 
+         */
+        KEEP(*(.tock.attr.kernel_signature))
+
         /* TLV: Kernel Version
          * This specifies the version of the kernel.
          *
@@ -394,7 +399,8 @@ SECTIONS
          * the kernel binary.
          */
         LONG(ORIGIN(rom)) /* Address of start of kernel binary. */
-        LONG((LOADADDR(.relocate) + (_erelocate - _srelocate)) - ORIGIN(rom)) /* Length of kernel binary. */
+        /* LONG((LOADADDR(.relocate) + (_erelocate - _srelocate)) - ORIGIN(rom)) /* Length of kernel binary. */
+        LONG(_etext - ORIGIN(rom))
         SHORT(0x0102) /* Type = Kernel Flash = 0x0102 */
         SHORT(8)      /* Length = 8 bytes */
 

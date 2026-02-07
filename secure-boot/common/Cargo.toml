@@ -1,0 +1,16 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+
+[package]
+name = "secure-boot-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sha2 = { workspace = true }
+p256 = { workspace = true }
+
+[lib]
+name = "secure_boot_common"
+path = "src/lib.rs"
