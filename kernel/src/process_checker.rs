@@ -10,13 +10,13 @@
 use core::cell::Cell;
 use core::fmt;
 
+use crate::ErrorCode;
 use crate::config;
 use crate::debug;
 use crate::process::Process;
 use crate::process::ShortId;
 use crate::process_binary::ProcessBinary;
 use crate::utilities::cells::{NumericCellExt, OptionalCell};
-use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfParseError;
 

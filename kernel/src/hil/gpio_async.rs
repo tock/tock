@@ -4,8 +4,8 @@
 
 //! Interface for GPIO pins that require split-phase operation to control.
 
-use crate::hil;
 use crate::ErrorCode;
+use crate::hil;
 
 /// Interface for banks of asynchronous GPIO pins.
 ///
@@ -50,7 +50,7 @@ pub trait Port {
     /// the port number and will be returned when the interrupt callback
     /// fires.
     fn enable_interrupt(&self, pin: usize, mode: hil::gpio::InterruptEdge)
-        -> Result<(), ErrorCode>;
+    -> Result<(), ErrorCode>;
 
     /// Disable an interrupt on a GPIO input pin.
     fn disable_interrupt(&self, pin: usize) -> Result<(), ErrorCode>;

@@ -180,9 +180,11 @@ pub fn initialize_deferred_call_state<P: ThreadIdProvider>() {
 /// concurrently with calls to [`initialize_deferred_call_state`] or other calls
 /// to [`initialize_deferred_call_state_unsafe`].
 pub unsafe fn initialize_deferred_call_state_unsafe<P: ThreadIdProvider>() {
-    CTR.bind_to_thread_unsafe::<P>();
-    BITMASK.bind_to_thread_unsafe::<P>();
-    DEFCALLS.bind_to_thread_unsafe::<P>();
+    unsafe {
+        CTR.bind_to_thread_unsafe::<P>();
+        BITMASK.bind_to_thread_unsafe::<P>();
+        DEFCALLS.bind_to_thread_unsafe::<P>();
+    }
 }
 
 pub struct DeferredCall {

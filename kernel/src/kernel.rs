@@ -174,7 +174,7 @@ impl Kernel {
     pub fn process_iter_capability(
         &self,
         _capability: &dyn capabilities::ProcessManagementCapability,
-    ) -> impl Iterator<Item = &dyn process::Process> {
+    ) -> impl Iterator<Item = &dyn process::Process> + use<'_> {
         self.get_process_iter()
     }
 

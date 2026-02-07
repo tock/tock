@@ -9,6 +9,7 @@
 
 use core::cell::Cell;
 
+use crate::ErrorCode;
 use crate::config;
 use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
@@ -21,7 +22,6 @@ use crate::process_loading::{
 use crate::process_standard::ProcessStandardDebug;
 use crate::utilities::cells::{OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
-use crate::ErrorCode;
 
 /// Expected buffer length for storing application binaries.
 pub const BUF_LEN: usize = 512;

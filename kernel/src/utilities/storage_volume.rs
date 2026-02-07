@@ -24,13 +24,13 @@
 /// is aligned on a 512-byte boundary and the next section is aligned as well.
 #[macro_export]
 macro_rules! storage_volume {
-    ($N:ident, $kB:expr $(,)?) => {
+    ($N:ident, $kB:expr_2021 $(,)?) => {
         // When compiling for a macOS host, the `link_section` attribute is
         // elided as it yields the following error: `mach-o section specifier
         // requires a segment and section separated by a comma`.
-        #[cfg_attr(not(target_os = "macos"), link_section = ".storage")]
+        #[cfg_attr(not(target_os = "macos"), unsafe(link_section = ".storage"))]
         #[used]
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub static $N: [u8; $kB * 1024] = [0x00; $kB * 1024];
     };
 }

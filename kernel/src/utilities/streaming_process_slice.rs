@@ -8,9 +8,9 @@
 
 use core::ops::{Range, RangeFrom};
 
-use crate::processbuffer::WriteableProcessSlice;
-use crate::utilities::registers::{register_bitfields, LocalRegisterCopy};
 use crate::ErrorCode;
+use crate::processbuffer::WriteableProcessSlice;
+use crate::utilities::registers::{LocalRegisterCopy, register_bitfields};
 
 /// A wrapper around a [`WriteableProcessSlice`] for streaming data from the
 /// kernel to a userspace process.
@@ -418,8 +418,8 @@ impl<'a> StreamingProcessSlice<'a> {
 #[cfg(test)]
 mod tests {
     use super::StreamingProcessSlice;
-    use crate::processbuffer::WriteableProcessSlice;
     use crate::ErrorCode;
+    use crate::processbuffer::WriteableProcessSlice;
 
     #[test]
     fn test_empty_process_slice() {

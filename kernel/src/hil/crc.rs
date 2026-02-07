@@ -4,8 +4,8 @@
 
 //! Interface for CRC computation.
 
-use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
+use crate::utilities::leasable_buffer::SubSliceMut;
 
 /// Client for CRC algorithm implementations
 ///
