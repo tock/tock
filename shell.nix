@@ -23,9 +23,9 @@ let
   tockloader = import (pkgs.fetchFromGitHub {
     owner = "tock";
     repo = "tockloader";
-    # v1.16.0-13-gff20c49 (including nrfutil backend)
-    rev = "ff20c49822f619a9b4aec685b98dce4642e9db53";
-    sha256 = "sha256-Ju6QBGPJ0ra41/chRlQKKA3dJLJNkVHiXvEgLqB3RlQ=";
+    # v1.16.0-25-ga865b6f (including nrfutil backend)
+    rev = "a865b6f93f63b2af377546e8ad5c85b0a1fd53d1";
+    sha256 = "sha256-bgA86FBa/va0kAXe4hn3wgBSidHY2GPmjYoatNmJd7I=";
   }) { inherit pkgs withUnfreePkgs; };
 
   rust_overlay = import "${pkgs.fetchFromGitHub {
