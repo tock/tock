@@ -976,6 +976,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nrf52840dk-test-secure-boot"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "nrf52840",
+ "nrf52_components",
+ "segger",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "nrf52840dk-thread-tutorial"
 version = "0.2.3-dev"
 dependencies = [

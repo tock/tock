@@ -1,0 +1,30 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+
+[workspace]
+members = [
+    "common",
+    "boards/nrf52840dk",
+]
+
+resolver = "2"
+
+[workspace.dependencies]
+# Cryptographic dependencies
+sha2 = { version = "0.10", default-features = false }
+p256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+
+# Common bootloader library
+secure-boot-common = { path = "common" }
+
+[profile.dev]
+panic = "abort"
+lto = false
+opt-level = "z"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"

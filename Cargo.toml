@@ -63,6 +63,7 @@ members = [
     "boards/configurations/nrf52840dk/nrf52840dk-test-invs",
     "boards/configurations/nrf52840dk/nrf52840dk-test-kernel",
     "boards/configurations/nrf52840dk/nrf52840dk-test-dynamic-app-load",
+    "boards/configurations/nrf52840dk/nrf52840dk-test-secure-boot",
     "boards/configurations/microbit_v2/microbit_v2-test-dynamic-app-load",
     "boards/tutorials/nrf52840dk-root-of-trust-tutorial",
     "boards/tutorials/nrf52840dk-dynamic-apps-and-policies",
@@ -115,7 +116,7 @@ members = [
     "libraries/tock-cells",
     "libraries/tickv",
 ]
-exclude = ["tools/"]
+exclude = ["secure-boot", "tools/"]
 resolver = "2"
 
 [workspace.package]
