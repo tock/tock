@@ -259,7 +259,6 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                             ProcessBinaryError::TbfHeaderParseFailure(_)
                             | ProcessBinaryError::IncompatibleKernelVersion { .. }
                             | ProcessBinaryError::IncorrectFlashAddress { .. }
-                            | ProcessBinaryError::NotEnabledProcess
                             | ProcessBinaryError::Padding => {
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Unable to use process binary: {:?}.", err);
@@ -658,6 +657,20 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             // We are either going to load this process binary or discard it, so
             // we can use `take()` here.
             if let Some(process_binary) = proc_binaries[i].take() {
+                // This means the app is disabled, and does not have to be
+                // loaded
+                if !process_binary.header.enabled() {
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "Skipping disabled process: {}",
+                            process_binary
+                                .header
+                                .get_package_name()
+                                .unwrap_or("unknown_app")
+                        );
+                    }
+                    continue;
+                }
                 // We assume the process can be loaded. This is not the case
                 // if there is a conflicting process.
                 let mut ok_to_load = true;
@@ -1231,6 +1244,93 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 ProcessBinaryError::TbfHeaderNotFound,
             )),
         }
+    }
+
+    /// Function to check if the ShortId and version of the binary matches supplied values
+    fn app_match_check(
+        &self,
+        shortid: ShortId,
+        app_short_id: core::num::NonZeroU32,
+        version: u32,
+        app_version: u32,
+    ) -> bool {
+        matches!(shortid, ShortId::Fixed(id) if id == app_short_id) && version == app_version
+    }
+
+    /// Function to return the address and size of the binary whose ShortId and version are passed
+    /// as input arguments
+    pub fn fetch_app_details(
+        &self,
+        shortid: ShortId,
+        version: u32,
+    ) -> Result<(u32, u32), ProcessLoadError> {
+        const MAX_PROCS: usize = 10;
+        let mut pb_start_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+        let mut pb_end_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+
+        let total_flash = self.flash_bank.get();
+
+        self.scan_flash_for_process_binaries(
+            total_flash,
+            &mut pb_start_address,
+            &mut pb_end_address,
+        )
+        .map_err(|()| ProcessLoadError::CheckError(ProcessCheckError::InternalError))?;
+
+        let mut start_count = 0;
+        let mut end_count = 0;
+
+        // Remove zeros from addresses in place
+        for i in 0..pb_start_address.len() {
+            if pb_start_address[i] != 0 {
+                pb_start_address[start_count] = pb_start_address[i];
+                start_count += 1;
+            }
+        }
+
+        for i in 0..pb_end_address.len() {
+            if pb_end_address[i] != 0 {
+                pb_end_address[end_count] = pb_end_address[i];
+                end_count += 1;
+            }
+        }
+
+        for i in 0..start_count {
+            let app_binary_start_address = pb_start_address[i] - total_flash.as_ptr() as usize;
+            let app_binary_end_address = pb_end_address[i] - total_flash.as_ptr() as usize;
+
+            let app_flash = total_flash
+                .get(app_binary_start_address..app_binary_end_address)
+                .ok_or(ProcessLoadError::BinaryError(
+                    ProcessBinaryError::NotEnoughFlash,
+                ))?;
+
+            if let Ok((_remaining_flash, process_binary)) = discover_process_binary(app_flash) {
+                let app_short_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
+                    policy.to_short_id(&process_binary)
+                });
+
+                let app_version: u32 = process_binary.header.get_binary_version();
+
+                if let ShortId::Fixed(app_id) = app_short_id {
+                    if self.app_match_check(shortid, app_id, version, app_version) {
+                        return Ok((
+                            pb_start_address[i] as u32,
+                            (pb_end_address[i] - pb_start_address[i]) as u32,
+                        ));
+                    }
+                }
+            }
+        }
+
+        Err(ProcessLoadError::CheckError(
+            ProcessCheckError::CredentialsRejected(0),
+        ))
+    }
+
+    /// Function to terminate process and remove it from process array
+    pub fn reclaim_memory(&self, shortid: ShortId) {
+        self.kernel.reclaim_app_memory(shortid)
     }
 }
 
