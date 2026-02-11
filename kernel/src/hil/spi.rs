@@ -14,7 +14,7 @@
 // Author: Brad Campbell <bradjc5@gmail.com>
 // Author: Amit Aryeh Levy <amit@amitlevy.com>
 
-use crate::{utilities::leasable_buffer::SubSliceMut, ErrorCode};
+use crate::{ErrorCode, utilities::leasable_buffer::SubSliceMut};
 
 /// Data order defines the order of bits sent over the wire: most significant
 /// first, or least significant first.

@@ -7,6 +7,7 @@
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.
 
+use crate::ErrorCode;
 use crate::capabilities::MemoryAllocationCapability;
 use crate::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use crate::kernel::Kernel;
@@ -14,7 +15,6 @@ use crate::process;
 use crate::process::ProcessId;
 use crate::processbuffer::ReadableProcessBuffer;
 use crate::syscall_driver::{CommandReturn, SyscallDriver};
-use crate::ErrorCode;
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x10000;

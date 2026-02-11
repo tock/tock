@@ -9,8 +9,8 @@
 //! `arch` crates. While these could also live in a dedicated crate, we use the
 //! `kernel` crate as all `arch` crates already depend on it.
 
-use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
+use crate::syscall::SyscallReturn;
 
 /// Helper function to split a [`u64`] into a higher and lower [`u32`].
 ///

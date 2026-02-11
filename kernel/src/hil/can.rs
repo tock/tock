@@ -815,11 +815,8 @@ pub trait CanFd:
 
 /// Provide blanket implementation for Can trait group
 impl<
-        T: Transmit<STANDARD_CAN_PACKET_SIZE>
-            + Configure
-            + Controller
-            + Receive<STANDARD_CAN_PACKET_SIZE>,
-    > Can for T
+    T: Transmit<STANDARD_CAN_PACKET_SIZE> + Configure + Controller + Receive<STANDARD_CAN_PACKET_SIZE>,
+> Can for T
 {
 }
 
