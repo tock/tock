@@ -7,12 +7,15 @@ use core::ops::Range;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
 use kernel::ErrorCode;
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
-use super::super::queues::split_queue::{SplitVirtqueue, SplitVirtqueueClient, VirtqueueBuffer};
+use super::super::queues::split_queue::{
+    SplitVirtqueue, SplitVirtqueueClient, VirtqueueBuffer, VirtqueueReturnBuffer,
+};
 
 mod deferred_call;
 mod helpers;
@@ -84,7 +87,7 @@ pub enum VirtIOGPUState {
 ///
 /// Implements Tock's `Screen` HIL, and supports a single head with
 /// the `ARGB_8888` pixel mode.
-pub struct VirtIOGPU<'a, 'b> {
+pub struct VirtIOGPU<'a, 'b, F: DmaFence> {
     // Misc driver state:
     client: OptionalCell<&'a dyn ScreenClient>,
     state: Cell<VirtIOGPUState>,
@@ -92,8 +95,8 @@ pub struct VirtIOGPU<'a, 'b> {
     pending_deferred_call_mask: deferred_call::PendingDeferredCallMask,
 
     // VirtIO bus and buffers:
-    control_queue: &'a SplitVirtqueue<'a, 'b, 2>,
-    req_resp_buffers: OptionalCell<(&'b mut [u8; MAX_REQ_SIZE], &'b mut [u8; MAX_RESP_SIZE])>,
+    control_queue: &'a SplitVirtqueue<'a, 'b, 2, F>,
+    req_resp_buffers: OptionalCell<(SubSliceMut<'b, u8>, SubSliceMut<'b, u8>)>,
 
     // Video output parameters:
     width: u32,
@@ -130,14 +133,14 @@ pub struct VirtIOGPU<'a, 'b> {
     current_transfer_area_pixels: Cell<(Rect, usize)>,
 }
 
-impl<'a, 'b> VirtIOGPU<'a, 'b> {
+impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
     pub fn new(
-        control_queue: &'a SplitVirtqueue<'a, 'b, 2>,
+        control_queue: &'a SplitVirtqueue<'a, 'b, 2, F>,
         req_buffer: &'b mut [u8; MAX_REQ_SIZE],
         resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
         width: usize,
         height: usize,
-    ) -> Result<VirtIOGPU<'a, 'b>, ErrorCode> {
+    ) -> Result<Self, ErrorCode> {
         let width: u32 = width.try_into().map_err(|_| ErrorCode::SIZE)?;
         let height: u32 = height.try_into().map_err(|_| ErrorCode::SIZE)?;
 
@@ -148,7 +151,10 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
             pending_deferred_call_mask: deferred_call::PendingDeferredCallMask::new(),
 
             control_queue,
-            req_resp_buffers: OptionalCell::new((req_buffer, resp_buffer)),
+            req_resp_buffers: OptionalCell::new((
+                SubSliceMut::new(req_buffer),
+                SubSliceMut::new(resp_buffer),
+            )),
 
             width,
             height,
@@ -172,7 +178,7 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
 
         // Take the request and response buffers. They must be available during
         // initialization:
-        let (req_buffer, resp_buffer) = self.req_resp_buffers.take().unwrap();
+        let (mut req_buffer, mut resp_buffer) = self.req_resp_buffers.take().unwrap();
 
         // Step 1: Create host resource
         let cmd_resource_create_2d_req = ResourceCreate2DReq {
@@ -189,20 +195,17 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
             height: self.height,
         };
         cmd_resource_create_2d_req
-            .write_to_byte_iter(&mut req_buffer.iter_mut())
+            .reset_and_write_to_sub_slice(&mut req_buffer)
             .unwrap();
 
+        // Slice the repsonse buffer to fit the expected response:
+        resp_buffer.slice(0..ResourceCreate2DResp::ENCODED_SIZE);
+
         let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: req_buffer,
-                len: ResourceCreate2DReq::ENCODED_SIZE,
-                device_writeable: false,
-            }),
-            Some(VirtqueueBuffer {
-                buf: resp_buffer,
-                len: ResourceCreate2DResp::ENCODED_SIZE,
-                device_writeable: true,
-            }),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                req_buffer,
+            ))),
+            Some(VirtqueueBuffer::DeviceWriteable(resp_buffer)),
         ];
         self.control_queue
             .provide_buffer_chain(&mut buffer_chain)
@@ -216,8 +219,8 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
     fn initialize_resource_create_2d_resp(
         &self,
         _resp: ResourceCreate2DResp,
-        req_buffer: &'b mut [u8; MAX_REQ_SIZE],
-        resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
+        mut req_buffer: SubSliceMut<'b, u8>,
+        mut resp_buffer: SubSliceMut<'b, u8>,
     ) {
         // Step 2: Attach backing memory (our framebuffer)
 
@@ -242,20 +245,17 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                 }],
             };
         cmd_resource_attach_backing_req
-            .write_to_byte_iter(&mut req_buffer.iter_mut())
+            .reset_and_write_to_sub_slice(&mut req_buffer)
             .unwrap();
 
+        // Slice the repsonse buffer to fit the expected response:
+        resp_buffer.slice(0..ResourceAttachBackingResp::ENCODED_SIZE);
+
         let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: req_buffer,
-                len: ResourceAttachBackingReq::<{ ENTRIES }>::ENCODED_SIZE,
-                device_writeable: false,
-            }),
-            Some(VirtqueueBuffer {
-                buf: resp_buffer,
-                len: ResourceAttachBackingResp::ENCODED_SIZE,
-                device_writeable: true,
-            }),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                req_buffer,
+            ))),
+            Some(VirtqueueBuffer::DeviceWriteable(resp_buffer)),
         ];
         self.control_queue
             .provide_buffer_chain(&mut buffer_chain)
@@ -268,8 +268,8 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
     fn initialize_resource_attach_backing_resp(
         &self,
         _resp: ResourceAttachBackingResp,
-        req_buffer: &'b mut [u8; MAX_REQ_SIZE],
-        resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
+        mut req_buffer: SubSliceMut<'b, u8>,
+        mut resp_buffer: SubSliceMut<'b, u8>,
     ) {
         // Step 3: Set scanout
         let cmd_set_scanout_req = SetScanoutReq {
@@ -290,20 +290,17 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
             resource_id: 1,
         };
         cmd_set_scanout_req
-            .write_to_byte_iter(&mut req_buffer.iter_mut())
+            .reset_and_write_to_sub_slice(&mut req_buffer)
             .unwrap();
 
+        // Slice the repsonse buffer to fit the expected response:
+        resp_buffer.slice(0..SetScanoutResp::ENCODED_SIZE);
+
         let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: req_buffer,
-                len: SetScanoutReq::ENCODED_SIZE,
-                device_writeable: false,
-            }),
-            Some(VirtqueueBuffer {
-                buf: resp_buffer,
-                len: SetScanoutResp::ENCODED_SIZE,
-                device_writeable: true,
-            }),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                req_buffer,
+            ))),
+            Some(VirtqueueBuffer::DeviceWriteable(resp_buffer)),
         ];
         self.control_queue
             .provide_buffer_chain(&mut buffer_chain)
@@ -315,8 +312,8 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
     fn initialize_set_scanout_resp(
         &self,
         _resp: SetScanoutResp,
-        req_buffer: &'b mut [u8; MAX_REQ_SIZE],
-        resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
+        mut req_buffer: SubSliceMut<'b, u8>,
+        mut resp_buffer: SubSliceMut<'b, u8>,
     ) {
         // Step 4: Detach resource
         let cmd_resource_detach_backing_req = ResourceDetachBackingReq {
@@ -331,21 +328,19 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
             padding: 0,
         };
         cmd_resource_detach_backing_req
-            .write_to_byte_iter(&mut req_buffer.iter_mut())
+            .reset_and_write_to_sub_slice(&mut req_buffer)
             .unwrap();
 
+        // Slice the repsonse buffer to fit the expected response:
+        resp_buffer.slice(0..ResourceDetachBackingResp::ENCODED_SIZE);
+
         let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: req_buffer,
-                len: ResourceDetachBackingReq::ENCODED_SIZE,
-                device_writeable: false,
-            }),
-            Some(VirtqueueBuffer {
-                buf: resp_buffer,
-                len: ResourceDetachBackingResp::ENCODED_SIZE,
-                device_writeable: true,
-            }),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                req_buffer,
+            ))),
+            Some(VirtqueueBuffer::DeviceWriteable(resp_buffer)),
         ];
+
         self.control_queue
             .provide_buffer_chain(&mut buffer_chain)
             .unwrap();
@@ -357,8 +352,8 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
     fn initialize_resource_detach_backing_resp(
         &self,
         _resp: ResourceDetachBackingResp,
-        req_buffer: &'b mut [u8; MAX_REQ_SIZE],
-        resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
+        req_buffer: SubSliceMut<'b, u8>,
+        resp_buffer: SubSliceMut<'b, u8>,
     ) {
         // Initialization done! Return the buffers:
         self.req_resp_buffers.replace((req_buffer, resp_buffer));
@@ -372,8 +367,8 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
 
     fn continue_draw_transfer_to_host_2d(
         &self,
-        req_buffer: &'b mut [u8; MAX_REQ_SIZE],
-        resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
+        mut req_buffer: SubSliceMut<'b, u8>,
+        mut resp_buffer: SubSliceMut<'b, u8>,
     ) {
         // Now, the `TRANSFER_TO_HOST_2D` command can only copy rectangles.
         // However, when we performed a partial write (let's say of just one
@@ -458,20 +453,17 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                 padding: 0,
             };
             cmd_resource_detach_backing_req
-                .write_to_byte_iter(&mut req_buffer.iter_mut())
+                .reset_and_write_to_sub_slice(&mut req_buffer)
                 .unwrap();
 
+            // Slice the repsonse buffer to fit the expected response:
+            resp_buffer.slice(0..ResourceDetachBackingResp::ENCODED_SIZE);
+
             let mut buffer_chain = [
-                Some(VirtqueueBuffer {
-                    buf: req_buffer,
-                    len: ResourceDetachBackingReq::ENCODED_SIZE,
-                    device_writeable: false,
-                }),
-                Some(VirtqueueBuffer {
-                    buf: resp_buffer,
-                    len: ResourceDetachBackingResp::ENCODED_SIZE,
-                    device_writeable: true,
-                }),
+                Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                    req_buffer,
+                ))),
+                Some(VirtqueueBuffer::DeviceWriteable(resp_buffer)),
             ];
             self.control_queue
                 .provide_buffer_chain(&mut buffer_chain)
@@ -513,20 +505,17 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
         //     write_buffer_offset
         // );
         cmd_transfer_to_host_2d_req
-            .write_to_byte_iter(&mut req_buffer.iter_mut())
+            .reset_and_write_to_sub_slice(&mut req_buffer)
             .unwrap();
 
+        // Slice the repsonse buffer to fit the expected response:
+        resp_buffer.slice(0..TransferToHost2DResp::ENCODED_SIZE);
+
         let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: req_buffer,
-                len: TransferToHost2DReq::ENCODED_SIZE,
-                device_writeable: false,
-            }),
-            Some(VirtqueueBuffer {
-                buf: resp_buffer,
-                len: TransferToHost2DResp::ENCODED_SIZE,
-                device_writeable: true,
-            }),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                req_buffer,
+            ))),
+            Some(VirtqueueBuffer::DeviceWriteable(resp_buffer)),
         ];
         self.control_queue
             .provide_buffer_chain(&mut buffer_chain)
@@ -537,8 +526,8 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
 
     fn continue_draw_resource_flush(
         &self,
-        req_buffer: &'b mut [u8; MAX_REQ_SIZE],
-        resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
+        mut req_buffer: SubSliceMut<'b, u8>,
+        mut resp_buffer: SubSliceMut<'b, u8>,
     ) {
         let (current_transfer_area, _) = self.current_transfer_area_pixels.get();
 
@@ -555,20 +544,17 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
             padding: 0,
         };
         cmd_resource_flush_req
-            .write_to_byte_iter(&mut req_buffer.iter_mut())
+            .reset_and_write_to_sub_slice(&mut req_buffer)
             .unwrap();
 
+        // Slice the repsonse buffer to fit the expected response:
+        resp_buffer.slice(0..ResourceFlushResp::ENCODED_SIZE);
+
         let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: req_buffer,
-                len: ResourceFlushReq::ENCODED_SIZE,
-                device_writeable: false,
-            }),
-            Some(VirtqueueBuffer {
-                buf: resp_buffer,
-                len: ResourceFlushResp::ENCODED_SIZE,
-                device_writeable: true,
-            }),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                req_buffer,
+            ))),
+            Some(VirtqueueBuffer::DeviceWriteable(resp_buffer)),
         ];
         self.control_queue
             .provide_buffer_chain(&mut buffer_chain)
@@ -579,8 +565,8 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
 
     fn continue_draw_resource_flushed(
         &self,
-        req_buffer: &'b mut [u8; MAX_REQ_SIZE],
-        resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
+        req_buffer: SubSliceMut<'b, u8>,
+        resp_buffer: SubSliceMut<'b, u8>,
     ) {
         // We've finished one write command, but there might be more to
         // come. Increment `current_draw_offset` and `write_buffer_offset`, and
@@ -632,8 +618,8 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
 
     fn continue_draw_resource_detached_backing(
         &self,
-        req_buffer: &'b mut [u8; MAX_REQ_SIZE],
-        resp_buffer: &'b mut [u8; MAX_RESP_SIZE],
+        req_buffer: SubSliceMut<'b, u8>,
+        resp_buffer: SubSliceMut<'b, u8>,
     ) {
         self.req_resp_buffers.replace((req_buffer, resp_buffer));
         self.state.set(VirtIOGPUState::Idle);
@@ -653,45 +639,48 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
 
     fn buffer_chain_callback(
         &self,
-        buffer_chain: &mut [Option<VirtqueueBuffer<'b>>],
+        buffer_chain: &mut [Option<VirtqueueReturnBuffer<'b>>],
         _bytes_used: usize,
     ) {
         // Every response should return exactly two buffers: one
         // request buffer, and one response buffer.
-        let req_buffer = buffer_chain
+        let req_virtqueue_buffer = buffer_chain
             .get_mut(0)
             .and_then(|opt_buf| opt_buf.take())
             .expect("Missing request buffer in VirtIO GPU buffer chain");
-        let resp_buffer = buffer_chain
+        let VirtqueueBuffer::DeviceReadable(req_sub_slice_mut_immut) =
+            req_virtqueue_buffer.virtqueue_buffer
+        else {
+            panic!("Split Virtqueue returned DeviceWriteable buffer for request!")
+        };
+        let SubSliceMutImmut::Mutable(mut req_sub_slice_mut) = req_sub_slice_mut_immut else {
+            panic!("Returned VirtIO GPU request buffer is immutable!")
+        };
+
+        let resp_virtqueue_buffer = buffer_chain
             .get_mut(1)
             .and_then(|opt_buf| opt_buf.take())
             .expect("Missing request buffer in VirtIO GPU buffer chain");
-
-        // Convert the buffer slices back into arrays:
-        let req_array: &mut [u8; MAX_REQ_SIZE] = req_buffer
-            .buf
-            .try_into()
-            .expect("Returned VirtIO GPU request buffer has unexpected size!");
-
-        let resp_length = resp_buffer.len;
-        let resp_array: &mut [u8; MAX_RESP_SIZE] = resp_buffer
-            .buf
-            .try_into()
-            .expect("Returned VirtIO GPU response buffer has unexpected size!");
+        let VirtqueueBuffer::DeviceWriteable(mut resp_sub_slice_mut) =
+            resp_virtqueue_buffer.virtqueue_buffer
+        else {
+            panic!("Split Virtqueue returned DeviceReadable buffer for response!")
+        };
 
         // Check that the response has a length we can parse into a CtrlHeader:
-        if resp_length < CtrlHeader::ENCODED_SIZE {
+        if resp_virtqueue_buffer.device_len < CtrlHeader::ENCODED_SIZE {
             panic!(
                 "VirtIO GPU returned response smaller than the CtrlHeader, \
                  which we cannot parse! Returned bytes: {}",
-                resp_length
+                resp_virtqueue_buffer.device_len,
             )
         }
+        resp_sub_slice_mut.slice(0..resp_virtqueue_buffer.device_len);
 
         // We progressively parse the response, starting with the CtrlHeader
         // shared across all messages, checking its type, and then parsing the
         // rest. We do so by reusing a common iterator across these operations:
-        let mut resp_iter = resp_array.iter().copied();
+        let mut resp_iter = resp_sub_slice_mut.as_slice().iter().copied();
         let ctrl_header = CtrlHeader::from_byte_iter(&mut resp_iter)
             .expect("Failed to parse VirtIO response CtrlHeader");
 
@@ -710,7 +699,13 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                 .expect("Failed to parse VirtIO GPU ResourceCreate2DResp");
 
                 // Continue the initialization routine:
-                self.initialize_resource_create_2d_resp(resp, req_array, resp_array);
+                req_sub_slice_mut.reset();
+                resp_sub_slice_mut.reset();
+                self.initialize_resource_create_2d_resp(
+                    resp,
+                    req_sub_slice_mut,
+                    resp_sub_slice_mut,
+                );
             }
 
             (
@@ -725,7 +720,13 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                 .expect("Failed to parse VirtIO GPU ResourceAttachBackingResp");
 
                 // Continue the initialization routine:
-                self.initialize_resource_attach_backing_resp(resp, req_array, resp_array);
+                req_sub_slice_mut.reset();
+                resp_sub_slice_mut.reset();
+                self.initialize_resource_attach_backing_resp(
+                    resp,
+                    req_sub_slice_mut,
+                    resp_sub_slice_mut,
+                );
             }
 
             (VirtIOGPUState::InitializingSetScanout, SetScanoutResp::EXPECTED_CTRL_TYPE) => {
@@ -735,7 +736,9 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                         .expect("Failed to parse VirtIO GPU SetScanoutResp");
 
                 // Continue the initialization routine:
-                self.initialize_set_scanout_resp(resp, req_array, resp_array);
+                req_sub_slice_mut.reset();
+                resp_sub_slice_mut.reset();
+                self.initialize_set_scanout_resp(resp, req_sub_slice_mut, resp_sub_slice_mut);
             }
 
             (
@@ -750,7 +753,13 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                 .expect("Failed to parse VirtIO GPU ResourceDetachBackingResp");
 
                 // Continue the initialization routine:
-                self.initialize_resource_detach_backing_resp(resp, req_array, resp_array);
+                req_sub_slice_mut.reset();
+                resp_sub_slice_mut.reset();
+                self.initialize_resource_detach_backing_resp(
+                    resp,
+                    req_sub_slice_mut,
+                    resp_sub_slice_mut,
+                );
             }
 
             (
@@ -765,7 +774,9 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                 .expect("Failed to parse VirtIO GPU ResourceAttachBackingResp");
 
                 // Continue the initialization routine:
-                self.continue_draw_transfer_to_host_2d(req_array, resp_array);
+                req_sub_slice_mut.reset();
+                resp_sub_slice_mut.reset();
+                self.continue_draw_transfer_to_host_2d(req_sub_slice_mut, resp_sub_slice_mut);
             }
 
             (VirtIOGPUState::DrawTransferToHost2D, TransferToHost2DResp::EXPECTED_CTRL_TYPE) => {
@@ -777,7 +788,9 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                 .expect("Failed to parse VirtIO GPU TransferToHost2DResp");
 
                 // Continue the initialization routine:
-                self.continue_draw_resource_flush(req_array, resp_array);
+                req_sub_slice_mut.reset();
+                resp_sub_slice_mut.reset();
+                self.continue_draw_resource_flush(req_sub_slice_mut, resp_sub_slice_mut);
             }
 
             (VirtIOGPUState::DrawResourceFlush, ResourceFlushResp::EXPECTED_CTRL_TYPE) => {
@@ -787,7 +800,9 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                         .expect("Failed to parse VirtIO GPU ResourceFlushResp");
 
                 // Continue the initialization routine:
-                self.continue_draw_resource_flushed(req_array, resp_array);
+                req_sub_slice_mut.reset();
+                resp_sub_slice_mut.reset();
+                self.continue_draw_resource_flushed(req_sub_slice_mut, resp_sub_slice_mut);
             }
 
             (
@@ -802,7 +817,9 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
                 .expect("Failed to parse VirtIO GPU ResourceDetachBackingResp");
 
                 // Continue the initialization routine:
-                self.continue_draw_resource_detached_backing(req_array, resp_array);
+                req_sub_slice_mut.reset();
+                resp_sub_slice_mut.reset();
+                self.continue_draw_resource_detached_backing(req_sub_slice_mut, resp_sub_slice_mut);
             }
 
             (VirtIOGPUState::Uninitialized, _)
@@ -827,7 +844,7 @@ impl<'a, 'b> VirtIOGPU<'a, 'b> {
     }
 }
 
-impl<'a> Screen<'a> for VirtIOGPU<'a, '_> {
+impl<'a, F: DmaFence> Screen<'a> for VirtIOGPU<'a, '_, F> {
     fn set_client(&self, client: &'a dyn ScreenClient) {
         self.client.replace(client);
     }
@@ -950,7 +967,7 @@ impl<'a> Screen<'a> for VirtIOGPU<'a, '_> {
         ));
         self.write_buffer_offset.set(0);
 
-        let (req_buffer, resp_buffer) = self.req_resp_buffers.take().unwrap();
+        let (mut req_buffer, mut resp_buffer) = self.req_resp_buffers.take().unwrap();
 
         // Now, attach the user-supplied buffer to this device:
         let buffer_slice = buffer.take();
@@ -974,22 +991,19 @@ impl<'a> Screen<'a> for VirtIOGPU<'a, '_> {
                 }],
             };
         cmd_resource_attach_backing_req
-            .write_to_byte_iter(&mut req_buffer.iter_mut())
+            .reset_and_write_to_sub_slice(&mut req_buffer)
             .unwrap();
 
         assert!(self.write_buffer.replace(buffer_slice).is_none());
 
+        // Slice the repsonse buffer to fit the expected response:
+        resp_buffer.slice(0..ResourceAttachBackingResp::ENCODED_SIZE);
+
         let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: req_buffer,
-                len: ResourceAttachBackingReq::<{ ENTRIES }>::ENCODED_SIZE,
-                device_writeable: false,
-            }),
-            Some(VirtqueueBuffer {
-                buf: resp_buffer,
-                len: ResourceAttachBackingResp::ENCODED_SIZE,
-                device_writeable: true,
-            }),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                req_buffer,
+            ))),
+            Some(VirtqueueBuffer::DeviceWriteable(resp_buffer)),
         ];
         self.control_queue
             .provide_buffer_chain(&mut buffer_chain)
@@ -1018,18 +1032,18 @@ impl<'a> Screen<'a> for VirtIOGPU<'a, '_> {
     }
 }
 
-impl<'b> SplitVirtqueueClient<'b> for VirtIOGPU<'_, 'b> {
+impl<'b, F: DmaFence> SplitVirtqueueClient<'b> for VirtIOGPU<'_, 'b, F> {
     fn buffer_chain_ready(
         &self,
         _queue_number: u32,
-        buffer_chain: &mut [Option<VirtqueueBuffer<'b>>],
+        buffer_chain: &mut [Option<VirtqueueReturnBuffer<'b>>],
         bytes_used: usize,
     ) {
         self.buffer_chain_callback(buffer_chain, bytes_used)
     }
 }
 
-impl DeferredCallClient for VirtIOGPU<'_, '_> {
+impl<F: DmaFence> DeferredCallClient for VirtIOGPU<'_, '_, F> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
@@ -1056,7 +1070,7 @@ impl DeferredCallClient for VirtIOGPU<'_, '_> {
     }
 }
 
-impl VirtIODeviceDriver for VirtIOGPU<'_, '_> {
+impl<F: DmaFence> VirtIODeviceDriver for VirtIOGPU<'_, '_, F> {
     fn negotiate_features(&self, _offered_features: u64) -> Option<u64> {
         // We don't support any special features and do not care about
         // what the device offers.
