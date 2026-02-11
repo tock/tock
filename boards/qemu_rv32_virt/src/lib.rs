@@ -39,7 +39,7 @@ type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new(PanicResources::new);
 
 kernel::stack_size! {0x8000}
 

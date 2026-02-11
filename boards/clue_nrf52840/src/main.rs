@@ -121,9 +121,9 @@ static mut CDC_REF_FOR_PANIC: Option<
 > = None;
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new(PanicResources::new);
 static NRF52_POWER: SingleThreadValue<MapCell<&'static nrf52840::power::Power>> =
-    SingleThreadValue::new(MapCell::empty());
+    SingleThreadValue::new(MapCell::empty);
 
 kernel::stack_size! {0x1000}
 

@@ -354,7 +354,7 @@ pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&L]) -> ! {
 
 /// Static variable that holds an array of debug GPIO references.
 pub static DEBUG_GPIOS: SingleThreadValue<MapCell<&'static [&'static dyn hil::gpio::Pin]>> =
-    SingleThreadValue::new(MapCell::empty());
+    SingleThreadValue::new(MapCell::empty);
 
 /// Initialize the static debug gpio variable.
 ///
@@ -443,13 +443,13 @@ pub trait DebugWriter {
 /// This is needed so the `debug!()` macros have a reference to the object to
 /// use.
 static DEBUG_WRITER: SingleThreadValue<MapCell<&'static dyn DebugWriter>> =
-    SingleThreadValue::new(MapCell::empty());
+    SingleThreadValue::new(MapCell::empty);
 
 /// Static variable that holds how many times `debug!()` has been called.
 ///
 /// This enables printing a verbose header message that enumerates independent
 /// debug messages.
-static DEBUG_WRITER_COUNT: SingleThreadValue<Cell<usize>> = SingleThreadValue::new(Cell::new(0));
+static DEBUG_WRITER_COUNT: SingleThreadValue<Cell<usize>> = SingleThreadValue::new(|| Cell::new(0));
 
 /// Initialize the static debug writer.
 ///
