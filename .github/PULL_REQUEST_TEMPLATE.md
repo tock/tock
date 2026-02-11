@@ -23,7 +23,6 @@ This pull request still needs...
 
 ### AI Use
 
-- [ ] The entirety of this PR was hand-written by a human and no AI was involved.
-- [ ] AI coding or other tools authored some or all of this PR and I have manually checked and personally certify all of it. Describe AI usage below.
-
-\[ AI tool use description if applicable \]
+- [ ] The PR description details my use of AI in the production of the
+      code in this PR, if any, and I have manually checked and
+      personally certify the entire contents of this PR.
