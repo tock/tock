@@ -52,8 +52,8 @@ pub enum ProcessLoadError {
     /// range to start at, and the kernel did not or could not give the process
     /// a memory region starting at that address.
     MemoryAddressMismatch {
-        actual_address: u32,
-        expected_address: u32,
+        actual_address: *mut u8,
+        expected_address: *mut u8,
     },
 
     /// There is nowhere in the `PROCESSES` array to store this process.
@@ -90,7 +90,7 @@ impl fmt::Debug for ProcessLoadError {
                 expected_address,
             } => write!(
                 f,
-                "App memory does not match requested address Actual:{:#x}, Expected:{:#x}",
+                "App memory does not match requested address Actual:{:p}, Expected:{:p}",
                 actual_address, expected_address
             ),
 
@@ -184,7 +184,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
+    app_memory: *mut [u8],
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
@@ -192,8 +192,8 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
             "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
             app_flash.as_ptr() as usize,
             app_flash.as_ptr() as usize + app_flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
+            app_memory.addr(),
+            app_memory.addr() + app_memory.len() - 1
         );
     }
 
@@ -360,20 +360,19 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
     kernel: &'static Kernel,
     chip: &'static C,
     process_binary: ProcessBinary,
-    app_memory: &'static mut [u8],
+    app_memory: *mut [u8],
     app_id: ShortId,
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
-) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
-{
+) -> Result<(*mut [u8], Option<&'static dyn Process>), (*mut [u8], ProcessLoadError)> {
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
             process_binary.flash.as_ptr() as usize,
             process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
+            app_memory.addr(),
+            app_memory.addr() + app_memory.len() - 1
         );
     }
 
@@ -509,7 +508,7 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     /// Flash memory region to load processes from.
     flash: Cell<&'static [u8]>,
     /// Memory available to assign to applications.
-    app_memory: Cell<&'static mut [u8]>,
+    app_memory: MapCell<*mut [u8]>,
     /// Mechanism for generating async callbacks.
     deferred_call: DeferredCall,
     /// Reference to the kernel object for creating Processes.
@@ -556,7 +555,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             chip,
             flash_bank: Cell::new(flash),
             flash: Cell::new(flash),
-            app_memory: Cell::new(app_memory),
+            app_memory: MapCell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
             storage_policy,
@@ -711,7 +710,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                             self.kernel,
                             self.chip,
                             process_binary,
-                            self.app_memory.take(),
+                            // If this fails, this indicates a bug in the code
+                            // here: we must've failed to place the `new_mem`
+                            // pointer back into the `MapCell` below:
+                            self.app_memory.take().unwrap(),
                             short_app_id,
                             index,
                             self.fault_policy,
@@ -719,7 +721,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                         );
                         match load_result {
                             Ok((new_mem, proc)) => {
-                                self.app_memory.set(new_mem);
+                                self.app_memory.replace(new_mem);
                                 match proc {
                                     Some(p) => {
                                         if config::CONFIG.debug_load_processes {
@@ -746,7 +748,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                                 }
                             }
                             Err((new_mem, err)) => {
-                                self.app_memory.set(new_mem);
+                                self.app_memory.replace(new_mem);
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Could not load process: {:?}.", err);
                                 }
