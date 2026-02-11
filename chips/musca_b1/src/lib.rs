@@ -8,14 +8,10 @@
 #![recursion_limit = "256"]
 
 pub mod chip;
-pub mod clocks;
 pub mod gpio;
 pub mod interrupts;
-pub mod resets;
-pub mod ticks;
 pub mod timer;
 pub mod uart;
-pub mod xosc;
 
 use cortexm33::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM33, CortexMVariant};
 
@@ -53,59 +49,104 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); 52] = [
-    CortexM33::GENERIC_ISR, // TIMER0 0 (0)
-    CortexM33::GENERIC_ISR, // TIMER0 1 (1)
-    CortexM33::GENERIC_ISR, // TIMER0 2 (2)
-    CortexM33::GENERIC_ISR, // TIMER0 3 (3)
-    CortexM33::GENERIC_ISR, // TIMER1 0 (4)
-    CortexM33::GENERIC_ISR, // TIMER1 1 (5)
-    CortexM33::GENERIC_ISR, // TIMER1 2 (6)
-    CortexM33::GENERIC_ISR, // TIMER1 3 (7)
-    CortexM33::GENERIC_ISR, // PWM_IRQ_WRAP 0 (8)
-    CortexM33::GENERIC_ISR, // PWM_IRQ_WRAP 1 (9)
-    CortexM33::GENERIC_ISR, // DMA 0 (10)
-    CortexM33::GENERIC_ISR, // DMA 1 (11)
-    CortexM33::GENERIC_ISR, // DMA 2 (12)
-    CortexM33::GENERIC_ISR, // DMA 3 (13)
-    CortexM33::GENERIC_ISR, // USB (14)
-    CortexM33::GENERIC_ISR, // PIO0 0 (15)
-    CortexM33::GENERIC_ISR, // PIO0 1 (16)
-    CortexM33::GENERIC_ISR, // PIO1 0 (17)
-    CortexM33::GENERIC_ISR, // PIO1 1 (18)
-    CortexM33::GENERIC_ISR, // PIO2 0 (19)
-    CortexM33::GENERIC_ISR, // PIO2 1 (20)
-    CortexM33::GENERIC_ISR, // IO_IRQ_BANK 0 (21)
-    CortexM33::GENERIC_ISR, // IO_IRQ_BANK 0 NS (22)
-    CortexM33::GENERIC_ISR, // IO_IRQ_QSPI (23)
-    CortexM33::GENERIC_ISR, // IO_IRQ_QSPI_NS (24)
-    CortexM33::GENERIC_ISR, // SIO_IRQ_FIFO (25)
-    CortexM33::GENERIC_ISR, // SIO_IRQ_BELL (26)
-    CortexM33::GENERIC_ISR, // SIO_IRQ_FIFO_NS (27)
-    CortexM33::GENERIC_ISR, // SIO_IRQ_BELL_NS (28)
-    CortexM33::GENERIC_ISR, // SIO_IRQ_MTIMECMP (29)
-    CortexM33::GENERIC_ISR, // CLOCKS (30)
-    CortexM33::GENERIC_ISR, // SPI 0 (31)
-    CortexM33::GENERIC_ISR, // SPI 1 (32)
-    CortexM33::GENERIC_ISR, // UART 0 (33)
-    CortexM33::GENERIC_ISR, // UART 1 (34)
-    CortexM33::GENERIC_ISR, // ADC_IRQ_FIFO (35)
-    CortexM33::GENERIC_ISR, // I2C 0 (36)
-    CortexM33::GENERIC_ISR, // I2C 1 (37)
-    CortexM33::GENERIC_ISR, // OTP (38)
-    CortexM33::GENERIC_ISR, // TRNG (39)
-    CortexM33::GENERIC_ISR, // PROC 0 (40)
-    CortexM33::GENERIC_ISR, // PROC 1 (41)
-    CortexM33::GENERIC_ISR, // PLL_SYS (42)
-    CortexM33::GENERIC_ISR, // PLL_USB (43)
-    CortexM33::GENERIC_ISR, // POWMAN_IRQ_POW (44)
-    CortexM33::GENERIC_ISR, // POWMAN_IRQ_TIMER (45)
-    unhandled_interrupt,    // (46)
-    unhandled_interrupt,    // (47)
-    unhandled_interrupt,    // (48)
-    unhandled_interrupt,    // (49)
-    unhandled_interrupt,    // (50)
-    unhandled_interrupt,    // (51)
+pub static IRQS: [unsafe extern "C" fn(); 97] = [
+    CortexM33::GENERIC_ISR, // NON_SECURE_WATCHDOG_RESET (0)
+    CortexM33::GENERIC_ISR, // NON_SECURE_WATCHDOG_INT (1)
+    CortexM33::GENERIC_ISR, // S32K_TIMER (2)
+    CortexM33::GENERIC_ISR, // TIMER_0 (3)
+    CortexM33::GENERIC_ISR, // TIMER_1 (4)
+    CortexM33::GENERIC_ISR, // DUAL_TIMER (5)
+    CortexM33::GENERIC_ISR, // MHU0_CPU_INT (6)
+    CortexM33::GENERIC_ISR, // MHU1_CPU_INT (7)
+    unhandled_interrupt,    // Reserved (8)
+    CortexM33::GENERIC_ISR, // MPC_COMBINED (9)
+    CortexM33::GENERIC_ISR, // PPC_COMBINED (10)
+    CortexM33::GENERIC_ISR, // MSC_COMBINED (11)
+    CortexM33::GENERIC_ISR, // BRIDGE_ERROR (12)
+    CortexM33::GENERIC_ISR, // CPU0_ICACHE_INVALIDATION (13)
+    unhandled_interrupt,    // Reserved (14)
+    CortexM33::GENERIC_ISR, // SYS_PPU (15)
+    CortexM33::GENERIC_ISR, // CPU0_PPU (16)
+    CortexM33::GENERIC_ISR, // CPU1_PPU (17)
+    CortexM33::GENERIC_ISR, // CPU0_DBG_PPU (18)
+    CortexM33::GENERIC_ISR, // CPU1_DBG_PPU (19)
+    unhandled_interrupt,    // Reserved (20)
+    unhandled_interrupt,    // Reserved (21)
+    CortexM33::GENERIC_ISR, // RAM0_PPU (22)
+    CortexM33::GENERIC_ISR, // RAM1_PPU (23)
+    CortexM33::GENERIC_ISR, // RAM2_PPU (24)
+    CortexM33::GENERIC_ISR, // RAM3_PPU (25)
+    CortexM33::GENERIC_ISR, // DBG_PPU (26)
+    unhandled_interrupt,    // Reserved (27)
+    CortexM33::GENERIC_ISR, // CPU_CTI_IRQ0 (28)
+    CortexM33::GENERIC_ISR, // CPU_CTI_IRQ1 (29)
+    unhandled_interrupt,    // Reserved (30)
+    unhandled_interrupt,    // Reserved (31)
+    unhandled_interrupt,    // Reserved (32)
+    CortexM33::GENERIC_ISR, // GP_TIMER_COMBINED (33)
+    CortexM33::GENERIC_ISR, // I2C0 (34)
+    CortexM33::GENERIC_ISR, // I2C1 (35)
+    CortexM33::GENERIC_ISR, // I2S (36)
+    CortexM33::GENERIC_ISR, // SPI (37)
+    CortexM33::GENERIC_ISR, // QSPI (38)
+    CortexM33::GENERIC_ISR, // UART0_RX (39)
+    CortexM33::GENERIC_ISR, // UART0_TX (40)
+    CortexM33::GENERIC_ISR, // UART0_RT (41)
+    CortexM33::GENERIC_ISR, // UART0_MS (42)
+    CortexM33::GENERIC_ISR, // UART0_E (43)
+    CortexM33::GENERIC_ISR, // UART0_COMBINED (44)
+    CortexM33::GENERIC_ISR, // UART1_RX (45)
+    CortexM33::GENERIC_ISR, // UART1_TX (46)
+    CortexM33::GENERIC_ISR, // UART1_RT (47)
+    CortexM33::GENERIC_ISR, // UART1_MS (48)
+    CortexM33::GENERIC_ISR, // UART1_E (49)
+    CortexM33::GENERIC_ISR, // UART1_COMBINED (50)
+    CortexM33::GENERIC_ISR, // GPIO_0 (51)
+    CortexM33::GENERIC_ISR, // GPIO_1 (52)
+    CortexM33::GENERIC_ISR, // GPIO_2 (53)
+    CortexM33::GENERIC_ISR, // GPIO_3 (54)
+    CortexM33::GENERIC_ISR, // GPIO_4 (55)
+    CortexM33::GENERIC_ISR, // GPIO_5 (56)
+    CortexM33::GENERIC_ISR, // GPIO_6 (57)
+    CortexM33::GENERIC_ISR, // GPIO_7 (58)
+    CortexM33::GENERIC_ISR, // GPIO_8 (59)
+    CortexM33::GENERIC_ISR, // GPIO_9 (60)
+    CortexM33::GENERIC_ISR, // GPIO_10 (61)
+    CortexM33::GENERIC_ISR, // GPIO_11 (62)
+    CortexM33::GENERIC_ISR, // GPIO_12 (63)
+    CortexM33::GENERIC_ISR, // GPIO_13 (64)
+    CortexM33::GENERIC_ISR, // GPIO_14 (65)
+    CortexM33::GENERIC_ISR, // GPIO_15 (66)
+    CortexM33::GENERIC_ISR, // GPIO_COMBINED (67)
+    CortexM33::GENERIC_ISR, // PVT_SENSOR (68)
+    unhandled_interrupt,    // Reserved (69)
+    CortexM33::GENERIC_ISR, // PWM0 (70)
+    CortexM33::GENERIC_ISR, // RTC (71)
+    CortexM33::GENERIC_ISR, // GP_TIMER_INT1 (72)
+    CortexM33::GENERIC_ISR, // GP_TIMER_INT0 (73)
+    CortexM33::GENERIC_ISR, // PWM1 (74)
+    CortexM33::GENERIC_ISR, // PWM2 (75)
+    CortexM33::GENERIC_ISR, // GPIO_COMBINED_NONSEC (76)
+    CortexM33::GENERIC_ISR, // SDIO (77)
+    unhandled_interrupt,    // Reserved (78)
+    unhandled_interrupt,    // Reserved (79)
+    unhandled_interrupt,    // Reserved (80)
+    unhandled_interrupt,    // Reserved (81)
+    unhandled_interrupt,    // Reserved (82)
+    unhandled_interrupt,    // Reserved (83)
+    CortexM33::GENERIC_ISR, // CRYPTO_RESET_STATUS (84)
+    CortexM33::GENERIC_ISR, // HOSTMHUS0_ACCESS_NR2R (85)
+    CortexM33::GENERIC_ISR, // HOSTMHUS0_ACCESS_R2NR (86)
+    CortexM33::GENERIC_ISR, // HOSTMHUR0 (87)
+    CortexM33::GENERIC_ISR, // HOSTMHUR0 (88)
+    CortexM33::GENERIC_ISR, // HOSTMHUR0_COMBINED (89)
+    CortexM33::GENERIC_ISR, // HOSTMHUS1_ACCESS_NR2R (90)
+    CortexM33::GENERIC_ISR, // HOSTMHUS1_ACCESS_R2NR (91)
+    CortexM33::GENERIC_ISR, // HOSTMHUR1 (92)
+    CortexM33::GENERIC_ISR, // HOSTMHUR1 (93)
+    CortexM33::GENERIC_ISR, // HOSTMHUR1_COMBINED (94)
+    CortexM33::GENERIC_ISR, // FLASH0 (95)
+    CortexM33::GENERIC_ISR, // FLASH1 (96)
 ];
 
 extern "C" {
@@ -119,13 +160,4 @@ extern "C" {
 pub unsafe fn init() {
     cortexm33::nvic::disable_all();
     cortexm33::nvic::clear_all_pending();
-    let sio = gpio::SIO::new();
-    let processor = sio.get_processor();
-    match processor {
-        chip::Processor::Processor0 => {}
-        _ => panic!(
-            "Kernel should run only using processor 0 (now processor {})",
-            processor as u8
-        ),
-    }
 }

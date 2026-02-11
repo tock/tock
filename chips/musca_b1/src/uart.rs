@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
+// https://documentation-service.arm.com/static/5e8e36c2fd977155116a90b5
+
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
@@ -14,8 +16,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-
-use crate::clocks;
 
 register_structs! {
 
@@ -346,9 +346,13 @@ const UART0_BASE: StaticRef<UartRegisters> =
 const UART1_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40078000 as *const UartRegisters) };
 
+pub trait Clock {
+    fn get_frequency(&self) -> u32;
+}
+
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
-    clocks: OptionalCell<&'a clocks::Clocks>,
+    clock: OptionalCell<&'a dyn Clock>,
 
     tx_client: OptionalCell<&'a dyn TransmitClient>,
     rx_client: OptionalCell<&'a dyn ReceiveClient>,
@@ -370,7 +374,7 @@ impl<'a> Uart<'a> {
     pub fn new_uart0() -> Self {
         Self {
             registers: UART0_BASE,
-            clocks: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
@@ -391,7 +395,7 @@ impl<'a> Uart<'a> {
     pub fn new_uart1() -> Self {
         Self {
             registers: UART1_BASE,
-            clocks: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
@@ -409,8 +413,8 @@ impl<'a> Uart<'a> {
         }
     }
 
-    pub(crate) fn set_clocks(&self, clocks: &'a clocks::Clocks) {
-        self.clocks.set(clocks);
+    pub(crate) fn set_clock(&self, clock: &'a impl Clock) {
+        self.clock.set(clock);
     }
 
     pub fn enable(&self) {
@@ -529,9 +533,9 @@ impl<'a> Uart<'a> {
         self.disable();
         self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
 
-        let clk = self.clocks.map_or(125_000_000, |clocks| {
-            clocks.get_frequency(clocks::Clock::Peripheral)
-        });
+        let clk = self
+            .clock
+            .map_or(125_000_000, |clock| clock.get_frequency());
 
         // Calculate baud rate
         let baud_rate_div = 8 * clk / params.baud_rate;
@@ -648,9 +652,9 @@ impl Configure for Uart<'_> {
         self.disable();
         self.registers.uartlcr_h.modify(UARTLCR_H::FEN::CLEAR);
 
-        let clk = self.clocks.map_or(125_000_000, |clocks| {
-            clocks.get_frequency(clocks::Clock::Peripheral)
-        });
+        let clk = self
+            .clock
+            .map_or(125_000_000, |clock| clock.get_frequency());
 
         // Calculate baud rate
         let baud_rate_div = 8 * clk / params.baud_rate;
