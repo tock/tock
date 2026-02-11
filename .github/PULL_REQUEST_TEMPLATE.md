@@ -20,3 +20,9 @@ This pull request still needs...
 ### Formatting
 
 - [ ] Ran `make prepush`.
+
+### AI Use
+
+- [ ] The PR description details my use of AI in the production of the
+      code in this PR, if any, and I have manually checked and
+      personally certify the entire contents of this PR.
