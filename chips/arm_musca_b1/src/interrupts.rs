@@ -1,0 +1,56 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright OxidOS Automotive 2025.
+
+pub const TIMER0_IRQ_0: u32 = 0;
+pub const TIMER0_IRQ_1: u32 = 1;
+pub const TIMER0_IRQ_2: u32 = 2;
+pub const TIMER0_IRQ_3: u32 = 3;
+pub const TIMER1_IRQ_0: u32 = 4;
+pub const TIMER1_IRQ_1: u32 = 5;
+pub const TIMER1_IRQ_2: u32 = 6;
+pub const TIMER1_IRQ_3: u32 = 7;
+pub const PWM_IRQ_WRAP_0: u32 = 8;
+pub const PWM_IRQ_WRAP_1: u32 = 9;
+pub const DMA_IRQ_0: u32 = 10;
+pub const DMA_IRQ_1: u32 = 11;
+pub const DMA_IRQ_2: u32 = 12;
+pub const DMA_IRQ_3: u32 = 13;
+pub const USBCTRL_IRQ: u32 = 14;
+pub const PIO0_IRQ_0: u32 = 15;
+pub const PIO0_IRQ_1: u32 = 16;
+pub const PIO1_IRQ_0: u32 = 17;
+pub const PIO1_IRQ_1: u32 = 18;
+pub const PIO2_IRQ_0: u32 = 19;
+pub const PIO2_IRQ_1: u32 = 20;
+pub const IO_IRQ_BANK0: u32 = 21;
+pub const IO_IRQ_BANK0_NS: u32 = 22;
+pub const IO_IRQ_QSPI: u32 = 23;
+pub const IO_IRQ_QSPI_NS: u32 = 24;
+pub const SIO_IRQ_FIFO: u32 = 25;
+pub const SIO_IRQ_BELL: u32 = 26;
+pub const SIO_IRQ_FIFO_NS: u32 = 27;
+pub const SIO_IRQ_BELL_NS: u32 = 28;
+pub const SIO_IRQ_MTIMECMP: u32 = 29;
+pub const CLOCKS_IRQ: u32 = 30;
+pub const SPI0_IRQ: u32 = 31;
+pub const SPI1_IRQ: u32 = 32;
+pub const UART0_IRQ: u32 = 33;
+pub const UART1_IRQ: u32 = 34;
+pub const ADC_IRQ_FIFO: u32 = 35;
+pub const I2C0_IRQ: u32 = 36;
+pub const I2C1_IRQ: u32 = 37;
+pub const OTP_IRQ: u32 = 38;
+pub const TRNG_IRQ: u32 = 39;
+pub const PROC0_IRQ_CTI: u32 = 40;
+pub const PROC1_IRQ_CTI: u32 = 41;
+pub const PLL_SYS_IRQ: u32 = 42;
+pub const PLL_USB_IRQ: u32 = 43;
+pub const POWMAN_IRQ_POW: u32 = 44;
+pub const POWMAN_IRQ_TIMER: u32 = 45;
+pub const SPAREIRQ_IRQ_0: u32 = 46;
+pub const SPAREIRQ_IRQ_1: u32 = 47;
+pub const SPAREIRQ_IRQ_2: u32 = 48;
+pub const SPAREIRQ_IRQ_3: u32 = 49;
+pub const SPAREIRQ_IRQ_4: u32 = 50;
+pub const SPAREIRQ_IRQ_5: u32 = 51;
