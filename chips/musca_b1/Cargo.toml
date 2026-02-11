@@ -3,7 +3,7 @@
 # Copyright Tock Contributors 2025.
 
 [package]
-name = "rp2350"
+name = "musca_b1"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

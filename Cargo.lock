@@ -752,6 +752,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "musca_b1"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+]
+
+[[package]]
 name = "nano33ble"
 version = "0.2.3-dev"
 dependencies = [

@@ -8,14 +8,9 @@ use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-use crate::clocks::Clocks;
-use crate::gpio::{RPPins, SIO};
 use crate::interrupts;
-use crate::resets::Resets;
-use crate::ticks::Ticks;
-use crate::timer::RPTimer;
+use crate::timer::CMSDKTimer;
 use crate::uart::Uart;
-use crate::xosc::Xosc;
 use cortexm33::{interrupt_mask, CortexM33, CortexMVariant};
 
 #[repr(u8)]
@@ -28,20 +23,14 @@ pub struct Rp2350<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
     userspace_kernel_boundary: cortexm33::syscall::SysCall,
     interrupt_service: &'a I,
-    sio: &'a SIO,
-    processor0_interrupt_mask: (u128, u128),
-    processor1_interrupt_mask: (u128, u128),
 }
 
 impl<'a, I: InterruptService> Rp2350<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
+    pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm33::mpu::new(),
             userspace_kernel_boundary: cortexm33::syscall::SysCall::new(),
             interrupt_service,
-            sio,
-            processor0_interrupt_mask: interrupt_mask!(interrupts::PROC1_IRQ_CTI),
-            processor1_interrupt_mask: interrupt_mask!(interrupts::PROC0_IRQ_CTI),
         }
     }
 }
@@ -53,17 +42,7 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
-            let mask = match self.sio.get_processor() {
-                Processor::Processor0 => self.processor0_interrupt_mask,
-                Processor::Processor1 => self.processor1_interrupt_mask,
-            };
-            while let Some(interrupt) = cortexm33::nvic::next_pending_with_mask(mask) {
-                // ignore PROC1_IRQ_CTI as it is intended for processor 1
-                // not able to unset its pending status
-                // probably only processor 1 can unset the pending by reading the fifo
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
+            while let Some(interrupt) = cortexm33::nvic::next_pending() {
                 let n = cortexm33::nvic::Nvic::new(interrupt);
                 n.clear_pending();
                 n.enable();
@@ -72,11 +51,7 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        let mask = match self.sio.get_processor() {
-            Processor::Processor0 => self.processor0_interrupt_mask,
-            Processor::Processor1 => self.processor1_interrupt_mask,
-        };
-        unsafe { cortexm33::nvic::has_pending_with_mask(mask) }
+        unsafe { cortexm33::nvic::has_pending() }
     }
 
     fn mpu(&self) -> &Self::MPU {
@@ -106,36 +81,25 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
 }
 
 pub struct Rp2350DefaultPeripherals<'a> {
-    pub clocks: Clocks,
-    pub pins: RPPins<'a>,
-    pub resets: Resets,
-    pub sio: SIO,
-    pub ticks: Ticks,
-    pub timer0: RPTimer<'a>,
+    pub timer0: CMSDKTimer<'a>,
     pub uart0: Uart<'a>,
     pub uart1: Uart<'a>,
-    pub xosc: Xosc,
 }
 
 impl Rp2350DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
-            clocks: Clocks::new(),
-            pins: RPPins::new(),
-            resets: Resets::new(),
-            sio: SIO::new(),
-            ticks: Ticks::new(),
-            timer0: RPTimer::new_timer0(),
+            timer0: CMSDKTimer::new_timer0_sec(),
             uart0: Uart::new_uart0(),
             uart1: Uart::new_uart1(),
-            xosc: Xosc::new(),
         }
     }
 
     pub fn resolve_dependencies(&'static self) {
-        self.uart0.set_clocks(&self.clocks);
-        self.ticks.set_timer0_generator();
-        self.ticks.set_timer1_generator();
+        // todo
+        // self.uart0.set_clocks(&self.clocks);
+        // self.ticks.set_timer0_generator();
+        // self.ticks.set_timer1_generator();
         kernel::deferred_call::DeferredCallClient::register(&self.uart0);
         kernel::deferred_call::DeferredCallClient::register(&self.uart1);
     }
@@ -144,15 +108,11 @@ impl Rp2350DefaultPeripherals<'_> {
 impl InterruptService for Rp2350DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::TIMER0_IRQ_0 => {
+            interrupts::TIMER_0 => {
                 self.timer0.handle_interrupt();
                 true
             }
-            interrupts::SIO_IRQ_FIFO => {
-                self.sio.handle_proc_interrupt(self.sio.get_processor());
-                true
-            }
-            interrupts::UART0_IRQ => {
+            interrupts::UART0_COMBINED => {
                 self.uart0.handle_interrupt();
                 true
             }

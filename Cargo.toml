@@ -92,6 +92,7 @@ members = [
     "chips/litex_vexriscv",
     "chips/lowrisc",
     "chips/msp432",
+    "chips/musca_b1",
     "chips/nrf52",
     "chips/nrf52832",
     "chips/nrf52833",
