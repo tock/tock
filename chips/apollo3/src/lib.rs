@@ -21,7 +21,7 @@ pub mod pwrctrl;
 pub mod stimer;
 pub mod uart;
 
-use cortexm4f::{initialize_ram_jump_to_main, scb, unhandled_interrupt, CortexM4F, CortexMVariant};
+use cortexm4f::{_start, scb, unhandled_interrupt, CortexM4F, CortexMVariant};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -37,7 +37,7 @@ extern "C" {
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
-    initialize_ram_jump_to_main,
+    _start,
     unhandled_interrupt,           // NMI
     CortexM4F::HARD_FAULT_HANDLER, // Hard Fault
     unhandled_interrupt,           // MemManage
