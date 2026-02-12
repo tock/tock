@@ -6,9 +6,9 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
+use kernel::utilities::io_write::IoWrite;
 
 struct Writer {
     initialized: bool,
@@ -70,7 +70,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let red_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA13);
     let led_red = &mut led::LedLow::new(&red_pin);
     let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic(
+    debug::panic_old(
         &mut [led_red],
         writer,
         pi,

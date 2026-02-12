@@ -6,7 +6,7 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
 use kernel::debug;
-use kernel::debug::IoWrite;
+use kernel::utilities::io_write::IoWrite;
 
 struct Writer {}
 
@@ -37,7 +37,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_print(
+    debug::panic_print_old(
         writer,
         pi,
         &rv32i::support::nop,
@@ -56,7 +56,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_print(
+    debug::panic_print_old(
         writer,
         pi,
         &rv32i::support::nop,

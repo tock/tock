@@ -14,10 +14,12 @@ use core::cell::Cell;
 use core::cmp::min;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+use nrf5x::gpio::Pin;
 use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
@@ -198,16 +200,24 @@ impl<'a> Uarte<'a> {
         }
     }
 
-    /// Configure which pins the UART should use for txd, rxd, cts and rts
-    pub fn initialize(
-        &self,
-        txd: pinmux::Pinmux,
-        rxd: pinmux::Pinmux,
-        cts: Option<pinmux::Pinmux>,
-        rts: Option<pinmux::Pinmux>,
-    ) {
-        self.registers.pseltxd.write(Psel::PIN.val(txd.into()));
-        self.registers.pselrxd.write(Psel::PIN.val(rxd.into()));
+    fn initialize_inner(&self, txd: Pin, rxd: Pin, cts: Option<Pin>, rts: Option<Pin>) {
+        self.disable_uart();
+
+        // Stop any ongoing TX or RX DMA transmissions
+        self.registers.task_stoptx.write(Task::ENABLE::SET);
+        self.registers.task_stoprx.write(Task::ENABLE::SET);
+
+        // Make sure we clear the endtx and endrx interrupts since
+        // that is what we rely on to know when the DMA TX
+        // finishes. Normally, we clear this interrupt as we handle
+        // it, so this is not necessary. However, a bootloader (or
+        // some other startup code) may have setup TX interrupts, and
+        // there may be one pending. We clear it to be safe.
+        self.registers.event_endtx.write(Event::READY::CLEAR);
+        self.registers.event_endrx.write(Event::READY::CLEAR);
+
+        self.registers.pseltxd.write(Psel::PIN.val(txd as _));
+        self.registers.pselrxd.write(Psel::PIN.val(rxd as _));
         cts.map_or_else(
             || {
                 // If no CTS pin is provided, then we need to mark it as
@@ -215,7 +225,7 @@ impl<'a> Uarte<'a> {
                 self.registers.pselcts.write(Psel::CONNECT::SET);
             },
             |c| {
-                self.registers.pselcts.write(Psel::PIN.val(c.into()));
+                self.registers.pselcts.write(Psel::PIN.val(c as _));
             },
         );
         rts.map_or_else(
@@ -225,18 +235,27 @@ impl<'a> Uarte<'a> {
                 self.registers.pselrts.write(Psel::CONNECT::SET);
             },
             |r| {
-                self.registers.pselrts.write(Psel::PIN.val(r.into()));
+                self.registers.pselrts.write(Psel::PIN.val(r as _));
             },
         );
 
-        // Make sure we clear the endtx interrupt since that is what we rely on
-        // to know when the DMA TX finishes. Normally, we clear this interrupt
-        // as we handle it, so this is not necessary. However, a bootloader (or
-        // some other startup code) may have setup TX interrupts, and there may
-        // be one pending. We clear it to be safe.
-        self.registers.event_endtx.write(Event::READY::CLEAR);
-
         self.enable_uart();
+    }
+
+    /// Configure which pins the UART should use for txd, rxd, cts and rts
+    pub fn initialize(
+        &self,
+        txd: pinmux::Pinmux,
+        rxd: pinmux::Pinmux,
+        cts: Option<pinmux::Pinmux>,
+        rts: Option<pinmux::Pinmux>,
+    ) {
+        self.initialize_inner(
+            txd.into(),
+            rxd.into(),
+            cts.map(Into::into),
+            rts.map(Into::into),
+        )
     }
 
     // The datasheet gives a non-exhaustive list of example settings for
@@ -543,6 +562,68 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
             self.registers.task_stoprx.write(Task::ENABLE::SET);
             Err(ErrorCode::BUSY)
         }
+    }
+}
+
+/// A synchronous writer for the nRF52 useful for panics.
+///
+/// For boards that want to use the UART to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+struct UartPanicWriter<'a> {
+    inner: Uarte<'a>,
+}
+
+impl IoWrite for UartPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        for &c in buf {
+            unsafe {
+                self.inner.send_byte(c);
+            }
+            while !self.inner.tx_ready() {}
+        }
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for the synchronous UART panic writer.
+///
+/// This captures everything needed to setup the UART for panic display, even
+/// if the normal kernel had initialized it differently.
+pub struct UartPanicWriterConfig {
+    pub params: uart::Parameters,
+    pub txd: Pin,
+    pub rxd: Pin,
+    pub cts: Option<Pin>,
+    pub rts: Option<Pin>,
+}
+
+impl kernel::platform::chip::PanicWriter for Uarte<'_> {
+    type Config = UartPanicWriterConfig;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite {
+        use uart::Configure as _;
+
+        let inner = Uarte::new(UARTE0_BASE);
+        inner.initialize(
+            pinmux::Pinmux::from_pin(config.txd),
+            pinmux::Pinmux::from_pin(config.rxd),
+            config.cts.map(|c| unsafe { pinmux::Pinmux::from_pin(c) }),
+            config.rts.map(|r| unsafe { pinmux::Pinmux::from_pin(r) }),
+        );
+        let _ = inner.configure(config.params);
+        UartPanicWriter { inner }
     }
 }
 

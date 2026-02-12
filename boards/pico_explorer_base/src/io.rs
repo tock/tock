@@ -5,10 +5,11 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
-use kernel::debug::{self, IoWrite};
+use kernel::debug;
 use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::io_write::IoWrite;
 
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::uart::Uart;
@@ -91,7 +92,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = &mut LedHigh::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         pi,

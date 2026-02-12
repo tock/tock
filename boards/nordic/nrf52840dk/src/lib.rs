@@ -82,6 +82,7 @@ use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::utilities::cells::MapCell;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -129,10 +130,11 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compres
 /// Debug Writer
 pub mod io;
 
-// Whether to use UART debugging or Segger RTT (USB) debugging.
-// - Set to false to use UART.
-// - Set to true to use Segger RTT over USB.
-const USB_DEBUGGING: bool = false;
+/// Whether to use UART debugging or Segger RTT (USB) debugging.
+///
+/// - Set to false to use UART.
+/// - Set to true to use Segger RTT over USB.
+pub const USB_DEBUGGING: bool = false;
 
 /// This platform's chip type:
 pub type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
@@ -147,6 +149,10 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
     SingleThreadValue::new(PanicResources::new());
+
+/// In-memory buffer used for the Segger Real Time Transfer (RTT) mechanism.
+static RTT_BUFFER: SingleThreadValue<MapCell<&'static segger::rtt::SeggerRttMemory<'static>>> =
+    SingleThreadValue::new(MapCell::empty());
 
 kernel::stack_size! {0x2000}
 
@@ -416,6 +422,8 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Bind global variables to this thread.
     PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    RTT_BUFFER.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let ieee802154_ack_buf = static_init!(
@@ -455,11 +463,9 @@ pub unsafe fn start_no_pconsole() -> (
         let rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
             .finalize(components::segger_rtt_memory_component_static!());
 
-        // XXX: This is inherently unsafe as it aliases the mutable reference to
-        // rtt_memory. This aliases reference is only used inside a panic
-        // handler, which should be OK, but maybe we should use a const
-        // reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&*core::ptr::from_mut(rtt_memory_refs.rtt_memory));
+        RTT_BUFFER.get().map(|rtt_buffer_cell| {
+            rtt_buffer_cell.replace(*core::ptr::addr_of!(rtt_memory_refs.rtt_memory))
+        });
 
         UartChannel::Rtt(rtt_memory_refs)
     } else {

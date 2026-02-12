@@ -20,13 +20,13 @@ use core::mem::MaybeUninit;
 use x86::registers::io;
 
 use kernel::component::Component;
-use kernel::debug::IoWrite;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{
     Configure, Error, Parameters, Parity, Receive, ReceiveClient, StopBits, Transmit,
     TransmitClient, Width,
 };
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::io_write::IoWrite;
 use kernel::ErrorCode;
 use tock_cells::take_cell::TakeCell;
 use tock_registers::{register_bitfields, LocalRegisterCopy};
