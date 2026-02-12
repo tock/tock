@@ -67,6 +67,8 @@ pub use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull
 /// makes certain capsules possible to implement. For example, capsules can use
 /// the `get_editable_flash_range()` function so they can safely allow an app to
 /// modify its own flash.
+///
+/// Code Tier: Critical
 #[derive(Clone, Copy)]
 pub struct ProcessId {
     /// Reference to the main kernel struct. This is needed for checking on
