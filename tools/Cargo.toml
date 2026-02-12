@@ -13,6 +13,7 @@ members = [
     "debugging-and-development/usb/bulk-echo",
     "debugging-and-development/usb/bulk-test",
     "debugging-and-development/usb/control-test",
+    "debugging-and-development/code_tiers",
 ]
 resolver = "2"
 

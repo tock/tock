@@ -1,0 +1,8 @@
+[package]
+name = "code_tiers"
+version = "0.1.0"
+authors.workspace = true
+edition = "2024"
+
+[dependencies]
+syn = { version = "2.0.114", features = ["full", "extra-traits"] }
