@@ -130,3 +130,4 @@ Ns: restart on reset
 Applications are built separately from the main project. After building an application execute:
 ```bash
 tockloader install
+```
