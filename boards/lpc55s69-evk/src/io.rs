@@ -89,6 +89,7 @@ impl Writer {
     fn write_to_uart(&self, uart: &Uart, buf: &[u8]) {
         for &c in buf {
             uart.send_byte(c);
+            while !uart.uart_is_writable() {}
         }
     }
 }
