@@ -34,11 +34,6 @@ PROBE_ID ?= \#1
 # The specific chip identifier (Part Number).
 CHIP=LPC55S69JBD100
 
-# Paths to the userspace application and the kernel binaries
-APP=/home/pc1/Projects/libtock-c/examples/blink/build/cortex-m7/cortex-m7.tbf
-KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM).elf
-KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
-
 # Default target: `make install` triggers the `flash` target (usually maps to `program`)
 .PHONY: install
 install: flash
