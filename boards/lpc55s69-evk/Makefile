@@ -43,11 +43,6 @@ KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.
 .PHONY: install
 install: flash
 
-# Legacy target for compatibility.
-# `flash-debug` is just an alias for `debug`.
-.PHONY: flash-debug
-flash-debug: debug
-
 
 # TARGET: flash
 # Usage: `make flash`
