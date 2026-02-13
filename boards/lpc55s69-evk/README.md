@@ -127,7 +127,6 @@ Ns: restart on reset
 
 ### Flashing app
 
-Applications are built separately from the main project. After building an application, specify its path in the `APP` variable within the Makefile, then execute:
+Applications are built separately from the main project. After building an application execute:
 ```bash
-$ APP=<path_to_tbf> make program
-```
+tockloader install
