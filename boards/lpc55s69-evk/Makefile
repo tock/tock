@@ -49,8 +49,8 @@ install: flash
 flash-debug: debug
 
 
-# TARGET: debug
-# Usage: `make debug`
+# TARGET: flash
+# Usage: `make flash`
 # Builds the debug version of the kernel (handled by ../Makefile.common rules) and flashes it.
 #
 # LinkServer Command Breakdown:
@@ -58,8 +58,8 @@ flash-debug: debug
 #   --probe ""  -> Selects the probe.
 #   load        -> The specific action to write the binary to flash.
 #   "$<"        -> Automatic variable for the prerequisite (the .elf file).
-.PHONY: debug
-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
+.PHONY: flash
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 	$(LINKSERVER) flash --probe "$(PROBE_ID)" $(LS_DEVICE) load "$<"
 
 # TARGET: program
