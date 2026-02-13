@@ -51,12 +51,3 @@ install: flash
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 	$(LINKSERVER) flash --probe "$(PROBE_ID)" $(LS_DEVICE) load "$<"
-
-# TARGET: program
-# Usage: `make program`
-# Builds the release version, merges the userspace app, and flashes the result.
-.PHONY: program
-program: release
-	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
-	$(LINKSERVER) flash --probe "$(PROBE_ID)" $(LS_DEVICE) load "$(KERNEL_WITH_APP)"
