@@ -1,17 +1,52 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright OxidOS Automotive 2025.
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::str;
 
-use kernel::debug;
-use kernel::debug::IoWrite;
+use kernel::debug::{self, IoWrite};
+use kernel::hil::led::LedHigh;
+use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
+use kernel::utilities::cells::OptionalCell;
 
-struct Writer {}
+use musca_b1::uart::Uart;
 
-static mut WRITER: Writer = Writer {};
+/// Writer is used by kernel::debug to panic message to the serial port.
+pub struct Writer {
+    uart: OptionalCell<&'static Uart<'static>>,
+}
+
+impl Writer {
+    pub fn set_uart(&self, uart: &'static Uart) {
+        self.uart.set(uart);
+    }
+
+    fn configure_uart(&self, uart: &Uart) {
+        if !uart.is_configured() {
+            let parameters = Parameters {
+                baud_rate: 115200,
+                width: Width::Eight,
+                parity: Parity::None,
+                stop_bits: StopBits::One,
+                hw_flow_control: false,
+            };
+            //configure parameters of uart for sending bytes
+            let _ = uart.configure(parameters);
+        }
+    }
+
+    fn write_to_uart(&self, uart: &Uart, buf: &[u8]) {
+        for &c in buf {
+            uart.send_byte(c);
+        }
+    }
+}
+
+/// Global static for debug writer
+pub static mut WRITER: Writer = Writer {
+    uart: OptionalCell::empty(),
+};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
@@ -22,31 +57,41 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let uart = qemu_rv32_virt_chip::uart::Uart16550::new(qemu_rv32_virt_chip::uart::UART0_BASE);
-        uart.transmit_sync(buf);
+        self.uart.map_or_else(
+            || {
+                let uart = Uart::new_uart0();
+                self.configure_uart(&uart);
+                self.write_to_uart(&uart, buf);
+            },
+            |uart| {
+                self.configure_uart(uart);
+                self.write_to_uart(uart, buf);
+            },
+        );
         buf.len()
     }
 }
 
-/// Panic handler.
+/// Default panic handler for the Raspberry Pi Pico 2 board.
+///
+/// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    use core::ptr::addr_of_mut;
+    // LED is connected to GPIO 25
 
+    use core::ptr::addr_of_mut;
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_print::<_, _, _>(
-        writer,
-        pi,
-        &rv32i::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+    let _ = writer.write_str("Panic: ");
 
-    // The system is no longer in a well-defined state. Use
-    // semihosting commands to exit QEMU with a return code of 1.
-    rv32i::semihost_command(0x18, 1, 0);
-
-    // To satisfy the ! return type constraints.
+    // todo
     loop {}
+    // debug::panic(
+    //     &mut [led],
+    //     writer,
+    //     pi,
+    //     &cortexm33::support::nop,
+    //     crate::PANIC_RESOURCES.get(),
+    // )
 }

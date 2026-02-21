@@ -3,25 +3,22 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "qemu_cortex_m33"
+name = "qemu_musca_b1"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 build = "../build.rs"
 
-[lib]
-name = "qemu_cortex_m33_lib"
-
 [[bin]]
-name = "qemu_cortex_m33"
+name = "qemu_musca_b1"
 path = "src/main.rs"
 
 [dependencies]
-components = { path = "../components" }
-sifive = { path = "../../chips/sifive" }
-rv32i = { path = "../../arch/rv32i" }
+cortexm33 = { path = "../../arch/cortex-m33" }
 kernel = { path = "../../kernel" }
-qemu_cortex_m33_chip = { path = "../../chips/qemu_cortex_m33_chip" }
+components = { path = "../components" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
+musca_b1 = { path = "../../chips/musca_b1" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }

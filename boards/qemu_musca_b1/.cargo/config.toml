@@ -9,7 +9,7 @@ include = [
 ]
 
 [build]
-target = "riscv32imac-unknown-none-elf"
+target = "thumbv8m.main-none-eabi"
 
 [unstable]
 config-include = true
