@@ -19,13 +19,13 @@ pub enum Processor {
     Processor1 = 1,
 }
 
-pub struct Rp2350<'a, I: InterruptService + 'a> {
+pub struct MuscaB1<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
     userspace_kernel_boundary: cortexm33::syscall::SysCall,
     interrupt_service: &'a I,
 }
 
-impl<'a, I: InterruptService> Rp2350<'a, I> {
+impl<'a, I: InterruptService> MuscaB1<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm33::mpu::new(),
@@ -35,7 +35,7 @@ impl<'a, I: InterruptService> Rp2350<'a, I> {
     }
 }
 
-impl<I: InterruptService> Chip for Rp2350<'_, I> {
+impl<I: InterruptService> Chip for MuscaB1<'_, I> {
     type MPU = cortexm33::mpu::MPU<8>;
     type UserspaceKernelBoundary = cortexm33::syscall::SysCall;
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
@@ -80,13 +80,13 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
     }
 }
 
-pub struct Rp2350DefaultPeripherals<'a> {
+pub struct MuscaB1DefaultPeripherals<'a> {
     pub timer0: CMSDKTimer<'a>,
     pub uart0: Uart<'a>,
     pub uart1: Uart<'a>,
 }
 
-impl Rp2350DefaultPeripherals<'_> {
+impl MuscaB1DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             timer0: CMSDKTimer::new_timer0_sec(),
@@ -96,16 +96,12 @@ impl Rp2350DefaultPeripherals<'_> {
     }
 
     pub fn resolve_dependencies(&'static self) {
-        // todo
-        // self.uart0.set_clocks(&self.clocks);
-        // self.ticks.set_timer0_generator();
-        // self.ticks.set_timer1_generator();
         kernel::deferred_call::DeferredCallClient::register(&self.uart0);
         kernel::deferred_call::DeferredCallClient::register(&self.uart1);
     }
 }
 
-impl InterruptService for Rp2350DefaultPeripherals<'_> {
+impl InterruptService for MuscaB1DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::TIMER_0 => {

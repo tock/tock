@@ -1,116 +1,230 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright OxidOS Automotive 2025.
 
-//! Board file for qemu-system-riscv32 "virt" machine type
+//! Tock kernel for the Raspberry Pi Pico 2.
+//!
+//! It is based on RP2350SoC SoC (Cortex M33).
 
 #![no_std]
-#![no_main]
+// Disable this attribute when documenting, as a workaround for
+// https://github.com/rust-lang/rust/issues/62184.
+#![cfg_attr(not(doc), no_main)]
+#![deny(missing_docs)]
 
-use kernel::capabilities;
+use core::ptr::addr_of_mut;
+
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use components::gpio::GpioComponent;
+use components::led::LedsComponent;
+use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
-use kernel::platform::KernelResources;
-use kernel::platform::SyscallDriverLookup;
-use kernel::{create_capability, debug};
+use kernel::debug::PanicResources;
+use kernel::hil::led::LedHigh;
+use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::syscall::SyscallDriver;
+use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::{capabilities, create_capability, static_init, Kernel};
 
+use musca_b1::chip::{MuscaB1, MuscaB1DefaultPeripherals};
+use musca_b1::timer::CMSDKTimer;
+use musca_b1::uart::Uart;
+#[allow(unused)]
+use musca_b1::BASE_VECTORS;
+
+mod io;
+
+/// Allocate memory for the stack
+//
+// When compiling for a macOS host, the `link_section` attribute is elided as
+// it yields the following error: `mach-o section specifier requires a segment
+// and section separated by a comma`.
+#[cfg_attr(not(target_os = "macos"), link_section = ".stack_buffer")]
+#[no_mangle]
+static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
+
+// State for loading and holding applications.
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-type ScreenDriver = capsules_extra::screen::screen::Screen<'static>;
+// Number of concurrent processes this platform supports.
+const NUM_PROCS: usize = 4;
 
-struct Platform {
-    base: qemu_rv32_virt_lib::QemuRv32VirtPlatform,
-    screen: Option<&'static ScreenDriver>,
+type ChipHw = MuscaB1<'static, MuscaB1DefaultPeripherals<'static>>;
+type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
+
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new(PanicResources::new());
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
+/// Supported drivers by the platform
+pub struct MuscaB1Plattform {
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
+    console: &'static capsules_core::console::Console<'static>,
+    scheduler: &'static SchedulerInUse,
+    systick: cortexm33::systick::SysTick,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, CMSDKTimer<'static>>,
+    >,
 }
 
-impl SyscallDriverLookup for Platform {
+impl SyscallDriverLookup for MuscaB1Plattform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
-        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
+        F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules_extra::screen::screen::DRIVER_NUM => {
-                if let Some(screen_driver) = self.screen {
-                    f(Some(screen_driver))
-                } else {
-                    f(None)
-                }
-            }
-
-            _ => self.base.with_driver(driver_num, f),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            _ => f(None),
         }
     }
 }
 
-impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
+impl KernelResources<MuscaB1<'static, MuscaB1DefaultPeripherals<'static>>> for MuscaB1Plattform {
     type SyscallDriverLookup = Self;
-    type SyscallFilter = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::ChipHw,
-    >>::SyscallFilter;
-    type ProcessFault = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::ChipHw,
-    >>::ProcessFault;
-    type Scheduler = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::ChipHw,
-    >>::Scheduler;
-    type SchedulerTimer = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::ChipHw,
-    >>::SchedulerTimer;
-    type WatchDog = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::ChipHw,
-    >>::WatchDog;
-    type ContextSwitchCallback = <qemu_rv32_virt_lib::QemuRv32VirtPlatform as KernelResources<
-        qemu_rv32_virt_lib::ChipHw,
-    >>::ContextSwitchCallback;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = SchedulerInUse;
+    type SchedulerTimer = cortexm33::systick::SysTick;
+    type WatchDog = ();
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
-        self.base.syscall_filter()
+        &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        self.base.process_fault()
+        &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
-        self.base.scheduler()
+        self.scheduler
     }
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        self.base.scheduler_timer()
+        &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
-        self.base.watchdog()
+        &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
-        self.base.context_switch_callback()
+        &()
     }
+}
+
+unsafe fn get_peripherals() -> &'static mut MuscaB1DefaultPeripherals<'static> {
+    static_init!(MuscaB1DefaultPeripherals, MuscaB1DefaultPeripherals::new())
 }
 
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    musca_b1::init();
 
-    let (board_kernel, base_platform, chip) = qemu_rv32_virt_lib::start();
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
 
-    let screen = base_platform.virtio_gpu_screen.map(|screen| {
-        components::screen::ScreenComponent::new(
-            board_kernel,
-            capsules_extra::screen::screen::DRIVER_NUM,
-            screen,
-            None,
-        )
-        .finalize(components::screen_component_static!(1032))
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
+    let peripherals = get_peripherals();
+    peripherals.resolve_dependencies();
+
+    // Set the UART used for panic
+    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
+
+    let chip = static_init!(
+        MuscaB1<MuscaB1DefaultPeripherals>,
+        MuscaB1::new(peripherals)
+    );
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
     });
 
-    let platform = Platform {
-        base: base_platform,
-        screen,
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
+
+    let board_kernel = static_init!(Kernel, Kernel::new(processes.as_slice()));
+
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer0)
+        .finalize(components::alarm_mux_component_static!(CMSDKTimer));
+
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules_core::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_static!(CMSDKTimer));
+
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+        .finalize(components::uart_mux_component_static!());
+
+    // Setup the console.
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules_core::console::DRIVER_NUM,
+        uart_mux,
+    )
+    .finalize(components::console_component_static!());
+
+    // Create the debugger object that handles calls to `debug!()`.
+    components::debug_writer::DebugWriterComponent::new::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
+
+    // PROCESS CONSOLE
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
+
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        Some(cortexm33::support::reset),
+    )
+    .finalize(components::process_console_component_static!(CMSDKTimer));
+    let _ = process_console.start();
+
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
+
+    let musca_b1_platform = MuscaB1Plattform {
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_capability,
+        ),
+        console,
+        alarm,
+        scheduler,
+        systick: cortexm33::systick::SysTick::new_with_calibration(125_000_000),
     };
 
-    // Start the process console:
-    let _ = platform.base.pconsole.start();
+    kernel::debug!("Initialization complete. Enter main loop");
 
     // These symbols are defined in the linker script.
     extern "C" {
@@ -122,20 +236,7 @@ pub unsafe fn main() {
         static mut _sappmem: u8;
         /// End of the RAM region for app memory.
         static _eappmem: u8;
-        /// The start of the kernel text (Included only for kernel PMP)
-        static _stext: u8;
-        /// The end of the kernel text (Included only for kernel PMP)
-        static _etext: u8;
-        /// The start of the kernel / app / storage flash (Included only for kernel PMP)
-        static _sflash: u8;
-        /// The end of the kernel / app / storage flash (Included only for kernel PMP)
-        static _eflash: u8;
-        /// The start of the kernel / app RAM (Included only for kernel PMP)
-        static _ssram: u8;
-        /// The end of the kernel / app RAM (Included only for kernel PMP)
-        static _esram: u8;
     }
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
 
     kernel::process::load_processes(
         board_kernel,
@@ -149,19 +250,19 @@ pub unsafe fn main() {
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &FAULT_RESPONSE,
-        &process_mgmt_cap,
+        &process_management_capability,
     )
     .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
+        kernel::debug!("Error loading processes!");
+        kernel::debug!("{:?}", err);
     });
 
-    debug!("Entering main loop.");
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     board_kernel.kernel_loop(
-        &platform,
+        &musca_b1_platform,
         chip,
-        Some(&platform.base.ipc),
+        Some(&musca_b1_platform.ipc),
         &main_loop_capability,
     );
 }

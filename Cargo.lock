@@ -1299,6 +1299,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "qemu_musca_b1"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+ "musca_b1",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "qemu_rv32_virt"
 version = "0.2.3-dev"
 dependencies = [
