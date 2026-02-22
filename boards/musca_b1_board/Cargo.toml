@@ -3,14 +3,14 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "qemu_musca_b1"
+name = "musca_b1_board"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 build = "../build.rs"
 
 [[bin]]
-name = "qemu_musca_b1"
+name = "musca_b1_board"
 path = "src/main.rs"
 
 [dependencies]

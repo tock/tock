@@ -60,19 +60,20 @@
             "name": "M33-qemu",
             "type": "cortex-debug",
             "request": "launch",
-            "executable": "target/thumbv8m.main-none-eabi/release/qemu_musca_b1",
+            "executable": "target/thumbv8m.main-none-eabi/release/musca_b1_board",
             "symbolFiles": [
                 {
-                    "file": "target/thumbv8m.main-none-eabi/release/qemu_musca_b1"
+                    "file": "target/thumbv8m.main-none-eabi/release/musca_b1_board"
                 }
             ],
-            // "svdFile": "chips/slc22v31a/slc22v31a.svd",
+            // "svdFile": "../Musca_B1.svd",
             "servertype": "external",
             "cwd": "${workspaceFolder}",
             "gdbTarget": "localhost:1234",
             "gdbPath": "arm-none-eabi-gdb",
             "objdumpPath": "arm-none-eabi-objdump",
             "preLaunchCommands": [
+                // somehow gdb/qemu doesn't set the stack pointer correctly
                 "set $sp = 0x30003000",
             ],
         }
