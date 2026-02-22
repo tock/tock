@@ -340,11 +340,17 @@ enum UARTStateRX {
     AbortRequested,
 }
 
-const UART0_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x40070000 as *const UartRegisters) };
+const UART0_BASE_SEC: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x50105000 as *const UartRegisters) };
 
-const UART1_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x40078000 as *const UartRegisters) };
+const UART0_BASE_NSEC: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x40105000 as *const UartRegisters) };
+
+const UART1_BASE_SEC: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x50106000 as *const UartRegisters) };
+
+const UART1_BASE_NSEC: StaticRef<UartRegisters> =
+    unsafe { StaticRef::new(0x40106000 as *const UartRegisters) };
 
 pub trait Clock {
     fn get_frequency(&self) -> u32;
@@ -373,7 +379,7 @@ pub struct Uart<'a> {
 impl<'a> Uart<'a> {
     pub fn new_uart0() -> Self {
         Self {
-            registers: UART0_BASE,
+            registers: UART0_BASE_SEC,
             clock: OptionalCell::empty(),
 
             tx_client: OptionalCell::empty(),
@@ -394,7 +400,7 @@ impl<'a> Uart<'a> {
     }
     pub fn new_uart1() -> Self {
         Self {
-            registers: UART1_BASE,
+            registers: UART1_BASE_SEC,
             clock: OptionalCell::empty(),
 
             tx_client: OptionalCell::empty(),
