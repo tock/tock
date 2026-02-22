@@ -28,6 +28,27 @@
             "configFiles": [
                 "${workspaceRoot}/boards/msp_exp432p401r/openocd.cfg",
             ]
+        },
+        {
+            "showDevDebugOutput": "none",
+            "name": "M33-qemu",
+            "type": "cortex-debug",
+            "request": "launch",
+            "executable": "target/thumbv8m.main-none-eabi/release/qemu_musca_b1",
+            "symbolFiles": [
+                {
+                    "file": "target/thumbv8m.main-none-eabi/release/qemu_musca_b1"
+                }
+            ],
+            // "svdFile": "chips/slc22v31a/slc22v31a.svd",
+            "servertype": "external",
+            "cwd": "${workspaceFolder}",
+            "gdbTarget": "localhost:1234",
+            "gdbPath": "arm-none-eabi-gdb",
+            "objdumpPath": "arm-none-eabi-objdump",
+            "preLaunchCommands": [
+                "set $sp = 0x30003000",
+            ],
         }
     ]
 }
