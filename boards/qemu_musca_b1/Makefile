@@ -37,17 +37,34 @@ run: qemu_musca_b1.bin | install
           " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf"
 	@echo "To exit type C-a x"
 	@echo
-	$(QEMU_BASE_CMDLINE) -bios '$<'
+	$(QEMU_BASE_CMDLINE) -device loader,file=$<,addr=0x10000000
 
 run-elf: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(QEMU_BASE_CMDLINE) -kernel '$<'
 
-gdb-listen: qemu_musca_b1.bin | install
-	$(QEMU_BASE_CMDLINE) -bios '$<' -S -gdb tcp::1234
+gdb-listen: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	$(QEMU_BASE_CMDLINE) -S -gdb tcp::1234
 
-gdb-connect:
+gdb-listen-bin: qemu_musca_b1.bin | install
+	$(QEMU_BASE_CMDLINE) -device loader,file=$<,addr=0x10000000 -S -gdb tcp::1234
+
+gdb-connect: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	arm-none-eabi-gdb \
+	 -ex "directory $(TOCK_ROOT_DIRECTORY)" \
 	 -ex "set architecture armv8-m.main" \
 	 -ex "target remote localhost:1234" \
+	 -ex "set confirm off" \
+	 -ex "file $<"
 
-#	 -ex "file $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf" \
+# somehow sp is not set correctly by gdb/qemu
+gdb-connect-elf: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	arm-none-eabi-gdb -q \
+	 -ex "directory $(TOCK_ROOT_DIRECTORY)" \
+	 -ex "target remote localhost:1234" \
+	 -ex "set confirm off" \
+	 -ex "set architecture armv8-m.main" \
+	 -ex "file $<" \
+	 -ex "load" \
+	 -ex "set \$$sp = 0x30003000" \
+	 -ex "b cortexv7m::hard_fault_handler_arm_v7m" 
+
