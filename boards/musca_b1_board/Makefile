@@ -16,8 +16,8 @@ QEMU_BASE_CMDLINE := \
     -nographic \
     -semihosting
 
-MUSCA_ELF := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-MUSCA_BIN := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+MUSCA_ELF := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
+MUSCA_BIN := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
 QEMU_MUSCA_B1_BIN := qemu_musca_b1.bin
 
 # Set this as the default local board to write apps to with tockloader
