@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
+use cortexm33::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
@@ -140,6 +141,12 @@ impl<'a> Alarm<'a> for CMSDKTimer<'a> {
 
     fn disarm(&self) -> Result<(), ErrorCode> {
         self.registers.ctrl.modify(CTRL::ENABLE::TimerIsDisabled);
+        unsafe {
+            with_interrupts_disabled(|| {
+                // Clear pending interrupts
+                cortexm33::nvic::Nvic::new(3).clear_pending();
+            });
+        }
         self.disable_interrupt0();
         Ok(())
     }

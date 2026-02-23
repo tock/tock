@@ -43,6 +43,8 @@ impl<I: InterruptService> Chip for MuscaB1<'_, I> {
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm33::nvic::next_pending() {
+                let handled = self.interrupt_service.service_interrupt(interrupt);
+                assert!(handled, "Unhandled interrupt number {}", interrupt);
                 let n = cortexm33::nvic::Nvic::new(interrupt);
                 n.clear_pending();
                 n.enable();
@@ -108,7 +110,12 @@ impl InterruptService for MuscaB1DefaultPeripherals<'_> {
                 self.timer0.handle_interrupt();
                 true
             }
-            interrupts::UART0_COMBINED => {
+            interrupts::UART0_RX
+            | interrupts::UART0_TX
+            | interrupts::UART0_RT
+            | interrupts::UART0_MS
+            | interrupts::UART0_E
+            | interrupts::UART0_COMBINED => {
                 self.uart0.handle_interrupt();
                 true
             }

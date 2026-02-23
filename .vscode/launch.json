@@ -60,10 +60,10 @@
             "name": "M33-qemu",
             "type": "cortex-debug",
             "request": "launch",
-            "executable": "target/thumbv8m.main-none-eabi/release/musca_b1_board",
+            "executable": "target/thumbv8m.main-none-eabi/debug/musca_b1_board",
             "symbolFiles": [
                 {
-                    "file": "target/thumbv8m.main-none-eabi/release/musca_b1_board"
+                    "file": "target/thumbv8m.main-none-eabi/debug/musca_b1_board"
                 }
             ],
             // "svdFile": "../Musca_B1.svd",
