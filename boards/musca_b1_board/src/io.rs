@@ -6,7 +6,6 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 
 use kernel::debug::{self, IoWrite};
-use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
 
@@ -59,7 +58,7 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         self.uart.map_or_else(
             || {
-                let uart = Uart::new_uart0();
+                let uart = Uart::new_uart0_sec();
                 self.configure_uart(&uart);
                 self.write_to_uart(&uart, buf);
             },
@@ -72,26 +71,20 @@ impl IoWrite for Writer {
     }
 }
 
-/// Default panic handler for the Raspberry Pi Pico 2 board.
-///
-/// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    // LED is connected to GPIO 25
-
     use core::ptr::addr_of_mut;
     let writer = &mut *addr_of_mut!(WRITER);
 
     let _ = writer.write_str("Panic: ");
 
-    // todo
+    debug::panic_print::<_, _, _>(
+        writer,
+        pi,
+        &cortexm33::support::nop,
+        crate::PANIC_RESOURCES.get(),
+    );
+
     loop {}
-    // debug::panic(
-    //     &mut [led],
-    //     writer,
-    //     pi,
-    //     &cortexm33::support::nop,
-    //     crate::PANIC_RESOURCES.get(),
-    // )
 }

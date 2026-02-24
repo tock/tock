@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-use cortexm33::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -91,12 +90,32 @@ impl<'a> CMSDKTimer<'a> {
             client: OptionalCell::empty(),
         }
     }
+    pub const fn new_timer0_nsec() -> CMSDKTimer<'a> {
+        CMSDKTimer {
+            registers: TIMER0_BASE_NSEC,
+            client: OptionalCell::empty(),
+        }
+    }
+    pub const fn new_timer1_sec() -> CMSDKTimer<'a> {
+        CMSDKTimer {
+            registers: TIMER1_BASE_SEC,
+            client: OptionalCell::empty(),
+        }
+    }
+    pub const fn new_timer1_nsec() -> CMSDKTimer<'a> {
+        CMSDKTimer {
+            registers: TIMER1_BASE_NSEC,
+            client: OptionalCell::empty(),
+        }
+    }
 
     fn enable_interrupt0(&self) {
+        self.registers.ctrl.modify(CTRL::INTEN::InterruptIsEnabled);
         self.registers.ctrl.modify(CTRL::ENABLE::TimerIsEnabled);
     }
 
     fn disable_interrupt0(&self) {
+        self.registers.ctrl.modify(CTRL::INTEN::InterruptIsDisabled);
         self.registers.ctrl.modify(CTRL::ENABLE::TimerIsDisabled);
     }
 
@@ -140,13 +159,6 @@ impl<'a> Alarm<'a> for CMSDKTimer<'a> {
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        self.registers.ctrl.modify(CTRL::ENABLE::TimerIsDisabled);
-        unsafe {
-            with_interrupts_disabled(|| {
-                // Clear pending interrupts
-                cortexm33::nvic::Nvic::new(3).clear_pending();
-            });
-        }
         self.disable_interrupt0();
         Ok(())
     }
