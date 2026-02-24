@@ -23,17 +23,18 @@ QEMU_MUSCA_B1_BIN := qemu_musca_b1.bin
 # Set this as the default local board to write apps to with tockloader
 .PHONY: qemu-init
 qemu-init:
-	tockloader local-board set qemu_musca_b1 --binary-path $(MUSCA_BIN)
+	tockloader local-board set qemu_musca_b1 --binary-path $(QEMU_MUSCA_B1_BIN)
 
 # Write the kernel to the flash file with tockloader
 .PHONY: qemu-flash
 qemu-flash: $(MUSCA_BIN)
 	tockloader flash --address 0x10000000 $<
 
+# does not overwrite installed app
 $(QEMU_MUSCA_B1_BIN): qemu-flash
 
 .PHONY: qemu
-qemu: $(QEMU_MUSCA_B1_BIN) | qemu-flash
+qemu: $(QEMU_MUSCA_B1_BIN)
 	@echo "To exit type C-a x"
 	@echo
 	$(QEMU_BASE_CMDLINE) -device loader,file=$<,addr=0x10000000
@@ -47,7 +48,7 @@ qemu-gdb-listen: $(MUSCA_ELF)
 	$(QEMU_BASE_CMDLINE) -S -gdb tcp::1234
 
 .PHONY: qemu-gdb-listen-bin
-qemu-gdb-listen-bin: $(QEMU_MUSCA_B1_BIN) | qemu-flash
+qemu-gdb-listen-bin: $(QEMU_MUSCA_B1_BIN)
 	$(QEMU_BASE_CMDLINE) -device loader,file=$<,addr=0x10000000 -S -gdb tcp::1234
 
 .PHONY: gdb-connect
