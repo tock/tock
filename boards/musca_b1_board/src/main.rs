@@ -15,12 +15,8 @@
 use core::ptr::addr_of_mut;
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
-use components::gpio::GpioComponent;
-use components::led::LedsComponent;
-use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -28,7 +24,6 @@ use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use musca_b1::chip::{MuscaB1, MuscaB1DefaultPeripherals};
 use musca_b1::timer::CMSDKTimer;
-use musca_b1::uart::Uart;
 #[allow(unused)]
 use musca_b1::BASE_VECTORS;
 

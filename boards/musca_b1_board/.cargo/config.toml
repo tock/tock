@@ -5,7 +5,6 @@
 include = [
   "../../cargo/tock_flags.toml",
   "../../cargo/unstable_flags.toml",
-  "../../cargo/riscv_flags.toml",
 ]
 
 [build]

@@ -11,7 +11,7 @@ use kernel::platform::chip::InterruptService;
 use crate::interrupts;
 use crate::timer::CMSDKTimer;
 use crate::uart::Uart;
-use cortexm33::{interrupt_mask, CortexM33, CortexMVariant};
+use cortexm33::{CortexM33, CortexMVariant};
 
 #[repr(u8)]
 pub enum Processor {
@@ -92,8 +92,8 @@ impl MuscaB1DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             timer0: CMSDKTimer::new_timer0_sec(),
-            uart0: Uart::new_uart0(),
-            uart1: Uart::new_uart1(),
+            uart0: Uart::new_uart0_sec(),
+            uart1: Uart::new_uart1_sec(),
         }
     }
 

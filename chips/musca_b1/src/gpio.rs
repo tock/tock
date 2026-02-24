@@ -2,14 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-use enum_primitive::cast::FromPrimitive;
-use enum_primitive::enum_from_primitive;
-use kernel::hil;
-use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::{
-    interfaces::{ReadWriteable, Readable, Writeable},
-    register_bitfields, register_structs, ReadOnly, ReadWrite,
-};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 register_structs! {
@@ -20,9 +13,9 @@ register_structs! {
         /// Data Output Register
         (0x004 => dataout: ReadWrite<u32, DATAOUT::Register>),
         (0x008 => _reserved0),
-        /// Ouptut enable set Register
+        /// Output enable set Register
         (0x010 => outenset: ReadWrite<u32, OUTENSET::Register>),
-        /// Ouptut enable clear Register
+        /// Output enable clear Register
         (0x014 => outenclr: ReadWrite<u32, OUTENCLR::Register>),
         /// Alternate function set Register
         (0x018 => altfuncset: ReadWrite<u32, ALTFUNCSET::Register>),

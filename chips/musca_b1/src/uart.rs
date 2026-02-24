@@ -377,7 +377,7 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub fn new_uart0() -> Self {
+    pub fn new_uart0_sec() -> Self {
         Self {
             registers: UART0_BASE_SEC,
             clock: OptionalCell::empty(),
@@ -398,7 +398,7 @@ impl<'a> Uart<'a> {
             deferred_call: DeferredCall::new(),
         }
     }
-    pub fn new_uart1() -> Self {
+    pub fn new_uart1_sec() -> Self {
         Self {
             registers: UART1_BASE_SEC,
             clock: OptionalCell::empty(),
@@ -410,6 +410,48 @@ impl<'a> Uart<'a> {
             tx_position: Cell::new(0),
             tx_len: Cell::new(0),
             tx_status: Cell::new(UARTStateTX::Idle),
+            rx_buffer: TakeCell::empty(),
+            rx_position: Cell::new(0),
+            rx_len: Cell::new(0),
+            rx_status: Cell::new(UARTStateRX::Idle),
+
+            deferred_call: DeferredCall::new(),
+        }
+    }
+    pub fn new_uart0_nsec() -> Self {
+        Self {
+            registers: UART0_BASE_NSEC,
+            clock: OptionalCell::empty(),
+
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+
+            tx_buffer: TakeCell::empty(),
+            tx_position: Cell::new(0),
+            tx_len: Cell::new(0),
+            tx_status: Cell::new(UARTStateTX::Idle),
+
+            rx_buffer: TakeCell::empty(),
+            rx_position: Cell::new(0),
+            rx_len: Cell::new(0),
+            rx_status: Cell::new(UARTStateRX::Idle),
+
+            deferred_call: DeferredCall::new(),
+        }
+    }
+    pub fn new_uart1_nsec() -> Self {
+        Self {
+            registers: UART1_BASE_NSEC,
+            clock: OptionalCell::empty(),
+
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+
+            tx_buffer: TakeCell::empty(),
+            tx_position: Cell::new(0),
+            tx_len: Cell::new(0),
+            tx_status: Cell::new(UARTStateTX::Idle),
+
             rx_buffer: TakeCell::empty(),
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
