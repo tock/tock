@@ -23,7 +23,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use musca_b1::chip::{MuscaB1, MuscaB1DefaultPeripherals};
-use musca_b1::timer::GPTimer;
+use musca_b1::timer::CMSDKTimer;
 #[allow(unused)]
 use musca_b1::BASE_VECTORS;
 
@@ -63,7 +63,7 @@ pub struct MuscaB1Plattform {
     systick: cortexm33::systick::SysTick,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, GPTimer<'static>>,
+        VirtualMuxAlarm<'static, CMSDKTimer<'static>>,
     >,
 }
 
@@ -157,15 +157,15 @@ pub unsafe fn main() {
         create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.gp_timer)
-        .finalize(components::alarm_mux_component_static!(GPTimer));
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer0)
+        .finalize(components::alarm_mux_component_static!(CMSDKTimer));
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(GPTimer));
+    .finalize(components::alarm_component_static!(CMSDKTimer));
 
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
@@ -201,7 +201,7 @@ pub unsafe fn main() {
         process_printer,
         Some(cortexm33::support::reset),
     )
-    .finalize(components::process_console_component_static!(GPTimer));
+    .finalize(components::process_console_component_static!(CMSDKTimer));
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
