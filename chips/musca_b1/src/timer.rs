@@ -81,72 +81,71 @@ const TIMER1_BASE_NSEC: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_1000 as *const TimerRegisters) };
 
 pub struct CMSDKTimer<'a> {
-    registers: StaticRef<TimerRegisters>,
+    alarm_regs: StaticRef<TimerRegisters>, // Used for triggering events
+    counter_regs: StaticRef<TimerRegisters>, // Free-running for reliable now()
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
-    elapsed_time: Cell<u32>,
 }
 
 impl<'a> CMSDKTimer<'a> {
-    pub const fn new_timer0_sec() -> CMSDKTimer<'a> {
+    /// Creates a combined timer using Timer0 for alarms and Timer1 as the steady clock
+    pub const fn new_combined_sec() -> CMSDKTimer<'a> {
         CMSDKTimer {
-            registers: TIMER0_BASE_SEC,
+            alarm_regs: TIMER0_BASE_SEC,
+            counter_regs: TIMER1_BASE_SEC,
             client: OptionalCell::empty(),
-            elapsed_time: Cell::new(0),
-        }
-    }
-    pub const fn new_timer0_nsec() -> CMSDKTimer<'a> {
-        CMSDKTimer {
-            registers: TIMER0_BASE_NSEC,
-            client: OptionalCell::empty(),
-            elapsed_time: Cell::new(0),
-        }
-    }
-    pub const fn new_timer1_sec() -> CMSDKTimer<'a> {
-        CMSDKTimer {
-            registers: TIMER1_BASE_SEC,
-            client: OptionalCell::empty(),
-            elapsed_time: Cell::new(0),
-        }
-    }
-    pub const fn new_timer1_nsec() -> CMSDKTimer<'a> {
-        CMSDKTimer {
-            registers: TIMER1_BASE_NSEC,
-            client: OptionalCell::empty(),
-            elapsed_time: Cell::new(0),
         }
     }
 
-    fn enable_interrupt0(&self) {
-        self.registers.ctrl.modify(CTRL::INTEN::InterruptIsEnabled);
-        self.registers.ctrl.modify(CTRL::ENABLE::TimerIsEnabled);
+    /// Creates a combined timer using Timer0 for alarms and Timer1 as the steady clock (Non-secure)
+    pub const fn new_combined_nsec() -> CMSDKTimer<'a> {
+        CMSDKTimer {
+            alarm_regs: TIMER0_BASE_NSEC,
+            counter_regs: TIMER1_BASE_NSEC,
+            client: OptionalCell::empty(),
+        }
     }
 
-    fn disable_interrupt0(&self) {
-        self.registers.ctrl.modify(CTRL::INTEN::InterruptIsDisabled);
-        self.registers.ctrl.modify(CTRL::ENABLE::TimerIsDisabled);
+    pub fn start_counter(&self) {
+        // Set counter to max value so it takes a long time to wrap
+        self.counter_regs.reload.set(0xFFFFFFFF);
+        self.counter_regs
+            .ctrl
+            .modify(CTRL::INTEN::InterruptIsDisabled);
+        self.counter_regs.ctrl.modify(CTRL::ENABLE::TimerIsEnabled);
+    }
+
+    fn enable_alarm_interrupt(&self) {
+        self.alarm_regs.ctrl.modify(CTRL::INTEN::InterruptIsEnabled);
+        self.alarm_regs.ctrl.modify(CTRL::ENABLE::TimerIsEnabled);
+    }
+
+    fn disable_alarm_interrupt(&self) {
+        self.alarm_regs
+            .ctrl
+            .modify(CTRL::INTEN::InterruptIsDisabled);
+        self.alarm_regs.ctrl.modify(CTRL::ENABLE::TimerIsDisabled);
     }
 
     pub fn handle_interrupt(&self) {
-        self.registers.intstatus_clear.set(1);
-        self.elapsed_time.set(
-            self.elapsed_time
-                .get()
-                .wrapping_add(self.registers.reload.get()),
-        );
+        // Clear interrupt on the alarm timer
+        self.alarm_regs.intstatus_clear.set(1);
+        // Disable it so it doesn't fire repeatedly
+        self.disable_alarm_interrupt();
+        // Signal the client
         self.client.map(|client| client.alarm());
     }
 }
 
 impl Time for CMSDKTimer<'_> {
-    type Frequency = hil::time::Freq1MHz;
+    type Frequency = hil::time::Freq32KHz;
     type Ticks = Ticks32;
 
     fn now(&self) -> Self::Ticks {
-        Self::Ticks::from(
-            self.elapsed_time
-                .get()
-                .wrapping_add(self.registers.reload.get() - self.registers.value.get()),
-        )
+        // Reliable now() comes from the counter timer which is never reset.
+        // CMSDK timers usually count down. We subtract from reload to get an increasing value.
+        let reload = self.counter_regs.reload.get();
+        let val = self.counter_regs.value.get();
+        Self::Ticks::from(reload.wrapping_sub(val))
     }
 }
 
@@ -156,45 +155,38 @@ impl<'a> Alarm<'a> for CMSDKTimer<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let mut diff = dt;
+        let now = self.now();
+        let target = reference.wrapping_add(dt);
+        let mut diff = target.wrapping_sub(now).into_u32();
 
-        if reference >= self.now() {
-            diff = self.minimum_dt();
+        if reference > now || diff < self.minimum_dt().into_u32() {
+            diff = self.minimum_dt().into_u32();
         }
 
-        if diff < self.minimum_dt() {
-            diff = self.minimum_dt();
-        }
-
-        self.registers.reload.set(diff.into_u32());
-
-        self.enable_interrupt0();
+        // Program the alarm hardware
+        self.alarm_regs.reload.set(diff);
+        self.enable_alarm_interrupt();
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        Self::Ticks::from(self.registers.value.get() + self.now().into_u32())
+        // Returns the absolute time the alarm is set to fire
+        let remaining = self.alarm_regs.value.get();
+        self.now().wrapping_add(Ticks32::from(remaining))
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        if self.is_armed() {
-            self.elapsed_time.set(
-                self.elapsed_time
-                    .get()
-                    .wrapping_add(self.registers.reload.get() - self.registers.value.get()),
-            );
-        }
-        self.disable_interrupt0();
+        self.disable_alarm_interrupt();
         Ok(())
     }
 
     fn is_armed(&self) -> bool {
-        self.registers
+        self.alarm_regs
             .ctrl
-            .any_matching_bits_set(CTRL::ENABLE::TimerIsEnabled)
+            .any_matching_bits_set(CTRL::INTEN::InterruptIsEnabled)
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
         // TODO: not tested, arbitrary value
-        Self::Ticks::from(10)
+        Self::Ticks::from(50)
     }
 }
