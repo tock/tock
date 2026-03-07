@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
+use core::cell::Cell;
+
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
@@ -81,6 +83,7 @@ const TIMER1_BASE_NSEC: StaticRef<TimerRegisters> =
 pub struct CMSDKTimer<'a> {
     registers: StaticRef<TimerRegisters>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
+    elapsed_time: Cell<u32>,
 }
 
 impl<'a> CMSDKTimer<'a> {
@@ -88,24 +91,28 @@ impl<'a> CMSDKTimer<'a> {
         CMSDKTimer {
             registers: TIMER0_BASE_SEC,
             client: OptionalCell::empty(),
+            elapsed_time: Cell::new(0),
         }
     }
     pub const fn new_timer0_nsec() -> CMSDKTimer<'a> {
         CMSDKTimer {
             registers: TIMER0_BASE_NSEC,
             client: OptionalCell::empty(),
+            elapsed_time: Cell::new(0),
         }
     }
     pub const fn new_timer1_sec() -> CMSDKTimer<'a> {
         CMSDKTimer {
             registers: TIMER1_BASE_SEC,
             client: OptionalCell::empty(),
+            elapsed_time: Cell::new(0),
         }
     }
     pub const fn new_timer1_nsec() -> CMSDKTimer<'a> {
         CMSDKTimer {
             registers: TIMER1_BASE_NSEC,
             client: OptionalCell::empty(),
+            elapsed_time: Cell::new(0),
         }
     }
 
@@ -121,6 +128,11 @@ impl<'a> CMSDKTimer<'a> {
 
     pub fn handle_interrupt(&self) {
         self.registers.intstatus_clear.set(1);
+        self.elapsed_time.set(
+            self.elapsed_time
+                .get()
+                .wrapping_add(self.registers.reload.get()),
+        );
         self.client.map(|client| client.alarm());
     }
 }
@@ -130,7 +142,11 @@ impl Time for CMSDKTimer<'_> {
     type Ticks = Ticks32;
 
     fn now(&self) -> Self::Ticks {
-        Self::Ticks::from(self.registers.value.get())
+        Self::Ticks::from(
+            self.elapsed_time
+                .get()
+                .wrapping_add(self.registers.reload.get() - self.registers.value.get()),
+        )
     }
 }
 
@@ -140,41 +156,45 @@ impl<'a> Alarm<'a> for CMSDKTimer<'a> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let mut expire = reference.wrapping_add(dt);
-        let now = self.now();
-        if !now.within_range(reference, expire) {
-            expire = now;
+        let mut diff = dt;
+
+        if reference >= self.now() {
+            diff = self.minimum_dt();
         }
 
-        if expire.wrapping_sub(now) < self.minimum_dt() {
-            expire = now.wrapping_add(self.minimum_dt());
+        if diff < self.minimum_dt() {
+            diff = self.minimum_dt();
         }
 
-        self.registers.value.set(expire.into_u32());
+        self.registers.reload.set(diff.into_u32());
+
         self.enable_interrupt0();
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        Self::Ticks::from(self.registers.value.get())
+        Self::Ticks::from(self.registers.value.get() + self.now().into_u32())
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
+        if self.is_armed() {
+            self.elapsed_time.set(
+                self.elapsed_time
+                    .get()
+                    .wrapping_add(self.registers.reload.get() - self.registers.value.get()),
+            );
+        }
         self.disable_interrupt0();
         Ok(())
     }
 
     fn is_armed(&self) -> bool {
-        let armed = self
-            .registers
+        self.registers
             .ctrl
-            .any_matching_bits_set(CTRL::ENABLE::TimerIsEnabled);
-        if armed {
-            return true;
-        }
-        false
+            .any_matching_bits_set(CTRL::ENABLE::TimerIsEnabled)
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(50) // todo
+        // TODO: not tested, arbitrary value
+        Self::Ticks::from(10)
     }
 }
