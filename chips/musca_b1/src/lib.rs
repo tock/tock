@@ -8,7 +8,6 @@
 #![recursion_limit = "256"]
 
 pub mod chip;
-pub mod gpio;
 pub mod interrupts;
 pub mod timer;
 pub mod uart;
