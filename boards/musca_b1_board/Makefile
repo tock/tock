@@ -14,7 +14,6 @@ QEMU_BASE_CMDLINE := \
     -machine musca-b1 \
     -cpu cortex-m33 \
     -nographic \
-	-d unimp \
     -semihosting
 
 MUSCA_ELF := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
