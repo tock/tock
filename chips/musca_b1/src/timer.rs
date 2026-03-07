@@ -6,175 +6,149 @@ use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 register_structs! {
-    /// Timer 0
-    TimerRegisters {
-        /// Control Register
-        (0x000 => ctrl: ReadWrite<u32, CTRL::Register>),
-        /// Current Timer Counter Value
-        (0x004 => value: ReadWrite<u32, VALUE::Register>),
-        /// Counter Reload Value
-        (0x008 => reload: ReadWrite<u32, RELOAD::Register>),
-        /// Timer Interrupt status register and clear register
-        (0x00C => intstatus_clear: ReadWrite<u32, INTSTATUS::Register>),
-        (0x010 => @END),
+    /// General-Purpose Timer
+    GptimerRegisters {
+        /// Control Reset Register
+        (0x000 => gptreset: ReadOnly<u32>),
+        /// Masked interrupt status register
+        (0x004 => gptintm: ReadWrite<u32>),
+        /// Interrupt clear register
+        (0x008 => gptintc: ReadWrite<u32>),
+        (0x00C => _reserved0),
+        /// ALARM0 data value register
+        (0x010 => gptalarm0: ReadWrite<u32>),
+        /// ALARM1 data value register
+        (0x014 => gptalarm1: ReadWrite<u32>),
+        /// Raw interrupt status register
+        (0x018 => gptintr: ReadOnly<u32>),
+        /// Counter data value register
+        (0x01C => gptcounter: ReadOnly<u32>),
+        (0x020 => @END),
     }
 }
 register_bitfields![u32,
-CTRL [
-    /// Enable
-    ENABLE OFFSET(0) NUMBITS(1) [
-        /// Timer is disabled
-        TimerIsDisabled = 0,
-        /// Timer is enabled
-        TimerIsEnabled = 1
-    ],
-    /// External Input as Enable
-    EXTIN OFFSET(1) NUMBITS(1) [
-        /// External Input as Enable is disabled
-        ExternalInputAsEnableIsDisabled = 0,
-        /// External Input as Enable is enabled
-        ExternalInputAsEnableIsEnabled = 1
-    ],
-    /// External Clock Enable
-    EXTCLK OFFSET(2) NUMBITS(1) [
-        /// External Clock is disabled
-        ExternalClockIsDisabled = 0,
-        /// External Clock is enabled
-        ExternalClockIsEnabled = 1
-    ],
-    /// Interrupt Enable
-    INTEN OFFSET(3) NUMBITS(1) [
-        /// Interrupt is disabled
-        InterruptIsDisabled = 0,
-        /// Interrupt is enabled
-        InterruptIsEnabled = 1
-    ]
+GPTRESET [
+    /// CPU0 interrupt status
+    GPTRESET OFFSET(0) NUMBITS(2) []
 ],
-VALUE [
-    VALUE OFFSET (0) NUMBITS (32) []
+GPTINTM [
+    /// Current masked status of the interrupt
+    GPTINTM OFFSET(0) NUMBITS(2) []
 ],
-RELOAD [
-    VALUE OFFSET (0) NUMBITS (32) []
+GPTINTC [
+    /// Writing 0b1 disables the ALARM[n] interrupt
+    GPTINTC OFFSET(0) NUMBITS(2) []
 ],
-INTSTATUS [
-    VALUE OFFSET (0) NUMBITS (32) []
+GPTALARM0 [
+    /// Value that triggers the ALARM0 interrupt when the counter reaches that value
+     GPTALARM0_DATA OFFSET(0) NUMBITS(32) []
 ],
-INTCLEAR [
-    VALUE OFFSET (0) NUMBITS (32) []
+GPTALARM1 [
+    /// Value that triggers the ALARM1 interrupt when the counter reaches that value
+     GPTALARM1_DATA OFFSET(0) NUMBITS(32) []
+],
+GPTINTR [
+    /// Raw interrupt state, before masking of GPTINTR interrupt
+    GPTINTR OFFSET(0) NUMBITS(3) []
+],
+GPTCOUNTER [
+    /// Current value of 32-bit Timer Counter
+    GPTCOUNTER OFFSET(0) NUMBITS(32) []
 ]
 ];
-const TIMER0_BASE_SEC: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x5000_0000 as *const TimerRegisters) };
-const TIMER0_BASE_NSEC: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_0000 as *const TimerRegisters) };
 
-const TIMER1_BASE_SEC: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x5000_1000 as *const TimerRegisters) };
-const TIMER1_BASE_NSEC: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_1000 as *const TimerRegisters) };
+const GPTIMER_BASE_NSEC: StaticRef<GptimerRegisters> =
+    unsafe { StaticRef::new(0x4010C000 as *const GptimerRegisters) };
+const GPTIMER_BASE_SEC: StaticRef<GptimerRegisters> =
+    unsafe { StaticRef::new(0x5010C000 as *const GptimerRegisters) };
 
-pub struct CMSDKTimer<'a> {
-    registers: StaticRef<TimerRegisters>,
+pub struct GPTimer<'a> {
+    registers: StaticRef<GptimerRegisters>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
 }
 
-impl<'a> CMSDKTimer<'a> {
-    pub const fn new_timer0_sec() -> CMSDKTimer<'a> {
-        CMSDKTimer {
-            registers: TIMER0_BASE_SEC,
-            client: OptionalCell::empty(),
-        }
-    }
-    pub const fn new_timer0_nsec() -> CMSDKTimer<'a> {
-        CMSDKTimer {
-            registers: TIMER0_BASE_NSEC,
-            client: OptionalCell::empty(),
-        }
-    }
-    pub const fn new_timer1_sec() -> CMSDKTimer<'a> {
-        CMSDKTimer {
-            registers: TIMER1_BASE_SEC,
-            client: OptionalCell::empty(),
-        }
-    }
-    pub const fn new_timer1_nsec() -> CMSDKTimer<'a> {
-        CMSDKTimer {
-            registers: TIMER1_BASE_NSEC,
+impl<'a> GPTimer<'a> {
+    pub const fn new_sec() -> GPTimer<'a> {
+        GPTimer {
+            registers: GPTIMER_BASE_SEC,
             client: OptionalCell::empty(),
         }
     }
 
-    fn enable_interrupt0(&self) {
-        self.registers.ctrl.modify(CTRL::INTEN::InterruptIsEnabled);
-        self.registers.ctrl.modify(CTRL::ENABLE::TimerIsEnabled);
+    pub const fn new_nsec() -> GPTimer<'a> {
+        GPTimer {
+            registers: GPTIMER_BASE_NSEC,
+            client: OptionalCell::empty(),
+        }
     }
 
-    fn disable_interrupt0(&self) {
-        self.registers.ctrl.modify(CTRL::INTEN::InterruptIsDisabled);
-        self.registers.ctrl.modify(CTRL::ENABLE::TimerIsDisabled);
+    fn clear_interrupt(&self) {
+        self.registers.gptintc.set(0b01);
     }
 
     pub fn handle_interrupt(&self) {
-        self.registers.intstatus_clear.set(1);
+        self.clear_interrupt();
         self.client.map(|client| client.alarm());
     }
 }
 
-impl Time for CMSDKTimer<'_> {
-    type Frequency = hil::time::Freq1MHz;
+impl Time for GPTimer<'_> {
+    type Frequency = hil::time::Freq32KHz;
     type Ticks = Ticks32;
 
     fn now(&self) -> Self::Ticks {
-        Self::Ticks::from(self.registers.value.get())
+        // Read the current counter value
+        Ticks32::from(self.registers.gptcounter.get())
     }
 }
 
-impl<'a> Alarm<'a> for CMSDKTimer<'a> {
+impl<'a> Alarm<'a> for GPTimer<'a> {
     fn set_alarm_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let mut expire = reference.wrapping_add(dt);
         let now = self.now();
+        let mut expire = reference.wrapping_add(dt);
+
+        // Ensure the expiration time isn't in the past
         if !now.within_range(reference, expire) {
             expire = now;
         }
 
+        // Enforce minimum duration
         if expire.wrapping_sub(now) < self.minimum_dt() {
             expire = now.wrapping_add(self.minimum_dt());
         }
 
-        self.registers.value.set(expire.into_u32());
-        self.enable_interrupt0();
+        self.registers.gptalarm0.set(expire.into_u32());
+
+        // Enable the interrupt mask
+        self.registers.gptintm.set(0b01);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        Self::Ticks::from(self.registers.value.get())
+        Ticks32::from(self.registers.gptalarm0.get())
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        self.disable_interrupt0();
+        // Disable the interrupt mask for ALARM0
+        self.registers.gptintc.set(0b01);
         Ok(())
     }
 
     fn is_armed(&self) -> bool {
-        let armed = self
-            .registers
-            .ctrl
-            .any_matching_bits_set(CTRL::ENABLE::TimerIsEnabled);
-        if armed {
-            return true;
-        }
-        false
+        // Check if the interrupt mask for ALARM0 is set
+        (self.registers.gptintm.get() & 0b01) != 0
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(50) // todo
+        // TODO: not tested, arbitrary value
+        Ticks32::from(10)
     }
 }

@@ -9,7 +9,7 @@ use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
 use crate::interrupts;
-use crate::timer::CMSDKTimer;
+use crate::timer::GPTimer;
 use crate::uart::Uart;
 use cortexm33::{CortexM33, CortexMVariant};
 
@@ -83,7 +83,7 @@ impl<I: InterruptService> Chip for MuscaB1<'_, I> {
 }
 
 pub struct MuscaB1DefaultPeripherals<'a> {
-    pub timer0: CMSDKTimer<'a>,
+    pub gp_timer: GPTimer<'a>,
     pub uart0: Uart<'a>,
     pub uart1: Uart<'a>,
 }
@@ -91,7 +91,7 @@ pub struct MuscaB1DefaultPeripherals<'a> {
 impl MuscaB1DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
-            timer0: CMSDKTimer::new_timer0_sec(),
+            gp_timer: GPTimer::new_sec(),
             uart0: Uart::new_uart0_sec(),
             uart1: Uart::new_uart1_sec(),
         }
@@ -106,8 +106,12 @@ impl MuscaB1DefaultPeripherals<'_> {
 impl InterruptService for MuscaB1DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::TIMER_0 => {
-                self.timer0.handle_interrupt();
+            interrupts::GP_TIMER_COMBINED => {
+                self.gp_timer.handle_interrupt();
+                true
+            }
+            interrupts::GP_TIMER_INT0 => {
+                self.gp_timer.handle_interrupt();
                 true
             }
             interrupts::UART0_RX
