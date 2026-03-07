@@ -91,7 +91,7 @@ pub struct MuscaB1DefaultPeripherals<'a> {
 impl MuscaB1DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
-            timer0: CMSDKTimer::new_timer0_sec(),
+            timer0: CMSDKTimer::new_combined_sec(),
             uart0: Uart::new_uart0_sec(),
             uart1: Uart::new_uart1_sec(),
         }
@@ -100,6 +100,8 @@ impl MuscaB1DefaultPeripherals<'_> {
     pub fn resolve_dependencies(&'static self) {
         kernel::deferred_call::DeferredCallClient::register(&self.uart0);
         kernel::deferred_call::DeferredCallClient::register(&self.uart1);
+        //todo
+        self.timer0.start_counter();
     }
 }
 

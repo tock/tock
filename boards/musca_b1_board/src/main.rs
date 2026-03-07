@@ -216,7 +216,7 @@ pub unsafe fn main() {
         console,
         alarm,
         scheduler,
-        systick: cortexm33::systick::SysTick::new_with_calibration(125_000_000),
+        systick: cortexm33::systick::SysTick::new_with_calibration(40_096_000),
     };
 
     kernel::debug!("Initialization complete. Enter main loop");
