@@ -28,11 +28,11 @@ use crate::platform::dma_fence::DmaFence;
 /// contents must not be modified by the DMA operation. For a DMA operation that
 /// may write to the supplied buffer, use [`DmaSliceMut`] instead.
 #[derive(Debug)]
-pub struct DmaSlice<'a, T> {
+pub struct DmaSlice<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> {
     slice: &'a [T],
 }
 
-impl<'a, T> DmaSlice<'a, T> {
+impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSlice<'a, T> {
     /// Create a [`DmaSlice`] from a shared, immutable Rust slice.
     ///
     /// This function uses the supplied `fence` object to ensure that all prior
@@ -103,12 +103,12 @@ impl<'a, T> DmaSlice<'a, T> {
 /// [zerocopy crate](https://docs.rs/zerocopy/0.8.31/zerocopy/) for an more
 /// in-depth explanation of these requirements.
 #[derive(Debug)]
-pub struct DmaSliceMut<'a, T> {
+pub struct DmaSliceMut<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> {
     slice_ptr: NonNull<[T]>,
     _lt: PhantomData<&'a mut [T]>,
 }
 
-impl<'a, T> DmaSliceMut<'a, T> {
+impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMut<'a, T> {
     /// Create a [`DmaSliceMut`] from a unique, mutable Rust slice.
     ///
     /// This function uses the supplied `fence` object to ensure that all prior
@@ -222,12 +222,12 @@ impl<'a, T> DmaSliceMut<'a, T> {
 /// operation that may write to the supplied buffer, use [`DmaSliceMut`]
 /// instead.
 #[derive(Debug)]
-pub enum DmaSliceMutImmut<'a, T> {
+pub enum DmaSliceMutImmut<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> {
     Immutable(DmaSlice<'a, T>),
     Mutable(DmaSliceMut<'a, T>),
 }
 
-impl<'a, T> DmaSliceMutImmut<'a, T> {
+impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<'a, T> {
     /// Create a [`DmaSliceMutImmut`] from a shared, immutable Rust slice.
     ///
     /// This function uses the supplied `fence` object to ensure that all prior
@@ -316,11 +316,11 @@ impl<'a, T> DmaSliceMutImmut<'a, T> {
 /// its contents must not be modified by the DMA operation. For a DMA operation
 /// that may write to the supplied buffer, use [`DmaSubSliceMut`] instead.
 #[derive(Debug)]
-pub struct DmaSubSlice<'a, T> {
+pub struct DmaSubSlice<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> {
     sub_slice: SubSlice<'a, T>,
 }
 
-impl<'a, T> DmaSubSlice<'a, T> {
+impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSlice<'a, T> {
     /// Create a [`DmaSubSlice`] from a shared, immutable Rust slice.
     ///
     /// This function uses the supplied `fence` object to ensure that all prior
@@ -405,13 +405,13 @@ impl<'a, T> DmaSubSlice<'a, T> {
 /// [zerocopy crate](https://docs.rs/zerocopy/0.8.31/zerocopy/) for an more
 /// in-depth explanation of these requirements.
 #[derive(Debug)]
-pub struct DmaSubSliceMut<'a, T> {
+pub struct DmaSubSliceMut<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> {
     internal_slice_ptr: NonNull<[T]>,
     active_range: Range<usize>,
     _lt: PhantomData<&'a mut [T]>,
 }
 
-impl<'a, T> DmaSubSliceMut<'a, T> {
+impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMut<'a, T> {
     /// Create a [`DmaSubSliceMut`] from a [`SubSliceMut`].
     ///
     /// This function uses the supplied `fence` object to ensure that all prior
@@ -575,12 +575,12 @@ impl<'a, T> DmaSubSliceMut<'a, T> {
 /// operation. For a DMA operation that may write to the active range of the
 /// supplied sub slice, use [`DmaSubSliceMut`] instead.
 #[derive(Debug)]
-pub enum DmaSubSliceMutImmut<'a, T> {
+pub enum DmaSubSliceMutImmut<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> {
     Immutable(DmaSubSlice<'a, T>),
     Mutable(DmaSubSliceMut<'a, T>),
 }
 
-impl<'a, T> DmaSubSliceMutImmut<'a, T> {
+impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImmut<'a, T> {
     /// Create a [`DmaSubSliceMutImmut`] from a [`SubSliceMutImmut`].
     ///
     /// This function uses the supplied `fence` object to ensure that all prior
@@ -657,6 +657,44 @@ impl<'a, T> DmaSubSliceMutImmut<'a, T> {
             }),
         }
     }
+}
+
+pub mod immutable_from_into_bytes {
+    /// Sealing module for [`ImmutableFromIntoBytes`]
+    mod private {
+        /// Sealing trait for [`ImmutableFromIntoBytes`]
+        pub trait Sealed {}
+    }
+
+    /// A type that is can be safely converted to an initialized sequence of bytes,
+    /// from an arbitrary initialized sequence of bytes, and does not feature
+    /// interior mutability.
+    ///
+    /// The requirements on implementors of this trait are effectively the same as
+    /// the combination of zerocopy's [`FromBytes`][zerocopy-frombytes],
+    /// [`IntoBytes`][zerocopy-intobytes], and [`Immutable`][zerocopy-immutable]
+    /// traits.
+    ///
+    /// This trait is only implemented for a few select primitives, intended to be
+    /// used for DMA operations. It is sealed; all extensions to future types must
+    /// ensure they conform to the above trait's requirements and are safe for DMA
+    /// operations.
+    ///
+    /// [zerocopy-frombytes]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.FromBytes.html
+    /// [zerocopy-intobytes]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.IntoBytes.html
+    /// [zerocopy-immutable]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.Immutable.html
+    pub unsafe trait ImmutableFromIntoBytes: private::Sealed {}
+
+    impl private::Sealed for u8 {}
+    unsafe impl ImmutableFromIntoBytes for u8 {}
+    impl private::Sealed for u16 {}
+    unsafe impl ImmutableFromIntoBytes for u16 {}
+    impl private::Sealed for u32 {}
+    unsafe impl ImmutableFromIntoBytes for u32 {}
+    impl private::Sealed for u64 {}
+    unsafe impl ImmutableFromIntoBytes for u64 {}
+    impl private::Sealed for u128 {}
+    unsafe impl ImmutableFromIntoBytes for u128 {}
 }
 
 #[cfg(test)]
