@@ -238,10 +238,18 @@ unsafe extern "cdecl" fn main() {
             PcDefaultPeripherals,
             PcDefaultPeripherals::new(
                 (
-                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
-                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
-                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
-                    (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
+                    (kernel::static_buf!(
+                        x86_q35::serial::RealSerialPort<'static>
+                    ),),
+                    (kernel::static_buf!(
+                        x86_q35::serial::RealSerialPort<'static>
+                    ),),
+                    (kernel::static_buf!(
+                        x86_q35::serial::RealSerialPort<'static>
+                    ),),
+                    (kernel::static_buf!(
+                        x86_q35::serial::RealSerialPort<'static>
+                    ),),
                     kernel::static_buf!(x86_q35::vga_uart_driver::VgaText<'static>),
                 ),
                 &mut *ptr::addr_of_mut!(PAGE_DIR),

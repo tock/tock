@@ -4,22 +4,24 @@
 
 //! QEMU VirtIO MMIO instantiation
 
-use kernel::utilities::StaticRef;
-use virtio::transports::mmio::VirtIOMMIODeviceRegisters;
+use core::ptr::without_provenance_mut;
+use tock_registers::Mmio32;
 
-pub const VIRTIO_MMIO_0_BASE: StaticRef<VirtIOMMIODeviceRegisters> =
-    unsafe { StaticRef::new(0x1000_1000 as *const VirtIOMMIODeviceRegisters) };
-pub const VIRTIO_MMIO_1_BASE: StaticRef<VirtIOMMIODeviceRegisters> =
-    unsafe { StaticRef::new(0x1000_2000 as *const VirtIOMMIODeviceRegisters) };
-pub const VIRTIO_MMIO_2_BASE: StaticRef<VirtIOMMIODeviceRegisters> =
-    unsafe { StaticRef::new(0x1000_3000 as *const VirtIOMMIODeviceRegisters) };
-pub const VIRTIO_MMIO_3_BASE: StaticRef<VirtIOMMIODeviceRegisters> =
-    unsafe { StaticRef::new(0x1000_4000 as *const VirtIOMMIODeviceRegisters) };
-pub const VIRTIO_MMIO_4_BASE: StaticRef<VirtIOMMIODeviceRegisters> =
-    unsafe { StaticRef::new(0x1000_5000 as *const VirtIOMMIODeviceRegisters) };
-pub const VIRTIO_MMIO_5_BASE: StaticRef<VirtIOMMIODeviceRegisters> =
-    unsafe { StaticRef::new(0x1000_6000 as *const VirtIOMMIODeviceRegisters) };
-pub const VIRTIO_MMIO_6_BASE: StaticRef<VirtIOMMIODeviceRegisters> =
-    unsafe { StaticRef::new(0x1000_7000 as *const VirtIOMMIODeviceRegisters) };
-pub const VIRTIO_MMIO_7_BASE: StaticRef<VirtIOMMIODeviceRegisters> =
-    unsafe { StaticRef::new(0x1000_8000 as *const VirtIOMMIODeviceRegisters) };
+type Registers = virtio::transports::mmio::virtio_mmio_device_registers::Real<Mmio32>;
+
+pub const VIRTIO_MMIO_0_BASE: Registers =
+    unsafe { Registers::new(Mmio32(without_provenance_mut(0x1000_1000))) };
+pub const VIRTIO_MMIO_1_BASE: Registers =
+    unsafe { Registers::new(Mmio32(without_provenance_mut(0x1000_2000))) };
+pub const VIRTIO_MMIO_2_BASE: Registers =
+    unsafe { Registers::new(Mmio32(without_provenance_mut(0x1000_3000))) };
+pub const VIRTIO_MMIO_3_BASE: Registers =
+    unsafe { Registers::new(Mmio32(without_provenance_mut(0x1000_4000))) };
+pub const VIRTIO_MMIO_4_BASE: Registers =
+    unsafe { Registers::new(Mmio32(without_provenance_mut(0x1000_5000))) };
+pub const VIRTIO_MMIO_5_BASE: Registers =
+    unsafe { Registers::new(Mmio32(without_provenance_mut(0x1000_6000))) };
+pub const VIRTIO_MMIO_6_BASE: Registers =
+    unsafe { Registers::new(Mmio32(without_provenance_mut(0x1000_7000))) };
+pub const VIRTIO_MMIO_7_BASE: Registers =
+    unsafe { Registers::new(Mmio32(without_provenance_mut(0x1000_8000))) };

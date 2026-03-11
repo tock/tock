@@ -8,6 +8,52 @@
 
 #[cfg(target_arch = "x86")]
 use core::arch::asm;
+use tock_registers::{Address, Bus, BusRead, BusWrite};
+
+#[derive(Clone, Copy)]
+pub struct Port(pub u16);
+
+impl Address for Port {
+    unsafe fn byte_add(self, offset: usize) -> Port {
+        Port(self.0 + offset as u16)
+    }
+}
+
+macro_rules! bus_impls {
+    ($data_type:ty, $size:literal, $in:ident, $out:ident) => {
+        impl Bus<$data_type> for Port {
+            const PADDED_SIZE: usize = $size;
+        }
+        impl BusRead<$data_type> for Port {
+            unsafe fn read(self) -> $data_type {
+                #[cfg(target_arch = "x86")]
+                unsafe {
+                    $in(self.0) as $data_type
+                }
+                #[cfg(not(target_arch = "x86"))]
+                unimplemented!()
+            }
+        }
+        impl BusWrite<$data_type> for Port {
+            unsafe fn write(self, val: $data_type) {
+                #[cfg(target_arch = "x86")]
+                unsafe {
+                    $out(self.0, val as _)
+                }
+                #[cfg(not(target_arch = "x86"))]
+                {
+                    let _ = val;
+                    unimplemented!()
+                }
+            }
+        }
+    };
+}
+
+bus_impls!(u8, 1, inb, outb);
+bus_impls!(u16, 2, inw, outw);
+bus_impls!(u32, 4, inl, outl);
+bus_impls!(usize, 4, inl, outl);
 
 /// Write 8 bits to port
 ///
