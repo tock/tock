@@ -94,7 +94,7 @@ pub struct DmaSlice<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> {
     slice: &'a [T],
 }
 
-impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSlice<'a, T> {
+impl<'a, T: utilities::slices::JustBytes> DmaSlice<'a, T> {
     /// Create a [`DmaSlice`] from an immutable slice.
     pub fn new(slice: &[T], fence: impl DmaFence) -> DmaSlice<'_, T> {
         // Ensure that all prior writes to this slice are exposed to any DMA
