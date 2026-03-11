@@ -52,7 +52,6 @@ impl ProcessSlot {
     /// explicitly trusted code (typically a test harness) can obtain it. The
     /// capability prevents arbitrary crates from silently replacing a running
     /// process.
-
     pub fn set_external(
         &self,
         process: &'static dyn process::Process,
