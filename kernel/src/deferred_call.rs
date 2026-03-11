@@ -147,28 +147,28 @@ impl DynDefCallRef<'_> {
 // thread. TODO: Once Tock decides on an approach to replace `static mut` with
 // some sort of `SyncCell`, migrate all three of these to that approach
 // (https://github.com/tock/tock/issues/1545).
-static CTR: SingleThreadValue<Cell<usize>> = SingleThreadValue::new(|| Cell::new(0));
+static CTR: SingleThreadValue<Cell<usize>> = SingleThreadValue::new();
 
 /// This bitmask tracks which of the up to 32 existing deferred calls have been
 /// scheduled. Any bit that is set in that mask indicates the deferred call with
 /// its [`DeferredCall::idx`] field set to the index of that bit has been
 /// scheduled and not yet serviced.
-static BITMASK: SingleThreadValue<Cell<u32>> = SingleThreadValue::new(|| Cell::new(0));
+static BITMASK: SingleThreadValue<Cell<u32>> = SingleThreadValue::new();
 
 /// An array that stores references to up to 32 `DeferredCall`s via the low-cost
 /// [`DynDefCallRef`].
 // This is a 256 byte array, but at least resides in `.bss`.
 static DEFCALLS: SingleThreadValue<[OptionalCell<DynDefCallRef<'static>>; 32]> =
-    SingleThreadValue::new(|| [const { OptionalCell::empty() }; 32]);
+    SingleThreadValue::new();
 
 /// Initialize the static state used by deferred calls.
 ///
 /// This ensures it can safely be used as a global variable.
 #[cfg(target_has_atomic = "ptr")]
 pub fn initialize_deferred_call_state<P: ThreadIdProvider>() {
-    CTR.bind_to_thread::<P>();
-    BITMASK.bind_to_thread::<P>();
-    DEFCALLS.bind_to_thread::<P>();
+    CTR.bind_to_thread::<P>(Cell::new(0));
+    BITMASK.bind_to_thread::<P>(Cell::new(0));
+    DEFCALLS.bind_to_thread::<P>([const { OptionalCell::empty() }; 32]);
 }
 
 /// Initialize the static state used by deferred calls.
@@ -181,9 +181,9 @@ pub fn initialize_deferred_call_state<P: ThreadIdProvider>() {
 /// concurrently with calls to [`initialize_deferred_call_state`] or other calls
 /// to [`initialize_deferred_call_state_unsafe`].
 pub unsafe fn initialize_deferred_call_state_unsafe<P: ThreadIdProvider>() {
-    CTR.bind_to_thread_unsafe::<P>();
-    BITMASK.bind_to_thread_unsafe::<P>();
-    DEFCALLS.bind_to_thread_unsafe::<P>();
+    CTR.bind_to_thread_unsafe::<P>(Cell::new(0));
+    BITMASK.bind_to_thread_unsafe::<P>(Cell::new(0));
+    DEFCALLS.bind_to_thread_unsafe::<P>([const { OptionalCell::empty() }; 32]);
 }
 
 pub struct DeferredCall {
