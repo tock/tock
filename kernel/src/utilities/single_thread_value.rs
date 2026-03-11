@@ -172,14 +172,10 @@ enum BoundToThreadStage {
 pub struct SingleThreadValue<T> {
     /// The contained value, made accessible to a single thread only.
     ///
-    /// To avoid imposing a constraint of `T: Send`, the value is initialized on
-    /// the same thread that the `SingleThreadValue` is bound to, using the
-    /// `init_fn` function.
+    /// To avoid imposing a constraint of `T: Send`, the value is only stored
+    /// on the same thread that the `SingleThreadValue` is bound to within
+    /// the `bind_to_thread()` function.
     value: UnsafeCell<MaybeUninit<T>>,
-
-    /// A function to produce a new value of type `T`, used to initialize
-    /// `value` when binding to a thread.
-    init_fn: fn() -> T,
 
     /// Shared atomic state to indicate whether this type is already bound to a
     /// particular thread, or in the process of being bound to a particular
@@ -212,10 +208,9 @@ impl<T> SingleThreadValue<T> {
     /// It must first be bound to a particular thread, using the
     /// [`bind_to_thread`](SingleThreadValue::bind_to_thread) or
     /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe) methods.
-    pub const fn new(init_fn: fn() -> T) -> Self {
+    pub const fn new() -> Self {
         Self {
             value: UnsafeCell::new(MaybeUninit::uninit()),
-            init_fn,
             bound_to_thread: AtomicUsize::new(BoundToThreadStage::Unbound as usize),
             thread_id_and_fn: UnsafeCell::new(MaybeUninit::uninit()),
         }
@@ -240,7 +235,7 @@ impl<T> SingleThreadValue<T> {
     /// (namely, `compare_exchange`) on `usize`-sized values, and thus
     /// relies on the `cfg(target_has_atomic = "ptr")` conditional.
     #[cfg(target_has_atomic = "ptr")]
-    pub fn bind_to_thread<P: ThreadIdProvider>(&self) -> bool {
+    pub fn bind_to_thread<P: ThreadIdProvider>(&self, value: T) -> bool {
         // For the check whether we're already bound to a thread, `Relaxed`
         // ordering is fine: we don't actually care about the value in
         // `thread_id_and_fn`, and don't need previous writes to it to be
@@ -331,7 +326,7 @@ impl<T> SingleThreadValue<T> {
         // running) thread that we are binding the `SingleThreadValue` to. This
         // avoids a requirement of `T: Send`:
         unsafe {
-            *self.value.get() = MaybeUninit::new((self.init_fn)());
+            *self.value.get() = MaybeUninit::new(value);
         }
 
         // When initializing the `SingleThreadValue`, we must use `Release`
@@ -371,7 +366,7 @@ impl<T> SingleThreadValue<T> {
     /// [`bind_to_thread`](SingleThreadValue::bind_to_thread) or
     /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe) on
     /// the same [`SingleThreadValue`] instance.
-    pub unsafe fn bind_to_thread_unsafe<P: ThreadIdProvider>(&self) -> bool {
+    pub unsafe fn bind_to_thread_unsafe<P: ThreadIdProvider>(&self, value: T) -> bool {
         // For the check whether we're already bound to a thread, `Relaxed`
         // ordering is fine: we don't actually care about the value in
         // `thread_id_and_fn`, and don't need previous writes to it to be
@@ -424,7 +419,7 @@ impl<T> SingleThreadValue<T> {
         // running) thread that we are binding the `SingleThreadValue` to. This
         // avoids a requirement of `T: Send`:
         unsafe {
-            *self.value.get() = MaybeUninit::new((self.init_fn)());
+            *self.value.get() = MaybeUninit::new(value);
         }
 
         // When initializing the `SingleThreadValue`, we must use `Release`
