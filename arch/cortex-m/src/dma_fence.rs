@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
+//! Cortex-M synchronization implementation for Rust when using DMA.
+
 use kernel::platform::dma_fence::DmaFence;
 
 #[derive(Debug, Copy, Clone)]
@@ -25,56 +27,52 @@ impl CortexMDmaFence {
     }
 }
 
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 unsafe impl DmaFence for CortexMDmaFence {
     fn release<T>(self, buf: *mut [T]) {
-        if cfg!(target_arch = "arm") {
-            unsafe {
-                core::arch::asm!(
-                    "
-                        /*
-                         * This block is opaque to the compiler; the
-                         * compiler must assume that the block could
-                         * read to the entire buffer from which the
-                         * pointer stored in {dma_buffer_ptr_reg} was
-                         * derived.
-                         *
-                         * Do not reorder prior memory reads or writes
-                         * over subsequent I/O reads or writes.
-                         */
-                        dmb
-                    ",
-                    dma_buffer_ptr_reg = in(reg) buf.cast::<T>(),
-                );
-            }
-        } else {
-            // When building for another architecture, such as for tests or CI:
-            unimplemented!("CortexMDmaFence can only be used on cortex-m targets");
+        unsafe {
+            core::arch::asm!(
+                "
+    // This block is opaque to the compiler; the compiler must assume
+    // that the block could read to the entire buffer from which the
+    // pointer stored in {dma_buffer_ptr_reg} was derived.
+    //
+    // Do not reorder prior memory reads or writes over subsequent
+    // I/O reads or writes.
+    dmb
+                ",
+                dma_buffer_ptr_reg = in(reg) buf.cast::<T>(),
+            );
         }
     }
 
     fn acquire<T>(self, buf: *mut [T]) {
-        if cfg!(target_arch = "arm") {
-            unsafe {
-                core::arch::asm!(
-                    "
-                        /*
-                         * This block is opaque to the compiler; the
-                         * compiler must assume that the block could
-                         * write to the entire buffer from which the
-                         * pointer stored in {dma_buffer_ptr_reg} was
-                         * derived.
-                         *
-                         * Do not reorder prior I/O reads or writes
-                         * over subsequent memory reads or writes.
-                         */
-                        dmb
-                    ",
-                    dma_buffer_ptr_reg = in(reg) buf.cast::<T>(),
-                );
-            }
-        } else {
-            // When building for another architecture, such as for tests or CI:
-            unimplemented!("CortexMDmaFence can only be used on cortex-m targets");
+        unsafe {
+            core::arch::asm!(
+                "
+    // This block is opaque to the compiler; the compiler must assume
+    // that the block could write to the entire buffer from which the
+    // pointer stored in {dma_buffer_ptr_reg} was derived.
+    //
+    // Do not reorder prior I/O reads or writes over subsequent
+    // memory reads or writes.
+    dmb
+                ",
+                dma_buffer_ptr_reg = in(reg) buf.cast::<T>(),
+            );
         }
+    }
+}
+
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+unsafe impl DmaFence for CortexMDmaFence {
+    fn release<T>(self, _buf: *mut [T]) {
+        // When building for another architecture, such as for tests or CI:
+        unimplemented!("CortexMDmaFence can only be used on cortex-m targets");
+    }
+
+    fn acquire<T>(self, _buf: *mut [T]) {
+        // When building for another architecture, such as for tests or CI:
+        unimplemented!("CortexMDmaFence can only be used on cortex-m targets");
     }
 }
