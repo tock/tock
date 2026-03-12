@@ -219,11 +219,6 @@ pub struct Uart<'a> {
     rx_len: Cell<usize>,
 }
 
-#[derive(Copy, Clone)]
-pub struct UartParams {
-    pub baud_rate: u32,
-}
-
 impl<'a> Uart<'a> {
     pub fn new(base: StaticRef<UartRegisters>) -> Uart<'a> {
         Uart {
