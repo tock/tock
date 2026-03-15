@@ -146,7 +146,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x2000}
 
@@ -415,7 +415,12 @@ pub unsafe fn start_no_pconsole() -> (
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        )
+        .map_err(|_| ())
+        .unwrap();
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let ieee802154_ack_buf = static_init!(
