@@ -38,7 +38,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new);
+    SingleThreadValue::new();
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -287,7 +287,12 @@ unsafe fn start() -> (
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        )
+        .map_err(|_| ())
+        .unwrap();
 
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());

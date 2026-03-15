@@ -39,7 +39,7 @@ type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new);
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x8000}
 
@@ -187,7 +187,12 @@ pub unsafe fn start() -> (
     }
     // ---------- BASIC INITIALIZATION -----------
 
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        )
+        .map_err(|_| ())
+        .unwrap();
 
     // Basic setup of the RISC-V IMAC platform
     rv32i::configure_trap_handler();

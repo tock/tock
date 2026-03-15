@@ -68,7 +68,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new);
+    SingleThreadValue::new();
 
 type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040ComponentType<
     capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
@@ -277,7 +277,11 @@ pub unsafe fn start() -> (
 
     // Bind global variables to this thread.
     PANIC_RESOURCES
-        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        )
+        .map_err(|_| ())
+        .unwrap();
 
     let peripherals = static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new());
     peripherals.resolve_dependencies();

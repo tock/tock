@@ -55,7 +55,7 @@ type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new);
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x2000}
 
@@ -196,7 +196,12 @@ pub unsafe fn main() {
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        )
+        .map_err(|_| ())
+        .unwrap();
 
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.

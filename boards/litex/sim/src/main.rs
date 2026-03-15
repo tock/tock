@@ -97,7 +97,7 @@ type SchedulerInUse = components::sched::mlfq::MLFQComponentType<AlarmHw>;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new);
+    SingleThreadValue::new();
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -233,7 +233,11 @@ unsafe fn start() -> (
 
     // Bind global variables to this thread.
     PANIC_RESOURCES
-        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        )
+        .map_err(|_| ())
+        .unwrap();
 
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with PMP kernel
