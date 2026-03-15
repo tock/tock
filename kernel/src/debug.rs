@@ -361,7 +361,10 @@ pub static DEBUG_GPIOS: SingleThreadValue<MapCell<&'static [&'static dyn hil::gp
 /// This ensures it can safely be used as a global variable.
 #[cfg(target_has_atomic = "ptr")]
 pub fn initialize_debug_gpio<P: ThreadIdProvider>() {
-    DEBUG_GPIOS.bind_to_thread::<P>(MapCell::empty());
+    DEBUG_GPIOS
+        .bind_to_thread::<P>(MapCell::empty())
+        .map_err(|_| ())
+        .unwrap();
 }
 
 /// Initialize the static debug gpio variable.
@@ -373,7 +376,10 @@ pub fn initialize_debug_gpio<P: ThreadIdProvider>() {
 /// Callers of this function must ensure that this function is never called
 /// concurrently with other calls to [`initialize_debug_gpio_unsafe`].
 pub unsafe fn initialize_debug_gpio_unsafe<P: ThreadIdProvider>() {
-    DEBUG_GPIOS.bind_to_thread_unsafe::<P>(MapCell::empty());
+    DEBUG_GPIOS
+        .bind_to_thread_unsafe::<P>(MapCell::empty())
+        .map_err(|_| ())
+        .unwrap();
 }
 
 /// Map an array of GPIO pins to use for debugging.
@@ -456,8 +462,14 @@ static DEBUG_WRITER_COUNT: SingleThreadValue<Cell<usize>> = SingleThreadValue::n
 /// This ensures it can safely be used as a global variable.
 #[cfg(target_has_atomic = "ptr")]
 pub fn initialize_debug_writer_wrapper<P: ThreadIdProvider>() {
-    DEBUG_WRITER.bind_to_thread::<P>(MapCell::empty());
-    DEBUG_WRITER_COUNT.bind_to_thread::<P>(Cell::new(0));
+    DEBUG_WRITER
+        .bind_to_thread::<P>(MapCell::empty())
+        .map_err(|_| ())
+        .unwrap();
+    DEBUG_WRITER_COUNT
+        .bind_to_thread::<P>(Cell::new(0))
+        .map_err(|_| ())
+        .unwrap();
 }
 
 /// Initialize the static debug writer.
@@ -469,8 +481,14 @@ pub fn initialize_debug_writer_wrapper<P: ThreadIdProvider>() {
 /// Callers of this function must ensure that this function is never called
 /// concurrently with other calls to [`initialize_debug_writer_wrapper_unsafe`].
 pub unsafe fn initialize_debug_writer_wrapper_unsafe<P: ThreadIdProvider>() {
-    DEBUG_WRITER.bind_to_thread_unsafe::<P>(MapCell::empty());
-    DEBUG_WRITER_COUNT.bind_to_thread_unsafe::<P>(Cell::new(0));
+    DEBUG_WRITER
+        .bind_to_thread_unsafe::<P>(MapCell::empty())
+        .map_err(|_| ())
+        .unwrap();
+    DEBUG_WRITER_COUNT
+        .bind_to_thread_unsafe::<P>(Cell::new(0))
+        .map_err(|_| ())
+        .unwrap();
 }
 
 fn try_get_debug_writer<F, R>(closure: F) -> Option<R>
