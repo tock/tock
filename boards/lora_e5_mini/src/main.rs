@@ -21,7 +21,6 @@ use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 use stm32wle5jc::chip_specs::Stm32wle5jcSpecs;
@@ -47,6 +46,8 @@ const NUM_PROCS: usize = 4;
 
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new(PanicResources::new());
@@ -66,7 +67,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LoraE5Mini {
-    scheduler: &'static RoundRobinSched<'static>,
+    scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
     console: &'static capsules_core::console::Console<'static>,
     led: &'static capsules_core::led::LedDriver<
@@ -124,7 +125,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = RoundRobinSched<'static>;
+    type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
