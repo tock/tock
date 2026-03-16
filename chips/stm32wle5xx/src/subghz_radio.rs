@@ -229,7 +229,7 @@ impl Configure for SubGhzRadioVirtualGpio<'_> {
     }
 
     fn is_input(&self) -> bool {
-        false
+        true
     }
 
     fn is_output(&self) -> bool {
