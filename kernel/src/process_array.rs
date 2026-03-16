@@ -13,7 +13,7 @@
 //! references to each PCB. The actual PCB is allocated in the process's
 //! allocated memory.
 
-use crate::process;
+use crate::{capabilities, process};
 use core::cell::Cell;
 
 /// Represents a slot for a process in a [`ProcessArray`].
@@ -33,6 +33,30 @@ pub struct ProcessSlot {
 
 impl ProcessSlot {
     pub(crate) fn set(&self, process: &'static dyn process::Process) {
+        self.proc.set(Some(process));
+    }
+
+    /// Install a [`Process`](process::Process) into this process slot from outside the
+    /// kernel crate.
+    ///
+    /// The normal [`set()`](Self::set) method is `pub(crate)` because, in
+    /// production, only the kernel's own process-loading machinery should be
+    /// able to populate a process slot. However, test code and external process
+    /// implementations live in separate crates and still need a way to register
+    /// a process with the kernel.
+    ///
+    /// `set_external` provides that path: it is **public** but requires the
+    /// caller to present an
+    /// [`ExternalProcessCapability`](capabilities::ExternalProcessCapability).
+    /// This capability is an *unsafe-to-implement* marker trait, so only
+    /// explicitly trusted code (typically a test harness) can obtain it. The
+    /// capability prevents arbitrary crates from silently replacing a running
+    /// process.
+    pub fn set_external(
+        &self,
+        process: &'static dyn process::Process,
+        _capability: &dyn capabilities::ExternalProcessCapability,
+    ) {
         self.proc.set(Some(process));
     }
 
