@@ -105,8 +105,8 @@ None.
 - Branden: I have two thoughts. One, I don't buy it. I think this is really hard
   to encapsulate. I'm happy to be proven wrong, but I think that is pretty
   high-effort. However, I think there is a second point that chips don't have to
-  be unsafe, we just thought that they could be and want it. I see this as an
-  experiment — could we make them unsafe? Maybe yes, maybe no. Or maybe we can
+  be safe, we just thought that they could be and want it. I see this as an
+  experiment — could we make them safe? Maybe yes, maybe no. Or maybe we can
   break them in half, with half unsafe and half safe.
 - Brad: To your first point, yeah, good concern. To your second point, I'm
   pretty optimistic — `unsafe` is a virus, is too tempting, it's a thing we
