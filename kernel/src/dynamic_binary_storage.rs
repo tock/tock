@@ -8,13 +8,15 @@
 //! during runtime without requiring the user to restart the device.
 
 use core::cell::Cell;
+// use core::num::NonZeroU32;
 
+use crate::capabilities::ProcessManagementCapability;
 use crate::config;
 use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::platform::chip::Chip;
-use crate::process::ProcessLoadingAsyncClient;
+use crate::process::{ProcessLoadingAsyncClient, ShortId};
 use crate::process_loading::{
     PaddingRequirement, ProcessLoadError, SequentialProcessLoaderMachine,
 };
@@ -22,6 +24,7 @@ use crate::process_standard::ProcessStandardDebug;
 use crate::utilities::cells::{OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
+use crate::Kernel;
 
 /// Expected buffer length for storing application binaries.
 pub const BUF_LEN: usize = 512;
@@ -36,6 +39,8 @@ pub enum State {
     AppWrite,
     Load,
     Abort,
+    Unload,
+    Uninstall,
     PaddingWrite,
     Fail,
 }
@@ -87,6 +92,12 @@ pub trait DynamicBinaryStore {
     /// Call to abort the setup/writing process.
     fn abort(&self) -> Result<(), ErrorCode>;
 
+    /// Call to unload a process with given ShortId.
+    fn unload(&self, app: ShortId); // -> Result<(), ErrorCode>;
+
+    /// Call to uninstall an app with given ShortId and app version.
+    fn uninstall(&self, app: ShortId, version: usize) -> Result<(), ErrorCode>;
+
     /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
     /// When the client operation is done, it calls the `setup_done()`,
@@ -108,6 +119,12 @@ pub trait DynamicBinaryStoreClient {
 
     /// Canceled any setup or writing operation and freed up reserved space.
     fn abort_done(&self, result: Result<(), ErrorCode>);
+
+    /// Terminated app (if running).
+    fn unload_done(&self, result: Result<(), ErrorCode>);
+
+    /// Uninstalled binary from storage.
+    fn uninstall_done(&self, result: Result<(), ErrorCode>);
 }
 
 /// This interface supports loading processes at runtime.
@@ -135,7 +152,9 @@ pub struct SequentialDynamicBinaryStorage<
     C: Chip + 'static,
     D: ProcessStandardDebug + 'static,
     F: NonvolatileStorage<'b>,
+    P: ProcessManagementCapability + 'static,
 > {
+    kernel: &'static Kernel,
     flash_driver: &'b F,
     loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
     buffer: TakeCell<'static, [u8]>,
@@ -144,17 +163,27 @@ pub struct SequentialDynamicBinaryStorage<
     process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
     deferred_call: DeferredCall,
+    capability: P,
 }
 
-impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
-    SequentialDynamicBinaryStorage<'a, 'b, C, D, F>
+impl<
+        'a,
+        'b,
+        C: Chip + 'static,
+        D: ProcessStandardDebug + 'static,
+        F: NonvolatileStorage<'b>,
+        P: ProcessManagementCapability + 'static,
+    > SequentialDynamicBinaryStorage<'a, 'b, C, D, F, P>
 {
     pub fn new(
+        kernel: &'static Kernel,
         flash_driver: &'b F,
         loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
         buffer: &'static mut [u8],
+        capability: P,
     ) -> Self {
         Self {
+            kernel,
             flash_driver,
             loader_driver,
             buffer: TakeCell::new(buffer),
@@ -163,6 +192,7 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             process_metadata: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             deferred_call: DeferredCall::new(),
+            capability,
         }
     }
 
@@ -210,7 +240,9 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             // If we are going to write the padding header, we already know
             // where to write in flash, so we don't have to add the start
             // address
-            State::Setup | State::Load | State::PaddingWrite | State::Abort => Ok(offset),
+            State::Setup | State::Load | State::PaddingWrite | State::Abort | State::Uninstall => {
+                Ok(offset)
+            }
             // We aren't supposed to be able to write unless we are in one of
             // the first two write states
             _ => Err(ErrorCode::FAIL),
@@ -336,8 +368,13 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
     }
 }
 
-impl<'b, C: Chip, D: ProcessStandardDebug, F: NonvolatileStorage<'b>> DeferredCallClient
-    for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
+impl<
+        'b,
+        C: Chip,
+        D: ProcessStandardDebug,
+        F: NonvolatileStorage<'b>,
+        P: ProcessManagementCapability + 'static,
+    > DeferredCallClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
 {
     fn handle_deferred_call(&self) {
         // We use deferred call to signal the completion of finalize
@@ -352,8 +389,13 @@ impl<'b, C: Chip, D: ProcessStandardDebug, F: NonvolatileStorage<'b>> DeferredCa
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
-    NonvolatileStorageClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
+impl<
+        'b,
+        C: Chip + 'static,
+        D: ProcessStandardDebug + 'static,
+        F: NonvolatileStorage<'b>,
+        P: ProcessManagementCapability + 'static,
+    > NonvolatileStorageClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
 {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {
         // We will never use this, but we need to implement this anyway.
@@ -426,6 +468,18 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                     client.abort_done(Ok(()));
                 });
             }
+            State::Unload => {
+                self.buffer.replace(buffer);
+                self.reset_process_loading_metadata();
+            }
+            State::Uninstall => {
+                self.buffer.replace(buffer);
+                // Reset metadata and let client know we are done uninstalling.
+                self.reset_process_loading_metadata();
+                self.storage_client.map(|client| {
+                    client.uninstall_done(Ok(()));
+                });
+            }
             State::Idle => {
                 self.buffer.replace(buffer);
             }
@@ -434,8 +488,13 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
 }
 
 /// Callback client for the async process loader
-impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
-    ProcessLoadingAsyncClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
+impl<
+        'b,
+        C: Chip + 'static,
+        D: ProcessStandardDebug + 'static,
+        F: NonvolatileStorage<'b>,
+        P: ProcessManagementCapability + 'static,
+    > ProcessLoadingAsyncClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
 {
     fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
         self.load_client.map(|client| {
@@ -451,8 +510,13 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
 }
 
 /// Storage interface exposed to the app_loader capsule
-impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
-    DynamicBinaryStore for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
+impl<
+        'b,
+        C: Chip + 'static,
+        D: ProcessStandardDebug + 'static,
+        F: NonvolatileStorage<'b>,
+        P: ProcessManagementCapability + 'static,
+    > DynamicBinaryStore for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
 {
     fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient) {
         self.storage_client.set(client);
@@ -635,11 +699,118 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
             }
         }
     }
+
+    fn unload(&self, app: ShortId) {
+        // -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Idle => {
+                self.process_metadata.set(ProcessLoadMetadata::default());
+                self.state.set(State::Unload);
+
+                // let shortid = NonZeroU32::new(short_id as u32)
+                //     .map(ShortId::Fixed)
+                //     .ok_or(ErrorCode::INVAL)?;
+
+                // let (app_address, app_size) = match self
+                //     .loader_driver
+                //     .fetch_app_details(shortid, app_version as u32)
+                // {
+                //     Ok((addr, size)) => (addr, size),
+                //     Err(_) => return Err(ErrorCode::FAIL),
+                // };
+
+                // if let Some(mut metadata) = self.process_metadata.get() {
+                //     metadata.new_app_start_addr = app_address as usize;
+                //     metadata.new_app_length = app_size as usize;
+                //     self.process_metadata.set(metadata);
+                // }
+
+                // Passing the ShortId is enough because only one
+                // version of an app can be run at any given
+                // time, so ShortId is a unique identifier
+                // self.loader_driver.remove_active_process(app);
+                self.kernel
+                    .remove_process_from_active_processes(app, &self.capability);
+                self.reset_process_loading_metadata();
+                self.storage_client.map(|client| {
+                    client.unload_done(Ok(()));
+                });
+                // Ok(())
+                // if let Some(metadata) = self.process_metadata.get() {
+                //     match self
+                //         .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
+                //     {
+                //         Ok(()) => Ok(()),
+                //         Err(_) => Err(ErrorCode::BUSY),
+                //     }
+                // } else {
+                //     Err(ErrorCode::FAIL)
+                // }
+            }
+            _ => {
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                // Err(ErrorCode::INVAL)
+            }
+        }
+    }
+
+    fn uninstall(&self, app: ShortId, version: usize) -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Idle => {
+                self.process_metadata.set(ProcessLoadMetadata::default());
+                self.state.set(State::Uninstall);
+
+                // let shortid = NonZeroU32::new(short_id as u32)
+                //     .map(ShortId::Fixed)
+                //     .ok_or(ErrorCode::INVAL)?;
+
+                let (app_address, app_size) =
+                    match self.loader_driver.fetch_app_details(app, version as u32) {
+                        Ok((addr, size)) => (addr, size),
+                        Err(_) => return Err(ErrorCode::FAIL),
+                    };
+
+                if let Some(mut metadata) = self.process_metadata.get() {
+                    metadata.new_app_start_addr = app_address as usize;
+                    metadata.new_app_length = app_size as usize;
+                    self.process_metadata.set(metadata);
+                }
+
+                // Passing the ShortId is enough because only one
+                // version of an app can be run at any given
+                // time, so ShortId is a unique identifier
+                // self.loader_driver.remove_process_from_active_processes(app);
+                if let Some(metadata) = self.process_metadata.get() {
+                    match self
+                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
+                    {
+                        Ok(()) => Ok(()),
+                        Err(_) => Err(ErrorCode::BUSY),
+                    }
+                } else {
+                    Err(ErrorCode::FAIL)
+                }
+            }
+            _ => {
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                Err(ErrorCode::INVAL)
+            }
+        }
+    }
 }
 
 /// Loading interface exposed to the app_loader capsule
-impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
-    DynamicProcessLoad for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
+impl<
+        'b,
+        C: Chip + 'static,
+        D: ProcessStandardDebug + 'static,
+        F: NonvolatileStorage<'b>,
+        P: ProcessManagementCapability + 'static,
+    > DynamicProcessLoad for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
 {
     fn set_load_client(&self, client: &'static dyn DynamicProcessLoadClient) {
         self.load_client.set(client);
