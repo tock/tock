@@ -315,7 +315,11 @@ impl Kernel {
     }
 
     /// Terminate a process if it exists, and remove it from ProcessArray.
-    pub(crate) fn reclaim_app_memory(&self, shortid: process::ShortId) {
+    pub(crate) fn remove_process_from_active_processes(
+        &self,
+        shortid: process::ShortId,
+        _capability: &dyn capabilities::ProcessManagementCapability,
+    ) {
         for slot in self.processes.iter() {
             if let Some(process) = slot.get() {
                 if process.short_app_id() == shortid {

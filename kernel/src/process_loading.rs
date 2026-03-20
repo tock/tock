@@ -1326,10 +1326,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         ))
     }
 
-    /// Function to terminate process and remove it from process array
-    pub fn reclaim_memory(&self, shortid: ShortId) {
-        self.kernel.reclaim_app_memory(shortid)
-    }
+    // /// Function to terminate process and remove it from process array
+    // pub fn remove_active_process(&self, shortid: ShortId) {
+    //     self.kernel.remove_process_from_active_processes(shortid)
+    // }
 }
 
 impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
