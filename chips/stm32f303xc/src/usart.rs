@@ -407,7 +407,7 @@ impl<'a> Usart<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        if self.registers.isr.is_set(ISR::TXE) {
+        if self.registers.isr.is_set(ISR::TC) {
             self.disable_transmit_interrupt();
 
             // ignore IRQ if not transmitting
@@ -417,17 +417,13 @@ impl<'a> Usart<'a> {
                         self.registers.tdr.set(buf[self.tx_position.get()].into());
                         self.tx_position.replace(self.tx_position.get() + 1);
                     });
-                }
-                if self.tx_position.get() == self.tx_len.get() {
+                    self.enable_transmit_interrupt();
+                } else {
                     // transmission done
                     self.tx_status.replace(USARTStateTX::Idle);
-                } else {
-                    self.enable_transmit_interrupt();
-                }
-                // notify client if transfer is done
-                if self.tx_status.get() == USARTStateTX::Idle {
                     self.tx_client.map(|client| {
                         if let Some(buf) = self.tx_buffer.take() {
+                            self.registers.isr.modify(ISR::TC::CLEAR);
                             client.transmitted_buffer(buf, self.tx_len.get(), Ok(()));
                         }
                     });
