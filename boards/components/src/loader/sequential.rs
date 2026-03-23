@@ -24,8 +24,9 @@ macro_rules! process_loader_sequential_component_static {
         let process_binary_array = kernel::static_buf!(
             [Option<kernel::process::ProcessBinary>; $NUMPROCS]
         );
+        let memory_manager = kernel::static_buf!(kernel::memory_manager::MemoryManager);
 
-       (loader, process_binary_array)
+       (loader, process_binary_array, memory_manager)
     };};
 }
 
@@ -44,7 +45,7 @@ pub struct ProcessLoaderSequentialComponent<
     appid_policy: &'static dyn kernel::process_checker::AppIdPolicy,
     storage_policy: &'static dyn kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>,
     app_flash: &'static [u8],
-    memory_bank: &'static [u8],
+    // memory_bank: &'static [u8],
     app_memory: &'static mut [u8],
 }
 
@@ -59,7 +60,7 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
         appid_policy: &'static dyn kernel::process_checker::AppIdPolicy,
         storage_policy: &'static dyn kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>,
         app_flash: &'static [u8],
-        memory_bank: &'static [u8],
+        // memory_bank: &'static [u8],
         app_memory: &'static mut [u8],
     ) -> Self {
         Self {
@@ -70,7 +71,7 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
             appid_policy,
             storage_policy,
             app_flash,
-            memory_bank,
+            // memory_bank,
             app_memory,
         }
     }
@@ -82,6 +83,7 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
     type StaticInput = (
         &'static mut MaybeUninit<kernel::process::SequentialProcessLoaderMachine<'static, C, D>>,
         &'static mut MaybeUninit<[Option<kernel::process::ProcessBinary>; NUM_PROCS]>,
+        &'static mut MaybeUninit<kernel::memory_manager::MemoryManager>,
     );
 
     type Output = &'static kernel::process::SequentialProcessLoaderMachine<'static, C, D>;
@@ -93,6 +95,11 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
         const ARRAY_REPEAT_VALUE: Option<kernel::process::ProcessBinary> = None;
         let process_binary_array = s.1.write([ARRAY_REPEAT_VALUE; NUM_PROCS]);
 
+        let memory_manager = s.2.write(
+            kernel::memory_manager::MemoryManager::new(self.app_memory as &[u8], self.kernel)
+        );
+
+
         let loader =
             s.0.write(kernel::process::SequentialProcessLoaderMachine::new(
                 self.checker,
@@ -100,8 +107,9 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
                 self.kernel,
                 self.chip,
                 self.app_flash,
-                self.memory_bank,
-                self.app_memory,
+                // self.memory_bank,
+                // self.app_memory,
+                memory_manager,
                 self.fault_policy,
                 self.storage_policy,
                 self.appid_policy,
