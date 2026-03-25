@@ -5,6 +5,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
+use kernel::hil::gpio::Configure;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -63,7 +64,7 @@ pub const GPIO_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     hsiom: hsiom_registers::HsiomFunction::ActiveFunctionality4,
     int_edge: false,
     int_mask: 0,
-    vtrip: 1,
+    vtrip: 0,
     fast_slew_rate: true,
     drive_sel: gpio::DriveSelect::Half,
     vreg_en: false,
@@ -243,6 +244,7 @@ impl<'a> Psc3DefaultPeripherals<'a> {
         swdio_pin.preconfigure(&GPIO_SWDIO_CONFIG);
         let uart_rx_pin = self.gpio.get_pin(gpio::PsocPin::P6_2);
         uart_rx_pin.preconfigure(&GPIO_DEBUG_UART_RX_CONFIG);
+        uart_rx_pin.make_input();
         let uart_tx_pin = self.gpio.get_pin(gpio::PsocPin::P6_3);
         uart_tx_pin.preconfigure(&GPIO_DEBUG_UART_TX_CONFIG);
     }
@@ -253,7 +255,6 @@ impl<'a> Psc3DefaultPeripherals<'a> {
         // TODO: sets warm boot entry
         // result = cybsp_syspm_dsram_init();
 
-        // self.srss.init_clock();
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();
         self.init_gpio_pins();
