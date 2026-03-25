@@ -128,14 +128,18 @@ impl Scb<'_> {
     pub fn set_standard_uart_mode(&self) {
         self.registers.ctrl.modify(CTRL::MODE::UART);
         self.registers
-            .ctrl
-            .modify(CTRL::OVS.val(14) + CTRL::EC_AM_MODE.val(0) + CTRL::EC_OP_MODE.val(0));
+            .ctrl // 7 is from dump
+            .modify(CTRL::OVS.val(0x7) + CTRL::EC_AM_MODE.val(0) + CTRL::EC_OP_MODE.val(0));
         self.registers
             .uart_ctrl
             .modify(UART_CTRL::MODE::StandardUARTSubmode);
         self.registers
             .uart_rx_ctrl
             .modify(UART_RX_CTRL::MP_MODE::CLEAR + UART_RX_CTRL::LIN_MODE::CLEAR);
+        // from dump
+        self.registers
+            .tx_ctrl
+            .modify(TX_CTRL::OPEN_DRAIN_SCL::CLEAR);
 
         self.set_uart_sync();
     }
@@ -162,7 +166,7 @@ impl Scb<'_> {
 
         self.registers
             .tx_fifo_ctrl
-            .modify(TX_FIFO_CTRL::TRIGGER_LEVEL.val(1));
+            .modify(TX_FIFO_CTRL::TRIGGER_LEVEL.val(0x3F));
         self.registers.tx_fifo_ctrl.modify(TX_FIFO_CTRL::CLEAR::SET);
         while !self.uart_is_transmitter_done() {}
         self.registers
@@ -171,7 +175,7 @@ impl Scb<'_> {
 
         self.registers
             .rx_fifo_ctrl
-            .modify(RX_FIFO_CTRL::TRIGGER_LEVEL.val(1));
+            .modify(RX_FIFO_CTRL::TRIGGER_LEVEL.val(0x3F));
         self.registers.rx_fifo_ctrl.modify(RX_FIFO_CTRL::CLEAR::SET);
         self.registers
             .rx_fifo_ctrl
