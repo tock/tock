@@ -45,7 +45,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 0; // TODO fix process loading (probably in linker)
+const NUM_PROCS: usize = 4;
 
 type ChipHw = Psc3<'static, Psc3DefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
