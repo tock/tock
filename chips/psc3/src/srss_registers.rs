@@ -286,7 +286,7 @@ pub CLK_DSI_SELECT [
     /// Selects a DSI source or low frequency clock for use in a clock path.  The output of this mux can be selected for clock PATH<i> using CLK_SELECT_PATH register.  Using the output of this mux as HFCLK source will result in undefined behavior.  It can be used to clocks to DSI or as reference inputs for the FLL/PLL, subject to the frequency limits of those circuits.  This mux is not glitch free, so do not change the selection while it is an actively selected clock.
     DSI_MUX OFFSET(0) NUMBITS(5) [
         /// DSI0 - dsi_out[0]
-        DSI0Dsi_out0 = 0, // CY_SYSCLK_CLKPATH_IN_IMO
+        DSI0Dsi_out0 = 0,
         /// DSI1 - dsi_out[1]
         DSI1Dsi_out1 = 1,
         /// DSI2 - dsi_out[2]
@@ -298,7 +298,7 @@ pub CLK_DSI_SELECT [
         /// DSI5 - dsi_out[5]
         DSI5Dsi_out5 = 5,
         /// DSI6 - dsi_out[6]
-        DSI6Dsi_out6 = 6, // CY_SYSCLK_CLKPATH_IN_IHO
+        DSI6Dsi_out6 = 6,
         /// DSI7 - dsi_out[7]
         DSI7Dsi_out7 = 7,
         /// DSI8 - dsi_out[8]
