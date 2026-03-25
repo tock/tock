@@ -40,10 +40,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM33::SYSTICK_HANDLER, // SysTick
 ];
 
-#[cfg_attr(
-    all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
-)]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 140] = [CortexM33::GENERIC_ISR; 140];
@@ -52,6 +49,7 @@ pub mod chip;
 pub mod gpio;
 pub mod interrupts;
 pub mod peri_clk;
+pub mod pwrmode;
 pub mod scb;
 pub mod srss;
 pub mod tcpwm;
