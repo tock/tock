@@ -664,7 +664,7 @@ PRT_CFG_IN_AUTOLVL [
     /// 1,1: input buffer is compatible with MediaLB.
     VTRIP_SEL0_1 OFFSET(0) NUMBITS(1) [
         /// Input buffer compatible with CMOS/TTL interfaces as described in CFG_IN.VTRIP_SEL0_0.
-        InputBufferCompatibleWithCMOSTTLInterfacesAsDescribedInCFG_INVTRIP_SEL0_0 = 0,
+        CMOS_OR_TTL = 0,
         /// Input buffer compatible with AUTO/MediaLB (elevated Vil) interfaces when used along with CFG_IN.VTRIP_SEL0_0.
         AUTO_OR_MediaLB = 1
     ],

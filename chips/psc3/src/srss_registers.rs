@@ -286,47 +286,47 @@ pub CLK_DSI_SELECT [
     /// Selects a DSI source or low frequency clock for use in a clock path.  The output of this mux can be selected for clock PATH<i> using CLK_SELECT_PATH register.  Using the output of this mux as HFCLK source will result in undefined behavior.  It can be used to clocks to DSI or as reference inputs for the FLL/PLL, subject to the frequency limits of those circuits.  This mux is not glitch free, so do not change the selection while it is an actively selected clock.
     DSI_MUX OFFSET(0) NUMBITS(5) [
         /// DSI0 - dsi_out[0]
-        DSI0Dsi_out0 = 0,
+        DSI_OUT0 = 0,
         /// DSI1 - dsi_out[1]
-        DSI1Dsi_out1 = 1,
+        DSI_OUT1 = 1,
         /// DSI2 - dsi_out[2]
-        DSI2Dsi_out2 = 2,
+        DSI_OUT2 = 2,
         /// DSI3 - dsi_out[3]
-        DSI3Dsi_out3 = 3,
+        DSI_OUT3 = 3,
         /// DSI4 - dsi_out[4]
-        DSI4Dsi_out4 = 4,
+        DSI_OUT4 = 4,
         /// DSI5 - dsi_out[5]
-        DSI5Dsi_out5 = 5,
+        DSI_OUT5 = 5,
         /// DSI6 - dsi_out[6]
-        DSI6Dsi_out6 = 6,
+        DSI_OUT6 = 6,
         /// DSI7 - dsi_out[7]
-        DSI7Dsi_out7 = 7,
+        DSI_OUT7 = 7,
         /// DSI8 - dsi_out[8]
-        DSI8Dsi_out8 = 8,
+        DSI_OUT8 = 8,
         /// DSI9 - dsi_out[9]
-        DSI9Dsi_out9 = 9,
+        DSI_OUT9 = 9,
         /// DSI10 - dsi_out[10]
-        DSI10Dsi_out10 = 10,
+        DSI_OUT10 = 10,
         /// DSI11 - dsi_out[11]
-        DSI11Dsi_out11 = 11,
+        DSI_OUT11 = 11,
         /// DSI12 - dsi_out[12]
-        DSI12Dsi_out12 = 12,
+        DSI_OUT12 = 12,
         /// DSI13 - dsi_out[13]
-        DSI13Dsi_out13 = 13,
+        DSI_OUT13 = 13,
         /// DSI14 - dsi_out[14]
-        DSI14Dsi_out14 = 14,
+        DSI_OUT14 = 14,
         /// DSI15 - dsi_out[15]
-        DSI15Dsi_out15 = 15,
+        DSI_OUT15 = 15,
         /// ILO - Internal Low-speed Oscillator #0
-        ILOInternalLowSpeedOscillator0 = 16,
+        ILO = 16,
         /// WCO - Watch-Crystal Oscillator
-        WCOWatchCrystalOscillator = 17,
+        WCO = 17,
         /// ALTLF - Alternate Low-Frequency Clock
-        ALTLFAlternateLowFrequencyClock = 18,
+        ALTLF = 18,
         /// PILO - Precision Internal Low-speed Oscillator
-        PILOPrecisionInternalLowSpeedOscillator = 19,
+        PILO = 19,
         /// ILO1 - Internal Low-speed Oscillator #1, if present.
-        ILO1InternalLowSpeedOscillator1IfPresent = 20,
+        ILO1 = 20,
     ]
 ],
 pub CLK_OUTPUT_FAST [
@@ -335,23 +335,23 @@ pub CLK_OUTPUT_FAST [
         /// Disabled - output is 0.  For power savings, clocks are blocked before entering any muxes, including PATH_SEL0 and HFCLK_SEL0.
         NC = 0,
         /// External Crystal Oscillator (ECO)
-        ExternalCrystalOscillatorECO = 1,
+        EC0 = 1,
         /// External clock input (EXTCLK)
-        ExternalClockInputEXTCLK = 2,
+        EXTCLK = 2,
         /// Alternate High-Frequency (ALTHF) clock input to SRSS
-        AlternateHighFrequencyALTHFClockInputToSRSS = 3,
+        ALTHF = 3,
         /// Timer clock.  It is grouped with the fast clocks because it may be a gated version of a fast clock, and therefore may have a short high pulse.
         TIMERCLK = 4,
         /// Selects the clock path chosen by PATH_SEL0 field
-        SelectsTheClockPathChosenByPATH_SEL0Field = 5,
+        PATH_SEL1 = 5,
         /// Selects the output of the HFCLK_SEL0 mux
-        SelectsTheOutputOfTheHFCLK_SEL0Mux = 6,
+        HFCLK_SEL1 = 6,
         /// Selects the output of CLK_OUTPUT_SLOW.SLOW_SEL0
-        SelectsTheOutputOfCLK_OUTPUT_SLOWSLOW_SEL0 = 7,
+        SLOW_SEL1 = 7,
         /// Internal High-speed Oscillator (IHO).
-        InternalHighSpeedOscillatorIHO = 8,
+        IHO = 8,
         /// clk_pwr: used for PPU and related components
-        Clk_pwrUsedForPPUAndRelatedComponents = 9
+        PWR = 9
     ],
     /// Selects a clock path to use in fast clock output #0 logic.
     PATH_SEL0 OFFSET(4) NUMBITS(4) [],
@@ -362,23 +362,23 @@ pub CLK_OUTPUT_FAST [
         /// Disabled - output is 0.  For power savings, clocks are blocked before entering any muxes, including PATH_SEL1 and HFCLK_SEL1.
         NC = 0,
         /// External Crystal Oscillator (ECO)
-        ExternalCrystalOscillatorECO = 1,
+        EC0 = 1,
         /// External clock input (EXTCLK)
-        ExternalClockInputEXTCLK = 2,
+        EXTCLK = 2,
         /// Alternate High-Frequency (ALTHF) clock input to SRSS
-        AlternateHighFrequencyALTHFClockInputToSRSS = 3,
+        ALTHF = 3,
         /// Timer clock.  It is grouped with the fast clocks because it may be a gated version of a fast clock, and therefore may have a short high pulse.
         TIMERCLK = 4,
         /// Selects the clock path chosen by PATH_SEL1 field
-        SelectsTheClockPathChosenByPATH_SEL1Field = 5,
+        PATH_SEL1 = 5,
         /// Selects the output of the HFCLK_SEL1 mux
-        SelectsTheOutputOfTheHFCLK_SEL1Mux = 6,
+        HFCLK_SEL1 = 6,
         /// Selects the output of CLK_OUTPUT_SLOW.SLOW_SEL1
-        SelectsTheOutputOfCLK_OUTPUT_SLOWSLOW_SEL1 = 7,
+        SLOW_SEL1 = 7,
         /// Internal High-speed Oscillator (IHO).
-        InternalHighSpeedOscillatorIHO = 8,
+        IHO = 8,
         /// clk_pwr: used for PPU and related components
-        Clk_pwrUsedForPPUAndRelatedComponents = 9
+        PWR = 9
     ],
     /// Selects a clock path to use in fast clock output #1 logic.
     PATH_SEL1 OFFSET(20) NUMBITS(4) [],
@@ -389,64 +389,64 @@ pub CLK_OUTPUT_SLOW [
     /// Select signal for slow clock output #0
     SLOW_SEL0 OFFSET(0) NUMBITS(4) [
         /// Disabled - output is 0.  For power savings, clocks are blocked before entering any muxes.
-        DisabledOutputIs0ForPowerSavingsClocksAreBlockedBeforeEnteringAnyMuxes = 0,
+        NC = 0,
         /// Internal Low Speed Oscillator (ILO)
-        InternalLowSpeedOscillatorILO = 1,
+        ILO = 1,
         /// Watch-Crystal Oscillator (WCO)
-        WatchCrystalOscillatorWCO = 2,
+        WC0 = 2,
         /// Root of the Backup domain clock tree (BAK)
-        RootOfTheBackupDomainClockTreeBAK = 3,
+        BAK = 3,
         /// Alternate low-frequency clock input to SRSS (ALTLF)
-        AlternateLowFrequencyClockInputToSRSSALTLF = 4,
+        ALTLF = 4,
         /// Root of the low-speed clock tree (LFCLK)
-        RootOfTheLowSpeedClockTreeLFCLK = 5,
+        LFCLK = 5,
         /// Internal Main Oscillator (IMO).  This is grouped with the slow clocks so it can be observed during DEEPSLEEP entry/exit.
         IMO = 6,
         /// Sleep Controller clock (SLPCTRL).  This is grouped with the slow clocks so it can be observed during DEEPSLEEP entry/exit.
         SLPCTRL = 7,
         /// Precision Internal Low Speed Oscillator (PILO)
-        PrecisionInternalLowSpeedOscillatorPILO = 8,
+        PILO = 8,
         /// Internal Low Speed Oscillator (ILO1), if present on the product.
-        InternalLowSpeedOscillatorILO1IfPresentOnTheProduct = 9,
+        ILO1 = 9,
         /// ECO Prescaler (ECO_PRESCALER)
-        ECOPrescalerECO_PRESCALER = 10,
+        ECO_PRESCALER = 10,
         /// LPECO
         LPECO = 11,
         /// LPECO Prescaler (LPECO_PRESCALER)
-        LPECOPrescalerLPECO_PRESCALER = 12,
+        LPECO_PRESCALER = 12,
         /// Medium Frequency Oscillator (MFO)
-        MediumFrequencyOscillatorMFO = 13
+        MFO = 13
     ],
     /// Select signal for slow clock output #1
     SLOW_SEL1 OFFSET(4) NUMBITS(4) [
         /// Disabled - output is 0.  For power savings, clocks are blocked before entering any muxes.
-        DisabledOutputIs0ForPowerSavingsClocksAreBlockedBeforeEnteringAnyMuxes = 0,
+        NC = 0,
         /// Internal Low Speed Oscillator (ILO)
-        InternalLowSpeedOscillatorILO = 1,
+        ILO = 1,
         /// Watch-Crystal Oscillator (WCO)
-        WatchCrystalOscillatorWCO = 2,
+        WC0 = 2,
         /// Root of the Backup domain clock tree (BAK)
-        RootOfTheBackupDomainClockTreeBAK = 3,
+        BAK = 3,
         /// Alternate low-frequency clock input to SRSS (ALTLF)
-        AlternateLowFrequencyClockInputToSRSSALTLF = 4,
+        ALTLF = 4,
         /// Root of the low-speed clock tree (LFCLK)
-        RootOfTheLowSpeedClockTreeLFCLK = 5,
+        LFCLK = 5,
         /// Internal Main Oscillator (IMO).  This is grouped with the slow clocks so it can be observed during DEEPSLEEP entry/exit.
         IMO = 6,
         /// Sleep Controller clock (SLPCTRL).  This is grouped with the slow clocks so it can be observed during DEEPSLEEP entry/exit.
         SLPCTRL = 7,
         /// Precision Internal Low Speed Oscillator (PILO)
-        PrecisionInternalLowSpeedOscillatorPILO = 8,
+        PILO = 8,
         /// Internal Low Speed Oscillator (ILO1), if present on the product.
-        InternalLowSpeedOscillatorILO1IfPresentOnTheProduct = 9,
+        ILO1 = 9,
         /// ECO Prescaler (ECO_PRESCALER)
-        ECOPrescalerECO_PRESCALER = 10,
+        ECO_PRESCALER = 10,
         /// LPECO
         LPECO = 11,
         /// LPECO Prescaler (LPECO_PRESCALER)
-        LPECOPrescalerLPECO_PRESCALER = 12,
+        LPECO_PRESCALER = 12,
         /// Medium Frequency Oscillator (MFO)
-        MediumFrequencyOscillatorMFO = 13
+        MFO = 13
     ]
 ],
 pub CLK_CAL_CNT1 [
@@ -592,18 +592,18 @@ pub PWR_CTL [
     /// Current power mode of the device.  Note that this field cannot be read in all power modes on actual silicon.
     POWER_MODE OFFSET(0) NUMBITS(2) [
         /// System is resetting.
-        SystemIsResetting = 0,
+        RESET = 0,
         /// At least one CPU is running.
-        AtLeastOneCPUIsRunning = 1,
+        ACTIVE = 1,
         /// No CPUs are running.  Peripherals may be running.
-        NoCPUsAreRunningPeripheralsMayBeRunning = 2,
+        SLEEP = 2,
         /// Main high-frequency clock is off; low speed clocks are available.  Communication interface clocks may be present.
         DEEPSLEEP = 3
     ],
     /// Indicates whether a debug session is active (CDBGPWRUPREQ signal is 1)
     DEBUG_SESSION OFFSET(4) NUMBITS(1) [
         /// No debug session active
-        NoDebugSessionActive = 0,
+         NO_SESSION = 0,
         /// Debug session is active.  Power modes behave differently to keep the debug session active, and current consumption may be higher than datasheet specification.
         SESSION_ACTIVE = 1
     ],
@@ -739,11 +739,11 @@ pub PWR_SSV_CTL [
     /// Action taken when the BOD on vdda triggers.
     BODVDDA_ACTION OFFSET(6) NUMBITS(2) [
         /// No action
-        NoAction = 0,
+        NO_ACTION = 0,
         /// Generate a fault
-        GenerateAFault = 1,
+        FAULT = 1,
         /// Reset the chip
-        ResetTheChip = 2
+        RESET = 2
     ],
     /// Enable for BOD on vdda.  BODVDDA_ACTION will be triggered when the BOD is disabled.  If no action is desired when disabling, firmware must first write BODVDDA_ACTION=NOTHING in a separate write cycle.
     BODVDDA_ENABLE OFFSET(8) NUMBITS(1) [],
@@ -762,11 +762,11 @@ pub PWR_SSV_CTL [
     /// Action taken when the OVD on vdda triggers.
     OVDVDDA_ACTION OFFSET(22) NUMBITS(2) [
         /// No action
-        NoAction = 0,
+        NO_ACTION = 0,
         /// Generate a fault
-        GenerateAFault = 1,
+        FAULT = 1,
         /// Reset the chip
-        ResetTheChip = 2
+        RESET = 2
     ],
     /// Enable for OVD on vdda.
     OVDVDDA_ENABLE OFFSET(24) NUMBITS(1) [],
@@ -813,13 +813,13 @@ pub PWR_LVD_CTL [
     /// Source selection for HVLVD1
     HVLVD1_SRCSEL OFFSET(4) NUMBITS(3) [
         /// Select VDDD
-        SelectVDDD = 0,
+        VDDD = 0,
         /// Select AMUXBUSA (VDDD branch)
-        SelectAMUXBUSAVDDDBranch = 1,
+        AMUXBUSA = 1,
         /// N/A
-        NA = 2,
+        RSVD = 2,
         /// Select AMUXBUSB (VDDD branch)
-        SelectAMUXBUSBVDDDBranch = 4
+        AMUXBUSB = 4
     ],
     /// Enable HVLVD1 voltage monitor.  HVLVD1 does not function during DEEPSLEEP, but it automatically returns to its configured setting after DEEPSLEEP wakeup.  Do not change other HVLVD1 settings when enabled.
     HVLVD1_EN OFFSET(7) NUMBITS(1) [],
@@ -832,20 +832,20 @@ pub PWR_LVD_CTL [
     /// Sets which edge(s) will trigger an action when the threshold is crossed.
     HVLVD1_EDGE_SEL OFFSET(16) NUMBITS(2) [
         /// Disabled
-        Disabled = 0,
+        DISABLED = 0,
         /// Rising edge
-        RisingEdge = 1,
+        RISING = 1,
         /// Falling edge
-        FallingEdge = 2,
+        FALLING = 2,
         /// Both rising and falling edges
-        BothRisingAndFallingEdges = 3
+        BOTH = 3
     ],
     /// Action taken when the threshold is crossed in the programmed directions(s)
     HVLVD1_ACTION OFFSET(18) NUMBITS(1) [
         /// Generate an interrupt
-        GenerateAnInterrupt = 0,
+        INTERRUPT = 0,
         /// Generate a fault
-        GenerateAFault = 1
+        FAULT = 1
     ]
 ],
 pub PWR_LVD_CTL2 [
@@ -858,13 +858,13 @@ pub PWR_LVD_CTL2 [
     /// Sets which edge(s) will trigger an action when the threshold is crossed.
     HVLVD2_EDGE_SEL OFFSET(16) NUMBITS(2) [
         /// Disabled
-        Disabled = 0,
+        DISABLED = 0,
         /// Rising edge
-        RisingEdge = 1,
+        RISING = 1,
         /// Falling edge
-        FallingEdge = 2,
+        FALLING = 2,
         /// Both rising and falling edges
-        BothRisingAndFallingEdges = 3
+        BOTH = 3
     ],
     /// Action taken when the threshold is crossed in the programmed directions(s)
     HVLVD2_ACTION OFFSET(18) NUMBITS(1) [
@@ -1036,93 +1036,93 @@ pub CLK_PATH_SELECT [
     /// Selects a source for clock PATH<i>.  Note that not all products support all clock sources.  Selecting a clock source that is not supported will result in undefined behavior.  It takes four cycles of the originally selected clock to switch away from it.  Do not disable the original clock during this time.
     PATH_MUX OFFSET(0) NUMBITS(3) [
         /// IMO - Internal R/C Oscillator
-        IMOInternalRCOscillator = 0,
+        IMO = 0,
         /// EXTCLK - External Clock Pin
-        EXTCLKExternalClockPin = 1,
+        EXTCLK = 1,
         /// ECO - External-Crystal Oscillator
-        ECOExternalCrystalOscillator = 2,
+        ECO = 2,
         /// ALTHF - Alternate High-Frequency clock input (product-specific clock)
-        ALTHFAlternateHighFrequencyClockInputProductSpecificClock = 3,
+        ALTHF = 3,
         /// DSI_MUX - Output of DSI mux for this path.  Using a DSI source directly as root of HFCLK will result in undefined behavior.
         DSI_MUX = 4,
         /// LPECO - Low-Power External-Crystal Oscillator
-        LPECOLowPowerExternalCrystalOscillator = 5,
+        LPECO = 5,
         /// IHO - Internal High-speed Oscillator
-        IHOInternalHighSpeedOscillator = 6
+        IHO = 6
     ]
 ],
 pub CLK_ROOT_SELECT [
     /// Selects a clock path for HFCLK<k> and SRSS DSI input <k>.  The output of this mux goes to the direct mux (see CLK_DIRECT_SELECT).  Use CLK_SELECT_PATH[i] to configure the desired path.  The number of clock paths is product-specific, and selecting an unimplemented path is not supported.  Some paths may have FLL or PLL available (product-specific), and the control and bypass mux selections of these are in other registers.  Configure the FLL using CLK_FLL_CONFIG register.  Configure a PLL using the related CLK_PLL_CONFIG[k] register.  Note that not all products support all clock sources.  Selecting a clock source that is not supported will result in undefined behavior.  It takes four cycles of the originally selected clock to switch away from it.  Do not disable the original clock during this time.
     ROOT_MUX OFFSET(0) NUMBITS(4) [
         /// Select PATH0
-        SelectPATH0 = 0,
+        PATH0 = 0,
         /// Select PATH1
-        SelectPATH1 = 1,
+        PATH1 = 1,
         /// Select PATH2
-        SelectPATH2 = 2,
+        PATH2 = 2,
         /// Select PATH3
-        SelectPATH3 = 3,
+        PATH3 = 3,
         /// Select PATH4
-        SelectPATH4 = 4,
+        PATH4 = 4,
         /// Select PATH5
-        SelectPATH5 = 5,
+        PATH5 = 5,
         /// Select PATH6
-        SelectPATH6 = 6,
+        PATH6 = 6,
         /// Select PATH7
-        SelectPATH7 = 7,
+        PATH7 = 7,
         /// Select PATH8
-        SelectPATH8 = 8,
+        PATH8 = 8,
         /// Select PATH9
-        SelectPATH9 = 9,
+        PATH9 = 9,
         /// Select PATH10
-        SelectPATH10 = 10,
+        PATH10 = 10,
         /// Select PATH11
-        SelectPATH11 = 11,
+        PATH11 = 11,
         /// Select PATH12
-        SelectPATH12 = 12,
+        PATH12 = 12,
         /// Select PATH13
-        SelectPATH13 = 13,
+        PATH13 = 13,
         /// Select PATH14
-        SelectPATH14 = 14,
+        PATH14 = 14,
         /// Select PATH15
-        SelectPATH15 = 15
+        PATH15 = 15
     ],
     /// Obsolete.  Do not use in new designs.
     ROOT_DIV OFFSET(4) NUMBITS(2) [],
     /// Selects predivider value for this clock root and DSI input.  This divider is after DIRECT_MUX.  For products with DSI, the output of this mux is routed to DSI for use as a signal.  For products with clock supervision, the output of this mux is the monitored clock for CSV_HF<k>.
     ROOT_DIV_INT OFFSET(8) NUMBITS(4) [
         /// Transparent mode, feed through selected clock source w/o dividing.
-        TransparentModeFeedThroughSelectedClockSourceWODividing = 0,
+        NO_DIV = 0,
         /// Divide selected clock source by 2
-        DivideSelectedClockSourceBy2 = 1,
+        DIV_BY_2 = 1,
         /// Divide selected clock source by 3
-        DivideSelectedClockSourceBy3 = 2,
+        DIV_BY_3 = 2,
         /// Divide selected clock source by 4
-        DivideSelectedClockSourceBy4 = 3,
+        DIV_BY_4 = 3,
         /// Divide selected clock source by 5
-        DivideSelectedClockSourceBy5 = 4,
+        DIV_BY_5 = 4,
         /// Divide selected clock source by 6
-        DivideSelectedClockSourceBy6 = 5,
+        DIV_BY_6 = 5,
         /// Divide selected clock source by 7
-        DivideSelectedClockSourceBy7 = 6,
+        DIV_BY_7 = 6,
         /// Divide selected clock source by 8
-        DivideSelectedClockSourceBy8 = 7,
+        DIV_BY_8 = 7,
         /// Divide selected clock source by 9
-        DivideSelectedClockSourceBy9 = 8,
+        DIV_BY_9 = 8,
         /// Divide selected clock source by 10
-        DivideSelectedClockSourceBy10 = 9,
+        DIV_BY_10 = 9,
         /// Divide selected clock source by 11
-        DivideSelectedClockSourceBy11 = 10,
+        DIV_BY_11 = 10,
         /// Divide selected clock source by 12
-        DivideSelectedClockSourceBy12 = 11,
+        DIV_BY_12 = 11,
         /// Divide selected clock source by 13
-        DivideSelectedClockSourceBy13 = 12,
+        DIV_BY_13 = 12,
         /// Divide selected clock source by 14
-        DivideSelectedClockSourceBy14 = 13,
+        DIV_BY_14 = 13,
         /// Divide selected clock source by 15
-        DivideSelectedClockSourceBy15 = 14,
+        DIV_BY_15 = 14,
         /// Divide selected clock source by 16
-        DivideSelectedClockSourceBy16 = 15
+        DIV_BY_16 = 15
     ],
     /// Enable for this clock root.  All clock roots default to disabled (ENABLE==0) except HFCLK0, which cannot be disabled.
     ENABLE OFFSET(31) NUMBITS(1) []
@@ -1131,24 +1131,24 @@ pub CLK_DIRECT_SELECT [
     /// Direct selection mux that allows IMO to bypass most of the clock mux structure.    For products with multiple regulators, this mux can be used to reduce current without requiring significant reconfiguration of the clocking network.  The default value of HFCLK<0>==ROOT_MUX, and the default value for other clock trees is product-specific.
     DIRECT_MUX OFFSET(8) NUMBITS(1) [
         /// Select IMO
-        SelectIMO = 0,
+        IMO = 0,
         /// Select ROOT_MUX selection
-        SelectROOT_MUXSelection = 1
+        ROOT_MUX = 1
     ]
 ],
 pub CLK_SELECT [
     /// Select source for LFCLK.  Note that not all products support all clock sources.  Selecting a clock source that is not supported will result in undefined behavior.  Writes to this field are ignored unless the WDT is unlocked using WDT_LOCK register.  It takes four cycles of the originally selected clock to switch away from it.  Do not disable the original clock during this time.
     LFCLK_SEL OFFSET(0) NUMBITS(3) [
         /// ILO - Internal Low-speed Oscillator
-        ILOInternalLowSpeedOscillator = 0,
+        ILO = 0,
         /// WCO - Watch-Crystal Oscillator.  Requires Backup domain to be present and properly configured (including external watch crystal, if used).
         WCO = 1,
         /// ALTLF - Alternate Low-Frequency Clock.  Capability is product-specific
-        ALTLFAlternateLowFrequencyClockCapabilityIsProductSpecific = 2,
+        ALTLF = 2,
         /// PILO - Precision ILO, if present.
-        PILOPrecisionILOIfPresent = 3,
+        PILO = 3,
         /// ILO1 - Internal Low-speed Oscillator #1, if present.
-        ILO1InternalLowSpeedOscillator1IfPresent = 4,
+        ILO1 = 4,
         /// ECO_PRESCALER - External-Crystal Oscillator after prescaling, if present.  Does not work in DEEPSLEEP or HIBERNATE modes.  Intended for applications that operate in ACTIVE/SLEEP modes only.  This option is only valid when ECO is present in the product. Not compatible with an clk_sys frequency <48MHz.
         ECO_PRESCALER = 5,
         /// LPECO_PRESCALER - Low-Power External-Crystal Oscillator after prescaling, if present.  This choice works in ACTIVE/SLEEP/DEEPSLEEP modes.  This option is only valid when LPECO is present in the product.
@@ -1159,15 +1159,15 @@ pub CLK_SELECT [
     /// Division ratio for PUMPCLK.  Uses selected PUMP_SEL clock as the source.
     PUMP_DIV OFFSET(12) NUMBITS(3) [
         /// Transparent mode, feed through selected clock source w/o dividing.
-        TransparentModeFeedThroughSelectedClockSourceWODividing = 0,
+        NO_DIV = 0,
         /// Divide selected clock source by 2
-        DivideSelectedClockSourceBy2 = 1,
+        DIV_BY_2 = 1,
         /// Divide selected clock source by 4
-        DivideSelectedClockSourceBy4 = 2,
+        DIV_BY_4 = 2,
         /// Divide selected clock source by 8
-        DivideSelectedClockSourceBy8 = 3,
+        DIV_BY_8 = 3,
         /// Divide selected clock source by 16
-        DivideSelectedClockSourceBy16 = 4
+        DIV_BY_16 = 4
     ],
     /// Enable the pump clock.  PUMP_ENABLE and the PUMP_SEL mux are not glitch-free to minimize side-effects, avoid changing the PUMP_SEL and PUMP_DIV while changing PUMP_ENABLE.  To change the settings, do the following:
     /// 1) If the pump clock is enabled, write PUMP_ENABLE=0 without changing PUMP_SEL and PUMP_DIV.
@@ -1339,9 +1339,9 @@ pub CLK_FLL_CONFIG3 [
         /// Similar to AUTO, except the clock is gated off when unlocked.  This is compatible with clock supervision, because the supervisors allow no clock during startup (until a timeout occurs), and the clock targets the proper frequency whenever it is running.
         LOCKED_OR_NOTHING = 1,
         /// Select FLL reference input (bypass mode).  Ignores lock indicator
-        SelectFLLReferenceInputBypassModeIgnoresLockIndicator = 2,
+        FLL_REF = 2,
         /// Select FLL output.  Ignores lock indicator.
-        SelectFLLOutputIgnoresLockIndicator = 3
+        FLL_OUT = 3
     ]
 ],
 pub CLK_FLL_CONFIG4 [
@@ -1350,15 +1350,15 @@ pub CLK_FLL_CONFIG4 [
     /// Frequency range of CCO
     CCO_RANGE OFFSET(8) NUMBITS(3) [
         /// Target frequency is in range [48, 64) MHz
-        TargetFrequencyIsInRange4864MHz = 0,
+        RANGE0_4864MHz = 0,
         /// Target frequency is in range [64, 85) MHz
-        TargetFrequencyIsInRange6485MHz = 1,
+        RANGE1_6485MHz = 1,
         /// Target frequency is in range [85, 113) MHz
-        TargetFrequencyIsInRange85113MHz = 2,
+        RANGE2_85113MHz = 2,
         /// Target frequency is in range [113, 150) MHz
-        TargetFrequencyIsInRange113150MHz = 3,
+        RANGE3_113150MHz = 3,
         /// Target frequency is in range [150, 200] MHz
-        TargetFrequencyIsInRange150200MHz = 4
+        RANGE4_150200MHz = 4
     ],
     /// CCO frequency code.  This is updated by HW when the FLL is enabled.  It can be manually updated to use the CCO in an open loop configuration.  The meaning of each frequency code depends on the range.
     CCO_FREQ OFFSET(16) NUMBITS(9) [],
@@ -1440,19 +1440,19 @@ pub CLK_MF_SELECT [
         /// MFO - Medium Frequency Oscillator.  DEEPSLEEP compatibility is product-specific.  See CLK_MFO_CONFIG for capability of this product.
         MFO = 0,
         /// ILO - Internal Low-speed Oscillator.
-        ILOInternalLowSpeedOscillator = 1,
+        ILO = 1,
         /// WCO - Watch-Crystal Oscillator, if present.
-        WCOWatchCrystalOscillatorIfPresent = 2,
+        WCO = 2,
         /// ALTLF - Alternate Low-Frequency Clock.  Capability is product-specific
-        ALTLFAlternateLowFrequencyClockCapabilityIsProductSpecific = 3,
+        ALTLF = 3,
         /// PILO - Precision ILO, if present.
-        PILOPrecisionILOIfPresent = 4,
+        PILO = 4,
         /// ILO1 - Internal Low-speed Oscillator #1, if present.
-        ILO1InternalLowSpeedOscillator1IfPresent = 5,
+        ILO1 = 5,
         /// ECO_PRESCALER - External-Crystal Oscillator, if present, after prescaling in CLK_ECO_PRESCALE.  Intended for applications that operate in ACTIVE/SLEEP modes only.  Does not work in DEEPSLEEP mode.
         ECO_PRESCALER = 6,
         /// LPECO - Low Power External Crystal Oscillator, if present.
-        LPECOLowPowerExternalCrystalOscillatorIfPresent = 7
+        LPECO = 7
     ],
     /// Divide selected clock source by (1+MFCLK_DIV).  The output of this divider is MFCLK (clk_mf).  Allows for integer divisions in the range [1, 256].  Do not change this setting while ENABLE==1.
     MFCLK_DIV OFFSET(8) NUMBITS(8) [],
@@ -1513,9 +1513,9 @@ pub CLK_PLL_CONFIG [
         /// Similar to AUTO, except the clock is gated off when unlocked.  This is compatible with clock supervision, because the supervisors allow no clock during startup (until a timeout occurs), and the clock targets the proper frequency whenever it is running.  If ENABLE=0, no clock is output.
         LOCKED_OR_NOTHING = 1,
         /// Select PLL reference input (bypass mode).  Ignores lock indicator
-        SelectPLLReferenceInputBypassModeIgnoresLockIndicator = 2,
+        PLL_REF = 2,
         /// Select PLL output.  Ignores lock indicator.  If ENABLE=0, no clock is output.
-        SelectPLLOutputIgnoresLockIndicatorIfENABLE0NoClockIsOutput = 3
+        PLL_OUT = 3
     ],
     /// Master enable for PLL.  Setup FEEDBACK_DIV, REFERENCE_DIV, and OUTPUT_DIV at least one cycle before setting ENABLE=1.
     ///
@@ -1535,15 +1535,15 @@ pub CSV_REF_SEL [
     /// Selects a source for clock clk_ref_hf.  Note that not all products support all clock sources.  Selecting a clock source that is not supported will result in undefined behavior.   It takes four cycles of the originally selected clock to switch away from it.  Do not disable the original clock during this time.
     REF_MUX OFFSET(0) NUMBITS(3) [
         /// IMO - Internal R/C Oscillator
-        IMOInternalRCOscillator = 0,
+        IMO = 0,
         /// EXTCLK - External Clock Pin
-        EXTCLKExternalClockPin = 1,
+        EXTCLK = 1,
         /// ECO - External-Crystal Oscillator
-        ECOExternalCrystalOscillator = 2,
+        ECO = 2,
         /// ALTHF - Alternate High-Frequency clock input (product-specific clock)
-        ALTHFAlternateHighFrequencyClockInputProductSpecificClock = 3,
+        ALTHF = 3,
         /// IHO - Internal High-speed Oscillator
-        IHOInternalHighSpeedOscillator = 4
+        IHO = 4
     ]
 ],
 pub RES_CAUSE [
@@ -1771,9 +1771,9 @@ pub WDT_CTL [
     /// Select source for WDT.  Not all products support all clock sources.  Selecting a clock source that is not supported will result in undefined behavior.  Writes to this field are ignored unless the WDT is unlock using WDT_LOCK register.  It takes four cycles of the originally selected clock to switch away from it.  Do not disable the original clock during this time.
     WDT_CLK_SEL OFFSET(4) NUMBITS(2) [
         /// ILO - Internal Low-speed Oscillator
-        ILOInternalLowSpeedOscillator = 0,
+        ILO = 0,
         /// PILO - Precision ILO. If present, if present
-        PILOPrecisionILOIfPresentIfPresent = 1,
+        PILO = 1,
         /// BAK - Selected clk_bak source, if present.  See BACKUP_CTL.  This choice is not recommended for applications that rely upon the watchdog timer for safety or security, unless the product supports clock supervision of clk_bak (CSV_BAK).  Generation of clk_bak is not protected by WDT_LOCK and is in a different memory region with potentially different security attributes.
         BAK = 2
     ],
@@ -1824,9 +1824,9 @@ pub CSV_REF_CTL [
     /// Specifies the action taken when an anomaly is detected on the monitored clock.  CSV in DeepSleep domain always do a Fault report (which also wakes up the system).
     CSV_ACTION OFFSET(30) NUMBITS(1) [
         /// Generate a fault
-        GenerateAFault = 0,
+        FAULT = 0,
         /// Cause a power reset. This should only be used for clk_hf0.
-        CauseAPowerResetThisShouldOnlyBeUsedForClk_hf0 = 1
+        RESET = 1
     ],
     /// Enables clock supervision, both frequency and loss.
     /// CSV in Active domain: Clock supervision is reset during DeepSleep and Hibernate modes.  When enabled it begins operating automatically after a DeepSleep wakeup, but it must be reconfigured after Hibernate wakeup.
@@ -1869,9 +1869,9 @@ pub CLK_DPLL_LP_CONFIG [
         /// Similar to AUTO, except the clock is gated off when unlocked.  This is compatible with clock supervision, because the supervisors allow no clock during startup (until a timeout occurs), and the clock targets the proper frequency whenever it is running.  If ENABLE=0, no clock is output.
         LOCKED_OR_NOTHING = 1,
         /// Select PLL reference input (bypass mode).  Ignores lock indicator
-        SelectPLLReferenceInputBypassModeIgnoresLockIndicator = 2,
+        PLL_BYPASS = 2,
         /// Select PLL output.  Ignores lock indicator.  If ENABLE=0, no clock is output.
-        SelectPLLOutputIgnoresLockIndicatorIfENABLE0NoClockIsOutput = 3
+        PLL_OUT = 3
     ],
     /// Master enable for PLL.  Setup FEEDBACK_DIV, REFERENCE_DIV, and OUTPUT_DIV at least one cycle before setting ENABLE=1.
     ///
@@ -2118,13 +2118,13 @@ pub MCWDT_CONFIG [
     /// Watchdog Counter Action on Match.  Action is taken on the next increment after the values match (WDT_CTR0=WDT_MATCH0).
     WDT_MODE0 OFFSET(0) NUMBITS(2) [
         /// Do nothing
-        DoNothing = 0,
+        NOTHING = 0,
         /// Assert WDT_INTx
-        AssertWDT_INTx = 1,
+        INT = 1,
         /// Assert WDT Reset
-        AssertWDTReset = 2,
+        RESET = 2,
         /// Assert WDT_INTx, assert WDT Reset after 3rd unhandled interrupt
-        AssertWDT_INTxAssertWDTResetAfter3rdUnhandledInterrupt = 3
+        INT_THEN_RESET = 3
     ],
     /// Clear Watchdog Counter when WDT_CTR0=WDT_MATCH0. In other words WDT_CTR0 divides LFCLK by (WDT_MATCH0+1).
     /// 0: Free running counter
@@ -2190,7 +2190,7 @@ pub MCWDT_CONFIG [
     /// Watchdog Counter 2 Mode.
     WDT_MODE2 OFFSET(16) NUMBITS(1) [
         /// Free running counter with no interrupt requests
-        FreeRunningCounterWithNoInterruptRequests = 0,
+        NOTHING = 0,
         /// Free running counter with interrupt request that occurs one LFCLK cycle after the specified bit in CTR2 toggles (see WDT_BITS2).
         INT = 1
     ],

@@ -174,12 +174,12 @@ pub CTRL [
         BYTE = 0,
         /// 16-bit FIFO data elements.
         /// TX_CTRL.DATA_WIDTH and RX_CTRL.DATA_WIDTH are restricted to [0, 15].
-        _16BitFIFODataElementsTX_CTRLDATA_WIDTHAndRX_CTRLDATA_WIDTHAreRestrictedTo015 = 1,
+        HALFWORD = 1,
         /// 32-bit FIFO data elements.
         /// This mode provides the smallest amount of FIFO entries, but TX_CTRL.DATA_WIDTH and RX_CTRL.DATA_WIDTH can be in a range of [0, 31].
         WORD = 2,
         /// N/A
-        NA = 3
+        RSVD = 3
     ],
     /// Determines whether a received matching address is accepted in the RX FIFO ('1') or not ('0').
     ///
@@ -192,11 +192,11 @@ pub CTRL [
     /// N/A
     MODE OFFSET(24) NUMBITS(2) [
         /// Inter-Integrated Circuits (I2C) mode.
-        InterIntegratedCircuitsI2CMode = 0,
+        I2C = 0,
         /// Serial Peripheral Interface (SPI) mode.
-        SerialPeripheralInterfaceSPIMode = 1,
+        SPI = 1,
         /// Universal Asynchronous Receiver/Transmitter (UART) mode.
-        UniversalAsynchronousReceiverTransmitterUARTMode = 2
+        UART = 2
     ],
     /// EC_ACCESS is used to enable I2CS_EC or SPIS_EC access to internal EZ memory.
     /// 1: enable clk_scb
@@ -365,7 +365,7 @@ pub UART_CTRL [
         /// SmartCard (ISO7816) submode. Support for negative acknowledgement (NACK) on the receiver side and retransmission on the transmitter side.
         UART_SMARTCARD = 1,
         /// Infrared Data Association (IrDA) submode. Return to Zero modulation scheme.
-        InfraredDataAssociationIrDASubmodeReturnToZeroModulationScheme = 2
+        UART_IRDA = 2
     ]
 ],
 pub UART_TX_CTRL [
