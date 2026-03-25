@@ -126,9 +126,7 @@ impl Scb<'_> {
     }
 
     pub fn set_standard_uart_mode(&self) {
-        self.registers
-            .ctrl
-            .modify(CTRL::MODE::UniversalAsynchronousReceiverTransmitterUARTMode);
+        self.registers.ctrl.modify(CTRL::MODE::UART);
         self.registers
             .ctrl
             .modify(CTRL::OVS.val(14) + CTRL::EC_AM_MODE.val(0) + CTRL::EC_OP_MODE.val(0));

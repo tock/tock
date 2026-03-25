@@ -127,13 +127,13 @@ struct FllManualConfig {
 const SRSS_0_CLOCK_0_FLL_0_FLL_CONFIG: FllManualConfig = FllManualConfig {
     fll_mult: 500,
     ref_div: 120,
-    cco_range: CLK_FLL_CONFIG4::CCO_RANGE::TargetFrequencyIsInRange150200MHz.value, // CY_SYSCLK_FLL_CCO_RANGE4
+    cco_range: CLK_FLL_CONFIG4::CCO_RANGE::RANGE4_150200MHz.value,
     enable_output_div: true,
     lock_tolerance: 10,
     igain: 9,
     pgain: 5,
     settling_count: 48,
-    output_mode: CLK_FLL_CONFIG3::BYPASS_SEL::SelectFLLOutputIgnoresLockIndicator.value, // CY_SYSCLK_FLLPLL_OUTPUT_OUTPUT
+    output_mode: CLK_FLL_CONFIG3::BYPASS_SEL::FLL_OUT.value,
     cco_freq: 355,
 };
 
@@ -176,22 +176,22 @@ impl Srss {
         ]
         .iter()
         .for_each(|clk_path_select| {
-            clk_path_select.modify(CLK_PATH_SELECT::PATH_MUX::IHOInternalHighSpeedOscillator);
+            clk_path_select.modify(CLK_PATH_SELECT::PATH_MUX::IHO);
         });
         self.registers
             .clk_path_select6
-            .modify(CLK_PATH_SELECT::PATH_MUX::IMOInternalRCOscillator);
+            .modify(CLK_PATH_SELECT::PATH_MUX::IMO);
     }
 
     pub fn sys_init_enable_clocks(&self) {
         // set source
         self.registers
             .clk_root_select2
-            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH0);
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::PATH0);
         // set divider
-        self.registers.clk_root_select2.modify(
-            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
-        );
+        self.registers
+            .clk_root_select2
+            .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
         // enable
         self.registers
             .clk_root_select2
@@ -199,20 +199,20 @@ impl Srss {
 
         self.registers
             .clk_root_select3
-            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH0);
-        self.registers.clk_root_select3.modify(
-            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
-        );
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+        self.registers
+            .clk_root_select3
+            .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
         self.registers
             .clk_root_select3
             .modify(CLK_ROOT_SELECT::ENABLE::SET);
 
         self.registers
             .clk_root_select4
-            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH0);
-        self.registers.clk_root_select4.modify(
-            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
-        );
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+        self.registers
+            .clk_root_select4
+            .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
         self.registers
             .clk_root_select4
             .modify(CLK_ROOT_SELECT::ENABLE::SET);
@@ -220,15 +220,17 @@ impl Srss {
 
     pub fn disable_fll(&self) {
         const MAX_DELAY_US: u32 = 100;
-        self.registers.clk_fll_config3.modify(
-            CLK_FLL_CONFIG3::BYPASS_SEL::SelectFLLReferenceInputBypassModeIgnoresLockIndicator,
-        );
+        self.registers
+            .clk_fll_config3
+            .modify(CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF);
 
         let mut success = false;
         for _ in 0..MAX_DELAY_US {
-            if self.registers.clk_fll_config3.any_matching_bits_set(
-                CLK_FLL_CONFIG3::BYPASS_SEL::SelectFLLReferenceInputBypassModeIgnoresLockIndicator,
-            ) {
+            if self
+                .registers
+                .clk_fll_config3
+                .any_matching_bits_set(CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF)
+            {
                 success = true;
                 break;
             }
@@ -259,9 +261,7 @@ impl Srss {
         .iter()
         .for_each(|&(dpll_lp_config, pll_num, config)| {
             // Put PLL into bypass, then disable
-            dpll_lp_config.modify(
-        CLK_DPLL_LP_CONFIG::BYPASS_SEL::SelectPLLReferenceInputBypassModeIgnoresLockIndicator,
-    );
+            dpll_lp_config.modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS);
             /* Wait at least 6 PLL clock cycles */
             delay_rough_us(1);
 
@@ -275,9 +275,7 @@ impl Srss {
             delay_rough_us(10_000);
 
             // Switch bypass back to PLL output
-            dpll_lp_config.modify(
-        CLK_DPLL_LP_CONFIG::BYPASS_SEL::SelectPLLOutputIgnoresLockIndicatorIfENABLE0NoClockIsOutput,
-            );
+            dpll_lp_config.modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_OUT);
         });
     }
 
@@ -375,10 +373,10 @@ impl Srss {
         // 1
         self.registers
             .clk_root_select1
-            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH1);
-        self.registers.clk_root_select1.modify(
-            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
-        );
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::PATH1);
+        self.registers
+            .clk_root_select1
+            .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
         self.registers
             .clk_root_select1
             .modify(CLK_ROOT_SELECT::ENABLE::SET);
@@ -386,10 +384,10 @@ impl Srss {
         // 2
         self.registers
             .clk_root_select2
-            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH0);
-        self.registers.clk_root_select2.modify(
-            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
-        );
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+        self.registers
+            .clk_root_select2
+            .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
         self.registers
             .clk_root_select2
             .modify(CLK_ROOT_SELECT::ENABLE::SET);
@@ -397,10 +395,10 @@ impl Srss {
         // 3
         self.registers
             .clk_root_select3
-            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH2);
-        self.registers.clk_root_select3.modify(
-            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
-        );
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::PATH2);
+        self.registers
+            .clk_root_select3
+            .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
         self.registers
             .clk_root_select3
             .modify(CLK_ROOT_SELECT::ENABLE::SET);
@@ -408,10 +406,10 @@ impl Srss {
         // 4
         self.registers
             .clk_root_select4
-            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH0);
-        self.registers.clk_root_select4.modify(
-            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
-        );
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+        self.registers
+            .clk_root_select4
+            .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
         self.registers
             .clk_root_select4
             .modify(CLK_ROOT_SELECT::ENABLE::SET);
@@ -420,16 +418,16 @@ impl Srss {
     pub fn init_clk_hf0(&self) {
         self.registers
             .clk_root_select0
-            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH1);
-        self.registers.clk_root_select0.modify(
-            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
-        );
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::PATH1);
+        self.registers
+            .clk_root_select0
+            .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
     }
 
     pub fn init_clk_path0(&self) {
         self.registers
             .clk_path_select0
-            .modify(CLK_PATH_SELECT::PATH_MUX::IHOInternalHighSpeedOscillator);
+            .modify(CLK_PATH_SELECT::PATH_MUX::IHO);
     }
 
     pub fn init_fll(&self) {
@@ -453,9 +451,9 @@ impl Srss {
             }
             delay_rough_us(1);
         }
-        self.registers.clk_fll_config3.modify(
-            CLK_FLL_CONFIG3::BYPASS_SEL::SelectFLLReferenceInputBypassModeIgnoresLockIndicator,
-        );
+        self.registers
+            .clk_fll_config3
+            .modify(CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF);
         if cc0_ready {
             self.registers
                 .clk_fll_config
@@ -478,7 +476,7 @@ impl Srss {
         if locked {
             self.registers
                 .clk_fll_config3
-                .modify(CLK_FLL_CONFIG3::BYPASS_SEL::SelectFLLOutputIgnoresLockIndicator);
+                .modify(CLK_FLL_CONFIG3::BYPASS_SEL::FLL_OUT);
         } else {
             /* If lock doesn't occur, FLL is stopped */
             self.disable_fll();
