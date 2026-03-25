@@ -97,6 +97,7 @@ members = [
     "chips/pci-x86",
     "chips/x86_q35",
     "chips/qemu_rv32_virt_chip",
+    "chips/psc3",
     "chips/psoc62xa",
     "chips/rp2040",
     "chips/rp2350",
