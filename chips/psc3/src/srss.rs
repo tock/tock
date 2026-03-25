@@ -1,6 +1,9 @@
 use crate::srss_registers::*;
 use kernel::utilities::{
-    registers::interfaces::{ReadWriteable, Readable, Writeable},
+    registers::{
+        interfaces::{ReadWriteable, Readable, Writeable},
+        ReadOnly, ReadWrite,
+    },
     StaticRef,
 };
 
@@ -252,31 +255,69 @@ impl Srss {
             .modify(CLK_IHO_CONFIG::ENABLE::SET);
     }
 
-    pub fn init_dpll_lp(&self) {
+    pub fn init_dpll_lp(&self) -> Result<(), ()> {
         [
-            // (mtb inputs 1,2 but corrects it later)
-            (&self.registers.clk_dpll_lp0_config, 0, &DPLL_LP_CONFIG_0),
-            (&self.registers.clk_dpll_lp1_config, 1, &DPLL_LP_CONFIG_1),
+            (
+                &self.registers.clk_dpll_lp0_config,
+                &self.registers.clk_dpll_lp0_status,
+                0,
+                &DPLL_LP_CONFIG_0,
+            ),
+            (
+                &self.registers.clk_dpll_lp1_config,
+                &self.registers.clk_dpll_lp1_status,
+                1,
+                &DPLL_LP_CONFIG_1,
+            ),
         ]
         .iter()
-        .for_each(|&(dpll_lp_config, pll_num, config)| {
-            // Put PLL into bypass, then disable
-            dpll_lp_config.modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS);
-            /* Wait at least 6 PLL clock cycles */
+        .try_for_each(|&(config_reg, status_reg, pll_num, config)| {
+            config_reg.modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS);
             delay_rough_us(1);
+            config_reg.modify(CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
 
-            dpll_lp_config.modify(CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
-
-            // Program PLL
             self.configure_dpll_lp(pll_num, config);
 
-            // Enable PLL and wait for lock/output to stabilize
-            dpll_lp_config.modify(CLK_DPLL_LP_CONFIG::ENABLE::SET);
-            delay_rough_us(10_000);
+            self.enable_dpll_lp(config_reg, status_reg)?;
 
+            Ok(())
+        })
+    }
+
+    /// Enable PLL and wait for lock/output to stabilize
+    fn enable_dpll_lp(
+        &self,
+        config_reg: &ReadWrite<u32, CLK_DPLL_LP_CONFIG::Register>,
+        status_reg: &ReadOnly<u32, CLK_DPLL_LP_STATUS::Register>,
+    ) -> Result<(), ()> {
+        const MAX_DELAY_US: u32 = 10_000;
+
+        config_reg.modify(CLK_DPLL_LP_CONFIG::ENABLE::SET);
+
+        let mut locked = false;
+        for _ in 0..MAX_DELAY_US {
+            if status_reg.any_matching_bits_set(CLK_DPLL_LP_STATUS::LOCKED::SET) {
+                locked = true;
+                break;
+            }
+            delay_rough_us(1);
+        }
+
+        if locked {
+            if config_reg.any_matching_bits_set(CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS) {
+                config_reg.modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_OUT);
+            }
+            Ok(())
+        } else {
             // Switch bypass back to PLL output
-            dpll_lp_config.modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_OUT);
-        });
+            config_reg.modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS);
+
+            delay_rough_us(1);
+
+            config_reg.modify(CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
+
+            Err(())
+        }
     }
 
     /// Configure DPLL LP registers for the given PLL (0 or 1) using the provided config.
@@ -430,8 +471,8 @@ impl Srss {
             .modify(CLK_PATH_SELECT::PATH_MUX::IHO);
     }
 
-    pub fn init_fll(&self) {
-        const MAX_DELAY_US: u32 = 10_000;
+    pub fn init_fll(&self) -> Result<(), ()> {
+        const MAX_DELAY_US: u32 = 20_000;
         self.fll_manual_configure(&SRSS_0_CLOCK_0_FLL_0_FLL_CONFIG);
 
         // Enable
@@ -477,9 +518,11 @@ impl Srss {
             self.registers
                 .clk_fll_config3
                 .modify(CLK_FLL_CONFIG3::BYPASS_SEL::FLL_OUT);
+            Ok(())
         } else {
             /* If lock doesn't occur, FLL is stopped */
             self.disable_fll();
+            return Err(());
         }
     }
 

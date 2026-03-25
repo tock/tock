@@ -224,12 +224,12 @@ impl<'a> Psc3DefaultPeripherals<'a> {
 
         self.srss.init_clock_paths();
 
-        self.srss.init_dpll_lp();
+        self.srss.init_dpll_lp().unwrap();
 
         self.srss.init_clk_hf();
         self.srss.init_clk_path0();
 
-        self.srss.init_fll();
+        self.srss.init_fll().unwrap();
         self.srss.init_clk_hf0();
 
         // TODO
