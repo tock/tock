@@ -261,6 +261,8 @@ impl<'a> Psc3DefaultPeripherals<'a> {
 
         self.scb3.set_standard_uart_mode();
         self.scb3.enable_scb();
+
+        self.tcpwm.init_timer();
     }
 }
 

@@ -157,18 +157,6 @@ impl Srss {
         self.registers.wdt_ctl.modify(WDT_CTL::WDT_LOCK::ClearsBit1);
     }
 
-    // pub fn init_clock(&self) {
-    //     self.registers
-    //         .clk_path_select3
-    //         .modify(CLK_PATH_SELECT::PATH_MUX::IMOInternalRCOscillator);
-
-    //     self.registers
-    //         .clk_root_select0
-    //         .modify(CLK_ROOT_SELECT::ENABLE::SET
-    //             + CLK_ROOT_SELECT::ROOT_MUX::SelectPATH3
-    //             + CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing);
-    // }
-
     pub fn init_clock_paths(&self) {
         [
             &self.registers.clk_path_select1,

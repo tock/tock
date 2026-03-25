@@ -122,6 +122,7 @@ pub unsafe fn main() {
     // TODO Cypress has different register (is it mapped?)
     cortexm33::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS) as *const ());
     cortexm33::support::dmb();
+    cortexm33::nvic::enable_all();
 
     // TODO:
     // __set_MSPLIM((uint32_t)(&__STACK_LIMIT));

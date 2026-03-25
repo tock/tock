@@ -251,9 +251,6 @@ impl PeriPClk {
 
     #[no_mangle]
     pub fn init_clocks(&self) {
-        // bsps/TARGET_APP_KIT_PSC3M5_EVK/config/GeneratedSource/cycfg_clocks.c:46
-        // Match C code: operate on group 4 and group 5 divider 8, index 0
-        // Group 4 divider 8, index 0
         self.registers
             .gr4_div_cmd
             .write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
@@ -292,7 +289,7 @@ impl PeriPClk {
             .write(CLOCK_CTL::DIV_SEL.val(0) + CLOCK_CTL::TYPE_SEL::DIV8_0);
 
         self.registers
-            .gr5_clock_ctl4 // ctl4 = PCLK_TCPWM0_CLOCK_COUNTER_EN256
+            .gr5_clock_ctl0 // ctl0 = PCLK_TCPWM0_CLOCK_COUNTER_EN0
             .write(CLOCK_CTL::DIV_SEL.val(0) + CLOCK_CTL::TYPE_SEL::DIV8_0);
     }
 }
