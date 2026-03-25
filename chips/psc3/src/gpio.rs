@@ -1,430 +1,428 @@
-use kernel::utilities::registers::{
-    self, register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
-};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 
 register_structs! {
     /// IO port control/configuration
     GpioRegisters {
         /// Port output data register
-        (0x000 => prt_0__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x000 => prt_0_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x004 => prt_0__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x004 => prt_0_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x008 => prt_0__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x008 => prt_0_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x00C => prt_0__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x00C => prt_0_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x010 => prt_0__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x010 => prt_0_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x014 => prt_0__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x014 => prt_0_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x018 => prt_0__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x018 => prt_0_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x01C => prt_0__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x01C => prt_0_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x020 => prt_0__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x020 => prt_0_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x024 => _reserved0),
         /// Port interrupt configuration register
-        (0x040 => prt_0__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x040 => prt_0_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x044 => prt_0__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x044 => prt_0_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x048 => prt_0__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x048 => prt_0_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x04C => prt_0__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x04C => prt_0_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x050 => prt_0__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x050 => prt_0_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x054 => _reserved1),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x058 => prt_0__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x058 => prt_0_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x05C => _reserved2),
         /// Port output buffer configuration register 2
-        (0x060 => prt_0__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x060 => prt_0_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x064 => prt_0__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x064 => prt_0_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x068 => prt_0__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x068 => prt_0_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x06C => prt_0__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x06C => prt_0_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x070 => _reserved3),
         /// Port output data register
-        (0x080 => prt_1__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x080 => prt_1_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x084 => prt_1__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x084 => prt_1_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x088 => prt_1__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x088 => prt_1_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x08C => prt_1__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x08C => prt_1_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x090 => prt_1__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x090 => prt_1_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x094 => prt_1__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x094 => prt_1_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x098 => prt_1__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x098 => prt_1_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x09C => prt_1__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x09C => prt_1_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x0A0 => prt_1__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x0A0 => prt_1_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x0A4 => _reserved4),
         /// Port interrupt configuration register
-        (0x0C0 => prt_1__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x0C0 => prt_1_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x0C4 => prt_1__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x0C4 => prt_1_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x0C8 => prt_1__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x0C8 => prt_1_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x0CC => prt_1__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x0CC => prt_1_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x0D0 => prt_1__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x0D0 => prt_1_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x0D4 => _reserved5),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x0D8 => prt_1__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x0D8 => prt_1_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x0DC => _reserved6),
         /// Port output buffer configuration register 2
-        (0x0E0 => prt_1__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x0E0 => prt_1_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x0E4 => prt_1__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x0E4 => prt_1_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x0E8 => prt_1__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x0E8 => prt_1_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x0EC => prt_1__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x0EC => prt_1_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x0F0 => _reserved7),
         /// Port output data register
-        (0x100 => prt_2__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x100 => prt_2_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x104 => prt_2__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x104 => prt_2_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x108 => prt_2__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x108 => prt_2_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x10C => prt_2__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x10C => prt_2_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x110 => prt_2__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x110 => prt_2_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x114 => prt_2__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x114 => prt_2_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x118 => prt_2__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x118 => prt_2_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x11C => prt_2__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x11C => prt_2_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x120 => prt_2__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x120 => prt_2_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x124 => _reserved8),
         /// Port interrupt configuration register
-        (0x140 => prt_2__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x140 => prt_2_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x144 => prt_2__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x144 => prt_2_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x148 => prt_2__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x148 => prt_2_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x14C => prt_2__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x14C => prt_2_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x150 => prt_2__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x150 => prt_2_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x154 => _reserved9),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x158 => prt_2__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x158 => prt_2_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x15C => _reserved10),
         /// Port output buffer configuration register 2
-        (0x160 => prt_2__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x160 => prt_2_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x164 => prt_2__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x164 => prt_2_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x168 => prt_2__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x168 => prt_2_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x16C => prt_2__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x16C => prt_2_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x170 => _reserved11),
         /// Port output data register
-        (0x180 => prt_3__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x180 => prt_3_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x184 => prt_3__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x184 => prt_3_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x188 => prt_3__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x188 => prt_3_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x18C => prt_3__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x18C => prt_3_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x190 => prt_3__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x190 => prt_3_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x194 => prt_3__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x194 => prt_3_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x198 => prt_3__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x198 => prt_3_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x19C => prt_3__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x19C => prt_3_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x1A0 => prt_3__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x1A0 => prt_3_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x1A4 => _reserved12),
         /// Port interrupt configuration register
-        (0x1C0 => prt_3__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x1C0 => prt_3_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x1C4 => prt_3__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x1C4 => prt_3_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x1C8 => prt_3__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x1C8 => prt_3_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x1CC => prt_3__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x1CC => prt_3_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x1D0 => prt_3__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x1D0 => prt_3_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x1D4 => _reserved13),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x1D8 => prt_3__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x1D8 => prt_3_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x1DC => _reserved14),
         /// Port output buffer configuration register 2
-        (0x1E0 => prt_3__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x1E0 => prt_3_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x1E4 => prt_3__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x1E4 => prt_3_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x1E8 => prt_3__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x1E8 => prt_3_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x1EC => prt_3__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x1EC => prt_3_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x1F0 => _reserved15),
         /// Port output data register
-        (0x200 => prt_4__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x200 => prt_4_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x204 => prt_4__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x204 => prt_4_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x208 => prt_4__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x208 => prt_4_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x20C => prt_4__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x20C => prt_4_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x210 => prt_4__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x210 => prt_4_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x214 => prt_4__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x214 => prt_4_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x218 => prt_4__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x218 => prt_4_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x21C => prt_4__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x21C => prt_4_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x220 => prt_4__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x220 => prt_4_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x224 => _reserved16),
         /// Port interrupt configuration register
-        (0x240 => prt_4__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x240 => prt_4_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x244 => prt_4__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x244 => prt_4_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x248 => prt_4__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x248 => prt_4_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x24C => prt_4__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x24C => prt_4_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x250 => prt_4__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x250 => prt_4_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x254 => _reserved17),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x258 => prt_4__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x258 => prt_4_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x25C => _reserved18),
         /// Port output buffer configuration register 2
-        (0x260 => prt_4__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x260 => prt_4_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x264 => prt_4__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x264 => prt_4_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x268 => prt_4__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x268 => prt_4_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x26C => prt_4__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x26C => prt_4_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x270 => _reserved19),
         /// Port output data register
-        (0x280 => prt_5__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x280 => prt_5_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x284 => prt_5__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x284 => prt_5_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x288 => prt_5__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x288 => prt_5_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x28C => prt_5__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x28C => prt_5_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x290 => prt_5__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x290 => prt_5_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x294 => prt_5__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x294 => prt_5_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x298 => prt_5__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x298 => prt_5_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x29C => prt_5__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x29C => prt_5_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x2A0 => prt_5__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x2A0 => prt_5_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x2A4 => _reserved20),
         /// Port interrupt configuration register
-        (0x2C0 => prt_5__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x2C0 => prt_5_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x2C4 => prt_5__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x2C4 => prt_5_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x2C8 => prt_5__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x2C8 => prt_5_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x2CC => prt_5__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x2CC => prt_5_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x2D0 => prt_5__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x2D0 => prt_5_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x2D4 => _reserved21),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x2D8 => prt_5__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x2D8 => prt_5_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x2DC => _reserved22),
         /// Port output buffer configuration register 2
-        (0x2E0 => prt_5__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x2E0 => prt_5_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x2E4 => prt_5__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x2E4 => prt_5_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x2E8 => prt_5__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x2E8 => prt_5_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x2EC => prt_5__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x2EC => prt_5_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x2F0 => _reserved23),
         /// Port output data register
-        (0x300 => prt_6__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x300 => prt_6_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x304 => prt_6__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x304 => prt_6_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x308 => prt_6__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x308 => prt_6_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x30C => prt_6__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x30C => prt_6_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x310 => prt_6__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x310 => prt_6_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x314 => prt_6__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x314 => prt_6_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x318 => prt_6__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x318 => prt_6_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x31C => prt_6__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x31C => prt_6_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x320 => prt_6__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x320 => prt_6_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x324 => _reserved24),
         /// Port interrupt configuration register
-        (0x340 => prt_6__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x340 => prt_6_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x344 => prt_6__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x344 => prt_6_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x348 => prt_6__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x348 => prt_6_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x34C => prt_6__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x34C => prt_6_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x350 => prt_6__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x350 => prt_6_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x354 => _reserved25),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x358 => prt_6__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x358 => prt_6_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x35C => _reserved26),
         /// Port output buffer configuration register 2
-        (0x360 => prt_6__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x360 => prt_6_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x364 => prt_6__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x364 => prt_6_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x368 => prt_6__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x368 => prt_6_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x36C => prt_6__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x36C => prt_6_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x370 => _reserved27),
         /// Port output data register
-        (0x380 => prt_7__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x380 => prt_7_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x384 => prt_7__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x384 => prt_7_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x388 => prt_7__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x388 => prt_7_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x38C => prt_7__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x38C => prt_7_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x390 => prt_7__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x390 => prt_7_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x394 => prt_7__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x394 => prt_7_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x398 => prt_7__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x398 => prt_7_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x39C => prt_7__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x39C => prt_7_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x3A0 => prt_7__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x3A0 => prt_7_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x3A4 => _reserved28),
         /// Port interrupt configuration register
-        (0x3C0 => prt_7__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x3C0 => prt_7_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x3C4 => prt_7__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x3C4 => prt_7_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x3C8 => prt_7__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x3C8 => prt_7_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x3CC => prt_7__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x3CC => prt_7_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x3D0 => prt_7__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x3D0 => prt_7_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x3D4 => _reserved29),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x3D8 => prt_7__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x3D8 => prt_7_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x3DC => _reserved30),
         /// Port output buffer configuration register 2
-        (0x3E0 => prt_7__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x3E0 => prt_7_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x3E4 => prt_7__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x3E4 => prt_7_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x3E8 => prt_7__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x3E8 => prt_7_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x3EC => prt_7__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x3EC => prt_7_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x3F0 => _reserved31),
         /// Port output data register
-        (0x400 => prt_8__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x400 => prt_8_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x404 => prt_8__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x404 => prt_8_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x408 => prt_8__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x408 => prt_8_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x40C => prt_8__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x40C => prt_8_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x410 => prt_8__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x410 => prt_8_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x414 => prt_8__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x414 => prt_8_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x418 => prt_8__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x418 => prt_8_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x41C => prt_8__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x41C => prt_8_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x420 => prt_8__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x420 => prt_8_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x424 => _reserved32),
         /// Port interrupt configuration register
-        (0x440 => prt_8__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x440 => prt_8_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x444 => prt_8__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x444 => prt_8_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x448 => prt_8__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x448 => prt_8_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x44C => prt_8__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x44C => prt_8_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x450 => prt_8__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x450 => prt_8_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x454 => _reserved33),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x458 => prt_8__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x458 => prt_8_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x45C => _reserved34),
         /// Port output buffer configuration register 2
-        (0x460 => prt_8__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x460 => prt_8_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x464 => prt_8__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x464 => prt_8_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x468 => prt_8__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x468 => prt_8_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x46C => prt_8__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x46C => prt_8_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x470 => _reserved35),
         /// Port output data register
-        (0x480 => prt_9__out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x480 => prt_9_out: ReadWrite<u32, PRT_OUT::Register>),
         /// Port output data clear register
-        (0x484 => prt_9__out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
+        (0x484 => prt_9_out_clr: ReadWrite<u32, PRT_OUT_CLR::Register>),
         /// Port output data set register
-        (0x488 => prt_9__out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
+        (0x488 => prt_9_out_set: ReadWrite<u32, PRT_OUT_SET::Register>),
         /// Port output data invert register
-        (0x48C => prt_9__out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
+        (0x48C => prt_9_out_inv: ReadWrite<u32, PRT_OUT_INV::Register>),
         /// Port input state register
-        (0x490 => prt_9__in: ReadWrite<u32, PRT_IN::Register>),
+        (0x490 => prt_9_in: ReadWrite<u32, PRT_IN::Register>),
         /// Port interrupt status register
-        (0x494 => prt_9__intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x494 => prt_9_intr: ReadWrite<u32, PRT_INTR::Register>),
         /// Port interrupt mask register
-        (0x498 => prt_9__intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
+        (0x498 => prt_9_intr_mask: ReadWrite<u32, PRT_INTR_MASK::Register>),
         /// Port interrupt masked status register
-        (0x49C => prt_9__intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
+        (0x49C => prt_9_intr_masked: ReadWrite<u32, PRT_INTR_MASKED::Register>),
         /// Port interrupt set register
-        (0x4A0 => prt_9__intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
+        (0x4A0 => prt_9_intr_set: ReadWrite<u32, PRT_INTR_SET::Register>),
         (0x4A4 => _reserved36),
         /// Port interrupt configuration register
-        (0x4C0 => prt_9__intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x4C0 => prt_9_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
         /// Port configuration register
-        (0x4C4 => prt_9__cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x4C4 => prt_9_cfg: ReadWrite<u32, PRT_CFG::Register>),
         /// Port input buffer configuration register
-        (0x4C8 => prt_9__cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x4C8 => prt_9_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
         /// Port output buffer configuration register
-        (0x4CC => prt_9__cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x4CC => prt_9_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
         /// Port SIO configuration register
-        (0x4D0 => prt_9__cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x4D0 => prt_9_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
         (0x4D4 => _reserved37),
         /// Port input buffer AUTOLVL configuration register for S40E GPIO
-        (0x4D8 => prt_9__cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x4D8 => prt_9_cfg_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
         (0x4DC => _reserved38),
         /// Port output buffer configuration register 2
-        (0x4E0 => prt_9__cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        (0x4E0 => prt_9_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
         /// Port output buffer slew extension configuration register
-        (0x4E4 => prt_9__cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
+        (0x4E4 => prt_9_cfg_slew_ext: ReadWrite<u32, PRT_CFG_SLEW_EXT::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x4E8 => prt_9__cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
+        (0x4E8 => prt_9_cfg_drive_ext0: ReadWrite<u32, PRT_CFG_DRIVE_EXT0::Register>),
         /// Port output buffer drive sel extension configuration register
-        (0x4EC => prt_9__cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
+        (0x4EC => prt_9_cfg_drive_ext1: ReadWrite<u32, PRT_CFG_DRIVE_EXT1::Register>),
         (0x4F0 => _reserved39),
         /// Secure Interrupt port cause register 0
         (0x7000 => sec_intr_cause0: ReadWrite<u32>),
@@ -1130,5 +1128,5 @@ PRT_CFG_DRIVE_EXT1 [
     DRIVE_SEL_EXT7 OFFSET(24) NUMBITS(5) []
 ],
 ];
-const GPIO_BASE: StaticRef<GpioRegisters> =
+const _GPIO_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x42410000 as *const GpioRegisters) };
