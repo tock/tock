@@ -57,6 +57,7 @@ pub mod peri_clk;
 pub mod pwrmode;
 pub mod ramc_ppu;
 pub mod scb;
+mod scb_registers;
 pub mod srss;
 mod srss_registers;
 pub mod tcpwm;
