@@ -53,4 +53,5 @@ pub mod gpio;
 pub mod interrupts;
 pub mod peri_clk;
 pub mod scb;
+pub mod srss;
 pub mod tcpwm;

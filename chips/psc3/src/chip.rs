@@ -11,6 +11,7 @@ use kernel::platform::chip::InterruptService;
 use crate::interrupts;
 use crate::peri_clk::PeriPClk;
 use crate::scb::Scb;
+use crate::srss::Srss;
 use crate::tcpwm::Tcpwm0;
 use cortexm33::{CortexM33, CortexMVariant};
 
@@ -87,7 +88,7 @@ pub struct Psc3DefaultPeripherals<'a> {
     // pub hsiom: hsiom::Hsiom,
     pub peri_clk: PeriPClk,
     pub scb3: Scb<'a>,
-    // pub srss: srss::Srss,
+    pub srss: Srss,
     pub tcpwm: Tcpwm0<'a>,
 }
 
@@ -96,11 +97,13 @@ impl Psc3DefaultPeripherals<'_> {
         Self {
             scb3: Scb::new(),
             peri_clk: PeriPClk::new(),
+            srss: Srss::new(),
             tcpwm: Tcpwm0::new(),
         }
     }
 
     pub fn init(&self) {
+        self.srss.init_clock();
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();
     }
