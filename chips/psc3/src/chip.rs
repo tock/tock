@@ -29,7 +29,7 @@ const GPIO_SWDCK_CONFIG: gpio::PreConfig = gpio::PreConfig {
     hsiom: hsiom_registers::HsiomFunction::DeepSleepFunctionality5,
     int_edge: false,
     int_mask: 0,
-    vtrip: 0, // todo enum
+    vtrip: 0,
     fast_slew_rate: true,
     drive_sel: gpio::DriveSelect::Half,
     vreg_en: false,
@@ -43,10 +43,10 @@ const GPIO_SWDCK_CONFIG: gpio::PreConfig = gpio::PreConfig {
 const GPIO_SWDIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
     drive_mode: gpio::DriveMode::PullUp,
-    hsiom: hsiom_registers::HsiomFunction::DeepSleepFunctionality5,
+    hsiom: gpio::HsiomFunction::DeepSleepFunctionality5,
     int_edge: false,
     int_mask: 0,
-    vtrip: 0, // todo enum
+    vtrip: 0,
     fast_slew_rate: true,
     drive_sel: gpio::DriveSelect::Half,
     vreg_en: false,
@@ -60,7 +60,7 @@ const GPIO_SWDIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
 pub const GPIO_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
     drive_mode: gpio::DriveMode::HighZ,
-    hsiom: hsiom_registers::HsiomFunction::ActiveFunctionality4,
+    hsiom: gpio::HsiomFunction::ActiveFunctionality4,
     int_edge: false,
     int_mask: 0,
     vtrip: 0,
@@ -77,7 +77,7 @@ pub const GPIO_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
 pub const GPIO_DEBUG_UART_TX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
     drive_mode: gpio::DriveMode::Strong,
-    hsiom: hsiom_registers::HsiomFunction::ActiveFunctionality4,
+    hsiom: gpio::HsiomFunction::ActiveFunctionality4,
     int_edge: false,
     int_mask: 0,
     vtrip: 0,
@@ -229,9 +229,6 @@ impl<'a> Psc3DefaultPeripherals<'a> {
 
         self.srss.init_fll().unwrap();
         self.srss.init_clk_hf0();
-
-        // TODO
-        // Cy_SysLib_SetWaitStates(CY_CFG_PWR_USING_ULP != 0, CY_CFG_SYSCLK_CLKHF0_FREQ_MHZ);
     }
 
     fn init_gpio_pins(&self) {
@@ -248,9 +245,6 @@ impl<'a> Psc3DefaultPeripherals<'a> {
 
     pub fn init(&self) {
         self.init_system();
-
-        // TODO: sets warm boot entry
-        // result = cybsp_syspm_dsram_init();
 
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();

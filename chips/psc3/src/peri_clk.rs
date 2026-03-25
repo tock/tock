@@ -244,12 +244,6 @@ impl PeriPClk {
         }
     }
 
-    // TODO: mtb-pdl-cat1/release-v3.20.0/drivers/source/cy_sysclk_v2.c
-    // #ifdef CY_CFG_SYSCLK_CLKPATH1_ENABLED
-    //   Cy_SysClk_ClkPath1Init();
-    // #endif
-
-    #[no_mangle]
     pub fn init_clocks(&self) {
         self.registers
             .gr4_div_cmd

@@ -1,4 +1,5 @@
 use crate::gpio_registers::*;
+pub use crate::hsiom_registers::HsiomFunction;
 use crate::hsiom_registers::*;
 use kernel::hil::gpio::{Configuration, Configure, Input, Interrupt, Output};
 use kernel::utilities::cells::OptionalCell;

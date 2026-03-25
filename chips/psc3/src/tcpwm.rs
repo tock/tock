@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025 SRL.
 
-// TODO new registers
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{
     interfaces::{ReadWriteable, Readable},
@@ -618,7 +617,6 @@ impl Tcpwm0<'_> {
             .grp0_cnt0
             .intr_mask
             .modify(CNT_INTR_MASK::CC0_MATCH::SET);
-        // todo CC1?
     }
 
     pub fn init_timer(&self) {
