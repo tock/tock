@@ -333,3 +333,15 @@ PROTECTION [
 ];
 const CPUSS_BASE: StaticRef<CpussRegisters> =
     unsafe { StaticRef::new(0x421C0000 as *const CpussRegisters) };
+
+pub struct Cpuss {
+    registers: StaticRef<CpussRegisters>,
+}
+
+impl Cpuss {
+    pub const fn new() -> Cpuss {
+        Cpuss {
+            registers: CPUSS_BASE,
+        }
+    }
+}
