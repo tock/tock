@@ -49,6 +49,7 @@ pub mod chip;
 pub mod cpuss;
 pub mod cpuss_ppu;
 pub mod gpio;
+pub mod hsiom;
 pub mod icache;
 pub mod interrupts;
 pub mod peri;
