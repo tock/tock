@@ -23,6 +23,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use psc3::chip::{Psc3, Psc3DefaultPeripherals};
+use psc3::icache;
 use psc3::tcpwm::Tcpwm0;
 #[allow(unused)]
 use psc3::BASE_VECTORS;
@@ -116,7 +117,15 @@ impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Pla
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    // psc3::init();
+    /**
+     * Only after peripherals.sys_init() was called peripheral view for debugging works
+     */
+    icache::sys_init_enable_cache();
+    cortexm33::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS) as *const ());
+    cortexm33::support::dmb();
+
+    // TODO:
+    // __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -128,6 +137,7 @@ pub unsafe fn main() {
 
     let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
 
+    peripherals.sys_init();
     peripherals.init();
 
     // Set the UART used for panic

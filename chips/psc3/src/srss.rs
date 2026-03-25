@@ -2374,6 +2374,41 @@ impl Srss {
             .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
     }
 
+    pub fn sys_init_enable_clocks(&self) {
+        // set source
+        self.registers
+            .clk_root_select2
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH0);
+        // set divider
+        self.registers.clk_root_select2.modify(
+            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
+        );
+        // enable
+        self.registers
+            .clk_root_select2
+            .modify(CLK_ROOT_SELECT::ENABLE::SET);
+
+        self.registers
+            .clk_root_select3
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH0);
+        self.registers.clk_root_select3.modify(
+            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
+        );
+        self.registers
+            .clk_root_select3
+            .modify(CLK_ROOT_SELECT::ENABLE::SET);
+
+        self.registers
+            .clk_root_select4
+            .modify(CLK_ROOT_SELECT::ROOT_MUX::SelectPATH0);
+        self.registers.clk_root_select4.modify(
+            CLK_ROOT_SELECT::ROOT_DIV_INT::TransparentModeFeedThroughSelectedClockSourceWODividing,
+        );
+        self.registers
+            .clk_root_select4
+            .modify(CLK_ROOT_SELECT::ENABLE::SET);
+    }
+
     pub fn init_dpll(&self) {
         // self.registers.clk_dpll_lp0_config.modify(CLK_DPLL_LP_CONFIG::)
     }
