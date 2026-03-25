@@ -31,7 +31,7 @@ register_structs! {
     HsiomRegisters {
         (0x000 => ports: [HsiomPort; 10]),
         (0x0A0 => _reserved0),
-        (0x1000 => secure_prts: [HsiomSecurePtr; 10]),
+        (0x1000 => secure_prts: [HsiomSecurePtr; 10]), // ERROR not all have 8 pins :(
         (0x10A0 => _reserved1),
         (0x2000 => amux_split_ctls: [AmuxSplitCtl; 64]),
         (0x2100 => _reserved2),
@@ -193,6 +193,7 @@ impl Hsiom {
         }
     }
 
+    #[no_mangle]
     pub fn set_port_sel(&self, port: u32, pin: u32, function: HsiomFunction) {
         assert!(port < HSIOM_PORT_COUNT && pin < HSIOM_PINS_PER_PORT);
 
@@ -208,9 +209,11 @@ impl Hsiom {
         } else {
             &port_addr.port_sel1
         };
+        let function_value = (function as u32) << bit_offset;
 
         let old_value = register.get();
-        register.set((old_value & !mask) | (function as u32 & mask));
+        let new_value = (old_value & !mask) | (function_value as u32 & mask);
+        register.set(new_value);
     }
 
     /// Configure the non-secure access mask for one pin in a secure GPIO port.
