@@ -149,10 +149,9 @@ impl Srss {
     }
 
     pub fn wdt_unlock(&self) {
+        // Write 1 to bit to clear it
+        self.registers.wdt_ctl.modify(WDT_CTL::WDT_LOCK::ClearsBit0);
         self.registers.wdt_ctl.modify(WDT_CTL::WDT_LOCK::ClearsBit1);
-        self.registers
-            .wdt_ctl
-            .modify(WDT_CTL::WDT_LOCK::SetsBothBits0And1);
     }
 
     // pub fn init_clock(&self) {
@@ -168,48 +167,20 @@ impl Srss {
     // }
 
     pub fn init_clock_paths(&self) {
-        self.registers
-            .clk_dsi_select_1
-            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
-        self.registers
-            .clk_path_select2
-            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
-
-        self.registers
-            .clk_dsi_select_2
-            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
-        self.registers
-            .clk_path_select2
-            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
-
-        self.registers
-            .clk_dsi_select_3
-            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
-        self.registers
-            .clk_path_select3
-            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
-
-        self.registers
-            .clk_dsi_select_4
-            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
-        self.registers
-            .clk_path_select4
-            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
-
-        self.registers
-            .clk_dsi_select_5
-            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
-        self.registers
-            .clk_path_select5
-            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
-
-        // 6 to 0/IMO
-        self.registers
-            .clk_dsi_select_6
-            .modify(CLK_DSI_SELECT::DSI_MUX::DSI0Dsi_out0);
+        [
+            &self.registers.clk_path_select1,
+            &self.registers.clk_path_select2,
+            &self.registers.clk_path_select3,
+            &self.registers.clk_path_select4,
+            &self.registers.clk_path_select5,
+        ]
+        .iter()
+        .for_each(|clk_path_select| {
+            clk_path_select.modify(CLK_PATH_SELECT::PATH_MUX::IHOInternalHighSpeedOscillator);
+        });
         self.registers
             .clk_path_select6
-            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
+            .modify(CLK_PATH_SELECT::PATH_MUX::IMOInternalRCOscillator);
     }
 
     pub fn sys_init_enable_clocks(&self) {
@@ -280,63 +251,34 @@ impl Srss {
     }
 
     pub fn init_dpll_lp(&self) {
-        // disable PLL
-        {
-            self.registers
-                .clk_dpll_lp0_config // (mtb corrects its enum by decreasing one)
-                .modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::LOCKED_OR_NOTHING);
-
+        [
+            // (mtb inputs 1,2 but corrects it later)
+            (&self.registers.clk_dpll_lp0_config, 0, &DPLL_LP_CONFIG_0),
+            (&self.registers.clk_dpll_lp1_config, 1, &DPLL_LP_CONFIG_1),
+        ]
+        .iter()
+        .for_each(|&(dpll_lp_config, pll_num, config)| {
+            // Put PLL into bypass, then disable
+            dpll_lp_config.modify(
+        CLK_DPLL_LP_CONFIG::BYPASS_SEL::SelectPLLReferenceInputBypassModeIgnoresLockIndicator,
+    );
             /* Wait at least 6 PLL clock cycles */
-            delay_rough_us(10);
+            delay_rough_us(1);
 
-            self.registers
-                .clk_dpll_lp0_config
-                .modify(CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
-        }
+            dpll_lp_config.modify(CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
 
-        self.configure_dpll_lp(0, &DPLL_LP_CONFIG_0);
+            // Program PLL
+            self.configure_dpll_lp(pll_num, config);
 
-        // enable PLL
-        {
-            self.registers
-                .clk_dpll_lp0_config
-                .modify(CLK_DPLL_LP_CONFIG::ENABLE::SET);
-
+            // Enable PLL and wait for lock/output to stabilize
+            dpll_lp_config.modify(CLK_DPLL_LP_CONFIG::ENABLE::SET);
             delay_rough_us(10_000);
 
-            self.registers
-                .clk_dpll_lp0_config
-                .modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::SelectPLLOutputIgnoresLockIndicatorIfENABLE0NoClockIsOutput);
-        }
-
-        // disable PLL
-        {
-            self.registers
-                .clk_dpll_lp1_config // (mtb corrects its enum by decreasing one)
-                .modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::LOCKED_OR_NOTHING);
-
-            /* Wait at least 6 PLL clock cycles */
-            delay_rough_us(10);
-
-            self.registers
-                .clk_dpll_lp1_config
-                .modify(CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
-        }
-
-        self.configure_dpll_lp(1, &DPLL_LP_CONFIG_1);
-
-        // enable PLL
-        {
-            self.registers
-                .clk_dpll_lp1_config
-                .modify(CLK_DPLL_LP_CONFIG::ENABLE::SET);
-
-            delay_rough_us(10_000);
-
-            self.registers
-                .clk_dpll_lp1_config
-                .modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL::SelectPLLOutputIgnoresLockIndicatorIfENABLE0NoClockIsOutput);
-        }
+            // Switch bypass back to PLL output
+            dpll_lp_config.modify(
+        CLK_DPLL_LP_CONFIG::BYPASS_SEL::SelectPLLOutputIgnoresLockIndicatorIfENABLE0NoClockIsOutput,
+            );
+        });
     }
 
     /// Configure DPLL LP registers for the given PLL (0 or 1) using the provided config.
@@ -486,11 +428,8 @@ impl Srss {
 
     pub fn init_clk_path0(&self) {
         self.registers
-            .clk_dsi_select_0
-            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
-        self.registers
             .clk_path_select0
-            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
+            .modify(CLK_PATH_SELECT::PATH_MUX::IHOInternalHighSpeedOscillator);
     }
 
     pub fn init_fll(&self) {

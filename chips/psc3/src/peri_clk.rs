@@ -289,10 +289,10 @@ impl PeriPClk {
     pub fn init_peripherals(&self) {
         self.registers
             .gr4_clock_ctl3 // ctl3 = SCB
-            .modify(CLOCK_CTL::DIV_SEL.val(0) + CLOCK_CTL::TYPE_SEL::DIV8_0);
+            .write(CLOCK_CTL::DIV_SEL.val(0) + CLOCK_CTL::TYPE_SEL::DIV8_0);
 
         self.registers
             .gr5_clock_ctl4 // ctl4 = PCLK_TCPWM0_CLOCK_COUNTER_EN256
-            .modify(CLOCK_CTL::DIV_SEL.val(0) + CLOCK_CTL::TYPE_SEL::DIV8_0);
+            .write(CLOCK_CTL::DIV_SEL.val(0) + CLOCK_CTL::TYPE_SEL::DIV8_0);
     }
 }
