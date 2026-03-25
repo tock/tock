@@ -5,7 +5,6 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use core::ptr::Pointee;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -115,6 +114,8 @@ impl Psc3DefaultPeripherals<'_> {
         self.srss.wdt_unlock();
 
         self.pwrmode.ppu_init();
+
+        self.srss.init_clock_paths();
 
         // (void)cy_pd_ppu_init((struct ppu_v1_reg *)CY_PPU_CPUSS_BASE); /* Suppress a compiler warning about unused return value */
         // (void)cy_pd_ppu_init((struct ppu_v1_reg *)CY_PPU_SRAM_BASE); /* Suppress a compiler warning about unused return value */
