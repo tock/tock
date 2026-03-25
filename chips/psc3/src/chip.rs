@@ -9,6 +9,7 @@ use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
 use crate::interrupts;
+use crate::peri_clk::PeriPClk;
 use crate::scb::Scb;
 use crate::tcpwm::Tcpwm0;
 use cortexm33::{CortexM33, CortexMVariant};
@@ -84,8 +85,8 @@ pub struct Psc3DefaultPeripherals<'a> {
     // pub cpuss: cpuss::Cpuss,
     // pub gpio: gpio::PsocPins<'a>,
     // pub hsiom: hsiom::Hsiom,
-    // pub peri: peri::Peri,
-    pub scb: Scb<'a>,
+    pub peri_clk: PeriPClk,
+    pub scb3: Scb<'a>,
     // pub srss: srss::Srss,
     pub tcpwm: Tcpwm0<'a>,
 }
@@ -93,16 +94,15 @@ pub struct Psc3DefaultPeripherals<'a> {
 impl Psc3DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
-            scb: Scb::new(),
+            scb3: Scb::new(),
+            peri_clk: PeriPClk::new(),
             tcpwm: Tcpwm0::new(),
         }
     }
 
-    pub fn resolve_dependencies(&'static self) {
-        // self.uart0.set_clocks(&self.clocks);
-        // self.ticks.set_timer0_generator();
-        // self.ticks.set_timer1_generator();
-        // kernel::deferred_call::DeferredCallClient::register(&self.scb);
+    pub fn init(&self) {
+        self.peri_clk.init_clocks();
+        self.peri_clk.init_peripherals();
     }
 }
 
@@ -113,10 +113,10 @@ impl InterruptService for Psc3DefaultPeripherals<'_> {
                 self.tcpwm.handle_interrupt();
                 true
             }
-            // interrupts::UART0_IRQ => {
-            //     self.uart0.handle_interrupt();
-            //     true
-            // }
+            interrupts::SCB_5_INTERRUPT => {
+                self.scb3.handle_interrupt();
+                true
+            }
             _ => false,
         }
     }

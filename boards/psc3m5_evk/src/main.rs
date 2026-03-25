@@ -113,10 +113,6 @@ impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Pla
     }
 }
 
-unsafe fn get_peripherals() -> &'static mut Psc3DefaultPeripherals<'static> {
-    static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new())
-}
-
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
@@ -130,11 +126,12 @@ pub unsafe fn main() {
     // Bind global variables to this thread.
     PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
 
-    let peripherals = get_peripherals();
-    peripherals.resolve_dependencies();
+    let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
+
+    peripherals.init();
 
     // Set the UART used for panic
-    (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb);
+    (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3);
 
     let chip = static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals));
     PANIC_RESOURCES.get().map(|resources| {
@@ -164,7 +161,7 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_static!(Tcpwm0));
 
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.scb, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.scb3, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
