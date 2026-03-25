@@ -132,8 +132,14 @@ impl<'a> Psc3DefaultPeripherals<'a> {
         self.pwrmode.ppu_init();
         self.cpuss_ppu.init_ppu();
         self.ramc_ppu.init_ppu();
-        // TODO
-        // (void)Cy_SysPm_SetDeepSleepMode(CY_SYSPM_MODE_DEEPSLEEP);
+
+        /* Set Default mode to DEEPSLEEP */
+        self.pwrmode
+            .ppu_dynamic_enable(pwrmode::PwrPolicy::FullRetention);
+        self.cpuss_ppu
+            .ppu_dynamic_enable(cpuss_ppu::PwrPolicy::FullRetention);
+        self.ramc_ppu
+            .ppu_dynamic_enable(ramc_ppu::PwrPolicy::MemoryRetention);
 
         // Voltage during debugging was always right and it is unclear how to set the voltage.
         // Cy_SysPm_SystemEnterOd();

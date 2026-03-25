@@ -1,4 +1,4 @@
-use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
@@ -551,6 +551,8 @@ pub struct PwrMode {
     registers: StaticRef<PwrmodeRegisters>,
 }
 
+pub type PwrPolicy = PPU_PWPR::PWR_POLICY::Value;
+
 impl PwrMode {
     pub const fn new() -> PwrMode {
         PwrMode {
@@ -573,5 +575,17 @@ impl PwrMode {
         self.registers
             .ppu_main_isr
             .write(PPU_ISR::STA_POLICY_TRN_IRQ::CLEAR);
+    }
+
+    pub fn ppu_dynamic_enable(&self, min_dyn_state: PwrPolicy) {
+        self.registers
+            .ppu_main_pwpr
+            .modify(PPU_PWPR::PWR_DYN_EN::SET + PPU_PWPR::PWR_POLICY.val(min_dyn_state as u32));
+
+        while !self
+            .registers
+            .ppu_main_pwsr
+            .is_set(PPU_PWSR::PWR_DYN_STATUS)
+        {}
     }
 }
