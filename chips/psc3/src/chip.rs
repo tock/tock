@@ -9,6 +9,7 @@ use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
 use crate::interrupts;
+use crate::peri::Peri;
 use crate::peri_clk::PeriPClk;
 use crate::pwrmode::PwrMode;
 use crate::scb::Scb;
@@ -87,6 +88,7 @@ pub struct Psc3DefaultPeripherals<'a> {
     // pub cpuss: cpuss::Cpuss,
     // pub gpio: gpio::PsocPins<'a>,
     // pub hsiom: hsiom::Hsiom,
+    pub peri: Peri,
     pub peri_clk: PeriPClk,
     pub pwrmode: PwrMode,
     pub scb3: Scb<'a>,
@@ -97,12 +99,18 @@ pub struct Psc3DefaultPeripherals<'a> {
 impl Psc3DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
+            peri: Peri::new(),
             scb3: Scb::new(),
             peri_clk: PeriPClk::new(),
             srss: Srss::new(),
             pwrmode: PwrMode::new(),
             tcpwm: Tcpwm0::new(),
         }
+    }
+
+    pub fn sys_init(&self) {
+        self.srss.sys_init_enable_clocks();
+        self.peri.sys_init_enable_peri();
     }
 
     pub fn init(&self) {

@@ -16,6 +16,33 @@ pub fn nop() {
     }
 }
 
+///   Data Memory Barrier
+///
+/// Ensures the apparent order of the explicit memory operations before
+///     and after the instruction, without ensuring their completion.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[inline(always)]
+pub fn dmb() {
+    use core::arch::asm;
+    unsafe {
+        asm!("dmb sy", options(nostack, preserves_flags));
+    }
+}
+
+/// Set Main Stack Pointer Limit (MSPLIM).
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[inline(always)]
+pub fn set_msplim(main_stack_ptr_limit: u32) {
+    use core::arch::asm;
+    unsafe {
+        asm!(
+            "msr MSPLIM, {limit}",
+            limit = in(reg) main_stack_ptr_limit,
+            options(nomem, nostack, preserves_flags)
+        );
+    }
+}
+
 /// WFI instruction
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[inline(always)]
