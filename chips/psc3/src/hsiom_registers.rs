@@ -1,53 +1,51 @@
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
 
 #[repr(C)]
-struct HsiomPort {
+pub struct HsiomPort {
     /// Port selection 0
     /// 8 bits for each pin, 5 bits used for selection, 3 bits reserved
-    port_sel0: ReadWrite<u32>,
+    pub port_sel0: ReadWrite<u32>,
     /// Port selection 1
     /// 8 bits for each pin, 5 bits used for selection, 3 bits reserved
-    port_sel1: ReadWrite<u32>,
+    pub port_sel1: ReadWrite<u32>,
     _reserved: [u32; 2],
 }
 
 #[repr(C)]
-struct HsiomSecurePtr {
+pub struct HsiomSecurePtr {
     /// Non-Secure Mask
-    secure_prt_nonsecure_mask: ReadWrite<u32, SECURE_PRT_NONSECURE_MASK::Register>,
+    pub secure_prt_nonsecure_mask: ReadWrite<u32, SECURE_PRT_NONSECURE_MASK::Register>,
     _reserved: [u32; 3],
 }
 
 #[repr(C)]
-struct AmuxSplitCtl {
+pub struct AmuxSplitCtl {
     /// AMUX splitter cell control
     amux_split_ctl: ReadWrite<u32, AMUX_SPLIT_CTL::Register>,
 }
 
 register_structs! {
     /// IO Matrix (IOM)
-    HsiomRegisters {
-        (0x000 => ports: [HsiomPort; 10]),
+    pub HsiomRegisters {
+        (0x000 => pub ports: [HsiomPort; 10]),
         (0x0A0 => _reserved0),
-        (0x1000 => secure_prts: [HsiomSecurePtr; 10]), // ERROR not all have 8 pins :(
+        (0x1000 => pub secure_prts: [HsiomSecurePtr; 10]), // ERROR not all have 8 pins :(
         (0x10A0 => _reserved1),
-        (0x2000 => amux_split_ctls: [AmuxSplitCtl; 64]),
+        (0x2000 => pub amux_split_ctls: [AmuxSplitCtl; 64]),
         (0x2100 => _reserved2),
         /// Power/Ground Monitor cell control 0
-        (0x2200 => monitor_ctl_0: ReadWrite<u32, MONITOR_CTL::Register>),
+        (0x2200 => pub monitor_ctl_0: ReadWrite<u32, MONITOR_CTL::Register>),
         /// Power/Ground Monitor cell control 1
-        (0x2204 => monitor_ctl_1: ReadWrite<u32, MONITOR_CTL::Register>),
+        (0x2204 => pub monitor_ctl_1: ReadWrite<u32, MONITOR_CTL::Register>),
         /// Power/Ground Monitor cell control 2
-        (0x2208 => monitor_ctl_2: ReadWrite<u32, MONITOR_CTL::Register>),
+        (0x2208 => pub monitor_ctl_2: ReadWrite<u32, MONITOR_CTL::Register>),
         /// Power/Ground Monitor cell control 3
-        (0x220C => monitor_ctl_3: ReadWrite<u32, MONITOR_CTL::Register>),
+        (0x220C => pub monitor_ctl_3: ReadWrite<u32, MONITOR_CTL::Register>),
         (0x2210 => @END),
     }
 }
 register_bitfields![u32,
-AMUX_SPLIT_CTL [
+pub AMUX_SPLIT_CTL [
     /// T-switch control for Left AMUXBUSA switch:
     /// '0': switch open.
     /// '1': switch closed.
@@ -67,13 +65,13 @@ AMUX_SPLIT_CTL [
     /// T-switch control for AMUXBUSB vssa/ground switch.
     SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
 ],
-MONITOR_CTL [
+pub MONITOR_CTL [
     /// control for switch, which connects the power/ground supply to AMUXBUS_A/B respectively when switch is closed:
     /// '0': switch open.
     /// '1': switch closed.
     MONITOR_EN OFFSET(0) NUMBITS(32) []
 ],
-SECURE_PRT_NONSECURE_MASK [
+pub SECURE_PRT_NONSECURE_MASK [
     /// Non-secure attribute for IO0.
     /// 0 - Allows Secure access only.
     /// 1 - Allows Non-secure access only.
@@ -108,16 +106,8 @@ SECURE_PRT_NONSECURE_MASK [
     NONSECURE7 OFFSET(7) NUMBITS(1) []
 ],
 ];
-const HSIOM_BASE: StaticRef<HsiomRegisters> =
-    unsafe { StaticRef::new(0x42400000 as *const HsiomRegisters) };
-const HSIOM_PORT_COUNT: u32 = 10;
-const HSIOM_PINS_PER_PORT: u32 = 8;
-const HSIOM_SEC_MASK: u32 = 0x1;
 
-pub struct Hsiom {
-    registers: StaticRef<HsiomRegisters>,
-}
-
+#[derive(Clone, Copy)]
 pub enum HsiomFunction {
     /// GPIO controls 'out'
     GPIOControlsOut = 0x00,
@@ -183,51 +173,4 @@ pub enum HsiomFunction {
     DeepSleepFunctionality6 = 0x1E,
     /// DeepSleep functionality 7
     DeepSleepFunctionality7 = 0x1F,
-}
-const GPIO_HALF: u32 = 4;
-
-impl Hsiom {
-    pub const fn new() -> Hsiom {
-        Hsiom {
-            registers: HSIOM_BASE,
-        }
-    }
-
-    #[no_mangle]
-    pub fn set_port_sel(&self, port: u32, pin: u32, function: HsiomFunction) {
-        assert!(port < HSIOM_PORT_COUNT && pin < HSIOM_PINS_PER_PORT);
-
-        let port_addr = &self.registers.ports[port as usize];
-
-        // Each pin occupies 8 bits with 5 bits used for the selection
-        // Offset calculation: pin position within register * 8 bits per pin
-        let bit_offset = pin << 3;
-        let mask = 0x1F << bit_offset;
-
-        let register = if pin < GPIO_HALF {
-            &port_addr.port_sel0
-        } else {
-            &port_addr.port_sel1
-        };
-        let function_value = (function as u32) << bit_offset;
-
-        let old_value = register.get();
-        let new_value = (old_value & !mask) | (function_value as u32 & mask);
-        register.set(new_value);
-    }
-
-    /// Configure the non-secure access mask for one pin in a secure GPIO port.
-    ///
-    /// `nonsecure = false` means secure access only.
-    /// `nonsecure = true` means non-secure access only.
-    pub fn set_secure_port_nonsecure_pin(&self, port: u32, pin: u32, nonsecure: bool) {
-        assert!(port < HSIOM_PORT_COUNT && pin < HSIOM_PINS_PER_PORT);
-
-        let register = &self.registers.secure_prts[port as usize].secure_prt_nonsecure_mask;
-        let bit_mask = HSIOM_SEC_MASK << pin;
-        let new_bit = (nonsecure as u32) << pin;
-
-        let old_value = register.get();
-        register.set((old_value & !bit_mask) | new_bit);
-    }
 }

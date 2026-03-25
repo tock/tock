@@ -12,7 +12,7 @@ use crate::cpuss;
 use crate::cpuss_ppu;
 use crate::flashc;
 use crate::gpio;
-use crate::hsiom;
+use crate::hsiom_registers;
 use crate::interrupts;
 use crate::peri;
 use crate::peri_clk;
@@ -22,6 +22,74 @@ use crate::scb;
 use crate::srss;
 use crate::tcpwm;
 use cortexm33::{CortexM33, CortexMVariant};
+
+const GPIO_SWDCK_CONFIG: gpio::PreConfig = gpio::PreConfig {
+    out_val: 1,
+    drive_mode: gpio::DriveMode::PullDown,
+    hsiom: hsiom_registers::HsiomFunction::DeepSleepFunctionality5,
+    int_edge: false,
+    int_mask: 0,
+    vtrip: 0, // todo enum
+    fast_slew_rate: true,
+    drive_sel: gpio::DriveSelect::Half,
+    vreg_en: false,
+    ibuf_mode: 0,
+    vtrip_sel: 0,
+    vref_sel: 0,
+    voh_sel: 0,
+    non_sec: false,
+};
+
+const GPIO_SWDIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
+    out_val: 1,
+    drive_mode: gpio::DriveMode::PullUp,
+    hsiom: hsiom_registers::HsiomFunction::DeepSleepFunctionality5,
+    int_edge: false,
+    int_mask: 0,
+    vtrip: 0, // todo enum
+    fast_slew_rate: true,
+    drive_sel: gpio::DriveSelect::Half,
+    vreg_en: false,
+    ibuf_mode: 0,
+    vtrip_sel: 0,
+    vref_sel: 0,
+    voh_sel: 0,
+    non_sec: false,
+};
+
+pub const GPIO_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
+    out_val: 1,
+    drive_mode: gpio::DriveMode::HighZ,
+    hsiom: hsiom_registers::HsiomFunction::ActiveFunctionality4,
+    int_edge: false,
+    int_mask: 0,
+    vtrip: 1,
+    fast_slew_rate: true,
+    drive_sel: gpio::DriveSelect::Half,
+    vreg_en: false,
+    ibuf_mode: 0,
+    vtrip_sel: 0,
+    vref_sel: 0,
+    voh_sel: 0,
+    non_sec: false,
+};
+
+pub const GPIO_DEBUG_UART_TX_CONFIG: gpio::PreConfig = gpio::PreConfig {
+    out_val: 1,
+    drive_mode: gpio::DriveMode::Strong,
+    hsiom: hsiom_registers::HsiomFunction::ActiveFunctionality4,
+    int_edge: false,
+    int_mask: 0,
+    vtrip: 0,
+    fast_slew_rate: true,
+    drive_sel: gpio::DriveSelect::Half,
+    vreg_en: false,
+    ibuf_mode: 0,
+    vtrip_sel: 0,
+    vref_sel: 0,
+    voh_sel: 0,
+    non_sec: false,
+};
 
 pub struct Psc3<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
@@ -93,7 +161,6 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
 pub struct Psc3DefaultPeripherals<'a> {
     pub cpuss: cpuss::Cpuss,
     pub gpio: gpio::PsocPins<'a>,
-    pub hsiom: hsiom::Hsiom,
     pub scb3: scb::Scb<'a>,
     pub tcpwm: tcpwm::Tcpwm0<'a>,
     peri: peri::Peri,
@@ -109,7 +176,6 @@ impl<'a> Psc3DefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
             cpuss: cpuss::Cpuss::new(),
-            hsiom: hsiom::Hsiom::new(),
             peri: peri::Peri::new(),
             scb3: scb::Scb::new(),
             peri_clk: peri_clk::PeriPClk::new(),
@@ -170,6 +236,17 @@ impl<'a> Psc3DefaultPeripherals<'a> {
         // Cy_SysLib_SetWaitStates(CY_CFG_PWR_USING_ULP != 0, CY_CFG_SYSCLK_CLKHF0_FREQ_MHZ);
     }
 
+    fn init_gpio_pins(&self) {
+        let swdck_pin = self.gpio.get_pin(gpio::PsocPin::P1_2);
+        swdck_pin.preconfigure(&GPIO_SWDCK_CONFIG);
+        let swdio_pin = self.gpio.get_pin(gpio::PsocPin::P1_3);
+        swdio_pin.preconfigure(&GPIO_SWDIO_CONFIG);
+        let uart_rx_pin = self.gpio.get_pin(gpio::PsocPin::P6_2);
+        uart_rx_pin.preconfigure(&GPIO_DEBUG_UART_RX_CONFIG);
+        let uart_tx_pin = self.gpio.get_pin(gpio::PsocPin::P6_3);
+        uart_tx_pin.preconfigure(&GPIO_DEBUG_UART_TX_CONFIG);
+    }
+
     pub fn init(&self) {
         self.init_system();
 
@@ -179,29 +256,7 @@ impl<'a> Psc3DefaultPeripherals<'a> {
         // self.srss.init_clock();
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();
-
-        self.hsiom.set_secure_port_nonsecure_pin(6, 2, true);
-        self.hsiom // UART_RX_PIN
-            .set_port_sel(6, 2, hsiom::HsiomFunction::ActiveFunctionality4);
-        let uart_rx_pin = self.gpio.get_pin(gpio::PsocPin::P6_2);
-        uart_rx_pin.configure_drive_mode(gpio::DriveMode::HighZ);
-        uart_rx_pin.configure_input(true);
-
-        self.hsiom.set_secure_port_nonsecure_pin(1, 2, true);
-        self.hsiom // SWDCK_PIN
-            .set_port_sel(1, 2, hsiom::HsiomFunction::DeepSleepFunctionality5);
-        self.hsiom.set_secure_port_nonsecure_pin(1, 3, true);
-        self.hsiom // SWDIO_PIN
-            .set_port_sel(1, 3, hsiom::HsiomFunction::DeepSleepFunctionality5);
-
-        self.hsiom.set_secure_port_nonsecure_pin(6, 3, true);
-        self.hsiom // UART_TX_PIN
-            .set_port_sel(6, 3, hsiom::HsiomFunction::ActiveFunctionality4);
-        // self.hsiom // LED TODO: panics
-        //     .set_port_sel(8, 5, hsiom::HsiomFunction::GPIOControlsOut);
-        let uart_tx_pin = self.gpio.get_pin(gpio::PsocPin::P6_3);
-        uart_tx_pin.configure_drive_mode(gpio::DriveMode::Strong);
-        uart_tx_pin.configure_input(false);
+        self.init_gpio_pins();
 
         self.scb3.set_standard_uart_mode();
         self.scb3.enable_scb();
