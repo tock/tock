@@ -12,10 +12,10 @@ Example:
 ```
 | HIL                    | cc26x2 | nrf51 | nrf52 | sam4l | tm4c129x |
 |------------------------|--------|-------|-------|-------|----------|
-| AES128                 |        |       | ✓     | ✓     |          |
-| AES128CBC              |        |       |       | ✓     |          |
-| AES128Ctr              |        |       | ✓     | ✓     |          |
-| Adc                    |        |       | ✓     | ✓     |          |
+| AES128                 |        |       | x     | x     |          |
+| AES128CBC              |        |       |       | x     |          |
+| AES128Ctr              |        |       | x     | x     |          |
+| Adc                    |        |       | x     | x     |          |
 ```
 """
 
@@ -52,9 +52,9 @@ for subdir, dirs, files in os.walk(os.fsencode("kernel/src/hil/")):
         if filepath.endswith(".rs"):
             with open(filepath) as f:
                 mod = os.path.splitext(os.path.basename(filepath))[0]
-                for l in f:
-                    if l.startswith("pub trait"):
-                        items = re.findall(r"[A-Za-z0-9]+|\S", l)
+                for line in f:
+                    if line.startswith("pub trait"):
+                        items = re.findall(r"[A-Za-z0-9]+|\S", line)
 
                         hil_name = items[2]
                         if not "Client" in hil_name:
@@ -72,11 +72,11 @@ for subdir, dirs, files in os.walk(os.fsencode("chips/")):
             chips.append(chip)
 
             with open(filepath) as f:
-                for l in f:
+                for line in f:
                     # Find any line with `impl`
-                    if l.startswith("impl") and " for " in l:
+                    if line.startswith("impl") and " for " in line:
                         # Get the text before " for "
-                        half = l.split(" for ")[0]
+                        half = line.split(" for ")[0]
                         # Split strings apart from all other symbols
                         items = re.findall(r"[A-Za-z0-9]+|\S", half)
 
@@ -114,7 +114,9 @@ for k, v in sorted(hils.items(), key=lambda x: "{}::{}".format(x[1]["module"], x
             chip in SUBSUMES and len(set(SUBSUMES[chip]).intersection(set(v["chips"])))
         ):
             at_least_one = True
-            row.append("✓")
+            row.append(
+                "x"
+            )  # use "x" instead of "✓" since it is easier to read in the raw markdown.
         else:
             row.append(" ")
 
@@ -151,19 +153,19 @@ readme_first = ""
 readme_second = ""
 readme_state = "start"
 with open("chips/README.md") as f:
-    for l in f:
+    for line in f:
         if readme_state == "end":
-            readme_second += l
-        elif "<!--END OF HIL SUPPORT-->" in l:
+            readme_second += line
+        elif "<!--END OF HIL SUPPORT-->" in line:
             readme_state = "end"
             readme_second += "\n"
-            readme_second += l
-        elif "<!--START OF HIL SUPPORT-->" in l:
+            readme_second += line
+        elif "<!--START OF HIL SUPPORT-->" in line:
             readme_state = "skip"
-            readme_first += l
+            readme_first += line
             readme_first += "\n"
         elif readme_state == "start":
-            readme_first += l
+            readme_first += line
 
 with open("chips/README.md", "w") as f:
     f.write(readme_first)
