@@ -51,5 +51,6 @@ pub static IRQS: [unsafe extern "C" fn(); 140] = [CortexM33::GENERIC_ISR; 140];
 pub mod chip;
 pub mod gpio;
 pub mod interrupts;
+pub mod peri_clk;
 pub mod scb;
 pub mod tcpwm;

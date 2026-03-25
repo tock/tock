@@ -16,7 +16,7 @@ use kernel::utilities::{
 };
 
 register_structs! {
-    Scb5Registers {
+    ScbRegisters {
         (0x000 => ctrl: ReadWrite<u32, CTRL::Register>),
         (0x004 => status: ReadOnly<u32>),
         (0x008 => cmd_resp_ctrl: ReadWrite<u32, CMD_RESP_CTRL::Register>),
@@ -490,11 +490,11 @@ INTR_RX_MASKED [
     BREAK_DETECT OFFSET(11) NUMBITS(1) []
 ]
 ];
-const SCB5_BASE: StaticRef<Scb5Registers> =
-    unsafe { StaticRef::new(0x42C00000 as *const Scb5Registers) };
+const SCB3_BASE: StaticRef<ScbRegisters> =
+    unsafe { StaticRef::new(0x40630000 as *const ScbRegisters) };
 
 pub struct Scb<'a> {
-    registers: StaticRef<Scb5Registers>,
+    registers: StaticRef<ScbRegisters>,
 
     tx_client: OptionalCell<&'a dyn TransmitClient>,
     tx_buffer: TakeCell<'static, [u8]>,
@@ -510,7 +510,7 @@ pub struct Scb<'a> {
 impl Scb<'_> {
     pub const fn new() -> Self {
         Self {
-            registers: SCB5_BASE,
+            registers: SCB3_BASE,
 
             tx_client: OptionalCell::empty(),
             tx_buffer: TakeCell::empty(),
