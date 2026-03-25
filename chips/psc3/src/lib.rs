@@ -46,7 +46,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 pub static IRQS: [unsafe extern "C" fn(); 140] = [CortexM33::GENERIC_ISR; 140];
 
 pub mod chip;
-pub mod cpuss;
 pub mod cpuss_ppu;
 mod flashc;
 pub mod gpio;
