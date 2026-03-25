@@ -1,0 +1,16 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-tock.board",
+            // edit "tock.board" in ~/.config/Code/User/settings.json
+            "command": "cd ${workspaceRoot}/boards/${config:tock.board} && cargo build",
+            "type": "shell",
+            "args": [],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": "build"
+        }
+    ]
+}
