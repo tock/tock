@@ -1,7 +1,7 @@
 Cypress CY8CPROTO-062-4343W
 ===========================
 
-<img src="https://www.infineon.com/export/sites/default/_images/product/evaluation-boards/cypress-boards/CY8CPROTO-062-4343W_0.jpg_1361197165.jpg" width="40%">
+<img src="https://assets.infineon.com/is/image/infineon/cy8cproto-062-4343w-2.jpeg" width="40%">
 
 The [Cypress CY8CPROTO-062-4343W](https://www.infineon.com/cms/en/product/evaluation-boards/cy8cproto-062-4343w/) is a prototyping board based on the PSoC 62xA SoC.
 

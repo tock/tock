@@ -325,6 +325,8 @@ pub struct PreConfig {
     /// SIO pair regulated voltage output level
     pub voh_sel: u32,
     /// Secure attribute for each pin of a port
+    /// From experiments: A pin can either be used from non-secure or secure world
+    ///   as non_sec is default set this to false for secure access.
     pub non_sec: bool,
 }
 

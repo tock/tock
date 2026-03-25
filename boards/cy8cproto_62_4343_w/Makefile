@@ -14,7 +14,7 @@ install: flash
 
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
-	probe-rs download --chip CY8C624AAZI-S2D44 --binary-format bin --base-address 0x22000000 $<
+	probe-rs download --chip CY8C624AAZI-S2D44 --binary-format bin --base-address 0x10000000 $<
 
 
 .PHONY: program
