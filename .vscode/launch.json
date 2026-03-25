@@ -32,19 +32,42 @@
         {
             "name": "PSC3 Debug",
             "type": "cortex-debug",
-            "servertype": "openocd",
             "request": "launch",
+            "cwd": "${workspaceFolder}",
             "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk",
-            "cwd": "${workspaceRoot}",
+            "servertype": "openocd",
             "serverpath": "/opt/ModusToolboxProgtools-1.7/openocd/bin/openocd",
-            "openOCDLaunchCommands": [
-                "init; reset init;"
+            "searchDir": [
+                "/opt/ModusToolboxProgtools-1.7/",
             ],
-            "svdFile": "../psc3.svd",
+            "openOCDPreConfigLaunchCommands": [
+                "set DEBUG_CERTIFICATE ./packets/debug_token.bin"
+            ],
             "configFiles": [
-                "${workspaceRoot}/boards/psc3m5_evk/openocd.cfg",
+                "${workspaceRoot}/boards/psc3m5_evk/openocd.tcl"
             ],
-            // "showDevDebugOutput": "raw"
+            // "overrideLaunchCommands": [
+            //     "set mem inaccessible-by-default off",
+            //     "-enable-pretty-printing",
+            //     "set remotetimeout 60",
+            // ],
+            "overrideRestartCommands": [
+                "starti"
+            ],
+            // svdFile is optional, it can be very large.
+            "svdFile": "../psc3.svd",
+            "breakAfterReset": true,
+            "runToEntryPoint": "main", // Specifies application entry point name where program will halt
+            // "preLaunchTask": "Build", // Set this to run a task from tasks.json
+            // before starting a debug session
+            "showDevDebugOutput": "raw",
+            "presentation": {
+                "hidden": false,
+                "group": "psc3m5_evk"
+            },
+            "liveWatch": {
+                "enabled": true
+            }
         },
     ]
 }
