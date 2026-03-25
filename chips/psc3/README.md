@@ -6,6 +6,7 @@ PSOC Control C3 Main Line (PSC3) is a microcontroller designed by Infineon, base
 
 - [Information](https://www.infineon.com/products/microcontroller/32-bit-psoc-arm-cortex/32-bit-psoc-control-arm-cortex-m33-mcu/psoc-control-c3-main-line)
 - [TRM](https://www.infineon.com/assets/row/public/documents/30/57/infineon-psoc-control-c3-architecture-trm-additionaltechnicalinformation-en.pdf)
+- [Architecture](https://www.infineon.com/assets/row/public/documents/30/57/infineon-psoc-control-c3-architecture-trm-additionaltechnicalinformation-en.pdf)
 - [Datasheet](https://www.infineon.com/assets/row/public/documents/30/49/infineon-psoc-control-c3-mainline-psc3p5xd-psc3m5xd-datasheet-datasheet-en.pdf)
 - [Registers](https://www.infineon.com/assets/row/public/documents/30/57/infineon-psoc-control-c3-entry-main-registers-reference-manual-additionaltechnicalinformation-en.pdf)
 - [SVD File](https://github.com/Infineon/mtb-pdl-cat1/blob/master/devices/COMPONENT_CAT1B/svd/psc3.svd)

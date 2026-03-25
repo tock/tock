@@ -290,7 +290,7 @@ CLK_DSI_SELECT [
     /// Selects a DSI source or low frequency clock for use in a clock path.  The output of this mux can be selected for clock PATH<i> using CLK_SELECT_PATH register.  Using the output of this mux as HFCLK source will result in undefined behavior.  It can be used to clocks to DSI or as reference inputs for the FLL/PLL, subject to the frequency limits of those circuits.  This mux is not glitch free, so do not change the selection while it is an actively selected clock.
     DSI_MUX OFFSET(0) NUMBITS(5) [
         /// DSI0 - dsi_out[0]
-        DSI0Dsi_out0 = 0,
+        DSI0Dsi_out0 = 0, // CY_SYSCLK_CLKPATH_IN_IMO
         /// DSI1 - dsi_out[1]
         DSI1Dsi_out1 = 1,
         /// DSI2 - dsi_out[2]
@@ -302,7 +302,7 @@ CLK_DSI_SELECT [
         /// DSI5 - dsi_out[5]
         DSI5Dsi_out5 = 5,
         /// DSI6 - dsi_out[6]
-        DSI6Dsi_out6 = 6,
+        DSI6Dsi_out6 = 6, // CY_SYSCLK_CLKPATH_IN_IHO
         /// DSI7 - dsi_out[7]
         DSI7Dsi_out7 = 7,
         /// DSI8 - dsi_out[8]
@@ -331,8 +331,6 @@ CLK_DSI_SELECT [
         PILOPrecisionInternalLowSpeedOscillator = 19,
         /// ILO1 - Internal Low-speed Oscillator #1, if present.
         ILO1InternalLowSpeedOscillator1IfPresent = 20,
-        // added
-        Msk = 31,
     ]
 ],
 CLK_OUTPUT_FAST [
@@ -2325,13 +2323,65 @@ impl Srss {
     }
 
     pub fn init_clock_paths(&self) {
-        self.registers.clk_dsi_select_0.modify(CLK_DSI_SELECT::DSI_MUX::);
+        self.registers
+            .clk_dsi_select_0
+            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
+        self.registers
+            .clk_path_select0
+            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
+
+        self.registers
+            .clk_dsi_select_1
+            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
+        self.registers
+            .clk_path_select2
+            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
+
+        self.registers
+            .clk_dsi_select_2
+            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
+        self.registers
+            .clk_path_select2
+            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
+
+        self.registers
+            .clk_dsi_select_3
+            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
+        self.registers
+            .clk_path_select3
+            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
+
+        self.registers
+            .clk_dsi_select_4
+            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
+        self.registers
+            .clk_path_select4
+            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
+
+        self.registers
+            .clk_dsi_select_5
+            .modify(CLK_DSI_SELECT::DSI_MUX::DSI6Dsi_out6);
+        self.registers
+            .clk_path_select5
+            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
+
+        // 6 to 0/IMO
+        self.registers
+            .clk_dsi_select_6
+            .modify(CLK_DSI_SELECT::DSI_MUX::DSI0Dsi_out0);
+        self.registers
+            .clk_path_select6
+            .modify(CLK_PATH_SELECT::PATH_MUX::DSI_MUX);
     }
 
-    fn IsVoltageChangePossible(&self) -> bool {
+    pub fn init_dpll(&self) {
+        // self.registers.clk_dpll_lp0_config.modify(CLK_DPLL_LP_CONFIG::)
+    }
+
+    fn is_voltage_change_possible(&self) -> bool {
         const SRSS_TRIM_RAM_CTL_WC_MASK: u32 = 0x3 << 10;
 
-        let trimRamCheckVal = self
+        let trim_ram_check_val = self
             .registers
             .ram_trim_trim_ram_ctl
             .read(RAM_TRIM_TRIM_RAM_CTL::TRIM)
@@ -2345,11 +2395,11 @@ impl Srss {
                 self.registers
                     .ram_trim_trim_ram_ctl
                     .read(RAM_TRIM_TRIM_RAM_CTL::TRIM)
-                    | ((!trimRamCheckVal) & SRSS_TRIM_RAM_CTL_WC_MASK),
+                    | ((!trim_ram_check_val) & SRSS_TRIM_RAM_CTL_WC_MASK),
             ),
         );
 
-        return trimRamCheckVal
+        return trim_ram_check_val
             != (self
                 .registers
                 .ram_trim_trim_ram_ctl

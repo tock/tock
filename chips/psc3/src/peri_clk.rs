@@ -252,42 +252,38 @@ impl PeriPClk {
     #[no_mangle]
     pub fn init_clocks(&self) {
         // bsps/TARGET_APP_KIT_PSC3M5_EVK/config/GeneratedSource/cycfg_clocks.c:46
-        // self.registers
-        //     .gr4_div_cmd
-        //     .write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
-        // self.registers
-        //     .gr4_div_8_ctl0
-        //     .modify(DIV_8_CTL::INT8_DIV.val(108));
-        // self.registers.gr4_div_cmd.write(
-        //     DIV_CMD::ENABLE::SET
-        //         + DIV_CMD::DIV_SEL.val(0)
-        //         + DIV_CMD::TYPE_SEL::DIV8_0
-        //         + DIV_CMD::PA_TYPE_SEL.val(3) // set PA masks
-        //         + DIV_CMD::PA_DIV_SEL.val(255),
-        // );
-
-        // while self.registers.gr4_div_cmd.read(DIV_CMD::ENABLE) == 1 {}
-        use core::arch::asm;
-        unsafe {
-            asm!("nop", options(nomem, nostack, preserves_flags));
-        }
+        // Match C code: operate on group 4 and group 5 divider 8, index 0
+        // Group 4 divider 8, index 0
         self.registers
-            .gr6_div_cmd
+            .gr4_div_cmd
+            .write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
+        self.registers
+            .gr4_div_8_ctl0
+            .modify(DIV_8_CTL::INT8_DIV.val(108));
+        self.registers.gr4_div_cmd.write(
+            DIV_CMD::ENABLE::SET
+                + DIV_CMD::DIV_SEL.val(0)
+                + DIV_CMD::TYPE_SEL::DIV8_0
+                + DIV_CMD::PA_TYPE_SEL.val(3) // set PA masks
+                + DIV_CMD::PA_DIV_SEL.val(255),
+        );
+        while self.registers.gr4_div_cmd.read(DIV_CMD::ENABLE) == 1 {}
+
+        // Group 5 divider 8, index 0
+        self.registers
+            .gr5_div_cmd
             .write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
         self.registers
             .gr5_div_8_ctl0
             .modify(DIV_8_CTL::INT8_DIV.val(239));
-        self.registers.gr6_div_cmd.write(
+        self.registers.gr5_div_cmd.write(
             DIV_CMD::ENABLE::SET
-                + DIV_CMD::DIV_SEL.val(3)
-                + DIV_CMD::TYPE_SEL::DIV16_5
+                + DIV_CMD::DIV_SEL.val(0)
+                + DIV_CMD::TYPE_SEL::DIV8_0
                 + DIV_CMD::PA_TYPE_SEL.val(3) // set PA masks
                 + DIV_CMD::PA_DIV_SEL.val(255),
         );
-        unsafe {
-            asm!("nop", options(nomem, nostack, preserves_flags));
-        }
-        while self.registers.gr6_div_cmd.read(DIV_CMD::ENABLE) == 1 {}
+        while self.registers.gr5_div_cmd.read(DIV_CMD::ENABLE) == 1 {}
     }
 
     pub fn init_peripherals(&self) {
