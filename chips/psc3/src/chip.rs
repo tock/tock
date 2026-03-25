@@ -5,11 +5,13 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
+use core::ptr::Pointee;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
 use crate::interrupts;
 use crate::peri_clk::PeriPClk;
+use crate::pwrmode::PwrMode;
 use crate::scb::Scb;
 use crate::srss::Srss;
 use crate::tcpwm::Tcpwm0;
@@ -87,6 +89,7 @@ pub struct Psc3DefaultPeripherals<'a> {
     // pub gpio: gpio::PsocPins<'a>,
     // pub hsiom: hsiom::Hsiom,
     pub peri_clk: PeriPClk,
+    pub pwrmode: PwrMode,
     pub scb3: Scb<'a>,
     pub srss: Srss,
     pub tcpwm: Tcpwm0<'a>,
@@ -98,11 +101,23 @@ impl Psc3DefaultPeripherals<'_> {
             scb3: Scb::new(),
             peri_clk: PeriPClk::new(),
             srss: Srss::new(),
+            pwrmode: PwrMode::new(),
             tcpwm: Tcpwm0::new(),
         }
     }
 
     pub fn init(&self) {
+        // TODOs:
+        // /* Set worst case memory wait states (! ultra low power, 180 MHz), will update at the end */
+        // Cy_SysLib_SetWaitStates(false, 180UL);
+
+        /* Unlock WDT to be able to modify LFCLK registers */
+        self.srss.wdt_unlock();
+
+        self.pwrmode.ppu_init();
+
+        // (void)cy_pd_ppu_init((struct ppu_v1_reg *)CY_PPU_CPUSS_BASE); /* Suppress a compiler warning about unused return value */
+        // (void)cy_pd_ppu_init((struct ppu_v1_reg *)CY_PPU_SRAM_BASE); /* Suppress a compiler warning about unused return value */
         self.srss.init_clock();
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();
