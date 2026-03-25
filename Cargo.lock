@@ -1177,6 +1177,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "psc3m5_evk"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "psc3",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "psoc62xa"
 version = "0.2.3-dev"
 dependencies = [

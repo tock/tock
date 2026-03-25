@@ -9,12 +9,19 @@ APP=
 KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
 
+OPENOCD_ROOT = /opt/ModusToolboxProgtools-1.7/openocd
+OPENOCD_OPTIONS = -s ${OPENOCD_ROOT}/scripts \
+					-f interface/kitprog3.cfg \
+					-c "set TARGET_VARIANT psc3m5" \
+					-f target/infineon/psc3.cfg
+KITPROG_ID = 0E18119E02272400
+
 install: flash
 .PHONY: install
 
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
-	probe-rs download --chip CY8C624AAZI-S2D44 --binary-format bin --base-address 0x22000000 $<
+	probe-rs download --chip PSC3M5FDS2AFQ1 --binary-format bin --base-address 0x32000000 $<
 
 
 .PHONY: program
@@ -24,4 +31,4 @@ ifeq ($(APP),)
 endif
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
-	${OPENOCD_ROOT}/bin/openocd $(OPENOCD_OPTIONS) -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"
+	${OPENOCD_ROOT}/bin/openocd $(OPENOCD_OPTIONS) -c "cmsis_dap_serial $(KITPROG_ID); program $(KERNEL_WITH_APP) verify; reset; shutdown"

@@ -48,6 +48,7 @@ members = [
     "boards/apollo3/redboard_artemis_atp",
     "boards/apollo3/redboard_artemis_nano",
     "boards/apollo3/lora_things_plus",
+    "boards/psc3m5_evk",
     "boards/redboard_redv",
     "boards/stm32f3discovery",
     "boards/stm32f412gdiscovery",
