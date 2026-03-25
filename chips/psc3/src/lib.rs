@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025 SRL.
+// Copyright Infineon Technologies AG 2026.
 
 #![no_std]
 // `registers/rv_plic_regs` has many register definitions in `register_structs()!`

@@ -1,3 +1,8 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Infineon Technologies AG 2026.
+
+#[allow(clippy::wildcard_imports)]
 use crate::srss_registers::*;
 use kernel::utilities::{
     registers::{
@@ -158,17 +163,15 @@ impl Srss {
     }
 
     pub fn init_clock_paths(&self) {
-        [
+        for clk_path_select in [
             &self.registers.clk_path_select1,
             &self.registers.clk_path_select2,
             &self.registers.clk_path_select3,
             &self.registers.clk_path_select4,
             &self.registers.clk_path_select5,
-        ]
-        .iter()
-        .for_each(|clk_path_select| {
+        ] {
             clk_path_select.modify(CLK_PATH_SELECT::PATH_MUX::IHO);
-        });
+        }
         self.registers
             .clk_path_select6
             .modify(CLK_PATH_SELECT::PATH_MUX::IMO);
@@ -515,7 +518,7 @@ impl Srss {
         } else {
             /* If lock doesn't occur, FLL is stopped */
             self.disable_fll();
-            return Err(());
+            Err(())
         }
     }
 

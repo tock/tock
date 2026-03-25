@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025.
+// Copyright Infineon Technologies AG 2026.
 
 //! Tock kernel for the Raspberry Pi Pico 2.
 //!
@@ -129,7 +129,7 @@ pub unsafe fn main() {
     /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     icache::sys_init_enable_cache();
     // TODO Cypress has different register (is it mapped?)
-    cortexm33::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS) as *const ());
+    cortexm33::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS).cast::<()>());
     cortexm33::support::dmb();
     cortexm33::nvic::enable_all();
 

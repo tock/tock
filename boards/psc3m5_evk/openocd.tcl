@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Infineon Technologies AG 2026.
+
 if { [info exists env(OPENOCD_ROOT)] } {
     add_script_search_dir $env(OPENOCD_ROOT)/scripts
 } else {

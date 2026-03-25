@@ -1,6 +1,10 @@
-use crate::gpio_registers::*;
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Infineon Technologies AG 2026.
+
+use crate::gpio_registers as regs;
 pub use crate::hsiom_registers::HsiomFunction;
-use crate::hsiom_registers::*;
+use crate::hsiom_registers::HsiomRegisters;
 use kernel::hil::gpio::{Configuration, Configure, Input, Interrupt, Output};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::ReadWriteable;
@@ -8,8 +12,8 @@ use kernel::utilities::registers::interfaces::Readable;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::StaticRef;
 
-const GPIO_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(0x42410000 as *const GpioRegisters) };
+const GPIO_BASE: StaticRef<regs::GpioRegisters> =
+    unsafe { StaticRef::new(0x42410000 as *const regs::GpioRegisters) };
 const HSIOM_BASE: StaticRef<HsiomRegisters> =
     unsafe { StaticRef::new(0x52400000 as *const HsiomRegisters) };
 
@@ -273,7 +277,7 @@ pub enum DriveMode {
 }
 
 pub struct GpioPin<'a> {
-    registers: StaticRef<GpioRegisters>,
+    registers: StaticRef<regs::GpioRegisters>,
     hsiom_registers: StaticRef<HsiomRegisters>,
     pin: usize,
     port: usize,
@@ -484,80 +488,80 @@ impl GpioPin<'_> {
             (
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .is_set(PRT_CFG::IN_EN0),
+                    .is_set(regs::PRT_CFG::IN_EN0),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE0)
+                    .read(regs::PRT_CFG::DRIVE_MODE0)
                     == HIGHZ,
             )
         } else if self.pin == 1 {
             (
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .is_set(PRT_CFG::IN_EN1),
+                    .is_set(regs::PRT_CFG::IN_EN1),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE1)
+                    .read(regs::PRT_CFG::DRIVE_MODE1)
                     == HIGHZ,
             )
         } else if self.pin == 2 {
             (
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .is_set(PRT_CFG::IN_EN2),
+                    .is_set(regs::PRT_CFG::IN_EN2),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE2)
+                    .read(regs::PRT_CFG::DRIVE_MODE2)
                     == HIGHZ,
             )
         } else if self.pin == 3 {
             (
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .is_set(PRT_CFG::IN_EN3),
+                    .is_set(regs::PRT_CFG::IN_EN3),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE3)
+                    .read(regs::PRT_CFG::DRIVE_MODE3)
                     == HIGHZ,
             )
         } else if self.pin == 4 {
             (
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .is_set(PRT_CFG::IN_EN4),
+                    .is_set(regs::PRT_CFG::IN_EN4),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE4)
+                    .read(regs::PRT_CFG::DRIVE_MODE4)
                     == HIGHZ,
             )
         } else if self.pin == 5 {
             (
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .is_set(PRT_CFG::IN_EN5),
+                    .is_set(regs::PRT_CFG::IN_EN5),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE5)
+                    .read(regs::PRT_CFG::DRIVE_MODE5)
                     == HIGHZ,
             )
         } else if self.pin == 6 {
             (
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .is_set(PRT_CFG::IN_EN6),
+                    .is_set(regs::PRT_CFG::IN_EN6),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE6)
+                    .read(regs::PRT_CFG::DRIVE_MODE6)
                     == HIGHZ,
             )
         } else {
             (
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .is_set(PRT_CFG::IN_EN7),
+                    .is_set(regs::PRT_CFG::IN_EN7),
                 self.registers.ports[self.port]
                     .prt_cfg
-                    .read(PRT_CFG::DRIVE_MODE7)
+                    .read(regs::PRT_CFG::DRIVE_MODE7)
                     == HIGHZ,
             )
         };
@@ -573,35 +577,35 @@ impl GpioPin<'_> {
         if self.pin == 0 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::DRIVE_MODE0.val(drive_mode as u32));
+                .modify(regs::PRT_CFG::DRIVE_MODE0.val(drive_mode as u32));
         } else if self.pin == 1 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::DRIVE_MODE1.val(drive_mode as u32));
+                .modify(regs::PRT_CFG::DRIVE_MODE1.val(drive_mode as u32));
         } else if self.pin == 2 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::DRIVE_MODE2.val(drive_mode as u32));
+                .modify(regs::PRT_CFG::DRIVE_MODE2.val(drive_mode as u32));
         } else if self.pin == 3 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::DRIVE_MODE3.val(drive_mode as u32));
+                .modify(regs::PRT_CFG::DRIVE_MODE3.val(drive_mode as u32));
         } else if self.pin == 4 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::DRIVE_MODE4.val(drive_mode as u32));
+                .modify(regs::PRT_CFG::DRIVE_MODE4.val(drive_mode as u32));
         } else if self.pin == 5 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::DRIVE_MODE5.val(drive_mode as u32));
+                .modify(regs::PRT_CFG::DRIVE_MODE5.val(drive_mode as u32));
         } else if self.pin == 6 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::DRIVE_MODE6.val(drive_mode as u32));
+                .modify(regs::PRT_CFG::DRIVE_MODE6.val(drive_mode as u32));
         } else {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::DRIVE_MODE7.val(drive_mode as u32));
+                .modify(regs::PRT_CFG::DRIVE_MODE7.val(drive_mode as u32));
         }
     }
 
@@ -609,49 +613,49 @@ impl GpioPin<'_> {
         if self.pin == 0 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::IN_EN0.val(input_enable as u32));
+                .modify(regs::PRT_CFG::IN_EN0.val(input_enable as u32));
         } else if self.pin == 1 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::IN_EN1.val(input_enable as u32));
+                .modify(regs::PRT_CFG::IN_EN1.val(input_enable as u32));
         } else if self.pin == 2 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::IN_EN2.val(input_enable as u32));
+                .modify(regs::PRT_CFG::IN_EN2.val(input_enable as u32));
         } else if self.pin == 3 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::IN_EN3.val(input_enable as u32));
+                .modify(regs::PRT_CFG::IN_EN3.val(input_enable as u32));
         } else if self.pin == 4 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::IN_EN4.val(input_enable as u32));
+                .modify(regs::PRT_CFG::IN_EN4.val(input_enable as u32));
         } else if self.pin == 5 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::IN_EN5.val(input_enable as u32));
+                .modify(regs::PRT_CFG::IN_EN5.val(input_enable as u32));
         } else if self.pin == 6 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::IN_EN6.val(input_enable as u32));
+                .modify(regs::PRT_CFG::IN_EN6.val(input_enable as u32));
         } else {
             self.registers.ports[self.port]
                 .prt_cfg
-                .modify(PRT_CFG::IN_EN7.val(input_enable as u32));
+                .modify(regs::PRT_CFG::IN_EN7.val(input_enable as u32));
         }
     }
 
     pub fn handle_interrupt(&self) {
         if self.is_pending() {
             let bitfield = match self.pin {
-                0 => PRT_INTR::EDGE0,
-                1 => PRT_INTR::EDGE1,
-                2 => PRT_INTR::EDGE2,
-                3 => PRT_INTR::EDGE3,
-                4 => PRT_INTR::EDGE4,
-                5 => PRT_INTR::EDGE5,
-                6 => PRT_INTR::EDGE6,
-                _ => PRT_INTR::EDGE7,
+                0 => regs::PRT_INTR::EDGE0,
+                1 => regs::PRT_INTR::EDGE1,
+                2 => regs::PRT_INTR::EDGE2,
+                3 => regs::PRT_INTR::EDGE3,
+                4 => regs::PRT_INTR::EDGE4,
+                5 => regs::PRT_INTR::EDGE5,
+                6 => regs::PRT_INTR::EDGE6,
+                _ => regs::PRT_INTR::EDGE7,
             };
             self.registers.ports[self.port]
                 .prt_intr
@@ -666,27 +670,27 @@ impl Input for GpioPin<'_> {
         match self.get_configuration() {
             Configuration::Input => {
                 let bitfield = match self.pin {
-                    0 => PRT_IN::IN0,
-                    1 => PRT_IN::IN1,
-                    2 => PRT_IN::IN2,
-                    3 => PRT_IN::IN3,
-                    4 => PRT_IN::IN4,
-                    5 => PRT_IN::IN5,
-                    6 => PRT_IN::IN6,
-                    _ => PRT_IN::IN7,
+                    0 => regs::PRT_IN::IN0,
+                    1 => regs::PRT_IN::IN1,
+                    2 => regs::PRT_IN::IN2,
+                    3 => regs::PRT_IN::IN3,
+                    4 => regs::PRT_IN::IN4,
+                    5 => regs::PRT_IN::IN5,
+                    6 => regs::PRT_IN::IN6,
+                    _ => regs::PRT_IN::IN7,
                 };
                 self.registers.ports[self.port].prt_in.is_set(bitfield)
             }
             Configuration::Output => {
                 let bitfield = match self.pin {
-                    0 => PRT_OUT::OUT0,
-                    1 => PRT_OUT::OUT1,
-                    2 => PRT_OUT::OUT2,
-                    3 => PRT_OUT::OUT3,
-                    4 => PRT_OUT::OUT4,
-                    5 => PRT_OUT::OUT5,
-                    6 => PRT_OUT::OUT6,
-                    _ => PRT_OUT::OUT7,
+                    0 => regs::PRT_OUT::OUT0,
+                    1 => regs::PRT_OUT::OUT1,
+                    2 => regs::PRT_OUT::OUT2,
+                    3 => regs::PRT_OUT::OUT3,
+                    4 => regs::PRT_OUT::OUT4,
+                    5 => regs::PRT_OUT::OUT5,
+                    6 => regs::PRT_OUT::OUT6,
+                    _ => regs::PRT_OUT::OUT7,
                 };
                 self.registers.ports[self.port].prt_out.is_set(bitfield)
             }
@@ -700,14 +704,14 @@ impl Output for GpioPin<'_> {
         match self.get_configuration() {
             Configuration::Output | Configuration::InputOutput => {
                 let bitfield = match self.pin {
-                    0 => PRT_OUT::OUT0,
-                    1 => PRT_OUT::OUT1,
-                    2 => PRT_OUT::OUT2,
-                    3 => PRT_OUT::OUT3,
-                    4 => PRT_OUT::OUT4,
-                    5 => PRT_OUT::OUT5,
-                    6 => PRT_OUT::OUT6,
-                    _ => PRT_OUT::OUT7,
+                    0 => regs::PRT_OUT::OUT0,
+                    1 => regs::PRT_OUT::OUT1,
+                    2 => regs::PRT_OUT::OUT2,
+                    3 => regs::PRT_OUT::OUT3,
+                    4 => regs::PRT_OUT::OUT4,
+                    5 => regs::PRT_OUT::OUT5,
+                    6 => regs::PRT_OUT::OUT6,
+                    _ => regs::PRT_OUT::OUT7,
                 };
                 self.registers.ports[self.port]
                     .prt_out
@@ -721,14 +725,14 @@ impl Output for GpioPin<'_> {
         match self.get_configuration() {
             Configuration::Output | Configuration::InputOutput => {
                 let bitfield = match self.pin {
-                    0 => PRT_OUT::OUT0,
-                    1 => PRT_OUT::OUT1,
-                    2 => PRT_OUT::OUT2,
-                    3 => PRT_OUT::OUT3,
-                    4 => PRT_OUT::OUT4,
-                    5 => PRT_OUT::OUT5,
-                    6 => PRT_OUT::OUT6,
-                    _ => PRT_OUT::OUT7,
+                    0 => regs::PRT_OUT::OUT0,
+                    1 => regs::PRT_OUT::OUT1,
+                    2 => regs::PRT_OUT::OUT2,
+                    3 => regs::PRT_OUT::OUT3,
+                    4 => regs::PRT_OUT::OUT4,
+                    5 => regs::PRT_OUT::OUT5,
+                    6 => regs::PRT_OUT::OUT6,
+                    _ => regs::PRT_OUT::OUT7,
                 };
                 self.registers.ports[self.port]
                     .prt_out
@@ -799,35 +803,35 @@ impl Configure for GpioPin<'_> {
         let drive_mode = if self.pin == 0 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE0)
+                .read(regs::PRT_CFG::DRIVE_MODE0)
         } else if self.pin == 1 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE1)
+                .read(regs::PRT_CFG::DRIVE_MODE1)
         } else if self.pin == 2 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE2)
+                .read(regs::PRT_CFG::DRIVE_MODE2)
         } else if self.pin == 3 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE3)
+                .read(regs::PRT_CFG::DRIVE_MODE3)
         } else if self.pin == 4 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE4)
+                .read(regs::PRT_CFG::DRIVE_MODE4)
         } else if self.pin == 5 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE5)
+                .read(regs::PRT_CFG::DRIVE_MODE5)
         } else if self.pin == 6 {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE6)
+                .read(regs::PRT_CFG::DRIVE_MODE6)
         } else {
             self.registers.ports[self.port]
                 .prt_cfg
-                .read(PRT_CFG::DRIVE_MODE7)
+                .read(regs::PRT_CFG::DRIVE_MODE7)
         };
         if drive_mode == PULL_UP {
             kernel::hil::gpio::FloatingState::PullUp
@@ -853,45 +857,45 @@ impl<'a> Interrupt<'a> for GpioPin<'a> {
         if self.pin == 0 {
             self.registers.ports[self.port]
                 .prt_intr_cfg
-                .modify(PRT_INTR_CFG::EDGE0_SEL.val(edge_value));
+                .modify(regs::PRT_INTR_CFG::EDGE0_SEL.val(edge_value));
         } else if self.pin == 1 {
             self.registers.ports[self.port]
                 .prt_intr_cfg
-                .modify(PRT_INTR_CFG::EDGE1_SEL.val(edge_value));
+                .modify(regs::PRT_INTR_CFG::EDGE1_SEL.val(edge_value));
         } else if self.pin == 2 {
             self.registers.ports[self.port]
                 .prt_intr_cfg
-                .modify(PRT_INTR_CFG::EDGE2_SEL.val(edge_value));
+                .modify(regs::PRT_INTR_CFG::EDGE2_SEL.val(edge_value));
         } else if self.pin == 3 {
             self.registers.ports[self.port]
                 .prt_intr_cfg
-                .modify(PRT_INTR_CFG::EDGE3_SEL.val(edge_value));
+                .modify(regs::PRT_INTR_CFG::EDGE3_SEL.val(edge_value));
         } else if self.pin == 4 {
             self.registers.ports[self.port]
                 .prt_intr_cfg
-                .modify(PRT_INTR_CFG::EDGE4_SEL.val(edge_value));
+                .modify(regs::PRT_INTR_CFG::EDGE4_SEL.val(edge_value));
         } else if self.pin == 5 {
             self.registers.ports[self.port]
                 .prt_intr_cfg
-                .modify(PRT_INTR_CFG::EDGE5_SEL.val(edge_value));
+                .modify(regs::PRT_INTR_CFG::EDGE5_SEL.val(edge_value));
         } else if self.pin == 6 {
             self.registers.ports[self.port]
                 .prt_intr_cfg
-                .modify(PRT_INTR_CFG::EDGE6_SEL.val(edge_value));
+                .modify(regs::PRT_INTR_CFG::EDGE6_SEL.val(edge_value));
         } else {
             self.registers.ports[self.port]
                 .prt_intr_cfg
-                .modify(PRT_INTR_CFG::EDGE7_SEL.val(edge_value));
+                .modify(regs::PRT_INTR_CFG::EDGE7_SEL.val(edge_value));
         }
         let bitfield = match self.pin {
-            0 => PRT_INTR::EDGE0,
-            1 => PRT_INTR::EDGE1,
-            2 => PRT_INTR::EDGE2,
-            3 => PRT_INTR::EDGE3,
-            4 => PRT_INTR::EDGE4,
-            5 => PRT_INTR::EDGE5,
-            6 => PRT_INTR::EDGE6,
-            _ => PRT_INTR::EDGE7,
+            0 => regs::PRT_INTR::EDGE0,
+            1 => regs::PRT_INTR::EDGE1,
+            2 => regs::PRT_INTR::EDGE2,
+            3 => regs::PRT_INTR::EDGE3,
+            4 => regs::PRT_INTR::EDGE4,
+            5 => regs::PRT_INTR::EDGE5,
+            6 => regs::PRT_INTR::EDGE6,
+            _ => regs::PRT_INTR::EDGE7,
         };
         self.registers.ports[self.port]
             .prt_intr_mask
@@ -900,14 +904,14 @@ impl<'a> Interrupt<'a> for GpioPin<'a> {
 
     fn disable_interrupts(&self) {
         let bitfield = match self.pin {
-            0 => PRT_INTR::EDGE0,
-            1 => PRT_INTR::EDGE1,
-            2 => PRT_INTR::EDGE2,
-            3 => PRT_INTR::EDGE3,
-            4 => PRT_INTR::EDGE4,
-            5 => PRT_INTR::EDGE5,
-            6 => PRT_INTR::EDGE6,
-            _ => PRT_INTR::EDGE7,
+            0 => regs::PRT_INTR::EDGE0,
+            1 => regs::PRT_INTR::EDGE1,
+            2 => regs::PRT_INTR::EDGE2,
+            3 => regs::PRT_INTR::EDGE3,
+            4 => regs::PRT_INTR::EDGE4,
+            5 => regs::PRT_INTR::EDGE5,
+            6 => regs::PRT_INTR::EDGE6,
+            _ => regs::PRT_INTR::EDGE7,
         };
         self.registers.ports[self.port]
             .prt_intr_mask
@@ -916,14 +920,14 @@ impl<'a> Interrupt<'a> for GpioPin<'a> {
 
     fn is_pending(&self) -> bool {
         let bitfield = match self.pin {
-            0 => PRT_INTR::EDGE0,
-            1 => PRT_INTR::EDGE1,
-            2 => PRT_INTR::EDGE2,
-            3 => PRT_INTR::EDGE3,
-            4 => PRT_INTR::EDGE4,
-            5 => PRT_INTR::EDGE5,
-            6 => PRT_INTR::EDGE6,
-            _ => PRT_INTR::EDGE7,
+            0 => regs::PRT_INTR::EDGE0,
+            1 => regs::PRT_INTR::EDGE1,
+            2 => regs::PRT_INTR::EDGE2,
+            3 => regs::PRT_INTR::EDGE3,
+            4 => regs::PRT_INTR::EDGE4,
+            5 => regs::PRT_INTR::EDGE5,
+            6 => regs::PRT_INTR::EDGE6,
+            _ => regs::PRT_INTR::EDGE7,
         };
         self.registers.ports[self.port].prt_intr.is_set(bitfield)
     }

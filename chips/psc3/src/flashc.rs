@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Infineon Technologies AG 2026.
+
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -1114,20 +1118,17 @@ impl FlashC {
         }
     }
 
-    /// Sets the number of clock cycles the cache will wait for, before it samples
-    /// data coming back from ROM, SRAM, and Flash.
+    /// Set the number of flash wait states.
     ///
-    /// Call this function before increasing the HFClk0 High Frequency clock.
+    /// This updates `FLASH_CTL.RBUS_WS`. Call this before increasing `HFClk0`.
     ///
-    /// * `ulp_mode` - The device power mode.
-    ///        true  if the device should be switched to the ULP mode (nominal
-    ///              voltage of the core supply regulator should be switched to 0.9V);
-    ///        false if the device should be switched to the LP mode (nominal
-    ///              voltage of the core supply regulator should be switched to 1.1V).
+    /// # Arguments
     ///
-    /// * `clk_hf_mhz` - The HFClk0 clock frequency in MHz. Specifying a frequency
-    ///                  above the supported maximum will set the wait states as for
-    ///                  the maximum frequency.
+    /// - `ulp_mode`: Target power mode.
+    ///   - `true`: ULP mode (core regulator nominal `0.9V`).
+    ///   - `false`: LP mode (core regulator nominal `1.1V`).
+    /// - `clk_hf_mhz`: `HFClk0` frequency in `MHz`.
+    ///   Values above the supported maximum are treated as the maximum.
     pub fn set_waitstates(&self, ulp_mode: bool, clk_hf_mhz: u32) {
         const COEFFICIENT_ULP: u32 = 80;
         const COEFFICIENT: u32 = 60;
