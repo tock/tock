@@ -46,7 +46,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); 8] = [CortexM33::GENERIC_ISR; 8];
+pub static IRQS: [unsafe extern "C" fn(); 140] = [CortexM33::GENERIC_ISR; 140];
 
 pub mod chip;
 pub mod gpio;
