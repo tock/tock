@@ -24,6 +24,7 @@
             "executable": "${workspaceRoot}/target/thumbv7em-none-eabi/debug/msp-exp432p401r.elf",
             "cwd": "${workspaceRoot}",
             "svdFile": "${workspaceRoot}/boards/msp_exp432p401r/msp432.svd",
+            "preLaunchTask": "build-tock.board",
             "runToMain": true,
             "configFiles": [
                 "${workspaceRoot}/boards/msp_exp432p401r/openocd.cfg",
@@ -43,6 +44,7 @@
             "overrideRestartCommands": [
                 "starti"
             ],
+            "preLaunchTask": "build-tock.board",
             "svdFile": "../psc3.svd",
             "configFiles": [
                 "${workspaceRoot}/boards/psc3m5_evk/openocd.tcl",
