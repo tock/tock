@@ -10,6 +10,7 @@ use kernel::platform::chip::InterruptService;
 
 use crate::cpuss;
 use crate::cpuss_ppu;
+use crate::flashc;
 use crate::gpio;
 use crate::hsiom;
 use crate::interrupts;
@@ -101,6 +102,7 @@ pub struct Psc3DefaultPeripherals<'a> {
     srss: srss::Srss,
     cpuss_ppu: cpuss_ppu::CpussPpu,
     ramc_ppu: ramc_ppu::RamcPpu,
+    flashc: flashc::FlashC,
 }
 
 impl<'a> Psc3DefaultPeripherals<'a> {
@@ -117,6 +119,7 @@ impl<'a> Psc3DefaultPeripherals<'a> {
             cpuss_ppu: cpuss_ppu::CpussPpu::new(),
             gpio: gpio::PsocPins::new(),
             ramc_ppu: ramc_ppu::RamcPpu::new(),
+            flashc: flashc::FlashC::new(),
         }
     }
 
@@ -137,9 +140,7 @@ impl<'a> Psc3DefaultPeripherals<'a> {
     }
 
     fn init_system(&self) {
-        // TODOs:
-        // /* Set worst case memory wait states (! ultra low power, 180 MHz), will update at the end */
-        // Cy_SysLib_SetWaitStates(false, 180UL);
+        self.flashc.set_waitstates(false, 180);
 
         /* Unlock WDT to be able to modify LFCLK registers */
         self.srss.wdt_unlock();
@@ -173,11 +174,25 @@ impl<'a> Psc3DefaultPeripherals<'a> {
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();
 
-        self.hsiom
-            .set_port_sel(6, 2, hsiom::HsiomFunction::ActiveFunctionality6);
+        self.hsiom.set_secure_port_nonsecure_pin(6, 2, true);
+        self.hsiom // UART_RX_PIN
+            .set_port_sel(6, 2, hsiom::HsiomFunction::ActiveFunctionality4);
         let uart_rx_pin = self.gpio.get_pin(gpio::PsocPin::P6_2);
         uart_rx_pin.configure_drive_mode(gpio::DriveMode::HighZ);
         uart_rx_pin.configure_input(true);
+
+        self.hsiom.set_secure_port_nonsecure_pin(1, 2, true);
+        self.hsiom // SWDCK_PIN
+            .set_port_sel(1, 2, hsiom::HsiomFunction::DeepSleepFunctionality5);
+        self.hsiom.set_secure_port_nonsecure_pin(1, 3, true);
+        self.hsiom // SWDIO_PIN
+            .set_port_sel(1, 3, hsiom::HsiomFunction::DeepSleepFunctionality5);
+
+        self.hsiom.set_secure_port_nonsecure_pin(6, 3, true);
+        self.hsiom // UART_TX_PIN
+            .set_port_sel(6, 3, hsiom::HsiomFunction::ActiveFunctionality4);
+        // self.hsiom // LED TODO: panics
+        //     .set_port_sel(8, 5, hsiom::HsiomFunction::GPIOControlsOut);
         let uart_tx_pin = self.gpio.get_pin(gpio::PsocPin::P6_3);
         uart_tx_pin.configure_drive_mode(gpio::DriveMode::Strong);
         uart_tx_pin.configure_input(false);
@@ -194,7 +209,7 @@ impl<'a> InterruptService for Psc3DefaultPeripherals<'a> {
                 self.tcpwm.handle_interrupt();
                 true
             }
-            interrupts::SCB_5_INTERRUPT => {
+            interrupts::SCB_3_INTERRUPT => {
                 self.scb3.handle_interrupt();
                 true
             }

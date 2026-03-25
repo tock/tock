@@ -45,7 +45,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 0; // TODO fix process loading (probably in linker)
 
 type ChipHw = Psc3<'static, Psc3DefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
@@ -119,6 +119,7 @@ impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Pla
 pub unsafe fn main() {
     /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     icache::sys_init_enable_cache();
+    // TODO Cypress has different register (is it mapped?)
     cortexm33::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS) as *const ());
     cortexm33::support::dmb();
 

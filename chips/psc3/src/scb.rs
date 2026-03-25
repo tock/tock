@@ -149,7 +149,7 @@ impl Scb<'_> {
     }
 
     fn set_uart_sync(&self) {
-        self.registers.ctrl.modify(CTRL::BYTE_MODE::SET);
+        self.registers.ctrl.modify(CTRL::MEM_WIDTH::BYTE);
         self.registers
             .tx_ctrl
             .modify(TX_CTRL::DATA_WIDTH.val(7) + TX_CTRL::MSB_FIRST::CLEAR);
