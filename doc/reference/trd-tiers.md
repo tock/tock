@@ -149,6 +149,21 @@ annotating code tiers.
    based on experience and intuition. With labeled code tiers, the expectation
    for code review is made explicit.
 
+3. Avoiding undetected changes to trusted code. A contribution may change code
+   that is in the normal tier, but that code is used by code in a higher tier.
+   Control flow analysis from code in higher tiers would reveal the potential
+   impact of this change and mark the contribution for increased scrutiny.
+
+5 Open Questions
+===============================
+
+1. Is higher tier code relying on lower tier code an error or a warning? If a
+   warning, how do we specify the cases where we want it to be an error? For
+   example, we may mark a function as a high tier, and then examine all code it
+   depends on to ensure it is at the same tier or higher. We then want to be
+   able to record that, so any future change that makes that no longer hold is
+   flagged. If an error, how do we specify the cases that we don't want to cause
+   CI to fail?
 
 
 Author Addresses
