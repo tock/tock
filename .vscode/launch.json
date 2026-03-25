@@ -28,6 +28,23 @@
             "configFiles": [
                 "${workspaceRoot}/boards/msp_exp432p401r/openocd.cfg",
             ]
-        }
+        },
+        {
+            "name": "PSC3 Debug",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "request": "launch",
+            "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk",
+            "cwd": "${workspaceRoot}",
+            "serverpath": "/opt/ModusToolboxProgtools-1.7/openocd/bin/openocd",
+            "openOCDLaunchCommands": [
+                "init; reset init;"
+            ],
+            "svdFile": "../psc3.svd",
+            "configFiles": [
+                "${workspaceRoot}/boards/psc3m5_evk/openocd.cfg",
+            ],
+            // "showDevDebugOutput": "raw"
+        },
     ]
 }
