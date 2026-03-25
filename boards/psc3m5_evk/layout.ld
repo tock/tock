@@ -10,8 +10,8 @@
 
 MEMORY
 {
-  	rom (rx)  : ORIGIN = 0x32000000, LENGTH = 0x40000
-	prog (rx) : ORIGIN = 0x32800000, LENGTH = 0x40000 /* dynamically/after-compilation inserted apps */
+  	rom (rx)  : ORIGIN = 0x32000000, LENGTH = 0x20000
+	prog (rx) : ORIGIN = 0x32020000, LENGTH = 0x20000 /* dynamically/after-compilation inserted apps */
   	ram (rwx) : ORIGIN = 0x34000000, LENGTH = 0x10000
 }
 
