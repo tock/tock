@@ -492,6 +492,11 @@ impl Srss {
             }
             delay_rough_us(1);
         }
+        // Strangly setting this in manual config doesn't seem to work, so set it here after enabling the FLL
+        // This work in MTB though (0_o)
+        self.registers
+            .clk_fll_config4
+            .modify(CLK_FLL_CONFIG4::CCO_RANGE::RANGE4_150200MHz);
         self.registers
             .clk_fll_config3
             .modify(CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF);
@@ -544,9 +549,11 @@ impl Srss {
                 + CLK_FLL_CONFIG3::BYPASS_SEL.val(config.output_mode),
         );
 
-        self.registers.clk_fll_config4.modify(
-            CLK_FLL_CONFIG4::CCO_RANGE.val(config.cco_range)
-                + CLK_FLL_CONFIG4::CCO_FREQ.val(config.cco_freq),
-        );
+        self.registers
+            .clk_fll_config4
+            .modify(CLK_FLL_CONFIG4::CCO_RANGE.val(config.cco_range));
+        self.registers
+            .clk_fll_config4
+            .modify(CLK_FLL_CONFIG4::CCO_FREQ.val(config.cco_freq));
     }
 }
