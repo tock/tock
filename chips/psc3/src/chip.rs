@@ -9,7 +9,6 @@ use kernel::hil::gpio::Configure;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-use crate::cpuss;
 use crate::cpuss_ppu;
 use crate::flashc;
 use crate::gpio;
@@ -160,7 +159,6 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
 }
 
 pub struct Psc3DefaultPeripherals<'a> {
-    pub cpuss: cpuss::Cpuss,
     pub gpio: gpio::PsocPins<'a>,
     pub scb3: scb::Scb<'a>,
     pub tcpwm: tcpwm::Tcpwm0<'a>,
@@ -176,7 +174,6 @@ pub struct Psc3DefaultPeripherals<'a> {
 impl<'a> Psc3DefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
-            cpuss: cpuss::Cpuss::new(),
             peri: peri::Peri::new(),
             scb3: scb::Scb::new(),
             peri_clk: peri_clk::PeriPClk::new(),

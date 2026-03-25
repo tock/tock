@@ -1,8 +1,4 @@
-use kernel::utilities::registers::{
-    interfaces::{ReadWriteable, Readable},
-    register_bitfields, register_structs, ReadOnly, ReadWrite,
-};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 
 #[repr(C)]
 pub struct GpioPort {

@@ -31,11 +31,11 @@
             ]
         },
         {
-            "name": "PSC3 Debug",
+            "name": "PSC3",
             "type": "cortex-debug",
             "servertype": "openocd",
             "request": "launch",
-            "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk",
+            "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk-app.elf",
             "cwd": "${workspaceRoot}",
             "serverpath": "/opt/ModusToolboxProgtools-1.7/openocd/bin/openocd",
             "openOCDLaunchCommands": [
@@ -44,7 +44,7 @@
             "overrideRestartCommands": [
                 "starti"
             ],
-            "preLaunchTask": "build-tock.board",
+            "preLaunchTask": "build-tock.board+app",
             "svdFile": "../psc3.svd",
             "configFiles": [
                 "${workspaceRoot}/boards/psc3m5_evk/openocd.tcl",
