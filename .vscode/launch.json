@@ -32,42 +32,22 @@
         {
             "name": "PSC3 Debug",
             "type": "cortex-debug",
-            "request": "launch",
-            "cwd": "${workspaceFolder}",
-            "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk",
             "servertype": "openocd",
+            "request": "launch",
+            "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk",
+            "cwd": "${workspaceRoot}",
             "serverpath": "/opt/ModusToolboxProgtools-1.7/openocd/bin/openocd",
-            "searchDir": [
-                "/opt/ModusToolboxProgtools-1.7/",
+            "openOCDLaunchCommands": [
+                "init; reset init;"
             ],
-            "openOCDPreConfigLaunchCommands": [
-                "set DEBUG_CERTIFICATE ./packets/debug_token.bin"
-            ],
-            "configFiles": [
-                "${workspaceRoot}/boards/psc3m5_evk/openocd.tcl"
-            ],
-            // "overrideLaunchCommands": [
-            //     "set mem inaccessible-by-default off",
-            //     "-enable-pretty-printing",
-            //     "set remotetimeout 60",
-            // ],
             "overrideRestartCommands": [
                 "starti"
             ],
-            // svdFile is optional, it can be very large.
             "svdFile": "../psc3.svd",
-            "breakAfterReset": true,
-            "runToEntryPoint": "main", // Specifies application entry point name where program will halt
-            // "preLaunchTask": "Build", // Set this to run a task from tasks.json
-            // before starting a debug session
-            "showDevDebugOutput": "raw",
-            "presentation": {
-                "hidden": false,
-                "group": "psc3m5_evk"
-            },
-            "liveWatch": {
-                "enabled": true
-            }
+            "configFiles": [
+                "${workspaceRoot}/boards/psc3m5_evk/openocd.tcl",
+            ],
+            // "showDevDebugOutput": "raw"
         },
     ]
 }
