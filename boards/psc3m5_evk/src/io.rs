@@ -5,11 +5,12 @@
 use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;
 
-// use psc3::gpio::GpioPin;
+use psc3::gpio;
+use psc3::gpio::GpioPin;
 use psc3::scb::Scb;
 
 use kernel::debug::{self, IoWrite};
-// use kernel::hil::led::LedHigh;
+use kernel::hil::led::LedHigh;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -45,17 +46,14 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
     let writer = &mut *addr_of_mut!(WRITER);
 
-    // todo gpio
-    // let led_kernel_pin = &GpioPin::new(psoc62xa::gpio::PsocPin::P13_7);
-    // let led = &mut LedHigh::new(led_kernel_pin);
+    let led_kernel_pin = &GpioPin::new(gpio::PsocPin::P8_5);
+    let led = &mut LedHigh::new(led_kernel_pin);
 
-    debug::panic_print::<_, _, _>(
+    debug::panic(
+        &mut [led],
         writer,
         pi,
         &cortexm33::support::nop,
         crate::PANIC_RESOURCES.get(),
     );
-
-    // To satisfy the ! return type constraints.
-    loop {}
 }

@@ -23,6 +23,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use psc3::chip::{Psc3, Psc3DefaultPeripherals};
+use psc3::gpio;
 use psc3::icache;
 use psc3::tcpwm::Tcpwm0;
 #[allow(unused)]
@@ -139,6 +140,28 @@ pub unsafe fn main() {
 
     peripherals.sys_init();
     peripherals.init();
+
+    const GPIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
+        out_val: 1,
+        drive_mode: gpio::DriveMode::PullUp,
+        hsiom: gpio::HsiomFunction::GPIOControlsOut,
+        int_edge: false,
+        int_mask: 0,
+        vtrip: 0,
+        fast_slew_rate: true,
+        drive_sel: gpio::DriveSelect::Half,
+        vreg_en: false,
+        ibuf_mode: 0,
+        vtrip_sel: 0,
+        vref_sel: 0,
+        voh_sel: 0,
+        non_sec: false,
+    };
+
+    peripherals
+        .gpio
+        .get_pin(gpio::PsocPin::P8_5)
+        .preconfigure(&GPIO_CONFIG);
 
     // Set the UART used for panic
     (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3);
