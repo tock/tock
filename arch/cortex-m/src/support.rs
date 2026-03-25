@@ -75,6 +75,20 @@ pub fn nop() {
     unimplemented!()
 }
 
+/// Set Main Stack Pointer Limit (MSPLIM) (mock)
+// Mock implementations for tests on Travis-CI.
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn set_msplim(main_stack_ptr_limit: u32) {
+    unimplemented!()
+}
+
+/// Data Memory Barrier (mock)
+// Mock implementations for tests on Travis-CI.
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn dmb() {
+    unimplemented!()
+}
+
 /// WFI instruction (mock)
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe fn wfi() {

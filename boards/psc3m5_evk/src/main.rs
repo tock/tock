@@ -31,14 +31,8 @@ use psc3::BASE_VECTORS;
 
 mod io;
 
-/// Allocate memory for the stack
-//
-// When compiling for a macOS host, the `link_section` attribute is elided as
-// it yields the following error: `mach-o section specifier requires a segment
-// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".stack_buffer")]
-#[no_mangle]
-static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
+// Allocate memory for the stack
+kernel::stack_size! {0x4000}
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -115,6 +109,20 @@ impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Pla
     }
 }
 
+// These symbols are defined in the linker script.
+extern "C" {
+    /// Beginning of the ROM region containing app images.
+    static _sapps: u8;
+    /// End of the ROM region containing app images.
+    static _eapps: u8;
+    /// Beginning of the RAM region for app memory.
+    static mut _sappmem: u8;
+    /// End of the RAM region for app memory.
+    static _eappmem: u8;
+    /// Beginning of the stack region.
+    static _sstack: u8;
+}
+
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
@@ -125,8 +133,7 @@ pub unsafe fn main() {
     cortexm33::support::dmb();
     cortexm33::nvic::enable_all();
 
-    // TODO:
-    // __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
+    cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -247,18 +254,6 @@ pub unsafe fn main() {
     };
 
     kernel::debug!("Initialization complete. Enter main loop");
-
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
 
     kernel::process::load_processes(
         board_kernel,
