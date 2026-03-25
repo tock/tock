@@ -8,18 +8,18 @@ use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-use crate::cpuss::Cpuss;
-use crate::cpuss_ppu::CpussPpu;
-use crate::gpio::PsocPins;
-use crate::hsiom::Hsiom;
+use crate::cpuss;
+use crate::cpuss_ppu;
+use crate::gpio;
+use crate::hsiom;
 use crate::interrupts;
-use crate::peri::Peri;
-use crate::peri_clk::PeriPClk;
-use crate::pwrmode::PwrMode;
-use crate::ramc_ppu::RamcPpu;
-use crate::scb::Scb;
-use crate::srss::Srss;
-use crate::tcpwm::Tcpwm0;
+use crate::peri;
+use crate::peri_clk;
+use crate::pwrmode;
+use crate::ramc_ppu;
+use crate::scb;
+use crate::srss;
+use crate::tcpwm;
 use cortexm33::{CortexM33, CortexMVariant};
 
 pub struct Psc3<'a, I: InterruptService + 'a> {
@@ -90,33 +90,33 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
 }
 
 pub struct Psc3DefaultPeripherals<'a> {
-    pub cpuss: Cpuss,
-    pub gpio: PsocPins<'a>,
-    pub hsiom: Hsiom,
-    pub scb3: Scb<'a>,
-    pub tcpwm: Tcpwm0<'a>,
-    peri: Peri,
-    peri_clk: PeriPClk,
-    pwrmode: PwrMode,
-    srss: Srss,
-    cpuss_ppu: CpussPpu,
-    ramc_ppu: RamcPpu,
+    pub cpuss: cpuss::Cpuss,
+    pub gpio: gpio::PsocPins<'a>,
+    pub hsiom: hsiom::Hsiom,
+    pub scb3: scb::Scb<'a>,
+    pub tcpwm: tcpwm::Tcpwm0<'a>,
+    peri: peri::Peri,
+    peri_clk: peri_clk::PeriPClk,
+    pwrmode: pwrmode::PwrMode,
+    srss: srss::Srss,
+    cpuss_ppu: cpuss_ppu::CpussPpu,
+    ramc_ppu: ramc_ppu::RamcPpu,
 }
 
-impl Psc3DefaultPeripherals<'_> {
+impl<'a> Psc3DefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
-            cpuss: Cpuss::new(),
-            hsiom: Hsiom::new(),
-            peri: Peri::new(),
-            scb3: Scb::new(),
-            peri_clk: PeriPClk::new(),
-            srss: Srss::new(),
-            pwrmode: PwrMode::new(),
-            tcpwm: Tcpwm0::new(),
-            cpuss_ppu: CpussPpu::new(),
-            gpio: PsocPins::new(),
-            ramc_ppu: RamcPpu::new(),
+            cpuss: cpuss::Cpuss::new(),
+            hsiom: hsiom::Hsiom::new(),
+            peri: peri::Peri::new(),
+            scb3: scb::Scb::new(),
+            peri_clk: peri_clk::PeriPClk::new(),
+            srss: srss::Srss::new(),
+            pwrmode: pwrmode::PwrMode::new(),
+            tcpwm: tcpwm::Tcpwm0::new(),
+            cpuss_ppu: cpuss_ppu::CpussPpu::new(),
+            gpio: gpio::PsocPins::new(),
+            ramc_ppu: ramc_ppu::RamcPpu::new(),
         }
     }
 
@@ -129,6 +129,7 @@ impl Psc3DefaultPeripherals<'_> {
         self.pwrmode.ppu_init();
         self.cpuss_ppu.init_ppu();
         self.ramc_ppu.init_ppu();
+        // TODO
         // (void)Cy_SysPm_SetDeepSleepMode(CY_SYSPM_MODE_DEEPSLEEP);
 
         // Voltage during debugging was always right and it is unclear how to set the voltage.
@@ -165,23 +166,28 @@ impl Psc3DefaultPeripherals<'_> {
     pub fn init(&self) {
         self.init_system();
 
+        // TODO: sets warm boot entry
+        // result = cybsp_syspm_dsram_init();
+
         // self.srss.init_clock();
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();
 
+        self.hsiom
+            .set_port_sel(6, 2, hsiom::HsiomFunction::ActiveFunctionality6);
+        let uart_rx_pin = self.gpio.get_pin(gpio::PsocPin::P6_2);
+        uart_rx_pin.configure_drive_mode(gpio::DriveMode::HighZ);
+        uart_rx_pin.configure_input(true);
+        let uart_tx_pin = self.gpio.get_pin(gpio::PsocPin::P6_3);
+        uart_tx_pin.configure_drive_mode(gpio::DriveMode::Strong);
+        uart_tx_pin.configure_input(false);
+
         self.scb3.set_standard_uart_mode();
         self.scb3.enable_scb();
-        // self.hsiom.enable_uart();
-        let uart_tx_pin = self.gpio.get_pin(crate::gpio::PsocPin::P5_1);
-        uart_tx_pin.configure_drive_mode(crate::gpio::DriveMode::Strong);
-        uart_tx_pin.configure_input(false);
-        let uart_rx_pin = self.gpio.get_pin(crate::gpio::PsocPin::P5_0);
-        uart_rx_pin.configure_drive_mode(crate::gpio::DriveMode::HighZ);
-        uart_rx_pin.configure_input(true);
     }
 }
 
-impl InterruptService for Psc3DefaultPeripherals<'_> {
+impl<'a> InterruptService for Psc3DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::TCPWM_0_INTERRUPTS_0 => {

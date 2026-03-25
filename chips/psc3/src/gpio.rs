@@ -990,7 +990,7 @@ impl<'a> PsocPins<'a> {
         }
     }
 
-    pub fn get_pin(&self, searched_pin: PsocPin) -> &'a GpioPin<'_> {
+    pub fn get_pin(&self, searched_pin: PsocPin) -> &GpioPin<'a> {
         self.pins[searched_pin as usize].as_ref().unwrap()
     }
 
