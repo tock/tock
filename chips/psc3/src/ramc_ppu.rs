@@ -1,4 +1,4 @@
-use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 
@@ -88,10 +88,18 @@ register_structs! {
 }
 register_bitfields![u32,
 PWPR [
-    /// Power mode policy.  When static power mode transitions are enabled, PWR_DYN_EN is set to 0, this is the target power mode for the PPU.  When dynamic power mode transitions are enabled, PWR_DYN_EN is set to 1, this is the minimum power mode for the PPU.
-///
-/// This PPU supports the following modes: OFF(0), MEM_RET(2), ON(8).  Do not use WARM_RST(9) or other unsupported modes.
-    PWR_POLICY OFFSET(0) NUMBITS(4) [],
+    /// Power mode policy.  When static power mode transitions are enabled, PWR_DYN_EN is set to 0,
+    /// this is the target power mode for the PPU.  When dynamic power mode transitions are enabled,
+    /// PWR_DYN_EN is set to 1, this is the minimum power mode for the PPU.
+    ///
+    /// This PPU supports the following modes: OFF(0), MEM_RET(2), FULL_RET(5), ON(8).  Do not use
+    /// WARM_RST(9) or other unsupported modes.
+    PWR_POLICY OFFSET(0) NUMBITS(4) [
+        Off = 0,
+        MemoryRetention = 2,
+        FullRetention = 5,
+        On = 8
+    ],
     /// Power mode dynamic transition enable.  When this bit is set to 1 dynamic transitions are enabled for power modes, allowing transitions to be initiated by changes on power mode DEVACTIVE inputs.
     PWR_DYN_EN OFFSET(8) NUMBITS(1) [],
     /// N/A
@@ -442,6 +450,8 @@ ID3 [
 const RAMC_PPU0_BASE: StaticRef<Ramc_Ppu0Registers> =
     unsafe { StaticRef::new(0x42100000 as *const Ramc_Ppu0Registers) };
 
+pub type PwrPolicy = PWPR::PWR_POLICY::Value;
+
 pub struct RamcPpu {
     registers: StaticRef<Ramc_Ppu0Registers>,
 }
@@ -464,5 +474,13 @@ impl RamcPpu {
                 + IMR::LOCKED_IRQ_MASK::SET,
         ); // mask accept events to avoid wakeup
         self.registers.isr.write(ISR::STA_POLICY_TRN_IRQ::CLEAR);
+    }
+
+    pub fn ppu_dynamic_enable(&self, min_dyn_state: PwrPolicy) {
+        self.registers
+            .pwpr
+            .modify(PWPR::PWR_DYN_EN::SET + PWPR::PWR_POLICY.val(min_dyn_state as u32));
+
+        while !self.registers.pwsr.is_set(PWSR::PWR_DYN_STATUS) {}
     }
 }
