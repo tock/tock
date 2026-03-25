@@ -100,6 +100,7 @@ but the approximate definitions:
 | [CY8CPROTO-062-4343W](cy8cproto_62_4343_w/README.md)              | ARM Cortex-M0+   | PSoC62         | openocd    | custom                      | No            |
 | [Raspberry Pi Pico 2](raspberry_pi_pico_2/README.md)              | ARM Cortex-M33   | RP2350         | openocd    | openocd                     | No            |
 | [LPCXpresso55S69 Development Board](lpc55s69-evk/README.md)       | ARM Cortex-M33   | LPC55S6x       | probe-rs   | probe-rs                    | No            |
+| [PSOC™ Control C3M5 Evaluation Kit](psc3m5_evk/README.md)         | ARM Cortex-M33   | PSC3M5         | openocd    | probe-rs                    | No            |
 
 
 ### Other
