@@ -117,9 +117,7 @@ impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Pla
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    /**
-     * Only after peripherals.sys_init() was called peripheral view for debugging works
-     */
+    /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     icache::sys_init_enable_cache();
     cortexm33::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS) as *const ());
     cortexm33::support::dmb();

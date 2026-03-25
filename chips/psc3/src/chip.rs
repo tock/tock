@@ -8,10 +8,12 @@ use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
+use crate::cpuss_ppu::CpussPpu;
 use crate::interrupts;
 use crate::peri::Peri;
 use crate::peri_clk::PeriPClk;
 use crate::pwrmode::PwrMode;
+use crate::ramc_ppu::RamcPpu;
 use crate::scb::Scb;
 use crate::srss::Srss;
 use crate::tcpwm::Tcpwm0;
@@ -88,12 +90,14 @@ pub struct Psc3DefaultPeripherals<'a> {
     // pub cpuss: cpuss::Cpuss,
     // pub gpio: gpio::PsocPins<'a>,
     // pub hsiom: hsiom::Hsiom,
-    pub peri: Peri,
-    pub peri_clk: PeriPClk,
-    pub pwrmode: PwrMode,
     pub scb3: Scb<'a>,
-    pub srss: Srss,
     pub tcpwm: Tcpwm0<'a>,
+    peri: Peri,
+    peri_clk: PeriPClk,
+    pwrmode: PwrMode,
+    srss: Srss,
+    cpuss_ppu: CpussPpu,
+    ramc_ppu: RamcPpu,
 }
 
 impl Psc3DefaultPeripherals<'_> {
@@ -105,6 +109,8 @@ impl Psc3DefaultPeripherals<'_> {
             srss: Srss::new(),
             pwrmode: PwrMode::new(),
             tcpwm: Tcpwm0::new(),
+            cpuss_ppu: CpussPpu::new(),
+            ramc_ppu: RamcPpu::new(),
         }
     }
 
@@ -113,7 +119,17 @@ impl Psc3DefaultPeripherals<'_> {
         self.peri.sys_init_enable_peri();
     }
 
-    pub fn init(&self) {
+    fn init_pwr(&self) {
+        self.pwrmode.ppu_init();
+        self.cpuss_ppu.init_ppu();
+        self.ramc_ppu.init_ppu();
+        // (void)Cy_SysPm_SetDeepSleepMode(CY_SYSPM_MODE_DEEPSLEEP);
+
+        // Voltage during debugging was always right and it is unclear how to set the voltage.
+        // Cy_SysPm_SystemEnterOd();
+    }
+
+    fn init_system(&self) {
         // TODOs:
         // /* Set worst case memory wait states (! ultra low power, 180 MHz), will update at the end */
         // Cy_SysLib_SetWaitStates(false, 180UL);
@@ -121,13 +137,29 @@ impl Psc3DefaultPeripherals<'_> {
         /* Unlock WDT to be able to modify LFCLK registers */
         self.srss.wdt_unlock();
 
-        self.pwrmode.ppu_init();
+        self.init_pwr();
+
+        self.srss.disable_fll();
+        self.srss.enable_iho();
 
         self.srss.init_clock_paths();
 
-        // (void)cy_pd_ppu_init((struct ppu_v1_reg *)CY_PPU_CPUSS_BASE); /* Suppress a compiler warning about unused return value */
-        // (void)cy_pd_ppu_init((struct ppu_v1_reg *)CY_PPU_SRAM_BASE); /* Suppress a compiler warning about unused return value */
-        self.srss.init_clock();
+        self.srss.init_dpll_lp();
+
+        self.srss.init_clk_hf();
+        self.srss.init_clk_path0();
+
+        self.srss.init_fll();
+        self.srss.init_clk_hf0();
+
+        // TODO
+        // Cy_SysLib_SetWaitStates(CY_CFG_PWR_USING_ULP != 0, CY_CFG_SYSCLK_CLKHF0_FREQ_MHZ);
+    }
+
+    pub fn init(&self) {
+        self.init_system();
+
+        // self.srss.init_clock();
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();
     }
