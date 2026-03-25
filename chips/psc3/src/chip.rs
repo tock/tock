@@ -8,7 +8,10 @@ use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
+use crate::cpuss::Cpuss;
 use crate::cpuss_ppu::CpussPpu;
+use crate::gpio::PsocPins;
+use crate::hsiom::Hsiom;
 use crate::interrupts;
 use crate::peri::Peri;
 use crate::peri_clk::PeriPClk;
@@ -87,9 +90,9 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
 }
 
 pub struct Psc3DefaultPeripherals<'a> {
-    // pub cpuss: cpuss::Cpuss,
-    // pub gpio: gpio::PsocPins<'a>,
-    // pub hsiom: hsiom::Hsiom,
+    pub cpuss: Cpuss,
+    pub gpio: PsocPins<'a>,
+    pub hsiom: Hsiom,
     pub scb3: Scb<'a>,
     pub tcpwm: Tcpwm0<'a>,
     peri: Peri,
@@ -103,6 +106,8 @@ pub struct Psc3DefaultPeripherals<'a> {
 impl Psc3DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
+            cpuss: Cpuss::new(),
+            hsiom: Hsiom::new(),
             peri: Peri::new(),
             scb3: Scb::new(),
             peri_clk: PeriPClk::new(),
@@ -110,6 +115,7 @@ impl Psc3DefaultPeripherals<'_> {
             pwrmode: PwrMode::new(),
             tcpwm: Tcpwm0::new(),
             cpuss_ppu: CpussPpu::new(),
+            gpio: PsocPins::new(),
             ramc_ppu: RamcPpu::new(),
         }
     }
@@ -162,6 +168,16 @@ impl Psc3DefaultPeripherals<'_> {
         // self.srss.init_clock();
         self.peri_clk.init_clocks();
         self.peri_clk.init_peripherals();
+
+        self.scb3.set_standard_uart_mode();
+        self.scb3.enable_scb();
+        // self.hsiom.enable_uart();
+        let uart_tx_pin = self.gpio.get_pin(crate::gpio::PsocPin::P5_1);
+        uart_tx_pin.configure_drive_mode(crate::gpio::DriveMode::Strong);
+        uart_tx_pin.configure_input(false);
+        let uart_rx_pin = self.gpio.get_pin(crate::gpio::PsocPin::P5_0);
+        uart_rx_pin.configure_drive_mode(crate::gpio::DriveMode::HighZ);
+        uart_rx_pin.configure_input(true);
     }
 }
 
