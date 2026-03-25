@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025 SRL.
+// Copyright Infineon Technologies AG 2026.
 
 use kernel::utilities::registers::{
     interfaces::{ReadWriteable, Readable, Writeable},
@@ -255,7 +255,7 @@ impl PeriPClk {
             DIV_CMD::ENABLE::SET
                 + DIV_CMD::DIV_SEL.val(0)
                 + DIV_CMD::TYPE_SEL::DIV8_0
-                + DIV_CMD::PA_TYPE_SEL.val(3) // set PA masks
+                + DIV_CMD::PA_TYPE_SEL.val(3 /* set PA masks */)
                 + DIV_CMD::PA_DIV_SEL.val(255),
         );
         while self.registers.gr4_div_cmd.read(DIV_CMD::ENABLE) == 1 {}
@@ -271,7 +271,7 @@ impl PeriPClk {
             DIV_CMD::ENABLE::SET
                 + DIV_CMD::DIV_SEL.val(0)
                 + DIV_CMD::TYPE_SEL::DIV8_0
-                + DIV_CMD::PA_TYPE_SEL.val(3) // set PA masks
+                + DIV_CMD::PA_TYPE_SEL.val(3 /* set PA masks */)
                 + DIV_CMD::PA_DIV_SEL.val(255),
         );
         while self.registers.gr5_div_cmd.read(DIV_CMD::ENABLE) == 1 {}

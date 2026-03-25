@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Infineon Technologies AG 2026.
+
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 
 register_structs! {
@@ -2026,7 +2030,7 @@ pub CLK_TRIM_DPLL_LP_DPLL_LP_CTL3 [
     /// 13-->14 MHz: 410
     /// 14-->15 MHz: 441
     /// 15-->16 MHz: 472
-    /// 16 MHz: 	511
+    /// 16 MHz: 511
     PHASE_ACC_CNT OFFSET(0) NUMBITS(10) [],
     /// counter for phase accelerate cycles during PLL wakeup SSCG mode
     /// Optimal settings:
@@ -2042,7 +2046,7 @@ pub CLK_TRIM_DPLL_LP_DPLL_LP_CTL3 [
     /// 13-->14 MHz: 410
     /// 14-->15 MHz: 441
     /// 15-->16 MHz: 472
-    /// 16 MHz: 	511
+    /// 16 MHz: 511
     PHASE_ACC_CNT_SSCG OFFSET(16) NUMBITS(10) []
 ],
 pub CLK_TRIM_DPLL_LP_DPLL_LP_CTL4 [

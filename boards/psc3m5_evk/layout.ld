@@ -1,6 +1,6 @@
 /* Licensed under the Apache License, Version 2.0 or the MIT License. */
 /* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
-/* Copyright Oxidos Automotive 2025 SRL.                              */
+/* Copyright Infineon Technologies AG 2026.                           */
 
 /**
  *This layout currently still triggers CYBOOT_APP_LAUNCH_ADDR_INVALID in openocd/gdb. This error

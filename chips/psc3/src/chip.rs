@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025.
+// Copyright Infineon Technologies AG 2026.
 
 //! Chip trait setup.
 
@@ -171,7 +171,7 @@ pub struct Psc3DefaultPeripherals<'a> {
     flashc: flashc::FlashC,
 }
 
-impl<'a> Psc3DefaultPeripherals<'a> {
+impl Psc3DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             peri: peri::Peri::new(),
@@ -257,7 +257,7 @@ impl<'a> Psc3DefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for Psc3DefaultPeripherals<'a> {
+impl InterruptService for Psc3DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::TCPWM_0_INTERRUPTS_0 => {
