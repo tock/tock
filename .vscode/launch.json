@@ -32,7 +32,7 @@
         },
         {
             "name": "PSC3",
-            "type": "cortex-debug",
+            "type": "cortex-debug", // probe-rs also works but has significantly worse debugging experience (fewer breakpoints possible, fewer variables visible)
             "servertype": "openocd",
             "request": "launch",
             "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk-app.elf",
