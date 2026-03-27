@@ -13,7 +13,7 @@ else
 endif
 
 # Define the path to the TBF file to flash an application
-APP=
+APP?=
 KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/$(BUILD_TYPE)/$(PLATFORM)-app.elf
 
