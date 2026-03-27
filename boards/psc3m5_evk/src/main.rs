@@ -15,8 +15,10 @@
 use core::ptr::addr_of_mut;
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use components::led::LedsComponent;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -32,7 +34,7 @@ use psc3::BASE_VECTORS;
 mod io;
 
 // Allocate memory for the stack
-kernel::stack_size! {0x4000}
+kernel::stack_size! {0x3000}
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -61,6 +63,13 @@ pub struct Psc3Plattform {
         'static,
         VirtualMuxAlarm<'static, Tcpwm0<'static>>,
     >,
+    led: &'static capsules_core::led::LedDriver<
+        'static,
+        LedHigh<'static, gpio::GpioPin<'static>>,
+        1,
+    >,
+    button: &'static capsules_core::button::Button<'static, gpio::GpioPin<'static>>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, gpio::GpioPin<'static>>,
 }
 
 impl SyscallDriverLookup for Psc3Plattform {
@@ -72,6 +81,9 @@ impl SyscallDriverLookup for Psc3Plattform {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }
@@ -238,6 +250,84 @@ pub unsafe fn main() {
     .finalize(components::process_console_component_static!(Tcpwm0));
     let _ = process_console.start();
 
+    let led_pin = peripherals.gpio.get_pin(gpio::PsocPin::P8_4);
+    led_pin.preconfigure(&GPIO_CONFIG);
+
+    let led = LedsComponent::new().finalize(components::led_component_static!(
+        LedHigh<'static, gpio::GpioPin>,
+        LedHigh::new(led_pin)
+    ));
+
+    //--------------------------------------------------------------------------
+    // GPIO
+    //--------------------------------------------------------------------------
+
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        capsules_core::gpio::DRIVER_NUM,
+        components::gpio_component_helper!(
+            gpio::GpioPin,
+            //  Port 0 & 1:
+            01 => peripherals.gpio.get_pin(gpio::PsocPin::P0_1), // Header J5.5 (Remove R22, Mount R21)
+            10 => peripherals.gpio.get_pin(gpio::PsocPin::P1_0), // Header J24.37 (Remove R18, Mount R17)
+            11 => peripherals.gpio.get_pin(gpio::PsocPin::P1_1), // Header J5.7 (Remove R14, Mount R13)
+
+            // Port 2: General Purpose / JTAG
+            22 => peripherals.gpio.get_pin(gpio::PsocPin::P2_2), // Header J24.10
+            23 => peripherals.gpio.get_pin(gpio::PsocPin::P2_3), // Header J24.9
+
+            // Port 3: Digital I/O Multiplexed
+            30 => peripherals.gpio.get_pin(gpio::PsocPin::P3_0), // Header J4.8 / J5.24
+            31 => peripherals.gpio.get_pin(gpio::PsocPin::P3_1), // Header J5.28 / J6.4
+
+            // Port 4: PWM/General Purpose
+            44 => peripherals.gpio.get_pin(gpio::PsocPin::P4_4), // Header J5.36
+            45 => peripherals.gpio.get_pin(gpio::PsocPin::P4_5), // Header J5.37
+
+            // Port 5: CAN/PWM
+            51 => peripherals.gpio.get_pin(gpio::PsocPin::P5_1), // Header J24.12
+
+            // Port 7: SPI/PWM
+            76 => peripherals.gpio.get_pin(gpio::PsocPin::P7_6), // Header J5.22 / J3.1
+            77 => peripherals.gpio.get_pin(gpio::PsocPin::P7_7), // Header J24.4
+
+            // In led capsule and panic_handler
+            // // Port 8: LEDs
+            // 84 => peripherals.gpio.get_pin(gpio::PsocPin::P8_4), // User LED 2 (and Header J24.6)
+            // 85 => peripherals.gpio.get_pin(gpio::PsocPin::P8_5), // User LED 1 (and Header J24.8)
+
+            // Port 9: PWM/Expansion
+            91 => peripherals.gpio.get_pin(gpio::PsocPin::P9_1), // Header J5.25
+            93 => peripherals.gpio.get_pin(gpio::PsocPin::P9_3), // Header J24.3
+        ),
+    )
+    .finalize(components::gpio_component_static!(gpio::GpioPin));
+
+    //--------------------------------------------------------------------------
+    // BUTTON
+    //--------------------------------------------------------------------------
+
+    let button_pin = peripherals.gpio.get_pin(gpio::PsocPin::P5_0);
+    button_pin.preconfigure(&GPIO_CONFIG);
+
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        capsules_core::button::DRIVER_NUM,
+        components::button_component_helper!(
+            gpio::GpioPin,
+            (
+                button_pin,
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+        ),
+    )
+    .finalize(components::button_component_static!(gpio::GpioPin));
+
+    //--------------------------------------------------------------------------
+    // FINAL SETUP AND BOARD BOOT
+    //--------------------------------------------------------------------------
+
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
@@ -250,7 +340,10 @@ pub unsafe fn main() {
         console,
         alarm,
         scheduler,
-        systick: cortexm33::systick::SysTick::new_with_calibration(40_096_000),
+        systick: cortexm33::systick::SysTick::new_with_calibration(1_000_000),
+        led,
+        button,
+        gpio,
     };
 
     kernel::debug!("Initialization complete. Enter main loop");

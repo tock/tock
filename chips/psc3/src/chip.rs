@@ -259,7 +259,15 @@ impl Psc3DefaultPeripherals<'_> {
 
 impl InterruptService for Psc3DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        if interrupt <= interrupts::IOSS_INTERRUPTS_SEC_GPIO_9 {
+            self.gpio.handle_interrupt();
+            return true;
+        }
         match interrupt {
+            interrupts::IOSS_INTERRUPT_SEC_GPIO => {
+                self.gpio.handle_interrupt();
+                true
+            }
             interrupts::TCPWM_0_INTERRUPTS_0 => {
                 self.tcpwm.handle_interrupt();
                 true
