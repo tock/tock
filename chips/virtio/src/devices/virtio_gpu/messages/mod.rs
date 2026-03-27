@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub(crate) mod ctrl_header;
@@ -24,6 +25,13 @@ pub trait VirtIOGPUReq {
         &self,
         dst: &mut impl Iterator<Item = &'a mut u8>,
     ) -> Result<(), ErrorCode>;
+
+    fn reset_and_write_to_sub_slice(&self, dst: &mut SubSliceMut<'_, u8>) -> Result<(), ErrorCode> {
+        dst.reset();
+        self.write_to_byte_iter(&mut dst.as_mut_slice().iter_mut())?;
+        dst.slice(0..Self::ENCODED_SIZE);
+        Ok(())
+    }
 }
 
 pub trait VirtIOGPUResp {
