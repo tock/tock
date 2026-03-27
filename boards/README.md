@@ -89,6 +89,7 @@ but the approximate definitions:
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
 | [WeAct F401CCU6 Core Board](weact_f401ccu6/README.md)             | ARM Cortex-M4    | STM32F401CCU6  | openocd    | custom                      | No            |
+| [ST Nucleo U545RE-Q (skeleton)](nucleo_u545re_q/README.md)        | ARM Cortex-M33   | STM32U545RE-Q  | openocd    | custom                      | No            |
 | [SparkFun RedBoard Red-V](redboard_redv/README.md)                | RISC-V           | FE310-G002     | openocd    | tockloader                  | Yes (5.1)     |
 | [SiFive HiFive1 Rev B](hifive1/README.md)                         | RISC-V           | FE310-G002     | openocd    | tockloader                  | Yes (5.1)     |
 | [BBC HiFive Inventor](hifive_inventor/README.md)                  | RISC-V           | FE310-G003     | tockloader | tockloader                  | No            |
