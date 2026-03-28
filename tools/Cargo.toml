@@ -9,6 +9,7 @@ members = [
     "ci/litex-ci-runner",
     "ci/qemu-runner",
     "build/sha256sum",
+    "build/kernel-signer",
     "debugging-and-development/alert_codes",
     "debugging-and-development/usb/bulk-echo",
     "debugging-and-development/usb/bulk-test",
