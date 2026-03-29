@@ -1,4 +1,10 @@
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024.
+
+use kernel::hil::uart::{self, Configure, Receive, Transmit};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
@@ -62,13 +68,19 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct Usart {
+pub struct Usart<'a> {
     registers: StaticRef<UsartRegisters>,
+    tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
+    rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
 }
 
-impl Usart {
-    pub const fn new(base: StaticRef<UsartRegisters>) -> Usart {
-        Usart { registers: base }
+impl<'a> Usart<'a> {
+    pub const fn new(base: StaticRef<UsartRegisters>) -> Usart<'a> {
+        Usart {
+            registers: base,
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+        }
     }
 
     pub fn transmit_byte(&self, byte: u8) {
@@ -76,5 +88,69 @@ impl Usart {
         while !self.registers.isr.is_set(ISR::TXE) {}
         // Write the byte to the TDR register
         self.registers.tdr.set(byte as u32);
+    }
+}
+
+impl<'a> uart::Transmit<'a> for Usart<'a> {
+    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
+        self.tx_client.set(client);
+    }
+
+    fn transmit_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+        // For now, we use our working synchronous loop
+        for i in 0..tx_len {
+            self.transmit_byte(tx_buffer[i]);
+        }
+
+        // Use a separate scope to prevent borrowing issues
+        if let Some(client) = self.tx_client.take() {
+            client.transmitted_buffer(tx_buffer, tx_len, Ok(()));
+            self.tx_client.set(client);
+        }
+        Ok(())
+    }
+
+    fn transmit_abort(&self) -> Result<(), kernel::ErrorCode> {
+        Err(kernel::ErrorCode::NOSUPPORT)
+    }
+
+    fn transmit_word(&self, _word: u32) -> Result<(), kernel::ErrorCode> {
+        Err(kernel::ErrorCode::NOSUPPORT)
+    }
+}
+
+// Implement Configure (Satisfies the compiler)
+impl<'a> uart::Configure for Usart<'a> {
+    fn configure(&self, _params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
+        // We already configured it in main.rs for now.
+        // In a full driver, you'd move that logic here.
+        Ok(())
+    }
+}
+
+// Implement Receive (Stub for now)
+impl<'a> uart::Receive<'a> for Usart<'a> {
+    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
+        self.rx_client.set(client);
+    }
+
+    fn receive_buffer(
+        &self,
+        _rx_buffer: &'static mut [u8],
+        _rx_len: usize,
+    ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+        Err((kernel::ErrorCode::NOSUPPORT, _rx_buffer))
+    }
+
+    fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
+        Err(kernel::ErrorCode::NOSUPPORT)
+    }
+
+    fn receive_word(&self) -> Result<(), kernel::ErrorCode> {
+        Err(kernel::ErrorCode::NOSUPPORT)
     }
 }
