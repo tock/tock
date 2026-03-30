@@ -2,15 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
-//! Tock kernel for the Raspberry Pi Pico 2.
-//!
-//! It is based on RP2350SoC SoC (Cortex M33).
-
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
+
+//! Tock kernel for the PSC3M5-EVK evaluation board.
 
 use core::ptr::addr_of_mut;
 
@@ -28,8 +24,9 @@ use psc3::chip::{Psc3, Psc3DefaultPeripherals};
 use psc3::gpio;
 use psc3::icache;
 use psc3::tcpwm::Tcpwm0;
-#[allow(unused)]
 use psc3::BASE_VECTORS;
+#[allow(unused)]
+use psc3::IRQS;
 
 mod io;
 
@@ -140,8 +137,6 @@ extern "C" {
 pub unsafe fn main() {
     /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     icache::sys_init_enable_cache();
-    // TODO Cypress has different register (is it mapped?)
-    cortexm33::scb::set_vector_table_offset(core::ptr::addr_of!(BASE_VECTORS).cast::<()>());
     cortexm33::support::dmb();
     cortexm33::nvic::enable_all();
 
@@ -157,7 +152,7 @@ pub unsafe fn main() {
 
     let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
 
-    peripherals.sys_init();
+    peripherals.preinit_peripherals();
     peripherals.init();
 
     const GPIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
@@ -267,6 +262,7 @@ pub unsafe fn main() {
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             gpio::GpioPin,
+            // Pins in "Table 3 PSOC™ Control C3M5 Evaluation Kit board pinout" of Kit Guide
             //  Port 0 & 1:
             01 => peripherals.gpio.get_pin(gpio::PsocPin::P0_1), // Header J5.5 (Remove R22, Mount R21)
             10 => peripherals.gpio.get_pin(gpio::PsocPin::P1_0), // Header J24.37 (Remove R18, Mount R17)

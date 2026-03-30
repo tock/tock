@@ -16,6 +16,7 @@ const SRSS_BASE: StaticRef<SrssRegisters> =
     unsafe { StaticRef::new(0x42200000 as *const SrssRegisters) };
 
 fn delay_rough_us(us: u32) {
+    // Busy-wait delay used during clock source transitions and lock polling.
     const FREQ_MHZ: u32 = 180;
     let cycles = us * FREQ_MHZ;
     for _ in 0..(cycles) {
@@ -156,12 +157,14 @@ impl Srss {
         }
     }
 
+    /// Unlock the watchdog control register by clearing both lock bits.
     pub fn wdt_unlock(&self) {
         // Write 1 to bit to clear it
         self.registers.wdt_ctl.modify(WDT_CTL::WDT_LOCK::ClearsBit0);
         self.registers.wdt_ctl.modify(WDT_CTL::WDT_LOCK::ClearsBit1);
     }
 
+    /// Initialize clock paths 1..5 to IHO and path 6 to IMO.
     pub fn init_clock_paths(&self) {
         for clk_path_select in [
             &self.registers.clk_path_select1,
@@ -177,6 +180,7 @@ impl Srss {
             .modify(CLK_PATH_SELECT::PATH_MUX::IMO);
     }
 
+    /// Enable root clocks 2..4 sourced from PATH0 with no integer division.
     pub fn sys_init_enable_clocks(&self) {
         // set source
         self.registers
@@ -212,6 +216,7 @@ impl Srss {
             .modify(CLK_ROOT_SELECT::ENABLE::SET);
     }
 
+    /// Disable the FLL by switching to reference bypass and clearing enable bits.
     pub fn disable_fll(&self) {
         const MAX_DELAY_US: u32 = 100;
         self.registers
@@ -240,12 +245,15 @@ impl Srss {
                 .modify(CLK_FLL_CONFIG4::CCO_ENABLE::CLEAR);
         }
     }
+
+    /// Enable the IHO oscillator.
     pub fn enable_iho(&self) {
         self.registers
             .clk_iho_config
             .modify(CLK_IHO_CONFIG::ENABLE::SET);
     }
 
+    /// Initialize both low-power DPLLs using board-specific static configurations.
     pub fn init_dpll_lp(&self) -> Result<(), ()> {
         [
             (
@@ -275,7 +283,7 @@ impl Srss {
         })
     }
 
-    /// Enable PLL and wait for lock/output to stabilize
+    /// Enable a DPLL and wait for lock before switching it out of bypass.
     fn enable_dpll_lp(
         &self,
         config_reg: &ReadWrite<u32, CLK_DPLL_LP_CONFIG::Register>,
@@ -311,7 +319,7 @@ impl Srss {
         }
     }
 
-    /// Configure DPLL LP registers for the given PLL (0 or 1) using the provided config.
+    /// Program all DPLL LP configuration registers for PLL0 or PLL1.
     fn configure_dpll_lp(&self, pll_num: usize, config: &DpllLpConfig) {
         // Select correct register set for PLL0 or PLL1
         let (
@@ -401,6 +409,7 @@ impl Srss {
         config_reg.modify(CLK_DPLL_LP_CONFIG::BYPASS_SEL.val(config.output_mode));
     }
 
+    /// Configure and enable HF roots 1..4 with the selected path sources.
     pub fn init_clk_hf(&self) {
         // 1
         self.registers
@@ -447,6 +456,7 @@ impl Srss {
             .modify(CLK_ROOT_SELECT::ENABLE::SET);
     }
 
+    /// Configure HF root 0 source and divider.
     pub fn init_clk_hf0(&self) {
         self.registers
             .clk_root_select0
@@ -456,12 +466,14 @@ impl Srss {
             .modify(CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
     }
 
+    /// Select IHO as the source for clock path 0.
     pub fn init_clk_path0(&self) {
         self.registers
             .clk_path_select0
             .modify(CLK_PATH_SELECT::PATH_MUX::IHO);
     }
 
+    /// Configure, start, and lock the FLL, switching output on success.
     pub fn init_fll(&self) -> Result<(), ()> {
         const MAX_DELAY_US: u32 = 20_000;
         self.fll_manual_configure(&SRSS_0_CLOCK_0_FLL_0_FLL_CONFIG);
@@ -522,6 +534,7 @@ impl Srss {
         }
     }
 
+    /// Program FLL registers in manual mode from a static configuration.
     fn fll_manual_configure(&self, config: &FllManualConfig) {
         self.registers.clk_fll_config.write(
             CLK_FLL_CONFIG::FLL_MULT.val(config.fll_mult)

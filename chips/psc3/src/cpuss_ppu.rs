@@ -8,7 +8,7 @@ use kernel::utilities::StaticRef;
 
 register_structs! {
     /// Power Policy Unit Registers for CPUSS
-    Cpuss_PpuRegisters {
+    CpussPpuRegisters {
         /// Power Policy Register
         (0x000 => pwpr: ReadWrite<u32, PWPR::Register>),
         /// Power Mode Emulation Register
@@ -456,11 +456,11 @@ ID3 [
     ID3 OFFSET(0) NUMBITS(8) []
 ]
 ];
-const CPUSS_PPU_BASE: StaticRef<Cpuss_PpuRegisters> =
-    unsafe { StaticRef::new(0x42105000 as *const Cpuss_PpuRegisters) };
+const CPUSS_PPU_BASE: StaticRef<CpussPpuRegisters> =
+    unsafe { StaticRef::new(0x42105000 as *const CpussPpuRegisters) };
 
 pub struct CpussPpu {
-    registers: StaticRef<Cpuss_PpuRegisters>,
+    registers: StaticRef<CpussPpuRegisters>,
 }
 
 pub type PwrPolicy = PWPR::PWR_POLICY::Value;

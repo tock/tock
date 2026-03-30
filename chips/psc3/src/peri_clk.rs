@@ -244,39 +244,45 @@ impl PeriPClk {
         }
     }
 
-    pub fn init_clocks(&self) {
-        self.registers
-            .gr4_div_cmd
-            .write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
-        self.registers
-            .gr4_div_8_ctl0
-            .modify(DIV_8_CTL::INT8_DIV.val(108));
-        self.registers.gr4_div_cmd.write(
+    /// Set a divider of type DIV8_0 for a peripheral.
+    ///
+    /// The groups can be seen in "Figure 63 Clocking system block diagram" in "architecture reference manual"
+    fn set_clk_div8(
+        &self,
+        div_cmd: &ReadWrite<u32, DIV_CMD::Register>,
+        div_ctl: &ReadWrite<u32, DIV_8_CTL::Register>,
+        divider: u8,
+    ) {
+        div_cmd.write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
+        div_ctl.modify(DIV_8_CTL::INT8_DIV.val(divider as u32));
+        div_cmd.write(
             DIV_CMD::ENABLE::SET
                 + DIV_CMD::DIV_SEL.val(0)
                 + DIV_CMD::TYPE_SEL::DIV8_0
                 + DIV_CMD::PA_TYPE_SEL.val(3 /* set PA masks */)
                 + DIV_CMD::PA_DIV_SEL.val(255),
         );
-        while self.registers.gr4_div_cmd.read(DIV_CMD::ENABLE) == 1 {}
-
-        // Group 5 divider 8, index 0
-        self.registers
-            .gr5_div_cmd
-            .write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
-        self.registers
-            .gr5_div_8_ctl0
-            .modify(DIV_8_CTL::INT8_DIV.val(239));
-        self.registers.gr5_div_cmd.write(
-            DIV_CMD::ENABLE::SET
-                + DIV_CMD::DIV_SEL.val(0)
-                + DIV_CMD::TYPE_SEL::DIV8_0
-                + DIV_CMD::PA_TYPE_SEL.val(3 /* set PA masks */)
-                + DIV_CMD::PA_DIV_SEL.val(255),
-        );
-        while self.registers.gr5_div_cmd.read(DIV_CMD::ENABLE) == 1 {}
+        while div_cmd.read(DIV_CMD::ENABLE) == 1 {}
     }
 
+    /// Configure peripheral clocks for scb and tcpwm0.
+    pub fn configure_clocks(&self) {
+        // scb(3)
+        self.set_clk_div8(
+            &self.registers.gr4_div_cmd,
+            &self.registers.gr4_div_8_ctl0,
+            108,
+        );
+
+        // tcpwm0
+        self.set_clk_div8(
+            &self.registers.gr5_div_cmd,
+            &self.registers.gr5_div_8_ctl0,
+            239,
+        );
+    }
+
+    /// Enable peripheral clocks for scb and tcpwm0.
     pub fn init_peripherals(&self) {
         self.registers
             .gr4_clock_ctl3 // ctl3 = SCB
