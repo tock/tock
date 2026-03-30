@@ -141,12 +141,14 @@ supporting alternative capsule implementations as part of the IPC ecosystem.
 
 The first option is the **string name** registry.
 Registration and discovery is performed by matching "names", which are
-twenty-byte arrays. Allowed buffers must be exactly twenty bytes in length
-or commands using them will fail. The byte values can be anything, but are
-typically UTF-8 values, which do not need to be null-terminated. The default
+twenty-byte arrays. Allowed buffers must be exactly twenty bytes in length or
+commands using them will fail. The byte values can be anything, but are
+typically UTF-8 values, which do not need to be null-terminated. Bytes after a
+null terminator are respected in comparisons, and should be set to the fixed
+value 0 in order to allow services and clients to reliably discover themselves
+based on the portion of the string name before the null terminator. The default
 name value of all-zero-values cannot be used for discovery. Values will be
-copied from the allowed buffer into a fixed-size allocation in the grant
-region.
+copied from the allowed buffer into a fixed-size allocation in the grant region.
 
 The second option is the **package name** registry.
 Registration uses the "package name" field from the application's TBF header.
