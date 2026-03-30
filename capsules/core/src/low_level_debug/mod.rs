@@ -152,7 +152,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     }
 
     // Immediately prints the provided entry to the UART.
-    fn transmit_entry(&self, buffer: &'static mut [u8], app_num: usize, entry: DebugEntry) {
+    fn transmit_entry(&self, buffer: &'static mut [u8], app_num: u64, entry: DebugEntry) {
         let msg_len = fmt::format_entry(app_num, entry, buffer);
         // The uart's error message is ignored because we cannot do anything if
         // it fails anyway.
