@@ -125,11 +125,14 @@ Upon discovery, it provides opaque process IDs which can be used to refer to
 processes in other IPC mechanisms.
 
 If services or clients should be authenticated and/or authorized, this capsule
-could perform that operation at registration-time. The initial design will
-likely skip that feature but the design should enable it to be possible and
-provide clear locations where it could later be connected if implemented.
-Callbacks will be given on registration and discovery, allowing asynchronous
-operations to take place before they are completed.
+could perform that operation at registration-time. This authentication step
+should allow both services and clients to securely map an IPC handle---used for
+addressing in all subsequent IPC communication---to a given security
+principal. The initial design will likely skip that feature but the design
+should enable it to be possible and provide clear locations where it could later
+be connected if implemented. Callbacks will be given on registration and
+discovery, allowing asynchronous operations to take place before they are
+completed.
 
 Two separate registration mechanisms are implemented, allowing boards to choose
 which they want to use. This was chosen first because there were tradeoffs in
