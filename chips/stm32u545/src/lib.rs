@@ -4,14 +4,23 @@
 
 #![no_std]
 
-use cortexm33::unhandled_interrupt;
+use cortexm33::{unhandled_interrupt, CortexM33, CortexMVariant};
 
-pub use stm32u5xx::{chip, generic_init, usart};
+pub use stm32u5xx::{chip, generic_init, tim, usart};
 
-// STM32U545 has a total of 126 interrupts as per our research
+// STM32U545 has a total of 126 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); 126] = [unhandled_interrupt; 126];
+pub static IRQS: [unsafe extern "C" fn(); 126] = {
+    let mut table = [unhandled_interrupt as unsafe extern "C" fn(); 126];
+
+    // Index 45 is TIM2
+    table[45] = CortexM33::GENERIC_ISR;
+    // Index 61 is USART1
+    table[61] = CortexM33::GENERIC_ISR;
+
+    table
+};
 
 pub unsafe fn init() {
     generic_init();

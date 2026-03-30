@@ -5,6 +5,7 @@
 #![no_std]
 
 pub mod chip;
+pub mod tim;
 pub mod usart;
 
 use cortexm33::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM33, CortexMVariant};

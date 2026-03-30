@@ -15,7 +15,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, static_init};
-
+use kernel::deferred_call::DeferredCallClient;
 
 pub mod io;
 
@@ -26,8 +26,12 @@ const NUM_PROCS: usize = 0;
 const USART1_BASE: StaticRef<stm32u545::usart::UsartRegisters> =
     unsafe { StaticRef::new(0x50013800 as *const stm32u545::usart::UsartRegisters) };
 
+const TIM2_BASE: StaticRef<stm32u545::tim::TimRegisters> =
+    unsafe { StaticRef::new(0x50000000 as *const stm32u545::tim::TimRegisters) };
+
 const SECURE_RCC_AHB2ENR1: *mut u32 = 0x46020C8C as *mut u32;
 const SECURE_RCC_APB2ENR: *mut u32 = 0x46020CA4 as *mut u32;
+const SECURE_RCC_APB1ENR1: *mut u32 = 0x46020C9C as *mut u32;
 const SECURE_RCC_CCIPR1: *mut u32 = 0x46020CE0 as *mut u32;
 
 const SECURE_GPIOA_MODER: *mut u32 = 0x52020000 as *mut u32;
@@ -94,26 +98,22 @@ impl KernelResources<ChipHw> for NucleoU545RE {
 
 #[no_mangle]
 pub unsafe fn main() {
-    // 1. Basic Core Init (Disables interrupts)
+    // 1. Basic Core Init
     stm32u545::init();
 
-    // 2. Initialize Deferred Call State (Required by DebugWriter/UartMux)
     kernel::deferred_call::initialize_deferred_call_state::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
-    // 3. Hardware Initialization (Literal Port from working C code)
+    // 2. Hardware Initialization
     unsafe {
-        // Enable Clocks
-        *SECURE_RCC_AHB2ENR1 |= 1; // Enable GPIOA Clock
-        *SECURE_RCC_APB2ENR |= 1 << 14; // Enable USART1 Clock
-        *SECURE_RCC_CCIPR1 &= !3; // USART1 source = PCLK (00)
-
+        *SECURE_RCC_AHB2ENR1 |= 1;
+        *SECURE_RCC_APB2ENR |= 1 << 14;
+        *SECURE_RCC_APB1ENR1 |= 1; // TIM2 Clock
+        *SECURE_RCC_CCIPR1 &= !3;
         for _ in 0..1000 {
             core::arch::asm!("nop");
         }
-
-        // GPIO Configuration: PA5=Out, PA9/10=AF7
         *SECURE_GPIOA_MODER &= !((3 << 10) | (3 << 18) | (3 << 20));
         *SECURE_GPIOA_MODER |= (1 << 10) | (2 << 18) | (2 << 20);
         *SECURE_GPIOA_OSPEEDR |= (3 << 18) | (3 << 20);
@@ -121,21 +121,25 @@ pub unsafe fn main() {
         *SECURE_GPIOA_AFRH |= (0x77 << 4);
     }
 
-    // 4. Initialize Tock USART Driver
+    // 3. Initialize Drivers
     let usart = static_init!(
         stm32u545::usart::Usart<'static>,
         stm32u545::usart::Usart::new(USART1_BASE)
     );
+    usart.register(); // Register deferred call for USART
 
-    // 5. Configure USART Registers (Ported from working C code)
+    let tim2 = static_init!(
+        stm32u545::tim::Tim2<'static>,
+        stm32u545::tim::Tim2::new(TIM2_BASE)
+    );
+
+    // 4. Configure USART Registers
     unsafe {
         let regs = &*USART1_BASE;
         regs.cr1.modify(stm32u545::usart::CR1::UE::CLEAR);
         regs.presc.set(0);
-        regs.brr.set(35); // 115,200 baud @ 4MHz MSI
+        regs.brr.set(35);
         regs.icr.set(0x3F);
-
-        // Final Enable: TE, RE, UE
         regs.cr1.write(
             stm32u545::usart::CR1::TE::SET
                 + stm32u545::usart::CR1::RE::SET
@@ -143,7 +147,7 @@ pub unsafe fn main() {
         );
     }
 
-    // 6. TEST: Manual Print via Driver
+    // 5. TEST: Manual Print via Driver
     usart.transmit_byte(b'T');
     usart.transmit_byte(b'O');
     usart.transmit_byte(b'C');
@@ -151,13 +155,13 @@ pub unsafe fn main() {
     usart.transmit_byte(b'\r');
     usart.transmit_byte(b'\n');
 
-    // 7. Early debug print (uses io::Writer directly)
+    // 6. Early debug print
     debug!("Kernel initialization complete. Entering main loop.\r\n");
 
-    // 8. Initialize Tock Kernel Objects
+    // 7. Initialize Tock Kernel Objects
     let peripherals = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new()
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(tim2, usart)
     );
 
     let chip = static_init!(
@@ -170,10 +174,15 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    // 9. Shared UART channel (MUX)
+    // 8. Setup Muxes
     let uart_mux = components::console::UartMuxComponent::new(usart, 115200)
         .finalize(components::uart_mux_component_static!());
 
+    let alarm_mux = components::alarm::AlarmMuxComponent::new(tim2).finalize(
+        components::alarm_mux_component_static!(stm32u545::tim::Tim2),
+    );
+
+    // 9. Setup Capsules
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
@@ -181,7 +190,6 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
 
-    // Setup the Debug Writer
     let _debug_writer = components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
@@ -189,6 +197,19 @@ pub unsafe fn main() {
         create_capability!(capabilities::SetDebugWriterCapability),
     )
     .finalize(components::debug_writer_component_static!());
+
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        alarm_mux,
+        components::process_printer::ProcessPrinterTextComponent::new()
+            .finalize(components::process_printer_text_component_static!()),
+        None,
+    )
+    .finalize(components::process_console_component_static!(
+        stm32u545::tim::Tim2
+    ));
+    let _ = process_console.start();
 
     // 10. Initialise Platform
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
@@ -204,6 +225,12 @@ pub unsafe fn main() {
     );
 
     debug!("Final Kernel check.\r\n");
+
+    // Enable NVIC interrupts
+    unsafe {
+        cortexm33::nvic::Nvic::new(45).enable(); // TIM2
+        cortexm33::nvic::Nvic::new(61).enable(); // USART1
+    }
 
     // 11. Hand over control to the Tock Kernel Loop
     board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 0>(

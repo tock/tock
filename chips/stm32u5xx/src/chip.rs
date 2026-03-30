@@ -14,20 +14,31 @@ pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
 
 pub struct Stm32u5xxDefaultPeripherals<'a> {
     // Peripherals will go here
-    _marker: core::marker::PhantomData<&'a ()>,
+    pub tim2: &'a crate::tim::Tim2<'a>,
+    pub usart1: &'a crate::usart::Usart<'a>,
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new() -> Self {
-        Self {
-            _marker: core::marker::PhantomData,
-        }
+    pub fn new(tim2: &'a crate::tim::Tim2<'a>, usart1: &'a crate::usart::Usart<'a>) -> Self {
+        Self { tim2, usart1 }
     }
 }
 
 impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
-        false
+    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        match interrupt {
+            45 => {
+                // TIM2
+                self.tim2.handle_interrupt();
+                true
+            }
+            61 => {
+                // USART1
+                self.usart1.handle_interrupt();
+                true
+            }
+            _ => false,
+        }
     }
 }
 
