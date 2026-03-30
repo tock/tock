@@ -852,6 +852,44 @@ impl Kernel {
                     }
 
                     Ok(YieldCall::WaitFor) => {
+                        // First, we need to ensure that the grant has been
+                        // allocated for this app with the corresponding
+                        // driver. With YWF, it is possible that the capsule
+                        // does not need to store any state per-app, and
+                        // since YWF does not require an upcall to be
+                        // registered, that the app has not accessed the
+                        // grant at all, resulting in the grant never being
+                        // allocated. This can interfere with iterating
+                        // grants as `grant.each()` only works on allocated
+                        // grants.
+                        let driver_number = param_a;
+                        resources
+                            .syscall_driver_lookup()
+                            .with_driver(driver_number, |driver| {
+                            match driver {
+                                Some(driver) => {
+                                    match try_allocate_grant(driver, process) {
+                                        AllocResult::NewAllocation => {
+                                            if config::CONFIG.trace_syscalls {
+                                                debug!("[{:?}] YWF driver #{:x} allocated grant",
+                                                    process.processid(), driver_number);
+                                            }
+                                        }
+                                        AllocResult::NoAllocation => {
+                                            if config::CONFIG.trace_syscalls {
+                                                debug!("[{:?}] ERROR YWF driver #{:x} did not allocate grant",
+                                                    process.processid(), driver_number);
+                                            }
+                                        }
+                                        AllocResult::SameAllocation => {
+                                            // Grant already present.
+                                        }
+                                    }
+                                }
+                                None =>{}
+                            }
+                        });
+
                         let upcall_id = UpcallId {
                             driver_num: param_a,
                             subscribe_num: param_b,
