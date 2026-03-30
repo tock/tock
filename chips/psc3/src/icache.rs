@@ -76,6 +76,8 @@ STATUS2 [
 const ICACHE0_BASE: StaticRef<ICache0Registers> =
     unsafe { StaticRef::new(0x42103000 as *const ICache0Registers) };
 
+/// Enable the instruction cache.
+/// For system initialization.
 pub fn sys_init_enable_cache() {
     ICACHE0_BASE.ctl.modify(CTL::CA_EN::CLEAR);
     ICACHE0_BASE.ctl.modify(CTL::CA_EN::SET);

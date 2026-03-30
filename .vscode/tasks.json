@@ -2,26 +2,15 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build-tock.board",
-            // edit "tock.board" in ~/.config/Code/User/settings.json
-            "command": "cd ${workspaceRoot}/boards/${config:tock.board} && APP=${config:tock.app} make debug | cargo b",
+            "label": "build.psc3m5_evk",
+            // edit "tock.app" in ~/.config/Code/User/settings.json
+            "command": "APP=${config:tock.app} DEBUG=1 make -C ${workspaceRoot}/boards/psc3m5_evk build-with-app",
             "type": "shell",
             "args": [],
             "presentation": {
-                "reveal": "always"
+                "reveal": "silent" // only show on errors
             },
             "group": "build"
         },
-        {
-            "label": "build-tock.board+app",
-            // edit "tock.board" in ~/.config/Code/User/settings.json
-            "command": "cd ${workspaceRoot}/boards/${config:tock.board} && make APP='${config:tock.app}' DEBUG=1 build-with-app",
-            "type": "shell",
-            "args": [],
-            "presentation": {
-                "reveal": "always"
-            },
-            "group": "build"
-        }
     ]
 }

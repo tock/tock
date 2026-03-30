@@ -187,11 +187,14 @@ impl Psc3DefaultPeripherals<'_> {
         }
     }
 
-    pub fn sys_init(&self) {
+    /// Pre-initialize peripherals that are required for further system initialization.
+    /// Activates essential clocks
+    pub fn preinit_peripherals(&self) {
         self.srss.sys_init_enable_clocks();
         self.peri.sys_init_enable_peri();
     }
 
+    /// Initialize system PPUs and set them to the default power mode.
     fn init_pwr(&self) {
         self.pwrmode.ppu_init();
         self.cpuss_ppu.init_ppu();
@@ -204,11 +207,9 @@ impl Psc3DefaultPeripherals<'_> {
             .ppu_dynamic_enable(cpuss_ppu::PwrPolicy::FullRetention);
         self.ramc_ppu
             .ppu_dynamic_enable(ramc_ppu::PwrPolicy::MemoryRetention);
-
-        // Voltage during debugging was always right and it is unclear how to set the voltage.
-        // Cy_SysPm_SystemEnterOd();
     }
 
+    /// Initialize system clocks, unlock watchdog and set flash wait states.
     fn init_system(&self) {
         self.flashc.set_waitstates(false, 180);
 
@@ -231,6 +232,7 @@ impl Psc3DefaultPeripherals<'_> {
         self.srss.init_clk_hf0();
     }
 
+    /// Initialize GPIO pins for SWD and Debug UART.
     fn init_gpio_pins(&self) {
         let swdck_pin = self.gpio.get_pin(gpio::PsocPin::P1_2);
         swdck_pin.preconfigure(&GPIO_SWDCK_CONFIG);
@@ -243,10 +245,11 @@ impl Psc3DefaultPeripherals<'_> {
         uart_tx_pin.preconfigure(&GPIO_DEBUG_UART_TX_CONFIG);
     }
 
+    /// Initialize all peripherals.
     pub fn init(&self) {
         self.init_system();
 
-        self.peri_clk.init_clocks();
+        self.peri_clk.configure_clocks();
         self.peri_clk.init_peripherals();
         self.init_gpio_pins();
 
@@ -259,6 +262,7 @@ impl Psc3DefaultPeripherals<'_> {
 
 impl InterruptService for Psc3DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        // handle all GPIO interrupts
         if interrupt <= interrupts::IOSS_INTERRUPTS_SEC_GPIO_9 {
             self.gpio.handle_interrupt();
             return true;
