@@ -9,18 +9,18 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::debug::PanicResources;
+use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::led::Led; // Import the Led trait
 use kernel::hil::uart::Transmit;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, static_init};
-use kernel::deferred_call::DeferredCallClient;
-
 pub mod io;
 
 // Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 0;
+const NUM_PROCS: usize = 1;
 
 // Hardware Constants (Secure Aliases from working C code)
 const USART1_BASE: StaticRef<stm32u545::usart::UsartRegisters> =
@@ -28,6 +28,9 @@ const USART1_BASE: StaticRef<stm32u545::usart::UsartRegisters> =
 
 const TIM2_BASE: StaticRef<stm32u545::tim::TimRegisters> =
     unsafe { StaticRef::new(0x50000000 as *const stm32u545::tim::TimRegisters) };
+
+const GPIOA_BASE: StaticRef<stm32u545::gpio::GpioRegisters> =
+    unsafe { StaticRef::new(0x52020000 as *const stm32u545::gpio::GpioRegisters) };
 
 const SECURE_RCC_AHB2ENR1: *mut u32 = 0x46020C8C as *mut u32;
 const SECURE_RCC_APB2ENR: *mut u32 = 0x46020CA4 as *mut u32;
@@ -50,6 +53,11 @@ struct NucleoU545RE {
     console: &'static capsules_core::console::Console<'static>,
     scheduler: &'static components::sched::round_robin::RoundRobinComponentType,
     systick: cortexm33::systick::SysTick,
+    led: &'static capsules_core::led::LedDriver<
+        'static,
+        kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin<'static>>,
+        1,
+    >,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -59,6 +67,7 @@ impl SyscallDriverLookup for NucleoU545RE {
     {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             _ => f(None),
         }
     }
@@ -126,7 +135,7 @@ pub unsafe fn main() {
         stm32u545::usart::Usart<'static>,
         stm32u545::usart::Usart::new(USART1_BASE)
     );
-    usart.register(); // Register deferred call for USART
+    usart.register();
 
     let tim2 = static_init!(
         stm32u545::tim::Tim2<'static>,
@@ -147,18 +156,34 @@ pub unsafe fn main() {
         );
     }
 
-    // 5. TEST: Manual Print via Driver
-    usart.transmit_byte(b'T');
-    usart.transmit_byte(b'O');
-    usart.transmit_byte(b'C');
-    usart.transmit_byte(b'K');
-    usart.transmit_byte(b'\r');
-    usart.transmit_byte(b'\n');
+    // 5. Initialize GPIO/LED
+    let led_pin = static_init!(
+        stm32u545::gpio::Pin<'static>,
+        stm32u545::gpio::Pin::new(GPIOA_BASE, 5)
+    );
+    use kernel::hil::gpio::Configure;
+    led_pin.make_output();
 
-    // 6. Early debug print
-    debug!("Kernel initialization complete. Entering main loop.\r\n");
+    let led_high = static_init!(
+        kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
+        kernel::hil::led::LedHigh::new(led_pin)
+    );
 
-    // 7. Initialize Tock Kernel Objects
+    let leds = static_init!(
+        [&'static kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>; 1],
+        [led_high]
+    );
+
+    let led_driver = static_init!(
+        capsules_core::led::LedDriver<
+            'static,
+            kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
+            1,
+        >,
+        capsules_core::led::LedDriver::new(leds)
+    );
+
+    // 6. Initialize Tock Kernel Objects
     let peripherals = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(tim2, usart)
@@ -174,7 +199,7 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    // 8. Setup Muxes
+    // 7. Setup Muxes
     let uart_mux = components::console::UartMuxComponent::new(usart, 115200)
         .finalize(components::uart_mux_component_static!());
 
@@ -182,7 +207,7 @@ pub unsafe fn main() {
         components::alarm_mux_component_static!(stm32u545::tim::Tim2),
     );
 
-    // 9. Setup Capsules
+    // 8. Setup Capsules
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
@@ -211,7 +236,7 @@ pub unsafe fn main() {
     ));
     let _ = process_console.start();
 
-    // 10. Initialise Platform
+    // 9. Initialise Platform
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
@@ -221,10 +246,9 @@ pub unsafe fn main() {
             console,
             scheduler,
             systick: cortexm33::systick::SysTick::new(),
+            led: led_driver,
         }
     );
-
-    debug!("Final Kernel check.\r\n");
 
     // Enable NVIC interrupts
     unsafe {
@@ -232,7 +256,7 @@ pub unsafe fn main() {
         cortexm33::nvic::Nvic::new(61).enable(); // USART1
     }
 
-    // 11. Hand over control to the Tock Kernel Loop
+    // 10. Hand over control to the Tock Kernel Loop
     board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 0>(
         platform,
         chip,
