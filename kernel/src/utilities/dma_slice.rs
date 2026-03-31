@@ -5,10 +5,12 @@
 
 //! Mechanism for sharing buffers with DMA peripherals.
 //!
-//! When implementing a chip peripheral driver using DMA, the driver must use
-//! a `DmaSlice` when passing a buffer to the DMA hardware. This ensures that
-//! Rust's memory requirements are preserved when hardware is accessing
-//! memory in a way the Rust compiler cannot reason about.
+//! When implementing a chip peripheral driver using DMA, the driver must be
+//! careful to not intoduce any undefined behavior. This module provides
+//! `DmaSlice` types, which drivers can use when passing a buffer to the DMA
+//! hardware. When used correctly, types ensure that Rust's memory requirements
+//! are preserved when hardware is accessing memory in a way the Rust compiler
+//! cannot reason about.
 //!
 //! Tock provides multiple implementations of `DmaSlice` depending on the
 //! needs of the user. These include:
@@ -25,14 +27,14 @@
 //! Rust compiler cannot assume the memory passed to the DMA hardware is not
 //! modified.
 //!
-//! Conceptually, a `DmaSlice` consumes a memory buffer, and once consumed a
-//! pointer to that memory can then be safely provided to DMA hardware. When
-//! the buffer is consumed, the `DmaSlice` implementations uphold the Rust
-//! memory soundness requirements now that hardware can directly read and/or
-//! write the memory in a way that the Rust compiler cannot reason about.
-//! Once the DMA operation finishes, the buffer must be extracted from the
-//! `DmaSlice`. Before extracting the buffer, the user must guarantee that
-//! the DMA hardware can no longer access the memory.
+//! Conceptually, a `DmaSlice` consumes a memory buffer. Once consumed, a
+//! pointer to that memory can then be safely provided to DMA hardware. When the
+//! buffer is consumed, the `DmaSlice` prevent the Rust compiler from making
+//! assumptions about the state of the memory accessed by DMA hardware that
+//! would be incorrect and introduce undefined behavior. Once the DMA operation
+//! finishes, the buffer must be extracted from the `DmaSlice`. Before
+//! extracting the buffer, the user must guarantee that the DMA hardware can no
+//! longer access the memory.
 //!
 //! # Usage
 //!
