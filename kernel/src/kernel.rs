@@ -855,13 +855,12 @@ impl Kernel {
                         // First, we need to ensure that the grant has been
                         // allocated for this app with the corresponding
                         // driver. With YWF, it is possible that the capsule
-                        // does not need to store any state per-app, and
-                        // since YWF does not require an upcall to be
-                        // registered, that the app has not accessed the
-                        // grant at all, resulting in the grant never being
-                        // allocated. This can interfere with iterating
-                        // grants as `grant.each()` only works on allocated
-                        // grants.
+                        // does not need to store any state per-app, and since
+                        // YWF does not require an upcall to be registered, that
+                        // the app has not accessed the grant at all, resulting
+                        // in the grant never being allocated. This can
+                        // interfere with iterating grants as `grant.each()`
+                        // only works on allocated grants.
                         let driver_number = param_a;
                         resources
                             .syscall_driver_lookup()
