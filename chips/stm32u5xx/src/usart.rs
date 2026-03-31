@@ -72,13 +72,17 @@ register_bitfields![u32,
 ];
 
 pub struct Usart<'a> {
-    registers: StaticRef<UsartRegisters>,
+    pub registers: StaticRef<UsartRegisters>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     rx_buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
+    tx_pos: Cell<usize>,
     deferred_call: DeferredCall,
+    fifo: Cell<[u8; 8]>,
+    fifo_write: Cell<usize>,
+    fifo_read: Cell<usize>,
 }
 
 impl<'a> Usart<'a> {
@@ -90,32 +94,65 @@ impl<'a> Usart<'a> {
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
+            tx_pos: Cell::new(0),
             deferred_call: DeferredCall::new(),
+            fifo: Cell::new([0; 8]),
+            fifo_write: Cell::new(0),
+            fifo_read: Cell::new(0),
         }
     }
 
     pub fn handle_interrupt(&self) {
-        // Check if it's a Receive Interrupt
-        if self.registers.isr.is_set(ISR::RXNE) {
-            // Disable the interrupt so it doesn't fire again immediately
-            self.registers.cr1.modify(CR1::RXNEIE::CLEAR);
+        let regs = &*self.registers;
+        let isr = regs.isr.get();
+        if (isr & 0x0F) != 0 {
+            regs.icr.set(0x0F); // Clear the error flags
+        }
 
-            // Read the character and put it in our buffer
+        // --- Handle Transmit ---
+        if regs.isr.is_set(ISR::TXE) && regs.cr1.is_set(CR1::TXEIE) {
+            let mut done = false;
+            self.tx_buffer.map(|buf| {
+                let pos = self.tx_pos.get();
+                let len = self.tx_len.get();
+
+                if pos < len {
+                    regs.tdr.set(buf[pos] as u32);
+                    self.tx_pos.set(pos + 1);
+                } else {
+                    done = true;
+                }
+            });
+
+            if done {
+                regs.cr1.modify(CR1::TXEIE::CLEAR);
+                self.deferred_call.set();
+            }
+        }
+
+        // --- Handle Receive ---
+        if regs.isr.is_set(ISR::RXNE) {
+            let byte = regs.rdr.get() as u8;
+
             if let Some(buf) = self.rx_buffer.take() {
-                buf[0] = self.registers.rdr.get() as u8;
+                buf[0] = byte;
 
-                // Notify the console
                 self.rx_client.map(|client| {
                     client.received_buffer(buf, 1, Ok(()), uart::Error::None);
                 });
+            } else {
+                // Store in FIFO
+                let mut f = self.fifo.get();
+                let w = self.fifo_write.get();
+                f[w % 8] = byte;
+                self.fifo.set(f);
+                self.fifo_write.set(w + 1);
             }
         }
     }
 
     pub fn transmit_byte(&self, byte: u8) {
-        // Wait until TXE (Transmit data register empty) is set
         while !self.registers.isr.is_set(ISR::TXE) {}
-        // Write the byte to the TDR register
         self.registers.tdr.set(byte as u32);
     }
 }
@@ -145,20 +182,28 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
-        // Synchronous loop for now, but async callback
-        for i in 0..tx_len {
-            self.transmit_byte(tx_buffer[i]);
+        if self.tx_buffer.is_some() {
+            return Err((kernel::ErrorCode::BUSY, tx_buffer));
         }
 
         self.tx_buffer.replace(tx_buffer);
         self.tx_len.set(tx_len);
-        self.deferred_call.set();
+        self.tx_pos.set(0);
+
+        // Enable TXE interrupt to start the asynchronous transmission
+        self.registers.cr1.modify(CR1::TXEIE::SET);
 
         Ok(())
     }
 
     fn transmit_abort(&self) -> Result<(), kernel::ErrorCode> {
-        Err(kernel::ErrorCode::NOSUPPORT)
+        self.registers.cr1.modify(CR1::TXEIE::CLEAR);
+        if let Some(buf) = self.tx_buffer.take() {
+            self.tx_client.map(move |client| {
+                client.transmitted_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL));
+            });
+        }
+        Ok(())
     }
 
     fn transmit_word(&self, _word: u32) -> Result<(), kernel::ErrorCode> {
@@ -166,14 +211,19 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
     }
 }
 
-// Implement Configure (Satisfies the compiler)
 impl<'a> uart::Configure for Usart<'a> {
     fn configure(&self, _params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
+        let regs = &*self.registers;
+        regs.cr1.modify(CR1::UE::CLEAR);
+        regs.presc.set(0);
+        // We use the hardware-confirmed baud rate for now
+        regs.brr.set(35); // 115,200 baud
+        regs.icr.set(0x3F);
+        regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
         Ok(())
     }
 }
 
-// Implement Receive (Stub for now)
 impl<'a> uart::Receive<'a> for Usart<'a> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
@@ -184,14 +234,34 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
         rx_buffer: &'static mut [u8],
         _rx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
-        // Save the buffer and enable the Receive Interrupt
-        self.rx_buffer.replace(rx_buffer);
-        self.registers.cr1.modify(CR1::RXNEIE::SET);
+        let r = self.fifo_read.get();
+        let w = self.fifo_write.get();
+
+        if r < w {
+            // We have bytes in the FIFO! Return the oldest one.
+            let f = self.fifo.get();
+            rx_buffer[0] = f[r % 8];
+            self.fifo_read.set(r + 1);
+
+            self.rx_client.map(|client| {
+                client.received_buffer(rx_buffer, 1, Ok(()), uart::Error::None);
+            });
+        } else {
+            // FIFO empty, wait for interrupt
+            self.rx_buffer.replace(rx_buffer);
+            self.registers.cr1.modify(CR1::RXNEIE::SET);
+        }
         Ok(())
     }
 
     fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
-        Err(kernel::ErrorCode::NOSUPPORT)
+        self.registers.cr1.modify(CR1::RXNEIE::CLEAR);
+        if let Some(buf) = self.rx_buffer.take() {
+            self.rx_client.map(move |client| {
+                client.received_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL), uart::Error::Aborted);
+            });
+        }
+        Ok(())
     }
 
     fn receive_word(&self) -> Result<(), kernel::ErrorCode> {

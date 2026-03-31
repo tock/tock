@@ -6,7 +6,7 @@
 
 use cortexm33::{unhandled_interrupt, CortexM33, CortexMVariant};
 
-pub use stm32u5xx::{chip, generic_init, gpio, tim, usart};
+pub use stm32u5xx::{chip, generic_init, gpio, rcc, tim, usart, Stm32u5xxPeripherals};
 
 // STM32U545 has a total of 126 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]

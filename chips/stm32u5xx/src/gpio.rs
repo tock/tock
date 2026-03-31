@@ -23,7 +23,13 @@ register_structs! {
         (0x014 => odr: ReadWrite<u32>),
         /// GPIO port bit set/reset register
         (0x018 => bsrr: ReadWrite<u32>),
-        (0x01C => @END),
+        /// GPIO port configuration lock register
+        (0x01C => lckr: ReadWrite<u32>),
+        /// GPIO alternate function low register
+        (0x020 => afrl: ReadWrite<u32>),
+        /// GPIO alternate function high register
+        (0x024 => afrh: ReadWrite<u32>),
+        (0x028 => @END),
     }
 }
 
@@ -57,12 +63,35 @@ impl<'a> Pin<'a> {
         }
     }
 
-    fn set_mode(&self, mode: Mode) {
+    pub fn set_mode(&self, mode: Mode) {
         let offset = self.pin * 2;
         let mut val = self.registers.moder.get();
         val &= !(0x3 << offset);
         val |= (mode as u32) << offset;
         self.registers.moder.set(val);
+    }
+
+    pub fn set_speed_high(&self) {
+        let offset = self.pin * 2;
+        let mut val = self.registers.ospeedr.get();
+        val |= (0x3 << offset);
+        self.registers.ospeedr.set(val);
+    }
+
+    pub fn set_alternate_function(&self, func: u32) {
+        if self.pin < 8 {
+            let offset = self.pin * 4;
+            let mut val = self.registers.afrl.get();
+            val &= !(0xF << offset);
+            val |= (func & 0xF) << offset;
+            self.registers.afrl.set(val);
+        } else {
+            let offset = (self.pin - 8) * 4;
+            let mut val = self.registers.afrh.get();
+            val &= !(0xF << offset);
+            val |= (func & 0xF) << offset;
+            self.registers.afrh.set(val);
+        }
     }
 
     fn get_mode(&self) -> Mode {
@@ -165,5 +194,23 @@ impl<'a> gpio::Output for Pin<'a> {
         let val = self.registers.odr.get();
         self.registers.odr.set(val ^ self.pin_mask);
         (self.registers.odr.get() & self.pin_mask) != 0
+    }
+}
+
+pub struct Port<'a> {
+    registers: StaticRef<GpioRegisters>,
+    _marker: core::marker::PhantomData<&'a ()>,
+}
+
+impl<'a> Port<'a> {
+    pub const fn new(base: StaticRef<GpioRegisters>) -> Port<'a> {
+        Port {
+            registers: base,
+            _marker: core::marker::PhantomData,
+        }
+    }
+
+    pub fn pin(&'a self, pin_num: usize) -> Pin<'a> {
+        Pin::new(self.registers, pin_num)
     }
 }

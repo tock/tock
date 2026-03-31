@@ -11,7 +11,7 @@ use kernel::debug;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::led::Led;
-use kernel::hil::uart::Transmit;
+use kernel::hil::uart::{self, Transmit};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -29,26 +29,6 @@ extern "C" {
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 1;
-
-// Hardware Constants (Secure Aliases from working C code)
-const USART1_BASE: StaticRef<stm32u545::usart::UsartRegisters> =
-    unsafe { StaticRef::new(0x50013800 as *const stm32u545::usart::UsartRegisters) };
-
-const TIM2_BASE: StaticRef<stm32u545::tim::TimRegisters> =
-    unsafe { StaticRef::new(0x50000000 as *const stm32u545::tim::TimRegisters) };
-
-const GPIOA_BASE: StaticRef<stm32u545::gpio::GpioRegisters> =
-    unsafe { StaticRef::new(0x52020000 as *const stm32u545::gpio::GpioRegisters) };
-
-const SECURE_RCC_AHB2ENR1: *mut u32 = 0x46020C8C as *mut u32;
-const SECURE_RCC_APB2ENR: *mut u32 = 0x46020CA4 as *mut u32;
-const SECURE_RCC_APB1ENR1: *mut u32 = 0x46020C9C as *mut u32;
-const SECURE_RCC_CCIPR1: *mut u32 = 0x46020CE0 as *mut u32;
-
-const SECURE_GPIOA_MODER: *mut u32 = 0x52020000 as *mut u32;
-const SECURE_GPIOA_OSPEEDR: *mut u32 = 0x52020008 as *mut u32;
-const SECURE_GPIOA_AFRH: *mut u32 = 0x52020024 as *mut u32;
-const SECURE_GPIOA_ODR: *mut u32 = 0x52020014 as *mut u32;
 
 type ChipHw =
     stm32u545::chip::Stm32u5xx<'static, stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>>;
@@ -121,6 +101,25 @@ impl KernelResources<ChipHw> for NucleoU545RE {
     }
 }
 
+/// Helper function called during bring-up that configures multiplexed I/O.
+unsafe fn set_pin_primary_functions(periphs: &stm32u545::Stm32u5xxPeripherals) {
+    use kernel::hil::gpio::Configure;
+
+    // Configure USART1 Pins (PA9/10)
+    let pin9 = periphs.gpio_a.pin(9);
+    let pin10 = periphs.gpio_a.pin(10);
+    pin9.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    pin9.set_alternate_function(7);
+    pin9.set_speed_high();
+    pin10.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    pin10.set_alternate_function(7);
+    pin10.set_speed_high();
+
+    // Configure Green LED (PA5)
+    let led_pin = periphs.gpio_a.pin(5);
+    led_pin.make_output();
+}
+
 #[no_mangle]
 pub unsafe fn main() {
     // 1. Basic Core Init
@@ -130,84 +129,54 @@ pub unsafe fn main() {
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
-    // 2. Hardware Initialization
-    unsafe {
-        *SECURE_RCC_AHB2ENR1 |= 1;
-        *SECURE_RCC_APB2ENR |= 1 << 14;
-        *SECURE_RCC_APB1ENR1 |= 1; // TIM2 Clock
-        *SECURE_RCC_CCIPR1 &= !3;
-        for _ in 0..1000 {
-            core::arch::asm!("nop");
-        }
-        *SECURE_GPIOA_MODER &= !((3 << 10) | (3 << 18) | (3 << 20));
-        *SECURE_GPIOA_MODER |= (1 << 10) | (2 << 18) | (2 << 20);
-        *SECURE_GPIOA_OSPEEDR |= (3 << 18) | (3 << 20);
-        *SECURE_GPIOA_AFRH &= !(0xFF << 4);
-        *SECURE_GPIOA_AFRH |= (0x77 << 4);
+    // 2. Load all chip peripherals
+    let periphs = static_init!(
+        stm32u545::Stm32u5xxPeripherals,
+        stm32u545::Stm32u5xxPeripherals::load()
+    );
+
+    // 3. Configure Clocks and Pins
+    periphs.rcc.enable_gpioa();
+    periphs.rcc.enable_usart1();
+    periphs.rcc.enable_tim2();
+    periphs.rcc.set_usart1_source_pclk();
+
+    // Small delay for clock stabilization
+    for _ in 0..1000 {
+        core::arch::asm!("nop");
     }
 
-    // 3. Initialize Drivers
-    let usart = static_init!(
-        stm32u545::usart::Usart<'static>,
-        stm32u545::usart::Usart::new(USART1_BASE)
-    );
-    usart.register();
+    // Wiring Diagram
+    set_pin_primary_functions(periphs);
 
-    let tim2 = static_init!(
-        stm32u545::tim::Tim2<'static>,
-        stm32u545::tim::Tim2::new(TIM2_BASE)
-    );
+    // Initial configuration of the serial driver
+    use kernel::hil::uart::Configure;
+    let _ = periphs.usart1.configure(kernel::hil::uart::Parameters {
+        baud_rate: 115200,
+        stop_bits: kernel::hil::uart::StopBits::One,
+        parity: kernel::hil::uart::Parity::None,
+        hw_flow_control: false,
+        width: kernel::hil::uart::Width::Eight,
+    });
+    periphs.usart1.register();
 
-    // 4. Configure USART Registers
-    unsafe {
-        let regs = &*USART1_BASE;
-        regs.cr1.modify(stm32u545::usart::CR1::UE::CLEAR);
-        regs.presc.set(0);
-        regs.brr.set(35);
-        regs.icr.set(0x3F);
-        regs.cr1.write(
-            stm32u545::usart::CR1::TE::SET
-                + stm32u545::usart::CR1::RE::SET
-                + stm32u545::usart::CR1::UE::SET,
-        );
-    }
+    // TEST: Direct send via driver
+    periphs.usart1.transmit_byte(b'T');
+    periphs.usart1.transmit_byte(b'O');
+    periphs.usart1.transmit_byte(b'C');
+    periphs.usart1.transmit_byte(b'K');
+    periphs.usart1.transmit_byte(b'\r');
+    periphs.usart1.transmit_byte(b'\n');
 
-    // 5. Initialize GPIO/LED
-    let led_pin = static_init!(
-        stm32u545::gpio::Pin<'static>,
-        stm32u545::gpio::Pin::new(GPIOA_BASE, 5)
-    );
-    use kernel::hil::gpio::Configure;
-    led_pin.make_output();
-
-    let led_high = static_init!(
-        kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
-        kernel::hil::led::LedHigh::new(led_pin)
-    );
-
-    let leds = static_init!(
-        [&'static kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>; 1],
-        [led_high]
-    );
-
-    let led_driver = static_init!(
-        capsules_core::led::LedDriver<
-            'static,
-            kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
-            1,
-        >,
-        capsules_core::led::LedDriver::new(leds)
-    );
-
-    // 6. Initialize Tock Kernel Objects
-    let peripherals = static_init!(
+    // 4. Initialize Chip and Kernel
+    let default_peripherals = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(tim2, usart)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(&periphs.tim2, &periphs.usart1)
     );
 
     let chip = static_init!(
         stm32u545::chip::Stm32u5xx<stm32u545::chip::Stm32u5xxDefaultPeripherals>,
-        stm32u545::chip::Stm32u5xx::new(peripherals)
+        stm32u545::chip::Stm32u5xx::new(default_peripherals)
     );
 
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -215,15 +184,15 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    // 7. Setup Muxes
-    let uart_mux = components::console::UartMuxComponent::new(usart, 115200)
+    // 5. Setup Muxes
+    let uart_mux = components::console::UartMuxComponent::new(&periphs.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    let alarm_mux = components::alarm::AlarmMuxComponent::new(tim2).finalize(
+    let alarm_mux = components::alarm::AlarmMuxComponent::new(&periphs.tim2).finalize(
         components::alarm_mux_component_static!(stm32u545::tim::Tim2),
     );
 
-    // 8. Setup Capsules
+    // 6. Setup Capsules
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
@@ -231,7 +200,8 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
 
-    let _debug_writer = components::debug_writer::DebugWriterComponent::new::<
+    // Setup the Debug Writer
+    let debug_writer = components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         uart_mux,
@@ -259,7 +229,19 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
 
-    // 9. Initialise Platform
+    let led_pin = static_init!(
+        stm32u545::gpio::Pin<'static>,
+        periphs.gpio_a.pin(5)
+    );
+    use kernel::hil::gpio::Configure as GpioConfigure;
+    led_pin.make_output();
+
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
+        kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
+        kernel::hil::led::LedHigh::new(led_pin)
+    ));
+
+    // 7. Initialise Platform
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
@@ -269,12 +251,12 @@ pub unsafe fn main() {
             console,
             scheduler,
             systick: cortexm33::systick::SysTick::new(),
-            led: led_driver,
-            alarm: alarm,
+            led,
+            alarm,
         }
     );
 
-    // Enable NVIC interrupts
+    // 8. Enable Interrupts
     unsafe {
         cortexm33::nvic::Nvic::new(45).enable(); // TIM2
         cortexm33::nvic::Nvic::new(61).enable(); // USART1
@@ -285,8 +267,6 @@ pub unsafe fn main() {
         &_sappmem as *const u8,
         &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
     );
-
-    // Allocate 64KB of RAM for apps
     let app_memory = static_init!([u8; 65536], [0; 65536]);
 
     let _ = kernel::process::load_processes(
@@ -298,11 +278,11 @@ pub unsafe fn main() {
         &create_capability!(capabilities::ProcessManagementCapability),
     );
 
-    // 10. Hand over control to the Tock Kernel Loop
-    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 0>(
+    // 9. Hand over control to the Tock Kernel Loop
+    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 1>(
         platform,
         chip,
-        None, // IPC is disabled for now
+        None,
         &create_capability!(capabilities::MainLoopCapability),
     );
 }
