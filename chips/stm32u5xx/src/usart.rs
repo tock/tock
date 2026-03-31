@@ -80,7 +80,7 @@ pub struct Usart<'a> {
     tx_len: Cell<usize>,
     tx_pos: Cell<usize>,
     deferred_call: DeferredCall,
-    fifo: Cell<[u8; 8]>,
+    fifo: Cell<[u8; 32]>,
     fifo_write: Cell<usize>,
     fifo_read: Cell<usize>,
 }
@@ -96,7 +96,7 @@ impl<'a> Usart<'a> {
             tx_len: Cell::new(0),
             tx_pos: Cell::new(0),
             deferred_call: DeferredCall::new(),
-            fifo: Cell::new([0; 8]),
+            fifo: Cell::new([0; 32]),
             fifo_write: Cell::new(0),
             fifo_read: Cell::new(0),
         }
@@ -105,49 +105,49 @@ impl<'a> Usart<'a> {
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
         let isr = regs.isr.get();
+
+        // 1. Clear Errors
         if (isr & 0x0F) != 0 {
-            regs.icr.set(0x0F); // Clear the error flags
+            regs.icr.set(0x0F);
         }
 
-        // --- Handle Transmit ---
+        // 2. Transmit Logic (Full Async)
         if regs.isr.is_set(ISR::TXE) && regs.cr1.is_set(CR1::TXEIE) {
-            let mut done = false;
+            let mut all_sent = false;
             self.tx_buffer.map(|buf| {
                 let pos = self.tx_pos.get();
                 let len = self.tx_len.get();
 
                 if pos < len {
+                    // Send exactly one byte
                     regs.tdr.set(buf[pos] as u32);
                     self.tx_pos.set(pos + 1);
                 } else {
-                    done = true;
+                    all_sent = true;
                 }
             });
 
-            if done {
+            if all_sent {
+                // Done! Disable interrupt and schedule callback
                 regs.cr1.modify(CR1::TXEIE::CLEAR);
                 self.deferred_call.set();
             }
         }
 
-        // --- Handle Receive ---
-        if regs.isr.is_set(ISR::RXNE) {
+        // 3. Receive Logic (Draining hardware into FIFO)
+        let mut data_received = false;
+        while regs.isr.is_set(ISR::RXNE) {
             let byte = regs.rdr.get() as u8;
+            let mut f = self.fifo.get();
+            let w = self.fifo_write.get();
+            f[w % 32] = byte;
+            self.fifo.set(f);
+            self.fifo_write.set(w + 1);
+            data_received = true;
+        }
 
-            if let Some(buf) = self.rx_buffer.take() {
-                buf[0] = byte;
-
-                self.rx_client.map(|client| {
-                    client.received_buffer(buf, 1, Ok(()), uart::Error::None);
-                });
-            } else {
-                // Store in FIFO
-                let mut f = self.fifo.get();
-                let w = self.fifo_write.get();
-                f[w % 8] = byte;
-                self.fifo.set(f);
-                self.fifo_write.set(w + 1);
-            }
+        if data_received {
+            self.deferred_call.set();
         }
     }
 
@@ -155,16 +155,35 @@ impl<'a> Usart<'a> {
         while !self.registers.isr.is_set(ISR::TXE) {}
         self.registers.tdr.set(byte as u32);
     }
+
+    fn try_receive_from_fifo(&self) {
+        let r = self.fifo_read.get();
+        let w = self.fifo_write.get();
+        if r < w {
+            if let Some(buf) = self.rx_buffer.take() {
+                let f = self.fifo.get();
+                buf[0] = f[r % 32];
+                self.fifo_read.set(r + 1);
+                self.rx_client.map(|client| {
+                    client.received_buffer(buf, 1, Ok(()), uart::Error::None);
+                });
+            }
+        }
+    }
 }
 
 impl<'a> DeferredCallClient for Usart<'a> {
     fn handle_deferred_call(&self) {
+        // Handle Transmit Callback
         if let Some(buf) = self.tx_buffer.take() {
             let len = self.tx_len.get();
             self.tx_client.map(move |client| {
                 client.transmitted_buffer(buf, len, Ok(()));
             });
         }
+
+        // Handle Receive Draining
+        self.try_receive_from_fifo();
     }
 
     fn register(&'static self) {
@@ -190,7 +209,7 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
         self.tx_len.set(tx_len);
         self.tx_pos.set(0);
 
-        // Enable TXE interrupt to start the asynchronous transmission
+        // Start the interrupt-driven transmission chain
         self.registers.cr1.modify(CR1::TXEIE::SET);
 
         Ok(())
@@ -216,10 +235,9 @@ impl<'a> uart::Configure for Usart<'a> {
         let regs = &*self.registers;
         regs.cr1.modify(CR1::UE::CLEAR);
         regs.presc.set(0);
-        // We use the hardware-confirmed baud rate for now
         regs.brr.set(35); // 115,200 baud
         regs.icr.set(0x3F);
-        regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
+        regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET + CR1::RXNEIE::SET);
         Ok(())
     }
 }
@@ -234,23 +252,8 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
         rx_buffer: &'static mut [u8],
         _rx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
-        let r = self.fifo_read.get();
-        let w = self.fifo_write.get();
-
-        if r < w {
-            // We have bytes in the FIFO! Return the oldest one.
-            let f = self.fifo.get();
-            rx_buffer[0] = f[r % 8];
-            self.fifo_read.set(r + 1);
-
-            self.rx_client.map(|client| {
-                client.received_buffer(rx_buffer, 1, Ok(()), uart::Error::None);
-            });
-        } else {
-            // FIFO empty, wait for interrupt
-            self.rx_buffer.replace(rx_buffer);
-            self.registers.cr1.modify(CR1::RXNEIE::SET);
-        }
+        self.rx_buffer.replace(rx_buffer);
+        self.try_receive_from_fifo();
         Ok(())
     }
 
