@@ -864,30 +864,31 @@ impl Kernel {
                         let driver_number = param_a;
                         resources
                             .syscall_driver_lookup()
-                            .with_driver(driver_number, |driver| {
-                            match driver {
-                                Some(driver) => {
-                                    match try_allocate_grant(driver, process) {
-                                        AllocResult::NewAllocation => {
-                                            if config::CONFIG.trace_syscalls {
-                                                debug!("[{:?}] YWF driver #{:x} allocated grant",
-                                                    process.processid(), driver_number);
-                                            }
-                                        }
-                                        AllocResult::NoAllocation => {
-                                            if config::CONFIG.trace_syscalls {
-                                                debug!("[{:?}] ERROR YWF driver #{:x} did not allocate grant",
-                                                    process.processid(), driver_number);
-                                            }
-                                        }
-                                        AllocResult::SameAllocation => {
-                                            // Grant already present.
+                            .with_driver(driver_number, |opt_driver| {
+                                let Some(driver) = opt_driver else {
+                                    // Don't have a driver, nothing to allocate.
+                                    // Return from the closure:
+                                    return;
+                                };
+
+                                match try_allocate_grant(driver, process) {
+                                    AllocResult::NewAllocation => {
+                                        if config::CONFIG.trace_syscalls {
+                                            debug!("[{:?}] YWF driver #{:x} allocated grant",
+                                                   process.processid(), driver_number);
                                         }
                                     }
+                                    AllocResult::NoAllocation => {
+                                        if config::CONFIG.trace_syscalls {
+                                            debug!("[{:?}] ERROR YWF driver #{:x} did not allocate grant",
+                                                   process.processid(), driver_number);
+                                        }
+                                    }
+                                    AllocResult::SameAllocation => {
+                                        // Grant already present.
+                                    }
                                 }
-                                None =>{}
-                            }
-                        });
+                            });
 
                         let upcall_id = UpcallId {
                             driver_num: param_a,
