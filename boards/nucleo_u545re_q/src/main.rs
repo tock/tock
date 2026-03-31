@@ -10,14 +10,22 @@ use kernel::component::Component;
 use kernel::debug;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::led::Led; // Import the Led trait
+use kernel::hil::led::Led;
 use kernel::hil::uart::Transmit;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, static_init};
+
 pub mod io;
+
+extern "C" {
+    /// Beginning of the ROM region reserved for user processes.
+    static _sappmem: u8;
+    /// End of the ROM region reserved for user processes.
+    static _eappmem: u8;
+}
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 1;
@@ -58,6 +66,13 @@ struct NucleoU545RE {
         kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin<'static>>,
         1,
     >,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
+        'static,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            stm32u545::tim::Tim2<'static>,
+        >,
+    >,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -68,6 +83,7 @@ impl SyscallDriverLookup for NucleoU545RE {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
     }
@@ -236,6 +252,13 @@ pub unsafe fn main() {
     ));
     let _ = process_console.start();
 
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules_core::alarm::DRIVER_NUM,
+        alarm_mux,
+    )
+    .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
+
     // 9. Initialise Platform
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
@@ -247,6 +270,7 @@ pub unsafe fn main() {
             scheduler,
             systick: cortexm33::systick::SysTick::new(),
             led: led_driver,
+            alarm: alarm,
         }
     );
 
@@ -256,11 +280,29 @@ pub unsafe fn main() {
         cortexm33::nvic::Nvic::new(61).enable(); // USART1
     }
 
+    // --- LOAD PROCESSES ---
+    let app_flash = core::slice::from_raw_parts(
+        &_sappmem as *const u8,
+        &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+    );
+
+    // Allocate 64KB of RAM for apps
+    let app_memory = static_init!([u8; 65536], [0; 65536]);
+
+    let _ = kernel::process::load_processes(
+        board_kernel,
+        chip,
+        app_flash,
+        app_memory,
+        &capsules_system::process_policies::PanicFaultPolicy {},
+        &create_capability!(capabilities::ProcessManagementCapability),
+    );
+
     // 10. Hand over control to the Tock Kernel Loop
     board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 0>(
         platform,
         chip,
-        None,
+        None, // IPC is disabled for now
         &create_capability!(capabilities::MainLoopCapability),
     );
 }
