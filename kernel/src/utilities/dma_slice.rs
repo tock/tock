@@ -38,25 +38,56 @@
 //!
 //! # Usage
 //!
-//! This is a rough sketch of how to use a `DmaSlice`:
+//! This example shows how a developer might use the `DmaSlice` infrastructure
+//! in a driver. The [`DmaSliceMut::new`] operation can be replaced by the safe
+//! [`DmaSliceMut::new_static`] alternative if the provided slice reference has
+//! a `'static` lifetime.
 //!
-//! ```ignore
+//! ```
+//! # use core::cell::Cell;
+//! # use kernel::platform::dma_fence::DmaFence;
+//! # use kernel::utilities::dma_slice::DmaSliceMut;
+//! #
+//! # #[derive(Debug, Copy, Clone)]
+//! # struct SomeDmaFence;
+//! # unsafe impl DmaFence for SomeDmaFence {
+//! #     fn release<T>(self, _buf: *mut [T]) {}
+//! #     fn acquire<T>(self, _buf: *mut [T]) {}
+//! # }
+//! #
+//! # enum DmaOp {
+//! #     Stop,
+//! # }
+//! #
+//! # struct Registers {
+//! #     dma_ptr: Cell<*mut u8>,
+//! #     dma_ctrl: Cell<DmaOp>,
+//! # }
+//! #
+//! # let regs = Registers {
+//! #     dma_ptr: Cell::new(core::ptr::null_mut()),
+//! #     dma_ctrl: Cell::new(DmaOp::Stop),
+//! # };
+//! #
 //! // Buffer that will be used by the DMA hardware.
-//! let buffer: [u8] = ...;
+//! let mut buffer: [u8; 16] = [0_u8; 16];
 //!
 //! // Create the `DmaSlice` that can be provided to the DMA hardware.
-//! let dma_slice = DmaSlice::new(buffer, cortexm::dma_fence::DmaFence);
+//! //
+//! // For a static slice, users can instead use the safe `new_static`
+//! // constructor.
+//! let dma_slice = unsafe { DmaSliceMut::new(&mut buffer, SomeDmaFence) };
 //!
 //! // Provide the pointer to the buffer to the DMA hardware registers.
-//! self.registers.dma.set(dma_slice.as_ptr());
+//! regs.dma_ptr.set(dma_slice.as_mut_ptr());
 //!
 //! // Wait for the DMA operation to finish...
 //!
 //! // Disable the DMA engine to ensure it cannot access the buffer.
-//! self.registers.dma.set(DMA::STOP);
+//! regs.dma_ctrl.set(DmaOp::Stop);
 //!
 //! // Extract the buffer to retrieve the Rust slice.
-//! let buffer = dma_slice.take();
+//! let buffer = unsafe { dma_slice.take(SomeDmaFence) };
 //! ```
 
 use core::marker::PhantomData;
