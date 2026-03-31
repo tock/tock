@@ -96,7 +96,7 @@ pub struct DmaSlice<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> {
     slice: &'a [T],
 }
 
-impl<'a, T: utilities::slices::JustBytes> DmaSlice<'a, T> {
+impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSlice<'a, T> {
     /// Create a [`DmaSlice`] from an immutable slice.
     pub fn new(slice: &[T], fence: impl DmaFence) -> DmaSlice<'_, T> {
         // Ensure that all prior writes to this slice are exposed to any DMA
@@ -117,8 +117,11 @@ impl<'a, T: utilities::slices::JustBytes> DmaSlice<'a, T> {
         self.slice.len()
     }
 
-    /// Retrieve the slice. Consumes the [`DmaSlice`].
-    pub fn take(&self) -> &'a [T] {
+    /// Retrieve the inner slice reference.
+    ///
+    /// This is safe, as the slice is immutable. Therefore, the DMA hardware and
+    /// software may read it concurrently.
+    pub fn get(&self) -> &'a [T] {
         self.slice
     }
 }
@@ -179,13 +182,13 @@ pub struct DmaSliceMut<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes>
 
 impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMut<'a, T> {
     /// Create a [`DmaSliceMut`] from a static mutable slice.
-    pub fn new(slice: &'static mut [T], fence: impl DmaFence) -> DmaSliceMut<'static, T> {
+    pub fn new_static(slice: &'static mut [T], fence: impl DmaFence) -> DmaSliceMut<'static, T> {
         // # Safety
         //
         // This operation is safe, as dropping or forgetting its return value
         // is safe. This would merely leak memory and make the underlying
         // slice inaccessible.
-        unsafe { Self::from_mut_slice_ref(slice, fence) }
+        unsafe { Self::new(slice, fence) }
     }
 
     /// Create a [`DmaSliceMut`] from a mutable slice.
@@ -198,7 +201,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMut<'a, T
     /// Users **must** eventually call[`restore_mut_slice_ref`]
     /// (Self::restore_mut_slice_ref) to retrieve the underlying buffer.
     #[must_use]
-    pub unsafe fn new_unsafe(slice: &mut [T], fence: impl DmaFence) -> DmaSliceMut<'_, T> {
+    pub unsafe fn new(slice: &mut [T], fence: impl DmaFence) -> DmaSliceMut<'_, T> {
         let dma_slice_mut = DmaSliceMut {
             slice_ptr: NonNull::from_mut(slice),
             _lt: PhantomData,
@@ -278,8 +281,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
     /// writes to `slice` are exposed to any DMA operations initiated by an MMIO
     /// read or write operation after this function returns, and which finish
     /// before the resulting [`DmaSliceMutImmut`] is dropped.
-    pub fn from_slice_ref(slice: &[T], fence: impl DmaFence) -> DmaSliceMutImmut<'_, T> {
-        DmaSliceMutImmut::Immutable(DmaSlice::from_slice_ref(slice, fence))
+    pub fn new(slice: &[T], fence: impl DmaFence) -> DmaSliceMutImmut<'_, T> {
+        DmaSliceMutImmut::Immutable(DmaSlice::new(slice, fence))
     }
 
     /// Create a [`DmaSliceMutImmut`] from a unique, mutable Rust slice.
@@ -291,7 +294,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
     ///
     /// Even though this method takes a unique, mutable Rust slice, DMA
     /// operations must not modify the buffers contents.
-    pub fn from_mut_slice_ref(slice: &mut [T], fence: impl DmaFence) -> DmaSliceMutImmut<'_, T> {
+    pub fn new_mut(slice: &mut [T], fence: impl DmaFence) -> DmaSliceMutImmut<'_, T> {
         // # Safety
         //
         // `DmaSliceMut::from_mut_slice_ref` is unsafe, as dropping its return
@@ -301,7 +304,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
         // writes visible to Rust. However, this struct does not permit DMA
         // operations which write to the slice, and hence it can be safely
         // dropped without risk of concurrent modifications or incoherence.
-        DmaSliceMutImmut::Mutable(unsafe { DmaSliceMut::from_mut_slice_ref(slice, fence) })
+        DmaSliceMutImmut::Mutable(unsafe { DmaSliceMut::new(slice, fence) })
     }
 
     /// Returns the pointer to the first element of the wrapped slice reference.
@@ -321,9 +324,13 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
     }
 
     /// Retrieve the inner slice reference.
-    pub fn as_slice_ref(&self) -> &'a [T] {
+    ///
+    /// This is safe, as [`DmaSliceMutImmut`] can only be used for read-only DMA
+    /// operations. The DMA hardware and software may read the underlying slice
+    /// concurrently.
+    pub fn get(&self) -> &'a [T] {
         match self {
-            DmaSliceMutImmut::Immutable(dma_slice) => dma_slice.as_slice_ref(),
+            DmaSliceMutImmut::Immutable(dma_slice) => dma_slice.get(),
             DmaSliceMutImmut::Mutable(dma_slice_mut) => unsafe {
                 // # Safety
                 //
@@ -511,8 +518,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMut<'a
     ///
     /// Refer the safety documentation of the [`DmaSubSliceMut`] type.
     ///
-    /// In contrast to `from_slice_ref` this function is safe, as dropping or
-    /// forgetting its return value is safe, it would merely leak memory and
+    /// In contrast to [`from_sub_slice_mut`] this function is safe, as dropping
+    /// or forgetting its return value is safe, it would merely leak memory and
     /// make the underlying slice inaccessible.
     pub fn from_static_sub_slice_mut(
         sub_slice: SubSliceMut<'static, T>,
@@ -792,7 +799,7 @@ mod miri_tests {
         let data = [10u8, 20, 30, 40];
 
         // 1. Create DmaSlice
-        let dma = DmaSlice::from_slice_ref(&data, fence);
+        let dma = DmaSlice::new(&data, fence);
 
         // 2. Verify properties
         assert_eq!(dma.len(), 4);
@@ -819,7 +826,7 @@ mod miri_tests {
         // 1. Create DmaSliceMut
         //
         // SAFETY: We call `restore_slice_ref` at the end.
-        let dma = unsafe { DmaSliceMut::from_mut_slice_ref(&mut data, fence) };
+        let dma = unsafe { DmaSliceMut::new(&mut data, fence) };
 
         // 2. Verify basic pointer integrity
         assert_eq!(dma.as_mut_ptr(), data_ptr);
@@ -835,7 +842,7 @@ mod miri_tests {
         // 4. Restore
         //
         // SAFETY: DMA is "done".
-        let restored_slice = unsafe { dma.restore_mut_slice_ref(fence) };
+        let restored_slice = unsafe { dma.take(fence) };
 
         // 5. Verify that the writes are reflected in the buffer:
         assert_eq!(restored_slice, &[0, 0, 0xAA, 0]);
@@ -851,7 +858,7 @@ mod miri_tests {
         // 1. Create from static
         //
         // Note: access to static mut is unsafe, but the from_static_slice_ref call itself is safe
-        let dma = DmaSliceMut::from_static_mut_slice_ref(unsafe { &mut *(&raw mut BUFFER) }, fence);
+        let dma = DmaSliceMut::new_static(unsafe { &mut *(&raw mut BUFFER) }, fence);
 
         // 2. Simulate DMA Write
         unsafe {
@@ -859,7 +866,7 @@ mod miri_tests {
         }
 
         // 3. Restore
-        let restored = unsafe { dma.restore_mut_slice_ref(fence) };
+        let restored = unsafe { dma.take(fence) };
 
         assert_eq!(restored[0], 99);
         assert_eq!(restored[1], 2);
