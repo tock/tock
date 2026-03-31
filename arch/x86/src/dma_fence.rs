@@ -63,8 +63,9 @@ unsafe impl DmaFence for X86DmaFence {
     /// re-ordering, and that all DMA access are coherent with CPU instructions
     /// accessing memory.
     #[inline(always)]
-    fn release<T>(self, buf: *mut [T]) {
+    fn release<T>(self, slice_ptr: *mut [T]) {
         if cfg!(any(target_arch = "x86", target_arch = "x86_64")) {
+            let slice_start_ptr: *mut T = slice_ptr.cast();
             unsafe {
                 core::arch::asm!(
                     "
@@ -72,7 +73,7 @@ unsafe impl DmaFence for X86DmaFence {
                         // that it could read the entire buffer from which the
                         // pointer stored in {dma_buffer_ptr_reg} was derived.
                     ",
-                    dma_buffer_ptr_reg = in(reg) buf as *mut T,
+                    dma_buffer_ptr_reg = in(reg) slice_start_ptr,
                 );
             }
         } else {
@@ -103,8 +104,9 @@ unsafe impl DmaFence for X86DmaFence {
     /// re-ordering, and that all DMA access are coherent with CPU instructions
     /// accessing memory.
     #[inline(always)]
-    fn acquire<T>(self, buf: *mut [T]) {
+    fn acquire<T>(self, slice_ptr: *mut [T]) {
         if cfg!(any(target_arch = "x86", target_arch = "x86_64")) {
+            let slice_start_ptr: *mut T = slice_ptr.cast();
             unsafe {
                 core::arch::asm!(
                     "
@@ -113,7 +115,7 @@ unsafe impl DmaFence for X86DmaFence {
                         // the pointer stored in {dma_buffer_ptr_reg} was
                         // derived.
                     ",
-                    dma_buffer_ptr_reg = in(reg) buf as *mut T,
+                    dma_buffer_ptr_reg = in(reg) slice_start_ptr,
                 );
             }
         } else {

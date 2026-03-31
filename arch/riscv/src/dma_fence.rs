@@ -81,8 +81,9 @@ unsafe impl DmaFence for RiscvCoherentDmaFence {
     ///
     /// [1]: https://docs.riscv.org/reference/isa/_attachments/riscv-unprivileged.pdf
     #[inline(always)]
-    fn release<T>(self, buf: *mut [T]) {
+    fn release<T>(self, slice_ptr: *mut [T]) {
         if cfg!(any(target_arch = "riscv32", target_arch = "riscv64")) {
+            let slice_start_ptr: *mut T = slice_ptr.cast();
             unsafe {
                 core::arch::asm!(
                     "
@@ -95,7 +96,7 @@ unsafe impl DmaFence for RiscvCoherentDmaFence {
                         // comment for explanation.
                         fence w, iorw
                     ",
-                    dma_buffer_ptr_reg = in(reg) buf as *mut T,
+                    dma_buffer_ptr_reg = in(reg) slice_start_ptr,
                 );
             }
         } else {
@@ -138,8 +139,9 @@ unsafe impl DmaFence for RiscvCoherentDmaFence {
     ///
     /// [1]: https://docs.riscv.org/reference/isa/_attachments/riscv-unprivileged.pdf
     #[inline(always)]
-    fn acquire<T>(self, buf: *mut [T]) {
+    fn acquire<T>(self, slice_ptr: *mut [T]) {
         if cfg!(any(target_arch = "riscv32", target_arch = "riscv64")) {
+            let slice_start_ptr: *mut T = slice_ptr.cast();
             unsafe {
                 core::arch::asm!(
                     "
@@ -153,7 +155,7 @@ unsafe impl DmaFence for RiscvCoherentDmaFence {
                         // explanation.
                         fence ir, r
                     ",
-                    dma_buffer_ptr_reg = in(reg) buf as *mut T,
+                    dma_buffer_ptr_reg = in(reg) slice_start_ptr,
                 );
             }
         } else {

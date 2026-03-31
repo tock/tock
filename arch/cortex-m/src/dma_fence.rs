@@ -29,7 +29,8 @@ impl CortexMDmaFence {
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 unsafe impl DmaFence for CortexMDmaFence {
-    fn release<T>(self, buf: *mut [T]) {
+    fn release<T>(self, slice_ptr: *mut [T]) {
+        let slice_start_ptr: *mut T = slice_ptr.cast();
         unsafe {
             core::arch::asm!(
                 "
@@ -41,12 +42,13 @@ unsafe impl DmaFence for CortexMDmaFence {
     // I/O reads or writes.
     dmb
                 ",
-                dma_buffer_ptr_reg = in(reg) buf.cast::<T>(),
+                dma_buffer_ptr_reg = in(reg) slice_start_ptr,
             );
         }
     }
 
-    fn acquire<T>(self, buf: *mut [T]) {
+    fn acquire<T>(self, slice_ptr: *mut [T]) {
+        let slice_start_ptr: *mut T = slice_ptr.cast();
         unsafe {
             core::arch::asm!(
                 "
@@ -58,7 +60,7 @@ unsafe impl DmaFence for CortexMDmaFence {
     // memory reads or writes.
     dmb
                 ",
-                dma_buffer_ptr_reg = in(reg) buf.cast::<T>(),
+                dma_buffer_ptr_reg = in(reg) slice_start_ptr,
             );
         }
     }

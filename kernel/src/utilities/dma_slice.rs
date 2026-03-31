@@ -133,7 +133,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSlice<'a, T> {
         // Ensure that all prior writes to this slice are exposed to any DMA
         // operations initiated by an MMIO read or write operation after this
         // function returns.
-        fence.release::<T>(ptr::from_ref(slice) as *mut [T]);
+        let mut_slice_ptr: *mut [T] = ptr::from_ref(slice).cast_mut();
+        fence.release::<T>(mut_slice_ptr);
 
         DmaSlice { slice }
     }
@@ -342,7 +343,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
     pub fn as_ptr(&self) -> *const T {
         match self {
             DmaSliceMutImmut::Immutable(dma_slice) => dma_slice.as_ptr(),
-            DmaSliceMutImmut::Mutable(dma_slice_mut) => dma_slice_mut.as_mut_ptr() as *const T,
+            DmaSliceMutImmut::Mutable(dma_slice_mut) => dma_slice_mut.as_mut_ptr().cast_const(),
         }
     }
 
@@ -373,7 +374,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
                 // such, we can safely hand out immutable references over this
                 // slice, which are also bound to the lifetime `'a`.
                 core::slice::from_raw_parts(
-                    dma_slice_mut.as_mut_ptr() as *const T,
+                    dma_slice_mut.as_mut_ptr().cast_const(),
                     dma_slice_mut.len(),
                 )
             },
@@ -417,11 +418,12 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSlice<'a, T
         // Clippy says we should be using `.as_mut_ptr()` instead of `.as_ptr()
         // as *mut T`, but that method doesn't exist. The cast doesn't matter
         // here, `DmaFence::release` will not actually dereference the memory.
+        let sub_slice_ptr: *mut T = sub_slice.as_ptr().cast_mut();
         #[allow(clippy::as_ptr_cast_mut)]
         fence.release::<T>(ptr::slice_from_raw_parts_mut(
             // `SubSlice::as_ptr()` returns a pointer to the currently
             // accessible portion of the `SubSlice`.
-            sub_slice.as_ptr() as *mut T,
+            sub_slice_ptr,
             // `SubSlice::len()` returns the length of the currently accessible
             // portion of the `SubSlice`.
             sub_slice.len(),
@@ -699,7 +701,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImm
         match self {
             DmaSubSliceMutImmut::Immutable(dma_sub_slice) => dma_sub_slice.as_ptr(),
             DmaSubSliceMutImmut::Mutable(dma_sub_slice_mut) => {
-                dma_sub_slice_mut.as_mut_ptr() as *const T
+                dma_sub_slice_mut.as_mut_ptr().cast_const()
             }
         }
     }

@@ -388,7 +388,7 @@ impl<'b> VirtqueueDmaBuffer<'b> {
                 dma_sub_slice_mut_immut.as_ptr()
             }
             VirtqueueDmaBuffer::DeviceWriteable(dma_sub_slice_mut) => {
-                dma_sub_slice_mut.as_mut_ptr() as *const u8
+                dma_sub_slice_mut.as_mut_ptr().cast_const()
             }
         }
     }
