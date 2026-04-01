@@ -190,10 +190,15 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        _: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         let pins = self.pins;
         let pin_index = data1;
+
+        // This app did anything with the GPIO driver. We mark it as enabled
+        // by allocating the grant region. This allows for upcalls.
+        let _ = self.apps.enter(processid, |_, _| {});
+
         match command_num {
             // Check existence.
             0 => CommandReturn::success(),
