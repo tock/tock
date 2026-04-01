@@ -115,6 +115,16 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
+            // We have a bit of a hacky solution here to deal with a peculiarity of the
+            // stm32wle5xx's built in subghz radio (SX126x). The subghz radio
+            // feeds directly into nvic which means we cannot configure it to
+            // be rising edge triggered. To clear this interrupt, we must clear
+            // the interrupt source on the internal SX126x radio via a SPI write
+            // over the internal spi bus. This means that we need to mask this interrupt
+            // here to prevent being stuck in the `service_pending_interrupts` loop.
+            // After servicing all other pending interrupts, we then check if the subghz
+            // radio interrupt is asserted (see comments in subghz_radio.rs for details
+            // of handling).
             loop {
                 if let Some(interrupt) =
                     cortexm4::nvic::next_pending_with_mask((0, 1u128 << crate::nvic::RADIO_IRQ))
