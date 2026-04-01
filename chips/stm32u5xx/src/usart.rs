@@ -4,7 +4,7 @@
 
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::uart::{self, Configure, Receive, Transmit};
+use kernel::hil::uart::{self};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};

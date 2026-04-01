@@ -3,8 +3,10 @@
 /* Copyright Tock Contributors 2024.                                  */
 
 /* Memory layout for the STM32U545 (Secure Mode Aliases)
- * FLASH: 512 KB
- * RAM: 160 KB (as per working C code) */
+ * FLASH: 512 KB Total
+ * KERNEL: 256 KB
+ * APPS: 256 KB
+ * RAM: 160 KB */
 
 MEMORY
 {
@@ -19,8 +21,6 @@ MEMORY
  *
  * However, for this board in Secure Mode, we need it at the END of RAM
  * to match the working C code and prevent an immediate HardFault.
- *
- * By using PROVIDE or defining it here, we override the generic script.
  */
 _estack = ORIGIN(ram) + LENGTH(ram);
 

@@ -5,8 +5,8 @@
 use kernel::debug;
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use crate::exti::{Exti, LineId};

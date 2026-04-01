@@ -13,9 +13,15 @@ include ../Makefile.common
 # Target path for the final kernel ELF
 KERNEL_ELF = $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)
 
-# --- TARGET: full (Builds the merged binary and unified ELF) ---
-.PHONY: full
-full: $(KERNEL_ELF)
+# J-Link Configuration
+JLINK_EXE ?= JLinkExe
+JLINK_DEVICE = STM32U545RE
+JLINK_IF = SWD
+JLINK_SPEED = 4000
+
+# --- TARGET: binary (Builds the merged binary and unified ELF) ---
+.PHONY: binary
+binary: $(KERNEL_ELF)
 	@echo "--- Extracting Kernel Binary ---"
 	$(Q)arm-none-eabi-objcopy -O binary $(KERNEL_ELF) kernel.bin
 	@echo "--- Padding and Merging App ---"
@@ -27,7 +33,7 @@ full: $(KERNEL_ELF)
 	# The input 'full_merged.bin' becomes a section called '.data' in the ELF.
 	$(Q)arm-none-eabi-ld -b binary --entry 0x0C000000 -Ttext 0x0C000000 full_merged.bin -o full_merged.elf
 
-# --- TARGET: flash (Flashes ONLY the kernel) ---
+# --- TARGET: flash (Flashes ONLY the kernel using probe-rs) ---
 .PHONY: flash
 flash: $(KERNEL_ELF)
 	@echo "--- Preparing Clean Kernel ELF ---"
@@ -37,9 +43,9 @@ flash: $(KERNEL_ELF)
 	$(Q)probe-rs download --chip STM32U545RETx --allow-erase-all kernel_clean.elf
 	$(Q)probe-rs reset --chip STM32U545RETx
 
-# --- TARGET: test (Flashes KERNEL + BLINK APP) ---
-.PHONY: test
-test: full
+# --- TARGET: binary_flash (Flashes KERNEL + BLINK APP using probe-rs) ---
+.PHONY: binary_flash
+binary_flash: binary
 	@echo "--- Preparing Clean Full ELF ---"
 	# NOTE: ld -b binary names the section '.data', so we must keep that.
 	$(Q)arm-none-eabi-objcopy -j .data full_merged.elf full_merged_clean.elf
