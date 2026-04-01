@@ -9,8 +9,7 @@ register_structs! {
     pub RccRegisters {
         /// Control register
         (0x000 => cr: ReadWrite<u32>),
-        (0x004 => _reserved0: [u32; 33]), // 33 * 4 = 132 bytes. 0x004 + 132 = 0x088. Wait, I need 0x08C.
-        (0x088 => _reserved_extra: u32), // 0x088 + 4 = 0x08C.
+        (0x004 => _reserved0: [u32; 34]),
         /// AHB2 peripheral clock enable register 1
         (0x08C => ahb2enr1: ReadWrite<u32>),
         (0x090 => _reserved1: [u32; 3]),
@@ -38,6 +37,11 @@ impl Rcc {
     pub fn enable_gpioa(&self) {
         let val = self.registers.ahb2enr1.get();
         self.registers.ahb2enr1.set(val | 1);
+    }
+
+    pub fn enable_gpioc(&self) {
+        let val = self.registers.ahb2enr1.get();
+        self.registers.ahb2enr1.set(val | (1 << 2));
     }
 
     pub fn enable_usart1(&self) {

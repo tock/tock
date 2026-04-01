@@ -16,11 +16,16 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     // Peripherals will go here
     pub tim2: &'a crate::tim::Tim2<'a>,
     pub usart1: &'a crate::usart::Usart<'a>,
+    pub exti: &'a crate::exti::Exti<'a>,
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(tim2: &'a crate::tim::Tim2<'a>, usart1: &'a crate::usart::Usart<'a>) -> Self {
-        Self { tim2, usart1 }
+    pub fn new(
+        tim2: &'a crate::tim::Tim2<'a>,
+        usart1: &'a crate::usart::Usart<'a>,
+        exti: &'a crate::exti::Exti<'a>,
+    ) -> Self {
+        Self { tim2, usart1, exti }
     }
 }
 
@@ -35,6 +40,11 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             61 => {
                 // USART1
                 self.usart1.handle_interrupt();
+                true
+            }
+            122 => {
+                // EXTI13 (Button)
+                self.exti.handle_interrupt(13);
                 true
             }
             _ => false,

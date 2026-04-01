@@ -3,9 +3,12 @@
 // Copyright Tock Contributors 2024.
 
 use kernel::hil::gpio;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+
+use crate::exti::{Exti, LineId};
 
 register_structs! {
     pub GpioRegisters {
@@ -33,6 +36,15 @@ register_structs! {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
+pub enum PinId {
+    Pin00 = 0, Pin01 = 1, Pin02 = 2, Pin03 = 3,
+    Pin04 = 4, Pin05 = 5, Pin06 = 6, Pin07 = 7,
+    Pin08 = 8, Pin09 = 9, Pin10 = 10, Pin11 = 11,
+    Pin12 = 12, Pin13 = 13, Pin14 = 14, Pin15 = 15,
+}
+
+#[derive(Copy, Clone, PartialEq)]
 pub enum Mode {
     Input = 0,
     Output = 1,
@@ -50,16 +62,27 @@ pub struct Pin<'a> {
     registers: StaticRef<GpioRegisters>,
     pin: usize,
     pin_mask: u32,
-    _marker: core::marker::PhantomData<&'a ()>,
+    exti: &'a Exti<'a>,
+    port_id: u32,
+    client: OptionalCell<&'a dyn gpio::Client>,
+    exti_lineid: OptionalCell<LineId>,
 }
 
 impl<'a> Pin<'a> {
-    pub const fn new(base: StaticRef<GpioRegisters>, pin: usize) -> Pin<'a> {
+    pub const fn new(
+        base: StaticRef<GpioRegisters>,
+        pin: usize,
+        exti: &'a Exti<'a>,
+        port_id: u32,
+    ) -> Pin<'a> {
         Pin {
             registers: base,
             pin: pin,
             pin_mask: 1 << pin,
-            _marker: core::marker::PhantomData,
+            exti,
+            port_id,
+            client: OptionalCell::empty(),
+            exti_lineid: OptionalCell::empty(),
         }
     }
 
@@ -74,7 +97,7 @@ impl<'a> Pin<'a> {
     pub fn set_speed_high(&self) {
         let offset = self.pin * 2;
         let mut val = self.registers.ospeedr.get();
-        val |= (0x3 << offset);
+        val |= 3 << offset;
         self.registers.ospeedr.set(val);
     }
 
@@ -197,20 +220,72 @@ impl<'a> gpio::Output for Pin<'a> {
     }
 }
 
-pub struct Port<'a> {
-    registers: StaticRef<GpioRegisters>,
-    _marker: core::marker::PhantomData<&'a ()>,
-}
+impl<'a> gpio::Interrupt<'a> for Pin<'a> {
+    fn set_client(&self, client: &'a dyn gpio::Client) {
+        self.client.set(client);
+    }
 
-impl<'a> Port<'a> {
-    pub const fn new(base: StaticRef<GpioRegisters>) -> Port<'a> {
-        Port {
-            registers: base,
-            _marker: core::marker::PhantomData,
+    fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
+        let line_num = self.pin;
+        if line_num < 16 {
+            let line = unsafe { core::mem::transmute::<u8, LineId>(line_num as u8) };
+            self.exti_lineid.set(line);
+            
+            // Pass our client directly to EXTI, bypassing the Pin's lifetime restriction
+            self.client.map(|client| {
+                self.exti.register_client(line, client);
+            });
+
+            self.exti.select_port(line, self.port_id);
+            self.exti.mask_interrupt(line);
+            self.exti.clear_pending(line);
+
+            match mode {
+                gpio::InterruptEdge::EitherEdge => {
+                    self.exti.select_rising_trigger(line);
+                    self.exti.select_falling_trigger(line);
+                }
+                gpio::InterruptEdge::RisingEdge => {
+                    self.exti.select_rising_trigger(line);
+                    self.exti.deselect_falling_trigger(line);
+                }
+                gpio::InterruptEdge::FallingEdge => {
+                    self.exti.deselect_rising_trigger(line);
+                    self.exti.select_falling_trigger(line);
+                }
+            }
+            self.exti.unmask_interrupt(line);
         }
     }
 
-    pub fn pin(&'a self, pin_num: usize) -> Pin<'a> {
-        Pin::new(self.registers, pin_num)
+    fn disable_interrupts(&self) {
+        self.exti_lineid.map(|line| {
+            self.exti.mask_interrupt(line);
+            self.exti.clear_pending(line);
+        });
+    }
+
+    fn is_pending(&self) -> bool {
+        self.exti_lineid.map_or(false, |line| self.exti.is_pending(line))
+    }
+}
+
+pub struct Port<'a> {
+    registers: StaticRef<GpioRegisters>,
+    exti: &'a Exti<'a>,
+    port_id: u32,
+}
+
+impl<'a> Port<'a> {
+    pub const fn new(base: StaticRef<GpioRegisters>, exti: &'a Exti<'a>, port_id: u32) -> Port<'a> {
+        Port {
+            registers: base,
+            exti,
+            port_id,
+        }
+    }
+
+    pub fn pin(&self, pin: PinId) -> Pin<'a> {
+        Pin::new(self.registers, pin as usize, self.exti, self.port_id)
     }
 }

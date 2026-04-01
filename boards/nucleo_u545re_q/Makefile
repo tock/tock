@@ -10,33 +10,42 @@ APP_PATH = /mnt/c/Work/munca/libtock-c/examples/blink/build/cortex-m4/cortex-m4.
 
 include ../Makefile.common
 
-# Target path for the final kernel ELF (from Makefile.common)
+# Target path for the final kernel ELF
 KERNEL_ELF = $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)
 
+# --- TARGET: full (Builds the merged binary and unified ELF) ---
 .PHONY: full
 full: $(KERNEL_ELF)
 	@echo "--- Extracting Kernel Binary ---"
 	$(Q)arm-none-eabi-objcopy -O binary $(KERNEL_ELF) kernel.bin
-	
 	@echo "--- Padding and Merging App ---"
-	# Create 256KB padded image with kernel at start
 	$(Q)dd if=/dev/zero of=full_merged.bin bs=1K count=256
 	$(Q)dd if=kernel.bin of=full_merged.bin conv=notrunc
-	# Append app at 256KB mark (0x0C040000)
 	$(Q)cat $(APP_PATH) >> full_merged.bin
-	
-	@echo "--- Generating Unified ELF ---"
-	$(Q)arm-none-eabi-objcopy -I binary -O elf32-littlearm -B arm \
-	    --change-section-address .data=0x0C000000 \
-	    --rename-section .data=.text \
-	    full_merged.bin full_merged.elf
-	@echo "Done! Final file: boards/nucleo_u545re_q/full_merged.bin (or .elf)"
+	@echo "--- Generating Unified ELF via Linker ---"
+	# We use the linker to create a proper loadable segment.
+	# The input 'full_merged.bin' becomes a section called '.data' in the ELF.
+	$(Q)arm-none-eabi-ld -b binary --entry 0x0C000000 -Ttext 0x0C000000 full_merged.bin -o full_merged.elf
 
-OPENOCD=openocd
+# --- TARGET: flash (Flashes ONLY the kernel) ---
+.PHONY: flash
+flash: $(KERNEL_ELF)
+	@echo "--- Preparing Clean Kernel ELF ---"
+	$(Q)arm-none-eabi-objcopy -j .text -j .ARM.exidx -j .storage -j .relocate \
+	    $(KERNEL_ELF) kernel_clean.elf
+	@echo "--- Flashing KERNEL only ---"
+	$(Q)probe-rs download --chip STM32U545RETx --allow-erase-all kernel_clean.elf
+	$(Q)probe-rs reset --chip STM32U545RETx
+
+# --- TARGET: test (Flashes KERNEL + BLINK APP) ---
+.PHONY: test
+test: full
+	@echo "--- Preparing Clean Full ELF ---"
+	# NOTE: ld -b binary names the section '.data', so we must keep that.
+	$(Q)arm-none-eabi-objcopy -j .data full_merged.elf full_merged_clean.elf
+	@echo "--- Flashing KERNEL + BLINK APP ---"
+	$(Q)probe-rs download --chip STM32U545RETx --allow-erase-all full_merged_clean.elf
+	$(Q)probe-rs reset --chip STM32U545RETx
 
 .PHONY: install
 install: flash
-
-.PHONY: flash
-flash: full
-	$(OPENOCD) -c "source [find board/st_nucleo_u5.cfg]; init; reset halt; flash write_image erase full_merged.bin 0x0C000000; reset; shutdown"
