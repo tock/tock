@@ -20,7 +20,9 @@ register_structs! {
         (0x00C => pub rpr1: ReadWrite<u32>),
         /// Pending register 1 (Falling)
         (0x010 => pub fpr1: ReadWrite<u32>),
-        (0x014 => _reserved0: [u32; 19]),
+        /// Security configuration register
+        (0x014 => pub seccfgr1: ReadWrite<u32>),
+        (0x018 => _reserved0: [u32; 18]),
         /// External interrupt selection registers
         (0x060 => pub exticr: [ReadWrite<u32>; 4]),
         (0x070 => _reserved1: [u32; 4]),
@@ -82,6 +84,11 @@ impl<'a> Exti<'a> {
         val &= !(0xFF << offset);
         val |= (port & 0xFF) << offset;
         self.registers.exticr[register_index].set(val);
+    }
+
+    pub fn set_secure(&self, line: LineId) {
+        let val = self.registers.seccfgr1.get();
+        self.registers.seccfgr1.set(val | (1 << (line as u32)));
     }
 
     pub fn mask_interrupt(&self, line: LineId) {

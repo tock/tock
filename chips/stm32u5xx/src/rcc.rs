@@ -18,7 +18,9 @@ register_structs! {
         (0x0A0 => _reserved2: [u32; 1]),
         /// APB2 peripheral clock enable register
         (0x0A4 => apb2enr: ReadWrite<u32>),
-        (0x0A8 => _reserved3: [u32; 14]),
+        /// APB3 peripheral clock enable register
+        (0x0A8 => apb3enr: ReadWrite<u32>),
+        (0x0AC => _reserved3: [u32; 13]),
         /// Peripherals independent clock configuration register 1
         (0x0E0 => ccipr1: ReadWrite<u32>),
         (0x0E4 => @END),
@@ -52,6 +54,11 @@ impl Rcc {
     pub fn enable_tim2(&self) {
         let val = self.registers.apb1enr1.get();
         self.registers.apb1enr1.set(val | 1);
+    }
+
+    pub fn enable_syscfg(&self) {
+        let val = self.registers.apb3enr.get();
+        self.registers.apb3enr.set(val | (1 << 1));
     }
 
     pub fn set_usart1_source_pclk(&self) {

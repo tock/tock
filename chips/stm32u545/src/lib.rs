@@ -4,25 +4,14 @@
 
 #![no_std]
 
-use cortexm33::{unhandled_interrupt, CortexM33, CortexMVariant};
+pub use stm32u5xx::{chip, exti, generic_init, gpio, rcc, tim, usart, Stm32u5xxPeripherals};
 
-pub use stm32u5xx::{chip, generic_init, gpio, rcc, tim, usart, exti, Stm32u5xxPeripherals};
-pub use stm32u5xx::gpio::{PinId};
-
-// STM32U545 has a total of 126 interrupts
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); 126] = {
-    let mut table = [unhandled_interrupt as unsafe extern "C" fn(); 126];
-
-    // Index 45 is TIM2
-    table[45] = CortexM33::GENERIC_ISR;
-    // Index 61 is USART1
-    table[61] = CortexM33::GENERIC_ISR;
-
-    table
-};
+use cortexm33::{CortexMVariant, CortexM33};
 
 pub unsafe fn init() {
-    generic_init();
+    stm32u5xx::generic_init();
 }
+
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
+pub static IRQS: [unsafe extern "C" fn(); 125] = [<CortexM33 as CortexMVariant>::GENERIC_ISR; 125];

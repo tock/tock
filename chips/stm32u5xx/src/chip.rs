@@ -42,8 +42,8 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
                 self.usart1.handle_interrupt();
                 true
             }
-            122 => {
-                // EXTI13 (Button)
+            24 => {
+                // EXTI13 (User Button)
                 self.exti.handle_interrupt(13);
                 true
             }

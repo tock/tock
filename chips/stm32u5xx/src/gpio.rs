@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
+use kernel::debug;
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -117,6 +118,10 @@ impl<'a> Pin<'a> {
         }
     }
 
+    pub fn handle_interrupt(&self) {
+        self.client.map(|client| client.fired());
+    }
+
     fn get_mode(&self) -> Mode {
         let offset = self.pin * 2;
         let val = (self.registers.moder.get() >> offset) & 0x3;
@@ -228,15 +233,20 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         let line_num = self.pin;
         if line_num < 16 {
+            debug!("GPIO: Enabling interrupts for Pin {} on Port {}", line_num, self.port_id);
             let line = unsafe { core::mem::transmute::<u8, LineId>(line_num as u8) };
             self.exti_lineid.set(line);
             
-            // Pass our client directly to EXTI, bypassing the Pin's lifetime restriction
             self.client.map(|client| {
                 self.exti.register_client(line, client);
             });
 
+            // 1. Route the port to the line
             self.exti.select_port(line, self.port_id);
+            
+            // 2. MARK THE LINE AS SECURE (Required for U5 Secure Mode!)
+            self.exti.set_secure(line);
+
             self.exti.mask_interrupt(line);
             self.exti.clear_pending(line);
 

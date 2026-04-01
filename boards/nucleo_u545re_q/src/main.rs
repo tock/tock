@@ -120,10 +120,10 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::Stm32u5xxPeripherals) {
     // LED Pin (PA5)
     periphs.gpio_a.pin(PinId::Pin05).make_output();
 
-    // Button Pin (PC13)
+    // Button Pin (PC13) - Hardware is Active High
     let btn = periphs.gpio_c.pin(PinId::Pin13);
     btn.make_input();
-    btn.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
+    btn.set_floating_state(kernel::hil::gpio::FloatingState::PullDown);
 }
 
 #[no_mangle]
@@ -137,7 +137,7 @@ pub unsafe fn main() {
     // 1. Load Peripherals
     let exti = static_init!(
         stm32u545::exti::Exti<'static>,
-        stm32u545::exti::Exti::new(StaticRef::new(0x56020800 as *const stm32u545::exti::ExtiRegisters))
+        stm32u545::exti::Exti::new(StaticRef::new(0x56022000 as *const stm32u545::exti::ExtiRegisters))
     );
 
     let periphs = static_init!(
@@ -147,9 +147,10 @@ pub unsafe fn main() {
 
     // 2. Power and Wires
     periphs.rcc.enable_gpioa();
-    periphs.rcc.enable_gpioc(); // For button
+    periphs.rcc.enable_gpioc();
     periphs.rcc.enable_usart1();
     periphs.rcc.enable_tim2();
+    periphs.rcc.enable_syscfg();
     periphs.rcc.set_usart1_source_pclk();
 
     for _ in 0..1000 {
@@ -223,14 +224,15 @@ pub unsafe fn main() {
         kernel::hil::led::LedHigh::new(led_pin)
     ));
 
+    let button_pin_raw = static_init!(stm32u545::gpio::Pin, periphs.gpio_c.pin(PinId::Pin13));
     let button_pin = static_init!(
         kernel::hil::gpio::InterruptValueWrapper<stm32u545::gpio::Pin>,
-        kernel::hil::gpio::InterruptValueWrapper::new(static_init!(stm32u545::gpio::Pin, periphs.gpio_c.pin(PinId::Pin13)))
+        kernel::hil::gpio::InterruptValueWrapper::new(button_pin_raw)
     ).finalize();
 
     let button_pins = static_init!(
         [(&'static kernel::hil::gpio::InterruptValueWrapper<'static, stm32u545::gpio::Pin>, kernel::hil::gpio::ActivationMode, kernel::hil::gpio::FloatingState); 1],
-        [(button_pin, kernel::hil::gpio::ActivationMode::ActiveLow, kernel::hil::gpio::FloatingState::PullUp)]
+        [(button_pin, kernel::hil::gpio::ActivationMode::ActiveHigh, kernel::hil::gpio::FloatingState::PullDown)]
     );
 
     let button = components::button::ButtonComponent::new(
@@ -265,10 +267,14 @@ pub unsafe fn main() {
         stm32u545::chip::Stm32u5xx::new(default_peripherals)
     );
 
+    // IRQ Targeting (IRQ 24 to Secure)
+    let nvic_itns0 = 0xE000E380 as *mut u32;
+    nvic_itns0.write_volatile(nvic_itns0.read_volatile() & !(1 << 24));
+
     unsafe {
         cortexm33::nvic::Nvic::new(45).enable(); // TIM2
         cortexm33::nvic::Nvic::new(61).enable(); // USART1
-        cortexm33::nvic::Nvic::new(24).enable(); // EXTI13 (Button) - FIXED from 122 to 24
+        cortexm33::nvic::Nvic::new(24).enable(); // EXTI13 (Button)
     }
 
     // --- LOAD PROCESSES ---
