@@ -53,3 +53,14 @@ $ edgeprotecttools -t psoc_c3 init
 # provision the device with the configuration
 $ edgeprotecttools -t psoc_c3 provision-device -p ns_policy/policy_oem_provisioning.json
 ```
+
+### Troubleshooting
+
+If provisioning does not work because of "ERROR : Unable to read current LCS value", 
+you can try to erasing the flash with OpenOCD and then try provisioning again.
+
+```bash
+# adapt path to Infineon-OpenOCD if needed
+$ /opt/ModusToolboxProgtools-1.7/openocd/bin/openocd -f interface/kitprog3.cfg -c "set ENABLE_ACQUIRE 0" -f target/infineon/psc3.cfg -c "init; reset init; erase_all; shutdown"
+$ edgeprotecttools -t psoc_c3 provision-device -p ns_policy/policy_oem_provisioning.json
+```
