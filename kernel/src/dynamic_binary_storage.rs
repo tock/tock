@@ -700,62 +700,6 @@ impl<
         }
     }
 
-    fn unload(&self, app: ShortId) {
-        // -> Result<(), ErrorCode> {
-        match self.state.get() {
-            State::Idle => {
-                self.process_metadata.set(ProcessLoadMetadata::default());
-                self.state.set(State::Unload);
-
-                // let shortid = NonZeroU32::new(short_id as u32)
-                //     .map(ShortId::Fixed)
-                //     .ok_or(ErrorCode::INVAL)?;
-
-                // let (app_address, app_size) = match self
-                //     .loader_driver
-                //     .fetch_app_details(shortid, app_version as u32)
-                // {
-                //     Ok((addr, size)) => (addr, size),
-                //     Err(_) => return Err(ErrorCode::FAIL),
-                // };
-
-                // if let Some(mut metadata) = self.process_metadata.get() {
-                //     metadata.new_app_start_addr = app_address as usize;
-                //     metadata.new_app_length = app_size as usize;
-                //     self.process_metadata.set(metadata);
-                // }
-
-                // Passing the ShortId is enough because only one
-                // version of an app can be run at any given
-                // time, so ShortId is a unique identifier
-                // self.loader_driver.remove_active_process(app);
-                self.kernel
-                    .remove_process_from_active_processes(app, &self.capability);
-                self.reset_process_loading_metadata();
-                self.storage_client.map(|client| {
-                    client.unload_done(Ok(()));
-                });
-                // Ok(())
-                // if let Some(metadata) = self.process_metadata.get() {
-                //     match self
-                //         .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
-                //     {
-                //         Ok(()) => Ok(()),
-                //         Err(_) => Err(ErrorCode::BUSY),
-                //     }
-                // } else {
-                //     Err(ErrorCode::FAIL)
-                // }
-            }
-            _ => {
-                // We are in the wrong mode of operation. Ideally we should never reach
-                // here, but this error exists as a failsafe. The capsule should send
-                // a busy error out to the userland app.
-                // Err(ErrorCode::INVAL)
-            }
-        }
-    }
-
     fn uninstall(&self, app: ShortId, version: usize) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Idle => {
@@ -840,6 +784,62 @@ impl<
                 Ok(())
             }
             _ => Err(ErrorCode::INVAL),
+        }
+    }
+
+    fn unload(&self, app: ShortId) -> Result<usize> {
+        // -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Idle => {
+                self.process_metadata.set(ProcessLoadMetadata::default());
+                self.state.set(State::Unload);
+
+                // let shortid = NonZeroU32::new(short_id as u32)
+                //     .map(ShortId::Fixed)
+                //     .ok_or(ErrorCode::INVAL)?;
+
+                // let (app_address, app_size) = match self
+                //     .loader_driver
+                //     .fetch_app_details(shortid, app_version as u32)
+                // {
+                //     Ok((addr, size)) => (addr, size),
+                //     Err(_) => return Err(ErrorCode::FAIL),
+                // };
+
+                // if let Some(mut metadata) = self.process_metadata.get() {
+                //     metadata.new_app_start_addr = app_address as usize;
+                //     metadata.new_app_length = app_size as usize;
+                //     self.process_metadata.set(metadata);
+                // }
+
+                // Passing the ShortId is enough because only one
+                // version of an app can be run at any given
+                // time, so ShortId is a unique identifier
+                // self.loader_driver.remove_active_process(app);
+                self.kernel
+                    .remove_process_from_active_processes(app, &self.capability);
+                self.reset_process_loading_metadata();
+                self.storage_client.map(|client| {
+                    client.unload_done(Ok(()));
+                });
+                // Ok(())
+                // if let Some(metadata) = self.process_metadata.get() {
+                //     match self
+                //         .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
+                //     {
+                //         Ok(()) => Ok(()),
+                //         Err(_) => Err(ErrorCode::BUSY),
+                //     }
+                // } else {
+                //     Err(ErrorCode::FAIL)
+                // }
+            }
+            _ => {
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                // Err(ErrorCode::INVAL)
+            }
         }
     }
 }
