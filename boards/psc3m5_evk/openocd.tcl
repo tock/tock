@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Infineon Technologies AG 2026.
 
+#! OpenOCD configuration for Infineon PSOC3M5 EVK board
+#! This uses the Infineon Fork of OpenOCD.
+
 if { [info exists env(OPENOCD_ROOT)] } {
     add_script_search_dir $env(OPENOCD_ROOT)/scripts
 } else {

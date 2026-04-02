@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
-//! Chip trait setup.
+//! Chip trait setup and default peripheral initialization.
 
 use core::fmt::Write;
 use kernel::hil::gpio::Configure;
@@ -23,6 +23,7 @@ use crate::srss;
 use crate::tcpwm;
 use cortexm33::{CortexM33, CortexMVariant};
 
+// Configuration generated in MTB for SWD and Debug UART pins.
 const GPIO_SWDCK_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
     drive_mode: gpio::DriveMode::PullDown,
@@ -39,7 +40,6 @@ const GPIO_SWDCK_CONFIG: gpio::PreConfig = gpio::PreConfig {
     voh_sel: 0,
     non_sec: false,
 };
-
 const GPIO_SWDIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
     drive_mode: gpio::DriveMode::PullUp,
@@ -56,7 +56,6 @@ const GPIO_SWDIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
     voh_sel: 0,
     non_sec: false,
 };
-
 pub const GPIO_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
     drive_mode: gpio::DriveMode::HighZ,
@@ -73,7 +72,6 @@ pub const GPIO_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     voh_sel: 0,
     non_sec: false,
 };
-
 pub const GPIO_DEBUG_UART_TX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
     drive_mode: gpio::DriveMode::Strong,
@@ -115,9 +113,6 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm33::nvic::next_pending() {
-                // ignore PROC1_IRQ_CTI as it is intended for processor 1
-                // not able to unset its pending status
-                // probably only processor 1 can unset the pending by reading the fifo
                 if !self.interrupt_service.service_interrupt(interrupt) {
                     panic!("unhandled interrupt {}", interrupt);
                 }
@@ -188,7 +183,8 @@ impl Psc3DefaultPeripherals<'_> {
     }
 
     /// Pre-initialize peripherals that are required for further system initialization.
-    /// Activates essential clocks
+    /// Activates essential clocks.
+    /// Without this step, some peripherals do not work and abort the debugger connection.
     pub fn preinit_peripherals(&self) {
         self.srss.sys_init_enable_clocks();
         self.peri.sys_init_enable_peri();

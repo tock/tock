@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! GPIO driver for PSoC 3.
+
 use crate::gpio_registers as regs;
 pub use crate::hsiom_registers::HsiomFunction;
 use crate::hsiom_registers::HsiomRegisters;

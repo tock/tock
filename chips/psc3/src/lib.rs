@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! PSC3 support crate
+
 #![no_std]
-// `registers/rv_plic_regs` has many register definitions in `register_structs()!`
-// and requires a deeper recursion limit than the default to fully expand.
+// Increase the recursion limit for SRSS Registers
 #![recursion_limit = "512"]
 
 use cortexm33::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM33, CortexMVariant};
@@ -47,7 +48,7 @@ pub static IRQS: [unsafe extern "C" fn(); 140] = [CortexM33::GENERIC_ISR; 140];
 
 pub mod chip;
 pub mod cpuss_ppu;
-mod flashc;
+pub mod flashc;
 pub mod gpio;
 mod gpio_registers;
 mod hsiom_registers;
