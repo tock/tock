@@ -467,6 +467,7 @@ impl RamcPpu {
         }
     }
 
+    /// Initializes the PPU
     pub fn init_ppu(&self) {
         self.registers.iesr.write(IESR::DEVACTIVE00_EDGE::CLEAR); // disable all
         self.registers.imr.write(
@@ -480,6 +481,7 @@ impl RamcPpu {
         self.registers.isr.write(ISR::STA_POLICY_TRN_IRQ::CLEAR);
     }
 
+    /// Enables dynamic power mode transitions with the specified minimum dynamic power mode.
     pub fn ppu_dynamic_enable(&self, min_dyn_state: PwrPolicy) {
         self.registers
             .pwpr

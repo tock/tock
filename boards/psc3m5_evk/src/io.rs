@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! Board‑level I/O and panic infrastructure for the PSC3M5-EVK.
+
 use core::panic::PanicInfo;
 use kernel::utilities::cells::OptionalCell;
 
@@ -41,6 +43,8 @@ pub static mut WRITER: Writer = Writer {
     scb: OptionalCell::empty(),
 };
 
+/// This function is called on panic, and it will attempt to print the panic message to the serial port.
+/// It also blinks the LED to indicate a panic has occurred.
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;

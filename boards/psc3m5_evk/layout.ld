@@ -3,9 +3,10 @@
 /* Copyright Infineon Technologies AG 2026.                           */
 
 /**
- *This layout currently still triggers CYBOOT_APP_LAUNCH_ADDR_INVALID in openocd/gdb. This error
- *should be cause because msp, pc aren't on valid addresses but could also been caused by this
- *layout as the error does not occur when using ModusToolbox's HelloWorld
+ * This layout currently still triggers CYBOOT_APP_LAUNCH_ADDR_INVALID in openocd/gdb. This error
+ * should be cause because msp, pc aren't on valid addresses but could also been caused by this
+ * layout as the error does not occur when using ModusToolbox's HelloWorld
+ * Maybe the file size of tock is too big.
 **/
 
 MEMORY

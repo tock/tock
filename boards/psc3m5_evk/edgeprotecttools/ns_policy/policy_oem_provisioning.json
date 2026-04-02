@@ -250,6 +250,7 @@
         }
     },
     "pre_build": {
+        "comment_1": "Not used at the moment/ Can be used without generating keys.",
         "keys": {
             "oem_rot_public_key_0": {
                 "description": "Path to the OEM RoT public key 0",

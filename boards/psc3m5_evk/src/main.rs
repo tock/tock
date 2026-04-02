@@ -24,9 +24,8 @@ use psc3::chip::{Psc3, Psc3DefaultPeripherals};
 use psc3::gpio;
 use psc3::icache;
 use psc3::tcpwm::Tcpwm0;
-use psc3::BASE_VECTORS;
 #[allow(unused)]
-use psc3::IRQS;
+use psc3::{BASE_VECTORS, IRQS};
 
 mod io;
 

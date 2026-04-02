@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! Power Policy Unit (PPU) driver for CPUSS (CPU Subsystem)
+//! This module provides an interface to the PPU registers and allows for
+//!  initialization and dynamic power mode enabling.
+
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -472,6 +476,7 @@ impl CpussPpu {
         }
     }
 
+    /// Initializes the PPU
     pub fn init_ppu(&self) {
         self.registers.iesr.write(IESR::DEVACTIVE00_EDGE::CLEAR); // disable all
         self.registers.imr.write(
@@ -485,6 +490,7 @@ impl CpussPpu {
         self.registers.isr.write(ISR::STA_POLICY_TRN_IRQ::CLEAR);
     }
 
+    /// Enables dynamic power mode transitions with the specified minimum dynamic power mode.
     pub fn ppu_dynamic_enable(&self, min_dyn_state: PwrPolicy) {
         self.registers
             .pwpr

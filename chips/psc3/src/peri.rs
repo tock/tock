@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! Peripheral interconnect interface
+
 use kernel::utilities::registers::{
     interfaces::{Readable, Writeable},
     register_bitfields, register_structs, ReadWrite,
@@ -172,6 +174,7 @@ impl Peri {
     }
 
     pub fn sys_init_enable_peri(&self) {
+        // Migrated from MTB code, it not so clear how to use this peripheral.
         /* Reset values for each PERI group */
         const CY_PERI_GR1_SL_CTL: u32 = 0x0F;
         const CY_PERI_GR2_SL_CTL: u32 = 0x03;

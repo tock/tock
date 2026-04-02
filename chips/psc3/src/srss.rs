@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! SRSS (System Resources SubSystem) interface
+//! Interface to setup clock sources, clock paths, root clocks, and power modes.
+
+// allow wildcard imports as there are too many symbols to import seperately or with alias
 #[allow(clippy::wildcard_imports)]
 use crate::srss_registers::*;
 use kernel::utilities::{
@@ -496,7 +500,7 @@ impl Srss {
             delay_rough_us(1);
         }
         // Strangly setting this in manual config doesn't seem to work, so set it here after enabling the FLL
-        // This work in MTB though (0_o)
+        // This work in MTB though
         self.registers
             .clk_fll_config4
             .modify(CLK_FLL_CONFIG4::CCO_RANGE::RANGE4_150200MHz);

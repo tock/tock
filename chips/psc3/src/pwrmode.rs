@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! Power mode control interface
+
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -564,6 +566,7 @@ impl PwrMode {
         }
     }
 
+    /// Initializes the PPU
     pub fn ppu_init(&self) {
         self.registers
             .ppu_main_iesr
@@ -581,6 +584,7 @@ impl PwrMode {
             .write(PPU_ISR::STA_POLICY_TRN_IRQ::CLEAR);
     }
 
+    /// Enables dynamic power mode transitions with the specified minimum dynamic power mode.
     pub fn ppu_dynamic_enable(&self, min_dyn_state: PwrPolicy) {
         self.registers
             .ppu_main_pwpr

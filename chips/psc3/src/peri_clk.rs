@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! Peripheral clock control interface
+
 use kernel::utilities::registers::{
     interfaces::{ReadWriteable, Readable, Writeable},
     register_bitfields, register_structs, ReadWrite,

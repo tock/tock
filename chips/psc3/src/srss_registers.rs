@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Infineon Technologies AG 2026.
 
+//! SRSS (System Resources SubSystem) registers and bitfields.
+//! In seperate file to avoid too large files.
+
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 
 register_structs! {
