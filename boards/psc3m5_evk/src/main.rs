@@ -131,9 +131,15 @@ extern "C" {
     static _sstack: u8;
 }
 
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Psc3Plattform,
+    &'static Psc3<'static, Psc3DefaultPeripherals<'static>>,
+) {
     /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     icache::sys_init_enable_cache();
     cortexm33::support::dmb();
@@ -362,12 +368,14 @@ pub unsafe fn main() {
         kernel::debug!("{:?}", err);
     });
 
+    (board_kernel, psc3_platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    board_kernel.kernel_loop(
-        &psc3_platform,
-        chip,
-        Some(&psc3_platform.ipc),
-        &main_loop_capability,
-    );
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
