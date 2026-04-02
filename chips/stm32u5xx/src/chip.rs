@@ -43,8 +43,13 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
                 true
             }
             24 => {
-                // EXTI13 (User Button)
+                // EXTI13 (Button)
                 self.exti.handle_interrupt(13);
+                true
+            }
+            29 => {
+                // GPDMA1 Channel 0 (USART1 TX Complete)
+                self.usart1.handle_dma_interrupt();
                 true
             }
             _ => false,

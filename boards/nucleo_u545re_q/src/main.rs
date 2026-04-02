@@ -7,9 +7,13 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::debug;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::led::Led;
+use kernel::hil::uart::Transmit;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, static_init};
@@ -130,18 +134,33 @@ pub unsafe fn main() {
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
-    // 1. Load Peripherals
+    // 1. Create Individual Drivers
     let exti = static_init!(
         stm32u545::exti::Exti<'static>,
         stm32u545::exti::Exti::new(StaticRef::new(0x56022000 as *const stm32u545::exti::ExtiRegisters))
     );
 
-    let periphs = static_init!(
-        stm32u545::Stm32u5xxPeripherals<'static>,
-        stm32u545::Stm32u5xxPeripherals::new(exti)
+    let dma1 = static_init!(
+        stm32u545::dma::Dma<'static>,
+        stm32u545::dma::Dma::new(StaticRef::new(0x50020000 as *const stm32u545::dma::DmaRegisters))
     );
 
-    // 2. Power and Wires
+    let usart1 = static_init!(
+        stm32u545::usart::Usart<'static>,
+        stm32u545::usart::Usart::new(StaticRef::new(0x50013800 as *const stm32u545::usart::UsartRegisters))
+    );
+
+    // Link DMA to USART1
+    usart1.set_dma(dma1, 0);
+
+    // 2. Load Peripherals Bundle
+    let periphs = static_init!(
+        stm32u545::Stm32u5xxPeripherals<'static>,
+        stm32u545::Stm32u5xxPeripherals::new(exti, dma1, usart1)
+    );
+
+    // 3. Power and Wires
+    periphs.rcc.enable_dma1();
     periphs.rcc.enable_gpioa();
     periphs.rcc.enable_gpioc();
     periphs.rcc.enable_usart1();
@@ -155,7 +174,7 @@ pub unsafe fn main() {
 
     set_pin_primary_functions(periphs);
 
-    // 3. Driver Config
+    // 4. Driver Config
     use kernel::hil::uart::Configure;
     let _ = periphs.usart1.configure(kernel::hil::uart::Parameters {
         baud_rate: 115200,
@@ -166,19 +185,19 @@ pub unsafe fn main() {
     });
     periphs.usart1.register();
 
-    // 4. Kernel and Muxes
+    // 5. Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    let uart_mux = components::console::UartMuxComponent::new(&periphs.usart1, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(periphs.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
 
     let alarm_mux = components::alarm::AlarmMuxComponent::new(&periphs.tim2).finalize(
         components::alarm_mux_component_static!(stm32u545::tim::Tim2),
     );
 
-    // 5. Capsules
+    // 6. Capsules
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
@@ -238,7 +257,7 @@ pub unsafe fn main() {
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
-    // 6. Platform and Interrupts
+    // 7. Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
         NucleoU545RE {
@@ -252,7 +271,7 @@ pub unsafe fn main() {
         }
     );
 
-    // 7. Initialize Chip
+    // 8. Initialize Chip
     let default_peripherals = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(&periphs.tim2, &periphs.usart1, &periphs.exti)
@@ -263,14 +282,24 @@ pub unsafe fn main() {
         stm32u545::chip::Stm32u5xx::new(default_peripherals)
     );
 
-    // IRQ Targeting (IRQ 24 to Secure)
+    // IRQ Targeting
     let nvic_itns0 = 0xE000E380 as *mut u32;
-    nvic_itns0.write_volatile(nvic_itns0.read_volatile() & !(1 << 24));
+    let nvic_itns1 = 0xE000E384 as *mut u32;
+    let mut itns0 = core::ptr::read_volatile(nvic_itns0);
+    itns0 &= !(1 << 24);
+    itns0 &= !(1 << 29);
+    core::ptr::write_volatile(nvic_itns0, itns0);
+    
+    let mut itns1 = core::ptr::read_volatile(nvic_itns1);
+    itns1 &= !(1 << (45 - 32));
+    itns1 &= !(1 << (61 - 32));
+    core::ptr::write_volatile(nvic_itns1, itns1);
 
     unsafe {
         cortexm33::nvic::Nvic::new(45).enable(); // TIM2
         cortexm33::nvic::Nvic::new(61).enable(); // USART1
         cortexm33::nvic::Nvic::new(24).enable(); // EXTI13 (Button)
+        cortexm33::nvic::Nvic::new(29).enable(); // GPDMA1 (DMA)
     }
 
     // --- LOAD PROCESSES ---
@@ -289,7 +318,7 @@ pub unsafe fn main() {
         &create_capability!(capabilities::ProcessManagementCapability),
     );
 
-    // 8. Hand over control to the Tock Kernel Loop
+    // 9. Hand over control to the Tock Kernel Loop
     board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 1>(
         platform,
         chip,

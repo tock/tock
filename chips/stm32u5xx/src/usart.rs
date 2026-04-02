@@ -11,6 +11,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use crate::dma::Dma;
+
 register_structs! {
     pub UsartRegisters {
         /// Control register 1
@@ -61,7 +63,12 @@ register_bitfields![u32,
         STOP    OFFSET(12)  NUMBITS(2) []
     ],
     pub CR3 [
-        EIE     OFFSET(0)   NUMBITS(1) []
+        /// Error interrupt enable
+        EIE     OFFSET(0)   NUMBITS(1) [],
+        /// DMA enable transmitter
+        DMAT    OFFSET(7)   NUMBITS(1) [],
+        /// DMA enable receiver
+        DMAR    OFFSET(6)   NUMBITS(1) []
     ],
     pub ISR [
         /// Read data register not empty
@@ -73,12 +80,13 @@ register_bitfields![u32,
 
 pub struct Usart<'a> {
     pub registers: StaticRef<UsartRegisters>,
+    dma: OptionalCell<&'a Dma<'a>>,
+    dma_channel_tx: Cell<usize>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     rx_buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
-    tx_pos: Cell<usize>,
     deferred_call: DeferredCall,
     fifo: Cell<[u8; 32]>,
     fifo_write: Cell<usize>,
@@ -89,12 +97,13 @@ impl<'a> Usart<'a> {
     pub fn new(base: StaticRef<UsartRegisters>) -> Usart<'a> {
         Usart {
             registers: base,
+            dma: OptionalCell::empty(),
+            dma_channel_tx: Cell::new(0),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
-            tx_pos: Cell::new(0),
             deferred_call: DeferredCall::new(),
             fifo: Cell::new([0; 32]),
             fifo_write: Cell::new(0),
@@ -102,39 +111,19 @@ impl<'a> Usart<'a> {
         }
     }
 
+    pub fn set_dma(&self, dma: &'a Dma<'a>, tx_channel: usize) {
+        self.dma.set(dma);
+        self.dma_channel_tx.set(tx_channel);
+    }
+
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
         let isr = regs.isr.get();
 
-        // 1. Clear Errors
         if (isr & 0x0F) != 0 {
             regs.icr.set(0x0F);
         }
 
-        // 2. Transmit Logic (Full Async)
-        if regs.isr.is_set(ISR::TXE) && regs.cr1.is_set(CR1::TXEIE) {
-            let mut all_sent = false;
-            self.tx_buffer.map(|buf| {
-                let pos = self.tx_pos.get();
-                let len = self.tx_len.get();
-
-                if pos < len {
-                    // Send exactly one byte
-                    regs.tdr.set(buf[pos] as u32);
-                    self.tx_pos.set(pos + 1);
-                } else {
-                    all_sent = true;
-                }
-            });
-
-            if all_sent {
-                // Done! Disable interrupt and schedule callback
-                regs.cr1.modify(CR1::TXEIE::CLEAR);
-                self.deferred_call.set();
-            }
-        }
-
-        // 3. Receive Logic (Draining hardware into FIFO)
         let mut data_received = false;
         while regs.isr.is_set(ISR::RXNE) {
             let byte = regs.rdr.get() as u8;
@@ -151,9 +140,12 @@ impl<'a> Usart<'a> {
         }
     }
 
-    pub fn transmit_byte(&self, byte: u8) {
-        while !self.registers.isr.is_set(ISR::TXE) {}
-        self.registers.tdr.set(byte as u32);
+    pub fn handle_dma_interrupt(&self) {
+        self.dma.map(|dma| {
+            dma.clear_interrupt(self.dma_channel_tx.get());
+        });
+        self.registers.cr3.modify(CR3::DMAT::CLEAR);
+        self.deferred_call.set();
     }
 
     fn try_receive_from_fifo(&self) {
@@ -174,15 +166,12 @@ impl<'a> Usart<'a> {
 
 impl<'a> DeferredCallClient for Usart<'a> {
     fn handle_deferred_call(&self) {
-        // Handle Transmit Callback
         if let Some(buf) = self.tx_buffer.take() {
             let len = self.tx_len.get();
             self.tx_client.map(move |client| {
                 client.transmitted_buffer(buf, len, Ok(()));
             });
         }
-
-        // Handle Receive Draining
         self.try_receive_from_fifo();
     }
 
@@ -207,16 +196,23 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
 
         self.tx_buffer.replace(tx_buffer);
         self.tx_len.set(tx_len);
-        self.tx_pos.set(0);
 
-        // Start the interrupt-driven transmission chain
-        self.registers.cr1.modify(CR1::TXEIE::SET);
+        self.dma.map(|dma| {
+            self.tx_buffer.map(|buf| {
+                dma.setup_usart1_tx(
+                    self.dma_channel_tx.get(),
+                    buf.as_ptr() as u32,
+                    tx_len as u32
+                );
+                self.registers.cr3.modify(CR3::DMAT::SET);
+            });
+        });
 
         Ok(())
     }
 
     fn transmit_abort(&self) -> Result<(), kernel::ErrorCode> {
-        self.registers.cr1.modify(CR1::TXEIE::CLEAR);
+        self.registers.cr3.modify(CR3::DMAT::CLEAR);
         if let Some(buf) = self.tx_buffer.take() {
             self.tx_client.map(move |client| {
                 client.transmitted_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL));
@@ -235,7 +231,7 @@ impl<'a> uart::Configure for Usart<'a> {
         let regs = &*self.registers;
         regs.cr1.modify(CR1::UE::CLEAR);
         regs.presc.set(0);
-        regs.brr.set(35); // 115,200 baud
+        regs.brr.set(35);
         regs.icr.set(0x3F);
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET + CR1::RXNEIE::SET);
         Ok(())
@@ -258,7 +254,6 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     }
 
     fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
-        self.registers.cr1.modify(CR1::RXNEIE::CLEAR);
         if let Some(buf) = self.rx_buffer.take() {
             self.rx_client.map(move |client| {
                 client.received_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL), uart::Error::Aborted);

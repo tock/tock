@@ -9,7 +9,9 @@ register_structs! {
     pub RccRegisters {
         /// Control register
         (0x000 => cr: ReadWrite<u32>),
-        (0x004 => _reserved0: [u32; 34]),
+        (0x004 => _reserved0: [u32; 33]),
+        /// AHB1 peripheral clock enable register
+        (0x088 => ahb1enr: ReadWrite<u32>),
         /// AHB2 peripheral clock enable register 1
         (0x08C => ahb2enr1: ReadWrite<u32>),
         (0x090 => _reserved1: [u32; 3]),
@@ -34,6 +36,11 @@ pub struct Rcc {
 impl Rcc {
     pub const fn new(base: StaticRef<RccRegisters>) -> Rcc {
         Rcc { registers: base }
+    }
+
+    pub fn enable_dma1(&self) {
+        let val = self.registers.ahb1enr.get();
+        self.registers.ahb1enr.set(val | 1);
     }
 
     pub fn enable_gpioa(&self) {
