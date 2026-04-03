@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2024.
+// Copyright OxidOS Automotive 2026.
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_structs, ReadOnly, ReadWrite};
@@ -100,6 +100,38 @@ impl<'a> Dma<'a> {
         ch.bR1.set(length & 0xFFFF);
 
         // 8. Enable Transfer Complete Interrupt (bit 8) and Start (bit 0)
+        ch.cR.set((1 << 8) | 1); 
+    }
+
+    pub fn setup_usart1_rx(&self, channel: usize, buffer_addr: u32, length: u32) {
+        if channel >= 16 { return; }
+        
+        // Mark channel as Secure AND Privileged
+        let sec = self.registers.seccfgr.get();
+        self.registers.seccfgr.set(sec | (1 << channel));
+        let priv_reg = self.registers.privcfgr.get();
+        self.registers.privcfgr.set(priv_reg | (1 << channel));
+
+        let ch = &self.registers.channels[channel];
+
+        ch.cR.set(0);
+        ch.fCR.set(0x0000FFFF);
+
+        // Configure TR1 (Security + Direction)
+        // DINC (19), SSEC (15), DSEC (31)1
+        ch.tR1.set((1 << 19) | (1 << 15) | (1 << 31));
+
+        // Configure TR2 (Trigger Source) - REQSEL = 24
+        ch.tR2.set(24);
+
+        // 6. Set Addresses
+        ch.sAR.set(0x50013824);
+        ch.dAR.set(buffer_addr);
+
+        // 7. Set Block Register 1 (BR1)
+        ch.bR1.set(length & 0xFFFF);
+
+        // 8. Enable
         ch.cR.set((1 << 8) | 1); 
     }
 

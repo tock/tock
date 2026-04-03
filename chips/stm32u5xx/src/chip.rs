@@ -49,7 +49,12 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             29 => {
                 // GPDMA1 Channel 0 (USART1 TX Complete)
-                self.usart1.handle_dma_interrupt();
+                self.usart1.handle_dma_interrupt(true);
+                true
+            }
+            30 => {
+                // GPDMA1 Channel 1 (USART1 RX Complete)
+                self.usart1.handle_dma_interrupt(false);
                 true
             }
             _ => false,

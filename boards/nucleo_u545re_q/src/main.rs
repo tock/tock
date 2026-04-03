@@ -151,7 +151,7 @@ pub unsafe fn main() {
     );
 
     // Link DMA to USART1
-    usart1.set_dma(dma1, 0);
+    usart1.set_dma(dma1, 0, 1);
 
     // 2. Load Peripherals Bundle
     let periphs = static_init!(
@@ -288,6 +288,7 @@ pub unsafe fn main() {
     let mut itns0 = core::ptr::read_volatile(nvic_itns0);
     itns0 &= !(1 << 24);
     itns0 &= !(1 << 29);
+    itns0 &= !(1 << 30);
     core::ptr::write_volatile(nvic_itns0, itns0);
     
     let mut itns1 = core::ptr::read_volatile(nvic_itns1);
@@ -299,7 +300,8 @@ pub unsafe fn main() {
         cortexm33::nvic::Nvic::new(45).enable(); // TIM2
         cortexm33::nvic::Nvic::new(61).enable(); // USART1
         cortexm33::nvic::Nvic::new(24).enable(); // EXTI13 (Button)
-        cortexm33::nvic::Nvic::new(29).enable(); // GPDMA1 (DMA)
+        cortexm33::nvic::Nvic::new(29).enable(); // GPDMA1 (DMA TX)
+        cortexm33::nvic::Nvic::new(30).enable(); // GPDMA1 (DMA RX)
     }
 
     // --- LOAD PROCESSES ---

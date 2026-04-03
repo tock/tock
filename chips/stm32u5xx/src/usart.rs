@@ -82,11 +82,13 @@ pub struct Usart<'a> {
     pub registers: StaticRef<UsartRegisters>,
     dma: OptionalCell<&'a Dma<'a>>,
     dma_channel_tx: Cell<usize>,
+    dma_channel_rx: Cell<usize>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     rx_buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
+    rx_len: Cell<usize>,
     deferred_call: DeferredCall,
     fifo: Cell<[u8; 32]>,
     fifo_write: Cell<usize>,
@@ -99,11 +101,13 @@ impl<'a> Usart<'a> {
             registers: base,
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(0),
+            dma_channel_rx: Cell::new(0),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
+            rx_len: Cell::new(0),
             deferred_call: DeferredCall::new(),
             fifo: Cell::new([0; 32]),
             fifo_write: Cell::new(0),
@@ -111,9 +115,10 @@ impl<'a> Usart<'a> {
         }
     }
 
-    pub fn set_dma(&self, dma: &'a Dma<'a>, tx_channel: usize) {
+    pub fn set_dma(&self, dma: &'a Dma<'a>, tx_channel: usize, rx_channel: usize) {
         self.dma.set(dma);
         self.dma_channel_tx.set(tx_channel);
+        self.dma_channel_rx.set(rx_channel);
     }
 
     pub fn handle_interrupt(&self) {
@@ -124,6 +129,7 @@ impl<'a> Usart<'a> {
             regs.icr.set(0x0F);
         }
 
+        // Receive Logic (Draining hardware into FIFO)
         let mut data_received = false;
         while regs.isr.is_set(ISR::RXNE) {
             let byte = regs.rdr.get() as u8;
@@ -140,11 +146,16 @@ impl<'a> Usart<'a> {
         }
     }
 
-    pub fn handle_dma_interrupt(&self) {
+    pub fn handle_dma_interrupt(&self, is_tx: bool) {
         self.dma.map(|dma| {
-            dma.clear_interrupt(self.dma_channel_tx.get());
+            if is_tx {
+                dma.clear_interrupt(self.dma_channel_tx.get());
+                self.registers.cr3.modify(CR3::DMAT::CLEAR);
+            } else {
+                dma.clear_interrupt(self.dma_channel_rx.get());
+                self.registers.cr3.modify(CR3::DMAR::CLEAR);
+            }
         });
-        self.registers.cr3.modify(CR3::DMAT::CLEAR);
         self.deferred_call.set();
     }
 
@@ -166,13 +177,23 @@ impl<'a> Usart<'a> {
 
 impl<'a> DeferredCallClient for Usart<'a> {
     fn handle_deferred_call(&self) {
+        // 1. Transmit Completion
         if let Some(buf) = self.tx_buffer.take() {
             let len = self.tx_len.get();
             self.tx_client.map(move |client| {
                 client.transmitted_buffer(buf, len, Ok(()));
             });
         }
-        self.try_receive_from_fifo();
+
+        // 2. Receive Completion (Check DMA first, then fallback to FIFO)
+        if let Some(buf) = self.rx_buffer.take() {
+            let len = self.rx_len.get();
+            self.rx_client.map(move |client| {
+                client.received_buffer(buf, len, Ok(()), uart::Error::None);
+            });
+        } else {
+            self.try_receive_from_fifo();
+        }
     }
 
     fn register(&'static self) {
@@ -246,14 +267,31 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+        if self.rx_buffer.is_some() {
+            return Err((kernel::ErrorCode::BUSY, rx_buffer));
+        }
+
         self.rx_buffer.replace(rx_buffer);
-        self.try_receive_from_fifo();
+        self.rx_len.set(rx_len);
+
+        self.dma.map(|dma| {
+            self.rx_buffer.map(|buf| {
+                dma.setup_usart1_rx(
+                    self.dma_channel_rx.get(),
+                    buf.as_ptr() as u32,
+                    rx_len as u32
+                );
+                self.registers.cr3.modify(CR3::DMAR::SET);
+            });
+        });
+
         Ok(())
     }
 
     fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
+        self.registers.cr3.modify(CR3::DMAR::CLEAR);
         if let Some(buf) = self.rx_buffer.take() {
             self.rx_client.map(move |client| {
                 client.received_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL), uart::Error::Aborted);
