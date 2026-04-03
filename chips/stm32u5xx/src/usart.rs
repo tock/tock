@@ -129,7 +129,7 @@ impl<'a> Usart<'a> {
             regs.icr.set(0x0F);
         }
 
-        // Receive Logic (Draining hardware into FIFO)
+        // Receive Logic (IRQ Based - Drain hardware into FIFO)
         let mut data_received = false;
         while regs.isr.is_set(ISR::RXNE) {
             let byte = regs.rdr.get() as u8;
@@ -147,16 +147,13 @@ impl<'a> Usart<'a> {
     }
 
     pub fn handle_dma_interrupt(&self, is_tx: bool) {
-        self.dma.map(|dma| {
-            if is_tx {
+        if is_tx {
+            self.dma.map(|dma| {
                 dma.clear_interrupt(self.dma_channel_tx.get());
-                self.registers.cr3.modify(CR3::DMAT::CLEAR);
-            } else {
-                dma.clear_interrupt(self.dma_channel_rx.get());
-                self.registers.cr3.modify(CR3::DMAR::CLEAR);
-            }
-        });
-        self.deferred_call.set();
+            });
+            self.registers.cr3.modify(CR3::DMAT::CLEAR);
+            self.deferred_call.set();
+        }
     }
 
     fn try_receive_from_fifo(&self) {
@@ -177,7 +174,7 @@ impl<'a> Usart<'a> {
 
 impl<'a> DeferredCallClient for Usart<'a> {
     fn handle_deferred_call(&self) {
-        // 1. Transmit Completion
+        // 1. Transmit Completion (DMA)
         if let Some(buf) = self.tx_buffer.take() {
             let len = self.tx_len.get();
             self.tx_client.map(move |client| {
@@ -185,15 +182,8 @@ impl<'a> DeferredCallClient for Usart<'a> {
             });
         }
 
-        // 2. Receive Completion (Check DMA first, then fallback to FIFO)
-        if let Some(buf) = self.rx_buffer.take() {
-            let len = self.rx_len.get();
-            self.rx_client.map(move |client| {
-                client.received_buffer(buf, len, Ok(()), uart::Error::None);
-            });
-        } else {
-            self.try_receive_from_fifo();
-        }
+        // 2. Receive Completion (FIFO)
+        self.try_receive_from_fifo();
     }
 
     fn register(&'static self) {
@@ -254,6 +244,7 @@ impl<'a> uart::Configure for Usart<'a> {
         regs.presc.set(0);
         regs.brr.set(35);
         regs.icr.set(0x3F);
+        // Hybrid: RXNEIE is ENABLED for typing interrupts
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET + CR1::RXNEIE::SET);
         Ok(())
     }
@@ -267,31 +258,14 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        rx_len: usize,
+        _rx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
-        if self.rx_buffer.is_some() {
-            return Err((kernel::ErrorCode::BUSY, rx_buffer));
-        }
-
         self.rx_buffer.replace(rx_buffer);
-        self.rx_len.set(rx_len);
-
-        self.dma.map(|dma| {
-            self.rx_buffer.map(|buf| {
-                dma.setup_usart1_rx(
-                    self.dma_channel_rx.get(),
-                    buf.as_ptr() as u32,
-                    rx_len as u32
-                );
-                self.registers.cr3.modify(CR3::DMAR::SET);
-            });
-        });
-
+        self.try_receive_from_fifo();
         Ok(())
     }
 
     fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
-        self.registers.cr3.modify(CR3::DMAR::CLEAR);
         if let Some(buf) = self.rx_buffer.take() {
             self.rx_client.map(move |client| {
                 client.received_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL), uart::Error::Aborted);
