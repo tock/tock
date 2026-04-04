@@ -29,7 +29,6 @@ use kernel::hil::uart::{
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 use tock_cells::take_cell::TakeCell;
-use tock_registers::register_trait::Aliased;
 use tock_registers::{
     register_bitfields, registers, FakeRegister, LocalRegisterCopy, NoAccess, Read, Safe, Write,
 };
@@ -37,14 +36,25 @@ use tock_registers::{
 registers! {
     #![buses(Port)]
     serial_registers {
-        0 => buffer_or_divisor_lsb: u8 { Read, Write },
-        1 => interrupt_enable_or_divisor_msb: u8 { Read, Write },
-        // FCR bitfield not defined yet
-        2 => fifo_control_interrupt_id: Aliased<u8, IIR::Register> { Read, Write },
+        0 => rx_buffer: u8 { Read },
+        #[aliased]
+        0 => tx_buffer: u8 { Write },
+        #[aliased]
+        0 => divisor_lsb: u8 { Read, Write },
+
+        1 => interrupt_enable: IER::Register { Read, Write },
+        #[aliased]
+        1 => divisor_msb: u8 { Read, Write },
+
+        2 => interrupt_id: IIR::Register { Read },
+        // FCR bitfield not defined yet, so this uses u8
+        #[aliased]
+        2 => fifo_control: u8 { Write },
+
         3 => line_control_register: LCR::Register { Read, Write },
-        4 => modem_control_register: u8 { Read, Write }, // MCR bitfield not defined yet
+        4 => modem_control_register: u8 { Read, Write }, // MCR bitfield not defined yet, hence u8
         5 => line_status_register: LSR::Register { Read },
-        6 => modem_status_register: u8 { Read }, // MSR bitfield not defined yet
+        6 => modem_status_register: u8 { Read }, // MSR bitfield not defined yet, hence u8
         7 => scratch: u8 { Read, Write },
     },
 }
@@ -75,63 +85,97 @@ impl Fake8250 {
 }
 
 impl serial_registers::Interface for &Fake8250 {
-    type buffer_or_divisor_lsb = FakeRegister<Self, u8, Safe, Safe>;
-    fn buffer_or_divisor_lsb(self) -> FakeRegister<Self, u8, Safe, Safe> {
+    type rx_buffer = FakeRegister<Self, u8, Safe, NoAccess>;
+    fn rx_buffer(self) -> FakeRegister<Self, u8, Safe, NoAccess> {
+        FakeRegister::new(self).on_read(|_| unimplemented!())
+    }
+
+    type tx_buffer = FakeRegister<Self, u8, NoAccess, Safe>;
+    fn tx_buffer(self) -> FakeRegister<Self, u8, NoAccess, Safe> {
+        FakeRegister::new(self).on_write(|s, byte| {
+            assert!(
+                !s.lcr.get().is_set(LCR::DLAB),
+                "tried to write TX buffer with DLAB bit set"
+            );
+            assert!(
+                s.tx_buffer.replace(Some(byte)).is_none(),
+                "TX buffer overflow"
+            );
+        })
+    }
+
+    type divisor_lsb = FakeRegister<Self, u8, Safe, Safe>;
+    fn divisor_lsb(self) -> FakeRegister<Self, u8, Safe, Safe> {
         FakeRegister::new(self)
-            .on_read(|_| todo!())
-            .on_write(|s, byte| match s.lcr.get().is_set(LCR::DLAB) {
-                true => todo!(),
-                false => assert!(
-                    s.tx_buffer.replace(Some(byte)).is_none(),
-                    "TX buffer overflow"
-                ),
+            .on_read(|_| unimplemented!())
+            .on_write(|_, _| unimplemented!())
+    }
+
+    type interrupt_enable = FakeRegister<Self, IER::Register, Safe, Safe>;
+    fn interrupt_enable(self) -> FakeRegister<Self, IER::Register, Safe, Safe> {
+        FakeRegister::new(self)
+            .on_read(|s| {
+                assert!(
+                    !s.lcr.get().is_set(LCR::DLAB),
+                    "tried to read IER with DLAB bit set"
+                );
+                s.ier.get().get()
+            })
+            .on_write(|s, v| {
+                assert!(
+                    !s.lcr.get().is_set(LCR::DLAB),
+                    "tried to write IER with DLAB bit set"
+                );
+                s.ier.set(LocalRegisterCopy::new(v))
             })
     }
-    type interrupt_enable_or_divisor_msb = FakeRegister<Self, u8, Safe, Safe>;
-    fn interrupt_enable_or_divisor_msb(self) -> FakeRegister<Self, u8, Safe, Safe> {
+
+    type divisor_msb = FakeRegister<Self, u8, Safe, Safe>;
+    fn divisor_msb(self) -> FakeRegister<Self, u8, Safe, Safe> {
         FakeRegister::new(self)
-            .on_read(|s| match s.lcr.get().is_set(LCR::DLAB) {
-                true => todo!(),
-                false => s.ier.get().get(),
-            })
-            .on_write(|s, v| match s.lcr.get().is_set(LCR::DLAB) {
-                true => todo!(),
-                false => s.ier.set(LocalRegisterCopy::new(v)),
-            })
+            .on_read(|_| unimplemented!())
+            .on_write(|_, _| unimplemented!())
     }
-    type fifo_control_interrupt_id = FakeRegister<Self, Aliased<u8, IIR::Register>, Safe, Safe>;
-    fn fifo_control_interrupt_id(
-        self,
-    ) -> FakeRegister<Self, Aliased<u8, IIR::Register>, Safe, Safe> {
-        FakeRegister::new(self)
-            .on_read(|_| todo!())
-            .on_write(|_, _| todo!())
+
+    type interrupt_id = FakeRegister<Self, IIR::Register, Safe, NoAccess>;
+    fn interrupt_id(self) -> FakeRegister<Self, IIR::Register, Safe, NoAccess> {
+        FakeRegister::new(self).on_read(|_| unimplemented!())
     }
+
+    type fifo_control = FakeRegister<Self, u8, NoAccess, Safe>;
+    fn fifo_control(self) -> FakeRegister<Self, u8, NoAccess, Safe> {
+        FakeRegister::new(self).on_write(|_, _| unimplemented!())
+    }
+
     type line_control_register = FakeRegister<Self, LCR::Register, Safe, Safe>;
     fn line_control_register(self) -> FakeRegister<Self, LCR::Register, Safe, Safe> {
         FakeRegister::new(self)
-            .on_read(|_| todo!())
-            .on_write(|_, _| todo!())
+            .on_read(|_| unimplemented!())
+            .on_write(|_, _| unimplemented!())
     }
+
     type modem_control_register = FakeRegister<Self, u8, Safe, Safe>;
     fn modem_control_register(self) -> FakeRegister<Self, u8, Safe, Safe> {
         FakeRegister::new(self)
-            .on_read(|_| todo!())
-            .on_write(|_, _| todo!())
+            .on_read(|_| unimplemented!())
+            .on_write(|_, _| unimplemented!())
     }
+
     type line_status_register = FakeRegister<Self, LSR::Register, Safe, NoAccess>;
     fn line_status_register(self) -> FakeRegister<Self, LSR::Register, Safe, NoAccess> {
-        FakeRegister::new(self).on_read(|_| todo!())
+        FakeRegister::new(self).on_read(|_| unimplemented!())
     }
+
     type modem_status_register = FakeRegister<Self, u8, Safe, NoAccess>;
     fn modem_status_register(self) -> FakeRegister<Self, u8, Safe, NoAccess> {
-        FakeRegister::new(self).on_read(|_| todo!())
+        FakeRegister::new(self).on_read(|_| unimplemented!())
     }
+
     type scratch = FakeRegister<Self, u8, Safe, Safe>;
     fn scratch(self) -> FakeRegister<Self, u8, Safe, Safe> {
         FakeRegister::new(self)
-            .on_read(|_| todo!())
-            .on_write(|_, _| todo!())
+            .on_read(|_| unimplemented!())
+            .on_write(|_, _| unimplemented!())
     }
 }
 
@@ -333,12 +377,10 @@ impl<R: serial_registers::Interface> SerialPort<'_, R> {
     /// Finishes out a long-running RX operation.
     fn finish_rx(&self, res: Result<(), ErrorCode>, error: Error) {
         // Turn off RX interrupts
-        let ier_value = self.registers.interrupt_enable_or_divisor_msb().get();
+        let ier_value = self.registers.interrupt_enable().get();
         let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
         ier.modify(IER::RDA::CLEAR);
-        self.registers
-            .interrupt_enable_or_divisor_msb()
-            .set(ier.get());
+        self.registers.interrupt_enable().set(ier.get());
 
         if let Some(b) = self.rx_buffer.take() {
             self.rx_client
@@ -352,7 +394,7 @@ impl<R: serial_registers::Interface> SerialPort<'_, R> {
             // Still have bytes to send
             let tx_index = self.tx_index.get();
             self.tx_buffer.map(|b| {
-                self.registers.buffer_or_divisor_lsb().set(b[tx_index]);
+                self.registers.tx_buffer().set(b[tx_index]);
             });
             self.tx_index.set(tx_index + 1);
         } else {
@@ -366,7 +408,7 @@ impl<R: serial_registers::Interface> SerialPort<'_, R> {
             // Still have bytes to receive
             let rx_index = self.rx_index.get();
             self.rx_buffer.map(|b| {
-                b[rx_index] = self.registers.buffer_or_divisor_lsb().get();
+                b[rx_index] = self.registers.rx_buffer().get();
             });
             self.rx_index.set(rx_index + 1);
         }
@@ -382,7 +424,7 @@ impl<R: serial_registers::Interface> SerialPort<'_, R> {
         // highest-priority one. So we need to read IIR in a loop until the Interrupt Pending flag
         // becomes set (indicating that there are no more pending interrupts).
         loop {
-            let iir_val = self.registers.fifo_control_interrupt_id().get();
+            let iir_val = self.registers.interrupt_id().get();
 
             let iir: LocalRegisterCopy<u8, IIR::Register> = LocalRegisterCopy::new(iir_val);
 
@@ -446,20 +488,18 @@ impl<R: serial_registers::Interface> Configure for SerialPort<'_, R> {
         // Program the divisor and clear DLAB
         lcr.modify(LCR::DLAB::CLEAR);
         let divisor_bytes = divisor.to_le_bytes();
-        self.registers.buffer_or_divisor_lsb().set(divisor_bytes[0]);
-        self.registers
-            .interrupt_enable_or_divisor_msb()
-            .set(divisor_bytes[1]);
+        self.registers.divisor_lsb().set(divisor_bytes[0]);
+        self.registers.divisor_msb().set(divisor_bytes[1]);
         self.registers.line_control_register().set(lcr.get());
 
         // Disable FIFOs
-        self.registers.fifo_control_interrupt_id().set(0);
+        self.registers.fifo_control().set(0);
 
         // Read IIR once to clear any pending interrupts
-        self.registers.fifo_control_interrupt_id().get();
+        self.registers.interrupt_id().get();
 
         // Start with all interrupts disabled
-        self.registers.interrupt_enable_or_divisor_msb().set(0);
+        self.registers.interrupt_enable().set(0);
 
         Ok(())
     }
@@ -484,19 +524,17 @@ impl<'a, R: serial_registers::Interface> Transmit<'a> for SerialPort<'a, R> {
         }
 
         // Transmit the first byte
-        self.registers.buffer_or_divisor_lsb().set(tx_buffer[0]);
+        self.registers.tx_buffer().set(tx_buffer[0]);
 
         self.tx_buffer.replace(tx_buffer);
         self.tx_len.set(tx_len);
         self.tx_index.set(1);
 
         // Enable TX interrupts
-        let ier_value = self.registers.interrupt_enable_or_divisor_msb().get();
+        let ier_value = self.registers.interrupt_enable().get();
         let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
         ier.modify(IER::THRE::SET);
-        self.registers
-            .interrupt_enable_or_divisor_msb()
-            .set(ier.get());
+        self.registers.interrupt_enable().set(ier.get());
 
         Ok(())
     }
@@ -540,12 +578,10 @@ impl<'a, R: serial_registers::Interface> Receive<'a> for SerialPort<'a, R> {
         self.rx_index.set(0);
 
         // Enable RX interrupts
-        let ier_value = self.registers.interrupt_enable_or_divisor_msb().get();
+        let ier_value = self.registers.interrupt_enable().get();
         let mut ier: LocalRegisterCopy<u8, IER::Register> = LocalRegisterCopy::new(ier_value);
         ier.modify(IER::RDA::SET);
-        self.registers
-            .interrupt_enable_or_divisor_msb()
-            .set(ier.get());
+        self.registers.interrupt_enable().set(ier.get());
 
         Ok(())
     }
@@ -663,7 +699,7 @@ impl<R: serial_registers::Interface> IoWrite for BlockingSerialPort<R> {
                 }
             }
 
-            self.0.buffer_or_divisor_lsb().set(*b);
+            self.0.tx_buffer().set(*b);
         }
 
         buf.len()
