@@ -20,22 +20,22 @@ impl Address for Port {
 }
 
 macro_rules! bus_impls {
-    ($data_type:ty, $size:literal, $in:ident, $out:ident) => {
-        impl Bus<$data_type> for Port {
+    ($value:ty, $size:literal, $in:ident, $out:ident) => {
+        impl Bus<$value> for Port {
             const PADDED_SIZE: usize = $size;
         }
-        impl BusRead<$data_type> for Port {
-            unsafe fn read(self) -> $data_type {
+        impl BusRead<$value> for Port {
+            unsafe fn read(self) -> $value {
                 #[cfg(target_arch = "x86")]
                 unsafe {
-                    $in(self.0) as $data_type
+                    $in(self.0) as $value
                 }
                 #[cfg(not(target_arch = "x86"))]
                 unimplemented!()
             }
         }
-        impl BusWrite<$data_type> for Port {
-            unsafe fn write(self, val: $data_type) {
+        impl BusWrite<$value> for Port {
+            unsafe fn write(self, val: $value) {
                 #[cfg(target_arch = "x86")]
                 unsafe {
                     $out(self.0, val as _)
