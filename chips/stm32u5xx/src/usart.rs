@@ -88,7 +88,6 @@ pub struct Usart<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
-    rx_len: Cell<usize>,
     deferred_call: DeferredCall,
     fifo: Cell<[u8; 32]>,
     fifo_write: Cell<usize>,
@@ -107,7 +106,6 @@ impl<'a> Usart<'a> {
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
-            rx_len: Cell::new(0),
             deferred_call: DeferredCall::new(),
             fifo: Cell::new([0; 32]),
             fifo_write: Cell::new(0),
@@ -118,7 +116,8 @@ impl<'a> Usart<'a> {
     pub fn set_dma(&self, dma: &'a Dma<'a>, tx_channel: usize, rx_channel: usize) {
         self.dma.set(dma);
         self.dma_channel_tx.set(tx_channel);
-        //self.dma_channel_rx.set(rx_channel);
+        // Unnused but kept for testing
+        self.dma_channel_rx.set(rx_channel);
     }
 
     pub fn handle_interrupt(&self) {
