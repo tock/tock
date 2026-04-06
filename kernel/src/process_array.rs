@@ -39,7 +39,7 @@ impl ProcessSlot {
     /// Install a [`Process`](process::Process) into this process slot from outside the
     /// kernel crate.
     ///
-    /// The normal [`set()`](Self::set) method is `pub(crate)` because, in
+    /// The normal `set()` method is `pub(crate)` because, in
     /// production, only the kernel's own process-loading machinery should be
     /// able to populate a process slot. However, test code and external process
     /// implementations live in separate crates and still need a way to register
