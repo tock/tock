@@ -39,10 +39,22 @@ register_structs! {
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum PinId {
-    Pin00 = 0, Pin01 = 1, Pin02 = 2, Pin03 = 3,
-    Pin04 = 4, Pin05 = 5, Pin06 = 6, Pin07 = 7,
-    Pin08 = 8, Pin09 = 9, Pin10 = 10, Pin11 = 11,
-    Pin12 = 12, Pin13 = 13, Pin14 = 14, Pin15 = 15,
+    Pin00 = 0,
+    Pin01 = 1,
+    Pin02 = 2,
+    Pin03 = 3,
+    Pin04 = 4,
+    Pin05 = 5,
+    Pin06 = 6,
+    Pin07 = 7,
+    Pin08 = 8,
+    Pin09 = 9,
+    Pin10 = 10,
+    Pin11 = 11,
+    Pin12 = 12,
+    Pin13 = 13,
+    Pin14 = 14,
+    Pin15 = 15,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -233,17 +245,20 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         let line_num = self.pin;
         if line_num < 16 {
-            debug!("GPIO: Enabling interrupts for Pin {} on Port {}", line_num, self.port_id);
+            debug!(
+                "GPIO: Enabling interrupts for Pin {} on Port {}",
+                line_num, self.port_id
+            );
             let line = unsafe { core::mem::transmute::<u8, LineId>(line_num as u8) };
             self.exti_lineid.set(line);
-            
+
             self.client.map(|client| {
                 self.exti.register_client(line, client);
             });
 
             // 1. Route the port to the line
             self.exti.select_port(line, self.port_id);
-            
+
             // 2. MARK THE LINE AS SECURE (Required for U5 Secure Mode!)
             self.exti.set_secure(line);
 
@@ -276,7 +291,8 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        self.exti_lineid.map_or(false, |line| self.exti.is_pending(line))
+        self.exti_lineid
+            .map_or(false, |line| self.exti.is_pending(line))
     }
 }
 

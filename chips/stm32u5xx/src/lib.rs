@@ -70,8 +70,16 @@ impl<'a> Stm32u5xxPeripherals<'a> {
             rcc: rcc::Rcc::new(StaticRef::new(0x46020C00 as *const rcc::RccRegisters)),
             exti,
             dma1,
-            gpio_a: gpio::Port::new(StaticRef::new(0x52020000 as *const gpio::GpioRegisters), exti, 0),
-            gpio_c: gpio::Port::new(StaticRef::new(0x52020800 as *const gpio::GpioRegisters), exti, 2),
+            gpio_a: gpio::Port::new(
+                StaticRef::new(0x52020000 as *const gpio::GpioRegisters),
+                exti,
+                0,
+            ),
+            gpio_c: gpio::Port::new(
+                StaticRef::new(0x52020800 as *const gpio::GpioRegisters),
+                exti,
+                2,
+            ),
             usart1,
             tim2: tim::Tim2::new(StaticRef::new(0x50000000 as *const tim::TimRegisters)),
         }

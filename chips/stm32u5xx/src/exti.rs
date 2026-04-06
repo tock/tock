@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
-use enum_primitive::cast::FromPrimitive;
-use enum_primitive::enum_from_primitive;
 
 register_structs! {
     pub ExtiRegisters {
@@ -79,7 +79,7 @@ impl<'a> Exti<'a> {
         let line_num = line as usize;
         let register_index = line_num / 4;
         let offset = (line_num % 4) * 8;
-        
+
         let mut val = self.registers.exticr[register_index].get();
         val &= !(0xFF << offset);
         val |= (port & 0xFF) << offset;

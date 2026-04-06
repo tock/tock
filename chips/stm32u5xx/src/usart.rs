@@ -212,7 +212,7 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
                 dma.setup_usart1_tx(
                     self.dma_channel_tx.get(),
                     buf.as_ptr() as u32,
-                    tx_len as u32
+                    tx_len as u32,
                 );
                 self.registers.cr3.modify(CR3::DMAT::SET);
             });
@@ -244,7 +244,8 @@ impl<'a> uart::Configure for Usart<'a> {
         regs.brr.set(35);
         regs.icr.set(0x3F);
         // Hybrid: RXNEIE is ENABLED for typing interrupts
-        regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET + CR1::RXNEIE::SET);
+        regs.cr1
+            .write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET + CR1::RXNEIE::SET);
         Ok(())
     }
 }
@@ -267,7 +268,12 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
         if let Some(buf) = self.rx_buffer.take() {
             self.rx_client.map(move |client| {
-                client.received_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL), uart::Error::Aborted);
+                client.received_buffer(
+                    buf,
+                    0,
+                    Err(kernel::ErrorCode::CANCEL),
+                    uart::Error::Aborted,
+                );
             });
         }
         Ok(())

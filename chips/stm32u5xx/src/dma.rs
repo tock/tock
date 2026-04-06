@@ -66,8 +66,10 @@ impl<'a> Dma<'a> {
     }
 
     pub fn setup_usart1_tx(&self, channel: usize, buffer_addr: u32, length: u32) {
-        if channel >= 16 { return; }
-        
+        if channel >= 16 {
+            return;
+        }
+
         // 1. Mark channel as Secure AND Privileged
         let sec = self.registers.seccfgr.get();
         self.registers.seccfgr.set(sec | (1 << channel));
@@ -100,12 +102,14 @@ impl<'a> Dma<'a> {
         ch.b_r1.set(length & 0xFFFF);
 
         // 8. Enable Transfer Complete Interrupt (bit 8) and Start (bit 0)
-        ch.c_r.set((1 << 8) | 1); 
+        ch.c_r.set((1 << 8) | 1);
     }
 
     pub fn setup_usart1_rx(&self, channel: usize, buffer_addr: u32, length: u32) {
-        if channel >= 16 { return; }
-        
+        if channel >= 16 {
+            return;
+        }
+
         // Mark channel as Secure AND Privileged
         let sec = self.registers.seccfgr.get();
         self.registers.seccfgr.set(sec | (1 << channel));
@@ -132,11 +136,13 @@ impl<'a> Dma<'a> {
         ch.b_r1.set(length & 0xFFFF);
 
         // 8. Enable
-        ch.c_r.set((1 << 8) | 1); 
+        ch.c_r.set((1 << 8) | 1);
     }
 
     pub fn clear_interrupt(&self, channel: usize) {
-        if channel >= 16 { return; }
+        if channel >= 16 {
+            return;
+        }
         let ch = &self.registers.channels[channel];
         ch.f_cr.set(0x0000FFFF);
     }

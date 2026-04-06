@@ -4,9 +4,9 @@
 
 #![no_std]
 
-pub use stm32u5xx::{chip, exti, gpio, rcc, tim, usart, dma, Stm32u5xxPeripherals};
+pub use stm32u5xx::{chip, dma, exti, gpio, rcc, tim, usart, Stm32u5xxPeripherals};
 
-use cortexm33::{CortexMVariant, CortexM33};
+use cortexm33::{CortexM33, CortexMVariant};
 
 pub unsafe fn init() {
     stm32u5xx::init();

@@ -135,17 +135,23 @@ pub unsafe fn main() {
     // Create Individual Drivers
     let exti = static_init!(
         stm32u545::exti::Exti<'static>,
-        stm32u545::exti::Exti::new(StaticRef::new(0x56022000 as *const stm32u545::exti::ExtiRegisters))
+        stm32u545::exti::Exti::new(StaticRef::new(
+            0x56022000 as *const stm32u545::exti::ExtiRegisters
+        ))
     );
 
     let dma1 = static_init!(
         stm32u545::dma::Dma<'static>,
-        stm32u545::dma::Dma::new(StaticRef::new(0x50020000 as *const stm32u545::dma::DmaRegisters))
+        stm32u545::dma::Dma::new(StaticRef::new(
+            0x50020000 as *const stm32u545::dma::DmaRegisters
+        ))
     );
 
     let usart1 = static_init!(
         stm32u545::usart::Usart<'static>,
-        stm32u545::usart::Usart::new(StaticRef::new(0x50013800 as *const stm32u545::usart::UsartRegisters))
+        stm32u545::usart::Usart::new(StaticRef::new(
+            0x50013800 as *const stm32u545::usart::UsartRegisters
+        ))
     );
 
     // Link DMA to USART1
@@ -237,11 +243,20 @@ pub unsafe fn main() {
     let button_pin = static_init!(
         kernel::hil::gpio::InterruptValueWrapper<stm32u545::gpio::Pin>,
         kernel::hil::gpio::InterruptValueWrapper::new(button_pin_raw)
-    ).finalize();
+    )
+    .finalize();
 
     let button_pins = static_init!(
-        [(&'static kernel::hil::gpio::InterruptValueWrapper<'static, stm32u545::gpio::Pin>, kernel::hil::gpio::ActivationMode, kernel::hil::gpio::FloatingState); 1],
-        [(button_pin, kernel::hil::gpio::ActivationMode::ActiveHigh, kernel::hil::gpio::FloatingState::PullDown)]
+        [(
+            &'static kernel::hil::gpio::InterruptValueWrapper<'static, stm32u545::gpio::Pin>,
+            kernel::hil::gpio::ActivationMode,
+            kernel::hil::gpio::FloatingState
+        ); 1],
+        [(
+            button_pin,
+            kernel::hil::gpio::ActivationMode::ActiveHigh,
+            kernel::hil::gpio::FloatingState::PullDown
+        )]
     );
 
     let button = components::button::ButtonComponent::new(
@@ -264,14 +279,22 @@ pub unsafe fn main() {
             led,
             button,
             alarm,
-            ipc: kernel::ipc::IPC::new(board_kernel, kernel::ipc::DRIVER_NUM, &memory_allocation_cap),
+            ipc: kernel::ipc::IPC::new(
+                board_kernel,
+                kernel::ipc::DRIVER_NUM,
+                &memory_allocation_cap
+            ),
         }
     );
 
     // Initialize Chip
     let default_peripherals = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(&periphs.tim2, &periphs.usart1, &periphs.exti)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(
+            &periphs.tim2,
+            &periphs.usart1,
+            &periphs.exti
+        )
     );
 
     let chip = static_init!(
