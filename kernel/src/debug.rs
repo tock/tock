@@ -73,11 +73,13 @@
 //!     utils::SyncDebugWriter
 //! );
 //!
+//! kernel::debug::initialize_debug_writer_wrapper::<
+//!     <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider
+//! >();
+//!
 //! kernel::debug::set_debug_writer_wrapper(
-//!     static_init!(
-//!         kernel::debug::DebugWriterWrapper,
-//!         kernel::debug::DebugWriterWrapper::new(debug_writer)
-//!     ),
+//!     debug_writer,
+//!     create_capability!(kernel::capabilities::SetDebugWriterCapability)
 //! );
 //! ```
 //!
@@ -433,7 +435,7 @@ pub trait DebugWriter {
 
     /// Flush any buffered bytes to the provided output writer.
     ///
-    /// `flush()` should be used to write an buffered bytes to a new `writer`
+    /// `flush()` should be used to write any buffered bytes to a new `writer`
     /// instead of the internal writer that `publish()` would use.
     fn flush(&self, writer: &mut dyn IoWrite);
 }
