@@ -647,7 +647,7 @@ impl Component for SerialPortComponent {
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let serial = s.0.write(SerialPort::new(unsafe {
-            serial_registers::Real::new(Port(self.base))
+            serial_registers::Real::new(Port::new(self.base))
         }));
 
         // Deferred call registration
@@ -675,7 +675,7 @@ impl BlockingSerialPort<serial_registers::Real<Port>> {
     /// For a given `base` address, there must be no other `SerialPort` or `BlockingSerialPort` in
     /// active use.
     pub unsafe fn new(base: u16) -> Self {
-        Self(unsafe { serial_registers::Real::new(Port(base)) })
+        Self(unsafe { serial_registers::Real::new(Port::new(base)) })
     }
 }
 
