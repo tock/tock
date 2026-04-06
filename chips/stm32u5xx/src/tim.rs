@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright OxidOS Automotive 2026.
+
 use kernel::hil::time::{self, Ticks, Ticks32};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -62,7 +66,7 @@ impl<'a> Tim2<'a> {
     }
 
     pub fn enable_clock(&self) {
-        // Secure Alias for RCC_APB1ENR1 (from working C code)
+        // Secure Alias for RCC_APB1ENR1
         let rcc_apb1enr1 = 0x46020C9C as *mut u32;
         unsafe {
             core::ptr::write_volatile(rcc_apb1enr1, core::ptr::read_volatile(rcc_apb1enr1) | 1);

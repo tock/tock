@@ -118,7 +118,7 @@ impl<'a> Dma<'a> {
         ch.fCR.set(0x0000FFFF);
 
         // Configure TR1 (Security + Direction)
-        // DINC (19), SSEC (15), DSEC (31)1
+        // DINC (19), SSEC (15), DSEC (31)
         ch.tR1.set((1 << 19) | (1 << 15) | (1 << 31));
 
         // Configure TR2 (Trigger Source) - REQSEL = 24

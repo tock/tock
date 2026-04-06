@@ -1,6 +1,7 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
+// Copyright OxidOS Automotive 2026.
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
@@ -25,7 +26,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        // Literal Secure Alias for USART1 (from working C code)
+        // Literal Secure Alias for USART1
         let uart_isr = 0x5001381C as *mut u32;
         let uart_tdr = 0x50013828 as *mut u32;
 
