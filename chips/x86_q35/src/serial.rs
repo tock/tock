@@ -98,7 +98,7 @@ impl serial_registers::Interface for &Fake8250 {
                 "tried to write TX buffer with DLAB bit set"
             );
             assert!(
-                s.tx_buffer.replace(Some(byte)).is_none(),
+                s.tx_buffer.replace(Some(byte.get())).is_none(),
                 "TX buffer overflow"
             );
         })
@@ -119,14 +119,14 @@ impl serial_registers::Interface for &Fake8250 {
                     !s.lcr.get().is_set(LCR::DLAB),
                     "tried to read IER with DLAB bit set"
                 );
-                s.ier.get().get()
+                s.ier.get()
             })
             .on_write(|s, v| {
                 assert!(
                     !s.lcr.get().is_set(LCR::DLAB),
                     "tried to write IER with DLAB bit set"
                 );
-                s.ier.set(LocalRegisterCopy::new(v))
+                s.ier.set(v)
             })
     }
 
