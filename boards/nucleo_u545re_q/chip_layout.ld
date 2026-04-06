@@ -1,6 +1,7 @@
 /* Licensed under the Apache License, Version 2.0 or the MIT License. */
 /* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
 /* Copyright Tock Contributors 2024.                                  */
+/* Copyright OxidOS Automotive 2026.                                  */
 
 /* Memory layout for the STM32U545 (Secure Mode Aliases)
  * FLASH: 512 KB Total
@@ -20,7 +21,7 @@ MEMORY
  * _estack at the START of RAM for overflow protection.
  *
  * However, for this board in Secure Mode, we need it at the END of RAM
- * to match the working C code and prevent an immediate HardFault.
+ * to prevent an immediate HardFault.
  */
 _estack = ORIGIN(ram) + LENGTH(ram);
 
