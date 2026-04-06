@@ -80,7 +80,7 @@ impl<'a> Tim2<'a> {
 }
 
 impl time::Time for Tim2<'_> {
-    type Frequency = time::Freq32KHz; // Adjust based on your clock
+    type Frequency = time::Freq32KHz;
     type Ticks = Ticks32;
 
     fn now(&self) -> Ticks32 {

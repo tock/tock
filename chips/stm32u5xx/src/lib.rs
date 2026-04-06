@@ -44,9 +44,10 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM33::SYSTICK_HANDLER,    // SysTick
 ];
 
-pub unsafe fn generic_init() {
+pub unsafe fn init() {
     cortexm33::nvic::disable_all();
     cortexm33::nvic::clear_all_pending();
+    cortexm33::nvic::enable_all();
 }
 
 pub struct Stm32u5xxPeripherals<'a> {

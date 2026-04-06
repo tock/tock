@@ -118,7 +118,7 @@ impl<'a> Usart<'a> {
     pub fn set_dma(&self, dma: &'a Dma<'a>, tx_channel: usize, rx_channel: usize) {
         self.dma.set(dma);
         self.dma_channel_tx.set(tx_channel);
-        self.dma_channel_rx.set(rx_channel);
+        //self.dma_channel_rx.set(rx_channel);
     }
 
     pub fn handle_interrupt(&self) {

@@ -4,12 +4,12 @@
 
 #![no_std]
 
-pub use stm32u5xx::{chip, exti, generic_init, gpio, rcc, tim, usart, dma, Stm32u5xxPeripherals};
+pub use stm32u5xx::{chip, exti, gpio, rcc, tim, usart, dma, Stm32u5xxPeripherals};
 
 use cortexm33::{CortexMVariant, CortexM33};
 
 pub unsafe fn init() {
-    stm32u5xx::generic_init();
+    stm32u5xx::init();
 }
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]

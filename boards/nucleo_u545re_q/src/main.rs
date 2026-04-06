@@ -282,20 +282,6 @@ pub unsafe fn main() {
         stm32u545::chip::Stm32u5xx::new(default_peripherals)
     );
 
-    // IRQ Targeting
-    let nvic_itns0 = 0xE000E380 as *mut u32;
-    let nvic_itns1 = 0xE000E384 as *mut u32;
-    let mut itns0 = core::ptr::read_volatile(nvic_itns0);
-    itns0 &= !(1 << 24);
-    itns0 &= !(1 << 29);
-    itns0 &= !(1 << 30);
-    core::ptr::write_volatile(nvic_itns0, itns0);
-    
-    let mut itns1 = core::ptr::read_volatile(nvic_itns1);
-    itns1 &= !(1 << (45 - 32));
-    itns1 &= !(1 << (61 - 32));
-    core::ptr::write_volatile(nvic_itns1, itns1);
-
     unsafe {
         cortexm33::nvic::Nvic::new(45).enable(); // TIM2
         cortexm33::nvic::Nvic::new(61).enable(); // USART1
