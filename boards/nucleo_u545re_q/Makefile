@@ -1,11 +1,12 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2024.
+# Copyright OxidOS Automotive 2026.
 
 TOCK_ROOT_DIRECTORY = ../../
 PLATFORM = nucleo_u545re_q
 
-# Path to your compiled app
+# Path to the compiled app
+# ADJUST based on the path to the tbf
 APP_PATH = /mnt/c/Work/munca/libtock-c/examples/blink/build/cortex-m4/cortex-m4.tbf
 
 include ../Makefile.common

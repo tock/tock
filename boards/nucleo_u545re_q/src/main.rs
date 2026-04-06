@@ -29,7 +29,7 @@ extern "C" {
     static _eappmem: u8;
 }
 
-const NUM_PROCS: usize = 1;
+const NUM_PROCS: usize = 4;
 
 type ChipHw =
     stm32u545::chip::Stm32u5xx<'static, stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>>;
@@ -55,6 +55,7 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    ipc: kernel::ipc::IPC<4>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -67,6 +68,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -135,7 +137,7 @@ pub unsafe fn main() {
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
-    // 1. Create Individual Drivers
+    // Create Individual Drivers
     let exti = static_init!(
         stm32u545::exti::Exti<'static>,
         stm32u545::exti::Exti::new(StaticRef::new(0x56022000 as *const stm32u545::exti::ExtiRegisters))
@@ -154,13 +156,13 @@ pub unsafe fn main() {
     // Link DMA to USART1
     usart1.set_dma(dma1, 0, 1);
 
-    // 2. Load Peripherals Bundle
+    // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::Stm32u5xxPeripherals<'static>,
         stm32u545::Stm32u5xxPeripherals::new(exti, dma1, usart1)
     );
 
-    // 3. Power and Wires
+    // Power and Wires
     periphs.rcc.enable_dma1();
     periphs.rcc.enable_gpioa();
     periphs.rcc.enable_gpioc();
@@ -169,13 +171,9 @@ pub unsafe fn main() {
     periphs.rcc.enable_syscfg();
     periphs.rcc.set_usart1_source_pclk();
 
-    for _ in 0..1000 {
-        core::arch::asm!("nop");
-    }
-
     set_pin_primary_functions(periphs);
 
-    // 4. Driver Config
+    // Driver Config
     use kernel::hil::uart::Configure;
     let _ = periphs.usart1.configure(kernel::hil::uart::Parameters {
         baud_rate: 115200,
@@ -186,7 +184,7 @@ pub unsafe fn main() {
     });
     periphs.usart1.register();
 
-    // 5. Kernel and Muxes
+    // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -198,7 +196,7 @@ pub unsafe fn main() {
         components::alarm_mux_component_static!(stm32u545::tim::Tim2),
     );
 
-    // 6. Capsules
+    // Capsules
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
@@ -258,7 +256,9 @@ pub unsafe fn main() {
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
-    // 7. Platform and Interrupts
+    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+    // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
         NucleoU545RE {
@@ -269,10 +269,11 @@ pub unsafe fn main() {
             led,
             button,
             alarm,
+            ipc: kernel::ipc::IPC::new(board_kernel, kernel::ipc::DRIVER_NUM, &memory_allocation_cap),
         }
     );
 
-    // 8. Initialize Chip
+    // Initialize Chip
     let default_peripherals = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(&periphs.tim2, &periphs.usart1, &periphs.exti)
@@ -296,7 +297,7 @@ pub unsafe fn main() {
         &_sappmem as *const u8,
         &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
     );
-    let app_memory = static_init!([u8; 65536], [0; 65536]);
+    let app_memory = static_init!([u8; 98304], [0; 98304]);
 
     let _ = kernel::process::load_processes(
         board_kernel,
@@ -307,8 +308,8 @@ pub unsafe fn main() {
         &create_capability!(capabilities::ProcessManagementCapability),
     );
 
-    // 9. Hand over control to the Tock Kernel Loop
-    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 1>(
+    // Hand over control to the Tock Kernel Loop
+    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 4>(
         platform,
         chip,
         None,
