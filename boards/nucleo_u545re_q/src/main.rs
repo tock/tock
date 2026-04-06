@@ -15,7 +15,6 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, static_init};
 
-// Use the PinId enum for board wiring
 use stm32u545::gpio::PinId;
 
 pub mod io;
