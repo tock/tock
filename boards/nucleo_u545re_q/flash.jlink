@@ -1,5 +1,0 @@
-connect
-loadfile full_merged.bin 0x0C000000
-r
-g
-q
