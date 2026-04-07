@@ -58,9 +58,7 @@ pub struct Dma {
 
 impl Dma {
     pub const fn new(base: StaticRef<DmaRegisters>) -> Self {
-        Self {
-            registers: base,
-        }
+        Self { registers: base }
     }
 
     pub fn setup_usart1_tx(&self, channel: usize, buffer_addr: u32, length: u32) {

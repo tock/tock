@@ -171,7 +171,7 @@ impl<'a> Usart<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for Usart<'a> {
+impl DeferredCallClient for Usart<'_> {
     fn handle_deferred_call(&self) {
         // 1. Transmit Completion (DMA)
         if let Some(buf) = self.tx_buffer.take() {
@@ -236,7 +236,7 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
     }
 }
 
-impl<'a> uart::Configure for Usart<'a> {
+impl uart::Configure for Usart<'_> {
     fn configure(&self, _params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
         let regs = &*self.registers;
         regs.cr1.modify(CR1::UE::CLEAR);

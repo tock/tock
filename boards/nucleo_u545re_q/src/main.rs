@@ -125,6 +125,7 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::Stm32u5xxPeripherals) {
 }
 
 #[no_mangle]
+#[allow(clippy::large_stack_arrays)]
 pub unsafe fn main() {
     stm32u545::init();
 
@@ -205,7 +206,7 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
 
-    let _debug_writer = components::debug_writer::DebugWriterComponent::new::<
+    components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(
         uart_mux,
@@ -292,8 +293,8 @@ pub unsafe fn main() {
         stm32u545::chip::Stm32u5xxDefaultPeripherals,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(
             &periphs.tim2,
-            &periphs.usart1,
-            &periphs.exti
+            periphs.usart1,
+            periphs.exti
         )
     );
 
@@ -312,8 +313,8 @@ pub unsafe fn main() {
 
     // --- LOAD PROCESSES ---
     let app_flash = core::slice::from_raw_parts(
-        &_sappmem as *const u8,
-        &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        core::ptr::from_ref(&_sappmem),
+        core::ptr::from_ref(&_eappmem) as usize - core::ptr::from_ref(&_sappmem) as usize,
     );
     let app_memory = static_init!([u8; 98304], [0; 98304]);
 

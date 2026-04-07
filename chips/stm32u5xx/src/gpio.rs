@@ -90,7 +90,7 @@ impl<'a> Pin<'a> {
     ) -> Pin<'a> {
         Pin {
             registers: base,
-            pin: pin,
+            pin,
             pin_mask: 1 << pin,
             exti,
             port_id,
@@ -164,7 +164,7 @@ impl<'a> Pin<'a> {
     }
 }
 
-impl<'a> gpio::Configure for Pin<'a> {
+impl gpio::Configure for Pin<'_> {
     fn configuration(&self) -> gpio::Configuration {
         match self.get_mode() {
             Mode::Input => gpio::Configuration::Input,
@@ -215,13 +215,13 @@ impl<'a> gpio::Configure for Pin<'a> {
     }
 }
 
-impl<'a> gpio::Input for Pin<'a> {
+impl gpio::Input for Pin<'_> {
     fn read(&self) -> bool {
         (self.registers.idr.get() & self.pin_mask) != 0
     }
 }
 
-impl<'a> gpio::Output for Pin<'a> {
+impl gpio::Output for Pin<'_> {
     fn set(&self) {
         self.registers.bsrr.set(self.pin_mask);
     }
