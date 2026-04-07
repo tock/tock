@@ -53,7 +53,7 @@ pub unsafe fn init() {
 pub struct Stm32u5xxPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub exti: &'a exti::Exti<'a>,
-    pub dma1: &'a dma::Dma<'a>,
+    pub dma1: &'a dma::Dma,
     pub gpio_a: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
     pub usart1: &'a usart::Usart<'a>,
@@ -63,7 +63,7 @@ pub struct Stm32u5xxPeripherals<'a> {
 impl<'a> Stm32u5xxPeripherals<'a> {
     pub unsafe fn new(
         exti: &'a exti::Exti<'a>,
-        dma1: &'a dma::Dma<'a>,
+        dma1: &'a dma::Dma,
         usart1: &'a usart::Usart<'a>,
     ) -> Self {
         Self {

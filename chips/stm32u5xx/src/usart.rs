@@ -80,7 +80,7 @@ register_bitfields![u32,
 
 pub struct Usart<'a> {
     pub registers: StaticRef<UsartRegisters>,
-    dma: OptionalCell<&'a Dma<'a>>,
+    dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<usize>,
     dma_channel_rx: Cell<usize>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
@@ -113,7 +113,7 @@ impl<'a> Usart<'a> {
         }
     }
 
-    pub fn set_dma(&self, dma: &'a Dma<'a>, tx_channel: usize, rx_channel: usize) {
+    pub fn set_dma(&self, dma: &'a Dma, tx_channel: usize, rx_channel: usize) {
         self.dma.set(dma);
         self.dma_channel_tx.set(tx_channel);
         // Unnused but kept for testing

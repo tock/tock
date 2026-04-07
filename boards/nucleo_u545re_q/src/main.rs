@@ -141,7 +141,7 @@ pub unsafe fn main() {
     );
 
     let dma1 = static_init!(
-        stm32u545::dma::Dma<'static>,
+        stm32u545::dma::Dma,
         stm32u545::dma::Dma::new(StaticRef::new(
             0x50020000 as *const stm32u545::dma::DmaRegisters
         ))

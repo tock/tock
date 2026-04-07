@@ -52,16 +52,14 @@ register_structs! {
     }
 }
 
-pub struct Dma<'a> {
+pub struct Dma {
     registers: StaticRef<DmaRegisters>,
-    _phantom: core::marker::PhantomData<&'a ()>,
 }
 
-impl<'a> Dma<'a> {
+impl Dma {
     pub const fn new(base: StaticRef<DmaRegisters>) -> Self {
         Self {
             registers: base,
-            _phantom: core::marker::PhantomData,
         }
     }
 
