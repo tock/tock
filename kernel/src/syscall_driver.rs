@@ -81,6 +81,7 @@ impl CommandReturn {
 }
 
 impl From<Result<(), ErrorCode>> for CommandReturn {
+    #[flux_rs::trusted]
     fn from(rc: Result<(), ErrorCode>) -> Self {
         match rc {
             Ok(()) => CommandReturn::success(),

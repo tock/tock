@@ -1300,6 +1300,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
     // type MpuConfig = PMPUserMPUConfig<MAX_REGIONS>;
     type Region = PMPUserRegion<MAX_REGIONS>;
 
+    #[flux_rs::trusted]
     fn enable_app_mpu(&self) -> MpuEnabledCapability {
         // TODO: This operation may fail when the PMP is not exclusively used
         // for userspace. Instead of panicing, we should handle this case more
@@ -1360,6 +1361,8 @@ pub mod test {
             Ok(())
         }
 
+        // #[flux_rs::sig(fn (x: usize) -> u32[x] requires x <= u32::MAX)]
+        #[flux_rs::sig(fn (&Self) -> Result<(), ()>[true])]
         fn enable_user_pmp(&self) -> Result<(), ()> {
             Ok(())
         } // The kernel's MPU trait requires
