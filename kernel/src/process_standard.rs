@@ -540,8 +540,17 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     /// MPU regions are saved as a pointer-size pair.
     mpu_regions: [Cell<Option<mpu::Region>>; 6],
 
-    /// Essentially a list of upcalls that want to call functions in the
-    /// process.
+    /// Queue of upcalls that want to call functions in the process.
+    ///
+    /// Generally this stores all upcalls in the order they are scheduled for
+    /// the process. If the queue is full, the newest upcalls (the ones being
+    /// newly scheduled) will be dropped. However, we special-case the first
+    /// upcall that matches the [`UpcallId`] the process is waiting on if it has
+    /// called Yield-WaitFor. That upcall is stored in
+    /// [`yield_wait_for_ready_task`](Self::yield_wait_for_ready_task). If
+    /// multiple matching upcalls are scheduled for a process in the
+    /// [`State::YieldedFor`] state, the additional upcalls will be stored in
+    /// this queue.
     tasks: MapCell<RingBuffer<'a, Task>>,
 
     /// Count of how many times this process has entered the fault condition and
@@ -559,9 +568,21 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     /// be stored as `Some(completion code)`.
     completion_code: OptionalCell<Option<u32>>,
 
-    /// Flag that stores whether this process has a task that is ready when
-    /// the process is in the [`State::YieldedFor`] state.
-    is_yield_wait_for_ready: Cell<bool>,
+    /// Track whether a Yield-WaitFor is ready and the ready task.
+    ///
+    /// This accomplishes two goals:
+    ///
+    /// 1. When a process is blocked on a Yield-WaitFor, it avoids a search
+    ///    through the pending task queue to determine if an upcall is available
+    ///    that matches the [`UpcallId`] the process is waiting for.
+    ///
+    /// 2. It stores the matching upcall, ensuring the upcall will not be
+    ///    dropped. This avoids an issue where if the queue is full with upcalls
+    ///    the process is _not_ waiting on, the matching upcall can never be
+    ///    enqueued, meaning the process never unblocks. Since this slot will
+    ///    always be available when the process calls Yield-WaitFor, the upcall
+    ///    the process is blocked on can never be dropped.
+    yield_wait_for_ready_task: OptionalCell<Task>,
 
     /// Values kept so that we can print useful debug messages when apps fault.
     debug: D,
@@ -595,33 +616,48 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             return Err(ErrorCode::NODEVICE);
         }
 
-        let ret = self.tasks.map_or(Err(ErrorCode::FAIL), |tasks| {
-            match tasks.enqueue(task) {
-                true => {
-                    // If the process is yielded-for this task, set the ready flag.
-                    if let State::YieldedFor(yielded_upcall_id) = self.state.get() {
-                        if let Some(upcall_id) = match task {
-                            Task::FunctionCall(FunctionCall {
-                                source: FunctionCallSource::Driver(upcall_id),
-                                ..
-                            }) => Some(upcall_id),
-                            Task::ReturnValue(ReturnArguments { upcall_id, .. }) => Some(upcall_id),
-                            _ => None,
-                        } {
-                            self.is_yield_wait_for_ready
-                                .set(upcall_id == yielded_upcall_id);
-                        }
+        // First, handle the special-case when this process is blocking on a
+        // Yield-WaitFor system call. Because the process will never proceed if
+        // we drop the upcall that matches the `UpcallId` it is waiting for, we
+        // want to ensure we don't lose it.
+        //
+        // If we already have a matching upcall, then we handle this upcall like
+        // normal.
+        //
+        // Note, in the future (i.e., Rust 2024), this `mut bool` can be
+        // replaced by a let chain.
+        let mut stored = false;
+        if let State::YieldedFor(yielded_upcall_id) = self.state.get() {
+            if self.yield_wait_for_ready_task.is_none() {
+                // Check if this Task has an UpcallId.
+                if let Some(upcall_id) = match task {
+                    Task::FunctionCall(FunctionCall {
+                        source: FunctionCallSource::Driver(upcall_id),
+                        ..
+                    }) => Some(upcall_id),
+                    Task::ReturnValue(ReturnArguments { upcall_id, .. }) => Some(upcall_id),
+                    _ => None,
+                } {
+                    if yielded_upcall_id == upcall_id {
+                        stored = true;
+                        self.yield_wait_for_ready_task.set(task);
                     }
-                    // The task has been successfully enqueued.
-                    Ok(())
-                }
-                false => {
-                    // The task could not be enqueued as there is
-                    // insufficient space in the ring buffer.
-                    Err(ErrorCode::NOMEM)
                 }
             }
-        });
+        }
+
+        let ret = if stored {
+            // We added this to the YWF special case successfully. Return `Ok(())`.
+            return Ok(());
+        } else {
+            // Otherwise try to store this in the normal tasks queue.
+            self.tasks.map_or(Err(ErrorCode::FAIL), |tasks| {
+                // If `enqueue` returns `true`, this returns `Ok(())`. If `enqueue`
+                // returns `false`, indicating there is insufficient space in the
+                // ring buffer, this returns `Err(ErrorCode::NOMEM)`.
+                tasks.enqueue(task).then_some(()).ok_or(ErrorCode::NOMEM)
+            })
+        };
 
         if ret.is_err() {
             // On any error we were unable to enqueue the task. Record the
@@ -635,7 +671,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     fn ready(&self) -> bool {
         match self.state.get() {
             State::Running => true,
-            State::YieldedFor(_) => self.is_yield_wait_for_ready.get(),
+            State::YieldedFor(_) => self.yield_wait_for_ready_task.is_some(),
             State::Yielded => self.tasks.map_or(false, |ring_buf| ring_buf.has_elements()),
             _ => false,
         }
@@ -688,22 +724,22 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         if self.state.get() == State::Running {
             self.state.set(State::YieldedFor(upcall_id));
 
-            // Verify if the process has a task that this yield waits for
-            self.is_yield_wait_for_ready
-                .set(self.tasks.map_or(false, |tasks| {
-                    tasks
-                        .find_first_matching(|task| match task {
-                            Task::ReturnValue(ReturnArguments { upcall_id: id, .. }) => {
-                                upcall_id == *id
-                            }
-                            Task::FunctionCall(FunctionCall {
-                                source: FunctionCallSource::Driver(id),
-                                ..
-                            }) => upcall_id == *id,
-                            _ => false,
-                        })
-                        .is_some()
-                }));
+            // See if we already have an upcall that matches the `UpcallId` the
+            // process wants to wait on. If so, remove it, and store it in our
+            // pending `yield_wait_for_ready_task` slot.
+            let matching_task = self.tasks.map_or(None, |tasks| {
+                tasks.remove_first_matching(|task| match task {
+                    Task::FunctionCall(fc) => match fc.source {
+                        FunctionCallSource::Driver(upid) => upid == upcall_id,
+                        _ => false,
+                    },
+                    Task::ReturnValue(rv) => rv.upcall_id == upcall_id,
+                    Task::IPC(_) => false,
+                })
+            });
+
+            // Save the matching task, or `None`.
+            self.yield_wait_for_ready_task.insert(matching_task);
         }
     }
 
@@ -832,16 +868,27 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task> {
-        self.tasks.map_or(None, |tasks| {
-            tasks.remove_first_matching(|task| match task {
-                Task::FunctionCall(fc) => match fc.source {
-                    FunctionCallSource::Driver(upid) => upid == upcall_id,
-                    _ => false,
-                },
-                Task::ReturnValue(rv) => rv.upcall_id == upcall_id,
-                Task::IPC(_) => false,
+        // Handle the special-case of the reserved slot for an upcall matching
+        // the `upcall_id`.
+        if let State::YieldedFor(yielded_upcall_id) = self.state.get() {
+            if yielded_upcall_id == upcall_id {
+                // If we have a matching upcall, it will be saved in this slot.
+                self.yield_wait_for_ready_task.take()
+            } else {
+                None
+            }
+        } else {
+            self.tasks.map_or(None, |tasks| {
+                tasks.remove_first_matching(|task| match task {
+                    Task::FunctionCall(fc) => match fc.source {
+                        FunctionCallSource::Driver(upid) => upid == upcall_id,
+                        _ => false,
+                    },
+                    Task::ReturnValue(rv) => rv.upcall_id == upcall_id,
+                    Task::IPC(_) => false,
+                })
             })
-        })
+        }
     }
 
     fn pending_tasks(&self) -> usize {
@@ -1418,10 +1465,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // now needing to be resumed. Either way we can set the state to
                 // running.
                 self.state.set(State::Running);
-                // The task is running, if it was yielded-for an upcall,
-                // the upcall must have been scheduled, unset
-                // the ready flag.
-                self.is_yield_wait_for_ready.set(false);
             }
 
             Some(Err(())) => {
@@ -2078,7 +2121,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             Cell::new(None),
         ];
         process.tasks = MapCell::new(tasks);
-        process.is_yield_wait_for_ready = Cell::new(false);
+        process.yield_wait_for_ready_task = OptionalCell::empty();
 
         process.debug = D::default();
         if let Some(fix_addr_flash) = fixed_address_flash {
