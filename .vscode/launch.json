@@ -28,6 +28,27 @@
             "configFiles": [
                 "${workspaceRoot}/boards/msp_exp432p401r/openocd.cfg",
             ]
-        }
+        },
+        {
+            "name": "PSC3",
+            "type": "cortex-debug", // probe-rs also works but has significantly worse debugging experience (fewer breakpoints possible, fewer variables visible)
+            "servertype": "openocd",
+            "request": "launch",
+            "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk-app.elf",
+            "cwd": "${workspaceRoot}",
+            "serverpath": "/opt/ModusToolboxProgtools-1.7/openocd/bin/openocd",
+            "openOCDLaunchCommands": [
+                "init; reset init;"
+            ],
+            "overrideRestartCommands": [
+                "starti"
+            ],
+            "preLaunchTask": "build.psc3m5_evk",
+            "svdFile": "../psc3.svd",
+            "configFiles": [
+                "${workspaceRoot}/boards/psc3m5_evk/openocd.tcl",
+            ],
+            // "showDevDebugOutput": "raw"
+        },
     ]
 }
