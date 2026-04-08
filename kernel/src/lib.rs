@@ -120,6 +120,35 @@ pub const KERNEL_PATCH_VERSION: u16 = 0;
 /// [`KERNEL_MINOR_VERSION`] and [`KERNEL_PATCH_VERSION`].
 pub const KERNEL_PRERELEASE_VERSION: u16 = 1;
 
+/// Tock kernel attributes structure for kernel signature.
+#[repr(C)]
+struct TockAttributesKernelSignature {
+    signature_r: [u8; 32], // ECDSA P-256 r component
+    signature_s: [u8; 32], // ECDSA P-256 s component
+    algorithm_id: u32,     // 0x00000001 = ECDSA P-256 SHA-256
+    tlv_type: u16,         // 0x0104
+    tlv_len: u16,          // 68 bytes (64 sig + 4 algo)
+}
+
+/// Create a data structure which follows the Tock Kernel Attributes format
+/// for specifying the signature of the Tock kernel.
+///
+/// More information on kernel attributes is
+/// [here](https://book.tockos.org/doc/kernel_attributes.html).
+///
+/// This is inserted into a specific section that the linker script includes at
+/// the correct location to be included in the attributes.
+#[link_section = ".tock.attr.kernel_signature"]
+#[used]
+static TOCK_ATTRIBUTES_KERNEL_SIGNATURE: TockAttributesKernelSignature =
+    TockAttributesKernelSignature {
+        signature_r: [0u8; 32],
+        signature_s: [0u8; 32],
+        algorithm_id: 0x00000001,
+        tlv_type: 0x0104,
+        tlv_len: 68,
+    };
+
 /// Tock kernel attributes structure for version information.
 #[repr(C)]
 struct TockAttributesKernelVersion {
