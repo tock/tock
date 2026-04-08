@@ -13,9 +13,7 @@ use x86::{Boundary, InterruptPoller};
 
 use crate::pic::PIC1_OFFSET;
 use crate::pit::{Pit, RELOAD_1KHZ};
-use crate::serial::{
-    RealSerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE,
-};
+use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
 use crate::vga_uart_driver::VgaText;
 
 /// Interrupt constants for legacy PC peripherals
@@ -58,16 +56,16 @@ mod interrupt {
 pub struct Pc<'a, I1: InterruptService + 'a, I2: InterruptService + 'a, const PR: u16 = RELOAD_1KHZ>
 {
     /// Legacy COM1 serial port
-    pub com1: &'a RealSerialPort<'a>,
+    pub com1: &'a SerialPort<'a>,
 
     /// Legacy COM2 serial port
-    pub com2: &'a RealSerialPort<'a>,
+    pub com2: &'a SerialPort<'a>,
 
     /// Legacy COM3 serial port
-    pub com3: &'a RealSerialPort<'a>,
+    pub com3: &'a SerialPort<'a>,
 
     /// Legacy COM4 serial port
-    pub com4: &'a RealSerialPort<'a>,
+    pub com4: &'a SerialPort<'a>,
 
     /// Legacy PIT timer
     pub pit: &'a Pit<'a, PR>,
@@ -230,10 +228,10 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
 
 /// Default x86 PC peripherals
 pub struct PcDefaultPeripherals<const PR: u16 = RELOAD_1KHZ> {
-    pub com1: &'static RealSerialPort<'static>,
-    pub com2: &'static RealSerialPort<'static>,
-    pub com3: &'static RealSerialPort<'static>,
-    pub com4: &'static RealSerialPort<'static>,
+    pub com1: &'static SerialPort<'static>,
+    pub com2: &'static SerialPort<'static>,
+    pub com3: &'static SerialPort<'static>,
+    pub com4: &'static SerialPort<'static>,
     pub pit: Pit<'static, PR>,
     pub vga: &'static VgaText<'static>,
 }
@@ -247,10 +245,10 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
     /// - Must be called only once per kernel lifetime.
     pub unsafe fn new(
         s: (
-            (&'static mut core::mem::MaybeUninit<RealSerialPort<'static>>,),
-            (&'static mut core::mem::MaybeUninit<RealSerialPort<'static>>,),
-            (&'static mut core::mem::MaybeUninit<RealSerialPort<'static>>,),
-            (&'static mut core::mem::MaybeUninit<RealSerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
+            (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
             &'static mut core::mem::MaybeUninit<VgaText<'static>>,
         ),
         page_dir: &mut PD,

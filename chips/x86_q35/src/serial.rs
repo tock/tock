@@ -308,9 +308,7 @@ register_bitfields!(u8,
     ],
 );
 
-pub type RealSerialPort<'a> = SerialPort<'a, serial_registers::Real<Port>>;
-
-pub struct SerialPort<'a, R: serial_registers::Interface> {
+pub struct SerialPort<'a, R: serial_registers::Interface = serial_registers::Real<Port>> {
     registers: R,
 
     /// Client of transmit operations
