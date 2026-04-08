@@ -19,7 +19,7 @@ pub const BUF_LEN: usize = max(45 + 2 * USIZE_DIGITS, 35 + 3 * USIZE_DIGITS);
 
 // Formats the given DebugEntry using the provided buffer. Returns the length of
 // the message.
-pub(crate) fn format_entry(app_num: usize, entry: DebugEntry, buffer: &mut [u8]) -> usize {
+pub(crate) fn format_entry(app_num: u64, entry: DebugEntry, buffer: &mut [u8]) -> usize {
     use core::fmt::write;
     use DebugEntry::{AlertCode, Dropped, Print1, Print2};
     let mut adapter = WriteAdapter::new(buffer);

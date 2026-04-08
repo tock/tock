@@ -48,7 +48,7 @@ pub struct Kernel {
 
     /// A counter which keeps track of how many process identifiers have been
     /// created. This is used to create new unique identifiers for processes.
-    process_identifier_max: Cell<usize>,
+    process_identifier_max: Cell<u64>,
 
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
@@ -295,10 +295,29 @@ impl Kernel {
 
     /// Create a new unique identifier for a process and return the identifier.
     ///
-    /// Typically we just choose a larger number than we have used for any
-    /// process before which ensures that the identifier is unique.
-    pub(crate) fn create_process_identifier(&self) -> usize {
-        self.process_identifier_max.get_and_increment()
+    /// The kernel internally tracks the highest previously created process
+    /// identifier, and hands out the next not-yet-assigned identifier.
+    ///
+    /// # Panics
+    ///
+    /// This underlying counter is not allowed to wrap around to guarantee
+    /// uniqueness of all created identifiers across a kernel instance's
+    /// lifetime. This function will panic in case the underlying u64 counter
+    /// will overflow.
+    ///
+    ///  In practice, this case should never be encountered. Even on a 1GHz with
+    /// 1 instruction per cycle, where this value is incremented in every cycle,
+    /// it would still take 584 years for this number to wrap around. It's
+    /// highly unlikely a Tock kernel instance will be running for this amount
+    /// of time.
+    pub(crate) fn create_process_identifier(&self) -> u64 {
+        let id = self.process_identifier_max.get();
+
+        // We increment the maximum processes identifier by 1, panicing in case
+        // of a u64 integer overflow.
+        self.process_identifier_max.set(id.checked_add(1).unwrap());
+
+        id
     }
 
     /// Find the next slot that is available for storing a new [`&Process`]

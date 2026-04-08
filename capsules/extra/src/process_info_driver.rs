@@ -111,6 +111,11 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
         data2: usize,
         process_id: ProcessId,
     ) -> CommandReturn {
+        // If the data arugments contain a 64-bit ProcessId, then data1 contains
+        // the low-half (in native endianness) and data2 contains the high-half
+        // (in native endianness):
+        let data_process_id = (data2 as u64) << 32 | data1 as u64;
+
         match command_num {
             // Driver existence check
             0 => CommandReturn::success(),
@@ -151,7 +156,7 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
 
                                 self.kernel
                                     .process_each_capability(&self.capability, |process| {
-                                        if process.processid().id() == data1 {
+                                        if process.processid().id() == data_process_id {
                                             let n = process.get_process_name().as_bytes();
 
                                             let name_len = n.len();
@@ -193,7 +198,7 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
                                 let mut chunks = s.chunks(size_of::<u32>());
                                 self.kernel
                                     .process_each_capability(&self.capability, |process| {
-                                        if process.processid().id() == data1 {
+                                        if process.processid().id() == data_process_id {
                                             if let Some(chunk) = chunks.next() {
                                                 let _ = chunk.copy_from_slice_or_err(
                                                     &process
@@ -235,34 +240,34 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
                 })
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
-            6 => {
+            6..=10 => {
                 let mut matched = false;
                 self.kernel
                     .process_each_capability(&self.capability, |process| {
-                        if process.processid().id() == data1 {
+                        if process.processid().id() == data_process_id {
                             matched = true;
 
-                            match data2 {
-                                1 => {
+                            match command_num - 6 {
+                                0 => {
                                     // START
                                     process.resume();
                                 }
-                                2 => {
+                                1 => {
                                     // STOP
                                     process.stop();
                                 }
 
-                                3 => {
+                                2 => {
                                     // FAULT
                                     process.set_fault_state();
                                 }
 
-                                4 => {
+                                3 => {
                                     // TERMINATE
                                     process.terminate(None);
                                 }
 
-                                5 => {
+                                4 => {
                                     // BOOT
                                     if process.get_state() == process::State::Terminated {
                                         process.start(&self.capability);
