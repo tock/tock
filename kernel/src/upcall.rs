@@ -121,19 +121,49 @@ impl Upcall {
 
     /// Schedule the upcall.
     ///
-    /// This will queue the [`Upcall`] for the given process. It returns `false`
-    /// if the queue for the process is full and the upcall could not be
-    /// scheduled or this is a null upcall.
-    ///
     /// The arguments (`r0-r2`) are the values passed back to the process and
     /// are specific to the individual `Driver` interfaces.
     ///
-    /// This function also takes `process` as a parameter (even though we have
-    /// `process_id` in our struct) to avoid a search through the processes
-    /// array to schedule the upcall. Currently, it is convenient to pass this
-    /// parameter so we take advantage of it. If in the future that is not the
-    /// case we could have `process` be an Option and just do the search with
-    /// the stored [`ProcessId`].
+    /// # Note on Null upcalls
+    ///
+    /// This function _does_ schedule [null upcalls][null_upcall]. This is
+    /// necessary to support the Yield-WaitFor system call which does not
+    /// require an upcall function to be registered.
+    ///
+    /// null_upcall: https://github.com/tock/tock/blob/master/doc/reference/trd104-syscalls.md#421-the-null-upcall
+    ///
+    /// # Note on dropping upcalls and Yield-WaitFor
+    ///
+    /// If the per-process storage for upcalls is full the schedule operation
+    /// may fail. The exact dynamics of what defines "full" is implementation
+    /// dependent based on the [`Process`] implementation. Also, what happens if
+    /// the storage for upcalls is full depends on the [`Process`]
+    /// implementation.
+    ///
+    /// It is likely, however, that the per-process storage is a queue, and when
+    /// full, new scheduled upcalls will be dropped. Processes and capsule
+    /// authors should be aware of this specifically in the context of processes
+    /// that use the Yield-WaitFor system call. Once a process is blocking on a
+    /// Yield-WaitFor call, the process only resumes once the matching upcall is
+    /// enqueued. However, if the queue is full, no more upcalls can be
+    /// enqueued, and since the process isn't calling Yield, no queued upcalls
+    /// are being dequeued. The process will not make forward progress.
+    ///
+    /// # Return
+    ///
+    /// On successfully enqueuing the upcall returns `Ok(())`.
+    ///
+    /// On an error, returns `Err()` with these errors:
+    /// - `UpcallError::QueueFull`: The queue for storing upcalls for the
+    ///   process is full.
+    /// - `UpcallError::KernelError`: An internal error occurred. Please
+    ///   submit an issue.
+    // This function takes `process` as a parameter (even though we have
+    // `process_id` in our struct) to avoid a search through the processes
+    // array to schedule the upcall. Currently, it is convenient to pass this
+    // parameter so we take advantage of it. If in the future that is not the
+    // case we could have `process` be an Option and just do the search with
+    // the stored [`ProcessId`].
     pub(crate) fn schedule(
         &self,
         process: &dyn process::Process,
