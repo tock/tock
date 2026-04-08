@@ -66,12 +66,17 @@ kernel::stack_size! {0x2000}
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 
 type NonVolatilePages = components::dynamic_binary_storage::NVPages<nrf52840::nvmc::Nvmc>;
+
+/// Needed for dynamic binary storage capsule.
+pub struct PMCap;
+unsafe impl kernel::capabilities::ProcessManagementCapability for PMCap {}
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
     'static,
     'static,
     nrf52840::chip::NRF52<'a, Nrf52840DefaultPeripherals<'a>>,
     kernel::process::ProcessStandardDebugFull,
     NonVolatilePages,
+    PMCap,
 >;
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
@@ -469,13 +474,16 @@ pub unsafe fn main() {
     // Create the dynamic binary flasher.
     let dynamic_binary_storage =
         components::dynamic_binary_storage::SequentialBinaryStorageComponent::new(
+            board_kernel,
             &base_peripherals.nvmc,
             loader,
+            PMCap,
         )
         .finalize(components::sequential_binary_storage_component_static!(
             nrf52840::nvmc::Nvmc,
             nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
             kernel::process::ProcessStandardDebugFull,
+            PMCap,
         ));
 
     // Create the dynamic app loader capsule.
