@@ -235,30 +235,17 @@ pub unsafe fn main() {
         kernel::hil::led::LedHigh::new(led_pin)
     ));
 
-    let button_pin_raw = static_init!(stm32u545::gpio::Pin, periphs.gpio_c.pin(PinId::Pin13));
-    let button_pin = static_init!(
-        kernel::hil::gpio::InterruptValueWrapper<stm32u545::gpio::Pin>,
-        kernel::hil::gpio::InterruptValueWrapper::new(button_pin_raw)
-    )
-    .finalize();
-
-    let button_pins = static_init!(
-        [(
-            &'static kernel::hil::gpio::InterruptValueWrapper<'static, stm32u545::gpio::Pin>,
-            kernel::hil::gpio::ActivationMode,
-            kernel::hil::gpio::FloatingState
-        ); 1],
-        [(
-            button_pin,
-            kernel::hil::gpio::ActivationMode::ActiveHigh,
-            kernel::hil::gpio::FloatingState::PullDown
-        )]
-    );
-
     let button = components::button::ButtonComponent::new(
         board_kernel,
         capsules_core::button::DRIVER_NUM,
-        button_pins,
+        components::button_component_helper!(
+            stm32u545::gpio::Pin,
+            (
+                static_init!(stm32u545::gpio::Pin, periphs.gpio_c.pin(PinId::Pin13)),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullDown
+            )
+        ),
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
