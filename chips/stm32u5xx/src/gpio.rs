@@ -193,7 +193,15 @@ impl gpio::Configure for Pin<'_> {
         self.set_mode(Mode::Analog);
         gpio::Configuration::LowPower
     }
-
+    
+    /// Deactivates the pin to its lowest power state.
+    ///
+    /// According to RM0456 (STM32U5 Reference Manual), Section 13.3.12
+    /// (Analog configuration), setting a pin to Analog mode deactivates
+    /// the Schmitt trigger input, providing zero consumption for every
+    /// analog value of the I/O pin. We do not disable the clock to
+    /// the entire GPIO port here because other pins on the same
+    /// port may still be in use.
     fn deactivate_to_low_power(&self) {
         self.set_mode(Mode::Analog);
     }
