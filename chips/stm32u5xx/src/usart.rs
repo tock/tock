@@ -202,6 +202,12 @@ impl<'a> Usart<'a> {
 
 }
 
+/// The Usart driver uses a DeferredCall to handle buffer completion callbacks.
+///
+/// This ensures that long-running application callbacks are executed in
+/// the kernel's main loop context rather than within the high-priority
+/// hardware interrupt handler. This prevents the console from blocking
+/// other time-critical interrupts (like timers or GPIO events).
 impl DeferredCallClient for Usart<'_> {
     fn handle_deferred_call(&self) {
         // 1. Transmit Completion (DMA)
