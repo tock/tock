@@ -7,6 +7,7 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::hil::time::Time;
 
 register_structs! {
     pub TimRegisters {
@@ -96,10 +97,29 @@ impl<'a> time::Alarm<'a> for Tim2<'a> {
     }
 
     fn set_alarm(&self, reference: Ticks32, dt: Ticks32) {
-        let target = reference.wrapping_add(dt);
-        self.registers.ccr1.set(target.into_u32());
+        // 1. Calculate the raw target time
+        let mut expire = reference.wrapping_add(dt);
+        let now = self.now();
+
+        // 2. The "Past Check": If the target is behind us, clamp it to 'now'
+        if !now.within_range(reference, expire) {
+            expire = now;
+        }
+
+        // 3. The "Minimum Delay": If the alarm is too close to now,
+        // push it forward slightly to give the CPU time to finish this function.
+        if expire.wrapping_sub(now) < self.minimum_dt() {
+            expire = now.wrapping_add(self.minimum_dt());
+        }
+
+        // 4. DISARM and CLEAR FIRST
+        // This stops old alarms from firing while we are setting the new one.
+        let _ = self.disarm();
+        self.registers.sr.modify(SR::CC1IF::CLEAR);
+
+        // 5. Program the hardware
+        self.registers.ccr1.set(expire.into_u32());
         self.registers.dier.modify(DIER::CC1IE::SET);
-        self.registers.cr1.modify(CR1::CEN::SET);
     }
 
     fn get_alarm(&self) -> Ticks32 {
@@ -116,6 +136,6 @@ impl<'a> time::Alarm<'a> for Tim2<'a> {
     }
 
     fn minimum_dt(&self) -> Ticks32 {
-        Ticks32::from(1)
+        Ticks32::from(2)
     }
 }
