@@ -127,7 +127,8 @@ impl sealed::GpioPort for GpioPortI { const PORT: GpioPortNumber = GpioPortNumbe
 impl sealed::GpioPort for GpioPortJ { const PORT: GpioPortNumber = GpioPortNumber::PortJ; }
 
 impl<'a> Pin<'a> {
-    pub const fn new(
+    // Only our own crate can create pins
+    pub(crate) const fn new(
         base: StaticRef<GpioRegisters>,
         pin: usize,
         exti: &'a Exti<'a>,
@@ -143,7 +144,10 @@ impl<'a> Pin<'a> {
             exti_lineid: OptionalCell::empty(),
         }
     }
-
+    /// Sets the mode of the pin.
+    ///
+    /// This is a low-level function intended for board-level muxing.
+    /// For general GPIO usage, use the `kernel::hil::gpio::Configure` trait.
     pub fn set_mode(&self, mode: Mode) {
         let offset = self.pin * 2;
         let mut val = self.registers.moder.get();
@@ -151,7 +155,10 @@ impl<'a> Pin<'a> {
         val |= (mode as u32) << offset;
         self.registers.moder.set(val);
     }
-
+    /// Sets the output speed to 'Very High'.
+    ///
+    /// This is a low-level function intended for high-speed peripherals
+    /// like USART or SPI.
     pub fn set_speed_high(&self) {
         let offset = self.pin * 2;
         let mut val = self.registers.ospeedr.get();
@@ -159,6 +166,10 @@ impl<'a> Pin<'a> {
         self.registers.ospeedr.set(val);
     }
 
+    /// Configures the pin for an Alternate Function (AF).
+    ///
+    /// Refer to the STM32U5 datasheet for the AF mapping table.
+    /// This is a low-level function intended for peripheral initialization.
     pub fn set_alternate_function(&self, func: u32) {
         if self.pin < 8 {
             let offset = self.pin * 4;
@@ -173,10 +184,6 @@ impl<'a> Pin<'a> {
             val |= (func & 0xF) << offset;
             self.registers.afrh.set(val);
         }
-    }
-
-    pub fn handle_interrupt(&self) {
-        self.client.map(|client| client.fired());
     }
 
     fn get_mode(&self) -> Mode {
@@ -354,6 +361,7 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     }
 }
 
+/// Represents a collection of 16 GPIO pins.
 pub struct Port<'a, P: sealed::GpioPort> {
     registers: StaticRef<GpioRegisters>,
     exti: &'a Exti<'a>,
@@ -361,6 +369,7 @@ pub struct Port<'a, P: sealed::GpioPort> {
 }
 
 impl<'a, P: sealed::GpioPort> Port<'a, P> {
+    /// Creates a new Port instance.
     pub const fn new(base: StaticRef<GpioRegisters>, exti: &'a Exti<'a>) -> Self {
         Port {
             registers: base,
@@ -369,6 +378,7 @@ impl<'a, P: sealed::GpioPort> Port<'a, P> {
         }
     }
 
+    /// Returns a Pin instance for a specific physical pin on this port.
     pub fn pin(&self, pin: PinId) -> Pin<'a> {
         Pin::new(self.registers, pin as usize, self.exti, P::PORT)
     }
