@@ -142,3 +142,11 @@ impl<'a> Exti<'a> {
         (self.registers.rpr1.get() | self.registers.fpr1.get()) & (1 << (line as u32)) != 0
     }
 }
+
+/// Factory function to create the EXTI driver.
+pub unsafe fn init() -> &'static Exti<'static> {
+    kernel::static_init!(
+        Exti<'static>,
+        Exti::new(EXTI_BASE)
+    )
+}

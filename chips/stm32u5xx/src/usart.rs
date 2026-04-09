@@ -320,3 +320,11 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
         Err(kernel::ErrorCode::NOSUPPORT)
     }
 }
+
+/// Factory function to create the USART1 driver.
+pub unsafe fn init() -> &'static Usart<'static> {
+    kernel::static_init!(
+        Usart,
+        Usart::new(USART1_BASE)
+    )
+}

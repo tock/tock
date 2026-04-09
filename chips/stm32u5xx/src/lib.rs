@@ -50,30 +50,6 @@ pub unsafe fn init() {
     cortexm33::nvic::enable_all();
 }
 
-/// Factory function to create the EXTI driver.
-pub unsafe fn init_exti() -> &'static exti::Exti<'static> {
-    kernel::static_init!(
-        exti::Exti<'static>,
-        exti::Exti::new(exti::EXTI_BASE)
-    )
-}
-
-/// Factory function to create the DMA1 driver.
-pub unsafe fn init_dma1() -> &'static dma::Dma {
-    kernel::static_init!(
-        dma::Dma,
-        dma::Dma::new(dma::DMA1_BASE)
-    )
-}
-
-/// Factory function to create the USART1 driver.
-pub unsafe fn init_usart1() -> &'static usart::Usart<'static> {
-    kernel::static_init!(
-        usart::Usart,
-        usart::Usart::new(usart::USART1_BASE)
-    )
-}
-
 fn enable_tim2_clock() {
     let rcc = rcc::Rcc::new(rcc::RCC_BASE);
     rcc.enable_tim2();
