@@ -32,6 +32,10 @@ register_structs! {
     }
 }
 
+/// Base address for EXTI in Secure Alias mode.
+pub const EXTI_BASE: StaticRef<ExtiRegisters> =
+    unsafe { StaticRef::new(0x56022000 as *const ExtiRegisters) };
+
 enum_from_primitive! {
     #[derive(Copy, Clone, PartialEq)]
     /// Identifiers for the 16 external interrupt lines (EXTI0 - EXTI15).

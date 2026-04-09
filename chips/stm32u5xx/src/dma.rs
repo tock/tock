@@ -52,6 +52,10 @@ register_structs! {
     }
 }
 
+/// Base address for DMA1 in Secure Alias mode.
+pub const DMA1_BASE: StaticRef<DmaRegisters> =
+    unsafe { StaticRef::new(0x50020000 as *const DmaRegisters) };
+
 pub struct Dma {
     registers: StaticRef<DmaRegisters>,
 }

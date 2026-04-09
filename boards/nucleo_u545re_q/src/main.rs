@@ -12,7 +12,6 @@ use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::utilities::StaticRef;
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
@@ -132,24 +131,9 @@ pub unsafe fn main() {
     >();
 
     // Create Individual Drivers
-    let exti = static_init!(
-        stm32u545::exti::Exti<'static>,
-        stm32u545::exti::Exti::new(StaticRef::new(
-            0x56022000 as *const stm32u545::exti::ExtiRegisters
-        ))
-    );
-
-    let dma1 = static_init!(
-        stm32u545::dma::Dma,
-        stm32u545::dma::Dma::new(StaticRef::new(
-            0x50020000 as *const stm32u545::dma::DmaRegisters
-        ))
-    );
-
-    let usart1 = static_init!(
-        stm32u545::usart::Usart<'static>,
-        stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
-    );
+    let exti = stm32u545::init_exti();
+    let dma1 = stm32u545::init_dma1();
+    let usart1 = stm32u545::init_usart1();
 
     // Link DMA to USART1
     usart1.set_dma(dma1, 0, 1);
