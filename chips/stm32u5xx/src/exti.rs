@@ -34,6 +34,7 @@ register_structs! {
 
 enum_from_primitive! {
     #[derive(Copy, Clone, PartialEq)]
+    /// Identifiers for the 16 external interrupt lines (EXTI0 - EXTI15).
     pub enum LineId {
         Line00 = 0, Line01 = 1, Line02 = 2, Line03 = 3,
         Line04 = 4, Line05 = 5, Line06 = 6, Line07 = 7,
@@ -42,12 +43,15 @@ enum_from_primitive! {
     }
 }
 
+/// The EXTI controller manages external interrupt lines and routes them
+/// to registered clients (usually GPIO Pins).
 pub struct Exti<'a> {
     registers: StaticRef<ExtiRegisters>,
     clients: [kernel::utilities::cells::OptionalCell<&'a dyn kernel::hil::gpio::Client>; 16],
 }
 
 impl<'a> Exti<'a> {
+    /// Creates a new EXTI driver instance.
     pub const fn new(base: StaticRef<ExtiRegisters>) -> Self {
         Self {
             registers: base,
@@ -55,6 +59,10 @@ impl<'a> Exti<'a> {
         }
     }
 
+    /// Processes external interrupts and notifies registered clients.
+    ///
+    /// This is called from the chip's main ISR dispatcher. It clears the
+    /// hardware pending flags and calls `fired()` on the associated client.
     pub fn handle_interrupt(&self, line: LineId) {
         let line_num = line as usize;
         
@@ -68,14 +76,14 @@ impl<'a> Exti<'a> {
         });
     }
 
-    pub fn register_client(&self, line: LineId, client: &'a dyn kernel::hil::gpio::Client) {
+    pub(crate) fn register_client(&self, line: LineId, client: &'a dyn kernel::hil::gpio::Client) {
         let index = line as usize;
         if index < 16 {
             self.clients[index].set(client);
         }
     }
 
-    pub fn select_port(&self, line: LineId, port: u32) {
+    pub(crate) fn select_port(&self, line: LineId, port: u32) {
         let line_num = line as usize;
         let register_index = line_num / 4;
         let offset = (line_num % 4) * 8;
@@ -86,47 +94,47 @@ impl<'a> Exti<'a> {
         self.registers.exticr[register_index].set(val);
     }
 
-    pub fn set_secure(&self, line: LineId) {
+    pub(crate) fn set_secure(&self, line: LineId) {
         let val = self.registers.seccfgr1.get();
         self.registers.seccfgr1.set(val | (1 << (line as u32)));
     }
 
-    pub fn mask_interrupt(&self, line: LineId) {
+    pub(crate) fn mask_interrupt(&self, line: LineId) {
         let val = self.registers.imr1.get();
         self.registers.imr1.set(val & !(1 << (line as u32)));
     }
 
-    pub fn unmask_interrupt(&self, line: LineId) {
+    pub(crate) fn unmask_interrupt(&self, line: LineId) {
         let val = self.registers.imr1.get();
         self.registers.imr1.set(val | (1 << (line as u32)));
     }
 
-    pub fn clear_pending(&self, line: LineId) {
+    pub(crate) fn clear_pending(&self, line: LineId) {
         self.registers.rpr1.set(1 << (line as u32));
         self.registers.fpr1.set(1 << (line as u32));
     }
 
-    pub fn select_rising_trigger(&self, line: LineId) {
+    pub(crate) fn select_rising_trigger(&self, line: LineId) {
         let val = self.registers.rtsr1.get();
         self.registers.rtsr1.set(val | (1 << (line as u32)));
     }
 
-    pub fn deselect_rising_trigger(&self, line: LineId) {
+    pub(crate) fn deselect_rising_trigger(&self, line: LineId) {
         let val = self.registers.rtsr1.get();
         self.registers.rtsr1.set(val & !(1 << (line as u32)));
     }
 
-    pub fn select_falling_trigger(&self, line: LineId) {
+    pub(crate) fn select_falling_trigger(&self, line: LineId) {
         let val = self.registers.ftsr1.get();
         self.registers.ftsr1.set(val | (1 << (line as u32)));
     }
 
-    pub fn deselect_falling_trigger(&self, line: LineId) {
+    pub(crate) fn deselect_falling_trigger(&self, line: LineId) {
         let val = self.registers.ftsr1.get();
         self.registers.ftsr1.set(val & !(1 << (line as u32)));
     }
 
-    pub fn is_pending(&self, line: LineId) -> bool {
+    pub(crate) fn is_pending(&self, line: LineId) -> bool {
         (self.registers.rpr1.get() | self.registers.fpr1.get()) & (1 << (line as u32)) != 0
     }
 }
