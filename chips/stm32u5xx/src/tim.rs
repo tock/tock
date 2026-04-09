@@ -69,6 +69,10 @@ pub struct Tim2<'a> {
 }
 
 impl<'a> Tim2<'a> {
+    /// Creates a new instance of the driver.
+    ///
+    /// - `base`: The StaticRef pointing to the MMIO base address of the peripheral.
+    /// - `enable_clock`: (For Timers) A callback function to power on the peripheral via RCC.
     pub const fn new(base: StaticRef<TimRegisters>, enable_clock: fn()) -> Tim2<'a> {
         Tim2 {
             registers: base,
@@ -80,7 +84,13 @@ impl<'a> Tim2<'a> {
     fn enable_clock(&self) {
         (self.enable_clock)();
     }
-
+    
+    /// Core interrupt handler for the peripheral.
+    ///
+    /// This function must be called from the chip's main interrupt service routine
+    /// (located in `chip.rs`) whenever the corresponding IRQ fires. It
+    /// identifies the cause of the interrupt, clears the relevant hardware
+    /// pending flags, and notifies any registered clients.
     pub fn handle_interrupt(&self) {
         // Clear interrupt flag
         self.registers.sr.modify(SR::CC1IF::CLEAR);
