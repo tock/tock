@@ -27,6 +27,17 @@ JLINK_DEVICE = STM32U545RE
 JLINK_IF = SWD
 JLINK_SPEED = 4000
 
+# NOTE: STM32U5 Metadata Stripping
+# The standard ELF file produced by the compiler contains metadata sections
+# (like .ARM.attributes) that sometimes point to System Memory addresses
+# (e.g., 0x0BFA0000). Many flashing tools, including probe-rs, will attempt
+# to write to these addresses, which are protected on the STM32U5, causing
+# the flash process to crash.
+#
+# We use 'objcopy -j' to extract ONLY the sections that belong
+# in the physical Flash memory (0x0C000000). This ensures a clean,
+# safe deployment to the hardware.
+
 # --- TARGET: binary (Builds the merged binary and unified ELF) ---
 .PHONY: binary
 binary: $(KERNEL_ELF)
