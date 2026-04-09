@@ -5,11 +5,18 @@
 TOCK_ROOT_DIRECTORY = ../../
 PLATFORM = nucleo_u545re_q
 
-# Path to the compiled app
-# ADJUST based on the path to the tbf
-APP_PATH = /mnt/c/Work/munca/libtock-c/examples/blink/build/cortex-m4/cortex-m4.tbf
+# Path to the compiled app (must be provided as an environment variable)
+APP_PATH ?=
 
 include ../Makefile.common
+
+# Check that APP_PATH is provided when running targets that need it
+ifeq ($(APP_PATH),)
+	# Only throw the error for the 'binary' and 'binary_flash' targets
+	ifneq ($(filter binary binary_flash,$(MAKECMDGOALS)),)
+	$(error ERROR: APP_PATH is not set. Run with 'make binary APP_PATH=/path/to/app.tbf')
+	endif
+endif
 
 # Target path for the final kernel ELF
 KERNEL_ELF = $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)
