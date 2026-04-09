@@ -26,17 +26,10 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        // Literal Secure Alias for USART1
-        let uart_isr = 0x5001381C as *mut u32;
-        let uart_tdr = 0x50013828 as *mut u32;
+        let uart = stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE);
 
         for &c in buf {
-            unsafe {
-                // Wait until TXE (bit 7) is set
-                while (core::ptr::read_volatile(uart_isr) & (1 << 7)) == 0 {}
-                // Write character
-                core::ptr::write_volatile(uart_tdr, c as u32);
-            }
+            uart.transmit_byte(c);
         }
         buf.len()
     }

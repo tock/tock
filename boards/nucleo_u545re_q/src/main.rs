@@ -148,9 +148,7 @@ pub unsafe fn main() {
 
     let usart1 = static_init!(
         stm32u545::usart::Usart<'static>,
-        stm32u545::usart::Usart::new(StaticRef::new(
-            0x50013800 as *const stm32u545::usart::UsartRegisters
-        ))
+        stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
     );
 
     // Link DMA to USART1

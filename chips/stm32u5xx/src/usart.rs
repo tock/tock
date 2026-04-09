@@ -43,6 +43,10 @@ register_structs! {
     }
 }
 
+/// Base address for USART1 in Secure Alias mode.
+pub const USART1_BASE: StaticRef<UsartRegisters> =
+    unsafe { StaticRef::new(0x50013800 as *const UsartRegisters) };
+
 register_bitfields![u32,
     pub CR1 [
         /// USART enable
@@ -169,6 +173,15 @@ impl<'a> Usart<'a> {
             }
         }
     }
+    /// Synchronous (Blocking) send.
+    /// ONLY for use in the Panic handler when DMA is unavailable.
+    pub fn transmit_byte(&self, byte: u8) {
+        let regs = &*self.registers;
+        // Wait until TXE (Transmit Data Register Empty) is set
+        while !regs.isr.is_set(ISR::TXE) {}
+        regs.tdr.set(byte as u32);
+    }
+
 }
 
 impl DeferredCallClient for Usart<'_> {
