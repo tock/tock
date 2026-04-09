@@ -9,6 +9,7 @@ pub mod binary_write;
 pub mod capability_ptr;
 pub mod copy_slice;
 pub mod helpers;
+pub mod io_write;
 pub mod leasable_buffer;
 pub mod machine_register;
 pub mod math;

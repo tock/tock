@@ -23,11 +23,12 @@ use crate::LPCPin;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
-use kernel::debug::{self, IoWrite};
+use kernel::debug;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure as UARTconfig, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::io_write::IoWrite;
 use lpc55s6x::gpio::GpioPin;
 use lpc55s6x::iocon::{Config, Function, Iocon, Pull, Slew};
 use lpc55s6x::uart::Uart;
@@ -143,7 +144,7 @@ pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
     let led = &mut LedHigh::new(&red_led);
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         panic_info,
