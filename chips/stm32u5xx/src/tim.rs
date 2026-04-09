@@ -50,9 +50,18 @@ register_bitfields![u32,
         UIF  OFFSET(0) NUMBITS(1) [],
         /// CC1 interrupt flag
         CC1IF OFFSET(1) NUMBITS(1) []
-    ]
+    ],
+    pub EGR [
+        /// Update generation
+        UG OFFSET(0) NUMBITS(1) []
+    ],
 ];
 
+/// TIM2 hardware driver for the STM32U5.
+///
+/// This driver implements the Tock Alarm HIL using the 32-bit general-purpose
+/// TIM2 timer. It is configured to run at 32kHz to provide high-resolution
+/// timing while remaining power-efficient.
 pub struct Tim2<'a> {
     registers: StaticRef<TimRegisters>,
     enable_clock: fn(),
@@ -68,7 +77,7 @@ impl<'a> Tim2<'a> {
         }
     }
 
-    pub fn enable_clock(&self) {
+    fn enable_clock(&self) {
         (self.enable_clock)();
     }
 
@@ -79,6 +88,27 @@ impl<'a> Tim2<'a> {
         self.client.map(|client| {
             client.alarm();
         });
+    }
+
+    /// Initializes and starts the timer hardware.
+    ///
+    /// This sets the prescaler to 124 (converting the 4MHz clock to 32kHz)
+    /// and enables the 32-bit free-running counter.
+    pub fn start(&self) {
+        self.enable_clock();
+
+        // 1. Set the value
+        self.registers.psc.set(124);
+
+        // 2. Force the hardware to load the value NOW
+        // On STM32, the PSC is buffered. By setting the UG bit in EGR, 
+        self.registers.egr.set(1);
+
+        // 3. Clear the status flag caused by the manual update
+        self.registers.sr.modify(SR::UIF::CLEAR);
+
+        self.registers.arr.set(0xFFFFFFFF);
+        self.registers.cr1.modify(CR1::CEN::SET);
     }
 }
 

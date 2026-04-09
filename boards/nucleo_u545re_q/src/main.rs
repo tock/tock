@@ -165,9 +165,9 @@ pub unsafe fn main() {
     periphs.rcc.enable_gpioa();
     periphs.rcc.enable_gpioc();
     periphs.rcc.enable_usart1();
-    periphs.rcc.enable_tim2();
     periphs.rcc.enable_syscfg();
     periphs.rcc.set_usart1_source_pclk();
+    periphs.tim2.start();
 
     set_pin_primary_functions(periphs);
 
