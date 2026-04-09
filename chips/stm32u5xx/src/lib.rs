@@ -54,8 +54,8 @@ pub struct Stm32u5xxPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a dma::Dma,
-    pub gpio_a: gpio::Port<'a>,
-    pub gpio_c: gpio::Port<'a>,
+    pub gpio_a: gpio::Port<'a, gpio::GpioPortA>,
+    pub gpio_c: gpio::Port<'a, gpio::GpioPortC>,
     pub usart1: &'a usart::Usart<'a>,
     pub tim2: tim::Tim2<'a>,
 }
@@ -73,12 +73,10 @@ impl<'a> Stm32u5xxPeripherals<'a> {
             gpio_a: gpio::Port::new(
                 StaticRef::new(0x52020000 as *const gpio::GpioRegisters),
                 exti,
-                0,
             ),
             gpio_c: gpio::Port::new(
                 StaticRef::new(0x52020800 as *const gpio::GpioRegisters),
                 exti,
-                2,
             ),
             usart1,
             tim2: tim::Tim2::new(StaticRef::new(0x50000000 as *const tim::TimRegisters)),

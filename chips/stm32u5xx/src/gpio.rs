@@ -71,22 +71,67 @@ pub enum PullUpPullDown {
     PullDown = 2,
 }
 
+#[derive(Copy, Clone, PartialEq)]
+pub enum GpioPortNumber {
+    PortA = 0,
+    PortB = 1,
+    PortC = 2,
+    PortD = 3,
+    PortE = 4,
+    PortF = 5,
+    PortG = 6,
+    PortH = 7,
+    PortI = 8,
+    PortJ = 9,
+}
+
 pub struct Pin<'a> {
     registers: StaticRef<GpioRegisters>,
     pin: usize,
     pin_mask: u32,
     exti: &'a Exti<'a>,
-    port_id: u32,
+    port_id: GpioPortNumber,
     client: OptionalCell<&'a dyn gpio::Client>,
     exti_lineid: OptionalCell<LineId>,
 }
+
+// Marker structs for each port
+pub struct GpioPortA;
+pub struct GpioPortB;
+pub struct GpioPortC;
+pub struct GpioPortD;
+pub struct GpioPortE;
+pub struct GpioPortF;
+pub struct GpioPortG;
+pub struct GpioPortH;
+pub struct GpioPortI;
+pub struct GpioPortJ;
+
+mod sealed {
+    use super::GpioPortNumber;
+    pub trait GpioPort {
+        const PORT: GpioPortNumber;
+    }
+}
+
+// Implement the identity for every port
+impl sealed::GpioPort for GpioPortA { const PORT: GpioPortNumber = GpioPortNumber::PortA; }
+impl sealed::GpioPort for GpioPortB { const PORT: GpioPortNumber = GpioPortNumber::PortB; }
+impl sealed::GpioPort for GpioPortC { const PORT: GpioPortNumber = GpioPortNumber::PortC; }
+impl sealed::GpioPort for GpioPortD { const PORT: GpioPortNumber = GpioPortNumber::PortD; }
+impl sealed::GpioPort for GpioPortE { const PORT: GpioPortNumber = GpioPortNumber::PortE; }
+impl sealed::GpioPort for GpioPortF { const PORT: GpioPortNumber = GpioPortNumber::PortF; }
+impl sealed::GpioPort for GpioPortG { const PORT: GpioPortNumber = GpioPortNumber::PortG; }
+impl sealed::GpioPort for GpioPortH { const PORT: GpioPortNumber = GpioPortNumber::PortH; }
+impl sealed::GpioPort for GpioPortI { const PORT: GpioPortNumber = GpioPortNumber::PortI; }
+impl sealed::GpioPort for GpioPortJ { const PORT: GpioPortNumber = GpioPortNumber::PortJ; }
 
 impl<'a> Pin<'a> {
     pub const fn new(
         base: StaticRef<GpioRegisters>,
         pin: usize,
         exti: &'a Exti<'a>,
-        port_id: u32,
+        port_id: GpioPortNumber,
     ) -> Pin<'a> {
         Pin {
             registers: base,
@@ -255,7 +300,7 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
         if line_num < 16 {
             debug!(
                 "GPIO: Enabling interrupts for Pin {} on Port {}",
-                line_num, self.port_id
+                line_num, self.port_id as u32
             );
             let line = unsafe { core::mem::transmute::<u8, LineId>(line_num as u8) };
             self.exti_lineid.set(line);
@@ -265,7 +310,7 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
             });
 
             // 1. Route the port to the line
-            self.exti.select_port(line, self.port_id);
+            self.exti.select_port(line, self.port_id as u32);
 
             // 2. Configure the EXTI line as Secure.
             // On the STM32U5, the EXTI controller is TrustZone-aware. Since the Tock
@@ -309,22 +354,22 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     }
 }
 
-pub struct Port<'a> {
+pub struct Port<'a, P: sealed::GpioPort> {
     registers: StaticRef<GpioRegisters>,
     exti: &'a Exti<'a>,
-    port_id: u32,
+    _marker: core::marker::PhantomData<P>,
 }
 
-impl<'a> Port<'a> {
-    pub const fn new(base: StaticRef<GpioRegisters>, exti: &'a Exti<'a>, port_id: u32) -> Port<'a> {
+impl<'a, P: sealed::GpioPort> Port<'a, P> {
+    pub const fn new(base: StaticRef<GpioRegisters>, exti: &'a Exti<'a>) -> Self {
         Port {
             registers: base,
             exti,
-            port_id,
+            _marker: core::marker::PhantomData,
         }
     }
 
     pub fn pin(&self, pin: PinId) -> Pin<'a> {
-        Pin::new(self.registers, pin as usize, self.exti, self.port_id)
+        Pin::new(self.registers, pin as usize, self.exti, P::PORT)
     }
 }
