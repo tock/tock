@@ -150,8 +150,5 @@ impl Dma {
 
 /// Factory function to create the DMA1 driver.
 pub unsafe fn init() -> &'static Dma {
-    kernel::static_init!(
-        Dma,
-        Dma::new(DMA1_BASE)
-    )
+    kernel::static_init!(Dma, Dma::new(DMA1_BASE))
 }

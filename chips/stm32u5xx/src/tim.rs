@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
+use cortexm33;
+use kernel::hil::time::Time;
 use kernel::hil::time::{self, Ticks, Ticks32};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
-use kernel::hil::time::Time;
-use cortexm33;
 
 register_structs! {
     pub TimRegisters {
@@ -112,7 +112,7 @@ impl<'a> Tim2<'a> {
         self.registers.psc.set(124);
 
         // 2. Force the hardware to load the value NOW
-        // On STM32, the PSC is buffered. By setting the UG bit in EGR, 
+        // On STM32, the PSC is buffered. By setting the UG bit in EGR,
         self.registers.egr.set(1);
 
         // 3. Clear the status flag caused by the manual update

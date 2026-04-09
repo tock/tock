@@ -84,7 +84,10 @@ impl<'a> Stm32u5xxPeripherals<'a> {
                 exti,
             ),
             usart1,
-            tim2: tim::Tim2::new(StaticRef::new(0x50000000 as *const tim::TimRegisters), enable_tim2_clock),
+            tim2: tim::Tim2::new(
+                StaticRef::new(0x50000000 as *const tim::TimRegisters),
+                enable_tim2_clock,
+            ),
         }
     }
 }

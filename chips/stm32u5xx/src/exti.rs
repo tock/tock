@@ -69,7 +69,7 @@ impl<'a> Exti<'a> {
     /// hardware pending flags and calls `fired()` on the associated client.
     pub fn handle_interrupt(&self, line: LineId) {
         let line_num = line as usize;
-        
+
         // Clear pending flags
         self.registers.rpr1.set(1 << line_num);
         self.registers.fpr1.set(1 << line_num);
@@ -145,8 +145,5 @@ impl<'a> Exti<'a> {
 
 /// Factory function to create the EXTI driver.
 pub unsafe fn init() -> &'static Exti<'static> {
-    kernel::static_init!(
-        Exti<'static>,
-        Exti::new(EXTI_BASE)
-    )
+    kernel::static_init!(Exti<'static>, Exti::new(EXTI_BASE))
 }

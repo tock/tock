@@ -3,6 +3,7 @@
 // Copyright OxidOS Automotive 2026.
 
 use core::cell::Cell;
+use cortexm33;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{self};
 use kernel::utilities::cells::OptionalCell;
@@ -10,7 +11,6 @@ use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
-use cortexm33;
 
 use crate::dma::Dma;
 
@@ -172,7 +172,7 @@ impl<'a> Usart<'a> {
     /// This function implements the "waiting room" logic for the circular buffer.
     /// It checks if two conditions are met:
     /// 1. Is there data in the software FIFO that hasn't been read yet? (`r < w`)
-    /// 2. Is there a buffer from the application (the `rx_buffer`) waiting to 
+    /// 2. Is there a buffer from the application (the `rx_buffer`) waiting to
     ///    receive data?
     ///
     /// If both are true, it "pops" the oldest byte from the FIFO, places it in
@@ -200,7 +200,6 @@ impl<'a> Usart<'a> {
         while !regs.isr.is_set(ISR::TXE) {}
         regs.tdr.set(byte as u32);
     }
-
 }
 
 /// The Usart driver uses a DeferredCall to handle buffer completion callbacks.
@@ -330,8 +329,5 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
 
 /// Factory function to create the USART1 driver.
 pub unsafe fn init() -> &'static Usart<'static> {
-    kernel::static_init!(
-        Usart,
-        Usart::new(USART1_BASE)
-    )
+    kernel::static_init!(Usart, Usart::new(USART1_BASE))
 }

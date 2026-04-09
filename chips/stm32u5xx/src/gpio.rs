@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
+use cortexm33;
 use kernel::debug;
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
-use cortexm33;
 
 use crate::exti::{Exti, LineId};
 
@@ -116,16 +116,36 @@ mod sealed {
 }
 
 // Implement the identity for every port
-impl sealed::GpioPort for GpioPortA { const PORT: GpioPortNumber = GpioPortNumber::PortA; }
-impl sealed::GpioPort for GpioPortB { const PORT: GpioPortNumber = GpioPortNumber::PortB; }
-impl sealed::GpioPort for GpioPortC { const PORT: GpioPortNumber = GpioPortNumber::PortC; }
-impl sealed::GpioPort for GpioPortD { const PORT: GpioPortNumber = GpioPortNumber::PortD; }
-impl sealed::GpioPort for GpioPortE { const PORT: GpioPortNumber = GpioPortNumber::PortE; }
-impl sealed::GpioPort for GpioPortF { const PORT: GpioPortNumber = GpioPortNumber::PortF; }
-impl sealed::GpioPort for GpioPortG { const PORT: GpioPortNumber = GpioPortNumber::PortG; }
-impl sealed::GpioPort for GpioPortH { const PORT: GpioPortNumber = GpioPortNumber::PortH; }
-impl sealed::GpioPort for GpioPortI { const PORT: GpioPortNumber = GpioPortNumber::PortI; }
-impl sealed::GpioPort for GpioPortJ { const PORT: GpioPortNumber = GpioPortNumber::PortJ; }
+impl sealed::GpioPort for GpioPortA {
+    const PORT: GpioPortNumber = GpioPortNumber::PortA;
+}
+impl sealed::GpioPort for GpioPortB {
+    const PORT: GpioPortNumber = GpioPortNumber::PortB;
+}
+impl sealed::GpioPort for GpioPortC {
+    const PORT: GpioPortNumber = GpioPortNumber::PortC;
+}
+impl sealed::GpioPort for GpioPortD {
+    const PORT: GpioPortNumber = GpioPortNumber::PortD;
+}
+impl sealed::GpioPort for GpioPortE {
+    const PORT: GpioPortNumber = GpioPortNumber::PortE;
+}
+impl sealed::GpioPort for GpioPortF {
+    const PORT: GpioPortNumber = GpioPortNumber::PortF;
+}
+impl sealed::GpioPort for GpioPortG {
+    const PORT: GpioPortNumber = GpioPortNumber::PortG;
+}
+impl sealed::GpioPort for GpioPortH {
+    const PORT: GpioPortNumber = GpioPortNumber::PortH;
+}
+impl sealed::GpioPort for GpioPortI {
+    const PORT: GpioPortNumber = GpioPortNumber::PortI;
+}
+impl sealed::GpioPort for GpioPortJ {
+    const PORT: GpioPortNumber = GpioPortNumber::PortJ;
+}
 
 impl<'a> Pin<'a> {
     // Only our own crate can create pins
