@@ -31,6 +31,10 @@ register_structs! {
     }
 }
 
+/// Base address for RCC in Secure mode.
+pub const RCC_BASE: StaticRef<RccRegisters> =
+    unsafe { StaticRef::new(0x46020C00 as *const RccRegisters) };
+
 pub struct Rcc {
     registers: StaticRef<RccRegisters>,
 }

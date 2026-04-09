@@ -54,23 +54,21 @@ register_bitfields![u32,
 
 pub struct Tim2<'a> {
     registers: StaticRef<TimRegisters>,
+    enable_clock: fn(),
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
 impl<'a> Tim2<'a> {
-    pub const fn new(base: StaticRef<TimRegisters>) -> Tim2<'a> {
+    pub const fn new(base: StaticRef<TimRegisters>, enable_clock: fn()) -> Tim2<'a> {
         Tim2 {
             registers: base,
+            enable_clock,
             client: OptionalCell::empty(),
         }
     }
 
     pub fn enable_clock(&self) {
-        // Secure Alias for RCC_APB1ENR1
-        let rcc_apb1enr1 = 0x46020C9C as *mut u32;
-        unsafe {
-            core::ptr::write_volatile(rcc_apb1enr1, core::ptr::read_volatile(rcc_apb1enr1) | 1);
-        }
+        (self.enable_clock)();
     }
 
     pub fn handle_interrupt(&self) {

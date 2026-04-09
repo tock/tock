@@ -50,6 +50,11 @@ pub unsafe fn init() {
     cortexm33::nvic::enable_all();
 }
 
+fn enable_tim2_clock() {
+    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
+    rcc.enable_tim2();
+}
+
 pub struct Stm32u5xxPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub exti: &'a exti::Exti<'a>,
@@ -79,7 +84,7 @@ impl<'a> Stm32u5xxPeripherals<'a> {
                 exti,
             ),
             usart1,
-            tim2: tim::Tim2::new(StaticRef::new(0x50000000 as *const tim::TimRegisters)),
+            tim2: tim::Tim2::new(StaticRef::new(0x50000000 as *const tim::TimRegisters), enable_tim2_clock),
         }
     }
 }
