@@ -52,7 +52,7 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             EXTI13_IRQ => {
                 // EXTI13 (Button)
-                self.exti.handle_interrupt(13);
+                self.exti.handle_interrupt(crate::exti::LineId::Line13);
                 true
             }
             GPDMA1_CH0_IRQ => {

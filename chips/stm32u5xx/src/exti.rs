@@ -55,17 +55,17 @@ impl<'a> Exti<'a> {
         }
     }
 
-    pub fn handle_interrupt(&self, line: usize) {
-        // Clear pending flags for this line
-        self.registers.rpr1.set(1 << line);
-        self.registers.fpr1.set(1 << line);
+    pub fn handle_interrupt(&self, line: LineId) {
+        let line_num = line as usize;
+        
+        // Clear pending flags
+        self.registers.rpr1.set(1 << line_num);
+        self.registers.fpr1.set(1 << line_num);
 
-        // Notify the client directly
-        if line < 16 {
-            self.clients[line].map(|client| {
-                client.fired();
-            });
-        }
+        // Notify the client
+        self.clients[line_num].map(|client| {
+            client.fired();
+        });
     }
 
     pub fn register_client(&self, line: LineId, client: &'a dyn kernel::hil::gpio::Client) {
