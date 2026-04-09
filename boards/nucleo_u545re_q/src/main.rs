@@ -50,7 +50,6 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
-    ipc: kernel::ipc::IPC<4>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -63,7 +62,6 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -267,8 +265,6 @@ pub unsafe fn main() {
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -280,11 +276,6 @@ pub unsafe fn main() {
             led,
             button,
             alarm,
-            ipc: kernel::ipc::IPC::new(
-                board_kernel,
-                kernel::ipc::DRIVER_NUM,
-                &memory_allocation_cap
-            ),
         }
     );
 
