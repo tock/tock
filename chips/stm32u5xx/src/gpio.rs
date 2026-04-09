@@ -193,7 +193,7 @@ impl gpio::Configure for Pin<'_> {
         self.set_mode(Mode::Analog);
         gpio::Configuration::LowPower
     }
-    
+
     /// Deactivates the pin to its lowest power state.
     ///
     /// According to RM0456 (STM32U5 Reference Manual), Section 13.3.12
@@ -267,7 +267,12 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
             // 1. Route the port to the line
             self.exti.select_port(line, self.port_id);
 
-            // 2. MARK THE LINE AS SECURE (Required for U5 Secure Mode!)
+            // 2. Configure the EXTI line as Secure.
+            // On the STM32U5, the EXTI controller is TrustZone-aware. Since the Tock
+            // kernel is running in the Secure state, we must explicitly mark the
+            // interrupt line as Secure in the EXTI_SECCFGR1 register. If we omit this,
+            // the hardware firewall will block the interrupt signal from reaching
+            // the Secure CPU context.
             self.exti.set_secure(line);
 
             self.exti.mask_interrupt(line);
