@@ -8,6 +8,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::hil::time::Time;
+use cortexm33;
 
 register_structs! {
     pub TimRegisters {
@@ -84,7 +85,7 @@ impl<'a> Tim2<'a> {
     fn enable_clock(&self) {
         (self.enable_clock)();
     }
-    
+
     /// Core interrupt handler for the peripheral.
     ///
     /// This function must be called from the chip's main interrupt service routine
@@ -119,6 +120,10 @@ impl<'a> Tim2<'a> {
 
         self.registers.arr.set(0xFFFFFFFF);
         self.registers.cr1.modify(CR1::CEN::SET);
+
+        unsafe {
+            cortexm33::nvic::Nvic::new(24).enable(); // Enable EXTI13 IRQ
+        }
     }
 }
 

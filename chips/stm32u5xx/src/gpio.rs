@@ -8,6 +8,7 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use cortexm33;
 
 use crate::exti::{Exti, LineId};
 
@@ -345,6 +346,10 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
                 }
             }
             self.exti.unmask_interrupt(line);
+        }
+
+        unsafe {
+            cortexm33::nvic::Nvic::new(24).enable(); // Enable EXTI13 IRQ here
         }
     }
 

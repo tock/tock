@@ -10,6 +10,7 @@ use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use cortexm33;
 
 use crate::dma::Dma;
 
@@ -283,6 +284,12 @@ impl uart::Configure for Usart<'_> {
         // Hybrid: RXNEIE is ENABLED for typing interrupts
         regs.cr1
             .write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET + CR1::RXNEIE::SET);
+
+        unsafe {
+            cortexm33::nvic::Nvic::new(61).enable(); // USART1
+            cortexm33::nvic::Nvic::new(29).enable(); // DMA TX
+            cortexm33::nvic::Nvic::new(30).enable(); // DMA RX
+        }
         Ok(())
     }
 }

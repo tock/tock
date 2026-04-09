@@ -278,14 +278,6 @@ pub unsafe fn main() {
         stm32u545::chip::Stm32u5xx::new(default_peripherals)
     );
 
-    unsafe {
-        cortexm33::nvic::Nvic::new(45).enable(); // TIM2
-        cortexm33::nvic::Nvic::new(61).enable(); // USART1
-        cortexm33::nvic::Nvic::new(24).enable(); // EXTI13 (Button)
-        cortexm33::nvic::Nvic::new(29).enable(); // GPDMA1 (DMA TX)
-        cortexm33::nvic::Nvic::new(30).enable(); // GPDMA1 (DMA RX)
-    }
-
     // --- LOAD PROCESSES ---
     let app_flash = core::slice::from_raw_parts(
         core::ptr::from_ref(&_sappmem),
