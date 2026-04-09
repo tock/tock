@@ -132,7 +132,14 @@ impl<'a> Usart<'a> {
             regs.icr.set(0x0F);
         }
 
-        // Receive Logic (IRQ Based - Drain hardware into FIFO)
+        // 2. Receive Logic: Drain the Hardware FIFO.
+        // Used a 'while' loop here to ensure that every byte currently
+        // waiting in the hardware Receive Data Register (RDR) is moved into
+        // the software FIFO. In high-speed scenarios, multiple bytes may
+        // arrive during a single interrupt execution. By draining the
+        // hardware completely, we prevent "Overrun Errors" and ensure the
+        // RXNE (Read Data Register Not Empty) flag is properly cleared
+        // by the hardware.
         let mut data_received = false;
         while regs.isr.is_set(ISR::RXNE) {
             let byte = regs.rdr.get() as u8;
@@ -159,6 +166,17 @@ impl<'a> Usart<'a> {
         }
     }
 
+    /// Attempts to serve a pending receive request using data from the software FIFO.
+    ///
+    /// This function implements the "waiting room" logic for the circular buffer.
+    /// It checks if two conditions are met:
+    /// 1. Is there data in the software FIFO that hasn't been read yet? (`r < w`)
+    /// 2. Is there a buffer from the application (the `rx_buffer`) waiting to 
+    ///    receive data?
+    ///
+    /// If both are true, it "pops" the oldest byte from the FIFO, places it in
+    /// the application's buffer, and returns the buffer to the application via
+    /// the `received_buffer` callback.
     fn try_receive_from_fifo(&self) {
         let r = self.fifo_read.get();
         let w = self.fifo_write.get();
