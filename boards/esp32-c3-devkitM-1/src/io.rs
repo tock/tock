@@ -49,6 +49,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         crate::PANIC_RESOURCES.get(),
     );
 
-    let _ = writeln!(writer, "{}", pi);
-    loop {}
+    loop {
+        rv32i::support::nop();
+    }
 }
