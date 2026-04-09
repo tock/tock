@@ -121,6 +121,21 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::Stm32u5xxPeripherals) {
     btn.set_floating_state(kernel::hil::gpio::FloatingState::PullDown);
 }
 
+#[inline(never)]
+unsafe fn start(
+    board_kernel: &'static kernel::Kernel,
+    platform: &'static NucleoU545RE,
+    chip: &'static ChipHw,
+) {
+    // Hand over control to the Tock Kernel Loop
+    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 4>(
+        platform,
+        chip,
+        None,
+        &create_capability!(capabilities::MainLoopCapability),
+    );
+}
+
 #[no_mangle]
 #[allow(clippy::large_stack_arrays)]
 pub unsafe fn main() {
@@ -300,11 +315,5 @@ pub unsafe fn main() {
         &create_capability!(capabilities::ProcessManagementCapability),
     );
 
-    // Hand over control to the Tock Kernel Loop
-    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 4>(
-        platform,
-        chip,
-        None,
-        &create_capability!(capabilities::MainLoopCapability),
-    );
+    start(board_kernel, platform, chip);
 }
