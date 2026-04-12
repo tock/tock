@@ -33,6 +33,7 @@ use rp2040::clocks::{SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliary
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::i2c::I2c;
 use rp2040::resets::Peripheral;
+use rp2040::spi::Spi;
 use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
 use rp2040::usb::UsbCtrl;
@@ -78,6 +79,10 @@ pub struct Platform {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static TemperatureDriver,
     i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, I2c<'static, 'static>>,
+    spi_controller: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, Spi<'static>>,
+    >,
     date_time:
         &'static capsules_extra::date_time::DateTimeCapsule<'static, rp2040::rtc::Rtc<'static>>,
     console: &'static capsules_core::console::Console<'static>,
@@ -96,6 +101,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
@@ -407,10 +413,11 @@ pub unsafe fn setup(
             13 => peripherals.pins.get_pin(RPGpio::GPIO13),
             14 => peripherals.pins.get_pin(RPGpio::GPIO14),
             15 => peripherals.pins.get_pin(RPGpio::GPIO15),
-            16 => peripherals.pins.get_pin(RPGpio::GPIO16),
-            17 => peripherals.pins.get_pin(RPGpio::GPIO17),
-            18 => peripherals.pins.get_pin(RPGpio::GPIO18),
-            19 => peripherals.pins.get_pin(RPGpio::GPIO19),
+            // Used for SPI0. Comment them in if you don't use SPI.
+            // 16 => peripherals.pins.get_pin(RPGpio::GPIO16),
+            // 17 => peripherals.pins.get_pin(RPGpio::GPIO17),
+            // 18 => peripherals.pins.get_pin(RPGpio::GPIO18),
+            // 19 => peripherals.pins.get_pin(RPGpio::GPIO19),
             20 => peripherals.pins.get_pin(RPGpio::GPIO20),
             21 => peripherals.pins.get_pin(RPGpio::GPIO21),
             22 => peripherals.pins.get_pin(RPGpio::GPIO22),
@@ -534,6 +541,37 @@ pub unsafe fn setup(
     i2c0.init(10 * 1000);
     i2c0.set_master_client(i2c);
 
+    // Set SPI0 bus pins to SPI function (SCK, MOSI, MISO).
+    peripherals
+        .pins
+        .get_pin(RPGpio::GPIO18)
+        .set_function(GpioFunction::SPI);
+    peripherals
+        .pins
+        .get_pin(RPGpio::GPIO19)
+        .set_function(GpioFunction::SPI);
+    peripherals
+        .pins
+        .get_pin(RPGpio::GPIO16)
+        .set_function(GpioFunction::SPI);
+    peripherals
+        .pins
+        .get_pin(RPGpio::GPIO17)
+        .set_function(GpioFunction::SPI);
+
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi0)
+        .finalize(components::spi_mux_component_static!(Spi));
+
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
+            peripherals.pins.get_pin(RPGpio::GPIO17),
+        ),
+        capsules_core::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_static!(Spi));
+
     let platform_type = match peripherals.sysinfo.get_platform() {
         sysinfo::Platform::Asic => "ASIC",
         sysinfo::Platform::Fpga => "FPGA",
@@ -555,6 +593,7 @@ pub unsafe fn setup(
         adc,
         temperature,
         i2c,
+        spi_controller,
         date_time,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
         ipc: kernel::ipc::IPC::new(
