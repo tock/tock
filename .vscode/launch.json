@@ -31,12 +31,14 @@
         },
         {
             "name": "PSC3",
+            // Install marus25.cortex-debug
             "type": "cortex-debug", // probe-rs also works but has significantly worse debugging experience (fewer breakpoints possible, fewer variables visible)
             "servertype": "openocd",
             "request": "launch",
             "executable": "${workspaceRoot}/target/thumbv8m.main-none-eabi/debug/psc3m5_evk-app.elf",
             "cwd": "${workspaceRoot}",
-            "serverpath": "/opt/ModusToolboxProgtools-1.7/openocd/bin/openocd",
+            // Add the OpenOCD binary from ModusToolboxProgtools to your PATH
+            // "serverpath": "/opt/ModusToolboxProgtools-1.7/openocd/bin/openocd",
             "openOCDLaunchCommands": [
                 "init; reset init;"
             ],

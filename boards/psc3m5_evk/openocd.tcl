@@ -5,6 +5,9 @@
 #! OpenOCD configuration for Infineon PSOC3M5 EVK board
 #! This uses the Infineon Fork of OpenOCD.
 
+echo "\033\[34mInfo : This board requires OpenOCD from ModusToolboxProgtools. Install it from here \033\[31mhttps://softwaretools.infineon.com/tools/com.ifx.tb.tool.modustoolboxprogtools\033\[0m"
+echo "\033\[34mAnd add it to your PATH before other openocd binaries.\033\[0m"
+
 if { [info exists env(OPENOCD_ROOT)] } {
     add_script_search_dir $env(OPENOCD_ROOT)/scripts
 } else {
