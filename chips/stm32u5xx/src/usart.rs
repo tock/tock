@@ -193,6 +193,10 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
             return Err((kernel::ErrorCode::BUSY, tx_buffer));
         }
 
+        if self.dma.is_none() {
+            return Err((kernel::ErrorCode::OFF, tx_buffer));
+        }
+
         self.tx_buffer.replace(tx_buffer);
         self.tx_len.set(tx_len);
 
@@ -257,6 +261,10 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
         if self.rx_buffer.is_some() {
             return Err((kernel::ErrorCode::BUSY, rx_buffer));
+        }
+
+        if self.dma.is_none() {
+            return Err((kernel::ErrorCode::OFF, rx_buffer));
         }
 
         self.rx_buffer.replace(rx_buffer);
