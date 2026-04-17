@@ -286,13 +286,15 @@ unsafe fn start() -> (
 
 #[no_mangle]
 pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
     let (board_kernel, platform, chip) = start();
 
     // Hand over control to the Tock Kernel Loop
-    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 4>(
+    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, { NUM_PROCS as u8 }>(
         platform,
         chip,
         None,
-        &create_capability!(capabilities::MainLoopCapability),
+        &main_loop_capability,
     );
 }
