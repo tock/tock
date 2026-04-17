@@ -101,7 +101,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
             // assume it is initialized because we verified that the index is
             // within the populated elements of the ring. Our invariant is that
             // any index with head and tail _must_ be initialized.
-            Some(unsafe { self.ring[index].assume_init_read() })
+            Some(unsafe { self.ring[index].assume_init() })
         }
     }
 
