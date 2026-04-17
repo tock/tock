@@ -5,15 +5,27 @@
 //! Implementation of a ring buffer.
 
 use crate::collections::queue;
+use core::mem::MaybeUninit;
 
+/// Queue implementation based on a contiguous buffer.
+///
+/// The buffer is assumed to be uninitialized when the [`RingBuffer`] is
+/// created. This can be safely created using uninitialized memory for the ring.
 pub struct RingBuffer<'a, T: 'a> {
-    ring: &'a mut [T],
+    /// Array of elements `T`. The buffer does not need to have initialized
+    /// elements `T`. The `RingBuffer` assumes that any element not tracked in
+    /// the ring based on head and tail are not initialized.
+    ring: &'a mut [MaybeUninit<T>],
     head: usize,
     tail: usize,
 }
 
-impl<'a, T: Copy> RingBuffer<'a, T> {
-    pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
+impl<'a, T> RingBuffer<'a, T> {
+    /// Create a [`RingBuffer`].
+    ///
+    /// The provided `ring` is assumed to be uninitialized and the ring starts
+    /// empty.
+    pub fn new(ring: &'a mut [MaybeUninit<T>]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
             tail: 0,
@@ -38,25 +50,82 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     /// contents of the buffer is `[left, right].concat()` (although physically the "left" slice is
     /// stored after the "right" slice).
     pub fn as_slices(&'a self) -> (Option<&'a [T]>, Option<&'a [T]>) {
+        // SAFETY: Reinterprets &[MaybeUninit<T>] as &[T]. MaybeUninit<T> has the same layout as
+        // T, and every element in the returned slice falls within [head, tail) which has been
+        // written by enqueue/push, so reading those elements as T is valid.
+        let assume_init = |s: &[MaybeUninit<T>]| -> &[T] {
+            unsafe { core::slice::from_raw_parts(s.as_ptr().cast::<T>(), s.len()) }
+        };
+
         if self.head < self.tail {
-            (Some(&self.ring[self.head..self.tail]), None)
+            (Some(assume_init(&self.ring[self.head..self.tail])), None)
         } else if self.head > self.tail {
             let (left, right) = self.ring.split_at(self.head);
             (
-                Some(right),
+                Some(assume_init(right)),
                 if self.tail == 0 {
                     None
                 } else {
-                    Some(&left[..self.tail])
+                    Some(assume_init(&left[..self.tail]))
                 },
             )
         } else {
             (None, None)
         }
     }
+
+    /// Check if `index` into the internal `ring` contains a valid element
+    /// stored in the [`RingBuffer`].
+    fn is_valid(&self, index: usize) -> bool {
+        let capacity = self.ring.len();
+        let position_in_ring = (index + capacity - self.head) % capacity;
+
+        // Check if the position in the ring of `index` is not actually within
+        // the populated ring holding valid elements. If so, return true.
+        // Otherwise, return false.
+        position_in_ring < queue::Queue::len(self)
+    }
+
+    /// Get the element stored at `index` in the `ring` if there is a valid
+    /// element at that index.
+    fn get_internal(&self, index: usize) -> Option<T> {
+        // Check if the position in the ring of `index` is not actually within
+        // the populated ring holding valid elements. If so, this `get()` fails
+        // and we return `None`.
+        if !self.is_valid(index) {
+            None
+        } else {
+            // SAFETY
+            //
+            // It is safe to read the element from this location in the ring and
+            // assume it is initialized because we verified that the index is
+            // within the populated elements of the ring. Our invariant is that
+            // any index with head and tail _must_ be initialized.
+            Some(unsafe { self.ring[index].assume_init_read() })
+        }
+    }
+
+    /// Get a reference to the element stored at `index` in the `ring` if there
+    /// is a valid element at that index.
+    fn get_internal_ref(&self, index: usize) -> Option<&T> {
+        // Check if the position in the ring of `index` is not actually within
+        // the populated ring holding valid elements. If so, this `get()` fails
+        // and we return `None`.
+        if !self.is_valid(index) {
+            None
+        } else {
+            // SAFETY
+            //
+            // It is safe to read the element from this location in the ring and
+            // assume it is initialized because we verified that the index is
+            // within the populated elements of the ring. Our invariant is that
+            // any index with head and tail _must_ be initialized.
+            Some(unsafe { self.ring[index].assume_init_ref() })
+        }
+    }
 }
 
-impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
+impl<T> queue::Queue<T> for RingBuffer<'_, T> {
     fn has_elements(&self) -> bool {
         self.head != self.tail
     }
@@ -81,7 +150,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
             // Incrementing tail will overwrite head
             false
         } else {
-            self.ring[self.tail] = val;
+            self.ring[self.tail].write(val);
             self.tail = (self.tail + 1) % self.ring.len();
             true
         }
@@ -89,23 +158,23 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
 
     fn push(&mut self, val: T) -> Option<T> {
         let result = if self.is_full() {
-            let val = self.ring[self.head];
+            let old = self.get_internal(self.head);
             self.head = (self.head + 1) % self.ring.len();
-            Some(val)
+            old
         } else {
             None
         };
 
-        self.ring[self.tail] = val;
+        self.ring[self.tail].write(val);
         self.tail = (self.tail + 1) % self.ring.len();
         result
     }
 
     fn dequeue(&mut self) -> Option<T> {
         if self.has_elements() {
-            let val = self.ring[self.head];
+            let val = self.get_internal(self.head);
             self.head = (self.head + 1) % self.ring.len();
-            Some(val)
+            val
         } else {
             None
         }
@@ -122,11 +191,12 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         let len = self.ring.len();
         let mut slot = self.head;
         while slot != self.tail {
-            if f(&self.ring[slot]) {
-                // This is the desired element, return a reference to it
-                return Some(&self.ring[slot]);
+            if let Some(e) = self.get_internal_ref(slot) {
+                if f(e) {
+                    return Some(e);
+                }
+                slot = (slot + 1) % len;
             }
-            slot = (slot + 1) % len;
         }
         None
     }
@@ -145,21 +215,25 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         let len = self.ring.len();
         let mut slot = self.head;
         while slot != self.tail {
-            if f(&self.ring[slot]) {
-                // This is the desired element, remove it and return it
-                let val = self.ring[slot];
+            if let Some(e) = self.get_internal_ref(slot) {
+                if f(e) {
+                    // This is the desired element, remove it and return it.
+                    let val = self.get_internal(slot);
 
-                let mut next_slot = (slot + 1) % len;
-                // Move everything past this element forward in the ring
-                while next_slot != self.tail {
-                    self.ring[slot] = self.ring[next_slot];
-                    slot = next_slot;
-                    next_slot = (next_slot + 1) % len;
+                    let mut next_slot = (slot + 1) % len;
+                    // Move everything past this element forward in the ring.
+                    while next_slot != self.tail {
+                        if let Some(to_move) = self.get_internal(next_slot) {
+                            self.ring[slot].write(to_move);
+                            slot = next_slot;
+                            next_slot = (next_slot + 1) % len;
+                        }
+                    }
+                    self.tail = slot;
+                    return val;
                 }
-                self.tail = slot;
-                return Some(val);
+                slot = (slot + 1) % len;
             }
-            slot = (slot + 1) % len;
         }
         None
     }
@@ -180,11 +254,15 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         let mut dst = self.head;
 
         while src != self.tail {
-            if f(&self.ring[src]) {
+            // SAFETY: src is within [head, tail) which has been written by enqueue/push.
+            if f(unsafe { self.ring[src].assume_init_ref() }) {
                 // When the predicate is true, move the current element to the
                 // destination if needed, and increment the destination index.
+                // Copying MaybeUninit<T> between slots is valid since T: Copy implies
+                // MaybeUninit<T>: Copy.
                 if src != dst {
-                    self.ring[dst] = self.ring[src];
+                    let to_move = unsafe { self.ring[src].assume_init_read() };
+                    self.ring[dst].write(to_move);
                 }
                 dst = (dst + 1) % len;
             }
@@ -199,11 +277,12 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
 mod test {
     use super::super::queue::Queue;
     use super::RingBuffer;
+    use core::mem::MaybeUninit;
 
     #[test]
     fn test_enqueue_dequeue() {
         const LEN: usize = 10;
-        let mut ring = [0; LEN];
+        let mut ring: [MaybeUninit<usize>; LEN] = [MaybeUninit::uninit(); LEN];
         let mut buf = RingBuffer::new(&mut ring);
 
         for _ in 0..2 * LEN {
@@ -221,7 +300,7 @@ mod test {
     fn test_push() {
         const LEN: usize = 10;
         const MAX: usize = 100;
-        let mut ring = [0; LEN + 1];
+        let mut ring: [MaybeUninit<usize>; LEN + 1] = [MaybeUninit::uninit(); LEN + 1];
         let mut buf = RingBuffer::new(&mut ring);
 
         for i in 0..LEN {
@@ -296,7 +375,7 @@ mod test {
     #[test]
     fn test_fill_once() {
         const LEN: usize = 10;
-        let mut ring = [0; LEN];
+        let mut ring: [MaybeUninit<usize>; LEN] = [MaybeUninit::uninit(); LEN];
         let mut buf = RingBuffer::new(&mut ring);
 
         assert!(!buf.has_elements());
@@ -309,7 +388,7 @@ mod test {
     #[test]
     fn test_refill() {
         const LEN: usize = 10;
-        let mut ring = [0; LEN];
+        let mut ring: [MaybeUninit<usize>; LEN] = [MaybeUninit::uninit(); LEN];
         let mut buf = RingBuffer::new(&mut ring);
 
         for _ in 0..10 {
@@ -321,7 +400,7 @@ mod test {
     #[test]
     fn test_retain() {
         const LEN: usize = 10;
-        let mut ring = [0; LEN];
+        let mut ring: [MaybeUninit<usize>; LEN] = [MaybeUninit::uninit(); LEN];
         let mut buf = RingBuffer::new(&mut ring);
 
         move_head(&mut buf, LEN - 2);
@@ -391,7 +470,7 @@ mod flux_specs {
         // This ensures that all indices `ring[head]` and `ring[tail]` are valid.
         #[refined_by(ring_len: int, hd: int, tl: int)]
         struct RingBuffer<T> {
-            ring: {&mut [T][ring_len] | ring_len > 0},
+            ring: {&mut [MaybeUninit<T>][ring_len] | ring_len > 0},
             head: {usize[hd] | hd < ring_len},
             tail: {usize[tl] | tl < ring_len},
         }
@@ -411,7 +490,7 @@ mod flux_specs {
             // Weaker vs stronger contracts is a design decision: it is easier to prove that a weak contract
             // holds in the implementation, but it lets you prove less in the rest of Tock (e.g., if there was code
             // that was only safe if head/tail was 0 after it called new, we could prove its safety only with the stronger contract).
-            fn new({&mut [T][@ring_len] | ring_len > 0}) -> RingBuffer<T>[ring_len, 0, 0];
+            fn new({&mut [MaybeUninit<T>][@ring_len] | ring_len > 0}) -> RingBuffer<T>[ring_len, 0, 0];
         }
 
         impl Queue<T> for RingBuffer<T> {
@@ -455,8 +534,8 @@ mod flux_specs {
     // leading to panics
     #[allow(dead_code)]
     #[flux_rs::should_fail]
-    fn bad_split_into_ringbuffers<'a, T: Copy>(
-        buf: &'a mut [T],
+    fn bad_split_into_ringbuffers<'a, T>(
+        buf: &'a mut [MaybeUninit<T>],
         output_len: usize,
     ) -> (RingBuffer<'a, T>, RingBuffer<'a, T>) {
         // If `output_len` is `0` or `buf.len()`, then `output_ringbuf`
@@ -475,7 +554,7 @@ mod flux_specs {
     #[flux_rs::should_fail]
     #[flux_rs::spec(fn bad_enqueue(self: &mut RingBuffer<T>, val: T) -> bool
                         ensures self: RingBuffer<T>)]
-    fn bad_enqueue<T: Copy>(rb: &mut RingBuffer<T>, val: T) -> bool {
+    fn bad_enqueue<T>(rb: &mut RingBuffer<T>, val: T) -> bool {
         // This function will not panic as long as rb.tail < rb.ring.len().
         // However, for this to be true, every RingBuffer method needs to
         // maintain this invariant (which is encoded in our RingBuffer spec).
@@ -484,7 +563,7 @@ mod flux_specs {
         if rb.is_full() {
             false
         } else {
-            rb.ring[rb.tail] = val;
+            rb.ring[rb.tail].write(val);
             // CORRECT: rb.tail = (rb.tail + 1) % rb.ring.len();
             rb.tail = rb.tail + 1;
             true
