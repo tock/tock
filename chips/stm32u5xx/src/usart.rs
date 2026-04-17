@@ -93,10 +93,9 @@ pub struct Usart<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
+    rx_len: Cell<usize>,
+    rx_index: Cell<usize>,
     deferred_call: DeferredCall,
-    fifo: Cell<[u8; 32]>,
-    fifo_write: Cell<usize>,
-    fifo_read: Cell<usize>,
 }
 
 impl<'a> Usart<'a> {
@@ -111,10 +110,9 @@ impl<'a> Usart<'a> {
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
+            rx_len: Cell::new(0),
+            rx_index: Cell::new(0),
             deferred_call: DeferredCall::new(),
-            fifo: Cell::new([0; 32]),
-            fifo_write: Cell::new(0),
-            fifo_read: Cell::new(0),
         }
     }
 
@@ -133,27 +131,37 @@ impl<'a> Usart<'a> {
             regs.icr.set(0x0F);
         }
 
-        // Receive Logic: Drain the Hardware FIFO.
-        // Used a 'while' loop here to ensure that every byte currently
-        // waiting in the hardware Receive Data Register (RDR) is moved into
-        // the software FIFO. In high-speed scenarios, multiple bytes may
-        // arrive during a single interrupt execution. By draining the
-        // hardware completely, we prevent "Overrun Errors" and ensure the
-        // RXNE (Read Data Register Not Empty) flag is properly cleared
-        // by the hardware.
-        let mut data_received = false;
+        // 2. Receive Logic: Drain the Hardware FIFO directly into the application buffer.
+        // We use a 'while' loop to ensure we read every byte currently waiting in
+        // the hardware Receive Data Register (RDR).
         while regs.isr.is_set(ISR::RXNE) {
             let byte = regs.rdr.get() as u8;
-            let mut f = self.fifo.get();
-            let w = self.fifo_write.get();
-            f[w % 32] = byte;
-            self.fifo.set(f);
-            self.fifo_write.set(w + 1);
-            data_received = true;
-        }
+            let mut buffer_full = false;
 
-        if data_received {
-            self.deferred_call.set();
+            self.rx_buffer.map(|buf| {
+                let index = self.rx_index.get();
+                let len = self.rx_len.get();
+
+                if index < len {
+                    buf[index] = byte;
+                    let next_index = index + 1;
+                    self.rx_index.set(next_index);
+
+                    // If buffer is full
+                    if next_index == len {
+                        buffer_full = true;
+                    }
+                }
+            });
+
+            if buffer_full {
+                // Once the buffer is full, we disable the 'Receive Not Empty' interrupt.
+                // This prevents the kernel from being continuously interrupted for
+                // data we have no space to store, until the next 'receive_buffer' call.
+                regs.cr1.modify(CR1::RXNEIE::CLEAR);
+                self.deferred_call.set();
+                break;
+            }
         }
     }
 
@@ -167,31 +175,6 @@ impl<'a> Usart<'a> {
         }
     }
 
-    /// Attempts to serve a pending receive request using data from the software FIFO.
-    ///
-    /// This function implements the "waiting room" logic for the circular buffer.
-    /// It checks if two conditions are met:
-    /// 1. Is there data in the software FIFO that hasn't been read yet? (`r < w`)
-    /// 2. Is there a buffer from the application (the `rx_buffer`) waiting to
-    ///    receive data?
-    ///
-    /// If both are true, it "pops" the oldest byte from the FIFO, places it in
-    /// the application's buffer, and returns the buffer to the application via
-    /// the `received_buffer` callback.
-    fn try_receive_from_fifo(&self) {
-        let r = self.fifo_read.get();
-        let w = self.fifo_write.get();
-        if r < w {
-            if let Some(buf) = self.rx_buffer.take() {
-                let f = self.fifo.get();
-                buf[0] = f[r % 32];
-                self.fifo_read.set(r + 1);
-                self.rx_client.map(|client| {
-                    client.received_buffer(buf, 1, Ok(()), uart::Error::None);
-                });
-            }
-        }
-    }
     /// Synchronous (Blocking) send.
     /// ONLY for use in the Panic handler when DMA is unavailable.
     pub fn transmit_byte(&self, byte: u8) {
@@ -218,8 +201,23 @@ impl DeferredCallClient for Usart<'_> {
             });
         }
 
-        // 2. Receive Completion (FIFO)
-        self.try_receive_from_fifo();
+        // 2. Receive Completion
+        let index = self.rx_index.get();
+        let len = self.rx_len.get();
+
+        if index >= len && len > 0 {
+            // Take the buffer out of the driver's possession
+            if let Some(buf) = self.rx_buffer.take() {
+                // Reset receive state for the next operation
+                self.rx_index.set(0);
+                self.rx_len.set(0);
+            
+                // Notify the application that the buffer is full
+                self.rx_client.map(move |client| {
+                    client.received_buffer(buf, index, Ok(()), uart::Error::None);
+                });
+            }
+        }
     }
 
     fn register(&'static self) {
@@ -301,10 +299,29 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+
+        // Check if the driver is already busy receiving data.
+        if self.rx_buffer.is_some() {
+            return Err((kernel::ErrorCode::BUSY, rx_buffer));
+        }
+
+        // Validate the requested length against the buffer size.
+        if rx_len > rx_buffer.len() {
+            return Err((kernel::ErrorCode::SIZE, rx_buffer));
+        }
+
+        // Store the buffer and initialize the receive state.
         self.rx_buffer.replace(rx_buffer);
-        self.try_receive_from_fifo();
+        self.rx_len.set(rx_len);
+        self.rx_index.set(0);
+
+        // Enable the 'Receive Data Register Not Empty' interrupt.
+        // This allows the hardware to trigger 'handle_interrupt' whenever
+        // a new byte arrives.
+        self.registers.cr1.modify(CR1::RXNEIE::SET);
+
         Ok(())
     }
 
