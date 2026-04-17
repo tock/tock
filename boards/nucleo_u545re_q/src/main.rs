@@ -9,7 +9,6 @@
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
@@ -179,7 +178,6 @@ pub unsafe fn main() {
         hw_flow_control: false,
         width: kernel::hil::uart::Width::Eight,
     });
-    periphs.usart1.register();
 
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
