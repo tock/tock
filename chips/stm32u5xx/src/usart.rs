@@ -82,6 +82,12 @@ register_bitfields![u32,
     ]
 ];
 
+/// USART driver implementation for the STM32U5 series.
+///
+/// This driver uses the GPDMA (General Purpose Direct Memory Access) controller
+/// for both transmitting and receiving data, which provides high efficiency and
+/// ensures that fast data bursts (such as arrow key escape sequences) are
+/// captured correctly.
 pub struct Usart<'a> {
     pub registers: StaticRef<UsartRegisters>,
     dma: OptionalCell<&'a Dma>,
@@ -96,6 +102,7 @@ pub struct Usart<'a> {
 }
 
 impl<'a> Usart<'a> {
+    /// Creates a new Usart instance.
     pub fn new(base: StaticRef<UsartRegisters>) -> Usart<'a> {
         Usart {
             registers: base,
@@ -111,21 +118,31 @@ impl<'a> Usart<'a> {
         }
     }
 
+    /// Associates a DMA controller and channels with the USART driver.
     pub fn set_dma(&self, dma: &'a Dma, tx_channel: usize, rx_channel: usize) {
         self.dma.set(dma);
         self.dma_channel_tx.set(tx_channel);
         self.dma_channel_rx.set(rx_channel);
     }
 
+    /// Hardware interrupt handler for the USART.
+    ///
+    /// This handles non-DMA events like errors. DMA-specific completions
+    /// are handled in `handle_dma_interrupt`.
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
         let isr = regs.isr.get();
 
+        // Clear any error flags (Parity, Framing, Noise, Overrun).
         if (isr & 0x0F) != 0 {
             regs.icr.set(0x0F);
         }
     }
 
+    /// Handles completion interrupts from the GPDMA controller.
+    ///
+    /// This is called when a DMA transfer for either Transmit or Receive
+    /// has finished.
     pub fn handle_dma_interrupt(&self, is_tx: bool) {
         if is_tx {
             self.dma.map(|dma| {
@@ -216,7 +233,7 @@ impl uart::Configure for Usart<'_> {
         regs.brr.set(35);
         regs.icr.set(0x3F);
         
-        // Setup control registers for DMA
+        // Enable transmitter, receiver, and USART
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
 
         unsafe {
@@ -245,6 +262,7 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
 
+        // Initiate DMA-based reception
         self.dma.map(|dma| {
             self.rx_buffer.map(|buf| {
                 dma.setup_usart1_rx(
