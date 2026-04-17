@@ -121,23 +121,7 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::Stm32u5xxPeripherals) {
 }
 
 #[inline(never)]
-unsafe fn start(
-    board_kernel: &'static kernel::Kernel,
-    platform: &'static NucleoU545RE,
-    chip: &'static ChipHw,
-) {
-    // Hand over control to the Tock Kernel Loop
-    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 4>(
-        platform,
-        chip,
-        None,
-        &create_capability!(capabilities::MainLoopCapability),
-    );
-}
-
-#[no_mangle]
-#[allow(clippy::large_stack_arrays)]
-pub unsafe fn main() {
+unsafe fn start() -> (&'static kernel::Kernel, &'static NucleoU545RE, &'static ChipHw) {
     stm32u545::init();
 
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -292,5 +276,18 @@ pub unsafe fn main() {
         &create_capability!(capabilities::ProcessManagementCapability),
     );
 
-    start(board_kernel, platform, chip);
+    (board_kernel, platform, chip)
+}
+
+#[no_mangle]
+pub unsafe fn main() {
+    let (board_kernel, platform, chip) = start();
+
+    // Hand over control to the Tock Kernel Loop
+    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, 4>(
+        platform,
+        chip,
+        None,
+        &create_capability!(capabilities::MainLoopCapability),
+    );
 }
