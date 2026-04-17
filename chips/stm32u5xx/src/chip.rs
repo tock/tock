@@ -7,12 +7,7 @@ use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-// IRQ Numbers
-const EXTI13_IRQ: u32 = 24;
-const GPDMA1_CH0_IRQ: u32 = 29;
-const GPDMA1_CH1_IRQ: u32 = 30;
-const TIM2_IRQ: u32 = 45;
-const USART1_IRQ: u32 = 61;
+use crate::nvic::*;
 
 pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
