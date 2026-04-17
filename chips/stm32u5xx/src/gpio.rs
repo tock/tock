@@ -369,7 +369,7 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
         }
 
         unsafe {
-            cortexm33::nvic::Nvic::new(24).enable(); // Enable EXTI13 IRQ here
+            cortexm33::nvic::Nvic::new(crate::nvic::EXTI13_IRQ).enable(); // Enable EXTI13 IRQ here
         }
     }
 

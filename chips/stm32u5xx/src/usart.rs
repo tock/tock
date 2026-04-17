@@ -285,9 +285,9 @@ impl uart::Configure for Usart<'_> {
             .write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET + CR1::RXNEIE::SET);
 
         unsafe {
-            cortexm33::nvic::Nvic::new(61).enable(); // USART1
-            cortexm33::nvic::Nvic::new(29).enable(); // DMA TX
-            cortexm33::nvic::Nvic::new(30).enable(); // DMA RX
+            cortexm33::nvic::Nvic::new(crate::nvic::USART1_IRQ).enable();
+            cortexm33::nvic::Nvic::new(crate::nvic::GPDMA1_CH0_IRQ).enable();
+            cortexm33::nvic::Nvic::new(crate::nvic::GPDMA1_CH1_IRQ).enable();
         }
         Ok(())
     }
