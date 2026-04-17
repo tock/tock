@@ -254,19 +254,19 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         let mut dst = self.head;
 
         while src != self.tail {
-            // SAFETY: src is within [head, tail) which has been written by enqueue/push.
-            if f(unsafe { self.ring[src].assume_init_ref() }) {
-                // When the predicate is true, move the current element to the
-                // destination if needed, and increment the destination index.
-                // Copying MaybeUninit<T> between slots is valid since T: Copy implies
-                // MaybeUninit<T>: Copy.
-                if src != dst {
-                    let to_move = unsafe { self.ring[src].assume_init_read() };
-                    self.ring[dst].write(to_move);
+            if let Some(e) = self.get_internal_ref(src) {
+                if f(e) {
+                    // When the predicate is true, move the current element to the
+                    // destination if needed, and increment the destination index.
+                    if src != dst {
+                        if let Some(to_move) = self.get_internal(src) {
+                            self.ring[dst].write(to_move);
+                        }
+                    }
+                    dst = (dst + 1) % len;
                 }
-                dst = (dst + 1) % len;
+                src = (src + 1) % len;
             }
-            src = (src + 1) % len;
         }
 
         self.tail = dst;
