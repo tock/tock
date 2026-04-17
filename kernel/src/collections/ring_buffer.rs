@@ -11,7 +11,7 @@ use core::mem::MaybeUninit;
 ///
 /// The buffer is assumed to be uninitialized when the [`RingBuffer`] is
 /// created. This can be safely created using uninitialized memory for the ring.
-pub struct RingBuffer<'a, T: 'a> {
+pub struct RingBuffer<'a, T: Copy + 'a> {
     /// Array of elements `T`. The buffer does not need to have initialized
     /// elements `T`. The `RingBuffer` assumes that any element not tracked in
     /// the ring based on head and tail are not initialized.
@@ -20,7 +20,7 @@ pub struct RingBuffer<'a, T: 'a> {
     tail: usize,
 }
 
-impl<'a, T> RingBuffer<'a, T> {
+impl<'a, T: Copy> RingBuffer<'a, T> {
     /// Create a [`RingBuffer`].
     ///
     /// The provided `ring` is assumed to be uninitialized and the ring starts
@@ -125,7 +125,7 @@ impl<'a, T> RingBuffer<'a, T> {
     }
 }
 
-impl<T> queue::Queue<T> for RingBuffer<'_, T> {
+impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     fn has_elements(&self) -> bool {
         self.head != self.tail
     }
