@@ -3,11 +3,10 @@
 // Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
 
+use crate::nvic::{EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, TIM2_IRQ, USART1_IRQ};
 use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
-
-use crate::nvic::*;
 
 pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,

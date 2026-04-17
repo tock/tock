@@ -121,7 +121,12 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::Stm32u5xxPeripherals) {
 }
 
 #[inline(never)]
-unsafe fn start() -> (&'static kernel::Kernel, &'static NucleoU545RE, &'static ChipHw) {
+#[allow(clippy::large_stack_arrays)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    &'static NucleoU545RE,
+    &'static ChipHw,
+) {
     stm32u545::init();
 
     kernel::deferred_call::initialize_deferred_call_state::<

@@ -236,7 +236,7 @@ impl uart::Configure for Usart<'_> {
         regs.presc.set(0);
         regs.brr.set(35);
         regs.icr.set(0x3F);
-        
+
         // Enable transmitter, receiver, and USART
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
 
