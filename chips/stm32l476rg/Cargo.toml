@@ -1,0 +1,18 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+
+[package]
+name = "stm32l476rg"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+cortexm4f = { path = "../../arch/cortex-m4f" }
+kernel = { path = "../../kernel" }
+stm32l4xx = { path = "../stm32l4xx" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
+
+[lints]
+workspace = true

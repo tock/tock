@@ -1,0 +1,90 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Author: Kamil Duljas <kamil.duljas@gmail.com>
+
+//! STM32L47x/L48x/L49x/L4Ax vector table
+
+#![allow(non_upper_case_globals)]
+
+pub const WWDG: u32 = 0;
+pub const PVD_PVM: u32 = 1;
+pub const TAMP_STAMP: u32 = 2;
+pub const RTC_WKUP: u32 = 3;
+pub const FLASH: u32 = 4;
+pub const RCC: u32 = 5;
+pub const EXTI0: u32 = 6;
+pub const EXTI1: u32 = 7;
+pub const EXTI2: u32 = 8;
+pub const EXTI3: u32 = 9;
+pub const EXTI4: u32 = 10;
+pub const DMA1_CHANNEL1: u32 = 11;
+pub const DMA1_CHANNEL2: u32 = 12;
+pub const DMA1_CHANNEL3: u32 = 13;
+pub const DMA1_CHANNEL4: u32 = 14;
+pub const DMA1_CHANNEL5: u32 = 15;
+pub const DMA1_CHANNEL6: u32 = 16;
+pub const DMA1_CHANNEL7: u32 = 17;
+pub const ADC1_2: u32 = 18;
+pub const CAN1_TX: u32 = 19;
+pub const CAN1_RX0: u32 = 20;
+pub const CAN1_RX1: u32 = 21;
+pub const CAN1_SCE: u32 = 22;
+pub const EXTI9_5: u32 = 23;
+pub const TIM1_BRK_TIM15: u32 = 24;
+pub const TIM1_UP_TIM16: u32 = 25;
+pub const TIM1_TRG_COM_TIM17: u32 = 26;
+pub const TIM1_CC: u32 = 27;
+pub const TIM2: u32 = 28;
+pub const TIM3: u32 = 29;
+pub const TIM4: u32 = 30;
+pub const I2C1_EV: u32 = 31;
+pub const I2C1_ER: u32 = 32;
+pub const I2C2_EV: u32 = 33;
+pub const I2C2_ER: u32 = 34;
+pub const SPI1: u32 = 35;
+pub const SPI2: u32 = 36;
+pub const USART1: u32 = 37;
+pub const USART2: u32 = 38;
+pub const USART3: u32 = 39;
+pub const EXTI15_10: u32 = 40;
+pub const RTC_ALARM: u32 = 41;
+pub const DFSDM1_FLT3: u32 = 42;
+pub const TIM8_BRK: u32 = 43;
+pub const TIM8_UP: u32 = 44;
+pub const TIM8_TRG_COM: u32 = 45;
+pub const TIM8_CC: u32 = 46;
+pub const ADC3: u32 = 47;
+pub const FMC: u32 = 48;
+pub const SDMMC1: u32 = 49;
+pub const TIM5: u32 = 50;
+pub const SPI3: u32 = 51;
+pub const UART4: u32 = 52;
+pub const UART5: u32 = 53;
+pub const TIM6_DAC: u32 = 54;
+pub const TIM7: u32 = 55;
+pub const DMA2_CHANNEL1: u32 = 56;
+pub const DMA2_CHANNEL2: u32 = 57;
+pub const DMA2_CHANNEL3: u32 = 58;
+pub const DMA2_CHANNEL4: u32 = 59;
+pub const DMA2_CHANNEL5: u32 = 60;
+pub const DFSDM1_FLT0: u32 = 61;
+pub const DFSDM1_FLT1: u32 = 62;
+pub const DFSDM1_FLT2: u32 = 63;
+pub const COMP: u32 = 64;
+pub const LPTIM1: u32 = 65;
+pub const LPTIM2: u32 = 66;
+pub const OTG_FS: u32 = 67;
+pub const DMA2_CHANNEL6: u32 = 68;
+pub const DMA2_CHANNEL7: u32 = 69;
+pub const LPUART1: u32 = 70;
+pub const QUADSPI: u32 = 71;
+pub const I2C3_EV: u32 = 72;
+pub const I2C3_ER: u32 = 73;
+pub const SAI1: u32 = 74;
+pub const SAI2: u32 = 75;
+pub const SWPMI1: u32 = 76;
+pub const TSC: u32 = 77;
+pub const LCD: u32 = 78;
+// 79 is reserved in STM32L476
+pub const RNG: u32 = 80;
+pub const FPU: u32 = 81;
