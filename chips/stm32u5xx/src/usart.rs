@@ -133,7 +133,7 @@ impl<'a> Usart<'a> {
             regs.icr.set(0x0F);
         }
 
-        // 2. Receive Logic: Drain the Hardware FIFO.
+        // Receive Logic: Drain the Hardware FIFO.
         // Used a 'while' loop here to ensure that every byte currently
         // waiting in the hardware Receive Data Register (RDR) is moved into
         // the software FIFO. In high-speed scenarios, multiple bytes may
