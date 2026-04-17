@@ -4,7 +4,6 @@
 
 use core::cell::Cell;
 use cortexm33;
-use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{self};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -93,10 +92,7 @@ pub struct Usart<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
-    deferred_call: DeferredCall,
-    fifo: Cell<[u8; 32]>,
-    fifo_write: Cell<usize>,
-    fifo_read: Cell<usize>,
+    rx_len: Cell<usize>,
 }
 
 impl<'a> Usart<'a> {
@@ -111,17 +107,13 @@ impl<'a> Usart<'a> {
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
-            deferred_call: DeferredCall::new(),
-            fifo: Cell::new([0; 32]),
-            fifo_write: Cell::new(0),
-            fifo_read: Cell::new(0),
+            rx_len: Cell::new(0),
         }
     }
 
     pub fn set_dma(&self, dma: &'a Dma, tx_channel: usize, rx_channel: usize) {
         self.dma.set(dma);
         self.dma_channel_tx.set(tx_channel);
-        // Unused but kept for testing
         self.dma_channel_rx.set(rx_channel);
     }
 
@@ -132,29 +124,6 @@ impl<'a> Usart<'a> {
         if (isr & 0x0F) != 0 {
             regs.icr.set(0x0F);
         }
-
-        // 2. Receive Logic: Drain the Hardware FIFO.
-        // Used a 'while' loop here to ensure that every byte currently
-        // waiting in the hardware Receive Data Register (RDR) is moved into
-        // the software FIFO. In high-speed scenarios, multiple bytes may
-        // arrive during a single interrupt execution. By draining the
-        // hardware completely, we prevent "Overrun Errors" and ensure the
-        // RXNE (Read Data Register Not Empty) flag is properly cleared
-        // by the hardware.
-        let mut data_received = false;
-        while regs.isr.is_set(ISR::RXNE) {
-            let byte = regs.rdr.get() as u8;
-            let mut f = self.fifo.get();
-            let w = self.fifo_write.get();
-            f[w % 32] = byte;
-            self.fifo.set(f);
-            self.fifo_write.set(w + 1);
-            data_received = true;
-        }
-
-        if data_received {
-            self.deferred_call.set();
-        }
     }
 
     pub fn handle_dma_interrupt(&self, is_tx: bool) {
@@ -163,35 +132,26 @@ impl<'a> Usart<'a> {
                 dma.clear_interrupt(self.dma_channel_tx.get());
             });
             self.registers.cr3.modify(CR3::DMAT::CLEAR);
-            self.deferred_call.set();
-        }
-    }
-
-    /// Attempts to serve a pending receive request using data from the software FIFO.
-    ///
-    /// This function implements the "waiting room" logic for the circular buffer.
-    /// It checks if two conditions are met:
-    /// 1. Is there data in the software FIFO that hasn't been read yet? (`r < w`)
-    /// 2. Is there a buffer from the application (the `rx_buffer`) waiting to
-    ///    receive data?
-    ///
-    /// If both are true, it "pops" the oldest byte from the FIFO, places it in
-    /// the application's buffer, and returns the buffer to the application via
-    /// the `received_buffer` callback.
-    fn try_receive_from_fifo(&self) {
-        let r = self.fifo_read.get();
-        let w = self.fifo_write.get();
-        if r < w {
+            if let Some(buf) = self.tx_buffer.take() {
+                let len = self.tx_len.get();
+                self.tx_client.map(move |client| {
+                    client.transmitted_buffer(buf, len, Ok(()));
+                });
+            }
+        } else {
+            self.dma.map(|dma| {
+                dma.clear_interrupt(self.dma_channel_rx.get());
+            });
+            self.registers.cr3.modify(CR3::DMAR::CLEAR);
             if let Some(buf) = self.rx_buffer.take() {
-                let f = self.fifo.get();
-                buf[0] = f[r % 32];
-                self.fifo_read.set(r + 1);
-                self.rx_client.map(|client| {
-                    client.received_buffer(buf, 1, Ok(()), uart::Error::None);
+                let len = self.rx_len.get();
+                self.rx_client.map(move |client| {
+                    client.received_buffer(buf, len, Ok(()), uart::Error::None);
                 });
             }
         }
     }
+
     /// Synchronous (Blocking) send.
     /// ONLY for use in the Panic handler when DMA is unavailable.
     pub fn transmit_byte(&self, byte: u8) {
@@ -199,31 +159,6 @@ impl<'a> Usart<'a> {
         // Wait until TXE (Transmit Data Register Empty) is set
         while !regs.isr.is_set(ISR::TXE) {}
         regs.tdr.set(byte as u32);
-    }
-}
-
-/// The Usart driver uses a DeferredCall to handle buffer completion callbacks.
-///
-/// This ensures that long-running application callbacks are executed in
-/// the kernel's main loop context rather than within the high-priority
-/// hardware interrupt handler. This prevents the console from blocking
-/// other time-critical interrupts (like timers or GPIO events).
-impl DeferredCallClient for Usart<'_> {
-    fn handle_deferred_call(&self) {
-        // 1. Transmit Completion (DMA)
-        if let Some(buf) = self.tx_buffer.take() {
-            let len = self.tx_len.get();
-            self.tx_client.map(move |client| {
-                client.transmitted_buffer(buf, len, Ok(()));
-            });
-        }
-
-        // 2. Receive Completion (FIFO)
-        self.try_receive_from_fifo();
-    }
-
-    fn register(&'static self) {
-        self.deferred_call.register(self);
     }
 }
 
@@ -280,9 +215,9 @@ impl uart::Configure for Usart<'_> {
         regs.presc.set(0);
         regs.brr.set(35);
         regs.icr.set(0x3F);
-        // Hybrid: RXNEIE is ENABLED for typing interrupts
-        regs.cr1
-            .write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET + CR1::RXNEIE::SET);
+        
+        // Setup control registers for DMA
+        regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
 
         unsafe {
             cortexm33::nvic::Nvic::new(crate::nvic::USART1_IRQ).enable();
@@ -301,14 +236,31 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
+        if self.rx_buffer.is_some() {
+            return Err((kernel::ErrorCode::BUSY, rx_buffer));
+        }
+
         self.rx_buffer.replace(rx_buffer);
-        self.try_receive_from_fifo();
+        self.rx_len.set(rx_len);
+
+        self.dma.map(|dma| {
+            self.rx_buffer.map(|buf| {
+                dma.setup_usart1_rx(
+                    self.dma_channel_rx.get(),
+                    buf.as_ptr() as u32,
+                    rx_len as u32,
+                );
+                self.registers.cr3.modify(CR3::DMAR::SET);
+            });
+        });
+
         Ok(())
     }
 
     fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
+        self.registers.cr3.modify(CR3::DMAR::CLEAR);
         if let Some(buf) = self.rx_buffer.take() {
             self.rx_client.map(move |client| {
                 client.received_buffer(
