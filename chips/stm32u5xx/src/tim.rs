@@ -122,7 +122,7 @@ impl<'a> Tim2<'a> {
         self.registers.cr1.modify(CR1::CEN::SET);
 
         unsafe {
-            cortexm33::nvic::Nvic::new(24).enable(); // Enable EXTI13 IRQ
+            cortexm33::nvic::Nvic::new(crate::nvic::TIM2_IRQ).enable();
         }
     }
 }
