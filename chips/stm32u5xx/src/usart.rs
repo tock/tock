@@ -193,22 +193,20 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
             return Err((kernel::ErrorCode::BUSY, tx_buffer));
         }
 
-        if self.dma.is_none() {
+        let Some(dma) = self.dma.get() else {
             return Err((kernel::ErrorCode::OFF, tx_buffer));
-        }
+        };
 
         self.tx_buffer.replace(tx_buffer);
         self.tx_len.set(tx_len);
 
-        self.dma.map(|dma| {
-            self.tx_buffer.map(|buf| {
-                dma.setup_usart1_tx(
-                    self.dma_channel_tx.get(),
-                    buf.as_ptr() as u32,
-                    tx_len as u32,
-                );
-                self.registers.cr3.modify(CR3::DMAT::SET);
-            });
+        self.tx_buffer.map(|buf| {
+            dma.setup_usart1_tx(
+                self.dma_channel_tx.get(),
+                buf.as_ptr() as u32,
+                tx_len as u32,
+            );
+            self.registers.cr3.modify(CR3::DMAT::SET);
         });
 
         Ok(())
@@ -263,23 +261,20 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
             return Err((kernel::ErrorCode::BUSY, rx_buffer));
         }
 
-        if self.dma.is_none() {
+        let Some(dma) = self.dma.get() else {
             return Err((kernel::ErrorCode::OFF, rx_buffer));
-        }
+        };
 
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
 
-        // Initiate DMA-based reception
-        self.dma.map(|dma| {
-            self.rx_buffer.map(|buf| {
-                dma.setup_usart1_rx(
-                    self.dma_channel_rx.get(),
-                    buf.as_ptr() as u32,
-                    rx_len as u32,
-                );
-                self.registers.cr3.modify(CR3::DMAR::SET);
-            });
+        self.rx_buffer.map(|buf| {
+            dma.setup_usart1_rx(
+                self.dma_channel_rx.get(),
+                buf.as_ptr() as u32,
+                rx_len as u32,
+            );
+            self.registers.cr3.modify(CR3::DMAR::SET);
         });
 
         Ok(())
