@@ -11,6 +11,7 @@
 #![no_std]
 #![no_main]
 
+use capsules_core::virtualizers::selection_policy::InsertionFirstPolicy;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g002::interrupt_service::E310G002DefaultPeripherals;
 use kernel::capabilities;
@@ -329,7 +330,10 @@ unsafe fn start() -> (
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
-    .finalize(components::debug_writer_component_static!(DEBUG_BUFFER_KB));
+    .finalize(components::debug_writer_component_static!(
+        DEBUG_BUFFER_KB,
+        InsertionFirstPolicy
+    ));
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
