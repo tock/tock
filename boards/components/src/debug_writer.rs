@@ -27,6 +27,7 @@
 // Author: Brad Campbell <bradjc@virginia.edu>
 // Last modified: 11/07/2019
 
+use capsules_core::virtualizers::selection_policy::SelectionPolicy;
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use capsules_system::debug_writer::uart_debug_writer::UartDebugWriter;
 use core::mem::MaybeUninit;
@@ -55,8 +56,8 @@ const DEBUG_BUFFER_SPLIT: usize = 64;
 /// quick succession.
 #[macro_export]
 macro_rules! debug_writer_component_static {
-    ($BUF_SIZE_KB:expr) => {{
-        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
+    ($BUF_SIZE_KB:expr, $P: ty) => {{
+        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice<$P>);
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
         let debug =
@@ -64,8 +65,20 @@ macro_rules! debug_writer_component_static {
 
         (uart, ring, buffer, debug)
     };};
+    ($P: ty) => {{
+        $crate::debug_writer_component_static!($crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE, $P)
+    };};
+    ($BUF_SIZE_KB:expr) => {{
+        $crate::debug_writer_component_static!(
+            $BUF_SIZE_KB,
+            capsules_core::virtualizers::selection_policy::InsertionFirstPolicy
+        )
+    };};
     () => {{
-        $crate::debug_writer_component_static!($crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE)
+        $crate::debug_writer_component_static!(
+            $crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE,
+            capsules_core::virtualizers::selection_policy::InsertionFirstPolicy
+        )
     };};
 }
 
@@ -92,20 +105,27 @@ macro_rules! debug_writer_no_mux_component_static {
 
 // Allow dead code because we need the `Chip` type but don't use `chip`.
 #[allow(dead_code)]
-pub struct DebugWriterComponent<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> {
-    uart_mux: &'static MuxUart<'static>,
+pub struct DebugWriterComponent<
+    const BUF_SIZE_BYTES: usize,
+    C: SetDebugWriterCapability,
+    P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static,
+> {
+    uart_mux: &'static MuxUart<'static, P>,
     marker: core::marker::PhantomData<[u8; BUF_SIZE_BYTES]>,
     capability: C,
 }
 
-impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability>
-    DebugWriterComponent<BUF_SIZE_BYTES, C>
+impl<
+        const BUF_SIZE_BYTES: usize,
+        C: SetDebugWriterCapability,
+        SP: SelectionPolicy<&'static UartDevice<'static, SP>> + 'static,
+    > DebugWriterComponent<BUF_SIZE_BYTES, C, SP>
 {
     /// Create a debug writer component while binding the global variable used
     /// by debug.rs to the main thread.
     #[cfg(target_has_atomic = "ptr")]
     pub fn new<P: kernel::platform::chip::ThreadIdProvider>(
-        uart_mux: &'static MuxUart,
+        uart_mux: &'static MuxUart<SP>,
         capability: C,
     ) -> Self {
         kernel::debug::initialize_debug_writer_wrapper::<P>();
@@ -137,7 +157,11 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability>
     ///      })
     /// .finalize(components::debug_writer_component_static!());
     /// ```
-    pub fn new_unsafe<F>(uart_mux: &'static MuxUart, capability: C, bind_debug_global: F) -> Self
+    pub fn new_unsafe<F>(
+        uart_mux: &'static MuxUart<SP>,
+        capability: C,
+        bind_debug_global: F,
+    ) -> Self
     where
         F: FnOnce(),
     {
@@ -154,11 +178,14 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability>
 pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
-impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> Component
-    for DebugWriterComponent<BUF_SIZE_BYTES, C>
+impl<
+        const BUF_SIZE_BYTES: usize,
+        C: SetDebugWriterCapability,
+        P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static,
+    > Component for DebugWriterComponent<BUF_SIZE_BYTES, C, P>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<UartDevice<'static>>,
+        &'static mut MaybeUninit<UartDevice<'static, P>>,
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
         &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
         &'static mut MaybeUninit<UartDebugWriter>,
