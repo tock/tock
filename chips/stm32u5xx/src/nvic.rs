@@ -5,8 +5,6 @@
 
 //! Named constants for NVIC ids shared across the stm32u5xx family of chips
 
-#![allow(non_upper_case_globals)]
-
 pub const EXTI13_IRQ: u32 = 24;
 pub const GPDMA1_CH0_IRQ: u32 = 29;
 pub const GPDMA1_CH1_IRQ: u32 = 30;
