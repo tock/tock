@@ -72,7 +72,7 @@ pub enum PullUpPullDown {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub enum GpioPortNumber {
+pub enum GpioPort {
     PortA = 0,
     PortB = 1,
     PortC = 2,
@@ -90,60 +90,9 @@ pub struct Pin<'a> {
     pin: usize,
     pin_mask: u32,
     exti: &'a Exti<'a>,
-    port_id: GpioPortNumber,
+    port_id: GpioPort,
     client: OptionalCell<&'a dyn gpio::Client>,
     exti_lineid: OptionalCell<LineId>,
-}
-
-// Marker structs for each port
-pub struct GpioPortA;
-pub struct GpioPortB;
-pub struct GpioPortC;
-pub struct GpioPortD;
-pub struct GpioPortE;
-pub struct GpioPortF;
-pub struct GpioPortG;
-pub struct GpioPortH;
-pub struct GpioPortI;
-pub struct GpioPortJ;
-
-mod sealed {
-    use super::GpioPortNumber;
-    pub trait GpioPort {
-        const PORT: GpioPortNumber;
-    }
-}
-
-// Implement the identity for every port
-impl sealed::GpioPort for GpioPortA {
-    const PORT: GpioPortNumber = GpioPortNumber::PortA;
-}
-impl sealed::GpioPort for GpioPortB {
-    const PORT: GpioPortNumber = GpioPortNumber::PortB;
-}
-impl sealed::GpioPort for GpioPortC {
-    const PORT: GpioPortNumber = GpioPortNumber::PortC;
-}
-impl sealed::GpioPort for GpioPortD {
-    const PORT: GpioPortNumber = GpioPortNumber::PortD;
-}
-impl sealed::GpioPort for GpioPortE {
-    const PORT: GpioPortNumber = GpioPortNumber::PortE;
-}
-impl sealed::GpioPort for GpioPortF {
-    const PORT: GpioPortNumber = GpioPortNumber::PortF;
-}
-impl sealed::GpioPort for GpioPortG {
-    const PORT: GpioPortNumber = GpioPortNumber::PortG;
-}
-impl sealed::GpioPort for GpioPortH {
-    const PORT: GpioPortNumber = GpioPortNumber::PortH;
-}
-impl sealed::GpioPort for GpioPortI {
-    const PORT: GpioPortNumber = GpioPortNumber::PortI;
-}
-impl sealed::GpioPort for GpioPortJ {
-    const PORT: GpioPortNumber = GpioPortNumber::PortJ;
 }
 
 impl<'a> Pin<'a> {
@@ -152,7 +101,7 @@ impl<'a> Pin<'a> {
         base: StaticRef<GpioRegisters>,
         pin: usize,
         exti: &'a Exti<'a>,
-        port_id: GpioPortNumber,
+        port_id: GpioPort,
     ) -> Pin<'a> {
         Pin {
             registers: base,
@@ -382,24 +331,24 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
 }
 
 /// Represents a collection of 16 GPIO pins.
-pub struct Port<'a, P: sealed::GpioPort> {
+pub struct Port<'a> {
     registers: StaticRef<GpioRegisters>,
     exti: &'a Exti<'a>,
-    _marker: core::marker::PhantomData<P>,
+    port_id: GpioPort,
 }
 
-impl<'a, P: sealed::GpioPort> Port<'a, P> {
+impl<'a> Port<'a> {
     /// Creates a new Port instance.
-    pub const fn new(base: StaticRef<GpioRegisters>, exti: &'a Exti<'a>) -> Self {
+    pub const fn new(base: StaticRef<GpioRegisters>, exti: &'a Exti<'a>, port_id: GpioPort) -> Self {
         Port {
             registers: base,
             exti,
-            _marker: core::marker::PhantomData,
+            port_id,
         }
     }
 
     /// Returns a Pin instance for a specific physical pin on this port.
     pub fn pin(&self, pin: PinId) -> Pin<'a> {
-        Pin::new(self.registers, pin as usize, self.exti, P::PORT)
+        Pin::new(self.registers, pin as usize, self.exti, self.port_id)
     }
 }
