@@ -3,7 +3,6 @@
 // Copyright OxidOS Automotive 2026.
 
 use cortexm33;
-use kernel::debug;
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -326,10 +325,6 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         let line_num = self.pin;
         if line_num < 16 {
-            debug!(
-                "GPIO: Enabling interrupts for Pin {} on Port {}",
-                line_num, self.port_id as u32
-            );
             let line = unsafe { core::mem::transmute::<u8, LineId>(line_num as u8) };
             self.exti_lineid.set(line);
 
