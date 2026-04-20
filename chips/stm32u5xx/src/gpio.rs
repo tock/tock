@@ -339,7 +339,11 @@ pub struct Port<'a> {
 
 impl<'a> Port<'a> {
     /// Creates a new Port instance.
-    pub const fn new(base: StaticRef<GpioRegisters>, exti: &'a Exti<'a>, port_id: GpioPort) -> Self {
+    pub const fn new(
+        base: StaticRef<GpioRegisters>,
+        exti: &'a Exti<'a>,
+        port_id: GpioPort,
+    ) -> Self {
         Port {
             registers: base,
             exti,

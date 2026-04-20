@@ -45,7 +45,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM33::SYSTICK_HANDLER,    // 0x3C: SysTick
 ];
 
-
 pub unsafe fn init() {
     cortexm33::nvic::disable_all();
     cortexm33::nvic::clear_all_pending();
