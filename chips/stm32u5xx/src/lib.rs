@@ -27,23 +27,24 @@ extern "C" {
 )]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
-    _estack,                       // Initial stack pointer
-    initialize_ram_jump_to_main,   // Reset
-    unhandled_interrupt,           // NMI
-    CortexM33::HARD_FAULT_HANDLER, // HardFault
-    unhandled_interrupt,           // MemManage
-    unhandled_interrupt,           // BusFault
-    unhandled_interrupt,           // UsageFault
-    unhandled_interrupt,           // Reserved
-    unhandled_interrupt,           // Reserved
-    unhandled_interrupt,           // Reserved
-    unhandled_interrupt,           // Reserved
-    CortexM33::SVC_HANDLER,        // SVCall
-    unhandled_interrupt,           // Debug monitor
-    unhandled_interrupt,           // Reserved
-    unhandled_interrupt,           // PendSV
-    CortexM33::SYSTICK_HANDLER,    // SysTick
+    _estack,                       // 0x00: Initial stack pointer
+    initialize_ram_jump_to_main,   // 0x04: Reset
+    unhandled_interrupt,           // 0x08: NMI
+    CortexM33::HARD_FAULT_HANDLER, // 0x0C: HardFault
+    unhandled_interrupt,           // 0x10: MemManage
+    unhandled_interrupt,           // 0x14: BusFault
+    unhandled_interrupt,           // 0x18: UsageFault
+    unhandled_interrupt,           // 0x1C: SecureFault
+    unhandled_interrupt,           // 0x20: Reserved
+    unhandled_interrupt,           // 0x24: Reserved
+    unhandled_interrupt,           // 0x28: Reserved
+    CortexM33::SVC_HANDLER,        // 0x2C: SVCall
+    unhandled_interrupt,           // 0x30: Debug monitor
+    unhandled_interrupt,           // 0x34: Reserved
+    unhandled_interrupt,           // 0x38: PendSV
+    CortexM33::SYSTICK_HANDLER,    // 0x3C: SysTick
 ];
+
 
 pub unsafe fn init() {
     cortexm33::nvic::disable_all();
