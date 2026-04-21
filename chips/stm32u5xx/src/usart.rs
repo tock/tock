@@ -291,6 +291,8 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
                     uart::Error::Aborted,
                 );
             });
+        } else {
+            return Err(kernel::ErrorCode::OFF);
         }
         Ok(())
     }
