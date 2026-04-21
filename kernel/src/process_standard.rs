@@ -2081,6 +2081,10 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         kernel_memory_break = kernel_memory_break
             .wrapping_sub(kernel_memory_break as usize % core::mem::size_of::<usize>());
 
+        ////////////////////////
+        // Grant Region Pointers
+        ////////////////////////
+
         // Now that we know we have the space we can setup the grant pointers.
         //
         // # Safety
@@ -2097,11 +2101,12 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // This is safe, `kernel_memory_break` is aligned to a word-boundary,
         // and `grant_ptrs_offset` is a multiple of the word size.
         #[allow(clippy::cast_ptr_alignment)]
-        let grant_pointers: *mut MaybeUninit<GrantPointerEntry> = kernel_memory_break.cast();
-        let grant_pointers: &mut [MaybeUninit<GrantPointerEntry>] =
-            unsafe { slice::from_raw_parts_mut(grant_pointers, grant_ptrs_num) };
+        let grant_pointers_memory_location: *mut MaybeUninit<GrantPointerEntry> =
+            kernel_memory_break.cast();
+        let grant_pointers_uninit: &mut [MaybeUninit<GrantPointerEntry>] =
+            unsafe { slice::from_raw_parts_mut(grant_pointers_memory_location, grant_ptrs_num) };
         // Set all grant pointers to null.
-        for grant_entry in grant_pointers.iter_mut() {
+        for grant_entry in grant_pointers_uninit.iter_mut() {
             grant_entry.write(GrantPointerEntry {
                 driver_num: 0,
                 grant_ptr: core::ptr::null_mut(),
@@ -2110,7 +2115,11 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // # Safety
         //
         // All values in this slice have been properly initialized.
-        let grant_pointers = unsafe { maybe_uninit_slice_assume_init_mut(grant_pointers) };
+        let grant_pointers = unsafe { maybe_uninit_slice_assume_init_mut(grant_pointers_uninit) };
+
+        ////////////////////////
+        // Upcall Queue
+        ////////////////////////
 
         // Now that we know we have the space we can setup the memory for the
         // upcalls.
