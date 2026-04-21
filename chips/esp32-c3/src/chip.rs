@@ -283,8 +283,10 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 /// The ESP32C3 should support non-vectored and vectored interrupts, but
 /// vectored interrupts seem more reliable so let's use that.
 pub unsafe fn configure_trap_handler() {
-    CSR.mtvec
-        .write(mtvec::trap_addr.val(_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored)
+    CSR.mtvec.write(
+        mtvec::trap_addr.val(_start_trap_vectored as extern "C" fn() as usize >> 2)
+            + mtvec::mode::Vectored,
+    )
 }
 
 // Mock implementation for crate tests that does not include the section

@@ -439,7 +439,8 @@ pub unsafe fn configure_trap_handler() {
 
     // The Ibex CPU does not support non-vectored trap entries.
     CSR.mtvec.write(
-        mtvec::trap_addr.val(_earlgrey_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored,
+        mtvec::trap_addr.val(_earlgrey_start_trap_vectored as extern "C" fn() as usize >> 2)
+            + mtvec::mode::Vectored,
     );
 }
 
