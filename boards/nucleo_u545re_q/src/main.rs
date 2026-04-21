@@ -31,6 +31,8 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new(PanicResources::new());
 
+kernel::stack_size! {0x2000}
+
 struct NucleoU545RE {
     console: &'static capsules_core::console::Console<'static>,
     scheduler: &'static components::sched::round_robin::RoundRobinComponentType,
@@ -265,12 +267,28 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xx::new(default_peripherals)
     );
 
-    // --- LOAD PROCESSES ---
+    // Symbols for linker
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    // Load processes
     let app_flash = core::slice::from_raw_parts(
-        core::ptr::from_ref(&_sappmem),
-        core::ptr::from_ref(&_eappmem) as usize - core::ptr::from_ref(&_sappmem) as usize,
+        core::ptr::addr_of!(_sapps),
+        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
     );
-    let app_memory = static_init!([u8; 98304], [0; 98304]);
+
+    let app_memory = core::slice::from_raw_parts_mut(
+        core::ptr::addr_of_mut!(_sappmem),
+        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+    );
 
     let _ = kernel::process::load_processes(
         board_kernel,

@@ -28,15 +28,3 @@ _estack = ORIGIN(ram) + LENGTH(ram);
 PAGE_SIZE = 8K;
 
 INCLUDE tock_kernel_layout.ld
-
-/* 
- * Define the application memory symbols so the Tock kernel
- * knows where to look for processes at boot.
- */
-_sappmem = ORIGIN(prog);
-_eappmem = ORIGIN(prog) + LENGTH(prog);
-
-/* 
- * Override _estack after including the generic layout.
- */
-_estack = ORIGIN(ram) + LENGTH(ram);
