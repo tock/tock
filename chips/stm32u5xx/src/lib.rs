@@ -14,7 +14,6 @@ pub mod tim;
 pub mod usart;
 
 use cortexm33::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM33, CortexMVariant};
-use kernel::utilities::StaticRef;
 
 extern "C" {
     // _estack is the initial stack pointer (defined in the linker script).
@@ -67,28 +66,28 @@ pub struct Stm32u5xxPeripherals<'a> {
 }
 
 impl<'a> Stm32u5xxPeripherals<'a> {
-    pub unsafe fn new(
+    pub fn new(
         exti: &'a exti::Exti<'a>,
         dma1: &'a dma::Dma,
         usart1: &'a usart::Usart<'a>,
     ) -> Self {
         Self {
-            rcc: rcc::Rcc::new(StaticRef::new(0x46020C00 as *const rcc::RccRegisters)),
+            rcc: rcc::Rcc::new(rcc::RCC_BASE),
             exti,
             dma1,
             gpio_a: gpio::Port::new(
-                StaticRef::new(0x52020000 as *const gpio::GpioRegisters),
+                gpio::GPIO_A_BASE,
                 exti,
                 gpio::GpioPort::PortA,
             ),
             gpio_c: gpio::Port::new(
-                StaticRef::new(0x52020800 as *const gpio::GpioRegisters),
+                gpio::GPIO_C_BASE,
                 exti,
                 gpio::GpioPort::PortC,
             ),
             usart1,
             tim2: tim::Tim2::new(
-                StaticRef::new(0x50000000 as *const tim::TimRegisters),
+                tim::TIM2_BASE,
                 enable_tim2_clock,
             ),
         }
