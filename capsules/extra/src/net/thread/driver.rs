@@ -619,13 +619,13 @@ impl<'a, A: time::Alarm<'a>> UDPRecvClient for ThreadNetworkDriver<'a, A> {
                     recv_buf.take(),
                 )
                 .unwrap_or_else(|(_code, buf)| {
-                        // UNCOMMENT TO DEBUG THREAD alter _code to code//
-                        // kernel::debug!(
-                        //     "[Thread] DROPPED PACKET - Crypto Operation Error *{:?}",
-                        //     code
-                        // );
-                        self.recv_buffer.replace(SubSliceMut::new(buf));
-                    })
+                    // UNCOMMENT TO DEBUG THREAD alter _code to code//
+                    // kernel::debug!(
+                    //     "[Thread] DROPPED PACKET - Crypto Operation Error *{:?}",
+                    //     code
+                    // );
+                    self.recv_buffer.replace(SubSliceMut::new(buf));
+                })
             },
         );
     }

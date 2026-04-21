@@ -386,12 +386,12 @@ unsafe impl MPU for PagingMPU<'_> {
                 .iter_mut()
                 .position(|r| r.is_none())?;
 
-                config.page_information.alloc_regions[index] = Some(AllocateRegion {
-                    flags_set: pages_attr,
-                    flags_clear: pages_clear,
-                    start_index_page: page_index,
-                    pages: pages_alloc_requested,
-                });
+            config.page_information.alloc_regions[index] = Some(AllocateRegion {
+                flags_set: pages_attr,
+                flags_clear: pages_clear,
+                start_index_page: page_index,
+                pages: pages_alloc_requested,
+            });
 
             let last_page = page_index + pages_alloc_requested;
 
