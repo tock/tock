@@ -618,20 +618,14 @@ impl<'a, A: time::Alarm<'a>> UDPRecvClient for ThreadNetworkDriver<'a, A> {
                         ..payload.len() - security.level.mic_len()],
                     recv_buf.take(),
                 )
-                .map_or_else(
-                    // Error check on crypto operation. If the crypto operation
-                    // fails, we log the error and replace the receive buffer for
-                    // future receptions
-                    |(_code, buf)| {
+                .unwrap_or_else(|(_code, buf)| {
                         // UNCOMMENT TO DEBUG THREAD alter _code to code//
                         // kernel::debug!(
                         //     "[Thread] DROPPED PACKET - Crypto Operation Error *{:?}",
                         //     code
                         // );
                         self.recv_buffer.replace(SubSliceMut::new(buf));
-                    },
-                    |()| (),
-                )
+                    })
             },
         );
     }

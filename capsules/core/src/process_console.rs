@@ -720,7 +720,7 @@ impl<
                                 kernel::process::ShortId::LocallyUnique => {
                                     let _ = write(
                                         &mut console_writer,
-                                        format_args!("{}", "Unique     ",),
+                                        format_args!("{}", "Unique     "),
                                     );
                                 }
                                 kernel::process::ShortId::Fixed(id) => {

@@ -58,7 +58,7 @@ const SVC_FRAME_SIZE: usize = 32;
 /// Values for encoding the stored state buffer in a binary slice.
 const VERSION: usize = 1;
 const STORED_STATE_SIZE: usize = size_of::<CortexMStoredState>();
-const TAG: [u8; 4] = [b'c', b't', b'x', b'm'];
+const TAG: [u8; 4] = *b"ctxm";
 const METADATA_LEN: usize = 3;
 
 const VERSION_IDX: usize = 0;
@@ -181,7 +181,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         }
 
         let sp = state.psp as *mut u32;
-        let (r0, r1, r2, r3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
+        let (r0, r1, r2, r3) = (sp.add(0), sp.add(1), sp.add(2), sp.add(3));
 
         // These operations are only safe so long as
         // - the pointers are properly aligned. This is guaranteed because the
@@ -245,13 +245,13 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //  - Instruction addresses require `|1` to indicate thumb code
         //  - Stack offset 4 is R12, which the syscall interface ignores
         let stack_bottom = state.psp as *mut usize;
-        ptr::write(stack_bottom.offset(7), state.psr); //......... -> APSR
-        ptr::write(stack_bottom.offset(6), callback.pc.addr() | 1); //... -> PC
-        ptr::write(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
-        ptr::write(stack_bottom.offset(3), callback.argument3.as_usize()); // -> R3
-        ptr::write(stack_bottom.offset(2), callback.argument2); // -> R2
-        ptr::write(stack_bottom.offset(1), callback.argument1); // -> R1
-        ptr::write(stack_bottom.offset(0), callback.argument0); // -> R0
+        ptr::write(stack_bottom.add(7), state.psr); //......... -> APSR
+        ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); //... -> PC
+        ptr::write(stack_bottom.add(5), state.yield_pc | 1); // -> LR
+        ptr::write(stack_bottom.add(3), callback.argument3.as_usize()); // -> R3
+        ptr::write(stack_bottom.add(2), callback.argument2); // -> R2
+        ptr::write(stack_bottom.add(1), callback.argument1); // -> R1
+        ptr::write(stack_bottom.add(0), callback.argument0); // -> R0
 
         Ok(())
     }
@@ -296,26 +296,26 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // syscall (i.e. we return a value to the app immediately) then this
             // will have no effect. If we are doing something like `yield()`,
             // however, then we need to have this state.
-            state.yield_pc = ptr::read(new_stack_pointer.offset(6));
-            state.psr = ptr::read(new_stack_pointer.offset(7));
+            state.yield_pc = ptr::read(new_stack_pointer.add(6));
+            state.psr = ptr::read(new_stack_pointer.add(7));
 
             // Get the syscall arguments and return them along with the syscall.
             // It's possible the app did something invalid, in which case we put
             // the app in the fault state.
-            let r0 = ptr::read(new_stack_pointer.offset(0));
-            let r1 = ptr::read(new_stack_pointer.offset(1));
-            let r2 = ptr::read(new_stack_pointer.offset(2));
-            let r3 = ptr::read(new_stack_pointer.offset(3));
+            let r0 = ptr::read(new_stack_pointer.add(0));
+            let r1 = ptr::read(new_stack_pointer.add(1));
+            let r2 = ptr::read(new_stack_pointer.add(2));
+            let r3 = ptr::read(new_stack_pointer.add(3));
 
             // Get the actual SVC number.
             // Read the PC from the stack as a *const u16 (i.e. we're treating instructions as
             // u16).
             let pcptr_ptr: *const usize = new_stack_pointer;
             let pcptr_ptr: *const *const u16 = pcptr_ptr.cast();
-            let pcptr = ptr::read(pcptr_ptr.offset(6));
+            let pcptr = ptr::read(pcptr_ptr.add(6));
             // The svc instruction is the last instruction before the PC, and should be 16 bits.
             // Read it by offsetting the PC.
-            let svc_instr = ptr::read(pcptr.offset(-1));
+            let svc_instr = ptr::read(pcptr.sub(1));
             let svc_num = (svc_instr & 0xff) as u8;
 
             // Use the helper function to convert these raw values into a Tock
@@ -367,14 +367,14 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 0xBAD00BAD,
             )
         } else {
-            let r0 = ptr::read(stack_pointer.offset(0));
-            let r1 = ptr::read(stack_pointer.offset(1));
-            let r2 = ptr::read(stack_pointer.offset(2));
-            let r3 = ptr::read(stack_pointer.offset(3));
-            let r12 = ptr::read(stack_pointer.offset(4));
-            let lr = ptr::read(stack_pointer.offset(5));
-            let pc = ptr::read(stack_pointer.offset(6));
-            let xpsr = ptr::read(stack_pointer.offset(7));
+            let r0 = ptr::read(stack_pointer.add(0));
+            let r1 = ptr::read(stack_pointer.add(1));
+            let r2 = ptr::read(stack_pointer.add(2));
+            let r3 = ptr::read(stack_pointer.add(3));
+            let r12 = ptr::read(stack_pointer.add(4));
+            let lr = ptr::read(stack_pointer.add(5));
+            let pc = ptr::read(stack_pointer.add(6));
+            let xpsr = ptr::read(stack_pointer.add(7));
             (r0, r1, r2, r3, r12, lr, pc, xpsr)
         };
 
