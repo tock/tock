@@ -218,8 +218,10 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
             self.tx_client.map(move |client| {
                 client.transmitted_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL));
             });
+            Ok(())
+        } else {
+            Err(kernel::ErrorCode::OFF)
         }
-        Ok(())
     }
 
     fn transmit_word(&self, _word: u32) -> Result<(), kernel::ErrorCode> {
@@ -291,10 +293,10 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
                     uart::Error::Aborted,
                 );
             });
+            Ok(())
         } else {
-            return Err(kernel::ErrorCode::OFF);
+            Err(kernel::ErrorCode::OFF)
         }
-        Ok(())
     }
 
     fn receive_word(&self) -> Result<(), kernel::ErrorCode> {
