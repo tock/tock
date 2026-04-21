@@ -532,7 +532,11 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     fault_policy: &'a dyn ProcessFaultPolicy,
 
     /// Storage permissions for this process.
-    storage_permissions: StoragePermissions,
+    ///
+    /// This is stored in a `Cell` because we need to create the
+    /// [`ProcessStandard`] first to then later determine the storage
+    /// permissions.
+    storage_permissions: Cell<StoragePermissions>,
 
     /// Configuration data for the MPU
     mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
@@ -853,7 +857,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn get_storage_permissions(&self) -> StoragePermissions {
-        self.storage_permissions
+        self.storage_permissions.get()
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
@@ -2137,6 +2141,10 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let upcall_buf = unsafe { slice::from_raw_parts_mut(upcall_buf, Self::CALLBACK_LEN) };
         let tasks = RingBuffer::new(upcall_buf);
 
+        ////////////////////////
+        // ProcessStandard
+        ////////////////////////
+
         // Last thing in the kernel region of process RAM is the process struct.
         //
         // # Safety
@@ -2146,68 +2154,86 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // `kernel_memory_break` will be in the allocated memory.
         kernel_memory_break =
             unsafe { kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize)) };
-        let process_struct_memory_location: *mut u8 = kernel_memory_break;
 
-        // Create the Process struct in the app grant region.
-        // Note that this requires every field be explicitly initialized, as
-        // we are just transforming a pointer into a structure.
+        // Create a pointer to where the `ProcessStandard` struct will go in the
+        // app grant region.
+        let process_struct_memory_location: *mut MaybeUninit<ProcessStandard<'static, C, D>> =
+            kernel_memory_break.cast();
+        // Get a reference to the uninitialized `ProcessStandard` object. Note
+        // that this requires every field be explicitly initialized, as we are
+        // just transforming a pointer into a structure. Because the
+        // `ProcessStandard` is not initialized we mark it with `MaybeUninit`.
         //
         // # Safety
         //
-        // This is not safe. `process` is not initialized.
+        // When we sized the grant region we ensured there was room for the
+        // entire `ProcessStandard` struct.
         //
-        // To fix this, we must use `MaybeUninit`.
-        let process_struct_memory_location: *mut ProcessStandard<'static, C, D> =
-            process_struct_memory_location.cast();
-        let process: &mut ProcessStandard<C, D> = unsafe { &mut *process_struct_memory_location };
+        // TODO: What about alignment?
+        let process_uninit: &mut MaybeUninit<ProcessStandard<C, D>> =
+            unsafe { &mut *process_struct_memory_location };
 
-        // Ask the kernel for a unique identifier for this process that is being
-        // created.
-        let unique_identifier = kernel.create_process_identifier();
+        // Initialize ALL fields of `ProcessStandard`.
+        //
+        // TODO: how do we ensure we never miss a field?
+        let process_uptr = process_uninit.as_mut_ptr();
+        (&raw mut (*process_uptr).process_id).write(Cell::new(ProcessId::new(
+            kernel,
+            kernel.create_process_identifier(),
+            index,
+        )));
+        (&raw mut (*process_uptr).app_id).write(app_id);
+        (&raw mut (*process_uptr).kernel).write(kernel);
+        (&raw mut (*process_uptr).chip).write(chip);
+        (&raw mut (*process_uptr).allow_high_water_mark)
+            .write(Cell::new(initial_allow_high_water_mark));
+        (&raw mut (*process_uptr).memory_start).write(allocated_memory_start);
+        (&raw mut (*process_uptr).memory_len).write(allocated_memory_len);
+        (&raw mut (*process_uptr).header).write(pb.header);
+        (&raw mut (*process_uptr).kernel_memory_break).write(Cell::new(kernel_memory_break));
+        (&raw mut (*process_uptr).app_break).write(Cell::new(initial_app_brk));
+        (&raw mut (*process_uptr).grant_pointers).write(MapCell::new(grant_pointers));
+
+        (&raw mut (*process_uptr).credential).write(pb.credential.get());
+        (&raw mut (*process_uptr).footers).write(pb.footers);
+        (&raw mut (*process_uptr).flash).write(pb.flash);
+
+        (&raw mut (*process_uptr).stored_state).write(MapCell::new(Default::default()));
+        (&raw mut (*process_uptr).state).write(Cell::new(State::Yielded));
+        (&raw mut (*process_uptr).fault_policy).write(fault_policy);
+        (&raw mut (*process_uptr).restart_count).write(Cell::new(0));
+        (&raw mut (*process_uptr).completion_code).write(OptionalCell::empty());
+
+        (&raw mut (*process_uptr).storage_permissions)
+            .write(Cell::new(StoragePermissions::new_null()));
+
+        (&raw mut (*process_uptr).mpu_config).write(MapCell::new(mpu_config));
+        (&raw mut (*process_uptr).mpu_regions).write([
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+        ]);
+        (&raw mut (*process_uptr).tasks).write(MapCell::new(tasks));
+        (&raw mut (*process_uptr).is_yield_wait_for_ready).write(Cell::new(false));
+
+        (&raw mut (*process_uptr).debug).write(D::default());
+
+        // Convert the originally uninitialized `ProcessStandard` to a proper
+        // `ProcessStandard` struct reference.
+        //
+        // # Safety
+        //
+        // We initialized all fields of `ProcessStandard` so the entire
+        // `ProcessStandard` struct is now initialized.
+        let process = unsafe { process_uninit.assume_init_mut() };
 
         // Save copies of these in case the app was compiled for fixed addresses
         // for later debugging.
-        let fixed_address_flash = pb.header.get_fixed_address_flash();
-        let fixed_address_ram = pb.header.get_fixed_address_ram();
-
-        process
-            .process_id
-            .set(ProcessId::new(kernel, unique_identifier, index));
-        process.app_id = app_id;
-        process.kernel = kernel;
-        process.chip = chip;
-        process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
-        process.memory_start = allocated_memory_start;
-        process.memory_len = allocated_memory_len;
-        process.header = pb.header;
-        process.kernel_memory_break = Cell::new(kernel_memory_break);
-        process.app_break = Cell::new(initial_app_brk);
-        process.grant_pointers = MapCell::new(grant_pointers);
-
-        process.credential = pb.credential.get();
-        process.footers = pb.footers;
-        process.flash = pb.flash;
-
-        process.stored_state = MapCell::new(Default::default());
-        // Mark this process as approved and leave it to the kernel to start it.
-        process.state = Cell::new(State::Yielded);
-        process.fault_policy = fault_policy;
-        process.restart_count = Cell::new(0);
-        process.completion_code = OptionalCell::empty();
-
-        process.mpu_config = MapCell::new(mpu_config);
-        process.mpu_regions = [
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-        ];
-        process.tasks = MapCell::new(tasks);
-        process.is_yield_wait_for_ready = Cell::new(false);
-
-        process.debug = D::default();
+        let fixed_address_flash = process.header.get_fixed_address_flash();
+        let fixed_address_ram = process.header.get_fixed_address_ram();
         if let Some(fix_addr_flash) = fixed_address_flash {
             process.debug.set_fixed_address_flash(fix_addr_flash);
         }
@@ -2290,7 +2316,9 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // Set storage permissions. Put this at the end so that `process` is
         // completely formed before using it to determine the storage
         // permissions.
-        process.storage_permissions = storage_permissions_policy.get_permissions(process);
+        process
+            .storage_permissions
+            .set(storage_permissions_policy.get_permissions(process));
 
         // Return the process object and a remaining memory for processes slice.
         Ok((Some(process), unused_memory))
