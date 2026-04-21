@@ -37,12 +37,11 @@ register_structs! {
     }
 }
 
-pub const GPIO_A_BASE: StaticRef<GpioRegisters> = 
+pub const GPIO_A_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x52020000 as *const GpioRegisters) };
 
-pub const GPIO_C_BASE: StaticRef<GpioRegisters> = 
+pub const GPIO_C_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x52020800 as *const GpioRegisters) };
-
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum PinId {

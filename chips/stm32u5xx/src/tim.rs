@@ -35,9 +35,8 @@ register_structs! {
     }
 }
 
-pub const TIM2_BASE: StaticRef<TimRegisters> = 
+pub const TIM2_BASE: StaticRef<TimRegisters> =
     unsafe { StaticRef::new(0x50000000 as *const TimRegisters) };
-
 
 register_bitfields![u32,
     pub CR1 [

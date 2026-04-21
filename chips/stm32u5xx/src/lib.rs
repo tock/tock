@@ -66,30 +66,15 @@ pub struct Stm32u5xxPeripherals<'a> {
 }
 
 impl<'a> Stm32u5xxPeripherals<'a> {
-    pub fn new(
-        exti: &'a exti::Exti<'a>,
-        dma1: &'a dma::Dma,
-        usart1: &'a usart::Usart<'a>,
-    ) -> Self {
+    pub fn new(exti: &'a exti::Exti<'a>, dma1: &'a dma::Dma, usart1: &'a usart::Usart<'a>) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             exti,
             dma1,
-            gpio_a: gpio::Port::new(
-                gpio::GPIO_A_BASE,
-                exti,
-                gpio::GpioPort::PortA,
-            ),
-            gpio_c: gpio::Port::new(
-                gpio::GPIO_C_BASE,
-                exti,
-                gpio::GpioPort::PortC,
-            ),
+            gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
+            gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             usart1,
-            tim2: tim::Tim2::new(
-                tim::TIM2_BASE,
-                enable_tim2_clock,
-            ),
+            tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
         }
     }
 }
