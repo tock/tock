@@ -407,7 +407,13 @@ ci-job-clippy:
 	@cargo clippy -- -D warnings
 	# Run `cargo clippy` in select boards so we run clippy with targets that
 	# actually check the arch-specific functions.
+	# 
+	# - nrf52840dk: cortex-m4
+	# - raspberry_pi_pico: cortex-m0
+	# - hifive1: riscv
+	# - qemu_i486_q35: x86
 	@cd boards/nordic/nrf52840dk && cargo clippy -- -D warnings
+	@cd boards/raspberry_pi_pico && cargo clippy -- -D warnings
 	@cd boards/hifive1 && cargo clippy -- -D warnings
 	@cd boards/qemu_i486_q35 && cargo clippy -Zjson-target-spec -- -D warnings
 
