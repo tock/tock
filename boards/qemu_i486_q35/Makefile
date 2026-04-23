@@ -8,6 +8,10 @@
 # Skip auto-installing targets with rustup, since we are using a custom target
 NO_RUSTUP := 1
 
+# Because we use a custom target with a .json file, we must pass
+# `-Zjson-target-spec` to cargo as of roughly January 2026.
+CARGO = cargo -Zjson-target-spec
+
 include ../Makefile.common
 
 QEMU_CMD             := qemu-system-i386
