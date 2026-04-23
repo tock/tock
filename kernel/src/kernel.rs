@@ -319,16 +319,17 @@ impl Kernel {
         &self,
         shortid: process::ShortId,
         _capability: &dyn capabilities::ProcessManagementCapability,
-    ) {
+    ) -> Result<usize, ()> {
         for slot in self.processes.iter() {
             if let Some(process) = slot.get() {
                 if process.short_app_id() == shortid {
                     process.terminate(None);
                     slot.proc.set(None);
-                    break;
+                    return Ok(process.get_addresses().flash_start);
                 }
             }
         }
+        Err(())
     }
 
     /// Cause all apps to fault.
