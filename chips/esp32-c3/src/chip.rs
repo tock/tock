@@ -303,7 +303,7 @@ pub extern "C" fn _start_trap_vectored() {
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[link_section = ".riscv.trap_vectored"]
 #[unsafe(naked)]
-pub extern "C" fn _start_trap_vectored() -> ! {
+pub extern "C" fn _start_trap_vectored() {
     use core::arch::naked_asm;
     // Below are 32 (non-compressed) jumps to cover the entire possible
     // range of vectored traps.

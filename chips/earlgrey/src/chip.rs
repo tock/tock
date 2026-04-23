@@ -458,7 +458,7 @@ pub extern "C" fn _earlgrey_start_trap_vectored() {
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[link_section = ".riscv.trap_vectored"]
 #[unsafe(naked)]
-pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
+pub extern "C" fn _earlgrey_start_trap_vectored() {
     use core::arch::naked_asm;
     // According to the Ibex user manual:
     // [NMI] has interrupt ID 31, i.e., it has the highest priority of all
