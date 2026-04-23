@@ -10,5 +10,3 @@ include = [
 [build]
 target = "thumbv7em-none-eabihf"
 
-[unstable]
-config-include = true

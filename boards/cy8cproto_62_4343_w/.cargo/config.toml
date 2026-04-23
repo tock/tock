@@ -10,5 +10,3 @@ include = [
 [build]
 target = "thumbv6m-none-eabi"
 
-[unstable]
-config-include = true
