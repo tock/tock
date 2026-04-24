@@ -208,7 +208,16 @@ pub extern "C" fn _start_trap() -> ! {
 /// assume that the hart is currently executing kernel code.
 ///
 /// If it contains any other value, we interpret it to be a memory address
-/// pointing to a particular data structure:
+/// pointing to a particular data structure (`custom_trap_handler`):
+///
+/// ```text
+/// custom_trap_handler: [usize; 2];
+///
+/// mscratch = &custom_trap_handler;
+/// ```
+///
+/// or in memory:
+///
 ///
 /// ```text
 /// mscratch           0               1               2               3
@@ -302,19 +311,21 @@ pub extern "C" fn _start_trap() -> ! {
     //
     // For documentation of its behavior, and how process
     // implementations can hook their own trap handler code, see the
-    // comment on the `extern C _start_trap` symbol above.
+    // comment on the `_start_trap` function.
 
-    // Atomically swap s0 and mscratch:
+    // Atomically swap s0 and mscratch. This puts `&custom_trap_handler`
+    // in s0.
     csrrw s0, mscratch, s0        // s0 = mscratch; mscratch = s0
 
     // If mscratch contained 0, invoke the kernel trap handler.
-    beq   s0, x0, 100f      // if s0==x0: goto 100
+    beq   s0, x0, 100f            // if s0==x0: goto 100
 
-    // Else, save the current value of s1 to `0*4(s0)`, load `1*4(s0)`
-    // into s1 and jump to it (invoking a custom trap handler).
-    sw    s1, 0*4(s0)       // *s0 = s1
-    lw    s1, 1*4(s0)       // s1 = *(s0+4)
-    jr    s1                // goto s1
+    // Else, save the current value of s1 to `custom_trap_handler[0]`,
+    // load `custom_trap_handler[1]` into s1 and jump to it (invoking
+    // a custom trap handler).
+    sw    s1, 0*4(s0)             // custom_trap_handler[0] = s1
+    lw    s1, 1*4(s0)             // s1 = custom_trap_handler[1]
+    jr    s1                      // goto s1
 
   100: // _start_kernel_trap
 
@@ -328,50 +339,50 @@ pub extern "C" fn _start_trap() -> ! {
 
     // Load the address of the bottom of the stack (`_sstack`) into our
     // newly freed-up s0 register.
-    la s0, {sstack}                     // s0 = _sstack
+    la s0, {sstack}               // s0 = _sstack
 
     // Compare the kernel stack pointer to the bottom of the stack. If
     // the stack pointer is above the bottom of the stack, then continue
     // handling the fault as normal.
-    bgtu sp, s0, 200f                   // branch if sp > s0
+    bgtu sp, s0, 200f             // branch if sp > s0
 
     // If we get here, then we did encounter a stack overflow. We are
     // going to panic at this point, but for that to work we need a
     // valid stack to run the panic code. We do this by just starting
     // over with the kernel stack and placing the stack pointer at the
     // top of the original stack.
-    la sp, {estack}                     // sp = _estack
+    la sp, {estack}               // sp = _estack
 
 200: // _start_kernel_trap_continue
 
     // Restore s0. We reset mscratch to 0 (kernel trap handler mode)
-    csrrw s0, mscratch, zero    // s0 = mscratch; mscratch = 0
+    csrrw s0, mscratch, zero      // s0 = mscratch; mscratch = 0
 
     // Make room for the caller saved registers we need to restore after running
     // any trap handler code.
-    addi sp, sp, -20*4
+    addi sp, sp, -20*4            // riscv32: sp = sp - (20*4)
 
     // Save all of the caller saved registers.
-    sw   ra, 0*4(sp)
-    sw   t0, 1*4(sp)
-    sw   t1, 2*4(sp)
-    sw   t2, 3*4(sp)
-    sw   t3, 4*4(sp)
-    sw   t4, 5*4(sp)
-    sw   t5, 6*4(sp)
-    sw   t6, 7*4(sp)
-    sw   a0, 8*4(sp)
-    sw   a1, 9*4(sp)
-    sw   a2, 10*4(sp)
-    sw   a3, 11*4(sp)
-    sw   a4, 12*4(sp)
-    sw   a5, 13*4(sp)
-    sw   a6, 14*4(sp)
-    sw   a7, 15*4(sp)
+    sw   ra,  0*4(sp)             // riscv32: *(stackptr +  (0*4)) = ra
+    sw   t0,  1*4(sp)             // riscv32: *(stackptr +  (1*4)) = t0
+    sw   t1,  2*4(sp)             // riscv32: *(stackptr +  (2*4)) = t1
+    sw   t2,  3*4(sp)             // riscv32: *(stackptr +  (3*4)) = t2
+    sw   t3,  4*4(sp)             // riscv32: *(stackptr +  (4*4)) = t3
+    sw   t4,  5*4(sp)             // riscv32: *(stackptr +  (5*4)) = t4
+    sw   t5,  6*4(sp)             // riscv32: *(stackptr +  (6*4)) = t5
+    sw   t6,  7*4(sp)             // riscv32: *(stackptr +  (7*4)) = t6
+    sw   a0,  8*4(sp)             // riscv32: *(stackptr +  (8*4)) = a0
+    sw   a1,  9*4(sp)             // riscv32: *(stackptr +  (9*4)) = a1
+    sw   a2, 10*4(sp)             // riscv32: *(stackptr + (10*4)) = a2
+    sw   a3, 11*4(sp)             // riscv32: *(stackptr + (11*4)) = a3
+    sw   a4, 12*4(sp)             // riscv32: *(stackptr + (12*4)) = a4
+    sw   a5, 13*4(sp)             // riscv32: *(stackptr + (13*4)) = a5
+    sw   a6, 14*4(sp)             // riscv32: *(stackptr + (14*4)) = a6
+    sw   a7, 15*4(sp)             // riscv32: *(stackptr + (15*4)) = a7
 
     // Save one callee-saved register (s0), which we place the address of
     // the hart-specific 'are we in a trap handler' flag in:
-    sw   s0, 16*4(sp)
+    sw   s0, 16*4(sp)             // riscv32: *(stackptr + (16*4)) = s0
 
     // Determine the address of the hart-specific 'are we in a trap handler'
     // flag as an offset to the _trap_handler_active symbol. The chip crate
@@ -379,12 +390,12 @@ pub extern "C" fn _start_trap() -> ! {
     // enough to fit `max(mhartid) * MXLEN` bytes.
     la   s0, _trap_handler_active // s0 = addr(_trap_handler_active)
     csrr t0, mhartid              // t0 = hartid
-    slli t0, t0, 2                // t0 = t0 * 4
+    slli t0, t0, 2                // t0 = t0 * sizeof(u32)
     add  s0, s0, t0               // s0 = addr(_trap_handler_active[hartid])
 
     // Indicate that we are in a trap handler on this hart:
-    li   t0, 1
-    sw   t0, 0(s0)
+    li   t0, 1                    // t0 = 1
+    sw   t0, 0(s0)                // _trap_handler_active[hartid] = 1
 
     // Jump to board-specific trap handler code. Likely this was an
     // interrupt and we want to disable a particular interrupt, but each
@@ -393,32 +404,32 @@ pub extern "C" fn _start_trap() -> ! {
 
     // Indicate that we are no longer going to be in a trap handler on this
     // hart:
-    sw   x0, 0(s0)
+    sw   x0, 0(s0)                // _trap_handler_active[hartid] = 0
 
     // Restore the caller saved registers from the stack.
-    lw   ra, 0*4(sp)
-    lw   t0, 1*4(sp)
-    lw   t1, 2*4(sp)
-    lw   t2, 3*4(sp)
-    lw   t3, 4*4(sp)
-    lw   t4, 5*4(sp)
-    lw   t5, 6*4(sp)
-    lw   t6, 7*4(sp)
-    lw   a0, 8*4(sp)
-    lw   a1, 9*4(sp)
-    lw   a2, 10*4(sp)
-    lw   a3, 11*4(sp)
-    lw   a4, 12*4(sp)
-    lw   a5, 13*4(sp)
-    lw   a6, 14*4(sp)
-    lw   a7, 15*4(sp)
+    lw   ra,  0*4(sp)             // riscv32: ra = *(stackptr +  (0*4))
+    lw   t0,  1*4(sp)             // riscv32: t0 = *(stackptr +  (1*4))
+    lw   t1,  2*4(sp)             // riscv32: t1 = *(stackptr +  (2*4))
+    lw   t2,  3*4(sp)             // riscv32: t2 = *(stackptr +  (3*4))
+    lw   t3,  4*4(sp)             // riscv32: t3 = *(stackptr +  (4*4))
+    lw   t4,  5*4(sp)             // riscv32: t4 = *(stackptr +  (5*4))
+    lw   t5,  6*4(sp)             // riscv32: t5 = *(stackptr +  (6*4))
+    lw   t6,  7*4(sp)             // riscv32: t6 = *(stackptr +  (7*4))
+    lw   a0,  8*4(sp)             // riscv32: a0 = *(stackptr +  (8*4))
+    lw   a1,  9*4(sp)             // riscv32: a1 = *(stackptr +  (9*4))
+    lw   a2, 10*4(sp)             // riscv32: a2 = *(stackptr + (10*4))
+    lw   a3, 11*4(sp)             // riscv32: a3 = *(stackptr + (11*4))
+    lw   a4, 12*4(sp)             // riscv32: a4 = *(stackptr + (12*4))
+    lw   a5, 13*4(sp)             // riscv32: a5 = *(stackptr + (13*4))
+    lw   a6, 14*4(sp)             // riscv32: a6 = *(stackptr + (14*4))
+    lw   a7, 15*4(sp)             // riscv32: a7 = *(stackptr + (15*4))
 
     // Restore the one callee-saved register (s0), which used to hold the
     // address of the hart-specific 'are we in a trap handler flag':
-    lw   s0, 16*4(sp)
+    lw   s0, 16*4(sp)             // riscv32: s0 = *(stackptr + (16*4))
 
     // Reset the stack pointer.
-    addi sp, sp, 20*4
+    addi sp, sp, 20*4             // sp = sp + (20*4)
 
     // mret returns from the trap handler. The PC is set to what is in
     // mepc and execution proceeds from there. Since we did not modify
