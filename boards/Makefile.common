@@ -186,11 +186,6 @@ OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 # Set default flags for size.
 SIZE_FLAGS ?=
 
-# Need an extra flag for OBJDUMP if we are on a thumb platform.
-ifneq (,$(findstring thumb,$(TARGET)))
-  OBJDUMP_FLAGS += --arch-name=thumb
-endif
-
 # Additional flags that can be passed to print_tock_memory_usage.py via an
 # environment variable. By default, pass an empty string.
 PTMU_ARGS ?=
