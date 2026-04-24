@@ -177,14 +177,14 @@ pub unsafe fn configure_trap_handler() {
     // trap handler, this should ensure that all traps are handled by the M-mode
     // handler.
     csr::CSR.mtvec.write(
-        csr::mtvec::mtvec::trap_addr.val(_start_trap as extern "C" fn() as usize >> 2)
+        csr::mtvec::mtvec::trap_addr.val(_start_trap as extern "C" fn() -> ! as usize >> 2)
             + csr::mtvec::mtvec::mode::CLEAR,
     );
 }
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
-pub extern "C" fn _start_trap() {
+pub extern "C" fn _start_trap() -> ! {
     unimplemented!()
 }
 
@@ -291,7 +291,7 @@ pub extern "C" fn _start_trap() {
 // symbol name.
 #[export_name = "_start_trap"]
 #[unsafe(naked)]
-pub extern "C" fn _start_trap() {
+pub extern "C" fn _start_trap() -> ! {
     use core::arch::naked_asm;
     naked_asm!(
         "
