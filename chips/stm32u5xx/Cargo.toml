@@ -14,7 +14,6 @@ enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
 
 [features]
-stm32u545 = []
 
 [lints]
 workspace = true

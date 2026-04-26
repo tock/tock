@@ -11,7 +11,7 @@ edition.workspace = true
 [dependencies]
 cortexm33 = { path = "../../arch/cortex-m33" }
 kernel = { path = "../../kernel" }
-stm32u5xx = { path = "../stm32u5xx", features = ["stm32u545"] }
+stm32u5xx = { path = "../stm32u5xx" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 
 [lints]
