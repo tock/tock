@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use cortexm33;
 use kernel::hil::time::Time;
 use kernel::hil::time::{self, Ticks, Ticks32};
 use kernel::utilities::cells::OptionalCell;
@@ -123,10 +122,6 @@ impl<'a> Tim2<'a> {
 
         self.registers.arr.set(0xFFFFFFFF);
         self.registers.cr1.modify(CR1::CEN::SET);
-
-        unsafe {
-            cortexm33::nvic::Nvic::new(crate::nvic::TIM2_IRQ).enable();
-        }
     }
 }
 

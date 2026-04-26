@@ -3,7 +3,6 @@
 // Copyright OxidOS Automotive 2026.
 
 use core::cell::Cell;
-use cortexm33;
 use kernel::hil::uart::{self};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -240,11 +239,6 @@ impl uart::Configure for Usart<'_> {
         // Enable transmitter, receiver, and USART
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
 
-        unsafe {
-            cortexm33::nvic::Nvic::new(crate::nvic::USART1_IRQ).enable();
-            cortexm33::nvic::Nvic::new(crate::nvic::GPDMA1_CH0_IRQ).enable();
-            cortexm33::nvic::Nvic::new(crate::nvic::GPDMA1_CH1_IRQ).enable();
-        }
         Ok(())
     }
 }

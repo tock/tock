@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use cortexm33;
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -316,10 +315,6 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
                 }
             }
             self.exti.unmask_interrupt(line);
-        }
-
-        unsafe {
-            cortexm33::nvic::Nvic::new(crate::nvic::EXTI13_IRQ).enable(); // Enable EXTI13 IRQ here
         }
     }
 
