@@ -136,9 +136,18 @@ unsafe fn start() -> (
     >();
 
     // Create Individual Drivers
-    let exti = stm32u545::exti::init();
-    let dma1 = stm32u545::dma::init();
-    let usart1 = stm32u545::usart::init();
+    let exti = static_init!(
+        stm32u545::exti::Exti<'static>,
+        stm32u545::exti::Exti::new(stm32u545::exti::EXTI_BASE)
+    );
+    let dma1 = static_init!(
+        stm32u545::dma::Dma,
+        stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
+    );
+    let usart1 = static_init!(
+        stm32u545::usart::Usart<'static>,
+        stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
+    );
 
     // Link DMA to USART1
     usart1.set_dma(dma1, 0, 1);
