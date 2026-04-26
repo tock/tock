@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
+use enum_primitive::cast::FromPrimitive;
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -279,7 +280,7 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
         let line_num = self.pin;
         if line_num < 16 {
-            let line = unsafe { core::mem::transmute::<u8, LineId>(line_num as u8) };
+            let line = LineId::from_u8(line_num as u8).unwrap();
             self.exti_lineid.set(line);
 
             self.client.map(|client| {
