@@ -14,40 +14,40 @@ make
 
 ## Programming and Deployment
 
-The Makefile in this directory provides several helper targets for deployment:
+The Makefile for this board is simplified to focus on OpenOCD-based deployment.
+
+### Makefile Targets
 
 | Target | Description |
 | :--- | :--- |
 | **`make`** | Compiles the Tock kernel for the Nucleo-U545RE-Q. |
-| **`make flash`** | Flashes **only the kernel** to the board using `probe-rs`. |
-| **`make flash_ocd`** | Flashes **only the kernel** to the board using `openocd`. |
-| **`make app`** | Merges the kernel with a userspace app (`.tbf`) into a single unified ELF. Requires `APP_PATH`. |
-| **`make app_flash`** | Compiles, merges, and **flashes both the kernel and app** in one step using `probe-rs`. |
-| **`make app_flash_ocd`** | Compiles, merges, and **flashes both the kernel and app** in one step using `openocd`. |
+| **`make flash`** | Flashes the release kernel using `openocd`. |
+| **`make flash-debug`** | Flashes the debug kernel using `openocd`. |
+| **`make program`** | Installs apps using `tockloader` via `openocd`. Requires `APP`. |
+| **`make install`** | Alias for `make flash`. |
 
 ### Usage Examples
 
-**1. Flash only the kernel:**
+**1. Flash the release kernel:**
 ```bash
 make flash
-# OR
-make flash_ocd
 ```
 
-**2. Flash kernel merged with a specific app:**
+**2. Flash the debug kernel:**
 ```bash
-# Provide the path to your compiled Tock Binary Format (.tbf) file
-make app_flash APP_PATH=/path/to/your/app.tbf
-# OR
-make app_flash_ocd APP_PATH=/path/to/your/app.tbf
+make flash-debug
+```
+
+**3. Install an application:**
+Note: This requires a `.tab` (Tock Application Bundle) file.
+```bash
+make program APP=/path/to/your/app.tab
 ```
 
 ## Flashing Notes
 
-This board is flashed using **`probe-rs`** or **`openocd`**. Due to the specific 
-memory layout and metadata sections of the STM32U5, the Makefile surgically 
-extracts executable sections (stripping metadata like `.ARM.attributes`) before 
-flashing to prevent errors when writing to protected system memory addresses.
+This board is flashed using **`openocd`**. The Makefile handles the necessary 
+initialization and mass erase before programming.
 
 ### OpenOCD Requirements
 
