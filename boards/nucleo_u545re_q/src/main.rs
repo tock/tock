@@ -29,7 +29,7 @@ type ChipHw =
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x2000}
 

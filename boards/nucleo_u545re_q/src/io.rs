@@ -8,7 +8,7 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 
 use kernel::debug;
-use kernel::debug::IoWrite;
+use kernel::utilities::io_write::IoWrite;
 
 /// Writer is used by kernel::debug to print messages to the serial port.
 pub struct Writer {}
@@ -40,7 +40,7 @@ impl IoWrite for Writer {
 pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_print(
+    debug::panic_print_old(
         writer,
         info,
         &cortexm33::support::nop,
