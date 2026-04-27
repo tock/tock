@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use enum_primitive::cast::FromPrimitive;
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -93,7 +92,7 @@ pub enum GpioPort {
 
 pub struct Pin<'a> {
     registers: StaticRef<GpioRegisters>,
-    pin: usize,
+    pin: PinId,
     pin_mask: u32,
     exti: &'a Exti<'a>,
     port_id: GpioPort,
@@ -105,14 +104,14 @@ impl<'a> Pin<'a> {
     // Only our own crate can create pins
     pub(crate) const fn new(
         base: StaticRef<GpioRegisters>,
-        pin: usize,
+        pin: PinId,
         exti: &'a Exti<'a>,
         port_id: GpioPort,
     ) -> Pin<'a> {
         Pin {
             registers: base,
             pin,
-            pin_mask: 1 << pin,
+            pin_mask: 1 << (pin as usize),
             exti,
             port_id,
             client: OptionalCell::empty(),
@@ -124,7 +123,7 @@ impl<'a> Pin<'a> {
     /// This is a low-level function intended for board-level muxing.
     /// For general GPIO usage, use the `kernel::hil::gpio::Configure` trait.
     pub fn set_mode(&self, mode: Mode) {
-        let offset = self.pin * 2;
+        let offset = self.pin as usize * 2;
         let mut val = self.registers.moder.get();
         val &= !(0x3 << offset);
         val |= (mode as u32) << offset;
@@ -135,7 +134,7 @@ impl<'a> Pin<'a> {
     /// This is a low-level function intended for high-speed peripherals
     /// like USART or SPI.
     pub fn set_speed_high(&self) {
-        let offset = self.pin * 2;
+        let offset = self.pin as usize * 2;
         let mut val = self.registers.ospeedr.get();
         val |= 3 << offset;
         self.registers.ospeedr.set(val);
@@ -146,14 +145,14 @@ impl<'a> Pin<'a> {
     /// Refer to the STM32U5 datasheet for the AF mapping table.
     /// This is a low-level function intended for peripheral initialization.
     pub fn set_alternate_function(&self, func: u32) {
-        if self.pin < 8 {
-            let offset = self.pin * 4;
+        if (self.pin as usize) < 8 {
+            let offset = self.pin as usize * 4;
             let mut val = self.registers.afrl.get();
             val &= !(0xF << offset);
             val |= (func & 0xF) << offset;
             self.registers.afrl.set(val);
         } else {
-            let offset = (self.pin - 8) * 4;
+            let offset = (self.pin as usize - 8) * 4;
             let mut val = self.registers.afrh.get();
             val &= !(0xF << offset);
             val |= (func & 0xF) << offset;
@@ -162,7 +161,7 @@ impl<'a> Pin<'a> {
     }
 
     fn get_mode(&self) -> Mode {
-        let offset = self.pin * 2;
+        let offset = self.pin as usize * 2;
         let val = (self.registers.moder.get() >> offset) & 0x3;
         match val {
             0 => Mode::Input,
@@ -173,7 +172,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_pull(&self, pull: PullUpPullDown) {
-        let offset = self.pin * 2;
+        let offset = self.pin as usize * 2;
         let mut val = self.registers.pupdr.get();
         val &= !(0x3 << offset);
         val |= (pull as u32) << offset;
@@ -181,7 +180,7 @@ impl<'a> Pin<'a> {
     }
 
     fn get_pull(&self) -> PullUpPullDown {
-        let offset = self.pin * 2;
+        let offset = self.pin as usize * 2;
         let val = (self.registers.pupdr.get() >> offset) & 0x3;
         match val {
             1 => PullUpPullDown::PullUp,
@@ -278,45 +277,42 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     }
 
     fn enable_interrupts(&self, mode: gpio::InterruptEdge) {
-        let line_num = self.pin;
-        if line_num < 16 {
-            let line = LineId::from_u8(line_num as u8).unwrap();
-            self.exti_lineid.set(line);
+        let line = LineId::from(self.pin);
+        self.exti_lineid.set(line);
 
-            self.client.map(|client| {
-                self.exti.register_client(line, client);
-            });
+        self.client.map(|client| {
+            self.exti.register_client(line, client);
+        });
 
-            // 1. Route the port to the line
-            self.exti.select_port(line, self.port_id as u32);
+        // 1. Route the port to the line
+        self.exti.select_port(line, self.port_id as u32);
 
-            // 2. Configure the EXTI line as Secure.
-            // On the STM32U5, the EXTI controller is TrustZone-aware. Since the Tock
-            // kernel is running in the Secure state, we must explicitly mark the
-            // interrupt line as Secure in the EXTI_SECCFGR1 register. If we omit this,
-            // the hardware firewall will block the interrupt signal from reaching
-            // the Secure CPU context.
-            self.exti.set_secure(line);
+        // 2. Configure the EXTI line as Secure.
+        // On the STM32U5, the EXTI controller is TrustZone-aware. Since the Tock
+        // kernel is running in the Secure state, we must explicitly mark the
+        // interrupt line as Secure in the EXTI_SECCFGR1 register. If we omit this,
+        // the hardware firewall will block the interrupt signal from reaching
+        // the Secure CPU context.
+        self.exti.set_secure(line);
 
-            self.exti.mask_interrupt(line);
-            self.exti.clear_pending(line);
+        self.exti.mask_interrupt(line);
+        self.exti.clear_pending(line);
 
-            match mode {
-                gpio::InterruptEdge::EitherEdge => {
-                    self.exti.select_rising_trigger(line);
-                    self.exti.select_falling_trigger(line);
-                }
-                gpio::InterruptEdge::RisingEdge => {
-                    self.exti.select_rising_trigger(line);
-                    self.exti.deselect_falling_trigger(line);
-                }
-                gpio::InterruptEdge::FallingEdge => {
-                    self.exti.deselect_rising_trigger(line);
-                    self.exti.select_falling_trigger(line);
-                }
+        match mode {
+            gpio::InterruptEdge::EitherEdge => {
+                self.exti.select_rising_trigger(line);
+                self.exti.select_falling_trigger(line);
             }
-            self.exti.unmask_interrupt(line);
+            gpio::InterruptEdge::RisingEdge => {
+                self.exti.select_rising_trigger(line);
+                self.exti.deselect_falling_trigger(line);
+            }
+            gpio::InterruptEdge::FallingEdge => {
+                self.exti.deselect_rising_trigger(line);
+                self.exti.select_falling_trigger(line);
+            }
         }
+        self.exti.unmask_interrupt(line);
     }
 
     fn disable_interrupts(&self) {
@@ -329,6 +325,29 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
     fn is_pending(&self) -> bool {
         self.exti_lineid
             .map_or(false, |line| self.exti.is_pending(line))
+    }
+}
+
+impl From<PinId> for LineId {
+    fn from(pin: PinId) -> Self {
+        match pin {
+            PinId::Pin00 => LineId::Line00,
+            PinId::Pin01 => LineId::Line01,
+            PinId::Pin02 => LineId::Line02,
+            PinId::Pin03 => LineId::Line03,
+            PinId::Pin04 => LineId::Line04,
+            PinId::Pin05 => LineId::Line05,
+            PinId::Pin06 => LineId::Line06,
+            PinId::Pin07 => LineId::Line07,
+            PinId::Pin08 => LineId::Line08,
+            PinId::Pin09 => LineId::Line09,
+            PinId::Pin10 => LineId::Line10,
+            PinId::Pin11 => LineId::Line11,
+            PinId::Pin12 => LineId::Line12,
+            PinId::Pin13 => LineId::Line13,
+            PinId::Pin14 => LineId::Line14,
+            PinId::Pin15 => LineId::Line15,
+        }
     }
 }
 
@@ -355,6 +374,6 @@ impl<'a> Port<'a> {
 
     /// Returns a Pin instance for a specific physical pin on this port.
     pub fn pin(&self, pin: PinId) -> Pin<'a> {
-        Pin::new(self.registers, pin as usize, self.exti, self.port_id)
+        Pin::new(self.registers, pin, self.exti, self.port_id)
     }
 }

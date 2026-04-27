@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use enum_primitive::cast::FromPrimitive;
-use enum_primitive::enum_from_primitive;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -36,15 +34,25 @@ register_structs! {
 pub const EXTI_BASE: StaticRef<ExtiRegisters> =
     unsafe { StaticRef::new(0x56022000 as *const ExtiRegisters) };
 
-enum_from_primitive! {
-    #[derive(Copy, Clone, PartialEq)]
-    /// Identifiers for the 16 external interrupt lines (EXTI0 - EXTI15).
-    pub enum LineId {
-        Line00 = 0, Line01 = 1, Line02 = 2, Line03 = 3,
-        Line04 = 4, Line05 = 5, Line06 = 6, Line07 = 7,
-        Line08 = 8, Line09 = 9, Line10 = 10, Line11 = 11,
-        Line12 = 12, Line13 = 13, Line14 = 14, Line15 = 15,
-    }
+#[derive(Copy, Clone, PartialEq)]
+/// Identifiers for the 16 external interrupt lines (EXTI0 - EXTI15).
+pub enum LineId {
+    Line00 = 0,
+    Line01 = 1,
+    Line02 = 2,
+    Line03 = 3,
+    Line04 = 4,
+    Line05 = 5,
+    Line06 = 6,
+    Line07 = 7,
+    Line08 = 8,
+    Line09 = 9,
+    Line10 = 10,
+    Line11 = 11,
+    Line12 = 12,
+    Line13 = 13,
+    Line14 = 14,
+    Line15 = 15,
 }
 
 /// The EXTI controller manages external interrupt lines and routes them
