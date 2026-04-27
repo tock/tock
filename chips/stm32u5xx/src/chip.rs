@@ -6,11 +6,12 @@
 use crate::dma::{ChannelId, Dma};
 use crate::exti;
 use crate::gpio;
+use crate::hash;
 use crate::nvic::{
     EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
     GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
     GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
-    TIM2_IRQ, USART1_IRQ,
+    HASH_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::rcc;
 use crate::tim;
@@ -34,6 +35,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub dma1: &'a Dma,
     pub gpio_a: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
+    pub hash: &'a hash::core_unit::Hash<'a>,
 }
 
 fn enable_tim2_clock() {
@@ -42,7 +44,12 @@ fn enable_tim2_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(
+        usart1: &'a usart::Usart<'a>,
+        exti: &'a exti::Exti<'a>,
+        dma1: &'a Dma,
+        hash: &'a hash::core_unit::Hash<'a>,
+    ) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
@@ -51,6 +58,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             dma1,
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
+            hash,
         }
     }
 
@@ -61,13 +69,21 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
+        self.rcc.enable_hash();
         self.rcc.set_usart1_source_pclk();
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();
 
+        // Link DMA to HASH
+        let hash_channel = self.dma1.request_channel();
+
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+        }
+
+        if let Some(tx) = hash_channel {
+            hash::core_unit::Hash::set_dma(self.hash, self.dma1, tx);
         }
     }
 }
@@ -153,6 +169,10 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             GPDMA1_CH15_IRQ => {
                 self.dma1.handle_interrupt(ChannelId::Channel15);
+                true
+            }
+            HASH_IRQ => {
+                self.hash.handle_interupts();
                 true
             }
             _ => false,

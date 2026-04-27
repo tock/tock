@@ -60,6 +60,9 @@ use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 enum ShaOperation {
+    Md5,
+    Sha1,
+    Sha224,
     Sha256,
     Sha384,
     Sha512,
@@ -85,7 +88,13 @@ pub struct ShaDriver<'a, H: digest::Digest<'a, DIGEST_LEN>, const DIGEST_LEN: us
 
 impl<
         'a,
-        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::Md5
+            + digest::Sha1
+            + digest::Sha224
+            + digest::Sha256
+            + digest::Sha384
+            + digest::Sha512,
         const DIGEST_LEN: usize,
     > ShaDriver<'a, H, DIGEST_LEN>
 {
@@ -116,6 +125,8 @@ impl<
             self.apps
                 .enter(processid, |app, kernel_data| {
                     match app.sha_operation {
+                        Some(ShaOperation::Md5) => self.sha.set_mode_md5()?,
+                        Some(ShaOperation::Sha1) => self.sha.set_mode_sha1()?,
                         Some(ShaOperation::Sha256) => self.sha.set_mode_sha256()?,
                         Some(ShaOperation::Sha384) => self.sha.set_mode_sha384()?,
                         Some(ShaOperation::Sha512) => self.sha.set_mode_sha512()?,
@@ -221,7 +232,13 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::Md5
+            + digest::Sha1
+            + digest::Sha224
+            + digest::Sha256
+            + digest::Sha384
+            + digest::Sha512,
         const DIGEST_LEN: usize,
     > digest::ClientData<DIGEST_LEN> for ShaDriver<'a, H, DIGEST_LEN>
 {
@@ -357,7 +374,13 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::Md5
+            + digest::Sha1
+            + digest::Sha224
+            + digest::Sha256
+            + digest::Sha384
+            + digest::Sha512,
         const DIGEST_LEN: usize,
     > digest::ClientHash<DIGEST_LEN> for ShaDriver<'a, H, DIGEST_LEN>
 {
@@ -408,7 +431,13 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::Md5
+            + digest::Sha1
+            + digest::Sha224
+            + digest::Sha256
+            + digest::Sha384
+            + digest::Sha512,
         const DIGEST_LEN: usize,
     > digest::ClientVerify<DIGEST_LEN> for ShaDriver<'a, H, DIGEST_LEN>
 {
@@ -446,7 +475,13 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::Md5
+            + digest::Sha1
+            + digest::Sha224
+            + digest::Sha256
+            + digest::Sha384
+            + digest::Sha512,
         const DIGEST_LEN: usize,
     > SyscallDriver for ShaDriver<'a, H, DIGEST_LEN>
 {
@@ -581,6 +616,21 @@ impl<
                             // SHA512
                             2 => {
                                 app.sha_operation = Some(ShaOperation::Sha512);
+                                CommandReturn::success()
+                            }
+                            // SHA224
+                            3 => {
+                                app.sha_operation = Some(ShaOperation::Sha224);
+                                CommandReturn::success()
+                            }
+                            // SHA1
+                            4 => {
+                                app.sha_operation = Some(ShaOperation::Sha1);
+                                CommandReturn::success()
+                            }
+                            // MD5
+                            5 => {
+                                app.sha_operation = Some(ShaOperation::Md5);
                                 CommandReturn::success()
                             }
                             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
