@@ -12,3 +12,4 @@ Currently supported peripherals:
 - USART (Universal Synchronous/Asynchronous Receiver Transmitter)
 - GPDMA (Global Programmable DMA)
 - TIM2 (Timer)
+- HASH (Hash processor)
