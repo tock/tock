@@ -28,3 +28,13 @@ _estack = ORIGIN(ram) + LENGTH(ram);
 PAGE_SIZE = 8K;
 
 INCLUDE tock_kernel_layout.ld
+
+/* Discard metadata sections that cause crashes on STM32U5 */
+
+SECTIONS
+{
+  /DISCARD/ :
+  {
+    *(.ARM.attributes)
+  }
+}

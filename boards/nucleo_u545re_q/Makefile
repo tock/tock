@@ -53,41 +53,30 @@ app: $(KERNEL_ELF)
 # --- TARGET: flash (Flashes ONLY the kernel using probe-rs) ---
 .PHONY: flash
 flash: $(KERNEL_ELF)
-	@echo "--- Preparing Clean Kernel ELF ---"
-	$(Q)arm-none-eabi-objcopy -j .text -j .ARM.exidx -j .storage -j .relocate \
-	    $(KERNEL_ELF) kernel_clean.elf
 	@echo "--- Flashing KERNEL only ---"
-	$(Q)probe-rs download --chip STM32U545RETx --allow-erase-all kernel_clean.elf
+	$(Q)probe-rs download --chip STM32U545RETx --allow-erase-all $(KERNEL_ELF)
 	$(Q)probe-rs reset --chip STM32U545RETx
 
 # --- TARGET: flash_ocd (Flashes ONLY the kernel and WIPES apps using OpenOCD) ---
 .PHONY: flash_ocd
 flash_ocd: $(KERNEL_ELF)
-	@echo "--- Preparing Clean Kernel ELF ---"
-	$(Q)arm-none-eabi-objcopy -j .text -j .ARM.exidx -j .storage -j .relocate \
-	    $(KERNEL_ELF) kernel_clean.elf
 	@echo "--- Flashing KERNEL and Erasing All via OpenOCD ---"
 	# We perform a mass_erase before programming to ensure old apps are deleted.
-	$(Q)$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; halt; stm32l4x mass_erase 0; program kernel_clean.elf verify reset exit"
+	$(Q)$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; halt; stm32l4x mass_erase 0; program $(KERNEL_ELF) verify reset exit"
 
 # --- TARGET: app_flash (Flashes KERNEL + BLINK APP using probe-rs) ---
 .PHONY: app_flash
 app_flash: app
-	@echo "--- Preparing Clean Full ELF ---"
-	# NOTE: ld -b binary names the section '.data', so we must keep that.
-	$(Q)arm-none-eabi-objcopy -j .data full_merged.elf full_merged_clean.elf
 	@echo "--- Flashing KERNEL + BLINK APP ---"
-	$(Q)probe-rs download --chip STM32U545RETx --allow-erase-all full_merged_clean.elf
+	$(Q)probe-rs download --chip STM32U545RETx --allow-erase-all full_merged.elf
 	$(Q)probe-rs reset --chip STM32U545RETx
 
 
 # --- TARGET: app_flash_ocd (Flashes KERNEL + APP using OpenOCD) ---
 .PHONY: app_flash_ocd
 app_flash_ocd: app
-	@echo "--- Preparing Clean Full ELF ---"
-	$(Q)arm-none-eabi-objcopy -j .data full_merged.elf full_merged_clean.elf
 	@echo "--- Flashing KERNEL + APP via OpenOCD ---"
-	$(Q)$(OPENOCD) $(OPENOCD_OPTIONS) -c "program full_merged_clean.elf verify reset exit"
+	$(Q)$(OPENOCD) $(OPENOCD_OPTIONS) -c "program full_merged.elf verify reset exit"
 
 .PHONY: install
 install: flash
