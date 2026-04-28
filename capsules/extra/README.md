@@ -189,6 +189,8 @@ Other capsules that implement reusable logic.
 - **[SHA256](src/sha256.rs)**: SHA256 software hash.
 - **[SignatureVerifyInMemoryKeys](src/signature_verify_in_memory_keys.rs)**:
   Signature verification with multiple in-memory keys.
+- **[SignatureVerifyKernelAttributeKeys](src/signature_verify_kernel_attribute_keys.rs.rs)**:
+  Signature verification with keys stored in kernel attributes.
 - **[SipHash](src/sip_hash.rs)**: SipHash software hash.
 - **[TicKV](src/tickv.rs)**: Key-value storage.
 - **[TicKV KV Store](src/tickv_kv_store.rs)**: Provide `hil::kv::KV` with TickV.
