@@ -54,6 +54,11 @@ $ edgeprotecttools -t psoc_c3 init
 $ edgeprotecttools -t psoc_c3 provision-device -p ns_policy/policy_oem_provisioning.json
 ```
 
+<sub> There is also a standard Infineon distribution of these tools available
+[here](https://softwaretools.infineon.com/tools/com.ifx.tb.tool.modustoolboxedgeprotectsecuritysuite).
+It is not included by default in the ModusToolbox™ installation.
+</sub>
+
 ### Troubleshooting
 
 If provisioning does not work because of "ERROR : Unable to read current LCS value", 

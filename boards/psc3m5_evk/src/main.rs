@@ -142,10 +142,12 @@ pub unsafe fn start() -> (
 ) {
     /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     icache::sys_init_enable_cache();
-    cortexm33::support::dmb();
+    // Todo do dmb after enabling cache (done in infineon board support package)
+    // cortexm33::support::dmb();
     cortexm33::nvic::enable_all();
 
-    cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
+    // Todo set MSP limit to the start of the stack (done in infineon board support package)
+    // cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

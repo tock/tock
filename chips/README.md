@@ -9,7 +9,6 @@ Each MCU folder contains the hardware peripheral drivers for that MCU.
 HIL Support
 -----------
 
-<!-- VSCode: Alt+Z for toggling line wrap -->
 <!-- Updated using tools/repo-maintenance/update_chip_support.py -->
 
 <!--START OF HIL SUPPORT-->
