@@ -34,8 +34,8 @@ type ChipHw = nrf52840dk_lib::ChipHw;
 const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
     capsules_system::process_policies::StopWithDebugFaultPolicy {};
 
-// How many credential verifying keys the kernel supports.
-const NUM_CREDENTIAL_KEYS: usize = 1;
+// Algorithm ID stored in the public key kernel attribute for ECDSA-P256.
+const SIGNATURE_ALGORITHM_ID: u16 = 0x0006;
 // Length of the key used for the ECDSA-P256 signature.
 const SIGNATURE_KEY_LEN: usize = 64;
 // Length of the hash used for the signature (SHA-256).
@@ -86,16 +86,16 @@ type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
 >;
 
 type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
-type SignatureVerifyInMemoryKeys =
-    components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponentType<
+type SignatureVerifyKernelAttributeKeys =
+    components::signature_verify_kernel_attribute_keys::SignatureVerifyKernelAttributeKeysComponentType<
         Verifier,
-        NUM_CREDENTIAL_KEYS,
+        SIGNATURE_ALGORITHM_ID,
         SIGNATURE_KEY_LEN,
         SIGNATURE_HASH_LEN,
         SIGNATURE_SIG_LEN,
     >;
 type SignatureChecker = components::appid::checker_signature::AppCheckerSignatureComponentType<
-    SignatureVerifyInMemoryKeys,
+    SignatureVerifyKernelAttributeKeys,
     capsules_extra::sha256::Sha256Software<'static>,
     SIGNATURE_HASH_LEN,
     SIGNATURE_SIG_LEN,
@@ -349,44 +349,16 @@ pub unsafe fn main() {
 
     // Create the credential checker.
     //
-    // Setup an example key.
-    //
-    // - `ec-secp256r1-priv-key.pem`:
-    //   ```
-    //   -----BEGIN EC PRIVATE KEY-----
-    //   MHcCAQEEIGU0zCXHLqxDmrHHAWEQP5zNfWRQrAiIpH9YwxHlqysmoAoGCCqGSM49
-    //   AwEHoUQDQgAE4BM6kKdKNWFRjuFECfFpwc9q239+Uvi3QXniTVdBI1IuthIDs4UQ
-    //   5fMlB2KPVJWCV0VQvaPiF+g0MIkmTCNisQ==
-    //   -----END EC PRIVATE KEY-----
-    //   ```
-    //
-    // - `ec-secp256r1-pub-key.pem`:
-    //   ```
-    //   -----BEGIN PUBLIC KEY-----
-    //   MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE4BM6kKdKNWFRjuFECfFpwc9q239+
-    //   Uvi3QXniTVdBI1IuthIDs4UQ5fMlB2KPVJWCV0VQvaPiF+g0MIkmTCNisQ==
-    //   -----END PUBLIC KEY-----
-    //   ```
+    // Public keys for credential verification are read from kernel attributes
+    // at runtime (attribute type 0x0104, algorithm ID SIGNATURE_ALGORITHM_ID).
+    // To add a key, include a type-0x0104 TLV in the board's linker script with
+    // the ECDSA-P256 public key bytes.
     //
     // You can add the correct signature to a TBF by saving the private key to
     // a file and then running:
     //
     //     tockloader tbf credential add ecdsap256 --private-key ec-secp256r1-priv-key.pem
     //
-    let verifying_key0 = kernel::static_init!(
-        [u8; SIGNATURE_KEY_LEN],
-        [
-            0xe0, 0x13, 0x3a, 0x90, 0xa7, 0x4a, 0x35, 0x61, 0x51, 0x8e, 0xe1, 0x44, 0x09, 0xf1,
-            0x69, 0xc1, 0xcf, 0x6a, 0xdb, 0x7f, 0x7e, 0x52, 0xf8, 0xb7, 0x41, 0x79, 0xe2, 0x4d,
-            0x57, 0x41, 0x23, 0x52, 0x2e, 0xb6, 0x12, 0x03, 0xb3, 0x85, 0x10, 0xe5, 0xf3, 0x25,
-            0x07, 0x62, 0x8f, 0x54, 0x95, 0x82, 0x57, 0x45, 0x50, 0xbd, 0xa3, 0xe2, 0x17, 0xe8,
-            0x34, 0x30, 0x89, 0x26, 0x4c, 0x23, 0x62, 0xb1
-        ]
-    );
-    let verifying_keys = kernel::static_init!(
-        [&'static mut [u8; SIGNATURE_KEY_LEN]; NUM_CREDENTIAL_KEYS],
-        [verifying_key0]
-    );
     // Setup the ECDSA-P256 verifier.
     let ecdsa_p256_verifying_key =
         kernel::static_init!([u8; SIGNATURE_KEY_LEN], [0; SIGNATURE_KEY_LEN]);
@@ -396,16 +368,26 @@ pub unsafe fn main() {
     );
     ecdsa_p256_verifier.register();
 
-    // Setup the in-memory key selector.
+    // Get the kernel attributes section from flash.
+    extern "C" {
+        static _eattributes: u8;
+        static _etext: u8;
+    }
+    let kernel_attributes = core::slice::from_raw_parts(
+        core::ptr::addr_of!(_etext),
+        core::ptr::addr_of!(_eattributes) as usize - core::ptr::addr_of!(_etext) as usize,
+    );
+
+    // Setup the kernel-attributes key selector.
     let verifier_multiple_keys =
-        components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponent::new(
+        components::signature_verify_kernel_attribute_keys::SignatureVerifyKernelAttributeKeysComponent::new(
             ecdsa_p256_verifier,
-            verifying_keys,
+            kernel_attributes,
         )
         .finalize(
-            components::signature_verify_in_memory_keys_component_static!(
+            components::signature_verify_kernel_attribute_keys_component_static!(
                 Verifier,
-                NUM_CREDENTIAL_KEYS,
+                SIGNATURE_ALGORITHM_ID,
                 SIGNATURE_KEY_LEN,
                 SIGNATURE_HASH_LEN,
                 SIGNATURE_SIG_LEN,
@@ -420,7 +402,7 @@ pub unsafe fn main() {
             tock_tbf::types::TbfFooterV2CredentialsType::EcdsaNistP256,
         )
         .finalize(components::app_checker_signature_component_static!(
-            SignatureVerifyInMemoryKeys,
+            SignatureVerifyKernelAttributeKeys,
             capsules_extra::sha256::Sha256Software<'static>,
             SIGNATURE_HASH_LEN,
             SIGNATURE_SIG_LEN,
