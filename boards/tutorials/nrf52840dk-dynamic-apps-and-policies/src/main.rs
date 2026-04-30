@@ -72,12 +72,16 @@ type FlashUser =
     capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>;
 type NonVolatilePages = components::dynamic_binary_storage::NVPages<FlashUser>;
 
+/// Needed for dynamic binary storage capsule.
+pub struct PMCap;
+unsafe impl capabilities::ProcessManagementCapability for PMCap {}
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
     'static,
     'static,
     nrf52840::chip::NRF52<'a, Nrf52840DefaultPeripherals<'a>>,
     kernel::process::ProcessStandardDebugFull,
     NonVolatilePages,
+    PMCap,
 >;
 type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
     DynamicBinaryStorage<'static>,
@@ -502,17 +506,19 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // DYNAMIC PROCESS LOADING
     //--------------------------------------------------------------------------
-
     // Create the dynamic binary flasher.
     let dynamic_binary_storage =
         components::dynamic_binary_storage::SequentialBinaryStorageComponent::new(
+            board_kernel,
             virtual_flash_dbs,
             loader,
+            PMCap,
         )
         .finalize(components::sequential_binary_storage_component_static!(
             FlashUser,
             nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
             kernel::process::ProcessStandardDebugFull,
+            PMCap,
         ));
 
     // Create the dynamic app loader capsule.

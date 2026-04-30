@@ -46,10 +46,6 @@ pub enum ProcessBinaryError {
         expected_address: u32,
     },
 
-    /// The process binary specifies the process is not enabled, and therefore
-    /// cannot be loaded.
-    NotEnabledProcess,
-
     /// This entry in flash is just padding.
     Padding,
 }
@@ -100,10 +96,6 @@ impl fmt::Debug for ProcessBinaryError {
                 ),
                 None => write!(f, "Process did not provide a TBF kernel version header"),
             },
-
-            ProcessBinaryError::NotEnabledProcess => {
-                write!(f, "Process marked not enabled")
-            }
 
             ProcessBinaryError::Padding => {
                 write!(f, "Process item is just padding")
@@ -160,19 +152,6 @@ impl ProcessBinary {
             }
             // Return no process and the full memory slice we were given.
             return Err(ProcessBinaryError::Padding);
-        }
-
-        // If this is an app but it isn't enabled, then we can return an error.
-        if !tbf_header.enabled() {
-            if config::CONFIG.debug_load_processes {
-                debug!(
-                    "Process not enabled flash={:#010X}-{:#010X} process={:?}",
-                    app_flash.as_ptr() as usize,
-                    app_flash.as_ptr() as usize + app_flash.len() - 1,
-                    tbf_header.get_package_name().unwrap_or("(no name)")
-                );
-            }
-            return Err(ProcessBinaryError::NotEnabledProcess);
         }
 
         if let Some((major, minor)) = tbf_header.get_kernel_version() {
