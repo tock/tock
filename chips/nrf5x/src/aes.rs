@@ -37,8 +37,9 @@
 
 use core::cell::Cell;
 use kernel::hil::symmetric_encryption;
-use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::dma_slice::DmaSubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
@@ -122,8 +123,92 @@ enum AESMode {
     CBC,
 }
 
-pub struct AesECB<'a> {
+struct AesEcbRegistersManager {
+    /// MMIO registers for the UARTE peripheral.
     registers: StaticRef<AesEcbRegisters>,
+    /// Holding place for the DMA buffer while DMA in progress.
+    dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
+}
+
+impl AesEcbRegistersManager {
+    pub fn new(regs: StaticRef<UarteRegisters>) -> Self {
+        Self {
+            registers: regs,
+            dma_buf: MapCell::empty(),
+        }
+    }
+
+    /// Start a UART transmission with DMA.
+    ///
+    /// # Return
+    ///
+    /// `Ok(())` on successfully starting the DMA operation. `Err(())` if the
+    /// DMA is busy and the operation could not be started.
+    pub fn start_dma(&self, buf: SubSliceMut<'static, u8>) -> Result<(), ()> {
+        if self.tx_dma_pending() {
+            return Err(());
+        }
+
+        // To create a DmaFence we must trust the implementation.
+        //
+        // # Safety
+        //
+        // The architecture-provided version is correct for the nRF52.
+        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+        // Create DmaSlice for the TX buffer. This ensures that we can soundly
+        // share it with the DMA hardware.
+        let tx_dma_slice = DmaSubSliceMut::new_static(buf, fence);
+
+        // Provide the DmaSlice buffer to the hardware DMA engine.
+        self.registers.txd_ptr.set(tx_dma_slice.as_mut_ptr() as u32);
+
+        // Specify the length to transmit.
+        self.registers
+            .txd_maxcnt
+            .write(Counter::COUNTER.val(tx_dma_slice.len() as u32));
+
+        // Save the DmaSlice while the DMA operation executes.
+        self.tx_dma_buf.replace(tx_dma_slice);
+
+        // Start the TX DMA operation
+        self.registers.task_starttx.write(Task::ENABLE::SET);
+
+        Ok(())
+    }
+
+    pub fn finish_dma(&self) -> Option<(SubSliceMut<'static, u8>, usize)> {
+        // End the DMA operation so it is safe to retrieve the buffer.
+        self.registers.event_endtx.write(Event::READY::CLEAR);
+
+        self.tx_dma_buf.take().map(|dma_slice| {
+            // To create a DmaFence we must trust the implementation.
+            //
+            // # Safety
+            //
+            // The architecture-provided version is correct for the nRF52.
+            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+            // # Safety
+            //
+            // We must ensure that the DMA hardware no longer has any access
+            // to this buffer. We ensure that by setting the `event_endtx`
+            // event before taking the dma slice back.
+            let buf = unsafe { dma_slice.take(fence) };
+
+            let tx_bytes = self.registers.txd_amount.get() as usize;
+
+            (buf, tx_bytes)
+        })
+    }
+
+    pub fn dma_pending(&self) -> bool {
+        self.dma_buf.is_some()
+    }
+}
+
+pub struct AesECB<'a> {
+    registers: AesEcbRegistersManager,
     /// DMA buffer that the aes chip will mutate during encryption
     /// Byte 0-15   - Key
     /// Byte 16-32  - Payload
@@ -141,12 +226,9 @@ pub struct AesECB<'a> {
 }
 
 impl<'a> AesECB<'a> {
-    pub fn new(
-        registers: StaticRef<AesEcbRegisters>,
-        ecb_data: &'static mut [u8; 48],
-    ) -> AesECB<'a> {
-        AesECB {
-            registers,
+    pub fn new(registers: StaticRef<AesEcbRegisters>, ecb_data: &'static mut [u8; 48]) -> Self {
+        Self {
+            registers: AesEcbRegistersManager::new(registers),
             ecb_data: TakeCell::new(ecb_data),
             ecb_data_in_dma: TakeCell::empty(),
             mode: Cell::new(AESMode::CTR),
