@@ -9,6 +9,7 @@
 use core::fmt::Write;
 
 pub mod dcb;
+pub mod dma_fence;
 pub mod dwt;
 pub mod mpu;
 pub mod nvic;

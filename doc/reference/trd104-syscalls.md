@@ -517,6 +517,10 @@ function will invoked by the kernel. Instead, the contents of r0-r2 will
 be set to the Upcall Arguments provided by the driver when the upcall is
 scheduled.
 
+To avoid a race condition between the event being waited on and the
+Yield-WaitFor call, the kernel will queue upcalls for the process even if
+there is no userspace callback function registered.
+
 `yield-param-C` is unused and reserved.
 
 

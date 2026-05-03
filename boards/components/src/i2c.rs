@@ -66,6 +66,17 @@ macro_rules! i2c_master_slave_component_static {
     };};
 }
 
+#[macro_export]
+macro_rules! i2c_master_driver_component_static {
+    ($I:ty $(,)?) => {{
+        let i2c_master_buffer = kernel::static_buf!([u8; 32]);
+
+        let driver = kernel::static_buf!(capsules_core::i2c_master::I2CMasterDriver<'static, $I>);
+
+        (driver, i2c_master_buffer)
+    };};
+}
+
 pub struct I2CMuxComponent<
     I: 'static + i2c::I2CMaster<'static>,
     S: 'static + i2c::SMBusMaster<'static> = NoSMBus,
@@ -171,5 +182,47 @@ impl<I: 'static + i2c::I2CMasterSlave<'static>> Component for I2CMasterSlaveDriv
         self.i2c.set_slave_client(i2c_master_slave_driver);
 
         i2c_master_slave_driver
+    }
+}
+
+pub struct I2CMasterDriverComponent<I: 'static + i2c::I2CMaster<'static>> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+    i2c: &'static I,
+}
+
+impl<I: 'static + i2c::I2CMaster<'static>> I2CMasterDriverComponent<I> {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, i2c: &'static I) -> Self {
+        I2CMasterDriverComponent {
+            board_kernel,
+            driver_num,
+            i2c,
+        }
+    }
+}
+impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CMasterDriverComponent<I> {
+    type StaticInput = (
+        &'static mut MaybeUninit<capsules_core::i2c_master::I2CMasterDriver<'static, I>>,
+        &'static mut MaybeUninit<[u8; 32]>,
+    );
+    type Output = &'static capsules_core::i2c_master::I2CMasterDriver<'static, I>;
+
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+        let i2c_master_buffer = static_buffer.1.write([0; 32]);
+
+        let i2c_master_driver =
+            static_buffer
+                .0
+                .write(capsules_core::i2c_master::I2CMasterDriver::new(
+                    self.i2c,
+                    i2c_master_buffer,
+                    self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                ));
+
+        self.i2c.set_master_client(i2c_master_driver);
+
+        i2c_master_driver
     }
 }

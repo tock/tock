@@ -79,9 +79,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
-
-static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
 
@@ -223,17 +221,16 @@ pub unsafe fn start_particle_boron() -> (
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     let nrf52840_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
-
-    // Save a reference to the power module for resetting the board into the
-    // bootloader.
-    NRF52_POWER = Some(&base_peripherals.pwr_clk);
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()

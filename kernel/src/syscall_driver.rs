@@ -251,7 +251,13 @@ impl From<process::Error> for CommandReturn {
 ///
 /// Note about `subscribe`, `read-only allow`, and `read-write allow` syscalls:
 /// those are handled entirely by the core kernel, and there is no corresponding
-/// function for capsules to implement.
+/// function for capsules to implement. However, capsules implementing
+/// [`SyscallDriver`] that use upcalls _must_ ensure that the grant region is
+/// allocated for every app that is using the driver and may ever need an
+/// upcall. This is because if the app uses the Yield-WaitFor system call,
+/// the automatic allocation of the grant due to a subscribe call won't
+/// happen, and the capsule will not be able to schedule an upcall if the
+/// grant region isn't allocated.
 #[allow(unused_variables)]
 pub trait SyscallDriver {
     /// System call for a process to perform a short synchronous operation or

@@ -60,7 +60,7 @@ pub enum DataWidth {
 }
 
 /// Each `BusAddr` struct represents a specific data width and endianness.
-
+///
 /// 8 bit Bus Address
 pub struct BusAddr8(u8);
 

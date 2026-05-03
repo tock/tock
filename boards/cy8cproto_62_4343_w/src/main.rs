@@ -44,7 +44,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
@@ -129,8 +129,10 @@ pub unsafe fn main() {
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES
-        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     let peripherals = static_init!(
         PsoC62xaDefaultPeripherals,

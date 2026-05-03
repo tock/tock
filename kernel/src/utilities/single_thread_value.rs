@@ -14,24 +14,26 @@ use crate::platform::chip::ThreadIdProvider;
 /// Stages of binding a [`SingleThreadValue`] to a given thread.
 ///
 /// The [`SingleThreadValue`] starts out not being bound to, and thus not being
-/// usable by any thread. Only after its construction will it be bound to a
-/// particular thread, using either the [`SingleThreadValue::bind_to_thread`],
-/// or the [`SingleThreadValue::bind_to_thread_unsafe`] methods.
+/// usable by any thread. A `SingleThreadValue` instance is instead bound to
+/// particular thread using either the `SingleThreadValue::bind_to_thread`, or
+/// the [`SingleThreadValue::bind_to_thread_unsafe`] methods. These methods can
+/// be used exactly once, after which the instance is permanently bound to the
+/// given thread that called these methods.
 ///
-/// For other these and other methods to know whether a [`SingleThreadValue`]
-/// has been bound to a thread already, and thus whether its `thread_id_and_fn`
-/// field is initialized and holds a stable, it contains an `AtomicUsize` type
-/// to indicate its current "binding stage". Over its lifetime, this stage value
-/// is strictly increasing, transitioning through its variants as per their
-/// documentation.
+/// For these and other methods to know whether a [`SingleThreadValue`] has been
+/// bound to a thread already, and thus whether its `thread_id_and_fn` field is
+/// initialized and holds a stable value, it contains an `AtomicUsize` type to
+/// indicate its current "binding stage". Over its lifetime, this stage value is
+/// strictly increasing, transitioning through the [`BoundToThreadStage`] enum
+/// variants as per their documentation.
 #[repr(usize)]
 enum BoundToThreadStage {
-    /// This state means that the [`SingleThreadValue`] has not been bound to a
+    /// This stage means that the [`SingleThreadValue`] has not been bound to a
     /// particular thread yet, and its `thread_id_and_fn` field is not
     /// initialized.
     ///
     /// For the `bind_to_thread` and `bind_to_thread_unsafe` methods, this value
-    /// further means that the value can be bound to the currently running
+    /// further means that the instance can be bound to the currently running
     /// thread.
     Unbound = 0,
 
@@ -39,24 +41,24 @@ enum BoundToThreadStage {
     /// `bind_to_thread` function atomically transitions it from the `Unbound`
     /// stage to the `Binding` stage, through a compare-exchange operation.
     ///
-    /// When this stage is active, the `thread_id_and_fn` are not initialized,
-    /// similar to `Unbound`. However, it guards other, concurrent calls to
-    /// `bind_to_thread` from attempting to bind the value to another thread
-    /// concurrently.
+    /// When this stage is active, the `thread_id_and_fn` field is not
+    /// initialized, similar to `Unbound`. However, it prevents other,
+    /// concurrent calls to `bind_to_thread` from attempting to bind the value
+    /// to another thread concurrently.
     ///
     /// Targets without support for compare-exchange atomic operations on
     /// `usize` types can utilize `bind_to_thread_unsafe` instead: this method
-    /// requires callers to guarantee that there are no concurrent calls to
-    /// either `bind_to_thread` OR `bind_to_thread_unsafe`. Thus, it can skip
-    /// this intermediate state: it can directly transition from `Unbound` into
-    /// `Bound`.
+    /// requires callers to externally guarantee that there are no concurrent
+    /// calls to either `bind_to_thread` OR `bind_to_thread_unsafe`. Thus, it
+    /// can skip this intermediate state: it can directly transition from
+    /// `Unbound` into `Bound`.
     #[allow(dead_code)]
     Binding = 1,
 
     /// This value indicates that the [`SingleThreadValue`] is bound to a
     /// particular thread. The `thread_id_and_fn` value is initialized and
-    /// sealed: it must not be modified any longer beyond this point, and no
-    /// mutable references may exist to it. The `Bound` state cannot be
+    /// sealed: it must not be modified beyond this point, and no mutable
+    /// references to it may exist. The `Bound` stage is final and cannot be
     /// transitioned out of.
     Bound = 2,
 }
@@ -72,7 +74,7 @@ enum BoundToThreadStage {
 /// similar to the standard library's `LocalKey`, and thus appropriate for
 /// static allocations of values that are not themselves [`Sync`]. However,
 /// unlike `LocalKey`, it only holds a value for a single thread, determined at
-/// runtime based on the first call to [`SingleThreadValue::bind_to_thread`].
+/// runtime based on the first call to `SingleThreadValue::bind_to_thread`.
 ///
 /// # Example
 ///
@@ -91,12 +93,12 @@ enum BoundToThreadStage {
 ///     }
 /// }
 ///
-/// static FOO: SingleThreadValue<Cell<usize>> = SingleThreadValue::new(Cell::new(123));
+/// static FOO: SingleThreadValue<Cell<usize>> = SingleThreadValue::new();
 ///
 /// fn main() {
-///     // Bind the value contained in the `SingleThreadValue` to the currently
-///     // running thread:
-///     FOO.bind_to_thread::<DummyThreadIdProvider>();
+///     // Atomically move the value supplied in the constructor into the
+///     // `SingleThreadValue`, and bind it to the currently running thread:
+///     FOO.bind_to_thread::<DummyThreadIdProvider>(Cell::new(123));
 ///
 ///     // Attempt to access the value. Returns `Some(&T)` if running from the
 ///     // thread that the `SingleThreadValue` is bound to:
@@ -105,28 +107,30 @@ enum BoundToThreadStage {
 /// }
 /// ```
 ///
-/// After creating the [`SingleThreadValue`] and before trying to access the
-/// wrapped value, the [`SingleThreadValue`] must have its
-/// [`bind_to_thread`](SingleThreadValue::bind_to_thread) method called. Failing
-/// to bind it to a thread will prevent any access to the wrapped value.
+/// When creating a new [`SingleThreadValue`] instance, it is uninitialized
+/// until the `bind_to_thread` or
+/// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe) methods
+/// are called. Until it is initialized, all attempts to access the shared value
+/// using [`get`](SingleThreadValue::get) will return `None`.
 ///
 /// # Single-thread Synchronization
 ///
-/// It is possible for the same thread to get multiple, shared, references. As a
-/// result, users must use interior mutability (e.g.
+/// It is possible for the same thread to get multiple, shared, references to
+/// the wrapped value concurrently. Users can use interior mutability (e.g.
 /// [`Cell`](core::cell::Cell), [`MapCell`](tock_cells::map_cell::MapCell), or
 /// [`TakeCell`](tock_cells::take_cell::TakeCell)) to allow obtaining exclusive
 /// mutable access.
 ///
 /// # Guaranteeing Single-Thread Access
 ///
-/// [`SingleThreadValue`] is safe because it guarantees that the value is only
-/// ever accessed from a single thread. To do this, [`SingleThreadValue`]
-/// inspects the currently running thread on every access to the wrapped
-/// value. If the active thread is different than the original thread then the
+/// [`SingleThreadValue`] is safe because it guarantees that the contained value
+/// is only ever made accessible to the same thread from which it originated. To
+/// do this, [`SingleThreadValue`] inspects the currently running thread on
+/// every access to the wrapped value. If the active thread is different than
+/// the original thread to which the [`SingleThreadValue`] is bound, then the
 /// caller will not be able to access the value.
 ///
-/// This requires that the system provides a correct implementation of
+/// This requires that the system provide a correct implementation of
 /// [`ThreadIdProvider`] to identify the currently executing thread. Internally,
 /// [`SingleThreadValue`] uses the [`ThreadIdProvider::running_thread_id`]
 /// function to identify the current thread and compares it against the thread
@@ -171,12 +175,18 @@ enum BoundToThreadStage {
 // necessary for certain use cases within Tock, this should not be used lightly.
 pub struct SingleThreadValue<T> {
     /// The contained value, made accessible to a single thread only.
-    value: T,
+    ///
+    /// To avoid imposing a constraint of `T: Send`, this value is not populated
+    /// when the [`SingleThreadValue`] is constructed. It is instead initialized
+    /// by moving a value originating from the same thread that the
+    /// `SingleThreadValue` is ultimately bound to, within the
+    /// `bind_to_thread()` function.
+    value: UnsafeCell<MaybeUninit<T>>,
 
     /// Shared atomic state to indicate whether this type is already bound to a
     /// particular thread, or in the process of being bound to a particular
     /// thread. Assumes values of [`BoundToThreadStage`]. Consider that type's
-    /// documentation for how `bound_to_thread` is used.
+    /// documentation for how the `bound_to_thread` value is used.
     bound_to_thread: AtomicUsize,
 
     /// Context used to determine which thread ID this type is bound to, and how
@@ -194,25 +204,28 @@ pub struct SingleThreadValue<T> {
 /// # Safety
 ///
 /// This is safe because [`SingleThreadValue`] enforces that the shared value
-/// is only ever accessed from a single thread.
+/// is only ever accessed from the same thread it originated from.
 unsafe impl<T> Sync for SingleThreadValue<T> {}
 
 impl<T> SingleThreadValue<T> {
     /// Create a [`SingleThreadValue`].
     ///
-    /// Note, the value will not be accessible immediately after `new()` runs.
-    /// It must first be bound to a particular thread, using the
-    /// [`bind_to_thread`](SingleThreadValue::bind_to_thread) or
-    /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe) methods.
-    pub const fn new(value: T) -> Self {
+    /// Note that the `SingleThreadValue` will initially be uninitialized. It
+    /// must first be bound to a particular thread, which will initialize with a
+    /// value originating from that thread, using the
+    /// `bind_to_thread` or
+    /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe)
+    /// methods.
+    pub const fn new() -> Self {
         Self {
-            value,
+            value: UnsafeCell::new(MaybeUninit::uninit()),
             bound_to_thread: AtomicUsize::new(BoundToThreadStage::Unbound as usize),
             thread_id_and_fn: UnsafeCell::new(MaybeUninit::uninit()),
         }
     }
 
-    /// Bind this [`SingleThreadValue`] to the currently running thread.
+    /// Initialize this [`SingleThreadValue`] and bind it the currently running
+    /// thread.
     ///
     /// If this [`SingleThreadValue`] is not already bound to a thread, or if it
     /// is not currently in the process of binding to a thread, then this binds
@@ -222,16 +235,16 @@ impl<T> SingleThreadValue<T> {
     /// reference, and uses this function to determine the currently running
     /// thread for any future queries.
     ///
-    /// Returns `true` if this invocation successfully bound the value to the
+    /// Returns `Ok(())` if this invocation successfully bound the value to the
     /// current thread. Otherwise, if the value was already bound to this same
     /// or another thread, or is concurrently being bound to a thread, it
-    /// returns `false`.
+    /// returns `Err(T)`, returning the supplied value.
     ///
     /// This method requires the target to support atomic operations
     /// (namely, `compare_exchange`) on `usize`-sized values, and thus
     /// relies on the `cfg(target_has_atomic = "ptr")` conditional.
     #[cfg(target_has_atomic = "ptr")]
-    pub fn bind_to_thread<P: ThreadIdProvider>(&self) -> bool {
+    pub fn bind_to_thread<P: ThreadIdProvider>(&self, value: T) -> Result<(), T> {
         // For the check whether we're already bound to a thread, `Relaxed`
         // ordering is fine: we don't actually care about the value in
         // `thread_id_and_fn`, and don't need previous writes to it to be
@@ -257,7 +270,7 @@ impl<T> SingleThreadValue<T> {
             )
             .is_err()
         {
-            return false;
+            return Err(value);
         }
 
         // Great, we have reserved the value for initialization!
@@ -318,6 +331,20 @@ impl<T> SingleThreadValue<T> {
                 MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
         }
 
+        // Initialize the contained value, constructed on the same (currently
+        // running) thread that we are binding the `SingleThreadValue` to. This
+        // avoids a requirement of `T: Send`.
+        //
+        // # Safety
+        //
+        // We are the only thread with access to `self.value` going forward, and
+        // this is the first time that this value is being accessed (as we're
+        // initializing it). Therefore, we can safely dereference a mutable
+        // (unique) pointer to this value:
+        unsafe {
+            *self.value.get() = MaybeUninit::new(value);
+        }
+
         // When initializing the `SingleThreadValue`, we must use `Release`
         // ordering on the `bound_to_thread` store. This ensures that any
         // subsequent atomic load of this value with at least `Acquire`
@@ -328,10 +355,11 @@ impl<T> SingleThreadValue<T> {
 
         // We have successfully bound this `SingleThreadValue` to the
         // currently running thread:
-        true
+        Ok(())
     }
 
-    /// Bind this [`SingleThreadValue`] to the currently running thread.
+    /// Initialize this [`SingleThreadValue`] and bind it to the currently
+    /// running thread.
     ///
     /// If this [`SingleThreadValue`] is not already bound to a thread, or if it
     /// is not currently in the process of binding to a thread, then this binds
@@ -341,9 +369,9 @@ impl<T> SingleThreadValue<T> {
     /// reference, and uses this function to determine the currently running
     /// thread for any future queries.
     ///
-    /// Returns `true` if this invocation successfully bound the value to the
+    /// Returns `Ok(())` if this invocation successfully bound the value to the
     /// current thread. Otherwise, if the value was already bound to this same
-    /// or another thread, it returns `false`.
+    /// or another thread, it returns `Err(T)`, returning the supplied value.
     ///
     /// This method is `unsafe`, and does not require the target to support
     /// atomic operations (namely, `compare_exchange`) on `usize`-sized values.
@@ -352,17 +380,17 @@ impl<T> SingleThreadValue<T> {
     ///
     /// Callers of this function must ensure that this function is never called
     /// concurrently with other calls to
-    /// [`bind_to_thread`](SingleThreadValue::bind_to_thread) or
+    /// `bind_to_thread` or
     /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe) on
     /// the same [`SingleThreadValue`] instance.
-    pub unsafe fn bind_to_thread_unsafe<P: ThreadIdProvider>(&self) -> bool {
+    pub unsafe fn bind_to_thread_unsafe<P: ThreadIdProvider>(&self, value: T) -> Result<(), T> {
         // For the check whether we're already bound to a thread, `Relaxed`
         // ordering is fine: we don't actually care about the value in
         // `thread_id_and_fn`, and don't need previous writes to it to be
         // visible to this thread.
         if self.bound_to_thread.load(Ordering::Relaxed) != BoundToThreadStage::Unbound as usize {
             // This value is already bound to a thread
-            return false;
+            return Err(value);
         }
 
         // Write the current thread ID, and the function symbol used to
@@ -404,6 +432,20 @@ impl<T> SingleThreadValue<T> {
                 MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
         }
 
+        // Initialize the contained value, constructed on the same (currently
+        // running) thread that we are binding the `SingleThreadValue` to. This
+        // avoids a requirement of `T: Send`.
+        //
+        // # Safety
+        //
+        // We are the only thread with access to `self.value` going forward, and
+        // this is the first time that this value is being accessed (as we're
+        // initializing it). Therefore, we can safely dereference a mutable
+        // (unique) pointer to this value:
+        unsafe {
+            *self.value.get() = MaybeUninit::new(value);
+        }
+
         // When initializing the `SingleThreadValue`, we must use `Release`
         // ordering on the `bound_to_thread` store. This ensures that any
         // subsequent atomic load of this value with at least `Acquire`
@@ -414,7 +456,7 @@ impl<T> SingleThreadValue<T> {
 
         // We have successfully bound this `SingleThreadValue` to the
         // currently running thread:
-        true
+        Ok(())
     }
 
     /// Check whether this `SingleThreadValue` instance is bound to the
@@ -422,7 +464,7 @@ impl<T> SingleThreadValue<T> {
     ///
     /// Returns `true` if the value is bound to the thread that is currently
     /// running (as determined by the implementation of `ThreadIdProvider` used
-    /// in [`bind_to_thread`](SingleThreadValue::bind_to_thread) or
+    /// in `bind_to_thread` or
     /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe)).
     /// Returns `false` when a different thread is executing, when it is not
     /// bound to any thread yet, or currently in the process of being bound to a
@@ -516,7 +558,13 @@ impl<T> SingleThreadValue<T> {
     /// reference to its contained value.
     pub fn get(&self) -> Option<&T> {
         if self.bound_to_current_thread() {
-            Some(&self.value)
+            // # Safety
+            //
+            // When `self.bound_to_current_thread()` returns true, we know that
+            // `self.value` is initialized, and that the value belongs to and is
+            // accessible to the currently running thread. We can safely
+            // construct a reference to it.
+            Some(unsafe { (&*self.value.get()).assume_init_ref() })
         } else {
             None
         }

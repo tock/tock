@@ -49,6 +49,7 @@ pub mod support;
 
 pub mod mpu;
 
+pub mod dma_fence;
 pub mod registers;
 pub mod thread_id;
 

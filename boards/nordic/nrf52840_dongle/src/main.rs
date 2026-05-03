@@ -71,7 +71,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
 
@@ -199,7 +199,10 @@ pub unsafe fn start() -> (
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],

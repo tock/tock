@@ -124,13 +124,13 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiPeripheral<'a, S> {
 }
 
 impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
-    /// Provide read/write buffers to SpiPeripheral
-    ///
-    /// - allow_num 0: Provides a buffer to receive transfers into.
+    // Provide read/write buffers to SpiPeripheral
+    //
+    // - allow_num 0: Provides a buffer to receive transfers into.
 
-    /// Provide read-only buffers to SpiPeripheral
-    ///
-    /// - allow_num 0: Provides a buffer to transmit
+    // Provide read-only buffers to SpiPeripheral
+    //
+    // - allow_num 0: Provides a buffer to transmit
 
     /// - 0: driver existence check
     /// - 1: read/write buffers

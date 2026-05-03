@@ -50,7 +50,7 @@ type ChipHw = Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 pub struct Lpc55s69evk {
     console: &'static capsules_core::console::Console<'static>,
@@ -127,7 +127,10 @@ unsafe fn start() -> (
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     system_init();
 

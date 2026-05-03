@@ -21,5 +21,6 @@ pub use riscv::thread_id;
 pub use riscv::PermissionMode;
 pub use riscv::_start_trap;
 pub use riscv::configure_trap_handler;
+pub use riscv::dma_fence;
 pub use riscv::print_mcause;
 pub use riscv::semihost_command;

@@ -7,9 +7,9 @@
 use kernel::collections::queue::Queue;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::debug::DebugWriter;
-use kernel::debug::IoWrite;
 use kernel::hil;
 use kernel::utilities::cells::TakeCell;
+use kernel::utilities::io_write::IoWrite;
 use kernel::ErrorCode;
 
 /// Buffered [`DebugWriter`] implementation using a UART.
@@ -135,6 +135,13 @@ impl hil::uart::TransmitClient for UartDebugWriter {
         }
     }
     fn transmitted_word(&self, _rcode: Result<(), ErrorCode>) {}
+}
+
+impl core::fmt::Write for UartDebugWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
 }
 
 impl IoWrite for UartDebugWriter {

@@ -60,8 +60,8 @@ pub struct ScreenSplitUser<'a, S: hil::screen::Screen<'a>> {
     /// The frame inside of the split that is active. Defaults to the entire
     /// frame.
     write_frame: Cell<Frame>,
-    /// What operation this section would like to do.[`ScreenSplitSection`] sets
-    /// its intended operation here and then asks the [`ScreenSplit`] to
+    /// What operation this section would like to do.[`ScreenSplitUser`] sets
+    /// its intended operation here and then asks the [`ScreenSplitMux`] to
     /// execute it.
     pending: OptionalCell<ScreenSplitOperation>,
     /// Screen client.

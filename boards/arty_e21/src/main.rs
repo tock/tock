@@ -39,7 +39,7 @@ type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<Chip, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
 
@@ -136,7 +136,10 @@ unsafe fn start() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
-    PANIC_RESOURCES.bind_to_thread::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
     peripherals.init();

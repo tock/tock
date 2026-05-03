@@ -234,7 +234,6 @@ impl Timer {
     /// When an interrupt occurs, check if any of the 4 compares have
     /// created an event, and if so, add it to the bitmask of triggered
     /// events that is passed to the client.
-
     pub fn handle_interrupt(&self) {
         self.client.map(|client| {
             let mut val = 0;

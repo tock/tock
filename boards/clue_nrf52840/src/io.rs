@@ -9,11 +9,11 @@ use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::Transmit;
 use kernel::hil::uart::{self};
 use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::io_write::IoWrite;
 use nrf52840::gpio::Pin;
 
 struct Writer {
@@ -128,7 +128,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P1_01);
     let led = &mut led::LedHigh::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         pi,

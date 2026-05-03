@@ -5,9 +5,9 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::debug;
-use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
+use kernel::utilities::io_write::IoWrite;
 use nrf52840::gpio::Pin;
 use nrf52840::uart::{Uarte, UARTE0_BASE};
 
@@ -60,7 +60,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_06);
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         writer,
         pi,

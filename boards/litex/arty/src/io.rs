@@ -6,7 +6,7 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
 use kernel::debug;
-use kernel::debug::IoWrite;
+use kernel::utilities::io_write::IoWrite;
 
 struct Writer {
     uart: litex_vexriscv::uart::LiteXUart<'static, crate::socc::SoCRegisterFmt>,
@@ -60,7 +60,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     );
     let panic_led = led0.panic_led(0);
 
-    debug::panic(
+    debug::panic_old(
         &mut [&mut panic_led.unwrap()],
         &mut writer,
         pi,

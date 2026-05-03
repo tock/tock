@@ -301,8 +301,8 @@ impl Kernel {
         self.process_identifier_max.get_and_increment()
     }
 
-    /// Find the next slot that is available for storing a new [`&Process`]
-    /// (Process).
+    /// Find the next slot that is available for storing a new
+    /// [`&Process`](process::Process).
     ///
     /// Returns `Err(())` if there are no available slots.
     pub(crate) fn next_available_process_slot(&self) -> Result<(usize, &ProcessSlot), ()> {

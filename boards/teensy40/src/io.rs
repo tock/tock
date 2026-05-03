@@ -4,11 +4,12 @@
 
 use core::fmt::{self, Write};
 
-use kernel::debug::{self, IoWrite};
+use kernel::debug;
 use kernel::hil::{
     led,
     uart::{self, Configure},
 };
+use kernel::utilities::io_write::IoWrite;
 
 use crate::imxrt1060::gpio;
 use crate::imxrt1060::lpuart;
@@ -56,7 +57,7 @@ unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
     let led = &mut led::LedHigh::new(&pin);
     let mut lpuart2 = lpuart::Lpuart::new_lpuart2(&ccm);
     let mut writer = Writer::new(&mut lpuart2);
-    debug::panic(
+    debug::panic_old(
         &mut [led],
         &mut writer,
         panic_info,

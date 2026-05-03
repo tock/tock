@@ -27,7 +27,6 @@ use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::utilities::cells::MapCell;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
@@ -121,9 +120,8 @@ static mut CDC_REF_FOR_PANIC: Option<
 > = None;
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new(PanicResources::new());
-static NRF52_POWER: SingleThreadValue<MapCell<&'static nrf52840::power::Power>> =
-    SingleThreadValue::new(MapCell::empty());
+    SingleThreadValue::new();
+static NRF52_POWER: SingleThreadValue<&'static nrf52840::power::Power> = SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
 
@@ -132,13 +130,13 @@ fn baud_rate_reset_bootloader_enter() {
     unsafe {
         // 0x4e is the magic value the Adafruit nRF52 Bootloader expects
         // as defined by https://github.com/adafruit/Adafruit_nRF52_Bootloader/blob/master/src/main.c
-        NRF52_POWER.get().map(|power_cell| {
-            power_cell.map(|power| {
-                power.set_gpregret(0x90);
-            });
+        NRF52_POWER.get().map(|power| {
+            power.set_gpregret(0x90);
         });
         // uncomment to use with Adafruit nRF52 Bootloader
-        // NRF52_POWER.unwrap().set_gpregret(0x4e);
+        // NRF52_POWER.get().map(|power| {
+        //     power.set_gpregret(0x4e);
+        // });
         cortexm4::scb::reset();
     }
 }
@@ -283,8 +281,10 @@ unsafe fn start() -> (
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
-    NRF52_POWER.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
@@ -303,9 +303,10 @@ unsafe fn start() -> (
 
     // Save a reference to the power module for resetting the board into the
     // bootloader.
-    NRF52_POWER.get().map(|power_cell| {
-        power_cell.put(&base_peripherals.pwr_clk);
-    });
+    let _ = NRF52_POWER
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            &base_peripherals.pwr_clk,
+        );
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()

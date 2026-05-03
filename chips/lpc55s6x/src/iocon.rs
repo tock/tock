@@ -4261,7 +4261,6 @@ impl Iocon {
     ///     digital_mode: DigitalMode::Enabled,
     /// });
     /// ```
-
     pub fn configure_pin(&self, pin: LPCPin, config: Config) {
         let standard_value = PIO0_0::FUNC.val(config.function as u32)
             + PIO0_0::MODE.val(config.pull as u32)

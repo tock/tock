@@ -5,12 +5,16 @@
 use core::cell::Cell;
 
 use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
+use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
 use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
 use kernel::ErrorCode;
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
-use super::super::queues::split_queue::{SplitVirtqueue, SplitVirtqueueClient, VirtqueueBuffer};
+use super::super::queues::split_queue::{
+    SplitVirtqueue, SplitVirtqueueClient, VirtqueueBuffer, VirtqueueReturnBuffer,
+};
 
 register_bitfields![u64,
     VirtIONetFeatures [
@@ -42,9 +46,9 @@ register_bitfields![u64,
     ]
 ];
 
-pub struct VirtIONet<'a> {
-    rxqueue: &'a SplitVirtqueue<'static, 'static, 2>,
-    txqueue: &'a SplitVirtqueue<'static, 'static, 2>,
+pub struct VirtIONet<'a, F: DmaFence> {
+    rxqueue: &'a SplitVirtqueue<'static, 'static, 2, F>,
+    txqueue: &'a SplitVirtqueue<'static, 'static, 2, F>,
     tx_header: OptionalCell<&'static mut [u8; 12]>,
     tx_frame_info: Cell<(u16, usize)>,
     rx_header: OptionalCell<&'static mut [u8]>,
@@ -53,14 +57,14 @@ pub struct VirtIONet<'a> {
     rx_enabled: Cell<bool>,
 }
 
-impl<'a> VirtIONet<'a> {
+impl<'a, F: DmaFence> VirtIONet<'a, F> {
     pub fn new(
-        txqueue: &'a SplitVirtqueue<'static, 'static, 2>,
+        txqueue: &'a SplitVirtqueue<'static, 'static, 2, F>,
         tx_header: &'static mut [u8; 12],
-        rxqueue: &'a SplitVirtqueue<'static, 'static, 2>,
+        rxqueue: &'a SplitVirtqueue<'static, 'static, 2, F>,
         rx_header: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-    ) -> VirtIONet<'a> {
+    ) -> VirtIONet<'a, F> {
         txqueue.enable_used_callbacks();
         rxqueue.enable_used_callbacks();
 
@@ -85,19 +89,14 @@ impl<'a> VirtIONet<'a> {
 
         // Place the receive buffers into the device's VirtQueue
         if let Some(rx_buffer) = self.rx_buffer.take() {
-            let rx_buffer_len = rx_buffer.len();
+            let rx_buffer_slice = SubSliceMut::new(rx_buffer);
+
+            let mut rx_header_slice = SubSliceMut::new(self.rx_header.take().unwrap());
+            rx_header_slice.slice(0..12);
 
             let mut buffer_chain = [
-                Some(VirtqueueBuffer {
-                    buf: self.rx_header.take().unwrap(),
-                    len: 12,
-                    device_writeable: true,
-                }),
-                Some(VirtqueueBuffer {
-                    buf: rx_buffer,
-                    len: rx_buffer_len,
-                    device_writeable: true,
-                }),
+                Some(VirtqueueBuffer::DeviceWriteable(rx_header_slice)),
+                Some(VirtqueueBuffer::DeviceWriteable(rx_buffer_slice)),
             ];
 
             self.rxqueue
@@ -107,28 +106,40 @@ impl<'a> VirtIONet<'a> {
     }
 }
 
-impl SplitVirtqueueClient<'static> for VirtIONet<'_> {
+impl<F: DmaFence> SplitVirtqueueClient<'static> for VirtIONet<'_, F> {
     fn buffer_chain_ready(
         &self,
         queue_number: u32,
-        buffer_chain: &mut [Option<VirtqueueBuffer<'static>>],
+        buffer_chain: &mut [Option<VirtqueueReturnBuffer<'static>>],
         bytes_used: usize,
     ) {
         if queue_number == self.rxqueue.queue_number().unwrap() {
             // Received an Ethernet frame
 
-            let rx_header = buffer_chain[0].take().expect("No header buffer").buf;
+            let rx_header = buffer_chain[0].take().expect("No header buffer");
+            let VirtqueueBuffer::DeviceWriteable(rx_header_slice) = rx_header.virtqueue_buffer
+            else {
+                panic!("VirtQueue returned DeviceReadable buffer")
+            };
             // TODO: do something with the header
-            self.rx_header.replace(rx_header);
+            self.rx_header.replace(rx_header_slice.take());
 
-            let rx_buffer = buffer_chain[1].take().expect("No rx content buffer").buf;
+            let VirtqueueBuffer::DeviceWriteable(rx_buffer_sub_slice) = buffer_chain[1]
+                .take()
+                .expect("No rx content buffer")
+                .virtqueue_buffer
+            else {
+                panic!("VirtQueue returned DeviceReadable buffer")
+            };
+            let rx_buffer_slice = rx_buffer_sub_slice.take();
 
             if self.rx_enabled.get() {
-                self.client
-                    .map(|client| client.received_frame(&rx_buffer[..(bytes_used - 12)], None));
+                self.client.map(|client| {
+                    client.received_frame(&rx_buffer_slice[..(bytes_used - 12)], None)
+                });
             }
 
-            self.rx_buffer.replace(rx_buffer);
+            self.rx_buffer.replace(rx_buffer_slice);
 
             // Re-run enable RX to provide the RX buffer chain back to the
             // device (if reception is still enabled):
@@ -136,17 +147,40 @@ impl SplitVirtqueueClient<'static> for VirtIONet<'_> {
         } else if queue_number == self.txqueue.queue_number().unwrap() {
             // Sent an Ethernet frame
 
-            let header_buf = buffer_chain[0].take().expect("No header buffer").buf;
-            self.tx_header.replace(header_buf.try_into().unwrap());
+            let tx_header = buffer_chain[0].take().expect("No header buffer");
+            let VirtqueueBuffer::DeviceReadable(tx_header_sub_slice_mut_immut) =
+                tx_header.virtqueue_buffer
+            else {
+                panic!("VirtQueue returned DeviceWriteable buffer")
+            };
+            let SubSliceMutImmut::Mutable(tx_header_sub_slice_mut) = tx_header_sub_slice_mut_immut
+            else {
+                panic!("tx_header SubSliceMutImmut is not mutable!")
+            };
+            self.tx_header.replace(
+                tx_header_sub_slice_mut
+                    .take()
+                    .try_into()
+                    .expect("tx_header slice was truncated"),
+            );
 
-            let frame_buf = buffer_chain[1].take().expect("No frame buffer").buf;
+            let tx_frame = buffer_chain[1].take().expect("No frame buffer");
+            let VirtqueueBuffer::DeviceReadable(tx_frame_sub_slice_mut_immut) =
+                tx_frame.virtqueue_buffer
+            else {
+                panic!("VirtQueue returned DeviceWriteable buffer")
+            };
+            let SubSliceMutImmut::Mutable(tx_frame_sub_slice_mut) = tx_frame_sub_slice_mut_immut
+            else {
+                panic!("tx_frame SubSliceMutImmut is not mutable!")
+            };
 
             let (frame_len, transmission_identifier) = self.tx_frame_info.get();
 
             self.client.map(move |client| {
                 client.transmit_frame_done(
                     Ok(()),
-                    frame_buf,
+                    tx_frame_sub_slice_mut.take(),
                     frame_len,
                     transmission_identifier,
                     None,
@@ -158,7 +192,7 @@ impl SplitVirtqueueClient<'static> for VirtIONet<'_> {
     }
 }
 
-impl VirtIODeviceDriver for VirtIONet<'_> {
+impl<F: DmaFence> VirtIODeviceDriver for VirtIONet<'_, F> {
     fn negotiate_features(&self, offered_features: u64) -> Option<u64> {
         let offered_features =
             LocalRegisterCopy::<u64, VirtIONetFeatures::Register>::new(offered_features);
@@ -193,7 +227,7 @@ impl VirtIODeviceDriver for VirtIONet<'_> {
     }
 }
 
-impl<'a> EthernetAdapterDatapath<'a> for VirtIONet<'a> {
+impl<'a, F: DmaFence> EthernetAdapterDatapath<'a> for VirtIONet<'a, F> {
     fn set_client(&self, client: &'a dyn EthernetAdapterDatapathClient) {
         self.client.set(client);
     }
@@ -217,28 +251,18 @@ impl<'a> EthernetAdapterDatapath<'a> for VirtIONet<'a> {
         // reception is enabled again:
     }
 
+    // TODO: Implement simultaneous transmissions
     fn transmit_frame(
         &self,
         frame_buffer: &'static mut [u8],
         len: u16,
         transmission_identifier: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        // Try to get a hold of the header buffer
-        //
-        // Otherwise, the device is currently busy transmissing a buffer
-        //
-        // TODO: Implement simultaneous transmissions
-        let mut frame_queue_buf = Some(VirtqueueBuffer {
-            buf: frame_buffer,
-            len: len as usize,
-            device_writeable: false,
-        });
-
-        let header_buf = self
-            .tx_header
-            .take()
-            .ok_or(ErrorCode::BUSY)
-            .map_err(|ret| (ret, frame_queue_buf.take().unwrap().buf))?;
+        // Try to get a hold of the header buffer. If this fails, the
+        // device is currently busy transmissing a buffer:
+        let Some(header_buf) = self.tx_header.take() else {
+            return Err((ErrorCode::BUSY, frame_buffer));
+        };
 
         // Write the header
         //
@@ -256,20 +280,38 @@ impl<'a> EthernetAdapterDatapath<'a> for VirtIONet<'a> {
         header_buf[10] = 0; // num_buffers
         header_buf[11] = 0; // num_buffers
 
+        let mut tx_header_sub_slice_mut = SubSliceMut::new(header_buf);
+        tx_header_sub_slice_mut.slice(0..12);
+
+        let mut tx_frame_sub_slice_mut = SubSliceMut::new(frame_buffer);
+        tx_frame_sub_slice_mut.slice(0..(len as usize));
+
         let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: header_buf,
-                len: 12,
-                device_writeable: false,
-            }),
-            frame_queue_buf.take(),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                tx_header_sub_slice_mut,
+            ))),
+            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
+                tx_frame_sub_slice_mut,
+            ))),
         ];
 
         self.tx_frame_info.set((len, transmission_identifier));
 
         self.txqueue
             .provide_buffer_chain(&mut buffer_chain)
-            .map_err(move |ret| (ret, buffer_chain[1].take().unwrap().buf))?;
+            .map_err(move |ret| {
+                let VirtqueueBuffer::DeviceReadable(tx_frame_sub_slice_mut_immut) =
+                    buffer_chain[1].take().unwrap()
+                else {
+                    panic!("VirtQueue returned DeviceWriteable buffer")
+                };
+                let SubSliceMutImmut::Mutable(tx_frame_sub_slice_mut) =
+                    tx_frame_sub_slice_mut_immut
+                else {
+                    panic!("tx_frame SubSliceMutImmut is not mutable!")
+                };
+                (ret, tx_frame_sub_slice_mut.take())
+            })?;
 
         Ok(())
     }

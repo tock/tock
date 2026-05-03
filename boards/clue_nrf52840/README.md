@@ -102,9 +102,13 @@ fn baud_rate_reset_bootloader_enter() {
     unsafe {
         // 0x4e is the magic value the Adafruit nRF52 Bootloader expects
         // as defined by https://github.com/adafruit/Adafruit_nRF52_Bootloader/blob/master/src/main.c
-        // NRF52_POWER.unwrap().set_gpregret(0x90);
+        // NRF52_POWER.get().map(|power| {
+        //     power.set_gpregret(0x90);
+        // });
         // uncomment to use with Adafruit nRF52 Bootloader
-        NRF52_POWER.unwrap().set_gpregret(0x4e);
+        NRF52_POWER.get().map(|power| {
+            power.set_gpregret(0x4e);
+        });
         cortexm4::scb::reset();
     }
 }

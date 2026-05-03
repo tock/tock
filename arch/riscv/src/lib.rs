@@ -11,6 +11,7 @@ use core::fmt::Write;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub mod csr;
+pub mod dma_fence;
 pub mod pmp;
 pub mod support;
 pub mod syscall;

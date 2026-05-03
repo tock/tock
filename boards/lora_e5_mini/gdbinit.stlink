@@ -1,0 +1,17 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2025.
+#
+# connect.gdb - GDB startup script for STM32 (Cortex-M4)
+
+# Load ELF file with symbols
+file ../../target/thumbv7em-none-eabi/debug/lora_e5_mini.elf
+
+# Connect to OpenOCD (or other gdbserver)
+target remote localhost:3333
+
+# Optional: halt the CPU
+monitor reset halt
+
+# Optional: print confirmation
+echo "Connected to target at localhost:3333\n"

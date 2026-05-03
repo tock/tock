@@ -460,7 +460,6 @@ impl<'a, A: time::Alarm<'a>> SyscallDriver for ThreadNetworkDriver<'a, A> {
     /// ### `command_num`
     /// - `0`: Driver Check
     /// - `1`: Add a new mle/mac networkkey and initiate a parent request.
-
     fn command(
         &self,
         command_num: usize,

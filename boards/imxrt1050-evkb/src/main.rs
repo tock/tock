@@ -54,7 +54,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -150,11 +150,6 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     }
 }
 
-/// Helper function called during bring-up that configures DMA.
-/// DMA for imxrt1050-evkb is not implemented yet.
-// unsafe fn setup_dma() {
-// }
-
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
     peripherals: &'static imxrt1050::chip::Imxrt10xxDefaultPeripherals,
@@ -245,7 +240,10 @@ unsafe fn start() -> (
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(

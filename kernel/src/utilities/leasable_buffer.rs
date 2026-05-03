@@ -171,6 +171,8 @@ use core::ops::{Bound, Range, RangeBounds};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
 
+use super::copy_range::CopyRange;
+
 /// A mutable leasable buffer implementation.
 ///
 /// A leasable buffer can be used to pass a section of a larger mutable buffer
@@ -195,18 +197,30 @@ impl<'a, T> From<&'a mut [T]> for SubSliceMut<'a, T> {
 ///
 /// A leasable buffer can be used to pass a section of a larger mutable buffer
 /// but still get the entire buffer back in a callback.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SubSlice<'a, T> {
-    internal: &'a [T],
-    active_range: Range<usize>,
+    pub(crate) internal: &'a [T],
+    pub(crate) active_range: CopyRange<usize>,
 }
+
+// Rust's derive fail to automatically infer that `SubSlice` can be
+// `Clone` even if `T: !Clone`.
+impl<T> Clone for SubSlice<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+// Rust's derive fail to automatically infer that `SubSlice` can be
+// `Copy` even if `T: !Copy`.
+impl<T> Copy for SubSlice<'_, T> {}
 
 impl<'a, T> From<&'a [T]> for SubSlice<'a, T> {
     fn from(internal: &'a [T]) -> Self {
         let active_range = 0..(internal.len());
         Self {
             internal,
-            active_range,
+            active_range: active_range.into(),
         }
     }
 }
@@ -216,6 +230,7 @@ impl<'a, T> From<&'a [T]> for SubSlice<'a, T> {
 /// In cases where code needs to support either a mutable or immutable SubSlice,
 /// `SubSliceMutImmut` allows the code to store a single type which can
 /// represent either option.
+#[derive(Debug)]
 pub enum SubSliceMutImmut<'a, T> {
     Immutable(SubSlice<'a, T>),
     Mutable(SubSliceMut<'a, T>),
@@ -457,7 +472,7 @@ impl<'a, T> SubSlice<'a, T> {
         let len = buffer.len();
         SubSlice {
             internal: buffer,
-            active_range: 0..len,
+            active_range: (0..len).into(),
         }
     }
 
@@ -478,7 +493,7 @@ impl<'a, T> SubSlice<'a, T> {
     /// Most commonly, this is called once a sliced leasable buffer is returned
     /// through a callback.
     pub fn reset(&mut self) {
-        self.active_range = 0..self.internal.len();
+        self.active_range = (0..self.internal.len()).into();
     }
 
     /// Returns the length of the currently accessible portion of the SubSlice.
@@ -494,7 +509,7 @@ impl<'a, T> SubSlice<'a, T> {
     /// Returns a slice of the currently accessible portion of the
     /// LeasableBuffer.
     pub fn as_slice(&self) -> &[T] {
-        &self.internal[self.active_range.clone()]
+        &self.internal[Range::from(self.active_range)]
     }
 
     /// Returns `true` if the LeasableBuffer is sliced internally.
@@ -542,7 +557,7 @@ impl<'a, T> SubSlice<'a, T> {
     /// assert!(reconstructed_subslicemut.as_slice() == &[3, 4]);
     /// ```
     pub fn active_range(&self) -> Range<usize> {
-        self.active_range.clone()
+        self.active_range.into()
     }
 
     /// Reduces the range of the SubSlice that is accessible.
@@ -578,7 +593,7 @@ impl<'a, T> SubSlice<'a, T> {
         let new_start = min(self.active_range.start + start, self.active_range.end);
         let new_end = min(new_start + (end - start), self.active_range.end);
 
-        self.active_range = Range {
+        self.active_range = CopyRange {
             start: new_start,
             end: new_end,
         };
@@ -592,7 +607,7 @@ where
     type Output = <I as SliceIndex<[T]>>::Output;
 
     fn index(&self, idx: I) -> &Self::Output {
-        &self.internal[self.active_range.clone()][idx]
+        &self.internal[Range::from(self.active_range)][idx]
     }
 }
 

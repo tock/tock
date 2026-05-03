@@ -21,6 +21,7 @@ pub mod mpu {
     }
 }
 
+pub use cortexm::dma_fence;
 pub use cortexm::dwt;
 pub use cortexm::initialize_ram_jump_to_main;
 pub use cortexm::nvic;
