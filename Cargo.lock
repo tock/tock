@@ -1082,6 +1082,15 @@ version = "0.2.3-dev"
 dependencies = [
  "enum_primitive",
  "kernel",
+ "nrf5x-unsafe",
+]
+
+[[package]]
+name = "nrf5x-unsafe"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm4f",
+ "kernel",
 ]
 
 [[package]]
