@@ -71,7 +71,7 @@ pub struct AesECB<'a> {
     client: OptionalCell<&'a dyn kernel::hil::symmetric_encryption::Client<'a>>,
 }
 
-impl<'a> AesECB<'a> {
+impl AesECB<'_> {
     pub fn new(registers: StaticRef<AesEcbRegisters>, ecb_data: &'static mut [u8; 48]) -> Self {
         Self {
             registers: AesEcbRegistersManager::new(registers),
