@@ -1,24 +1,16 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2022.
+# Copyright Tock Contributors 2026.
 
 [package]
-name = "nrf5x"
+name = "nrf5x-unsafe"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-nrf5x-unsafe = { path = "../nrf5x-unsafe" }
 cortexm4f = { path = "../../arch/cortex-m4f" }
 kernel = { path = "../../kernel" }
-enum_primitive = { path = "../../libraries/enum_primitive" }
-
-[features]
-default = []
-
-nrf51 = []
-nrf52 = []
 
 [lints]
 workspace = true

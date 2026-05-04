@@ -33,167 +33,22 @@
 use core::cell::Cell;
 use kernel::hil::symmetric_encryption;
 use kernel::utilities::cells::{MapCell, OptionalCell};
-use kernel::utilities::dma_slice::DmaSliceMut;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+pub use nrf5x_unsafe::aes::AesEcbRegisters;
+use nrf5x_unsafe::aes::AesEcbRegistersManager;
 
 const KEY_START: usize = 0;
 const PLAINTEXT_START: usize = 16;
 const PLAINTEXT_END: usize = 32;
-
-#[repr(C)]
-pub struct AesEcbRegisters {
-    /// Start ECB block encrypt
-    /// - Address 0x000 - 0x004
-    task_startecb: WriteOnly<u32, Task::Register>,
-    /// Abort a possible executing ECB operation
-    /// - Address: 0x004 - 0x008
-    task_stopecb: WriteOnly<u32, Task::Register>,
-    /// Reserved
-    _reserved1: [u32; 62],
-    /// ECB block encrypt complete
-    /// - Address: 0x100 - 0x104
-    event_endecb: ReadWrite<u32, Event::Register>,
-    /// ECB block encrypt aborted because of a STOPECB task or due to an error
-    /// - Address: 0x104 - 0x108
-    event_errorecb: ReadWrite<u32, Event::Register>,
-    /// Reserved
-    _reserved2: [u32; 127],
-    /// Enable interrupt
-    /// - Address: 0x304 - 0x308
-    intenset: ReadWrite<u32, Intenset::Register>,
-    /// Disable interrupt
-    /// - Address: 0x308 - 0x30c
-    intenclr: ReadWrite<u32, Intenclr::Register>,
-    /// Reserved
-    _reserved3: [u32; 126],
-    /// ECB block encrypt memory pointers
-    /// - Address: 0x504 - 0x508
-    ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
-}
-
-register_bitfields! [u32,
-    /// Start task
-    Task [
-        ENABLE OFFSET(0) NUMBITS(1)
-    ],
-
-    /// Read event
-    Event [
-        READY OFFSET(0) NUMBITS(1)
-    ],
-
-    /// Enabled interrupt
-    Intenset [
-        ENDECB OFFSET(0) NUMBITS(1),
-        ERRORECB OFFSET(1) NUMBITS(1)
-    ],
-
-    /// Disable interrupt
-    Intenclr [
-        ENDECB OFFSET(0) NUMBITS(1),
-        ERRORECB OFFSET(1) NUMBITS(1)
-    ],
-
-    /// ECB block encrypt memory pointers
-    EcbDataPointer [
-        POINTER OFFSET(0) NUMBITS(32)
-    ]
-];
 
 #[derive(Copy, Clone, Debug)]
 enum AESMode {
     ECB,
     CTR,
     CBC,
-}
-
-/// Wrapper for managing MMIO for the AES ECB peripheral.
-struct AesEcbRegistersManager {
-    /// MMIO registers for the AES ECB peripheral.
-    registers: StaticRef<AesEcbRegisters>,
-    /// Holding place for the DMA buffer while DMA is in progress.
-    dma_buf: MapCell<DmaSliceMut<'static, u8>>,
-}
-
-impl AesEcbRegistersManager {
-    pub fn new(regs: StaticRef<AesEcbRegisters>) -> Self {
-        Self {
-            registers: regs,
-            dma_buf: MapCell::empty(),
-        }
-    }
-
-    /// Start an ECB encryption with DMA.
-    ///
-    /// The buffer must cover the full 48-byte ECB data block:
-    /// bytes 0–15 = key, bytes 16–31 = plaintext/counter, bytes 32–47 = ciphertext output.
-    ///
-    /// # Return
-    ///
-    /// `Ok(())` on successfully starting the DMA operation. `Err(())` if DMA
-    /// is already busy.
-    pub fn start_ecb_dma(&self, buf: &'static mut [u8]) -> Result<(), ()> {
-        if self.dma_pending() {
-            return Err(());
-        }
-
-        // To create a DmaFence we must trust the implementation.
-        //
-        // # Safety
-        //
-        // The architecture-provided version is correct for the nRF52.
-        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
-
-        // Create DmaSubSliceMut for the ECB data buffer. This ensures that we
-        // can soundly share it with the DMA hardware.
-        let ecb_dma_slice = DmaSliceMut::new_static(buf, fence);
-
-        // Provide the buffer pointer to the ECB hardware. The hardware expects
-        // the pointer to point at byte 0 of the 48-byte data block (the key).
-        // The SubSliceMut covers the full ecb_data buffer (never sliced), so
-        // as_mut_ptr() correctly points to byte 0.
-        self.registers
-            .ecbdataptr
-            .write(EcbDataPointer::POINTER.val(ecb_dma_slice.as_mut_ptr() as u32));
-
-        // Save the DmaSubSliceMut while the DMA operation executes.
-        self.dma_buf.replace(ecb_dma_slice);
-
-        // Clear the end event and start the ECB task.
-        self.registers.event_endecb.write(Event::READY::CLEAR);
-        self.registers.task_startecb.write(Task::ENABLE::SET);
-
-        Ok(())
-    }
-
-    pub fn finish_ecb_dma(&self) -> Option<&'static mut [u8]> {
-        // Clear the end event before releasing the buffer.
-        self.registers.event_endecb.write(Event::READY::CLEAR);
-
-        self.dma_buf.take().map(|dma_slice| {
-            // To create a DmaFence we must trust the implementation.
-            //
-            // # Safety
-            //
-            // The architecture-provided version is correct for the nRF52.
-            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
-
-            // # Safety
-            //
-            // We must ensure that the DMA hardware no longer has any access to
-            // this buffer. We ensure that by clearing `event_endecb` above;
-            // the hardware sets this event only after completing the operation.
-            unsafe { dma_slice.take(fence) }
-        })
-    }
-
-    pub fn dma_pending(&self) -> bool {
-        self.dma_buf.is_some()
-    }
 }
 
 pub struct AesECB<'a> {
@@ -321,7 +176,12 @@ impl<'a> AesECB<'a> {
     pub fn handle_interrupt(&self) {
         self.disable_interrupts();
 
-        if self.registers.registers.event_endecb.is_set(Event::READY) {
+        if self
+            .registers
+            .registers
+            .event_endecb
+            .is_set(nrf5x_unsafe::aes::Event::READY)
+        {
             // Recover the ECB data buffer from the DMA manager.
             if let Some(ecb_data) = self.registers.finish_ecb_dma() {
                 self.ecb_data.replace(ecb_data);
@@ -410,17 +270,15 @@ impl<'a> AesECB<'a> {
     }
 
     fn enable_interrupts(&self) {
-        self.registers
-            .registers
-            .intenset
-            .write(Intenset::ENDECB::SET + Intenset::ERRORECB::SET);
+        self.registers.registers.intenset.write(
+            nrf5x_unsafe::aes::Intenset::ENDECB::SET + nrf5x_unsafe::aes::Intenset::ERRORECB::SET,
+        );
     }
 
     fn disable_interrupts(&self) {
-        self.registers
-            .registers
-            .intenclr
-            .write(Intenclr::ENDECB::SET + Intenclr::ERRORECB::SET);
+        self.registers.registers.intenclr.write(
+            nrf5x_unsafe::aes::Intenclr::ENDECB::SET + nrf5x_unsafe::aes::Intenclr::ERRORECB::SET,
+        );
     }
 }
 
@@ -431,7 +289,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         self.registers
             .registers
             .task_stopecb
-            .write(Task::ENABLE::CLEAR);
+            .write(nrf5x_unsafe::aes::Task::ENABLE::CLEAR);
         self.disable_interrupts();
     }
 
