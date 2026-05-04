@@ -152,8 +152,8 @@ pub unsafe fn main() {
     let i2c_bus = components::i2c::I2CMuxComponent::new(&nrf52840_peripherals.nrf52.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
     nrf52840_peripherals.nrf52.twi1.configure(
-        nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SCL_PIN),
-        nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SDA_PIN),
+        nrf52840::pinmux::Pinmux::from_pin(SCREEN_I2C_SCL_PIN),
+        nrf52840::pinmux::Pinmux::from_pin(SCREEN_I2C_SDA_PIN),
     );
     nrf52840_peripherals
         .nrf52

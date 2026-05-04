@@ -11,11 +11,11 @@
 
 /// An opaque wrapper around a configurable pin.
 #[derive(Copy, Clone)]
-pub struct Pinmux(Pin);
+pub struct Pinmux(crate::gpio::Pin);
 
 impl Pinmux {
     /// Creates a new `Pinmux` wrapping the numbered pin.
-    pub unsafe fn from_pin(pin: crate::gpio::Pin) -> Pinmux {
+    pub fn from_pin(pin: crate::gpio::Pin) -> Pinmux {
         Pinmux(pin)
     }
 }

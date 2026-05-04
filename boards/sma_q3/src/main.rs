@@ -414,8 +414,8 @@ pub unsafe fn start() -> (
     sensors_i2c_bus.register();
 
     base_peripherals.twi1.configure(
-        nrf52840::pinmux::Pinmux::new(I2C_TEMP_SCL_PIN),
-        nrf52840::pinmux::Pinmux::new(I2C_TEMP_SDA_PIN),
+        nrf52840::pinmux::Pinmux::from_pin(I2C_TEMP_SCL_PIN),
+        nrf52840::pinmux::Pinmux::from_pin(I2C_TEMP_SDA_PIN),
     );
     base_peripherals.twi1.set_master_client(sensors_i2c_bus);
 
@@ -484,9 +484,9 @@ pub unsafe fn start() -> (
             .expect("SPIM2 set rate");
 
         base_peripherals.spim2.configure(
-            nrf52840::pinmux::Pinmux::new(Pin::P0_27),
-            nrf52840::pinmux::Pinmux::new(Pin::P0_28),
-            nrf52840::pinmux::Pinmux::new(Pin::P0_26),
+            nrf52840::pinmux::Pinmux::from_pin(Pin::P0_27),
+            nrf52840::pinmux::Pinmux::from_pin(Pin::P0_28),
+            nrf52840::pinmux::Pinmux::from_pin(Pin::P0_26),
         );
 
         let disp_pin = &nrf52840_peripherals.gpio_port[Pin::P0_07];

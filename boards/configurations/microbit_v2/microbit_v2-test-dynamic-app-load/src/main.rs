@@ -391,7 +391,7 @@ unsafe fn start() -> (
 
     let virtual_pwm_buzzer = components::pwm::PwmPinUserComponent::new(
         mux_pwm,
-        nrf52833::pinmux::Pinmux::new(SPEAKER_PIN),
+        nrf52833::pinmux::Pinmux::from_pin(SPEAKER_PIN),
     )
     .finalize(components::pwm_pin_user_component_static!(
         nrf52833::pwm::Pwm
@@ -445,11 +445,13 @@ unsafe fn start() -> (
 
     virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
-    let virtual_pwm_driver =
-        components::pwm::PwmPinUserComponent::new(mux_pwm, nrf52833::pinmux::Pinmux::new(GPIO_P8))
-            .finalize(components::pwm_pin_user_component_static!(
-                nrf52833::pwm::Pwm
-            ));
+    let virtual_pwm_driver = components::pwm::PwmPinUserComponent::new(
+        mux_pwm,
+        nrf52833::pinmux::Pinmux::from_pin(GPIO_P8),
+    )
+    .finalize(components::pwm_pin_user_component_static!(
+        nrf52833::pwm::Pwm
+    ));
 
     let pwm =
         components::pwm::PwmDriverComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
@@ -460,8 +462,8 @@ unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     base_peripherals.uarte0.initialize(
-        nrf52::pinmux::Pinmux::new(UART_TX_PIN),
-        nrf52::pinmux::Pinmux::new(UART_RX_PIN),
+        nrf52::pinmux::Pinmux::from_pin(UART_TX_PIN),
+        nrf52::pinmux::Pinmux::from_pin(UART_RX_PIN),
         None,
         None,
     );
@@ -502,8 +504,8 @@ unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     base_peripherals.twi1.configure(
-        nrf52833::pinmux::Pinmux::new(I2C_SCL_PIN),
-        nrf52833::pinmux::Pinmux::new(I2C_SDA_PIN),
+        nrf52833::pinmux::Pinmux::from_pin(I2C_SCL_PIN),
+        nrf52833::pinmux::Pinmux::from_pin(I2C_SDA_PIN),
     );
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
