@@ -150,7 +150,14 @@ unsafe fn start() -> (
     );
 
     // Link DMA to USART1
-    usart1.set_dma(dma1, 0, 1);
+    let _ = dma1.request_channel();
+    let _ = dma1.request_channel();
+    let usart1_channel_tx = dma1.request_channel();
+    let usart1_channel_rx = dma1.request_channel();
+
+    if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
+        usart1.set_dma(dma1, tx, rx);
+    }
 
     // Load Peripherals Bundle
     let periphs = static_init!(

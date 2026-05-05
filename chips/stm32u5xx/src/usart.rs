@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
+use crate::dma::ChannelId;
 use core::cell::Cell;
 use kernel::hil::uart::{self};
 use kernel::utilities::cells::OptionalCell;
@@ -90,8 +91,8 @@ register_bitfields![u32,
 pub struct Usart<'a> {
     pub registers: StaticRef<UsartRegisters>,
     dma: OptionalCell<&'a Dma>,
-    dma_channel_tx: Cell<usize>,
-    dma_channel_rx: Cell<usize>,
+    dma_channel_tx: Cell<Option<ChannelId>>,
+    dma_channel_rx: Cell<Option<ChannelId>>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     rx_buffer: TakeCell<'static, [u8]>,
@@ -106,8 +107,8 @@ impl<'a> Usart<'a> {
         Usart {
             registers: base,
             dma: OptionalCell::empty(),
-            dma_channel_tx: Cell::new(0),
-            dma_channel_rx: Cell::new(0),
+            dma_channel_tx: Cell::new(None),
+            dma_channel_rx: Cell::new(None),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             rx_buffer: TakeCell::empty(),
@@ -118,10 +119,10 @@ impl<'a> Usart<'a> {
     }
 
     /// Associates a DMA controller and channels with the USART driver.
-    pub fn set_dma(&self, dma: &'a Dma, tx_channel: usize, rx_channel: usize) {
+    pub fn set_dma(&self, dma: &'a Dma, tx_channel: ChannelId, rx_channel: ChannelId) {
         self.dma.set(dma);
-        self.dma_channel_tx.set(tx_channel);
-        self.dma_channel_rx.set(rx_channel);
+        self.dma_channel_tx.set(Some(tx_channel));
+        self.dma_channel_rx.set(Some(rx_channel));
     }
 
     /// Hardware interrupt handler for the USART.
@@ -145,7 +146,9 @@ impl<'a> Usart<'a> {
     pub fn handle_dma_interrupt(&self, is_tx: bool) {
         if is_tx {
             self.dma.map(|dma| {
-                dma.clear_interrupt(self.dma_channel_tx.get());
+                if let Some(ch) = self.dma_channel_tx.get() {
+                    dma.clear_interrupt(ch);
+                }
             });
             self.registers.cr3.modify(CR3::DMAT::CLEAR);
             if let Some(buf) = self.tx_buffer.take() {
@@ -156,7 +159,9 @@ impl<'a> Usart<'a> {
             }
         } else {
             self.dma.map(|dma| {
-                dma.clear_interrupt(self.dma_channel_rx.get());
+                if let Some(ch) = self.dma_channel_rx.get() {
+                    dma.clear_interrupt(ch);
+                }
             });
             self.registers.cr3.modify(CR3::DMAR::CLEAR);
             if let Some(buf) = self.rx_buffer.take() {
@@ -200,12 +205,10 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
         self.tx_len.set(tx_len);
 
         self.tx_buffer.map(|buf| {
-            dma.setup_usart1_tx(
-                self.dma_channel_tx.get(),
-                buf.as_ptr() as u32,
-                tx_len as u32,
-            );
-            self.registers.cr3.modify(CR3::DMAT::SET);
+            if let Some(ch) = self.dma_channel_tx.get() {
+                dma.setup_usart1_tx(ch, buf.as_ptr() as u32, tx_len as u32);
+                self.registers.cr3.modify(CR3::DMAT::SET);
+            }
         });
 
         Ok(())
@@ -265,12 +268,10 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
         self.rx_len.set(rx_len);
 
         self.rx_buffer.map(|buf| {
-            dma.setup_usart1_rx(
-                self.dma_channel_rx.get(),
-                buf.as_ptr() as u32,
-                rx_len as u32,
-            );
-            self.registers.cr3.modify(CR3::DMAR::SET);
+            if let Some(ch) = self.dma_channel_rx.get() {
+                dma.setup_usart1_rx(ch, buf.as_ptr() as u32, rx_len as u32);
+                self.registers.cr3.modify(CR3::DMAR::SET);
+            }
         });
 
         Ok(())
