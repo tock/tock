@@ -75,6 +75,8 @@ register_bitfields![u32,
         DMAR    OFFSET(6)   NUMBITS(1) []
     ],
     pub ISR [
+        /// Transmission complete
+        TC   OFFSET(6) NUMBITS(1) [],
         /// Read data register not empty
         RXNE OFFSET(5) NUMBITS(1) [],
         /// Transmit data register empty
@@ -102,9 +104,8 @@ pub struct Usart<'a> {
 }
 
 impl<'a> Usart<'a> {
-    /// Creates a new Usart instance.
-    pub fn new(base: StaticRef<UsartRegisters>) -> Usart<'a> {
-        Usart {
+    pub const fn new(base: StaticRef<UsartRegisters>) -> Self {
+        Self {
             registers: base,
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
@@ -119,10 +120,17 @@ impl<'a> Usart<'a> {
     }
 
     /// Associates a DMA controller and channels with the USART driver.
-    pub fn set_dma(&self, dma: &'a Dma, tx_channel: ChannelId, rx_channel: ChannelId) {
-        self.dma.set(dma);
-        self.dma_channel_tx.set(Some(tx_channel));
-        self.dma_channel_rx.set(Some(rx_channel));
+    pub fn set_dma(
+        usart: &'static Self,
+        dma: &'a Dma,
+        tx_channel: ChannelId,
+        rx_channel: ChannelId,
+    ) {
+        usart.dma.set(dma);
+        usart.dma_channel_tx.set(Some(tx_channel));
+        usart.dma_channel_rx.set(Some(rx_channel));
+        dma.set_client(tx_channel, usart);
+        dma.set_client(rx_channel, usart);
     }
 
     /// Hardware interrupt handler for the USART.
@@ -177,9 +185,41 @@ impl<'a> Usart<'a> {
     /// ONLY for use in the Panic handler when DMA is unavailable.
     pub fn transmit_byte(&self, byte: u8) {
         let regs = &*self.registers;
-        // Wait until TXE (Transmit Data Register Empty) is set
+
+        // 1. Disable DMA transmitter temporarily if it was enabled
+        // so that manual writes to TDR are processed correctly.
+        let dmat_enabled = regs.cr3.is_set(CR3::DMAT);
+        if dmat_enabled {
+            regs.cr3.modify(CR3::DMAT::CLEAR);
+        }
+
+        // 2. Wait until TXE (Transmit Data Register Empty) is set
         while !regs.isr.is_set(ISR::TXE) {}
         regs.tdr.set(byte as u32);
+
+        // 3. Wait for Transmission Complete before potentially re-enabling DMA
+        while !regs.isr.is_set(ISR::TC) {}
+
+        // 4. Restore DMA state
+        if dmat_enabled {
+            regs.cr3.modify(CR3::DMAT::SET);
+        }
+    }
+}
+
+impl crate::dma::DmaClient for Usart<'_> {
+    fn transfer_done(&self, channel: ChannelId) {
+        if let Some(tx_ch) = self.dma_channel_tx.get() {
+            if channel == tx_ch {
+                self.handle_dma_interrupt(true);
+                return;
+            }
+        }
+        if let Some(rx_ch) = self.dma_channel_rx.get() {
+            if channel == rx_ch {
+                self.handle_dma_interrupt(false);
+            }
+        }
     }
 }
 

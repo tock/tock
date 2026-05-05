@@ -3,7 +3,13 @@
 // Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
 
-use crate::nvic::{EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, TIM2_IRQ, USART1_IRQ};
+use crate::dma::{ChannelId, Dma};
+use crate::nvic::{
+    EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
+    GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
+    GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
+    TIM2_IRQ, USART1_IRQ,
+};
 use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
@@ -15,10 +21,10 @@ pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
 }
 
 pub struct Stm32u5xxDefaultPeripherals<'a> {
-    // Peripherals will go here
     pub tim2: &'a crate::tim::Tim2<'a>,
     pub usart1: &'a crate::usart::Usart<'a>,
     pub exti: &'a crate::exti::Exti<'a>,
+    pub dma1: &'a Dma,
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
@@ -26,8 +32,14 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         tim2: &'a crate::tim::Tim2<'a>,
         usart1: &'a crate::usart::Usart<'a>,
         exti: &'a crate::exti::Exti<'a>,
+        dma1: &'a Dma,
     ) -> Self {
-        Self { tim2, usart1, exti }
+        Self {
+            tim2,
+            usart1,
+            exti,
+            dma1,
+        }
     }
 }
 
@@ -49,14 +61,69 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
                 self.exti.handle_interrupt(crate::exti::LineId::Line13);
                 true
             }
+            // Route all 16 GPDMA1 Channels to the DMA manager
             GPDMA1_CH0_IRQ => {
-                // GPDMA1 Channel 0 (USART1 TX Complete)
-                self.usart1.handle_dma_interrupt(true);
+                self.dma1.handle_interrupt(ChannelId::Channel00);
                 true
             }
             GPDMA1_CH1_IRQ => {
-                // GPDMA1 Channel 1 (USART1 RX Complete)
-                self.usart1.handle_dma_interrupt(false);
+                self.dma1.handle_interrupt(ChannelId::Channel01);
+                true
+            }
+            GPDMA1_CH2_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel02);
+                true
+            }
+            GPDMA1_CH3_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel03);
+                true
+            }
+            GPDMA1_CH4_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel04);
+                true
+            }
+            GPDMA1_CH5_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel05);
+                true
+            }
+            GPDMA1_CH6_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel06);
+                true
+            }
+            GPDMA1_CH7_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel07);
+                true
+            }
+            GPDMA1_CH8_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel08);
+                true
+            }
+            GPDMA1_CH9_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel09);
+                true
+            }
+            GPDMA1_CH10_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel10);
+                true
+            }
+            GPDMA1_CH11_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel11);
+                true
+            }
+            GPDMA1_CH12_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel12);
+                true
+            }
+            GPDMA1_CH13_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel13);
+                true
+            }
+            GPDMA1_CH14_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel14);
+                true
+            }
+            GPDMA1_CH15_IRQ => {
+                self.dma1.handle_interrupt(ChannelId::Channel15);
                 true
             }
             _ => false,

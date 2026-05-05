@@ -3,6 +3,7 @@
 // Copyright OxidOS Automotive 2026.
 
 use core::cell::Cell;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -57,7 +58,11 @@ register_structs! {
 pub const DMA1_BASE: StaticRef<DmaRegisters> =
     unsafe { StaticRef::new(0x50020000 as *const DmaRegisters) };
 
-#[repr(u8)]
+pub trait DmaClient {
+    fn transfer_done(&self, channel: ChannelId);
+}
+
+#[repr(usize)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum ChannelId {
     Channel00 = 0,
@@ -79,8 +84,9 @@ pub enum ChannelId {
 }
 
 pub struct ChannelDma {
-    channel: ChannelId,
-    in_use: Cell<bool>,
+    pub channel: ChannelId,
+    pub in_use: Cell<bool>,
+    pub client: OptionalCell<&'static dyn DmaClient>,
 }
 
 impl ChannelDma {
@@ -88,12 +94,13 @@ impl ChannelDma {
         Self {
             channel: id,
             in_use: Cell::new(false),
+            client: OptionalCell::empty(),
         }
     }
 }
 
 pub struct Dma {
-    registers: StaticRef<DmaRegisters>,
+    pub registers: StaticRef<DmaRegisters>,
     channels: [ChannelDma; 16],
 }
 
@@ -234,7 +241,23 @@ impl Dma {
         if let Some(index) = self.match_channel(id) {
             if self.channels[index].in_use.get() {
                 self.channels[index].in_use.set(false);
+                self.channels[index].client.clear();
             }
+        }
+    }
+
+    pub fn set_client(&self, id: ChannelId, client: &'static dyn DmaClient) {
+        if let Some(index) = self.match_channel(id) {
+            self.channels[index].client.set(client);
+        }
+    }
+
+    pub fn handle_interrupt(&self, id: ChannelId) {
+        self.clear_interrupt(id);
+        if let Some(index) = self.match_channel(id) {
+            self.channels[index].client.map(|client| {
+                client.transfer_done(id);
+            });
         }
     }
 }

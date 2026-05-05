@@ -150,13 +150,11 @@ unsafe fn start() -> (
     );
 
     // Link DMA to USART1
-    let _ = dma1.request_channel();
-    let _ = dma1.request_channel();
     let usart1_channel_tx = dma1.request_channel();
     let usart1_channel_rx = dma1.request_channel();
 
     if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
-        usart1.set_dma(dma1, tx, rx);
+        stm32u545::usart::Usart::set_dma(usart1, dma1, tx, rx);
     }
 
     // Load Peripherals Bundle
@@ -274,7 +272,8 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(
             &periphs.tim2,
             periphs.usart1,
-            periphs.exti
+            periphs.exti,
+            dma1
         )
     );
 
@@ -323,7 +322,6 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-
     // Hand over control to the Tock Kernel Loop
     board_kernel.kernel_loop::<NucleoU545RE, ChipHw, { NUM_PROCS as u8 }>(
         platform,
