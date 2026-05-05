@@ -517,7 +517,9 @@ pub unsafe fn setup(
         Some(cortexm0p::support::reset),
     )
     .finalize(components::process_console_component_static!(RPTimer));
-    let _ = process_console.start();
+    // Keep the process console available, but don't let it inject prompts into
+    // the shared CDC console unless a user explicitly reactivates it.
+    let _ = process_console.start_hibernated();
 
     let sda_pin = peripherals.pins.get_pin(RPGpio::GPIO4);
     let scl_pin = peripherals.pins.get_pin(RPGpio::GPIO5);
