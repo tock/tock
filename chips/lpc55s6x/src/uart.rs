@@ -28,6 +28,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::StaticRef;
 use kernel::{hil, ErrorCode};
 
@@ -689,6 +690,13 @@ impl<'a> Uart<'a> {
         self.registers.fifowr.set(data as u32);
     }
 
+    pub fn transmit_sync(&self, bytes: &[u8]) {
+        for &b in bytes {
+            while !self.uart_is_writable() {}
+            self.send_byte(b);
+        }
+    }
+
     pub fn receive_byte(&self) -> u8 {
         (self.registers.fiford.get() & 0xFF) as u8
     }
@@ -997,5 +1005,63 @@ impl<'a> Receive<'a> for Uart<'a> {
         } else {
             Ok(())
         }
+    }
+}
+
+/// A synchronous writer for the lpc55s6x useful for panics.
+///
+/// For boards that want to use the UART to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+///
+/// TODO: Validate this [`UartPanicWriter`] is always sound to create.
+struct UartPanicWriter<'a> {
+    uart: Uart<'a>,
+}
+
+impl IoWrite for UartPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.uart.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Selects which USART instance to use for panic output.
+pub enum UartId {
+    Uart0,
+    Uart4,
+}
+
+/// Configuration for the synchronous UART panic writer.
+///
+/// This captures everything needed to setup the UART for panic display. Note
+/// that lpc55s6x UART configuration requires chip-specific clock and flexcomm
+/// setup; the panic writer relies on the UART having already been initialized
+/// by the kernel before the panic occurred.
+pub struct UartPanicWriterConfig {
+    pub id: UartId,
+}
+
+impl kernel::platform::chip::PanicWriter for Uart<'_> {
+    type Config = UartPanicWriterConfig;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        let uart = match config.id {
+            UartId::Uart0 => Uart::new_uart0(),
+            UartId::Uart4 => Uart::new_uart4(),
+        };
+
+        UartPanicWriter { uart }
     }
 }

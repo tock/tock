@@ -9,6 +9,7 @@ use crate::usci::{self, UsciARegisters};
 use core::cell::Cell;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
@@ -330,5 +331,70 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         });
 
         Err(ErrorCode::BUSY)
+    }
+}
+
+/// A synchronous writer for the msp432 useful for panics.
+///
+/// For boards that want to use the UART to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+///
+/// TODO: Validate this [`UartPanicWriter`] is always sound to create.
+struct UartPanicWriter<'a> {
+    uart: Uart<'a>,
+}
+
+impl IoWrite for UartPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.uart.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Selects which USCI_A UART instance to use for panic output.
+pub enum UartId {
+    UcA0,
+    UcA1,
+    UcA2,
+    UcA3,
+}
+
+/// Configuration for the synchronous UART panic writer.
+///
+/// This captures everything needed to setup the UART for panic display, even
+/// if the normal kernel had initialized it differently.
+pub struct UartPanicWriterConfig {
+    pub id: UartId,
+    pub params: hil::uart::Parameters,
+}
+
+impl kernel::platform::chip::PanicWriter for Uart<'_> {
+    type Config = UartPanicWriterConfig;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        use hil::uart::Configure as _;
+
+        let registers = match config.id {
+            UartId::UcA0 => usci::USCI_A0_BASE,
+            UartId::UcA1 => usci::USCI_A1_BASE,
+            UartId::UcA2 => usci::USCI_A2_BASE,
+            UartId::UcA3 => usci::USCI_A3_BASE,
+        };
+        let uart = Uart::new(registers, 0, 0, 0, 0);
+        let _ = uart.configure(config.params);
+
+        UartPanicWriter { uart }
     }
 }
