@@ -10,6 +10,7 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -386,6 +387,12 @@ impl<'a> Usart<'a> {
         self.registers.tdr.set(byte.into());
     }
 
+    pub fn transmit_sync(&self, bytes: &[u8]) {
+        for &b in bytes {
+            self.send_byte(b);
+        }
+    }
+
     fn enable_transmit_interrupt(&self) {
         self.registers.cr1.modify(CR1::TXEIE::SET);
     }
@@ -648,6 +655,51 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         } else {
             Ok(())
         }
+    }
+}
+
+pub enum UsartId {
+    Usart1,
+    Usart2,
+    Usart3,
+}
+
+pub struct UsartPanicWriterConfig {
+    pub id: UsartId,
+    pub rcc: &'static rcc::Rcc,
+    pub params: hil::uart::Parameters,
+}
+
+struct UsartPanicWriter {
+    uart: Usart<'static>,
+}
+
+impl IoWrite for UsartPanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.uart.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UsartPanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+impl kernel::platform::chip::PanicWriter for Usart<'_> {
+    type Config = UsartPanicWriterConfig;
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        use hil::uart::Configure as _;
+        let UsartPanicWriterConfig { id, rcc, params } = config;
+        let uart = match id {
+            UsartId::Usart1 => Usart::new_usart1(rcc),
+            UsartId::Usart2 => Usart::new_usart2(rcc),
+            UsartId::Usart3 => Usart::new_usart3(rcc),
+        };
+        let _ = uart.configure(params);
+        UsartPanicWriter { uart }
     }
 }
 

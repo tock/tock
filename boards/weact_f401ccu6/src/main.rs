@@ -10,7 +10,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
@@ -296,8 +295,6 @@ unsafe fn start() -> (
     base_peripherals.usart2.enable_clock();
     let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
         .finalize(components::uart_mux_component_static!());
-
-    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.

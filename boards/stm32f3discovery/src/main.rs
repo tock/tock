@@ -10,7 +10,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::lsm303xx;
@@ -438,10 +437,6 @@ unsafe fn start() -> (
 
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
-
-    // `finalize()` configures the underlying USART, so we need to
-    // tell `send_byte()` not to configure the USART again.
-    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
