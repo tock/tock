@@ -24,17 +24,19 @@ use kernel::hil::uart::{
     Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
-use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::StaticRef;
 use kernel::{hil, ErrorCode};
 
 use crate::clocks::FrgId;
 use crate::clocks::{Clock, FrgClockSource};
 use crate::flexcomm::Flexcomm;
+use crate::gpio::LPCPin;
+use crate::iocon::{self, Iocon};
 
 register_structs! {
     /// USARTs
@@ -1049,18 +1051,49 @@ pub enum UartId {
 /// that lpc55s6x UART configuration requires chip-specific clock and flexcomm
 /// setup; the panic writer relies on the UART having already been initialized
 /// by the kernel before the panic occurred.
-pub struct UartPanicWriterConfig {
+pub struct UartPanicWriterConfig<'a> {
+    pub params: Parameters,
     pub id: UartId,
+    pub clocks: &'a Clock,
+    pub flexcomm: &'a Flexcomm,
+    pub iocon: &'a Iocon,
+    pub pin1: LPCPin,
+    pub pin2: LPCPin,
 }
 
-impl kernel::platform::chip::PanicWriter for Uart<'_> {
-    type Config = UartPanicWriterConfig;
+impl<'a> kernel::platform::chip::PanicWriter for Uart<'a> {
+    type Config = UartPanicWriterConfig<'a>;
 
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
         let uart = match config.id {
-            UartId::Uart0 => Uart::new_uart0(),
-            UartId::Uart4 => Uart::new_uart4(),
+            UartId::Uart0 => Uart::new_uart0(config.clocks, config.flexcomm),
+            UartId::Uart4 => Uart::new_uart4(config.clocks, config.flexcomm),
         };
+        let _ = uart.configure(config.params);
+
+        config.iocon.configure_pin(
+            config.pin1,
+            iocon::Config {
+                function: iocon::Function::Alt1,
+                pull: iocon::Pull::None,
+                digital_mode: true,
+                slew: iocon::Slew::Standard,
+                invert: false,
+                open_drain: false,
+            },
+        );
+
+        config.iocon.configure_pin(
+            config.pin2,
+            iocon::Config {
+                function: iocon::Function::Alt1,
+                pull: iocon::Pull::None,
+                digital_mode: true,
+                slew: iocon::Slew::Standard,
+                invert: false,
+                open_drain: false,
+            },
+        );
 
         UartPanicWriter { uart }
     }
