@@ -39,7 +39,6 @@ register_bitfields! [
         /// Request selection
         REQSEL OFFSET(0) NUMBITS(7) [],
     ],
-
     pub DmaChannelCR [
         /// Transfer complete interrupt enable
         TCIE OFFSET(8) NUMBITS(1) [],
@@ -174,6 +173,12 @@ pub enum ChannelId {
     Channel15 = 15,
 }
 
+impl From<ChannelId> for usize {
+    fn from(val: ChannelId) -> usize {
+        val as usize
+    }
+}
+
 pub struct ChannelDma {
     pub channel: ChannelId,
     pub in_use: Cell<bool>,
@@ -221,125 +226,106 @@ impl Dma {
     }
 
     pub fn match_channel(&self, channel: ChannelId) -> Option<usize> {
-        match channel {
-            ChannelId::Channel00 => Some(0),
-            ChannelId::Channel01 => Some(1),
-            ChannelId::Channel02 => Some(2),
-            ChannelId::Channel03 => Some(3),
-            ChannelId::Channel04 => Some(4),
-            ChannelId::Channel05 => Some(5),
-            ChannelId::Channel06 => Some(6),
-            ChannelId::Channel07 => Some(7),
-            ChannelId::Channel08 => Some(8),
-            ChannelId::Channel09 => Some(9),
-            ChannelId::Channel10 => Some(10),
-            ChannelId::Channel11 => Some(11),
-            ChannelId::Channel12 => Some(12),
-            ChannelId::Channel13 => Some(13),
-            ChannelId::Channel14 => Some(14),
-            ChannelId::Channel15 => Some(15),
-        }
+        Some(channel.into())
     }
 
     pub fn setup_usart1_tx(&self, channel: ChannelId, buffer_addr: u32, length: u32) {
-        if let Some(channel_id) = self.match_channel(channel) {
-            // 1. Mark channel as Secure AND Privileged
-            self.registers.seccfgr.modify(CH_FIELDS[channel_id].val(1));
-            self.registers.privcfgr.modify(CH_FIELDS[channel_id].val(1));
+        let channel_id: usize = channel.into();
 
-            let ch = &self.registers.channels[channel_id];
+        // 1. Mark channel as Secure AND Privileged
+        self.registers.seccfgr.modify(CH_FIELDS[channel_id].val(1));
+        self.registers.privcfgr.modify(CH_FIELDS[channel_id].val(1));
 
-            // 2. Ensure channel is disabled
-            ch.c_r.write(DmaChannelCR::EN::CLEAR);
+        let ch = &self.registers.channels[channel_id];
 
-            // 3. Clear all flags
-            ch.f_cr.write(
-                DmaChannelFCR::SUSPF::SET
-                    + DmaChannelFCR::USEF::SET
-                    + DmaChannelFCR::ULEF::SET
-                    + DmaChannelFCR::DTEF::SET
-                    + DmaChannelFCR::HTF::SET
-                    + DmaChannelFCR::TCF::SET,
-            );
+        // 2. Ensure channel is disabled
+        ch.c_r.write(DmaChannelCR::EN::CLEAR);
 
-            // 4. Configure Transfer Register 1 (TR1)
-            // SINC (bit 3) = 1
-            // SAP (bit 14) = 0 (Port 0)
-            // DAP (bit 30) = 0 (Port 0 - Safer for U545)
-            ch.t_r1.write(
-                DmaChannelTR1::SINC::SET + DmaChannelTR1::SAP::CLEAR + DmaChannelTR1::DAP::CLEAR,
-            );
+        // 3. Clear all flags
+        ch.f_cr.write(
+            DmaChannelFCR::SUSPF::SET
+                + DmaChannelFCR::USEF::SET
+                + DmaChannelFCR::ULEF::SET
+                + DmaChannelFCR::DTEF::SET
+                + DmaChannelFCR::HTF::SET
+                + DmaChannelFCR::TCF::SET,
+        );
 
-            // 5. Configure Transfer Register 2 (TR2)
-            // REQSEL = 25 (USART1_TX on U545), DREQ = 1 (Destination request)
-            ch.t_r2
-                .write(DmaChannelTR2::REQSEL.val(25) + DmaChannelTR2::DREQ::SET);
+        // 4. Configure Transfer Register 1 (TR1)
+        // SINC (bit 3) = 1
+        // SAP (bit 14) = 0 (Port 0)
+        // DAP (bit 30) = 0 (Port 0 - Safer for U545)
+        ch.t_r1.write(
+            DmaChannelTR1::SINC::SET + DmaChannelTR1::SAP::CLEAR + DmaChannelTR1::DAP::CLEAR,
+        );
 
-            // 6. Set Addresses
-            ch.s_ar.set(buffer_addr);
-            ch.d_ar.set(USART1_TDR);
+        // 5. Configure Transfer Register 2 (TR2)
+        // REQSEL = 25 (USART1_TX on U545), DREQ = 1 (Destination request)
+        ch.t_r2
+            .write(DmaChannelTR2::REQSEL.val(25) + DmaChannelTR2::DREQ::SET);
 
-            // 7. Set Block Register 1 (BR1)
-            ch.b_r1.set(length & 0xFFFF);
+        // 6. Set Addresses
+        ch.s_ar.set(buffer_addr);
+        ch.d_ar.set(USART1_TDR);
 
-            // 8. Enable Transfer Complete Interrupt (bit 8) and Start (bit 0)
-            ch.c_r
-                .write(DmaChannelCR::TCIE::SET + DmaChannelCR::EN::SET);
-        }
+        // 7. Set Block Register 1 (BR1)
+        ch.b_r1.set(length & 0xFFFF);
+
+        // 8. Enable Transfer Complete Interrupt (bit 8) and Start (bit 0)
+        ch.c_r
+            .write(DmaChannelCR::TCIE::SET + DmaChannelCR::EN::SET);
     }
 
     pub fn setup_usart1_rx(&self, channel: ChannelId, buffer_addr: u32, length: u32) {
-        if let Some(channel_id) = self.match_channel(channel) {
-            // Mark channel as Secure AND Privileged
-            self.registers.seccfgr.modify(CH_FIELDS[channel_id].val(1));
-            self.registers.privcfgr.modify(CH_FIELDS[channel_id].val(1));
+        let channel_id: usize = channel.into();
 
-            let ch = &self.registers.channels[channel_id];
+        // Mark channel as Secure AND Privileged
+        self.registers.seccfgr.modify(CH_FIELDS[channel_id].val(1));
+        self.registers.privcfgr.modify(CH_FIELDS[channel_id].val(1));
 
-            ch.c_r.write(DmaChannelCR::EN::CLEAR);
-            ch.f_cr.write(
-                DmaChannelFCR::SUSPF::SET
-                    + DmaChannelFCR::USEF::SET
-                    + DmaChannelFCR::ULEF::SET
-                    + DmaChannelFCR::DTEF::SET
-                    + DmaChannelFCR::HTF::SET
-                    + DmaChannelFCR::TCF::SET,
-            );
+        let ch = &self.registers.channels[channel_id];
 
-            // Configure TR1 (Security + Direction)
-            // DINC (19), SSEC (15), DSEC (31)
-            ch.t_r1.write(
-                DmaChannelTR1::DINC::SET + DmaChannelTR1::SSEC::SET + DmaChannelTR1::DSEC::SET,
-            );
+        ch.c_r.write(DmaChannelCR::EN::CLEAR);
+        ch.f_cr.write(
+            DmaChannelFCR::SUSPF::SET
+                + DmaChannelFCR::USEF::SET
+                + DmaChannelFCR::ULEF::SET
+                + DmaChannelFCR::DTEF::SET
+                + DmaChannelFCR::HTF::SET
+                + DmaChannelFCR::TCF::SET,
+        );
 
-            // Configure TR2 (Trigger Source) - REQSEL = 24
-            ch.t_r2.write(DmaChannelTR2::REQSEL.val(24));
+        // Configure TR1 (Security + Direction)
+        // DINC (19), SSEC (15), DSEC (31)
+        ch.t_r1
+            .write(DmaChannelTR1::DINC::SET + DmaChannelTR1::SSEC::SET + DmaChannelTR1::DSEC::SET);
 
-            // 6. Set Addresses
-            ch.s_ar.set(USART1_RDR);
-            ch.d_ar.set(buffer_addr);
+        // Configure TR2 (Trigger Source) - REQSEL = 24
+        ch.t_r2.write(DmaChannelTR2::REQSEL.val(24));
 
-            // 7. Set Block Register 1 (BR1)
-            ch.b_r1.set(length & 0xFFFF);
+        // 6. Set Addresses
+        ch.s_ar.set(USART1_RDR);
+        ch.d_ar.set(buffer_addr);
 
-            // 8. Enable
-            ch.c_r
-                .write(DmaChannelCR::TCIE::SET + DmaChannelCR::EN::SET);
-        }
+        // 7. Set Block Register 1 (BR1)
+        ch.b_r1.set(length & 0xFFFF);
+
+        // 8. Enable
+        ch.c_r
+            .write(DmaChannelCR::TCIE::SET + DmaChannelCR::EN::SET);
     }
 
     pub fn clear_interrupt(&self, channel: ChannelId) {
-        if let Some(channel_id) = self.match_channel(channel) {
-            let ch = &self.registers.channels[channel_id];
-            ch.f_cr.write(
-                DmaChannelFCR::SUSPF::SET
-                    + DmaChannelFCR::USEF::SET
-                    + DmaChannelFCR::ULEF::SET
-                    + DmaChannelFCR::DTEF::SET
-                    + DmaChannelFCR::HTF::SET
-                    + DmaChannelFCR::TCF::SET,
-            );
-        }
+        let channel_id: usize = channel.into();
+        let ch = &self.registers.channels[channel_id];
+        ch.f_cr.write(
+            DmaChannelFCR::SUSPF::SET
+                + DmaChannelFCR::USEF::SET
+                + DmaChannelFCR::ULEF::SET
+                + DmaChannelFCR::DTEF::SET
+                + DmaChannelFCR::HTF::SET
+                + DmaChannelFCR::TCF::SET,
+        );
     }
 
     pub fn request_channel(&self) -> Option<ChannelId> {
@@ -353,26 +339,23 @@ impl Dma {
     }
 
     pub fn release_channel(&self, id: ChannelId) {
-        if let Some(index) = self.match_channel(id) {
-            if self.channels[index].in_use.get() {
-                self.channels[index].in_use.set(false);
-                self.channels[index].client.clear();
-            }
+        let index: usize = id.into();
+        if self.channels[index].in_use.get() {
+            self.channels[index].in_use.set(false);
+            self.channels[index].client.clear();
         }
     }
 
     pub fn set_client(&self, id: ChannelId, client: &'static dyn DmaClient) {
-        if let Some(index) = self.match_channel(id) {
-            self.channels[index].client.set(client);
-        }
+        let index: usize = id.into();
+        self.channels[index].client.set(client);
     }
 
     pub fn handle_interrupt(&self, id: ChannelId) {
         self.clear_interrupt(id);
-        if let Some(index) = self.match_channel(id) {
-            self.channels[index].client.map(|client| {
-                client.transfer_done(id);
-            });
-        }
+        let index: usize = id.into();
+        self.channels[index].client.map(|client| {
+            client.transfer_done(id);
+        });
     }
 }
