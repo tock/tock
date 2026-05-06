@@ -4,9 +4,100 @@
 
 use core::cell::Cell;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
+use kernel::utilities::registers::{
+    register_bitfields, register_structs, Field, ReadOnly, ReadWrite,
+};
 use kernel::utilities::StaticRef;
+
+/// Base address for USART1 in Secure Alias mode.
+const USART1_BASE_ADDR: u32 = 0x50013800;
+/// USART1 Receive Data Register (RDR) address.
+const USART1_RDR: u32 = USART1_BASE_ADDR + 0x24;
+/// USART1 Transmit Data Register (TDR) address.
+const USART1_TDR: u32 = USART1_BASE_ADDR + 0x28;
+
+register_bitfields! [
+    u32,
+    pub DmaChannelTR1 [
+        /// Destination security
+        DSEC OFFSET(31) NUMBITS(1) [],
+        /// Destination allocated port
+        DAP OFFSET(30) NUMBITS(1) [],
+        /// Destination increment
+        DINC OFFSET(19) NUMBITS(1) [],
+        /// Source security
+        SSEC OFFSET(15) NUMBITS(1) [],
+        /// Source allocated port
+        SAP OFFSET(14) NUMBITS(1) [],
+        /// Source increment
+        SINC OFFSET(3) NUMBITS(1) [],
+    ],
+    pub DmaChannelTR2 [
+        /// Destination request
+        DREQ OFFSET(10) NUMBITS(1) [],
+        /// Request selection
+        REQSEL OFFSET(0) NUMBITS(7) [],
+    ],
+
+    pub DmaChannelCR [
+        /// Transfer complete interrupt enable
+        TCIE OFFSET(8) NUMBITS(1) [],
+        /// Enable
+        EN OFFSET(0) NUMBITS(1) [],
+    ],
+    pub DmaChannelFCR [
+        /// Completed suspension flag clear
+        SUSPF OFFSET(13) NUMBITS(1) [],
+        /// User setting error flag clear
+        USEF OFFSET(12) NUMBITS(1) [],
+        /// Update link error flag clear
+        ULEF OFFSET(11) NUMBITS(1) [],
+        /// Data transfer error flag clear
+        DTEF OFFSET(10) NUMBITS(1) [],
+        /// Half transfer flag clear
+        HTF OFFSET(9) NUMBITS(1) [],
+        /// Transfer complete flag clear
+        TCF OFFSET(8) NUMBITS(1) [],
+    ],
+    pub DmaChannelEnable [
+        CH0  OFFSET(0)  NUMBITS(1) [],
+        CH1  OFFSET(1)  NUMBITS(1) [],
+        CH2  OFFSET(2)  NUMBITS(1) [],
+        CH3  OFFSET(3)  NUMBITS(1) [],
+        CH4  OFFSET(4)  NUMBITS(1) [],
+        CH5  OFFSET(5)  NUMBITS(1) [],
+        CH6  OFFSET(6)  NUMBITS(1) [],
+        CH7  OFFSET(7)  NUMBITS(1) [],
+        CH8  OFFSET(8)  NUMBITS(1) [],
+        CH9  OFFSET(9)  NUMBITS(1) [],
+        CH10 OFFSET(10) NUMBITS(1) [],
+        CH11 OFFSET(11) NUMBITS(1) [],
+        CH12 OFFSET(12) NUMBITS(1) [],
+        CH13 OFFSET(13) NUMBITS(1) [],
+        CH14 OFFSET(14) NUMBITS(1) [],
+        CH15 OFFSET(15) NUMBITS(1) [],
+    ]
+];
+
+const CH_FIELDS: [Field<u32, DmaChannelEnable::Register>; 16] = [
+    DmaChannelEnable::CH0,
+    DmaChannelEnable::CH1,
+    DmaChannelEnable::CH2,
+    DmaChannelEnable::CH3,
+    DmaChannelEnable::CH4,
+    DmaChannelEnable::CH5,
+    DmaChannelEnable::CH6,
+    DmaChannelEnable::CH7,
+    DmaChannelEnable::CH8,
+    DmaChannelEnable::CH9,
+    DmaChannelEnable::CH10,
+    DmaChannelEnable::CH11,
+    DmaChannelEnable::CH12,
+    DmaChannelEnable::CH13,
+    DmaChannelEnable::CH14,
+    DmaChannelEnable::CH15,
+];
 
 register_structs! {
     pub DmaChannelRegisters {
@@ -14,16 +105,16 @@ register_structs! {
         (0x000 => pub l_bar: ReadWrite<u32>),
         /// Channel x flag clear register (Relative 0x04)
         (0x004 => _reserved0: [u32; 2]),
-        (0x00C => pub f_cr: ReadWrite<u32>),
+        (0x00C => pub f_cr: ReadWrite<u32, DmaChannelFCR::Register>),
         /// Channel x status register (Relative 0x08)
         (0x010 => pub s_r: ReadOnly<u32>),
         /// Channel x control register (Relative 0x0C)
-        (0x014 => pub c_r: ReadWrite<u32>),
+        (0x014 => pub c_r: ReadWrite<u32, DmaChannelCR::Register>),
         (0x018 => _reserved1: [u32; 10]),
         /// Channel x transfer register 1 (Relative 0x40)
-        (0x040 => pub t_r1: ReadWrite<u32>),
+        (0x040 => pub t_r1: ReadWrite<u32, DmaChannelTR1::Register>),
         /// Channel x transfer register 2 (Relative 0x44)
-        (0x044 => pub t_r2: ReadWrite<u32>),
+        (0x044 => pub t_r2: ReadWrite<u32, DmaChannelTR2::Register>),
         /// Channel x block register 1 (Relative 0x48)
         (0x048 => pub b_r1: ReadWrite<u32>),
         /// Channel x source address register (Relative 0x4C)
@@ -40,9 +131,9 @@ register_structs! {
 register_structs! {
     pub DmaRegisters {
         /// GPDMA secure configuration register (0x00)
-        (0x000 => pub seccfgr: ReadWrite<u32>),
+        (0x000 => pub seccfgr: ReadWrite<u32, DmaChannelEnable::Register>),
         /// GPDMA privileged configuration register (0x04)
-        (0x004 => pub privcfgr: ReadWrite<u32>),
+        (0x004 => pub privcfgr: ReadWrite<u32, DmaChannelEnable::Register>),
         (0x008 => _reserved0: [u32; 1]),
         /// Masked interrupt status register (0x0C)
         (0x00C => pub misr: ReadOnly<u32>),
@@ -153,77 +244,101 @@ impl Dma {
     pub fn setup_usart1_tx(&self, channel: ChannelId, buffer_addr: u32, length: u32) {
         if let Some(channel_id) = self.match_channel(channel) {
             // 1. Mark channel as Secure AND Privileged
-            let sec = self.registers.seccfgr.get();
-            self.registers.seccfgr.set(sec | (1 << channel_id));
-            let priv_reg = self.registers.privcfgr.get();
-            self.registers.privcfgr.set(priv_reg | (1 << channel_id));
+            self.registers.seccfgr.modify(CH_FIELDS[channel_id].val(1));
+            self.registers.privcfgr.modify(CH_FIELDS[channel_id].val(1));
 
             let ch = &self.registers.channels[channel_id];
 
             // 2. Ensure channel is disabled
-            ch.c_r.set(0);
+            ch.c_r.write(DmaChannelCR::EN::CLEAR);
 
             // 3. Clear all flags
-            ch.f_cr.set(0x0000FFFF);
+            ch.f_cr.write(
+                DmaChannelFCR::SUSPF::SET
+                    + DmaChannelFCR::USEF::SET
+                    + DmaChannelFCR::ULEF::SET
+                    + DmaChannelFCR::DTEF::SET
+                    + DmaChannelFCR::HTF::SET
+                    + DmaChannelFCR::TCF::SET,
+            );
 
             // 4. Configure Transfer Register 1 (TR1)
             // SINC (bit 3) = 1
             // SAP (bit 14) = 0 (Port 0)
             // DAP (bit 30) = 0 (Port 0 - Safer for U545)
-            ch.t_r1.set(1 << 3);
+            ch.t_r1.write(
+                DmaChannelTR1::SINC::SET + DmaChannelTR1::SAP::CLEAR + DmaChannelTR1::DAP::CLEAR,
+            );
 
             // 5. Configure Transfer Register 2 (TR2)
             // REQSEL = 25 (USART1_TX on U545), DREQ = 1 (Destination request)
-            ch.t_r2.set(25 | (1 << 10));
+            ch.t_r2
+                .write(DmaChannelTR2::REQSEL.val(25) + DmaChannelTR2::DREQ::SET);
 
             // 6. Set Addresses
             ch.s_ar.set(buffer_addr);
-            ch.d_ar.set(0x50013828); // USART1_TDR Secure Address
+            ch.d_ar.set(USART1_TDR);
 
             // 7. Set Block Register 1 (BR1)
             ch.b_r1.set(length & 0xFFFF);
 
             // 8. Enable Transfer Complete Interrupt (bit 8) and Start (bit 0)
-            ch.c_r.set((1 << 8) | 1);
+            ch.c_r
+                .write(DmaChannelCR::TCIE::SET + DmaChannelCR::EN::SET);
         }
     }
 
     pub fn setup_usart1_rx(&self, channel: ChannelId, buffer_addr: u32, length: u32) {
         if let Some(channel_id) = self.match_channel(channel) {
             // Mark channel as Secure AND Privileged
-            let sec = self.registers.seccfgr.get();
-            self.registers.seccfgr.set(sec | (1 << channel_id));
-            let priv_reg = self.registers.privcfgr.get();
-            self.registers.privcfgr.set(priv_reg | (1 << channel_id));
+            self.registers.seccfgr.modify(CH_FIELDS[channel_id].val(1));
+            self.registers.privcfgr.modify(CH_FIELDS[channel_id].val(1));
 
             let ch = &self.registers.channels[channel_id];
 
-            ch.c_r.set(0);
-            ch.f_cr.set(0x0000FFFF);
+            ch.c_r.write(DmaChannelCR::EN::CLEAR);
+            ch.f_cr.write(
+                DmaChannelFCR::SUSPF::SET
+                    + DmaChannelFCR::USEF::SET
+                    + DmaChannelFCR::ULEF::SET
+                    + DmaChannelFCR::DTEF::SET
+                    + DmaChannelFCR::HTF::SET
+                    + DmaChannelFCR::TCF::SET,
+            );
 
             // Configure TR1 (Security + Direction)
             // DINC (19), SSEC (15), DSEC (31)
-            ch.t_r1.set((1 << 19) | (1 << 15) | (1 << 31));
+            ch.t_r1.write(
+                DmaChannelTR1::DINC::SET + DmaChannelTR1::SSEC::SET + DmaChannelTR1::DSEC::SET,
+            );
 
             // Configure TR2 (Trigger Source) - REQSEL = 24
-            ch.t_r2.set(24);
+            ch.t_r2.write(DmaChannelTR2::REQSEL.val(24));
 
             // 6. Set Addresses
-            ch.s_ar.set(0x50013824);
+            ch.s_ar.set(USART1_RDR);
             ch.d_ar.set(buffer_addr);
 
             // 7. Set Block Register 1 (BR1)
             ch.b_r1.set(length & 0xFFFF);
 
             // 8. Enable
-            ch.c_r.set((1 << 8) | 1);
+            ch.c_r
+                .write(DmaChannelCR::TCIE::SET + DmaChannelCR::EN::SET);
         }
     }
 
     pub fn clear_interrupt(&self, channel: ChannelId) {
         if let Some(channel_id) = self.match_channel(channel) {
             let ch = &self.registers.channels[channel_id];
-            ch.f_cr.set(0x0000FFFF);
+            ch.f_cr.write(
+                DmaChannelFCR::SUSPF::SET
+                    + DmaChannelFCR::USEF::SET
+                    + DmaChannelFCR::ULEF::SET
+                    + DmaChannelFCR::DTEF::SET
+                    + DmaChannelFCR::HTF::SET
+                    + DmaChannelFCR::TCF::SET,
+            );
         }
     }
 
