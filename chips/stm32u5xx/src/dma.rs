@@ -17,6 +17,11 @@ const USART1_RDR: u32 = USART1_BASE_ADDR + 0x24;
 /// USART1 Transmit Data Register (TDR) address.
 const USART1_TDR: u32 = USART1_BASE_ADDR + 0x28;
 
+/// GPDMA Request Selection IDs (REQSEL)
+/// Found in the GPDMA request multiplexer table of the STM32U5 reference manual.
+const GPDMA_REQ_USART1_RX: u32 = 24;
+const GPDMA_REQ_USART1_TX: u32 = 25;
+
 register_bitfields! [
     u32,
     pub DmaChannelTR1 [
@@ -179,6 +184,34 @@ impl From<ChannelId> for usize {
     }
 }
 
+pub enum DmaDirection {
+    MemoryToPeripheral,
+    PeripheralToMemory,
+}
+
+#[derive(Copy, Clone)]
+pub enum DmaPeripheral {
+    Usart1Tx,
+    Usart1Rx,
+}
+
+impl DmaPeripheral {
+    fn get_params(&self) -> (u32, u32, DmaDirection) {
+        match self {
+            DmaPeripheral::Usart1Tx => (
+                USART1_TDR,
+                GPDMA_REQ_USART1_TX,
+                DmaDirection::MemoryToPeripheral,
+            ),
+            DmaPeripheral::Usart1Rx => (
+                USART1_RDR,
+                GPDMA_REQ_USART1_RX,
+                DmaDirection::PeripheralToMemory,
+            ),
+        }
+    }
+}
+
 pub struct ChannelDma {
     pub channel: ChannelId,
     pub in_use: Cell<bool>,
@@ -229,8 +262,15 @@ impl Dma {
         Some(channel.into())
     }
 
-    pub fn setup_usart1_tx(&self, channel: ChannelId, buffer_addr: u32, length: u32) {
+    pub fn setup(
+        &self,
+        channel: ChannelId,
+        peripheral: DmaPeripheral,
+        buffer_addr: u32,
+        length: u32,
+    ) {
         let channel_id: usize = channel.into();
+        let (periph_addr, reqsel, direction) = peripheral.get_params();
 
         // 1. Mark channel as Secure AND Privileged
         self.registers.seccfgr.modify(CH_FIELDS[channel_id].val(1));
@@ -251,66 +291,38 @@ impl Dma {
                 + DmaChannelFCR::TCF::SET,
         );
 
-        // 4. Configure Transfer Register 1 (TR1)
-        // SINC (bit 3) = 1
-        // SAP (bit 14) = 0 (Port 0)
-        // DAP (bit 30) = 0 (Port 0 - Safer for U545)
-        ch.t_r1.write(
-            DmaChannelTR1::SINC::SET + DmaChannelTR1::SAP::CLEAR + DmaChannelTR1::DAP::CLEAR,
-        );
+        // 4. Configure TR1, TR2 and addresses based on direction
+        match direction {
+            DmaDirection::MemoryToPeripheral => {
+                // Source is memory (incrementing), Destination is peripheral (fixed)
+                ch.t_r1.write(
+                    DmaChannelTR1::SINC::SET
+                        + DmaChannelTR1::SAP::CLEAR
+                        + DmaChannelTR1::DAP::CLEAR,
+                );
+                // Source request comes from destination peripheral
+                ch.t_r2
+                    .write(DmaChannelTR2::REQSEL.val(reqsel) + DmaChannelTR2::DREQ::SET);
+                ch.s_ar.set(buffer_addr);
+                ch.d_ar.set(periph_addr);
+            }
+            DmaDirection::PeripheralToMemory => {
+                // Destination is memory (incrementing), Source is peripheral (fixed)
+                // Note: Keeping security bits as in previous RX implementation
+                ch.t_r1.write(
+                    DmaChannelTR1::DINC::SET + DmaChannelTR1::SSEC::SET + DmaChannelTR1::DSEC::SET,
+                );
+                // Source request comes from source peripheral
+                ch.t_r2.write(DmaChannelTR2::REQSEL.val(reqsel));
+                ch.s_ar.set(periph_addr);
+                ch.d_ar.set(buffer_addr);
+            }
+        }
 
-        // 5. Configure Transfer Register 2 (TR2)
-        // REQSEL = 25 (USART1_TX on U545), DREQ = 1 (Destination request)
-        ch.t_r2
-            .write(DmaChannelTR2::REQSEL.val(25) + DmaChannelTR2::DREQ::SET);
-
-        // 6. Set Addresses
-        ch.s_ar.set(buffer_addr);
-        ch.d_ar.set(USART1_TDR);
-
-        // 7. Set Block Register 1 (BR1)
+        // 5. Set Block Register 1 (BR1)
         ch.b_r1.set(length & 0xFFFF);
 
-        // 8. Enable Transfer Complete Interrupt (bit 8) and Start (bit 0)
-        ch.c_r
-            .write(DmaChannelCR::TCIE::SET + DmaChannelCR::EN::SET);
-    }
-
-    pub fn setup_usart1_rx(&self, channel: ChannelId, buffer_addr: u32, length: u32) {
-        let channel_id: usize = channel.into();
-
-        // Mark channel as Secure AND Privileged
-        self.registers.seccfgr.modify(CH_FIELDS[channel_id].val(1));
-        self.registers.privcfgr.modify(CH_FIELDS[channel_id].val(1));
-
-        let ch = &self.registers.channels[channel_id];
-
-        ch.c_r.write(DmaChannelCR::EN::CLEAR);
-        ch.f_cr.write(
-            DmaChannelFCR::SUSPF::SET
-                + DmaChannelFCR::USEF::SET
-                + DmaChannelFCR::ULEF::SET
-                + DmaChannelFCR::DTEF::SET
-                + DmaChannelFCR::HTF::SET
-                + DmaChannelFCR::TCF::SET,
-        );
-
-        // Configure TR1 (Security + Direction)
-        // DINC (19), SSEC (15), DSEC (31)
-        ch.t_r1
-            .write(DmaChannelTR1::DINC::SET + DmaChannelTR1::SSEC::SET + DmaChannelTR1::DSEC::SET);
-
-        // Configure TR2 (Trigger Source) - REQSEL = 24
-        ch.t_r2.write(DmaChannelTR2::REQSEL.val(24));
-
-        // 6. Set Addresses
-        ch.s_ar.set(USART1_RDR);
-        ch.d_ar.set(buffer_addr);
-
-        // 7. Set Block Register 1 (BR1)
-        ch.b_r1.set(length & 0xFFFF);
-
-        // 8. Enable
+        // 6. Enable Transfer Complete Interrupt and start the channel
         ch.c_r
             .write(DmaChannelCR::TCIE::SET + DmaChannelCR::EN::SET);
     }

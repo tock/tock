@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use crate::dma::ChannelId;
+use crate::dma::{ChannelId, Dma, DmaPeripheral};
 use core::cell::Cell;
 use kernel::hil::uart::{self};
 use kernel::utilities::cells::OptionalCell;
@@ -10,8 +10,6 @@ use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
-
-use crate::dma::Dma;
 
 register_structs! {
     pub UsartRegisters {
@@ -246,7 +244,12 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
 
         self.tx_buffer.map(|buf| {
             if let Some(ch) = self.dma_channel_tx.get() {
-                dma.setup_usart1_tx(ch, buf.as_ptr() as u32, tx_len as u32);
+                dma.setup(
+                    ch,
+                    DmaPeripheral::Usart1Tx,
+                    buf.as_ptr() as u32,
+                    tx_len as u32,
+                );
                 self.registers.cr3.modify(CR3::DMAT::SET);
             }
         });
@@ -309,7 +312,12 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
 
         self.rx_buffer.map(|buf| {
             if let Some(ch) = self.dma_channel_rx.get() {
-                dma.setup_usart1_rx(ch, buf.as_ptr() as u32, rx_len as u32);
+                dma.setup(
+                    ch,
+                    DmaPeripheral::Usart1Rx,
+                    buf.as_ptr() as u32,
+                    rx_len as u32,
+                );
                 self.registers.cr3.modify(CR3::DMAR::SET);
             }
         });
