@@ -256,7 +256,7 @@ impl<'a> Usart<'a> {
 
         // 2. Wait until TXE (Transmit Data Register Empty) is set
         while !regs.isr.is_set(ISR::TXE) {}
-        regs.tdr.set(byte as u32);
+        regs.tdr.write(TDR::TDR.val(byte as u32));
 
         // 3. Wait for Transmission Complete before potentially re-enabling DMA
         while !regs.isr.is_set(ISR::TC) {}
