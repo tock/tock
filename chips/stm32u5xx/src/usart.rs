@@ -8,7 +8,9 @@ use kernel::hil::uart::{self};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::registers::{
+    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+};
 use kernel::utilities::StaticRef;
 
 register_structs! {
@@ -20,23 +22,23 @@ register_structs! {
         /// Control register 3
         (0x008 => pub cr3: ReadWrite<u32, CR3::Register>),
         /// Baud rate register
-        (0x00C => pub brr: ReadWrite<u32>),
+        (0x00C => pub brr: ReadWrite<u32, BRR::Register>),
         /// Guard time and prescaler register
-        (0x010 => pub gtpr: ReadWrite<u32>),
+        (0x010 => pub gtpr: ReadWrite<u32, GTPR::Register>),
         /// Receiver timeout register
-        (0x014 => pub rtor: ReadWrite<u32>),
+        (0x014 => pub rtor: ReadWrite<u32, RTOR::Register>),
         /// Request register
-        (0x018 => pub rqr: ReadWrite<u32>),
+        (0x018 => pub rqr: WriteOnly<u32, RQR::Register>),
         /// Interrupt and status register
         (0x01C => pub isr: ReadOnly<u32, ISR::Register>),
         /// Interrupt flag clear register
-        (0x020 => pub icr: ReadWrite<u32>),
+        (0x020 => pub icr: WriteOnly<u32, ICR::Register>),
         /// Receive data register
-        (0x024 => pub rdr: ReadOnly<u32>),
+        (0x024 => pub rdr: ReadOnly<u32, RDR::Register>),
         /// Transmit data register
-        (0x028 => pub tdr: ReadWrite<u32>),
+        (0x028 => pub tdr: ReadWrite<u32, TDR::Register>),
         /// Prescaler register
-        (0x02C => pub presc: ReadWrite<u32>),
+        (0x02C => pub presc: ReadWrite<u32, PRESC::Register>),
         (0x030 => @END),
     }
 }
@@ -72,13 +74,73 @@ register_bitfields![u32,
         /// DMA enable receiver
         DMAR    OFFSET(6)   NUMBITS(1) []
     ],
+    pub BRR [
+        /// Baud rate divider
+        BRR OFFSET(0) NUMBITS(16) []
+    ],
+    pub GTPR [
+        /// Guard time value
+        GT OFFSET(8) NUMBITS(8) [],
+        /// Prescaler value
+        PSC OFFSET(0) NUMBITS(8) []
+    ],
+    pub RTOR [
+        /// Receiver timeout value
+        RTO OFFSET(0) NUMBITS(24) [],
+        /// Block length
+        BLEN OFFSET(24) NUMBITS(8) []
+    ],
+    pub RQR [
+        /// Transmit data flush request
+        TXFRQ OFFSET(4) NUMBITS(1) [],
+        /// Receive data flush request
+        RXFRQ OFFSET(3) NUMBITS(1) [],
+        /// Mute mode request
+        MMRQ OFFSET(2) NUMBITS(1) [],
+        /// Send break request
+        SBKRQ OFFSET(1) NUMBITS(1) [],
+        /// Auto baud rate request
+        ABRRQ OFFSET(0) NUMBITS(1) []
+    ],
     pub ISR [
         /// Transmission complete
         TC   OFFSET(6) NUMBITS(1) [],
         /// Read data register not empty
         RXNE OFFSET(5) NUMBITS(1) [],
         /// Transmit data register empty
-        TXE  OFFSET(7) NUMBITS(1) []
+        TXE  OFFSET(7) NUMBITS(1) [],
+        /// Overrun error
+        ORE  OFFSET(3) NUMBITS(1) [],
+        /// Noise detected flag
+        NE   OFFSET(2) NUMBITS(1) [],
+        /// Framing error
+        FE   OFFSET(1) NUMBITS(1) [],
+        /// Parity error
+        PE   OFFSET(0) NUMBITS(1) []
+    ],
+    pub ICR [
+        /// Transmission complete clear flag
+        TCCF   OFFSET(6) NUMBITS(1) [],
+        /// Overrun error clear flag
+        ORECF  OFFSET(3) NUMBITS(1) [],
+        /// Noise detected clear flag
+        NECF   OFFSET(2) NUMBITS(1) [],
+        /// Framing error clear flag
+        FECF   OFFSET(1) NUMBITS(1) [],
+        /// Parity error clear flag
+        PECF   OFFSET(0) NUMBITS(1) []
+    ],
+    pub RDR [
+        /// Receive data value
+        RDR OFFSET(0) NUMBITS(9) []
+    ],
+    pub TDR [
+        /// Transmit data value
+        TDR OFFSET(0) NUMBITS(9) []
+    ],
+    pub PRESC [
+        /// Clock prescaler
+        PRESCALER OFFSET(0) NUMBITS(4) []
     ]
 ];
 
@@ -137,11 +199,12 @@ impl<'a> Usart<'a> {
     /// are handled in `handle_dma_interrupt`.
     pub fn handle_interrupt(&self) {
         let regs = &*self.registers;
-        let isr = regs.isr.get();
+        let isr = regs.isr.extract();
 
         // Clear any error flags (Parity, Framing, Noise, Overrun).
-        if (isr & 0x0F) != 0 {
-            regs.icr.set(0x0F);
+        if isr.any_matching_bits_set(ISR::PE::SET + ISR::FE::SET + ISR::NE::SET + ISR::ORE::SET) {
+            regs.icr
+                .write(ICR::PECF::SET + ICR::FECF::SET + ICR::NECF::SET + ICR::ORECF::SET);
         }
     }
 
@@ -278,9 +341,11 @@ impl uart::Configure for Usart<'_> {
     fn configure(&self, _params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
         let regs = &*self.registers;
         regs.cr1.modify(CR1::UE::CLEAR);
-        regs.presc.set(0);
-        regs.brr.set(35);
-        regs.icr.set(0x3F);
+        regs.presc.write(PRESC::PRESCALER.val(0));
+        regs.brr.write(BRR::BRR.val(35));
+        regs.icr.write(
+            ICR::TCCF::SET + ICR::ORECF::SET + ICR::NECF::SET + ICR::FECF::SET + ICR::PECF::SET,
+        );
 
         // Enable transmitter, receiver, and USART
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
