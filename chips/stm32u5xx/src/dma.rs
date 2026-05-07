@@ -44,6 +44,18 @@ register_bitfields! [
         /// Request selection
         REQSEL OFFSET(0) NUMBITS(7) [],
     ],
+    pub DmaChannelBR1 [
+        /// Block number of data bytes to transfer
+        BNDT OFFSET(0) NUMBITS(16) []
+    ],
+    pub DmaChannelSAR [
+        /// Source address
+        SAR OFFSET(0) NUMBITS(32) []
+    ],
+    pub DmaChannelDAR [
+        /// Destination address
+        DAR OFFSET(0) NUMBITS(32) []
+    ],
     pub DmaChannelCR [
         /// Transfer complete interrupt enable
         TCIE OFFSET(8) NUMBITS(1) [],
@@ -120,11 +132,11 @@ register_structs! {
         /// Channel x transfer register 2 (Relative 0x44)
         (0x044 => pub t_r2: ReadWrite<u32, DmaChannelTR2::Register>),
         /// Channel x block register 1 (Relative 0x48)
-        (0x048 => pub b_r1: ReadWrite<u32>),
+        (0x048 => pub b_r1: ReadWrite<u32, DmaChannelBR1::Register>),
         /// Channel x source address register (Relative 0x4C)
-        (0x04C => pub s_ar: ReadWrite<u32>),
+        (0x04C => pub s_ar: ReadWrite<u32, DmaChannelSAR::Register>),
         /// Channel x destination address register (Relative 0x50)
-        (0x050 => pub d_ar: ReadWrite<u32>),
+        (0x050 => pub d_ar: ReadWrite<u32, DmaChannelDAR::Register>),
         (0x054 => _reserved2: [u32; 10]),
         /// Channel x linked-list address register (Relative 0x7C)
         (0x07C => pub l_lr: ReadWrite<u32>),
@@ -303,8 +315,8 @@ impl Dma {
                 // Source request comes from destination peripheral
                 ch.t_r2
                     .write(DmaChannelTR2::REQSEL.val(reqsel) + DmaChannelTR2::DREQ::SET);
-                ch.s_ar.set(buffer_addr);
-                ch.d_ar.set(periph_addr);
+                ch.s_ar.write(DmaChannelSAR::SAR.val(buffer_addr));
+                ch.d_ar.write(DmaChannelDAR::DAR.val(periph_addr));
             }
             DmaDirection::PeripheralToMemory => {
                 // Destination is memory (incrementing), Source is peripheral (fixed)
@@ -314,13 +326,13 @@ impl Dma {
                 );
                 // Source request comes from source peripheral
                 ch.t_r2.write(DmaChannelTR2::REQSEL.val(reqsel));
-                ch.s_ar.set(periph_addr);
-                ch.d_ar.set(buffer_addr);
+                ch.s_ar.write(DmaChannelSAR::SAR.val(periph_addr));
+                ch.d_ar.write(DmaChannelDAR::DAR.val(buffer_addr));
             }
         }
 
         // 5. Set Block Register 1 (BR1)
-        ch.b_r1.set(length & 0xFFFF);
+        ch.b_r1.write(DmaChannelBR1::BNDT.val(length & 0xFFFF));
 
         // 6. Enable Transfer Complete Interrupt and start the channel
         ch.c_r
