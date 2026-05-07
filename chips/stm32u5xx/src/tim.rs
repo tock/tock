@@ -6,7 +6,7 @@ use kernel::hil::time::Time;
 use kernel::hil::time::{self, Ticks, Ticks32};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 
 register_structs! {
@@ -19,17 +19,17 @@ register_structs! {
         /// Status register
         (0x010 => sr: ReadWrite<u32, SR::Register>),
         /// Event generation register
-        (0x014 => egr: ReadWrite<u32>),
+        (0x014 => egr: WriteOnly<u32, EGR::Register>),
         (0x018 => _reserved1),
         /// Counter
-        (0x024 => cnt: ReadWrite<u32>),
+        (0x024 => cnt: ReadWrite<u32, CNT::Register>),
         /// Prescaler
-        (0x028 => psc: ReadWrite<u32>),
+        (0x028 => psc: ReadWrite<u32, PSC::Register>),
         /// Auto-reload register
-        (0x02C => arr: ReadWrite<u32>),
+        (0x02C => arr: ReadWrite<u32, ARR::Register>),
         (0x030 => _reserved2),
         /// Capture/compare register 1
-        (0x034 => ccr1: ReadWrite<u32>),
+        (0x034 => ccr1: ReadWrite<u32, CCR1::Register>),
         (0x038 => @END),
     }
 }
@@ -58,6 +58,22 @@ register_bitfields![u32,
         /// Update generation
         UG OFFSET(0) NUMBITS(1) []
     ],
+    pub CNT [
+        /// Counter value
+        CNT OFFSET(0) NUMBITS(32) []
+    ],
+    pub PSC [
+        /// Prescaler value
+        PSC OFFSET(0) NUMBITS(16) []
+    ],
+    pub ARR [
+        /// Auto-reload value
+        ARR OFFSET(0) NUMBITS(32) []
+    ],
+    pub CCR1 [
+        /// Capture/compare value
+        CCR1 OFFSET(0) NUMBITS(32) []
+    ]
 ];
 
 /// TIM2 hardware driver for the STM32U5.
@@ -111,16 +127,16 @@ impl<'a> Tim2<'a> {
         self.enable_clock();
 
         // 1. Set the value
-        self.registers.psc.set(124);
+        self.registers.psc.write(PSC::PSC.val(124));
 
         // 2. Force the hardware to load the value NOW
         // On STM32, the PSC is buffered. By setting the UG bit in EGR,
-        self.registers.egr.set(1);
+        self.registers.egr.write(EGR::UG::SET);
 
         // 3. Clear the status flag caused by the manual update
         self.registers.sr.modify(SR::UIF::CLEAR);
 
-        self.registers.arr.set(0xFFFFFFFF);
+        self.registers.arr.write(ARR::ARR.val(0xFFFFFFFF));
         self.registers.cr1.modify(CR1::CEN::SET);
     }
 }
@@ -130,7 +146,7 @@ impl time::Time for Tim2<'_> {
     type Ticks = Ticks32;
 
     fn now(&self) -> Ticks32 {
-        Ticks32::from(self.registers.cnt.get())
+        Ticks32::from(self.registers.cnt.read(CNT::CNT))
     }
 }
 
@@ -161,12 +177,12 @@ impl<'a> time::Alarm<'a> for Tim2<'a> {
         self.registers.sr.modify(SR::CC1IF::CLEAR);
 
         // 5. Program the hardware
-        self.registers.ccr1.set(expire.into_u32());
+        self.registers.ccr1.write(CCR1::CCR1.val(expire.into_u32()));
         self.registers.dier.modify(DIER::CC1IE::SET);
     }
 
     fn get_alarm(&self) -> Ticks32 {
-        Ticks32::from(self.registers.ccr1.get())
+        Ticks32::from(self.registers.ccr1.read(CCR1::CCR1))
     }
 
     fn is_armed(&self) -> bool {
