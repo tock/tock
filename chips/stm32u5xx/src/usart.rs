@@ -4,11 +4,14 @@
 
 use crate::dma::{ChannelId, Dma, DmaPeripheral};
 use core::cell::Cell;
+use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::hil::uart::{self};
 use kernel::platform::chip::PanicWriter;
+use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::dma_slice::DmaSubSliceMut;
 use kernel::utilities::io_write::IoWrite;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -159,8 +162,8 @@ pub struct Usart<'a> {
     dma_channel_rx: Cell<Option<ChannelId>>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
-    rx_buffer: TakeCell<'static, [u8]>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
+    rx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     tx_len: Cell<usize>,
     rx_len: Cell<usize>,
 }
@@ -174,8 +177,8 @@ impl<'a> Usart<'a> {
             dma_channel_rx: Cell::new(None),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
-            rx_buffer: TakeCell::empty(),
-            tx_buffer: TakeCell::empty(),
+            tx_dma_buf: MapCell::empty(),
+            rx_dma_buf: MapCell::empty(),
             tx_len: Cell::new(0),
             rx_len: Cell::new(0),
         }
@@ -222,7 +225,11 @@ impl<'a> Usart<'a> {
                 }
             });
             self.registers.cr3.modify(CR3::DMAT::CLEAR);
-            if let Some(buf) = self.tx_buffer.take() {
+            if let Some(dma_slice) = self.tx_dma_buf.take() {
+                let fence = unsafe { CortexMDmaFence::new() };
+                let mut subslice = unsafe { dma_slice.take(fence) };
+                subslice.reset();
+                let buf = subslice.take();
                 let len = self.tx_len.get();
                 self.tx_client.map(move |client| {
                     client.transmitted_buffer(buf, len, Ok(()));
@@ -235,7 +242,11 @@ impl<'a> Usart<'a> {
                 }
             });
             self.registers.cr3.modify(CR3::DMAR::CLEAR);
-            if let Some(buf) = self.rx_buffer.take() {
+            if let Some(dma_slice) = self.rx_dma_buf.take() {
+                let fence = unsafe { CortexMDmaFence::new() };
+                let mut subslice = unsafe { dma_slice.take(fence) };
+                subslice.reset();
+                let buf = subslice.take();
                 let len = self.rx_len.get();
                 self.rx_client.map(move |client| {
                     client.received_buffer(buf, len, Ok(()), uart::Error::None);
@@ -296,7 +307,7 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
         tx_buffer: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
-        if self.tx_buffer.is_some() {
+        if self.tx_dma_buf.is_some() {
             return Err((kernel::ErrorCode::BUSY, tx_buffer));
         }
 
@@ -304,27 +315,50 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
             return Err((kernel::ErrorCode::OFF, tx_buffer));
         };
 
-        self.tx_buffer.replace(tx_buffer);
+        // Move buffer into SubSlice
+        let mut subslice = SubSliceMut::new(tx_buffer);
+        subslice.slice(0..tx_len);
+
+        // Hardware fence
+        let fence = unsafe { CortexMDmaFence::new() };
+        // Convert subslice into DmaSlice
+        let dma_slice = DmaSubSliceMut::new_static(subslice, fence);
+
+        // Extract the physical pointer and length for MMIO
+        let ptr = dma_slice.as_mut_ptr() as u32;
+        let len = dma_slice.len() as u32;
+
+        // Save DmaSlice in the struct
+        self.tx_dma_buf.replace(dma_slice);
         self.tx_len.set(tx_len);
 
-        self.tx_buffer.map(|buf| {
-            if let Some(ch) = self.dma_channel_tx.get() {
-                dma.setup(
-                    ch,
-                    DmaPeripheral::Usart1Tx,
-                    buf.as_ptr() as u32,
-                    tx_len as u32,
-                );
-                self.registers.cr3.modify(CR3::DMAT::SET);
-            }
-        });
-
-        Ok(())
+        // Trigger USART
+        if let Some(ch) = self.dma_channel_tx.get() {
+            dma.setup(ch, DmaPeripheral::Usart1Tx, ptr, len);
+            self.registers.cr3.modify(CR3::DMAT::SET);
+            Ok(())
+        } else {
+            self.tx_dma_buf
+                .take()
+                .map(|s| {
+                    let f = unsafe { CortexMDmaFence::new() };
+                    let mut buf = unsafe { s.take(f) };
+                    buf.reset();
+                    Err((kernel::ErrorCode::RESERVE, buf.take()))
+                })
+                .unwrap()
+        }
     }
 
     fn transmit_abort(&self) -> Result<(), kernel::ErrorCode> {
         self.registers.cr3.modify(CR3::DMAT::CLEAR);
-        if let Some(buf) = self.tx_buffer.take() {
+        if let Some(dma_slice) = self.tx_dma_buf.take() {
+            let fence = unsafe { CortexMDmaFence::new() };
+
+            let mut subslice = unsafe { dma_slice.take(fence) };
+            subslice.reset();
+            let buf = subslice.take();
+
             self.tx_client.map(move |client| {
                 client.transmitted_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL));
             });
@@ -366,7 +400,7 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
-        if self.rx_buffer.is_some() {
+        if self.rx_dma_buf.is_some() {
             return Err((kernel::ErrorCode::BUSY, rx_buffer));
         }
 
@@ -374,27 +408,41 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
             return Err((kernel::ErrorCode::OFF, rx_buffer));
         };
 
-        self.rx_buffer.replace(rx_buffer);
+        let mut subslice = SubSliceMut::new(rx_buffer);
+        subslice.slice(0..rx_len);
+        let fence = unsafe { CortexMDmaFence::new() };
+        let dma_slice = DmaSubSliceMut::new_static(subslice, fence);
+
+        let ptr = dma_slice.as_mut_ptr() as u32;
+        let len = dma_slice.len() as u32;
+
+        self.rx_dma_buf.replace(dma_slice);
         self.rx_len.set(rx_len);
 
-        self.rx_buffer.map(|buf| {
-            if let Some(ch) = self.dma_channel_rx.get() {
-                dma.setup(
-                    ch,
-                    DmaPeripheral::Usart1Rx,
-                    buf.as_ptr() as u32,
-                    rx_len as u32,
-                );
-                self.registers.cr3.modify(CR3::DMAR::SET);
-            }
-        });
-
-        Ok(())
+        if let Some(ch) = self.dma_channel_rx.get() {
+            dma.setup(ch, DmaPeripheral::Usart1Rx, ptr, len);
+            self.registers.cr3.modify(CR3::DMAR::SET);
+            Ok(())
+        } else {
+            self.rx_dma_buf
+                .take()
+                .map(|s| {
+                    let f = unsafe { CortexMDmaFence::new() };
+                    let mut buf = unsafe { s.take(f) };
+                    buf.reset();
+                    Err((kernel::ErrorCode::RESERVE, buf.take()))
+                })
+                .unwrap()
+        }
     }
 
     fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
         self.registers.cr3.modify(CR3::DMAR::CLEAR);
-        if let Some(buf) = self.rx_buffer.take() {
+        if let Some(dma_slice) = self.rx_dma_buf.take() {
+            let fence = unsafe { CortexMDmaFence::new() };
+            let mut subslice = unsafe { dma_slice.take(fence) };
+            subslice.reset();
+            let buf = subslice.take();
             self.rx_client.map(move |client| {
                 client.received_buffer(
                     buf,
