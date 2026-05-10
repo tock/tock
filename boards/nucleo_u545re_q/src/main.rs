@@ -149,29 +149,17 @@ unsafe fn start() -> (
         stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
     );
 
-    // Link DMA to USART1
-    let usart1_channel_tx = dma1.request_channel();
-    let usart1_channel_rx = dma1.request_channel();
-
-    if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
-        stm32u545::usart::Usart::set_dma(usart1, dma1, tx, rx);
-    }
-
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
     );
 
-    // Power and Wires
-    periphs.rcc.enable_dma1();
-    periphs.rcc.enable_gpioa();
-    periphs.rcc.enable_gpioc();
-    periphs.rcc.enable_usart1();
-    periphs.rcc.enable_syscfg();
-    periphs.rcc.set_usart1_source_pclk();
-    periphs.tim2.start();
+    // Initialize wiring (DMA, clocks)
+    periphs.init();
 
+    // Board specific wiring
+    periphs.tim2.start();
     set_pin_primary_functions(periphs);
 
     // Driver Config

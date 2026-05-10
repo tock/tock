@@ -53,6 +53,23 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
         }
     }
+
+    pub fn init(&'static self) {
+        // Power and Wires
+        self.rcc.enable_dma1();
+        self.rcc.enable_gpioa();
+        self.rcc.enable_gpioc();
+        self.rcc.enable_usart1();
+        self.rcc.enable_syscfg();
+        self.rcc.set_usart1_source_pclk();
+        // Link DMA to USART1
+        let usart1_channel_tx = self.dma1.request_channel();
+        let usart1_channel_rx = self.dma1.request_channel();
+
+        if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
+            usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+        }
+    }
 }
 
 impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
