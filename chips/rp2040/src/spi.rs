@@ -345,7 +345,10 @@ impl<'a> Spi<'a> {
             }
         }
 
-        if self.transfers.get() == SPI_IN_PROGRESS {
+        if self.transfers.get() == SPI_IN_PROGRESS
+            && self.registers.sspsr.is_set(SSPSR::TFE)
+            && !self.registers.sspsr.is_set(SSPSR::BSY)
+        {
             if !self.active_after.get() {
                 self.active_slave.map(|p| {
                     p.deactivate();
