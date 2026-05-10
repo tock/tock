@@ -130,9 +130,10 @@ use core::cmp;
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
 use core::ops::{Deref, DerefMut};
-use core::ptr::{write, NonNull};
+use core::ptr::{NonNull, write};
 use core::slice;
 
+use crate::ErrorCode;
 use crate::config;
 use crate::debug;
 use crate::kernel::Kernel;
@@ -143,7 +144,6 @@ use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
-use crate::ErrorCode;
 
 /// Tracks how many upcalls a grant instance supports automatically.
 pub trait UpcallSize {
@@ -280,16 +280,31 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         grant_num: usize,
     ) -> Self {
         let counters_ptr: *mut usize = base_ptr.as_ptr().cast();
-        let counters_val = counters_ptr.read();
+
+        // # Safety
+        //
+        // The safety requirement for the function ensures that `base_ptr` is
+        // well aligned and there is an initialized counters structure there.
+        let counters_val = unsafe { counters_ptr.read() };
 
         // Parse the counters field for each of the fields
         let [_, _, allow_ro_num, upcalls_num] = u32::to_be_bytes(counters_val as u32);
 
         // Skip over the counter usize, then the stored array of `SavedAllowRo`
         // items and `SavedAllowRw` items.
-        let upcalls_array: *mut SavedUpcall = counters_ptr.add(1).cast();
-        let allow_ro_array: *mut SavedAllowRo = upcalls_array.add(upcalls_num as usize).cast();
-        let allow_rw_array: *mut SavedAllowRw = allow_ro_array.add(allow_ro_num as usize).cast();
+        //
+        // # Safety
+        //
+        // The safety requirement for the function ensures that `base_ptr` is
+        // well aligned and there are initialized arrays of saved upcalls and
+        // allows above the counters.
+        let (upcalls_array, allow_ro_array, allow_rw_array) = unsafe {
+            let upcalls_array: *mut SavedUpcall = counters_ptr.add(1).cast();
+            let allow_ro_array: *mut SavedAllowRo = upcalls_array.add(upcalls_num as usize).cast();
+            let allow_rw_array: *mut SavedAllowRw =
+                allow_ro_array.add(allow_ro_num as usize).cast();
+            (upcalls_array, allow_ro_array, allow_rw_array)
+        };
 
         Self {
             process,
@@ -327,15 +342,31 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
             u32::from_be_bytes([0, allow_rw_num_val.0, allow_ro_num_val.0, upcalls_num_val.0])
                 as usize;
 
-        let upcalls_array: *mut SavedUpcall = counters_ptr.add(1).cast();
-        let allow_ro_array: *mut SavedAllowRo = upcalls_array.add(upcalls_num_val.0.into()).cast();
-        let allow_rw_array: *mut SavedAllowRw =
-            allow_ro_array.add(allow_ro_num_val.0.into()).cast();
+        // # Safety
+        //
+        // Callers guarantee that the `base_ptr` is well aligned to the kernel
+        // managed grant structure and these pointers reconstruct that grant
+        // structure.
+        let (upcalls_array, allow_ro_array, allow_rw_array) = unsafe {
+            let upcalls_array: *mut SavedUpcall = counters_ptr.add(1).cast();
+            let allow_ro_array: *mut SavedAllowRo =
+                upcalls_array.add(upcalls_num_val.0.into()).cast();
+            let allow_rw_array: *mut SavedAllowRw =
+                allow_ro_array.add(allow_ro_num_val.0.into()).cast();
+            (upcalls_array, allow_ro_array, allow_rw_array)
+        };
 
-        counters_ptr.write(counter);
-        write_default_array(upcalls_array, upcalls_num_val.0.into());
-        write_default_array(allow_ro_array, allow_ro_num_val.0.into());
-        write_default_array(allow_rw_array, allow_rw_num_val.0.into());
+        // # Safety
+        //
+        // Callers guarantee that the `base_ptr` is well aligned to the kernel
+        // managed grant structure and there is enough memory to hold the entire
+        // grant structure. That ensures writing the grant structure is safe.
+        unsafe {
+            counters_ptr.write(counter);
+            write_default_array(upcalls_array, upcalls_num_val.0.into());
+            write_default_array(allow_ro_array, allow_ro_num_val.0.into());
+            write_default_array(allow_rw_array, allow_rw_num_val.0.into());
+        }
 
         Self {
             process,
@@ -393,11 +424,15 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         grant_size: usize,
         grant_t_size: GrantDataSize,
     ) -> NonNull<u8> {
+        // # Safety
+        //
         // The location of the grant data T is the last element in the entire
         // grant region. Caller must verify that memory is accessible and well
         // aligned to T.
-        let grant_t_size_usize: usize = grant_t_size.0;
-        NonNull::new_unchecked(base_ptr.as_ptr().add(grant_size - grant_t_size_usize))
+        unsafe {
+            let grant_t_size_usize: usize = grant_t_size.0;
+            NonNull::new_unchecked(base_ptr.as_ptr().add(grant_size - grant_t_size_usize))
+        }
     }
 
     /// Read an 8 bit value from the counter field offset by the specified
@@ -806,8 +841,13 @@ impl Default for SavedAllowRw {
 /// already does contain initialized memory, then those contents will be
 /// overwritten without being `Drop`ed first.
 unsafe fn write_default_array<T: Default>(base: *mut T, num: usize) {
-    for i in 0..num {
-        base.add(i).write(T::default());
+    // # Safety
+    //
+    // See function description.
+    unsafe {
+        for i in 0..num {
+            base.add(i).write(T::default());
+        }
     }
 }
 

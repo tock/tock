@@ -24,17 +24,14 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
-// use components::fxos8700::Fxos8700Component;
-// use components::ninedof::NineDofComponent;
-use imxrt1050::iomuxc::DriveStrength;
-use imxrt1050::iomuxc::MuxMode;
-use imxrt1050::iomuxc::OpenDrainEn;
-use imxrt1050::iomuxc::PadId;
-use imxrt1050::iomuxc::PullKeepEn;
-use imxrt1050::iomuxc::PullUpDown;
-use imxrt1050::iomuxc::Sion;
-use imxrt1050::iomuxc::Speed;
-use imxrt10xx as imxrt1050;
+use imxrt10xx::iomuxc::DriveStrength;
+use imxrt10xx::iomuxc::MuxMode;
+use imxrt10xx::iomuxc::OpenDrainEn;
+use imxrt10xx::iomuxc::PadId;
+use imxrt10xx::iomuxc::PullKeepEn;
+use imxrt10xx::iomuxc::PullUpDown;
+use imxrt10xx::iomuxc::Sion;
+use imxrt10xx::iomuxc::Speed;
 
 // Unit Tests for drivers.
 // #[allow(dead_code)]
@@ -49,7 +46,7 @@ pub mod boot_header;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-type ChipHw = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
+type ChipHw = imxrt10xx::chip::Imxrt10xx<imxrt10xx::chip::Imxrt10xxDefaultPeripherals>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
@@ -80,15 +77,15 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 struct Imxrt1050EVKB {
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, imxrt1050::gpt::Gpt1<'static>>,
+        VirtualMuxAlarm<'static, imxrt10xx::gpt::Gpt1<'static>>,
     >,
-    button: &'static capsules_core::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
+    button: &'static capsules_core::button::Button<'static, imxrt10xx::gpio::Pin<'static>>,
     console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, imxrt10xx::gpio::Pin<'static>>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules_core::led::LedDriver<
         'static,
-        LedLow<'static, imxrt1050::gpio::Pin<'static>>,
+        LedLow<'static, imxrt10xx::gpio::Pin<'static>>,
         1,
     >,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
@@ -116,7 +113,7 @@ impl SyscallDriverLookup for Imxrt1050EVKB {
     }
 }
 
-impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>>
+impl KernelResources<imxrt10xx::chip::Imxrt10xx<imxrt10xx::chip::Imxrt10xxDefaultPeripherals>>
     for Imxrt1050EVKB
 {
     type SyscallDriverLookup = Self;
@@ -152,9 +149,9 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
-    peripherals: &'static imxrt1050::chip::Imxrt10xxDefaultPeripherals,
+    peripherals: &'static imxrt10xx::chip::Imxrt10xxDefaultPeripherals,
 ) {
-    use imxrt1050::gpio::PinId;
+    use imxrt10xx::gpio::PinId;
 
     peripherals.ccm.enable_iomuxc_clock();
     peripherals.ccm.enable_iomuxc_snvs_clock();
@@ -210,9 +207,9 @@ unsafe fn set_pin_primary_functions(
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPeripherals) {
+unsafe fn setup_peripherals(peripherals: &imxrt10xx::chip::Imxrt10xxDefaultPeripherals) {
     // LPUART1 IRQn is 20
-    cortexm7::nvic::Nvic::new(imxrt1050::nvic::LPUART1).enable();
+    cortexm7::nvic::Nvic::new(imxrt10xx::nvic::LPUART1).enable();
 
     // TIM2 IRQn is 28
     peripherals.gpt1.enable_clock();
@@ -220,7 +217,7 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
         peripherals.ccm.perclk_sel(),
         peripherals.ccm.perclk_divider(),
     );
-    cortexm7::nvic::Nvic::new(imxrt1050::nvic::GPT1).enable();
+    cortexm7::nvic::Nvic::new(imxrt10xx::nvic::GPT1).enable();
 }
 
 /// This is in a separate, inline(never) function so that its stack frame is
@@ -230,9 +227,9 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
 unsafe fn start() -> (
     &'static kernel::Kernel,
     Imxrt1050EVKB,
-    &'static imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>,
+    &'static imxrt10xx::chip::Imxrt10xx<imxrt10xx::chip::Imxrt10xxDefaultPeripherals>,
 ) {
-    imxrt1050::init();
+    imxrt10xx::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -245,17 +242,17 @@ unsafe fn start() -> (
             PanicResources::new(),
         );
 
-    let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
+    let ccm = static_init!(imxrt10xx::ccm::Ccm, imxrt10xx::ccm::Ccm::new());
     let peripherals = static_init!(
-        imxrt1050::chip::Imxrt10xxDefaultPeripherals,
-        imxrt1050::chip::Imxrt10xxDefaultPeripherals::new(ccm)
+        imxrt10xx::chip::Imxrt10xxDefaultPeripherals,
+        imxrt10xx::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
     peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
     peripherals
         .ccm
-        .set_uart_clock_sel(imxrt1050::ccm::UartClockSelection::PLL3);
+        .set_uart_clock_sel(imxrt10xx::ccm::UartClockSelection::PLL3);
     peripherals.ccm.set_uart_clock_podf(1);
     peripherals.lpuart1.set_baud();
 
@@ -354,8 +351,8 @@ unsafe fn start() -> (
 
     // Clock to Port A is enabled in `set_pin_primary_functions()
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedLow<'static, imxrt1050::gpio::Pin<'static>>,
-        LedLow::new(peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)),
+        LedLow<'static, imxrt10xx::gpio::Pin<'static>>,
+        LedLow::new(peripherals.ports.pin(imxrt10xx::gpio::PinId::AdB0_09)),
     ));
 
     // BUTTONs
@@ -363,20 +360,20 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
-            imxrt1050::gpio::Pin,
+            imxrt10xx::gpio::Pin,
             (
-                peripherals.ports.pin(imxrt1050::gpio::PinId::Wakeup),
+                peripherals.ports.pin(imxrt10xx::gpio::PinId::Wakeup),
                 kernel::hil::gpio::ActivationMode::ActiveHigh,
                 kernel::hil::gpio::FloatingState::PullDown
             )
         ),
     )
-    .finalize(components::button_component_static!(imxrt1050::gpio::Pin));
+    .finalize(components::button_component_static!(imxrt10xx::gpio::Pin));
 
     // ALARM
     let gpt1 = &peripherals.gpt1;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(gpt1).finalize(
-        components::alarm_mux_component_static!(imxrt1050::gpt::Gpt1),
+        components::alarm_mux_component_static!(imxrt10xx::gpt::Gpt1),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -384,7 +381,7 @@ unsafe fn start() -> (
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(imxrt1050::gpt::Gpt1));
+    .finalize(components::alarm_component_static!(imxrt10xx::gpt::Gpt1));
 
     // GPIO
     // For now we expose only two pins
@@ -392,13 +389,13 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
-            imxrt1050::gpio::Pin<'static>,
+            imxrt10xx::gpio::Pin<'static>,
             // The User Led
-            0 => peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)
+            0 => peripherals.ports.pin(imxrt10xx::gpio::PinId::AdB0_09)
         ),
     )
     .finalize(components::gpio_component_static!(
-        imxrt1050::gpio::Pin<'static>
+        imxrt10xx::gpio::Pin<'static>
     ));
 
     // LPI2C
@@ -452,11 +449,11 @@ unsafe fn start() -> (
     peripherals.lpi2c1.enable_clock();
     peripherals
         .lpi2c1
-        .set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
+        .set_speed(imxrt10xx::lpi2c::Lpi2cSpeed::Speed100k, 8);
 
-    use imxrt1050::gpio::PinId;
+    use imxrt10xx::gpio::PinId;
     let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None).finalize(
-        components::i2c_mux_component_static!(imxrt1050::lpi2c::Lpi2c),
+        components::i2c_mux_component_static!(imxrt10xx::lpi2c::Lpi2c),
     );
 
     // Fxos8700 sensor
@@ -466,7 +463,7 @@ unsafe fn start() -> (
         peripherals.ports.pin(PinId::AdB1_00),
     )
     .finalize(components::fxos8700_component_static!(
-        imxrt1050::lpi2c::Lpi2c
+        imxrt10xx::lpi2c::Lpi2c
     ));
 
     // Ninedof
@@ -518,7 +515,7 @@ unsafe fn start() -> (
         None,
     )
     .finalize(components::process_console_component_static!(
-        imxrt1050::gpt::Gpt1
+        imxrt10xx::gpt::Gpt1
     ));
     let _ = process_console.start();
 

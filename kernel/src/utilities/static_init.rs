@@ -152,13 +152,13 @@ macro_rules! static_buf {
 /// possible.
 #[macro_export]
 macro_rules! static_named_buf {
-    ($T:ty, $N:expr $(,)?) => {{
+    ($T:ty, $N:literal $(,)?) => {{
         // Statically allocate a read-write buffer for the value without
         // actually writing anything, as well as a flag to track if
         // this memory has been initialized yet.
         #[used]
-        #[no_mangle]
-        #[export_name = $N]
+        #[unsafe(no_mangle)]
+        #[unsafe(export_name = $N)]
         pub static mut BUF: (core::mem::MaybeUninit<$T>, bool) =
             (core::mem::MaybeUninit::uninit(), false);
 

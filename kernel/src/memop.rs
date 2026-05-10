@@ -4,10 +4,10 @@
 
 //! Implementation of the MEMOP family of syscalls.
 
+use crate::ErrorCode;
 use crate::process::Process;
 use crate::syscall::SyscallReturn;
 use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
-use crate::ErrorCode;
 
 /// Handle the `memop` syscall.
 ///

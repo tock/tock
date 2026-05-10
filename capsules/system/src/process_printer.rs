@@ -6,10 +6,10 @@
 
 use core::fmt::Write;
 
+use crate::write_to_binary::WriteToBinaryOffsetWrapper;
 use kernel::process::Process;
 use kernel::process::{ProcessPrinter, ProcessPrinterContext};
 use kernel::utilities::binary_write::BinaryWrite;
-use kernel::utilities::binary_write::WriteToBinaryOffsetWrapper;
 
 /// A Process Printer that displays a process as a human-readable string.
 pub struct ProcessPrinterText {}

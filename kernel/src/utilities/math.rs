@@ -110,11 +110,7 @@ fn ln_1to2_series_approximation(x: f32) -> f32 {
             * x_working;
     // ln(2) * n + ln(y)
     let result: f32 = (base2_exponent as f32) * f32::consts::LN_2 + ln_1to2_polynomial;
-    if x_less_than_1 {
-        -result
-    } else {
-        result
-    }
+    if x_less_than_1 { -result } else { result }
 }
 
 /// Compute the base 10 logarithm of `f`.

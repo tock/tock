@@ -12,8 +12,7 @@ use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 use kernel::utilities::io_write::IoWrite;
 
-use crate::imxrt1050;
-use imxrt1050::gpio::PinId;
+use imxrt10xx::gpio::PinId;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -39,8 +38,8 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let ccm = crate::imxrt1050::ccm::Ccm::new();
-        let uart = imxrt1050::lpuart::Lpuart::new_lpuart1(&ccm);
+        let ccm = imxrt10xx::ccm::Ccm::new();
+        let uart = imxrt10xx::lpuart::Lpuart::new_lpuart1(&ccm);
 
         if !self.initialized {
             self.initialized = true;
@@ -65,7 +64,7 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User Led is connected to AdB0_09
-    let pin = imxrt1050::gpio::Pin::from_pin_id(PinId::AdB0_09);
+    let pin = imxrt10xx::gpio::Pin::from_pin_id(PinId::AdB0_09);
     let led = &mut led::LedLow::new(&pin);
     let writer = &mut *addr_of_mut!(WRITER);
 

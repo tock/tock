@@ -5,9 +5,9 @@
 //! Interface for computing digests (hashes, cryptographic hashes, and
 //! HMACs) over data.
 
+use crate::ErrorCode;
 use crate::utilities::leasable_buffer::SubSlice;
 use crate::utilities::leasable_buffer::SubSliceMut;
-use crate::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks
 /// when data has been added to a digest.
@@ -99,9 +99,9 @@ pub trait Client<const DIGEST_LEN: usize>:
 }
 
 impl<
-        T: ClientData<DIGEST_LEN> + ClientHash<DIGEST_LEN> + ClientVerify<DIGEST_LEN>,
-        const DIGEST_LEN: usize,
-    > Client<DIGEST_LEN> for T
+    T: ClientData<DIGEST_LEN> + ClientHash<DIGEST_LEN> + ClientVerify<DIGEST_LEN>,
+    const DIGEST_LEN: usize,
+> Client<DIGEST_LEN> for T
 {
 }
 
