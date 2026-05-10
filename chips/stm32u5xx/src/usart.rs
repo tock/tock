@@ -5,8 +5,10 @@
 use crate::dma::{ChannelId, Dma, DmaPeripheral};
 use core::cell::Cell;
 use kernel::hil::uart::{self};
+use kernel::platform::chip::PanicWriter;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -409,5 +411,49 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
 
     fn receive_word(&self) -> Result<(), kernel::ErrorCode> {
         Err(kernel::ErrorCode::NOSUPPORT)
+    }
+}
+
+struct UsartPanicWriter {
+    registers: StaticRef<UsartRegisters>,
+}
+
+impl IoWrite for UsartPanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        for &byte in buf {
+            let regs = &*self.registers;
+            while !regs.isr.is_set(ISR::TXE) {}
+            regs.tdr.write(TDR::TDR.val(byte as u32));
+            while !regs.isr.is_set(ISR::TC) {}
+        }
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UsartPanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+pub struct UsartPanicWriterConfig {
+    pub base: StaticRef<UsartRegisters>,
+}
+
+impl PanicWriter for Usart<'_> {
+    type Config = UsartPanicWriterConfig;
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        let writer = UsartPanicWriter {
+            registers: config.base,
+        };
+
+        let regs = &*writer.registers;
+        regs.cr1.modify(CR1::UE::CLEAR);
+        // Baud Rate
+        regs.brr.write(BRR::BRR.val(35));
+        regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
+
+        writer
     }
 }

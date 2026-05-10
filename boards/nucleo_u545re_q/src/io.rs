@@ -5,7 +5,6 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of_mut;
 
 use kernel::debug;
 use kernel::utilities::io_write::IoWrite;
@@ -38,10 +37,12 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[panic_handler]
 pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer_config = stm32u545::usart::UsartPanicWriterConfig {
+        base: stm32u545::usart::USART1_BASE,
+    };
 
-    debug::panic_print_old(
-        writer,
+    debug::panic_print::<stm32u545::usart::Usart, crate::ChipHw, crate::ProcessPrinterInUse>(
+        writer_config,
         info,
         &cortexm33::support::nop,
         crate::PANIC_RESOURCES.get(),
