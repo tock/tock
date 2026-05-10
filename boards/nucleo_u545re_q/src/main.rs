@@ -100,7 +100,7 @@ impl KernelResources<ChipHw> for NucleoU545RE {
 }
 
 /// Helper function for board-specific pin muxing
-unsafe fn set_pin_primary_functions(periphs: &stm32u545::Stm32u5xxPeripherals) {
+unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultPeripherals) {
     use kernel::hil::gpio::Configure;
 
     // USART1 Pins (PA9/10)
@@ -159,8 +159,8 @@ unsafe fn start() -> (
 
     // Load Peripherals Bundle
     let periphs = static_init!(
-        stm32u545::Stm32u5xxPeripherals<'static>,
-        stm32u545::Stm32u5xxPeripherals::new(exti, dma1, usart1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
     );
 
     // Power and Wires
@@ -266,20 +266,9 @@ unsafe fn start() -> (
         }
     );
 
-    // Initialize Chip
-    let default_peripherals = static_init!(
-        stm32u545::chip::Stm32u5xxDefaultPeripherals,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(
-            &periphs.tim2,
-            periphs.usart1,
-            periphs.exti,
-            dma1
-        )
-    );
-
     let chip = static_init!(
         stm32u545::chip::Stm32u5xx<stm32u545::chip::Stm32u5xxDefaultPeripherals>,
-        stm32u545::chip::Stm32u5xx::new(default_peripherals)
+        stm32u545::chip::Stm32u5xx::new(periphs)
     );
 
     // Symbols for linker

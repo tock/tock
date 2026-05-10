@@ -4,12 +4,18 @@
 // Copyright OxidOS Automotive 2026.
 
 use crate::dma::{ChannelId, Dma};
+use crate::exti;
+use crate::gpio;
 use crate::nvic::{
     EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
     GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
     GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
     TIM2_IRQ, USART1_IRQ,
 };
+use crate::rcc;
+use crate::tim;
+use crate::usart;
+
 use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
@@ -21,24 +27,30 @@ pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
 }
 
 pub struct Stm32u5xxDefaultPeripherals<'a> {
-    pub tim2: &'a crate::tim::Tim2<'a>,
-    pub usart1: &'a crate::usart::Usart<'a>,
-    pub exti: &'a crate::exti::Exti<'a>,
+    pub rcc: rcc::Rcc,
+    pub tim2: tim::Tim2<'a>,
+    pub usart1: &'a usart::Usart<'a>,
+    pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
+    pub gpio_a: gpio::Port<'a>,
+    pub gpio_c: gpio::Port<'a>,
+}
+
+fn enable_tim2_clock() {
+    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
+    rcc.enable_tim2();
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(
-        tim2: &'a crate::tim::Tim2<'a>,
-        usart1: &'a crate::usart::Usart<'a>,
-        exti: &'a crate::exti::Exti<'a>,
-        dma1: &'a Dma,
-    ) -> Self {
+    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
-            tim2,
+            rcc: rcc::Rcc::new(rcc::RCC_BASE),
+            tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
             usart1,
             exti,
             dma1,
+            gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
+            gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
         }
     }
 }
