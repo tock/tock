@@ -162,16 +162,6 @@ unsafe fn start() -> (
     periphs.tim2.start();
     set_pin_primary_functions(periphs);
 
-    // Driver Config
-    use kernel::hil::uart::Configure;
-    let _ = periphs.usart1.configure(kernel::hil::uart::Parameters {
-        baud_rate: 115200,
-        stop_bits: kernel::hil::uart::StopBits::One,
-        parity: kernel::hil::uart::Parity::None,
-        hw_flow_control: false,
-        width: kernel::hil::uart::Width::Eight,
-    });
-
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
