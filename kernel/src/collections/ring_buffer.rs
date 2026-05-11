@@ -462,6 +462,7 @@ mod flux_specs {
     use crate::collections::list::ListIterator;
     use crate::collections::queue::Queue;
     use crate::collections::ring_buffer::RingBuffer;
+    use core::mem::MaybeUninit;
 
     #[flux::specs {
         // Specify well-formedness for RingBuffer<T>.
@@ -534,7 +535,7 @@ mod flux_specs {
     // leading to panics
     #[allow(dead_code)]
     #[flux_rs::should_fail]
-    fn bad_split_into_ringbuffers<'a, T>(
+    fn bad_split_into_ringbuffers<'a, T: Copy>(
         buf: &'a mut [MaybeUninit<T>],
         output_len: usize,
     ) -> (RingBuffer<'a, T>, RingBuffer<'a, T>) {
@@ -554,7 +555,7 @@ mod flux_specs {
     #[flux_rs::should_fail]
     #[flux_rs::spec(fn bad_enqueue(self: &mut RingBuffer<T>, val: T) -> bool
                         ensures self: RingBuffer<T>)]
-    fn bad_enqueue<T>(rb: &mut RingBuffer<T>, val: T) -> bool {
+    fn bad_enqueue<T: Copy>(rb: &mut RingBuffer<T>, val: T) -> bool {
         // This function will not panic as long as rb.tail < rb.ring.len().
         // However, for this to be true, every RingBuffer method needs to
         // maintain this invariant (which is encoded in our RingBuffer spec).
