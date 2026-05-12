@@ -366,7 +366,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                     app.app_buf_offset.set(0);
                     self.channel.set(channel);
                     // start a continuous sample
-                    let res = self.adc_buf1.take().map_or(Err(ErrorCode::BUSY), |buf1| {
+                    self.adc_buf1.take().map_or(Err(ErrorCode::BUSY), |buf1| {
                         self.adc_buf2
                             .take()
                             .map_or(Err(ErrorCode::BUSY), move |buf2| {
@@ -401,8 +401,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                                         |()| Ok(()),
                                     )
                             })
-                    });
-                    res
+                    })
                 })
                 .map_err(|err| {
                     if err == kernel::process::Error::NoSuchApp
