@@ -16,7 +16,6 @@ use sifive::uart::{Uart, UartPanicWriterConfig};
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // turn off the non panic leds, just in case
 
-    use core::ptr::addr_of_mut;
     let led_green = sifive::gpio::GpioPin::new(
         e310_g002::gpio::GPIO0_BASE,
         sifive::gpio::pins::pin19,

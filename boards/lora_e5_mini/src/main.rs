@@ -12,8 +12,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;

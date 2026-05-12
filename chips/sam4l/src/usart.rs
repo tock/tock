@@ -13,6 +13,7 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::spi;
 use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::uart;
+use kernel::hil::uart::Configure;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -1317,9 +1318,7 @@ impl kernel::utilities::io_write::IoWrite for UsartPanicWriter {
     fn write(&mut self, buf: &[u8]) -> usize {
         // Create a fresh PowerManager for panic output using static allocation.
         // This mirrors the pattern used in board-level panic handlers for sam4l.
-        let pm = unsafe {
-            kernel::static_init!(pm::PowerManager, pm::PowerManager::new())
-        };
+        let pm = unsafe { kernel::static_init!(pm::PowerManager, pm::PowerManager::new()) };
         let usart = match self.id {
             UsartId::Usart0 => USART::new_usart0(pm),
             UsartId::Usart1 => USART::new_usart1(pm),

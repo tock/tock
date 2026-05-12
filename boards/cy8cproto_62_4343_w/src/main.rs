@@ -12,8 +12,6 @@ mod io;
 
 kernel::stack_size! {0x2000}
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::led::LedsComponent;
 use kernel::component::Component;

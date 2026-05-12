@@ -3,7 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 use core::panic::PanicInfo;
-use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil::gpio;
 use kernel::hil::led;

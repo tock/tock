@@ -533,6 +533,6 @@ impl kernel::platform::chip::PanicWriter for BlockingSerialPort {
     type Config = BlockingSerialPortConfig;
 
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
-        BlockingSerialPort::new(config.base)
+        unsafe { BlockingSerialPort::new(config.base) }
     }
 }

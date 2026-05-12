@@ -8,7 +8,7 @@ use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
 use nrf52833::gpio::Pin;
-use nrf52833::uart::{Uarte, UartPanicWriterConfig};
+use nrf52833::uart::{UartPanicWriterConfig, Uarte};
 
 /// Default panic handler for the microbit board.
 ///
@@ -17,7 +17,6 @@ use nrf52833::uart::{Uarte, UartPanicWriterConfig};
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // MicroBit v2 has a microphone LED, use it for panic
-    use core::ptr::addr_of_mut;
     let led_kernel_pin = &nrf52833::gpio::nrf52833_gpio_create_pin(Pin::P0_20);
     let led = &mut led::LedLow::new(led_kernel_pin);
 
