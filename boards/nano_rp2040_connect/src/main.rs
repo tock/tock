@@ -293,9 +293,6 @@ pub unsafe fn start() -> (
     // Unreset all peripherals
     resets.unreset_all_except(&[], true);
 
-    // Set the UART used for panic
-    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
-
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
     let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);

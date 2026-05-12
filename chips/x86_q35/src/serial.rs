@@ -521,3 +521,18 @@ impl IoWrite for BlockingSerialPort {
         buf.len()
     }
 }
+
+/// Configuration for the synchronous serial port panic writer.
+///
+/// This captures everything needed to set up the serial port for panic output.
+pub struct BlockingSerialPortConfig {
+    pub base: u16,
+}
+
+impl kernel::platform::chip::PanicWriter for BlockingSerialPort {
+    type Config = BlockingSerialPortConfig;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        BlockingSerialPort::new(config.base)
+    }
+}

@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-use core::fmt::Write;
 use core::{arch::asm, panic::PanicInfo};
+use core::fmt::Write;
 
 use kernel::debug;
 
-use x86_q35::serial::{BlockingSerialPort, COM1_BASE};
+use x86_q35::serial::{BlockingSerialPort, BlockingSerialPortConfig, COM1_BASE};
 
-/// Exists QEMU
+/// Exits QEMU
 ///
 /// This function requires the `-device isa-debug-exit,iobase=0xf4,iosize=0x04`
 /// device enabled.
@@ -37,7 +37,7 @@ fn exit_qemu() -> ! {
         \r\n"
     ));
 
-    // We use the `htl` instruction in the infinite loop to prevent high CPU usage
+    // We use the `hlt` instruction in the infinite loop to prevent high CPU usage
     // if QEMU did not exit.
     loop {
         unsafe { asm!("hlt") }
@@ -48,10 +48,8 @@ fn exit_qemu() -> ! {
 #[cfg(not(test))]
 #[panic_handler]
 unsafe fn panic_handler(pi: &PanicInfo) -> ! {
-    let mut com1 = BlockingSerialPort::new(COM1_BASE);
-
-    debug::panic_print_old(
-        &mut com1,
+    debug::panic_print::<BlockingSerialPort, _, _>(
+        BlockingSerialPortConfig { base: COM1_BASE },
         pi,
         &x86::support::nop,
         crate::PANIC_RESOURCES.get(),

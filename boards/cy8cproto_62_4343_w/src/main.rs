@@ -316,8 +316,6 @@ pub unsafe fn main() {
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
-    (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb);
-
     kernel::debug!("Initialization complete. Entering main loop.");
 
     //--------------------------------------------------------------------------

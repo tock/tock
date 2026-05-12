@@ -16,7 +16,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 
-const UART0_BASE: StaticRef<UartRegisters> =
+pub const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x4001_C000 as *const UartRegisters) };
 
 pub const UART1_BASE: StaticRef<UartRegisters> =

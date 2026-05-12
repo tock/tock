@@ -1285,3 +1285,83 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
         unimplemented!("USART: SPI: Use `read_write_bytes()` instead.");
     }
 }
+
+/// Selects which USART instance to use for panic output.
+pub enum UsartId {
+    Usart0,
+    Usart1,
+    Usart2,
+    Usart3,
+}
+
+/// Configuration for the synchronous USART panic writer.
+///
+/// This captures everything needed to set up the USART for panic output.
+pub struct UsartPanicWriterConfig {
+    pub id: UsartId,
+}
+
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+///
+/// TODO: Validate this [`UsartPanicWriter`] is always sound to create.
+struct UsartPanicWriter {
+    id: UsartId,
+    initialized: bool,
+}
+
+impl kernel::utilities::io_write::IoWrite for UsartPanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        // Create a fresh PowerManager for panic output using static allocation.
+        // This mirrors the pattern used in board-level panic handlers for sam4l.
+        let pm = unsafe {
+            kernel::static_init!(pm::PowerManager, pm::PowerManager::new())
+        };
+        let usart = match self.id {
+            UsartId::Usart0 => USART::new_usart0(pm),
+            UsartId::Usart1 => USART::new_usart1(pm),
+            UsartId::Usart2 => USART::new_usart2(pm),
+            UsartId::Usart3 => USART::new_usart3(pm),
+        };
+        let regs_manager = &USARTRegManager::panic_new(&usart);
+        if !self.initialized {
+            self.initialized = true;
+            let _ = usart.configure(uart::Parameters {
+                baud_rate: 115200,
+                width: uart::Width::Eight,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+            });
+            usart.enable_tx(regs_manager);
+        }
+        for &c in buf {
+            usart.send_byte(regs_manager, c);
+            while !usart.tx_ready(regs_manager) {}
+        }
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UsartPanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        kernel::utilities::io_write::IoWrite::write(self, s.as_bytes());
+        Ok(())
+    }
+}
+
+impl kernel::platform::chip::PanicWriter for USART<'static> {
+    type Config = UsartPanicWriterConfig;
+
+    unsafe fn create_panic_writer(
+        config: Self::Config,
+    ) -> impl kernel::utilities::io_write::IoWrite + core::fmt::Write {
+        UsartPanicWriter {
+            id: config.id,
+            initialized: false,
+        }
+    }
+}

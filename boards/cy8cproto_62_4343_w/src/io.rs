@@ -3,57 +3,24 @@
 // Copyright OxidOS Automotive 2025 SRL.
 
 use core::panic::PanicInfo;
-use kernel::utilities::cells::OptionalCell;
 
 use psoc62xa::gpio::GpioPin;
-use psoc62xa::scb::Scb;
+use psoc62xa::scb::{Scb, ScbPanicWriterConfig};
 
 use kernel::debug;
 use kernel::hil::led::LedHigh;
-use kernel::utilities::io_write::IoWrite;
-
-/// Writer is used by kernel::debug to panic message to the serial port.
-pub struct Writer {
-    scb: OptionalCell<&'static Scb<'static>>,
-}
-
-impl Writer {
-    pub fn set_scb(&self, scb: &'static Scb) {
-        self.scb.set(scb);
-    }
-}
-
-impl core::fmt::Write for Writer {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.scb.map(|scb| scb.transmit_uart_sync(s.as_bytes()));
-        Ok(())
-    }
-}
-
-impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        self.scb.map(|scb| scb.transmit_uart_sync(buf));
-        buf.len()
-    }
-}
-
-pub static mut WRITER: Writer = Writer {
-    scb: OptionalCell::empty(),
-};
 
 /// Panic handler for the CY8CPROTO-062-4343 board.
 #[panic_handler]
 pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
-    use core::ptr::addr_of_mut;
-    let writer = &mut *addr_of_mut!(WRITER);
     let led_kernel_pin = &GpioPin::new(psoc62xa::gpio::PsocPin::P13_7);
     let led = &mut LedHigh::new(led_kernel_pin);
 
-    debug::panic_old(
+    debug::panic::<_, Scb, _, _>(
         &mut [led],
-        writer,
+        ScbPanicWriterConfig,
         panic_info,
         &cortexm0p::support::nop,
         crate::PANIC_RESOURCES.get(),
-    );
+    )
 }

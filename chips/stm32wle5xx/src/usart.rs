@@ -722,6 +722,7 @@ impl kernel::platform::chip::PanicWriter for Usart<'_> {
             UsartId::Usart1 => Usart::new_usart1(clocks),
             UsartId::Usart2 => Usart::new_usart2(clocks),
         };
+        uart.enable_clock();
         let _ = uart.configure(params);
         UsartPanicWriter { uart }
     }

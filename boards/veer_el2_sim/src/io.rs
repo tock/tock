@@ -4,14 +4,11 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of_mut;
 use core::ptr::write_volatile;
 use kernel::debug;
 use kernel::utilities::io_write::IoWrite;
 
 struct Writer {}
-
-static mut WRITER: Writer = Writer {};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
@@ -32,6 +29,13 @@ impl IoWrite for Writer {
     }
 }
 
+impl kernel::platform::chip::PanicWriter for Writer {
+    type Config = ();
+    unsafe fn create_panic_writer(_config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        Writer {}
+    }
+}
+
 /// Panic handler.
 ///
 /// # Safety
@@ -39,10 +43,8 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let writer = &mut *addr_of_mut!(WRITER);
-
-    debug::panic_print_old(
-        writer,
+    debug::panic_print::<Writer, _, _>(
+        (),
         pi,
         &rv32i::support::nop,
         crate::PANIC_RESOURCES.get(),
