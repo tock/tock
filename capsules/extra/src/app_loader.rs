@@ -454,15 +454,14 @@ impl<
                 match res {
                     Ok(()) => CommandReturn::success(),
                     Err(e) => {
-                        let command_result = if let Some(buffer) = self.buffer.take() {
+                        if let Some(buffer) = self.buffer.take() {
                             self.buffer.replace(buffer);
                             self.new_app_length.set(0);
                             self.current_process.take();
                             CommandReturn::failure(e)
                         } else {
                             CommandReturn::failure(ErrorCode::RESERVE)
-                        };
-                        command_result
+                        }
                     }
                 }
             }

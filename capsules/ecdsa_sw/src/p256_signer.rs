@@ -113,10 +113,10 @@ impl kernel::deferred_call::DeferredCallClient for EcdsaP256SignatureSigner<'_> 
             match s {
                 State::Signing => {
                     self.client.map(|client| {
-                        if let Some(h) = self.hash_storage.take() {
-                            if let Some(s) = self.signature_storage.take() {
-                                client.signing_done(Ok(()), h, s);
-                            }
+                        if let Some(h) = self.hash_storage.take()
+                            && let Some(s) = self.signature_storage.take()
+                        {
+                            client.signing_done(Ok(()), h, s);
                         }
                     });
                 }
