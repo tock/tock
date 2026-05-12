@@ -14,10 +14,10 @@
 use core::cell::Cell;
 
 use crate::ssd1306::Command;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 // Only need to be able to write one page (row) at a time.
 pub const BUFFER_SIZE: usize = 132;

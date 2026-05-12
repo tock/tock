@@ -53,7 +53,7 @@ pub(crate) fn mask<const MASK: u32, const IDX_EQ_0: u8, const IDX_NEQ_0: u8>(
 
 /// Disable a core (SoC component) by configuring its RESETCTRL and IOCTRL registers
 pub(crate) mod core_disable {
-    use super::{mask, BackplaneTask as Task};
+    use super::{BackplaneTask as Task, mask};
     use crate::cyw4343::{bus, constants};
     use bus::RegLen::Byte;
 

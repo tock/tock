@@ -4,13 +4,13 @@
 
 //! Implementation of [`DebugWriter`] using UART.
 
+use kernel::ErrorCode;
 use kernel::collections::queue::Queue;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::debug::DebugWriter;
 use kernel::hil;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::io_write::IoWrite;
-use kernel::ErrorCode;
 
 /// Buffered [`DebugWriter`] implementation using a UART.
 ///

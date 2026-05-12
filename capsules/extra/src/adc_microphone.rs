@@ -4,12 +4,12 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::hil::adc;
 use kernel::hil::gpio;
 use kernel::hil::sensors::{SoundPressure, SoundPressureClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::math;
-use kernel::ErrorCode;
 
 #[derive(Copy, Clone, PartialEq)]
 enum State {
