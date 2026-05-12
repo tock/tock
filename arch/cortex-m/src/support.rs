@@ -31,10 +31,10 @@ pub fn dmb() {
 
 /// Set Main Stack Pointer Limit (MSPLIM).
 ///
-/// When the Main Stack Pointer Limit (MSPLIM) is enabled, the processor will
+/// When the Main Stack Pointer Limit (MSPLIM) is set, the processor will
 /// generate a UsageFault or HardFault exception if the Main Stack Pointer (MSP)
 /// goes below the specified limit.
-/// Stack overflow is indicated by 2nd argument passed to fault handler.
+/// Stack overflow is indicated by `STKERR` bit in `BFSR` register.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[inline(always)]
 pub fn set_msplim(main_stack_ptr_limit: u32) {
