@@ -19,7 +19,7 @@ use crate::CortexMVariant;
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
 /// specific handler.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[used]
 pub static mut SYSCALL_FIRED: usize = 0;
 
@@ -29,7 +29,7 @@ pub static mut SYSCALL_FIRED: usize = 0;
 ///
 /// n.b. If the kernel hard faults, it immediately panic's. This flag is only
 /// for handling application hard faults.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[used]
 pub static mut APP_HARD_FAULT: usize = 0;
 
@@ -38,7 +38,7 @@ pub static mut APP_HARD_FAULT: usize = 0;
 /// When an app faults, the hardfault handler stores the value of the
 /// SCB registers in this static array. This makes them available to
 /// be displayed in a diagnostic fault message.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[used]
 pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 
@@ -181,8 +181,15 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         }
 
         let sp = state.psp as *mut u32;
-        let (r0, r1, r2, r3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
+        // # Safety
+        //
+        // To offset the pointer there must be valid memory pointed to by `sp`.
+        // We verified that there is space for four u32s on the stack before
+        // hitting the `app_brk`.
+        let (r0, r1, r2, r3) = unsafe { (sp.add(0), sp.add(1), sp.add(2), sp.add(3)) };
 
+        // # Safety
+        //
         // These operations are only safe so long as
         // - the pointers are properly aligned. This is guaranteed because the
         //   pointers are all offset multiples of 4 bytes from the stack
@@ -201,14 +208,16 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
+        let (mut r0_val, mut r1_val, mut r2_val, mut r3_val) = unsafe { (*r0, *r1, *r2, *r3) };
+
         kernel::utilities::arch_helpers::encode_syscall_return_trd104(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
-            &mut *r0,
-            &mut *r1,
-            &mut *r2,
-            &mut *r3,
+            &mut r0_val,
+            &mut r1_val,
+            &mut r2_val,
+            &mut r3_val,
         );
 
         Ok(())
@@ -245,13 +254,36 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //  - Instruction addresses require `|1` to indicate thumb code
         //  - Stack offset 4 is R12, which the syscall interface ignores
         let stack_bottom = state.psp as *mut usize;
-        ptr::write(stack_bottom.offset(7), state.psr); //......... -> APSR
-        ptr::write(stack_bottom.offset(6), callback.pc.addr() | 1); //... -> PC
-        ptr::write(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
-        ptr::write(stack_bottom.offset(3), callback.argument3.as_usize()); // -> R3
-        ptr::write(stack_bottom.offset(2), callback.argument2); // -> R2
-        ptr::write(stack_bottom.offset(1), callback.argument1); // -> R1
-        ptr::write(stack_bottom.offset(0), callback.argument0); // -> R0
+
+        // # Safety
+        //
+        // We ensured there is `SVC_FRAME_SIZE` of memory at `stack_bottom` so
+        // we can create pointers to u32s in that memory.
+        let (ptr_apsr, ptr_pc, ptr_lr, ptr_r3, ptr_r2, ptr_r1, ptr_r0) = unsafe {
+            (
+                stack_bottom.add(7),
+                stack_bottom.add(6),
+                stack_bottom.add(5),
+                stack_bottom.add(3),
+                stack_bottom.add(2),
+                stack_bottom.add(1),
+                stack_bottom.add(0),
+            )
+        };
+
+        // # Safety
+        //
+        // The pointers are valid memory in the process's memory space and
+        // well-aligned to a u32.
+        unsafe {
+            ptr::write(ptr_apsr, state.psr); // ................. -> APSR
+            ptr::write(ptr_pc, callback.pc.addr() | 1); // ...... -> PC
+            ptr::write(ptr_lr, state.yield_pc | 1); // .......... -> LR
+            ptr::write(ptr_r3, callback.argument3.as_usize()); // -> R3
+            ptr::write(ptr_r2, callback.argument2); // .......... -> R2
+            ptr::write(ptr_r1, callback.argument1); // .......... -> R1
+            ptr::write(ptr_r0, callback.argument0); // .......... -> R0
+        }
 
         Ok(())
     }
@@ -262,7 +294,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         app_brk: *const u8,
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
-        let new_stack_pointer = A::switch_to_user(state.psp as *const usize, &mut state.regs);
+        let new_stack_pointer =
+            unsafe { A::switch_to_user(state.psp as *const usize, &mut state.regs) };
 
         // We need to keep track of the current stack pointer.
         state.psp = new_stack_pointer as usize;

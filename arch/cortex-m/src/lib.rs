@@ -20,7 +20,7 @@ pub mod systick;
 pub mod thread_id;
 
 // These constants are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     static _szero: *const u32;
     static _ezero: *const u32;
     static _etext: *const u32;

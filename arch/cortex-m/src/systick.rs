@@ -92,9 +92,10 @@ impl SysTick {
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU
     ///   speed.
     pub unsafe fn new_with_calibration(clock_speed: u32) -> SysTick {
-        let res = SysTick::new();
-        res.hertz.set(clock_speed);
-        res
+        Self {
+            hertz: Cell::new(clock_speed),
+            external_clock: false,
+        }
     }
 
     /// Initialize the `SysTick` with an explicit clock speed and external
