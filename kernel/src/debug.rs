@@ -104,7 +104,7 @@
 //! ```
 
 use core::cell::Cell;
-use core::fmt::{write, Arguments, Write};
+use core::fmt::{Arguments, Write, write};
 use core::panic::PanicInfo;
 use core::str;
 
@@ -705,9 +705,7 @@ macro_rules! debug {
 /// In-kernel `println()` debugging that can take a process slice.
 #[macro_export]
 macro_rules! debug_process_slice {
-    ($msg:expr $(,)?) => {{
-        $crate::debug::debug_slice($msg)
-    }};
+    ($msg:expr $(,)?) => {{ $crate::debug::debug_slice($msg) }};
 }
 
 /// In-kernel `println()` debugging with filename and line numbers.
