@@ -10,9 +10,9 @@ use kernel::hil::uart::{
     Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 

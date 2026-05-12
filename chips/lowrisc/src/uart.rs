@@ -12,8 +12,8 @@ use kernel::hil;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::io_write::IoWrite;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::StaticRef;
 
 use crate::registers::uart_regs::UartRegisters;

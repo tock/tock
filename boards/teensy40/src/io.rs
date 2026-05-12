@@ -10,7 +10,10 @@ use crate::imxrt1060::lpuart::{Lpuart, LpuartId, LpuartPanicWriterConfig};
 
 #[panic_handler]
 unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    let ccm = kernel::static_init!(crate::imxrt1060::ccm::Ccm, crate::imxrt1060::ccm::Ccm::new());
+    let ccm = kernel::static_init!(
+        crate::imxrt1060::ccm::Ccm,
+        crate::imxrt1060::ccm::Ccm::new()
+    );
     let pin = crate::imxrt1060::gpio::Pin::from_pin_id(PinId::B0_03);
     let led = &mut led::LedHigh::new(&pin);
 

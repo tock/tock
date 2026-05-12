@@ -7,10 +7,10 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
-use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 

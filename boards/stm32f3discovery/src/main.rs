@@ -10,7 +10,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::lsm303xx;
 use components::gpio::GpioComponent;

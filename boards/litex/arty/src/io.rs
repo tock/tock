@@ -25,8 +25,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // function is called once:
     let led0 = LiteXLedController::new(
         StaticRef::new(
-            crate::socc::CSR_LEDS_BASE
-                as *const LiteXLedRegisters<crate::socc::SoCRegisterFmt>,
+            crate::socc::CSR_LEDS_BASE as *const LiteXLedRegisters<crate::socc::SoCRegisterFmt>,
         ),
         4, // 4 LEDs on this board
     );

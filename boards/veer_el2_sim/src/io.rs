@@ -43,12 +43,7 @@ impl kernel::platform::chip::PanicWriter for Writer {
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    debug::panic_print::<Writer, _, _>(
-        (),
-        pi,
-        &rv32i::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+    debug::panic_print::<Writer, _, _>((), pi, &rv32i::support::nop, crate::PANIC_RESOURCES.get());
 
     // By writing 0xff to this address we can exit the simulation.
     // So instead of blinking in a loop let's exit the simulation.

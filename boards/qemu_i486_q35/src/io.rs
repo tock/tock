@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-use core::{arch::asm, panic::PanicInfo};
 use core::fmt::Write;
+use core::{arch::asm, panic::PanicInfo};
 
 use kernel::debug;
 
