@@ -95,13 +95,16 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         if !self.is_valid(index) {
             None
         } else {
-            // SAFETY
-            //
-            // It is safe to read the element from this location in the ring and
-            // assume it is initialized because we verified that the index is
-            // within the populated elements of the ring. Our invariant is that
-            // any index with head and tail _must_ be initialized.
-            Some(unsafe { self.ring[index].assume_init() })
+            let element = self.ring.get(index);
+            element.map(|e| {
+                // # Safety
+                //
+                // It is safe to read the element from this location in the ring and
+                // assume it is initialized because we verified that the index is
+                // within the populated elements of the ring. Our invariant is that
+                // any index with head and tail _must_ be initialized.
+                unsafe { e.assume_init() }
+            })
         }
     }
 
@@ -114,13 +117,16 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         if !self.is_valid(index) {
             None
         } else {
-            // SAFETY
-            //
-            // It is safe to read the element from this location in the ring and
-            // assume it is initialized because we verified that the index is
-            // within the populated elements of the ring. Our invariant is that
-            // any index with head and tail _must_ be initialized.
-            Some(unsafe { self.ring[index].assume_init_ref() })
+            let element = self.ring.get(index);
+            element.map(|e| {
+                // # Safety
+                //
+                // It is safe to read the element from this location in the ring and
+                // assume it is initialized because we verified that the index is
+                // within the populated elements of the ring. Our invariant is that
+                // any index with head and tail _must_ be initialized.
+                unsafe { e.assume_init_ref() }
+            })
         }
     }
 }
