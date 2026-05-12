@@ -350,6 +350,11 @@ enum VirtqueueDmaBuffer<'b> {
 }
 
 impl<'b> VirtqueueDmaBuffer<'b> {
+    /// Create a DMA-safe buffer from a `VirtqueueBuffer`.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure they do not drop the created `VirtqueueDmaBuffer`.
     unsafe fn from_virtqueue_buffer(
         virtqueue_buffer: VirtqueueBuffer<'b>,
         fence: impl DmaFence,
@@ -362,7 +367,14 @@ impl<'b> VirtqueueDmaBuffer<'b> {
                 ))
             }
             VirtqueueBuffer::DeviceWriteable(sub_slice_mut) => {
-                VirtqueueDmaBuffer::DeviceWriteable(DmaSubSliceMut::new(sub_slice_mut, fence))
+                // Wrap the queue buffer in a DmaSlice.
+                //
+                // # Safety
+                //
+                // Because our buffer isn't static, we must ensure to never drop the
+                // buffer. The function-level safety requirements ensure this.
+                let dma_slice = unsafe { DmaSubSliceMut::new(sub_slice_mut, fence) };
+                VirtqueueDmaBuffer::DeviceWriteable(dma_slice)
             }
         }
     }
