@@ -233,66 +233,58 @@ DIV_24_5_CTL [
 ],
 ];
 
-const PERI_PCLK_BASE: StaticRef<PeriPClkRegisters> =
+const PERI_PCLK: StaticRef<PeriPClkRegisters> =
     unsafe { StaticRef::new(0x42040000 as *const PeriPClkRegisters) };
 
-pub struct PeriPClk {
-    registers: StaticRef<PeriPClkRegisters>,
+/// Set a divider of type DIV8_0 for a peripheral.
+///
+/// The groups can be seen in "Figure 63 Clocking system block diagram" in "architecture reference manual"
+fn set_clk_div8(
+    div_cmd: &ReadWrite<u32, DIV_CMD::Register>,
+    div_ctl: &ReadWrite<u32, DIV_8_CTL::Register>,
+    divider: u8,
+) {
+    div_cmd.write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
+    div_ctl.modify(DIV_8_CTL::INT8_DIV.val(divider as u32));
+    div_cmd.write(
+        DIV_CMD::ENABLE::SET
+            + DIV_CMD::DIV_SEL.val(0)
+            + DIV_CMD::TYPE_SEL::DIV8_0
+            + DIV_CMD::PA_TYPE_SEL.val(3 /* set PA masks */)
+            + DIV_CMD::PA_DIV_SEL.val(255),
+    );
+    while div_cmd.read(DIV_CMD::ENABLE) == 1 {}
 }
 
-impl PeriPClk {
-    pub const fn new() -> PeriPClk {
-        PeriPClk {
-            registers: PERI_PCLK_BASE,
-        }
-    }
+type ClockDivType = CLOCK_CTL::TYPE_SEL::Value;
 
-    /// Set a divider of type DIV8_0 for a peripheral.
-    ///
-    /// The groups can be seen in "Figure 63 Clocking system block diagram" in "architecture reference manual"
-    fn set_clk_div8(
-        &self,
-        div_cmd: &ReadWrite<u32, DIV_CMD::Register>,
-        div_ctl: &ReadWrite<u32, DIV_8_CTL::Register>,
-        divider: u8,
-    ) {
-        div_cmd.write(DIV_CMD::DISABLE::SET + DIV_CMD::DIV_SEL.val(0) + DIV_CMD::TYPE_SEL::DIV8_0);
-        div_ctl.modify(DIV_8_CTL::INT8_DIV.val(divider as u32));
-        div_cmd.write(
-            DIV_CMD::ENABLE::SET
-                + DIV_CMD::DIV_SEL.val(0)
-                + DIV_CMD::TYPE_SEL::DIV8_0
-                + DIV_CMD::PA_TYPE_SEL.val(3 /* set PA masks */)
-                + DIV_CMD::PA_DIV_SEL.val(255),
-        );
-        while div_cmd.read(DIV_CMD::ENABLE) == 1 {}
-    }
+/// Assign a divider to a peripheral clock control register.
+///
+/// The groups can be seen in "Figure 63 Clocking system block diagram" in "architecture reference manual"
+fn assign_clk_div(
+    register: &ReadWrite<u32, CLOCK_CTL::Register>,
+    div_sel: u32,
+    type_sel: CLOCK_CTL::TYPE_SEL::Value,
+) {
+    register.write(CLOCK_CTL::DIV_SEL.val(div_sel) + CLOCK_CTL::TYPE_SEL.val(type_sel as u32));
+}
 
-    /// Configure peripheral clocks for scb and tcpwm0.
-    pub fn configure_clocks(&self) {
-        // scb(3)
-        self.set_clk_div8(
-            &self.registers.gr4_div_cmd,
-            &self.registers.gr4_div_8_ctl0,
-            108,
-        );
+/// Enable and configure the clock for TCPWM0
+pub fn enable_tcpwm0() {
+    set_clk_div8(&PERI_PCLK.gr5_div_cmd, &PERI_PCLK.gr5_div_8_ctl0, 239);
+    assign_clk_div(&PERI_PCLK.gr5_clock_ctl0, 0, ClockDivType::DIV8_0);
+}
 
-        // tcpwm0
-        self.set_clk_div8(
-            &self.registers.gr5_div_cmd,
-            &self.registers.gr5_div_8_ctl0,
-            239,
-        );
-    }
+/// Enable and configure the clock for SCB3
+pub fn enable_scb3() {
+    // 115200 baud rate
+    set_clk_div8(&PERI_PCLK.gr4_div_cmd, &PERI_PCLK.gr4_div_8_ctl0, 108);
+    assign_clk_div(&PERI_PCLK.gr4_clock_ctl3, 0, ClockDivType::DIV8_0);
+}
 
-    /// Enable peripheral clocks for scb and tcpwm0.
-    pub fn init_peripherals(&self) {
-        self.registers
-            .gr4_clock_ctl3 // ctl3 = SCB
-            .write(CLOCK_CTL::DIV_SEL.val(0) + CLOCK_CTL::TYPE_SEL::DIV8_0);
-
-        self.registers
-            .gr5_clock_ctl0 // ctl0 = PCLK_TCPWM0_CLOCK_COUNTER_EN0
-            .write(CLOCK_CTL::DIV_SEL.val(0) + CLOCK_CTL::TYPE_SEL::DIV8_0);
-    }
+/// Enable and configure the clock for SCB0
+pub fn enable_scb0() {
+    // 115200 baud rate
+    set_clk_div8(&PERI_PCLK.gr4_div_cmd, &PERI_PCLK.gr4_div_8_ctl0, 108);
+    assign_clk_div(&PERI_PCLK.gr4_clock_ctl0, 0, ClockDivType::DIV8_0);
 }

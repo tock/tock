@@ -5,7 +5,6 @@
 //! SRSS (System Resources SubSystem) interface
 //! Interface to setup clock sources, clock paths, root clocks, and power modes.
 
-// allow wildcard imports as there are too many symbols to import seperately or with alias
 use crate::srss_registers as regs;
 use kernel::utilities::{
     StaticRef,
@@ -15,7 +14,7 @@ use kernel::utilities::{
     },
 };
 
-const SRSS_BASE: StaticRef<regs::SrssRegisters> =
+const SRSS: StaticRef<regs::SrssRegisters> =
     unsafe { StaticRef::new(0x42200000 as *const regs::SrssRegisters) };
 
 fn delay_rough_us(us: u32) {
@@ -149,422 +148,361 @@ const SRSS_0_CLOCK_0_FLL_0_FLL_CONFIG: FllManualConfig = FllManualConfig {
     cco_freq: 355,
 };
 
-pub struct Srss {
-    registers: StaticRef<regs::SrssRegisters>,
+/// Unlock the watchdog control register by clearing both lock bits.
+pub fn wdt_unlock() {
+    // Write 1 to bit to clear it
+    SRSS.wdt_ctl
+        .modify(regs::WDT_CTL::WDT_LOCK::ClearsBit0);
+    SRSS.wdt_ctl
+        .modify(regs::WDT_CTL::WDT_LOCK::ClearsBit1);
 }
 
-impl Srss {
-    pub const fn new() -> Srss {
-        Srss {
-            registers: SRSS_BASE,
-        }
+/// Initialize clock paths 1..5 to IHO and path 6 to IMO.
+pub fn init_clock_paths() {
+    for clk_path_select in [
+        &SRSS.clk_path_select1,
+        &SRSS.clk_path_select2,
+        &SRSS.clk_path_select3,
+        &SRSS.clk_path_select4,
+        &SRSS.clk_path_select5,
+    ] {
+        clk_path_select.modify(regs::CLK_PATH_SELECT::PATH_MUX::IHO);
     }
+    SRSS.clk_path_select6
+        .modify(regs::CLK_PATH_SELECT::PATH_MUX::IMO);
+}
 
-    /// Unlock the watchdog control register by clearing both lock bits.
-    pub fn wdt_unlock(&self) {
-        // Write 1 to bit to clear it
-        self.registers
-            .wdt_ctl
-            .modify(regs::WDT_CTL::WDT_LOCK::ClearsBit0);
-        self.registers
-            .wdt_ctl
-            .modify(regs::WDT_CTL::WDT_LOCK::ClearsBit1);
-    }
+/// Enable root clocks 2..4 sourced from PATH0 with no integer division.
+pub fn sys_init_enable_clocks() {
+    // set source
+    SRSS.clk_root_select2
+        .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+    // set divider
+    SRSS.clk_root_select2
+        .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
+    // enable
+    SRSS.clk_root_select2
+        .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
 
-    /// Initialize clock paths 1..5 to IHO and path 6 to IMO.
-    pub fn init_clock_paths(&self) {
-        for clk_path_select in [
-            &self.registers.clk_path_select1,
-            &self.registers.clk_path_select2,
-            &self.registers.clk_path_select3,
-            &self.registers.clk_path_select4,
-            &self.registers.clk_path_select5,
-        ] {
-            clk_path_select.modify(regs::CLK_PATH_SELECT::PATH_MUX::IHO);
-        }
-        self.registers
-            .clk_path_select6
-            .modify(regs::CLK_PATH_SELECT::PATH_MUX::IMO);
-    }
+    SRSS.clk_root_select3
+        .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+    SRSS.clk_root_select3
+        .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
+    SRSS.clk_root_select3
+        .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
 
-    /// Enable root clocks 2..4 sourced from PATH0 with no integer division.
-    pub fn sys_init_enable_clocks(&self) {
-        // set source
-        self.registers
-            .clk_root_select2
-            .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
-        // set divider
-        self.registers
-            .clk_root_select2
-            .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
-        // enable
-        self.registers
-            .clk_root_select2
-            .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
+    SRSS.clk_root_select4
+        .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+    SRSS.clk_root_select4
+        .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
+    SRSS.clk_root_select4
+        .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
+}
 
-        self.registers
-            .clk_root_select3
-            .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
-        self.registers
-            .clk_root_select3
-            .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
-        self.registers
-            .clk_root_select3
-            .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
+/// Disable the FLL by switching to reference bypass and clearing enable bits.
+pub fn disable_fll() {
+    const MAX_DELAY_US: u32 = 100;
+    SRSS.clk_fll_config3
+        .modify(regs::CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF);
 
-        self.registers
-            .clk_root_select4
-            .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
-        self.registers
-            .clk_root_select4
-            .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
-        self.registers
-            .clk_root_select4
-            .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
-    }
-
-    /// Disable the FLL by switching to reference bypass and clearing enable bits.
-    pub fn disable_fll(&self) {
-        const MAX_DELAY_US: u32 = 100;
-        self.registers
+    let mut success = false;
+    for _ in 0..MAX_DELAY_US {
+        if SRSS
             .clk_fll_config3
-            .modify(regs::CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF);
+            .any_matching_bits_set(regs::CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF)
+        {
+            success = true;
+            break;
+        }
+        delay_rough_us(1);
+    }
+    if success {
+        delay_rough_us(2);
+        SRSS.clk_fll_config
+            .modify(regs::CLK_FLL_CONFIG::FLL_ENABLE::CLEAR);
+        SRSS.clk_fll_config4
+            .modify(regs::CLK_FLL_CONFIG4::CCO_ENABLE::CLEAR);
+    }
+}
 
-        let mut success = false;
-        for _ in 0..MAX_DELAY_US {
-            if self
-                .registers
-                .clk_fll_config3
-                .any_matching_bits_set(regs::CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF)
-            {
-                success = true;
-                break;
-            }
-            delay_rough_us(1);
+/// Enable the IHO oscillator.
+pub fn enable_iho() {
+    SRSS.clk_iho_config
+        .modify(regs::CLK_IHO_CONFIG::ENABLE::SET);
+}
+
+/// Initialize both low-power DPLLs using board-specific static configurations.
+pub fn init_dpll_lp() -> Result<(), ()> {
+    [
+        (
+            &SRSS.clk_dpll_lp0_config,
+            &SRSS.clk_dpll_lp0_status,
+            0,
+            &DPLL_LP_CONFIG_0,
+        ),
+        (
+            &SRSS.clk_dpll_lp1_config,
+            &SRSS.clk_dpll_lp1_status,
+            1,
+            &DPLL_LP_CONFIG_1,
+        ),
+    ]
+    .iter()
+    .try_for_each(|&(config_reg, status_reg, pll_num, config)| {
+        config_reg.modify(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS);
+        delay_rough_us(1);
+        config_reg.modify(regs::CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
+
+        configure_dpll_lp(pll_num, config);
+
+        enable_dpll_lp(config_reg, status_reg)?;
+
+        Ok(())
+    })
+}
+
+/// Enable a DPLL and wait for lock before switching it out of bypass.
+fn enable_dpll_lp(
+    config_reg: &ReadWrite<u32, regs::CLK_DPLL_LP_CONFIG::Register>,
+    status_reg: &ReadOnly<u32, regs::CLK_DPLL_LP_STATUS::Register>,
+) -> Result<(), ()> {
+    const MAX_DELAY_US: u32 = 10_000;
+
+    config_reg.modify(regs::CLK_DPLL_LP_CONFIG::ENABLE::SET);
+
+    let mut locked = false;
+    for _ in 0..MAX_DELAY_US {
+        if status_reg.any_matching_bits_set(regs::CLK_DPLL_LP_STATUS::LOCKED::SET) {
+            locked = true;
+            break;
         }
-        if success {
-            delay_rough_us(2);
-            self.registers
-                .clk_fll_config
-                .modify(regs::CLK_FLL_CONFIG::FLL_ENABLE::CLEAR);
-            self.registers
-                .clk_fll_config4
-                .modify(regs::CLK_FLL_CONFIG4::CCO_ENABLE::CLEAR);
-        }
+        delay_rough_us(1);
     }
 
-    /// Enable the IHO oscillator.
-    pub fn enable_iho(&self) {
-        self.registers
-            .clk_iho_config
-            .modify(regs::CLK_IHO_CONFIG::ENABLE::SET);
-    }
-
-    /// Initialize both low-power DPLLs using board-specific static configurations.
-    pub fn init_dpll_lp(&self) -> Result<(), ()> {
-        [
-            (
-                &self.registers.clk_dpll_lp0_config,
-                &self.registers.clk_dpll_lp0_status,
-                0,
-                &DPLL_LP_CONFIG_0,
-            ),
-            (
-                &self.registers.clk_dpll_lp1_config,
-                &self.registers.clk_dpll_lp1_status,
-                1,
-                &DPLL_LP_CONFIG_1,
-            ),
-        ]
-        .iter()
-        .try_for_each(|&(config_reg, status_reg, pll_num, config)| {
-            config_reg.modify(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS);
-            delay_rough_us(1);
-            config_reg.modify(regs::CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
-
-            self.configure_dpll_lp(pll_num, config);
-
-            self.enable_dpll_lp(config_reg, status_reg)?;
-
-            Ok(())
-        })
-    }
-
-    /// Enable a DPLL and wait for lock before switching it out of bypass.
-    fn enable_dpll_lp(
-        &self,
-        config_reg: &ReadWrite<u32, regs::CLK_DPLL_LP_CONFIG::Register>,
-        status_reg: &ReadOnly<u32, regs::CLK_DPLL_LP_STATUS::Register>,
-    ) -> Result<(), ()> {
-        const MAX_DELAY_US: u32 = 10_000;
-
-        config_reg.modify(regs::CLK_DPLL_LP_CONFIG::ENABLE::SET);
-
-        let mut locked = false;
-        for _ in 0..MAX_DELAY_US {
-            if status_reg.any_matching_bits_set(regs::CLK_DPLL_LP_STATUS::LOCKED::SET) {
-                locked = true;
-                break;
-            }
-            delay_rough_us(1);
+    if locked {
+        if config_reg.any_matching_bits_set(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS) {
+            config_reg.modify(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_OUT);
         }
+        Ok(())
+    } else {
+        // Switch bypass back to PLL output
+        config_reg.modify(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS);
 
-        if locked {
-            if config_reg.any_matching_bits_set(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS) {
-                config_reg.modify(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_OUT);
-            }
-            Ok(())
-        } else {
-            // Switch bypass back to PLL output
-            config_reg.modify(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL::PLL_BYPASS);
+        delay_rough_us(1);
 
-            delay_rough_us(1);
+        config_reg.modify(regs::CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
 
-            config_reg.modify(regs::CLK_DPLL_LP_CONFIG::ENABLE::CLEAR);
-
-            Err(())
-        }
+        Err(())
     }
+}
 
-    /// Program all DPLL LP configuration registers for PLL0 or PLL1.
-    fn configure_dpll_lp(&self, pll_num: usize, config: &DpllLpConfig) {
-        // Select correct register set for PLL0 or PLL1
-        let (
-            config_reg,
-            config2_reg,
-            config3_reg,
-            config4_reg,
-            config5_reg,
-            config6_reg,
-            config7_reg,
-        ) = match pll_num {
+/// Program all DPLL LP configuration registers for PLL0 or PLL1.
+fn configure_dpll_lp(pll_num: usize, config: &DpllLpConfig) {
+    // Select correct register set for PLL0 or PLL1
+    let (config_reg, config2_reg, config3_reg, config4_reg, config5_reg, config6_reg, config7_reg) =
+        match pll_num {
             0 => (
-                &self.registers.clk_dpll_lp0_config,
-                &self.registers.clk_dpll_lp0_config2,
-                &self.registers.clk_dpll_lp0_config3,
-                &self.registers.clk_dpll_lp0_config4,
-                &self.registers.clk_dpll_lp0_config5,
-                &self.registers.clk_dpll_lp0_config6,
-                &self.registers.clk_dpll_lp0_config7,
+                &SRSS.clk_dpll_lp0_config,
+                &SRSS.clk_dpll_lp0_config2,
+                &SRSS.clk_dpll_lp0_config3,
+                &SRSS.clk_dpll_lp0_config4,
+                &SRSS.clk_dpll_lp0_config5,
+                &SRSS.clk_dpll_lp0_config6,
+                &SRSS.clk_dpll_lp0_config7,
             ),
             1 => (
-                &self.registers.clk_dpll_lp1_config,
-                &self.registers.clk_dpll_lp1_config2,
-                &self.registers.clk_dpll_lp1_config3,
-                &self.registers.clk_dpll_lp1_config4,
-                &self.registers.clk_dpll_lp1_config5,
-                &self.registers.clk_dpll_lp1_config6,
-                &self.registers.clk_dpll_lp1_config7,
+                &SRSS.clk_dpll_lp1_config,
+                &SRSS.clk_dpll_lp1_config2,
+                &SRSS.clk_dpll_lp1_config3,
+                &SRSS.clk_dpll_lp1_config4,
+                &SRSS.clk_dpll_lp1_config5,
+                &SRSS.clk_dpll_lp1_config6,
+                &SRSS.clk_dpll_lp1_config7,
             ),
             _ => return, // Invalid PLL number
         };
 
-        // Only configure if output_mode != 2 (CY_SYSCLK_FLLPLL_OUTPUT_INPUT)
-        if config.output_mode != 2 {
-            config_reg.write(
-                regs::CLK_DPLL_LP_CONFIG::FEEDBACK_DIV.val(config.feedback_div)
-                    + regs::CLK_DPLL_LP_CONFIG::REFERENCE_DIV.val(config.reference_div)
-                    + regs::CLK_DPLL_LP_CONFIG::OUTPUT_DIV.val(config.output_div)
-                    + regs::CLK_DPLL_LP_CONFIG::PLL_DCO_CODE_MULT.val(config.pll_dco_mode as u32),
-            );
-
-            config2_reg.write(
-                regs::CLK_DPLL_LP_CONFIG2::FRAC_DIV.val(config.frac_div)
-                    + regs::CLK_DPLL_LP_CONFIG2::FRAC_DITHER_EN.val(config.frac_dither_en as u32)
-                    + regs::CLK_DPLL_LP_CONFIG2::FRAC_EN.val(config.frac_en as u32),
-            );
-
-            config3_reg.write(
-                regs::CLK_DPLL_LP_CONFIG3::SSCG_DEPTH.val(config.sscg_depth)
-                    + regs::CLK_DPLL_LP_CONFIG3::SSCG_RATE.val(config.sscg_rate)
-                    + regs::CLK_DPLL_LP_CONFIG3::SSCG_DITHER_EN.val(config.sscg_dither_en as u32)
-                    + regs::CLK_DPLL_LP_CONFIG3::SSCG_MODE.val(config.sscg_mode)
-                    + regs::CLK_DPLL_LP_CONFIG3::SSCG_EN.val(config.sscg_en as u32),
-            );
-
-            config4_reg.write(
-                regs::CLK_DPLL_LP_CONFIG4::DCO_CODE.val(config.dco_code)
-                    + regs::CLK_DPLL_LP_CONFIG4::ACC_MODE.val(config.acc_mode)
-                    + regs::CLK_DPLL_LP_CONFIG4::TDC_MODE.val(config.tdc_mode)
-                    + regs::CLK_DPLL_LP_CONFIG4::PLL_TG.val(config.pll_tg)
-                    + regs::CLK_DPLL_LP_CONFIG4::ACC_CNT_LOCK.val(config.acc_cnt_lock as u32),
-            );
-
-            config5_reg.write(
-                regs::CLK_DPLL_LP_CONFIG5::KI_INT.val(config.ki_int)
-                    + regs::CLK_DPLL_LP_CONFIG5::KP_INT.val(config.kp_int)
-                    + regs::CLK_DPLL_LP_CONFIG5::KI_ACC_INT.val(config.ki_acc_int)
-                    + regs::CLK_DPLL_LP_CONFIG5::KP_ACC_INT.val(config.kp_acc_int),
-            );
-
-            config6_reg.write(
-                regs::CLK_DPLL_LP_CONFIG6::KI_FRACT.val(config.ki_frac)
-                    + regs::CLK_DPLL_LP_CONFIG6::KP_FRACT.val(config.kp_frac)
-                    + regs::CLK_DPLL_LP_CONFIG6::KI_ACC_FRACT.val(config.ki_acc_frac)
-                    + regs::CLK_DPLL_LP_CONFIG6::KP_ACC_FRACT.val(config.kp_acc_frac),
-            );
-
-            config7_reg.write(
-                regs::CLK_DPLL_LP_CONFIG7::KI_SSCG.val(config.ki_sscg)
-                    + regs::CLK_DPLL_LP_CONFIG7::KP_SSCG.val(config.kp_sscg)
-                    + regs::CLK_DPLL_LP_CONFIG7::KI_ACC_SSCG.val(config.ki_acc_sscg)
-                    + regs::CLK_DPLL_LP_CONFIG7::KP_ACC_SSCG.val(config.kp_acc_sscg),
-            );
-        }
-
-        // Always set BYPASS_SEL to output_mode
-        config_reg.modify(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL.val(config.output_mode));
-    }
-
-    /// Configure and enable HF roots 1..4 with the selected path sources.
-    pub fn init_clk_hf(&self) {
-        // 1
-        self.registers
-            .clk_root_select1
-            .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH1);
-        self.registers
-            .clk_root_select1
-            .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
-        self.registers
-            .clk_root_select1
-            .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
-
-        // 2
-        self.registers
-            .clk_root_select2
-            .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
-        self.registers
-            .clk_root_select2
-            .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
-        self.registers
-            .clk_root_select2
-            .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
-
-        // 3
-        self.registers
-            .clk_root_select3
-            .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH2);
-        self.registers
-            .clk_root_select3
-            .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
-        self.registers
-            .clk_root_select3
-            .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
-
-        // 4
-        self.registers
-            .clk_root_select4
-            .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
-        self.registers
-            .clk_root_select4
-            .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
-        self.registers
-            .clk_root_select4
-            .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
-    }
-
-    /// Configure HF root 0 source and divider.
-    pub fn init_clk_hf0(&self) {
-        self.registers
-            .clk_root_select0
-            .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH1);
-        self.registers
-            .clk_root_select0
-            .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
-    }
-
-    /// Select IHO as the source for clock path 0.
-    pub fn init_clk_path0(&self) {
-        self.registers
-            .clk_path_select0
-            .modify(regs::CLK_PATH_SELECT::PATH_MUX::IHO);
-    }
-
-    /// Configure, start, and lock the FLL, switching output on success.
-    pub fn init_fll(&self) -> Result<(), ()> {
-        const MAX_DELAY_US: u32 = 20_000;
-        self.fll_manual_configure(&SRSS_0_CLOCK_0_FLL_0_FLL_CONFIG);
-
-        // Enable
-        self.registers
-            .clk_fll_config4
-            .modify(regs::CLK_FLL_CONFIG4::CCO_ENABLE::SET);
-
-        let mut cc0_ready = false;
-        for _ in 0..MAX_DELAY_US {
-            if self
-                .registers
-                .clk_fll_status
-                .any_matching_bits_set(regs::CLK_FLL_STATUS::CCO_READY::SET)
-            {
-                cc0_ready = true;
-                break;
-            }
-            delay_rough_us(1);
-        }
-        // Strangly setting this in manual config doesn't seem to work, so set it here after enabling the FLL
-        // This work in MTB though
-        self.registers
-            .clk_fll_config4
-            .modify(regs::CLK_FLL_CONFIG4::CCO_RANGE::RANGE4_150200MHz);
-        self.registers
-            .clk_fll_config3
-            .modify(regs::CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF);
-        if cc0_ready {
-            self.registers
-                .clk_fll_config
-                .modify(regs::CLK_FLL_CONFIG::FLL_ENABLE::SET);
-        }
-
-        let mut locked = false;
-        for _ in 0..MAX_DELAY_US {
-            if self
-                .registers
-                .clk_fll_status
-                .any_matching_bits_set(regs::CLK_FLL_STATUS::LOCKED::SET)
-            {
-                locked = true;
-                break;
-            }
-            delay_rough_us(1);
-        }
-
-        if locked {
-            self.registers
-                .clk_fll_config3
-                .modify(regs::CLK_FLL_CONFIG3::BYPASS_SEL::FLL_OUT);
-            Ok(())
-        } else {
-            /* If lock doesn't occur, FLL is stopped */
-            self.disable_fll();
-            Err(())
-        }
-    }
-
-    /// Program FLL registers in manual mode from a static configuration.
-    fn fll_manual_configure(&self, config: &FllManualConfig) {
-        self.registers.clk_fll_config.write(
-            regs::CLK_FLL_CONFIG::FLL_MULT.val(config.fll_mult)
-                + regs::CLK_FLL_CONFIG::FLL_OUTPUT_DIV.val(config.enable_output_div as u32),
+    // Only configure if output_mode != 2 (CY_SYSCLK_FLLPLL_OUTPUT_INPUT)
+    if config.output_mode != 2 {
+        config_reg.write(
+            regs::CLK_DPLL_LP_CONFIG::FEEDBACK_DIV.val(config.feedback_div)
+                + regs::CLK_DPLL_LP_CONFIG::REFERENCE_DIV.val(config.reference_div)
+                + regs::CLK_DPLL_LP_CONFIG::OUTPUT_DIV.val(config.output_div)
+                + regs::CLK_DPLL_LP_CONFIG::PLL_DCO_CODE_MULT.val(config.pll_dco_mode as u32),
         );
 
-        self.registers.clk_fll_config2.write(
-            regs::CLK_FLL_CONFIG2::FLL_REF_DIV.val(config.ref_div)
-                + regs::CLK_FLL_CONFIG2::LOCK_TOL.val(config.lock_tolerance),
+        config2_reg.write(
+            regs::CLK_DPLL_LP_CONFIG2::FRAC_DIV.val(config.frac_div)
+                + regs::CLK_DPLL_LP_CONFIG2::FRAC_DITHER_EN.val(config.frac_dither_en as u32)
+                + regs::CLK_DPLL_LP_CONFIG2::FRAC_EN.val(config.frac_en as u32),
         );
 
-        self.registers.clk_fll_config3.write(
-            regs::CLK_FLL_CONFIG3::FLL_LF_IGAIN.val(config.igain)
-                + regs::CLK_FLL_CONFIG3::FLL_LF_PGAIN.val(config.pgain)
-                + regs::CLK_FLL_CONFIG3::SETTLING_COUNT.val(config.settling_count)
-                + regs::CLK_FLL_CONFIG3::BYPASS_SEL.val(config.output_mode),
+        config3_reg.write(
+            regs::CLK_DPLL_LP_CONFIG3::SSCG_DEPTH.val(config.sscg_depth)
+                + regs::CLK_DPLL_LP_CONFIG3::SSCG_RATE.val(config.sscg_rate)
+                + regs::CLK_DPLL_LP_CONFIG3::SSCG_DITHER_EN.val(config.sscg_dither_en as u32)
+                + regs::CLK_DPLL_LP_CONFIG3::SSCG_MODE.val(config.sscg_mode)
+                + regs::CLK_DPLL_LP_CONFIG3::SSCG_EN.val(config.sscg_en as u32),
         );
 
-        self.registers
-            .clk_fll_config4
-            .modify(regs::CLK_FLL_CONFIG4::CCO_RANGE.val(config.cco_range));
-        self.registers
-            .clk_fll_config4
-            .modify(regs::CLK_FLL_CONFIG4::CCO_FREQ.val(config.cco_freq));
+        config4_reg.write(
+            regs::CLK_DPLL_LP_CONFIG4::DCO_CODE.val(config.dco_code)
+                + regs::CLK_DPLL_LP_CONFIG4::ACC_MODE.val(config.acc_mode)
+                + regs::CLK_DPLL_LP_CONFIG4::TDC_MODE.val(config.tdc_mode)
+                + regs::CLK_DPLL_LP_CONFIG4::PLL_TG.val(config.pll_tg)
+                + regs::CLK_DPLL_LP_CONFIG4::ACC_CNT_LOCK.val(config.acc_cnt_lock as u32),
+        );
+
+        config5_reg.write(
+            regs::CLK_DPLL_LP_CONFIG5::KI_INT.val(config.ki_int)
+                + regs::CLK_DPLL_LP_CONFIG5::KP_INT.val(config.kp_int)
+                + regs::CLK_DPLL_LP_CONFIG5::KI_ACC_INT.val(config.ki_acc_int)
+                + regs::CLK_DPLL_LP_CONFIG5::KP_ACC_INT.val(config.kp_acc_int),
+        );
+
+        config6_reg.write(
+            regs::CLK_DPLL_LP_CONFIG6::KI_FRACT.val(config.ki_frac)
+                + regs::CLK_DPLL_LP_CONFIG6::KP_FRACT.val(config.kp_frac)
+                + regs::CLK_DPLL_LP_CONFIG6::KI_ACC_FRACT.val(config.ki_acc_frac)
+                + regs::CLK_DPLL_LP_CONFIG6::KP_ACC_FRACT.val(config.kp_acc_frac),
+        );
+
+        config7_reg.write(
+            regs::CLK_DPLL_LP_CONFIG7::KI_SSCG.val(config.ki_sscg)
+                + regs::CLK_DPLL_LP_CONFIG7::KP_SSCG.val(config.kp_sscg)
+                + regs::CLK_DPLL_LP_CONFIG7::KI_ACC_SSCG.val(config.ki_acc_sscg)
+                + regs::CLK_DPLL_LP_CONFIG7::KP_ACC_SSCG.val(config.kp_acc_sscg),
+        );
     }
+
+    // Always set BYPASS_SEL to output_mode
+    config_reg.modify(regs::CLK_DPLL_LP_CONFIG::BYPASS_SEL.val(config.output_mode));
+}
+
+/// Configure and enable HF roots 1..4 with the selected path sources.
+pub fn init_clk_hf() {
+    // 1
+    SRSS.clk_root_select1
+        .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH1);
+    SRSS.clk_root_select1
+        .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
+    SRSS.clk_root_select1
+        .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
+
+    // 2
+    SRSS.clk_root_select2
+        .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+    SRSS.clk_root_select2
+        .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
+    SRSS.clk_root_select2
+        .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
+
+    // 3
+    SRSS.clk_root_select3
+        .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH2);
+    SRSS.clk_root_select3
+        .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
+    SRSS.clk_root_select3
+        .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
+
+    // 4
+    SRSS.clk_root_select4
+        .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH0);
+    SRSS.clk_root_select4
+        .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
+    SRSS.clk_root_select4
+        .modify(regs::CLK_ROOT_SELECT::ENABLE::SET);
+}
+
+/// Configure HF root 0 source and divider.
+pub fn init_clk_hf0() {
+    SRSS.clk_root_select0
+        .modify(regs::CLK_ROOT_SELECT::ROOT_MUX::PATH1);
+    SRSS.clk_root_select0
+        .modify(regs::CLK_ROOT_SELECT::ROOT_DIV_INT::NO_DIV);
+}
+
+/// Select IHO as the source for clock path 0.
+pub fn init_clk_path0() {
+    SRSS.clk_path_select0
+        .modify(regs::CLK_PATH_SELECT::PATH_MUX::IHO);
+}
+
+/// Configure, start, and lock the FLL, switching output on success.
+pub fn init_fll() -> Result<(), ()> {
+    const MAX_DELAY_US: u32 = 20_000;
+    fll_manual_configure(&SRSS_0_CLOCK_0_FLL_0_FLL_CONFIG);
+
+    // Enable
+    SRSS.clk_fll_config4
+        .modify(regs::CLK_FLL_CONFIG4::CCO_ENABLE::SET);
+
+    let mut cc0_ready = false;
+    for _ in 0..MAX_DELAY_US {
+        if SRSS
+            .clk_fll_status
+            .any_matching_bits_set(regs::CLK_FLL_STATUS::CCO_READY::SET)
+        {
+            cc0_ready = true;
+            break;
+        }
+        delay_rough_us(1);
+    }
+    // Strangly setting this in manual config doesn't seem to work, so set it here after enabling the FLL
+    // This work in MTB though
+    SRSS.clk_fll_config4
+        .modify(regs::CLK_FLL_CONFIG4::CCO_RANGE::RANGE4_150200MHz);
+    SRSS.clk_fll_config3
+        .modify(regs::CLK_FLL_CONFIG3::BYPASS_SEL::FLL_REF);
+    if cc0_ready {
+        SRSS.clk_fll_config
+            .modify(regs::CLK_FLL_CONFIG::FLL_ENABLE::SET);
+    }
+
+    let mut locked = false;
+    for _ in 0..MAX_DELAY_US {
+        if SRSS
+            .clk_fll_status
+            .any_matching_bits_set(regs::CLK_FLL_STATUS::LOCKED::SET)
+        {
+            locked = true;
+            break;
+        }
+        delay_rough_us(1);
+    }
+
+    if locked {
+        SRSS.clk_fll_config3
+            .modify(regs::CLK_FLL_CONFIG3::BYPASS_SEL::FLL_OUT);
+        Ok(())
+    } else {
+        /* If lock doesn't occur, FLL is stopped */
+        disable_fll();
+        Err(())
+    }
+}
+
+/// Program FLL registers in manual mode from a static configuration.
+fn fll_manual_configure(config: &FllManualConfig) {
+    SRSS.clk_fll_config.write(
+        regs::CLK_FLL_CONFIG::FLL_MULT.val(config.fll_mult)
+            + regs::CLK_FLL_CONFIG::FLL_OUTPUT_DIV.val(config.enable_output_div as u32),
+    );
+
+    SRSS.clk_fll_config2.write(
+        regs::CLK_FLL_CONFIG2::FLL_REF_DIV.val(config.ref_div)
+            + regs::CLK_FLL_CONFIG2::LOCK_TOL.val(config.lock_tolerance),
+    );
+
+    SRSS.clk_fll_config3.write(
+        regs::CLK_FLL_CONFIG3::FLL_LF_IGAIN.val(config.igain)
+            + regs::CLK_FLL_CONFIG3::FLL_LF_PGAIN.val(config.pgain)
+            + regs::CLK_FLL_CONFIG3::SETTLING_COUNT.val(config.settling_count)
+            + regs::CLK_FLL_CONFIG3::BYPASS_SEL.val(config.output_mode),
+    );
+
+    SRSS.clk_fll_config4
+        .modify(regs::CLK_FLL_CONFIG4::CCO_RANGE.val(config.cco_range));
+    SRSS.clk_fll_config4
+        .modify(regs::CLK_FLL_CONFIG4::CCO_FREQ.val(config.cco_freq));
 }
