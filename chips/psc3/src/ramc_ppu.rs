@@ -451,42 +451,30 @@ ID3 [
     ID3 OFFSET(0) NUMBITS(8) []
 ]
 ];
-const RAMC_PPU0_BASE: StaticRef<RamcPpu0registers> =
+const RAMC_PPU0: StaticRef<RamcPpu0registers> =
     unsafe { StaticRef::new(0x42100000 as *const RamcPpu0registers) };
 
 pub type PwrPolicy = PWPR::PWR_POLICY::Value;
 
-pub struct RamcPpu {
-    registers: StaticRef<RamcPpu0registers>,
+/// Initializes the PPU
+pub fn init_ppu() {
+    RAMC_PPU0.iesr.write(IESR::DEVACTIVE00_EDGE::CLEAR); // disable all
+    RAMC_PPU0.imr.write(
+        IMR::STA_POLICY_TRN_IRQ_MASK::SET
+            + IMR::STA_ACCEPT_IRQ_MASK::SET
+            + IMR::STA_DENY_IRQ_MASK::SET
+            + IMR::EMU_ACCEPT_IRQ_MASK::SET
+            + IMR::EMU_DENY_IRQ_MASK::SET
+            + IMR::LOCKED_IRQ_MASK::SET,
+    ); // mask accept events to avoid wakeup
+    RAMC_PPU0.isr.write(ISR::STA_POLICY_TRN_IRQ::CLEAR);
 }
 
-impl RamcPpu {
-    pub const fn new() -> RamcPpu {
-        RamcPpu {
-            registers: RAMC_PPU0_BASE,
-        }
-    }
+/// Enables dynamic power mode transitions with the specified minimum dynamic power mode.
+pub fn ppu_dynamic_enable(min_dyn_state: PwrPolicy) {
+    RAMC_PPU0
+        .pwpr
+        .modify(PWPR::PWR_DYN_EN::SET + PWPR::PWR_POLICY.val(min_dyn_state as u32));
 
-    /// Initializes the PPU
-    pub fn init_ppu(&self) {
-        self.registers.iesr.write(IESR::DEVACTIVE00_EDGE::CLEAR); // disable all
-        self.registers.imr.write(
-            IMR::STA_POLICY_TRN_IRQ_MASK::SET
-                + IMR::STA_ACCEPT_IRQ_MASK::SET
-                + IMR::STA_DENY_IRQ_MASK::SET
-                + IMR::EMU_ACCEPT_IRQ_MASK::SET
-                + IMR::EMU_DENY_IRQ_MASK::SET
-                + IMR::LOCKED_IRQ_MASK::SET,
-        ); // mask accept events to avoid wakeup
-        self.registers.isr.write(ISR::STA_POLICY_TRN_IRQ::CLEAR);
-    }
-
-    /// Enables dynamic power mode transitions with the specified minimum dynamic power mode.
-    pub fn ppu_dynamic_enable(&self, min_dyn_state: PwrPolicy) {
-        self.registers
-            .pwpr
-            .modify(PWPR::PWR_DYN_EN::SET + PWPR::PWR_POLICY.val(min_dyn_state as u32));
-
-        while !self.registers.pwsr.is_set(PWSR::PWR_DYN_STATUS) {}
-    }
+    while !RAMC_PPU0.pwsr.is_set(PWSR::PWR_DYN_STATUS) {}
 }

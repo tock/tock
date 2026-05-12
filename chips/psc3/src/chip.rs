@@ -9,18 +9,13 @@ use kernel::hil::gpio::Configure;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-use crate::cpuss_ppu;
-use crate::flashc;
+use crate::chip_init;
 use crate::gpio;
 use crate::hsiom_registers;
 use crate::icache;
 use crate::interrupts;
-use crate::peri;
 use crate::peri_clk;
-use crate::pwrmode;
-use crate::ramc_ppu;
 use crate::scb;
-use crate::srss;
 use crate::tcpwm;
 use cortexm33::{CortexM33, CortexMVariant};
 
@@ -39,7 +34,7 @@ const GPIO_SWDCK_CONFIG: gpio::PreConfig = gpio::PreConfig {
     vtrip_sel: 0,
     vref_sel: 0,
     voh_sel: 0,
-    non_sec: false,
+    non_sec: true,
 };
 const GPIO_SWDIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
@@ -55,7 +50,7 @@ const GPIO_SWDIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
     vtrip_sel: 0,
     vref_sel: 0,
     voh_sel: 0,
-    non_sec: false,
+    non_sec: true,
 };
 pub const GPIO_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     out_val: 1,
@@ -71,6 +66,7 @@ pub const GPIO_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     vtrip_sel: 0,
     vref_sel: 0,
     voh_sel: 0,
+    // TODO why does this pin need to be non-secure for interrupts to work?
     non_sec: false,
 };
 pub const GPIO_DEBUG_UART_TX_CONFIG: gpio::PreConfig = gpio::PreConfig {
@@ -87,8 +83,61 @@ pub const GPIO_DEBUG_UART_TX_CONFIG: gpio::PreConfig = gpio::PreConfig {
     vtrip_sel: 0,
     vref_sel: 0,
     voh_sel: 0,
+    non_sec: true,
+};
+pub const GPIO_SEC_DEBUG_UART_RX_CONFIG: gpio::PreConfig = gpio::PreConfig {
+    out_val: 1,
+    drive_mode: gpio::DriveMode::HighZ,
+    hsiom: gpio::HsiomFunction::DeepSleepFunctionality2,
+    int_edge: false,
+    int_mask: 0,
+    vtrip: 0,
+    fast_slew_rate: true,
+    drive_sel: gpio::DriveSelect::Half,
+    vreg_en: false,
+    ibuf_mode: 0,
+    vtrip_sel: 0,
+    vref_sel: 0,
+    voh_sel: 0,
+    // TODO why does this pin need to be non-secure for interrupts to work?
     non_sec: false,
 };
+pub const GPIO_SEC_DEBUG_UART_TX_CONFIG: gpio::PreConfig = gpio::PreConfig {
+    out_val: 1,
+    drive_mode: gpio::DriveMode::Strong,
+    hsiom: gpio::HsiomFunction::DeepSleepFunctionality2,
+    int_edge: false,
+    int_mask: 0,
+    vtrip: 0,
+    fast_slew_rate: true,
+    drive_sel: gpio::DriveSelect::Half,
+    vreg_en: false,
+    ibuf_mode: 0,
+    vtrip_sel: 0,
+    vref_sel: 0,
+    voh_sel: 0,
+    non_sec: true,
+};
+
+pub fn init_gpio_pins() {
+    let gpio = gpio::PsocPins::new(true);
+
+    let swdck_pin = gpio.get_pin(gpio::PsocPin::P1_2);
+    swdck_pin.preconfigure(&GPIO_SWDCK_CONFIG);
+    let swdio_pin = gpio.get_pin(gpio::PsocPin::P1_3);
+    swdio_pin.preconfigure(&GPIO_SWDIO_CONFIG);
+    let uart_rx_pin = gpio.get_pin(gpio::PsocPin::P6_2);
+    uart_rx_pin.preconfigure(&GPIO_DEBUG_UART_RX_CONFIG);
+    uart_rx_pin.make_input();
+    let uart_tx_pin = gpio.get_pin(gpio::PsocPin::P6_3);
+    uart_tx_pin.preconfigure(&GPIO_DEBUG_UART_TX_CONFIG);
+
+    let sec_uart_rx_pin = gpio.get_pin(gpio::PsocPin::P9_2);
+    sec_uart_rx_pin.preconfigure(&GPIO_SEC_DEBUG_UART_RX_CONFIG);
+    sec_uart_rx_pin.make_input();
+    let secu_uart_tx_pin = gpio.get_pin(gpio::PsocPin::P9_3);
+    secu_uart_tx_pin.preconfigure(&GPIO_SEC_DEBUG_UART_TX_CONFIG);
+}
 
 pub struct Psc3<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
@@ -165,97 +214,41 @@ pub struct Psc3DefaultPeripherals<'a> {
     pub gpio: gpio::PsocPins<'a>,
     pub scb3: scb::Scb<'a>,
     pub tcpwm: tcpwm::Tcpwm0<'a>,
-    peri: peri::Peri,
-    peri_clk: peri_clk::PeriPClk,
-    pwrmode: pwrmode::PwrMode,
-    srss: srss::Srss,
-    cpuss_ppu: cpuss_ppu::CpussPpu,
-    ramc_ppu: ramc_ppu::RamcPpu,
-    flashc: flashc::FlashC,
 }
 
 impl Psc3DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
-            peri: peri::Peri::new(),
-            scb3: scb::Scb::new(),
-            peri_clk: peri_clk::PeriPClk::new(),
-            srss: srss::Srss::new(),
-            pwrmode: pwrmode::PwrMode::new(),
+            scb3: scb::Scb::new_scb3(),
             tcpwm: tcpwm::Tcpwm0::new(),
-            cpuss_ppu: cpuss_ppu::CpussPpu::new(),
-            gpio: gpio::PsocPins::new(),
-            ramc_ppu: ramc_ppu::RamcPpu::new(),
-            flashc: flashc::FlashC::new(),
+            gpio: gpio::PsocPins::new(false),
         }
     }
 
-    /// Pre-initialize peripherals that are required for further system initialization.
-    /// Activates essential clocks.
-    /// Without this step, some peripherals do not work and abort the debugger connection.
-    pub fn preinit_peripherals(&self) {
-        self.srss.sys_init_enable_clocks();
-        self.peri.sys_init_enable_peri();
-    }
-
-    /// Initialize system PPUs and set them to the default power mode.
-    fn init_pwr(&self) {
-        self.pwrmode.ppu_init();
-        self.cpuss_ppu.init_ppu();
-        self.ramc_ppu.init_ppu();
-
-        /* Set Default mode to DEEPSLEEP */
-        self.pwrmode
-            .ppu_dynamic_enable(pwrmode::PwrPolicy::FullRetention);
-        self.cpuss_ppu
-            .ppu_dynamic_enable(cpuss_ppu::PwrPolicy::FullRetention);
-        self.ramc_ppu
-            .ppu_dynamic_enable(ramc_ppu::PwrPolicy::MemoryRetention);
-    }
-
-    /// Initialize system clocks, unlock watchdog and set flash wait states.
-    fn init_system(&self) {
-        self.flashc.set_waitstates(false, 180);
-
-        /* Unlock WDT to be able to modify LFCLK registers */
-        self.srss.wdt_unlock();
-
-        self.init_pwr();
-
-        self.srss.disable_fll();
-        self.srss.enable_iho();
-
-        self.srss.init_clock_paths();
-
-        self.srss.init_dpll_lp().unwrap();
-
-        self.srss.init_clk_hf();
-        self.srss.init_clk_path0();
-
-        self.srss.init_fll().unwrap();
-        self.srss.init_clk_hf0();
-    }
-
     /// Initialize GPIO pins for SWD and Debug UART.
-    fn init_gpio_pins(&self) {
-        let swdck_pin = self.gpio.get_pin(gpio::PsocPin::P1_2);
-        swdck_pin.preconfigure(&GPIO_SWDCK_CONFIG);
-        let swdio_pin = self.gpio.get_pin(gpio::PsocPin::P1_3);
-        swdio_pin.preconfigure(&GPIO_SWDIO_CONFIG);
-        let uart_rx_pin = self.gpio.get_pin(gpio::PsocPin::P6_2);
-        uart_rx_pin.preconfigure(&GPIO_DEBUG_UART_RX_CONFIG);
-        uart_rx_pin.make_input();
-        let uart_tx_pin = self.gpio.get_pin(gpio::PsocPin::P6_3);
-        uart_tx_pin.preconfigure(&GPIO_DEBUG_UART_TX_CONFIG);
-    }
+    // fn init_gpio_pins(&self) {
+    //     return;
+    //     let swdck_pin = self.gpio.get_pin(gpio::PsocPin::P1_2);
+    //     swdck_pin.preconfigure(&GPIO_SWDCK_CONFIG);
+    //     let swdio_pin = self.gpio.get_pin(gpio::PsocPin::P1_3);
+    //     swdio_pin.preconfigure(&GPIO_SWDIO_CONFIG);
+    //     let uart_rx_pin = self.gpio.get_pin(gpio::PsocPin::P6_2);
+    //     uart_rx_pin.preconfigure(&GPIO_DEBUG_UART_RX_CONFIG);
+    //     uart_rx_pin.make_input();
+    //     let uart_tx_pin = self.gpio.get_pin(gpio::PsocPin::P6_3);
+    //     uart_tx_pin.preconfigure(&GPIO_DEBUG_UART_TX_CONFIG);
+    // }
 
     /// Initialize all peripherals.
     pub fn init(&self) {
-        self.init_system();
+        chip_init::init_system();
 
-        self.peri_clk.configure_clocks();
-        self.peri_clk.init_peripherals();
-        self.init_gpio_pins();
+        // Route clk to scb and tcpwm
+        peri_clk::enable_scb3();
+        peri_clk::enable_tcpwm0();
+
+        // TODO split non-secure
+        // self.init_gpio_pins();
 
         self.scb3.set_standard_uart_mode();
         self.scb3.enable_scb();
@@ -267,15 +260,11 @@ impl Psc3DefaultPeripherals<'_> {
 impl InterruptService for Psc3DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         // handle all GPIO interrupts
-        if interrupt <= interrupts::IOSS_INTERRUPTS_SEC_GPIO_9 {
+        if interrupt <= interrupts::IOSS_INTERRUPT_SEC_GPIO {
             self.gpio.handle_interrupt();
             return true;
         }
         match interrupt {
-            interrupts::IOSS_INTERRUPT_SEC_GPIO => {
-                self.gpio.handle_interrupt();
-                true
-            }
             interrupts::TCPWM_0_INTERRUPTS_0 => {
                 self.tcpwm.handle_interrupt();
                 true
