@@ -4,12 +4,12 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
 use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
-use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
-use kernel::ErrorCode;
+use kernel::utilities::registers::{LocalRegisterCopy, register_bitfields};
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::super::queues::split_queue::{

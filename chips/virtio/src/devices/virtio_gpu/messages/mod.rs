@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
-use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 
 pub(crate) mod ctrl_header;
 pub(crate) mod resource_attach_backing;
