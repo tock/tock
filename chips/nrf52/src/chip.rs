@@ -76,9 +76,14 @@ pub struct Nrf52DefaultPeripherals<'a> {
 
 impl Nrf52DefaultPeripherals<'_> {
     pub fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
+        // # Safety
+        //
+        // This must only get constructed once.
+        let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
+
         Self {
             acomp: crate::acomp::Comparator::new(),
-            ecb: crate::aes::AesECB::new(AESECB_BASE, aes_ecb_buffer),
+            ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
             pwr_clk: crate::power::Power::new(),
             ble_radio: crate::ble_radio::Radio::new(),
             trng: crate::trng::Trng::new(RNG_BASE),

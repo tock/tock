@@ -35,10 +35,9 @@ use kernel::hil::symmetric_encryption;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 pub use nrf5x_unsafe::aes::AesEcbRegisters;
-use nrf5x_unsafe::aes::AesEcbRegistersManager;
+pub use nrf5x_unsafe::aes::AesEcbRegistersManager;
 
 const KEY_START: usize = 0;
 const PLAINTEXT_START: usize = 16;
@@ -72,9 +71,9 @@ pub struct AesECB<'a> {
 }
 
 impl AesECB<'_> {
-    pub fn new(registers: StaticRef<AesEcbRegisters>, ecb_data: &'static mut [u8; 48]) -> Self {
+    pub fn new(registers: AesEcbRegistersManager, ecb_data: &'static mut [u8; 48]) -> Self {
         Self {
-            registers: AesEcbRegistersManager::new(registers),
+            registers,
             mode: Cell::new(AESMode::CTR),
             ecb_data: MapCell::new(ecb_data),
             input: MapCell::empty(),

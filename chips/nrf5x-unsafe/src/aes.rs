@@ -79,7 +79,7 @@ pub struct AesEcbRegistersManager {
 }
 
 impl AesEcbRegistersManager {
-    pub fn new(regs: StaticRef<AesEcbRegisters>) -> Self {
+    pub unsafe fn new(regs: StaticRef<AesEcbRegisters>) -> Self {
         Self {
             registers: regs,
             dma_buf: MapCell::empty(),
