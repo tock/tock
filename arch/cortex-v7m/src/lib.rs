@@ -7,7 +7,7 @@
 #![no_std]
 
 // These constants are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     static _estack: u8;
     static _sstack: u8;
 }

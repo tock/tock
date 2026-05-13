@@ -474,30 +474,55 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // handler and this process faulted.
             kernel::syscall::ContextSwitchReason::Fault
         } else if syscall_fired == 1 {
-            // Save these fields after a syscall. If this is a synchronous
-            // syscall (i.e. we return a value to the app immediately) then this
-            // will have no effect. If we are doing something like `yield()`,
-            // however, then we need to have this state.
-            state.yield_pc = ptr::read(new_stack_pointer.add(6));
-            state.psr = ptr::read(new_stack_pointer.add(7));
+            // # Safety
+            //
+            // We verified that there is room on the stack for the service frame
+            // so we can safely create pointers to that memory on the process
+            // stack.
+            let (yield_pc_ptr, psr_ptr, r0_ptr, r1_ptr, r2_ptr, r3_ptr) = unsafe {
+                (
+                    new_stack_pointer.add(6),
+                    new_stack_pointer.add(7),
+                    new_stack_pointer.add(0),
+                    new_stack_pointer.add(1),
+                    new_stack_pointer.add(2),
+                    new_stack_pointer.add(3),
+                )
+            };
 
-            // Get the syscall arguments and return them along with the syscall.
-            // It's possible the app did something invalid, in which case we put
-            // the app in the fault state.
-            let r0 = ptr::read(new_stack_pointer.add(0));
-            let r1 = ptr::read(new_stack_pointer.add(1));
-            let r2 = ptr::read(new_stack_pointer.add(2));
-            let r3 = ptr::read(new_stack_pointer.add(3));
+            // # Safety
+            //
+            // The pointers are to valid memory in the process stack.
+            let (r0, r1, r2, r3) = unsafe {
+                // Save these fields after a syscall. If this is a synchronous
+                // syscall (i.e. we return a value to the app immediately) then this
+                // will have no effect. If we are doing something like `yield()`,
+                // however, then we need to have this state.
+                state.yield_pc = ptr::read(yield_pc_ptr);
+                state.psr = ptr::read(psr_ptr);
+
+                // Get the syscall arguments and return them along with the syscall.
+                // It's possible the app did something invalid, in which case we put
+                // the app in the fault state.
+                let r0 = ptr::read(r0_ptr);
+                let r1 = ptr::read(r1_ptr);
+                let r2 = ptr::read(r2_ptr);
+                let r3 = ptr::read(r3_ptr);
+
+                (r0, r1, r2, r3)
+            };
 
             // Get the actual SVC number.
-            // Read the PC from the stack as a *const u16 (i.e. we're treating instructions as
+            // Use the PC from the stack as a *const u16 (i.e. we're treating instructions as
             // u16).
-            let pcptr_ptr: *const usize = new_stack_pointer;
-            let pcptr_ptr: *const *const u16 = pcptr_ptr.cast();
-            let pcptr = ptr::read(pcptr_ptr.add(6));
+            let pcptr: *const u16 = state.yield_pc as *const u16;
+
+            // Get a pointer to the instruction before the PC value.
+            let pcprev_ptr = unsafe { pcptr.sub(1) };
+
             // The svc instruction is the last instruction before the PC, and should be 16 bits.
             // Read it by offsetting the PC.
-            let svc_instr = ptr::read(pcptr.sub(1));
+            let svc_instr = unsafe { ptr::read(pcprev_ptr) };
             let svc_num = (svc_instr & 0xff) as u8;
 
             // Use the helper function to convert these raw values into a Tock
@@ -549,15 +574,38 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 0xBAD00BAD,
             )
         } else {
-            let r0 = ptr::read(stack_pointer.add(0));
-            let r1 = ptr::read(stack_pointer.add(1));
-            let r2 = ptr::read(stack_pointer.add(2));
-            let r3 = ptr::read(stack_pointer.add(3));
-            let r12 = ptr::read(stack_pointer.add(4));
-            let lr = ptr::read(stack_pointer.add(5));
-            let pc = ptr::read(stack_pointer.add(6));
-            let xpsr = ptr::read(stack_pointer.add(7));
-            (r0, r1, r2, r3, r12, lr, pc, xpsr)
+            // # Safety
+            //
+            // We ensured there is enough valid process memory on the stack to store
+            // these values we are creating pointers to.
+            let (r0_ptr, r1_ptr, r2_ptr, r3_ptr, r12_ptr, lr_ptr, pc_ptr, xpsr_ptr) = unsafe {
+                (
+                    stack_pointer.add(0),
+                    stack_pointer.add(1),
+                    stack_pointer.add(2),
+                    stack_pointer.add(3),
+                    stack_pointer.add(4),
+                    stack_pointer.add(5),
+                    stack_pointer.add(6),
+                    stack_pointer.add(7),
+                )
+            };
+
+            // # Safety
+            //
+            // We ensured the pointers point to valid stack memory we can read
+            // from.
+            unsafe {
+                let r0 = ptr::read(r0_ptr);
+                let r1 = ptr::read(r1_ptr);
+                let r2 = ptr::read(r2_ptr);
+                let r3 = ptr::read(r3_ptr);
+                let r12 = ptr::read(r12_ptr);
+                let lr = ptr::read(lr_ptr);
+                let pc = ptr::read(pc_ptr);
+                let xpsr = ptr::read(xpsr_ptr);
+                (r0, r1, r2, r3, r12, lr, pc, xpsr)
+            }
         };
 
         let _ = writer.write_fmt(format_args!(
