@@ -244,8 +244,8 @@ enum State {
 pub struct I2c<'a, 'c> {
     instance_num: u8,
     registers: StaticRef<I2cRegisters>,
-    clocks: OptionalCell<&'a clocks::Clocks>,
-    resets: OptionalCell<&'a resets::Resets>,
+    clocks: &'a clocks::Clocks,
+    resets: &'a resets::Resets,
 
     client: OptionalCell<&'c dyn hil::i2c::I2CHwMasterClient>,
     buf: TakeCell<'static, [u8]>,
@@ -260,12 +260,12 @@ pub struct I2c<'a, 'c> {
 }
 
 impl<'a> I2c<'a, '_> {
-    fn new(instance_num: u8) -> Self {
+    fn new(instance_num: u8, clocks: &'a clocks::Clocks, resets: &'a resets::Resets) -> Self {
         Self {
             instance_num,
             registers: INSTANCES[instance_num as usize],
-            clocks: OptionalCell::empty(),
-            resets: OptionalCell::empty(),
+            clocks,
+            resets,
 
             client: OptionalCell::empty(),
             buf: TakeCell::empty(),
@@ -280,39 +280,28 @@ impl<'a> I2c<'a, '_> {
         }
     }
 
-    pub fn new_i2c0() -> Self {
-        I2c::new(0)
+    pub fn new_i2c0(clocks: &'a clocks::Clocks, resets: &'a resets::Resets) -> Self {
+        I2c::new(0, clocks, resets)
     }
 
-    pub fn new_i2c1() -> Self {
-        I2c::new(1)
-    }
-
-    pub fn resolve_dependencies(&self, clocks: &'a clocks::Clocks, resets: &'a resets::Resets) {
-        self.clocks.set(clocks);
-        self.resets.set(resets);
+    pub fn new_i2c1(clocks: &'a clocks::Clocks, resets: &'a resets::Resets) -> Self {
+        I2c::new(1, clocks, resets)
     }
 
     fn reset(&self) {
-        self.resets.map_or_else(
-            || panic!("You should call resolve_dependencies before reset."),
-            |resets| match self.instance_num {
-                0 => resets.reset(&[resets::Peripheral::I2c0]),
-                1 => resets.reset(&[resets::Peripheral::I2c1]),
-                _ => unreachable!(),
-            },
-        );
+        match self.instance_num {
+            0 => self.resets.reset(&[resets::Peripheral::I2c0]),
+            1 => self.resets.reset(&[resets::Peripheral::I2c1]),
+            _ => unreachable!(),
+        }
     }
 
     fn unreset(&self) {
-        self.resets.map_or_else(
-            || panic!("You should call resolve_dependencies before unreset."),
-            |resets| match self.instance_num {
-                0 => resets.unreset(&[resets::Peripheral::I2c0], true),
-                1 => resets.unreset(&[resets::Peripheral::I2c1], true),
-                _ => unreachable!(),
-            },
-        );
+        match self.instance_num {
+            0 => self.resets.unreset(&[resets::Peripheral::I2c0], true),
+            1 => self.resets.unreset(&[resets::Peripheral::I2c1], true),
+            _ => unreachable!(),
+        }
     }
 
     fn disable(&self) {
@@ -327,10 +316,7 @@ impl<'a> I2c<'a, '_> {
         assert!(baudrate != 0);
 
         // I2C is synchronous design that runs from clk_sys
-        let freq_in = self
-            .clocks
-            .map(|clocks| clocks.get_frequency(clocks::Clock::System))
-            .unwrap(); // Unwrap fail = You should call resolve_dependencies before set_baudrate.
+        let freq_in = self.clocks.get_frequency(clocks::Clock::System);
 
         // TODO: as per the comments in the pico-sdk, this block is not 100% correct
         let period = (freq_in + baudrate / 2) / baudrate;

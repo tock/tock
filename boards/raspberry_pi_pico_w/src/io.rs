@@ -11,6 +11,7 @@ use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::io_write::IoWrite;
 
+use rp2040::clocks::Clocks;
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::uart::Uart;
 
@@ -66,7 +67,8 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         self.uart.map_or_else(
             || {
-                let uart = Uart::new_uart0();
+                let clocks = Clocks::new();
+                let uart = Uart::new_uart0(&clocks);
                 self.configure_uart(&uart);
                 self.write_to_uart(&uart, buf);
             },
