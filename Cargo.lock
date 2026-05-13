@@ -1061,7 +1061,6 @@ dependencies = [
 name = "nrf5x"
 version = "0.2.3-dev"
 dependencies = [
- "cortexm4f",
  "enum_primitive",
  "kernel",
  "nrf5x-unsafe",

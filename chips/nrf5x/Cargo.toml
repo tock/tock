@@ -10,7 +10,6 @@ edition.workspace = true
 
 [dependencies]
 nrf5x-unsafe = { path = "../nrf5x-unsafe" }
-cortexm4f = { path = "../../arch/cortex-m4f" }
 kernel = { path = "../../kernel" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 
