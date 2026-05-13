@@ -11,8 +11,7 @@ Using a Cargo Configuration File
 --------------------------------
 
 To use one of these configurations in a board build file, the board's
-`.cargo/config.toml` file must use the `include` key. This currently (as of July
-2024) requires the `config-include` nightly feature.
+`.cargo/config.toml` file must use the `include` key.
 
 Example:
 
@@ -21,7 +20,4 @@ include = [
   "../../cargo/tock_flags.toml",
   "../../cargo/unstable_flags.toml",
 ]
-
-[unstable]
-config-include = true
 ```

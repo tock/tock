@@ -714,13 +714,13 @@ impl FLASHCALW {
         // Errata 45.1.7 - Need to write a 64-bit all one word for every write
         // to the page buffer.
         let cleared_double_word: [u8; 8] = [255; 8];
-        let clr_ptr: *const u8 = &cleared_double_word[0] as *const u8;
+        let clr_ptr: *const u8 = core::ptr::from_ref::<u8>(&cleared_double_word[0]);
 
         self.buffer.map(|buffer| {
             unsafe {
                 use core::ptr;
 
-                let mut start_buffer: *const u8 = &buffer[0] as *const u8;
+                let mut start_buffer: *const u8 = core::ptr::from_ref::<u8>(&buffer[0]);
                 let mut data_transfered: u32 = 0;
                 while data_transfered < PAGE_SIZE {
                     // errata copy..
@@ -728,8 +728,8 @@ impl FLASHCALW {
 
                     // real copy
                     ptr::copy(start_buffer, page_buffer, 8);
-                    page_buffer = page_buffer.offset(8);
-                    start_buffer = start_buffer.offset(8);
+                    page_buffer = page_buffer.add(8);
+                    start_buffer = start_buffer.add(8);
                     data_transfered += 8;
                 }
             }
@@ -794,7 +794,7 @@ impl FLASHCALW {
         unsafe {
             for i in 0..size {
                 buffer[i] = *byte;
-                byte = byte.offset(1);
+                byte = byte.add(1);
             }
         }
 

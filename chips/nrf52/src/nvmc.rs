@@ -305,7 +305,7 @@ impl Nvmc {
         unsafe {
             for i in 0..buffer.len() {
                 buffer[i] = *byte;
-                byte = byte.offset(1);
+                byte = byte.add(1);
             }
         }
 

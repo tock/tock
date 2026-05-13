@@ -173,18 +173,18 @@ pub unsafe fn configure_trap_handler() {
     // Indicate to the trap handler that we are executing kernel code.
     csr::CSR.mscratch.set(0);
 
-    // Set the machine-mode trap handler. By not configuing an S-mode or U-mode
+    // Set the machine-mode trap handler. By not configuring an S-mode or U-mode
     // trap handler, this should ensure that all traps are handled by the M-mode
     // handler.
     csr::CSR.mtvec.write(
-        csr::mtvec::mtvec::trap_addr.val(_start_trap as usize >> 2)
+        csr::mtvec::mtvec::trap_addr.val(_start_trap as extern "C" fn() -> ! as usize >> 2)
             + csr::mtvec::mtvec::mode::CLEAR,
     );
 }
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
-pub extern "C" fn _start_trap() {
+pub extern "C" fn _start_trap() -> ! {
     unimplemented!()
 }
 
@@ -291,7 +291,7 @@ pub extern "C" fn _start_trap() {
 // symbol name.
 #[export_name = "_start_trap"]
 #[unsafe(naked)]
-pub extern "C" fn _start_trap() {
+pub extern "C" fn _start_trap() -> ! {
     use core::arch::naked_asm;
     naked_asm!(
         "

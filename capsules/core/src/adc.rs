@@ -341,8 +341,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                 .enter(id, |_, kernel_data| {
                     app_buf_length = kernel_data
                         .get_readwrite_processbuffer(0)
-                        .map(|b| b.len())
-                        .unwrap_or(0);
+                        .map_or(0, |b| b.len());
                     app_buf_length > 0
                 })
                 .map_err(|err| {
@@ -464,12 +463,10 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                 .enter(id, |_, kernel_data| {
                     app_buf_length = kernel_data
                         .get_readwrite_processbuffer(0)
-                        .map(|b| b.len())
-                        .unwrap_or(0);
+                        .map_or(0, |b| b.len());
                     next_app_buf_length = kernel_data
                         .get_readwrite_processbuffer(1)
-                        .map(|b| b.len())
-                        .unwrap_or(0);
+                        .map_or(0, |b| b.len());
                     app_buf_length > 0 && next_app_buf_length > 0
                 })
                 .map_err(|err| {

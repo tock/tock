@@ -784,9 +784,9 @@ impl<'a> DmaChannel<'a> {
         // necessary to wait for any hardware module to process or 'generate' data.
         let r_power = if tt == DmaTransferType::MemoryToMemory {
             if rem_words > MAX_TRANSFERS_LEN {
-                31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
+                (MAX_TRANSFERS_LEN as u32).ilog2()
             } else {
-                31 - (len as u32).leading_zeros()
+                (len as u32).ilog2()
             }
         } else {
             0
@@ -955,9 +955,9 @@ impl<'a> DmaChannel<'a> {
         // The 'register-value' for this is ld(cycles), e.g. cycles = 256 -> ld(256) = 8
         // In order to get the number of cycles, just get the closest 2^n value of transfers
         let r_power = if transfers > MAX_TRANSFERS_LEN {
-            31 - (MAX_TRANSFERS_LEN as u32).leading_zeros()
+            (MAX_TRANSFERS_LEN as u32).ilog2()
         } else {
-            31 - (len as u32).leading_zeros()
+            (len as u32).ilog2()
         };
 
         // Set the number of cycles before a bus rearbitration
