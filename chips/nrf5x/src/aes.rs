@@ -286,10 +286,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     fn enable(&self) {}
 
     fn disable(&self) {
-        self.registers
-            .registers
-            .task_stopecb
-            .write(nrf5x_unsafe::aes::Task::ENABLE::CLEAR);
+        self.registers.finish_ecb_dma();
         self.disable_interrupts();
     }
 

@@ -14,10 +14,10 @@ use kernel::utilities::StaticRef;
 pub struct AesEcbRegisters {
     /// Start ECB block encrypt
     /// - Address 0x000 - 0x004
-    pub task_startecb: WriteOnly<u32, Task::Register>,
+    task_startecb: WriteOnly<u32, Task::Register>,
     /// Abort a possible executing ECB operation
     /// - Address: 0x004 - 0x008
-    pub task_stopecb: WriteOnly<u32, Task::Register>,
+    task_stopecb: WriteOnly<u32, Task::Register>,
     /// Reserved
     _reserved1: [u32; 62],
     /// ECB block encrypt complete
