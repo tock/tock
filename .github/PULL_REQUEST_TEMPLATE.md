@@ -23,6 +23,6 @@ This pull request still needs...
 
 ### AI Use
 
-- [ ] The PR description details my use of AI in the production of the
-      code in this PR, if any, and I have manually checked and
-      personally certify the entire contents of this PR.
+This pull request was written by...
+
+- [ ] I have read Tock's AI policy and have properly disclosed any AI use.
