@@ -31,8 +31,15 @@ generated TBF in the Makefile (APP variable), then run:
 $ make flash APP=path/to/app.tbf # program for OpenOCD
 ```
 
-This will generate a new ELF file that can be deployed on the board via gdb and
+This will generate a new ELF file with kernel and app that can be deployed on the board via gdb and
 probe-rs.
+
+To compile an app, you can use the examples in the [`libtock-rs`](https://github.com/tock/libtock-rs) repo.
+For example, to build the `console` app, you can run:
+
+```bash
+$ make psc3m5_evk EXAMPLE=console
+```
 
 ## Protection Contexts
 

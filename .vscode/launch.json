@@ -30,6 +30,9 @@
             ]
         },
         {
+            // Add the following tools to path:
+            // - arm-none-eabi-gdb
+            // - openocd (from ModusToolboxProgtools)
             "name": "PSC3",
             // Install marus25.cortex-debug
             "type": "cortex-debug", // probe-rs also works but has significantly worse debugging experience (fewer breakpoints possible, fewer variables visible)
