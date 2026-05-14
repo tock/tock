@@ -183,7 +183,6 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwMasterClient
         // Check to see if we were listening as an I2C slave and should re-enable
         // that mode.
         if self.listening.get() {
-            hil::i2c::I2CSlave::enable(self.i2c);
             hil::i2c::I2CSlave::listen(self.i2c);
         }
     }
@@ -332,7 +331,6 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> SyscallDriver for I2CMasterSlaveDriver
 
                                     self.master_action.set(MasterAction::Write);
 
-                                    hil::i2c::I2CMaster::enable(self.i2c);
                                     // TODO verify errors
                                     let _ = hil::i2c::I2CMaster::write(
                                         self.i2c, address, kernel_tx, write_len,
@@ -374,7 +372,6 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> SyscallDriver for I2CMasterSlaveDriver
 
                                     self.master_action.set(MasterAction::Read(read_len as u8));
 
-                                    hil::i2c::I2CMaster::enable(self.i2c);
                                     // TODO verify errors
                                     let _ = hil::i2c::I2CMaster::read(
                                         self.i2c, address, kernel_tx, read_len,
@@ -397,10 +394,6 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> SyscallDriver for I2CMasterSlaveDriver
                     // TODO verify errors
                     let _ = hil::i2c::I2CSlave::write_receive(self.i2c, buffer, 255);
                 });
-
-                // Actually get things going
-                hil::i2c::I2CSlave::enable(self.i2c);
-                hil::i2c::I2CSlave::listen(self.i2c);
 
                 // Note that we have enabled listening, so that if we switch
                 // to Master mode to send a message we can go back to listening.
@@ -494,7 +487,6 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> SyscallDriver for I2CMasterSlaveDriver
                                     app_tx[..write_len].copy_to_slice(&mut kernel_tx[..write_len]);
                                     self.master_action
                                         .set(MasterAction::WriteRead(read_len as u8));
-                                    hil::i2c::I2CMaster::enable(self.i2c);
                                     // TODO verify errors
                                     let _ = hil::i2c::I2CMaster::write_read(
                                         self.i2c, address, kernel_tx, write_len, read_len,

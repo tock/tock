@@ -71,8 +71,6 @@ pub enum SlaveTransmissionType {
 /// Interface for an I2C Master hardware driver.
 pub trait I2CMaster<'a> {
     fn set_master_client(&self, master_client: &'a dyn I2CHwMasterClient);
-    fn enable(&self);
-    fn disable(&self);
     fn write_read(
         &self,
         addr: u8,
@@ -160,8 +158,6 @@ pub trait SMBusMaster<'a>: I2CMaster<'a> {
 /// Interface for an I2C Slave hardware driver.
 pub trait I2CSlave<'a> {
     fn set_slave_client(&self, slave_client: &'a dyn I2CHwSlaveClient);
-    fn enable(&self);
-    fn disable(&self);
     fn set_address(&self, addr: u8) -> Result<(), Error>;
     fn write_receive(
         &self,
@@ -218,8 +214,6 @@ pub trait I2CHwSlaveClient {
 /// address. It gives an interface for communicating with a specific I2C
 /// device.
 pub trait I2CDevice {
-    fn enable(&self);
-    fn disable(&self);
     fn write_read(
         &self,
         data: &'static mut [u8],
@@ -228,7 +222,7 @@ pub trait I2CDevice {
     ) -> Result<(), (Error, &'static mut [u8])>;
     fn write(&self, data: &'static mut [u8], len: usize) -> Result<(), (Error, &'static mut [u8])>;
     fn read(&self, buffer: &'static mut [u8], len: usize)
-    -> Result<(), (Error, &'static mut [u8])>;
+        -> Result<(), (Error, &'static mut [u8])>;
 }
 
 pub trait SMBusDevice: I2CDevice {
@@ -296,8 +290,6 @@ pub struct NoSMBus;
 
 impl<'a> I2CMaster<'a> for NoSMBus {
     fn set_master_client(&self, _master_client: &'a dyn I2CHwMasterClient) {}
-    fn enable(&self) {}
-    fn disable(&self) {}
     fn write_read(
         &self,
         _addr: u8,

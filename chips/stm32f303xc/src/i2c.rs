@@ -5,7 +5,7 @@
 use core::cell::Cell;
 
 use kernel::hil;
-use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
+use kernel::hil::i2c::{self, Error, I2CHwMasterClient};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -426,6 +426,14 @@ impl<'a> I2C<'a> {
         self.stop();
     }
 
+    fn enable(&self) {
+        self.registers.cr1.modify(CR1::PE::SET);
+    }
+
+    fn disable(&self) {
+        self.registers.cr1.modify(CR1::PE::CLEAR);
+    }
+
     fn reset(&self) {
         self.disable();
         self.enable();
@@ -478,12 +486,6 @@ impl<'a> I2C<'a> {
 impl<'a> i2c::I2CMaster<'a> for I2C<'a> {
     fn set_master_client(&self, master_client: &'a dyn I2CHwMasterClient) {
         self.master_client.replace(master_client);
-    }
-    fn enable(&self) {
-        self.registers.cr1.modify(CR1::PE::SET);
-    }
-    fn disable(&self) {
-        self.registers.cr1.modify(CR1::PE::CLEAR);
     }
     fn write_read(
         &self,

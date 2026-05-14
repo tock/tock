@@ -34,14 +34,6 @@ impl<'a, M: I2CMaster<'a>, S: I2CSlave<'a>> I2CMaster<'a> for I2CMasterSlaveComb
         self.i2c_master.set_master_client(master_client)
     }
 
-    fn enable(&self) {
-        self.i2c_master.enable()
-    }
-
-    fn disable(&self) {
-        self.i2c_master.disable()
-    }
-
     fn write_read(
         &self,
         addr: u8,
@@ -74,14 +66,6 @@ impl<'a, M: I2CMaster<'a>, S: I2CSlave<'a>> I2CMaster<'a> for I2CMasterSlaveComb
 impl<'a, M: I2CMaster<'a>, S: I2CSlave<'a>> I2CSlave<'a> for I2CMasterSlaveCombo<'a, M, S> {
     fn set_slave_client(&self, slave_client: &'a dyn I2CHwSlaveClient) {
         self.i2c_slave.set_slave_client(slave_client);
-    }
-
-    fn enable(&self) {
-        self.i2c_slave.enable()
-    }
-
-    fn disable(&self) {
-        self.i2c_slave.disable()
     }
 
     fn set_address(&self, addr: u8) -> Result<(), Error> {

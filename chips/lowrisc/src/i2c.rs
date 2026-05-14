@@ -51,6 +51,35 @@ impl<'a> I2c<'a> {
         }
     }
 
+    fn enable(&self) {
+        let regs = self.registers;
+
+        self.timing_parameter_init(self.clock_period_nanos);
+        self.fifo_reset();
+
+        // Enable all interrupts
+        regs.intr_enable.modify(
+            INTR::FMT_THRESHOLD::SET
+                + INTR::RX_THRESHOLD::SET
+                + INTR::FMT_OVERFLOW::SET
+                + INTR::RX_OVERFLOW::SET
+                + INTR::NAK::SET
+                + INTR::SCL_INTERFERENCE::SET
+                + INTR::SDA_INTERFERENCE::SET
+                + INTR::STRETCH_TIMEOUT::SET
+                + INTR::SDA_UNSTABLE::SET,
+        );
+
+        // Enable I2C Host
+        regs.ctrl.modify(CTRL::ENABLEHOST::SET);
+    }
+
+    fn disable(&self) {
+        let regs = self.registers;
+
+        regs.ctrl.modify(CTRL::ENABLEHOST::CLEAR);
+    }
+
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
         let irqs = regs.intr_state.extract();
@@ -253,35 +282,6 @@ impl<'a> I2c<'a> {
 impl<'a> hil::i2c::I2CMaster<'a> for I2c<'a> {
     fn set_master_client(&self, master_client: &'a dyn i2c::I2CHwMasterClient) {
         self.master_client.set(master_client);
-    }
-
-    fn enable(&self) {
-        let regs = self.registers;
-
-        self.timing_parameter_init(self.clock_period_nanos);
-        self.fifo_reset();
-
-        // Enable all interrupts
-        regs.intr_enable.modify(
-            INTR::FMT_THRESHOLD::SET
-                + INTR::RX_THRESHOLD::SET
-                + INTR::FMT_OVERFLOW::SET
-                + INTR::RX_OVERFLOW::SET
-                + INTR::NAK::SET
-                + INTR::SCL_INTERFERENCE::SET
-                + INTR::SDA_INTERFERENCE::SET
-                + INTR::STRETCH_TIMEOUT::SET
-                + INTR::SDA_UNSTABLE::SET,
-        );
-
-        // Enable I2C Host
-        regs.ctrl.modify(CTRL::ENABLEHOST::SET);
-    }
-
-    fn disable(&self) {
-        let regs = self.registers;
-
-        regs.ctrl.modify(CTRL::ENABLEHOST::CLEAR);
     }
 
     fn write_read(

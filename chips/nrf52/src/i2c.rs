@@ -238,14 +238,6 @@ impl<'a> hil::i2c::I2CMaster<'a> for TWI<'a> {
         self.client.set(client);
     }
 
-    fn enable(&self) {
-        self.enable_master();
-    }
-
-    fn disable(&self) {
-        self.disable();
-    }
-
     fn write_read(
         &self,
         addr: u8,
@@ -338,14 +330,6 @@ impl<'a> hil::i2c::I2CMaster<'a> for TWI<'a> {
 impl<'a> hil::i2c::I2CSlave<'a> for TWI<'a> {
     fn set_slave_client(&self, client: &'a dyn hil::i2c::I2CHwSlaveClient) {
         self.slave_client.set(client);
-    }
-
-    fn enable(&self) {
-        self.enable_slave();
-    }
-
-    fn disable(&self) {
-        self.disable();
     }
 
     fn set_address(&self, addr: u8) -> Result<(), hil::i2c::Error> {

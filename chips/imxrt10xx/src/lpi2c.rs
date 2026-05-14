@@ -494,6 +494,16 @@ impl<'a> Lpi2c<'a> {
         }
     }
 
+    fn enable(&self) {
+        self.registers.mcr.modify(MCR::RRF::SET);
+        self.registers.mcr.modify(MCR::RTF::SET);
+        self.registers.mcr.modify(MCR::MEN::SET);
+    }
+
+    fn disable(&self) {
+        self.registers.mcr.modify(MCR::MEN::CLEAR);
+    }
+
     pub fn set_speed(&self, speed: Lpi2cSpeed, _system_clock_in_mhz: usize) {
         self.disable();
         match speed {
@@ -717,14 +727,6 @@ impl<'a> Lpi2c<'a> {
 impl<'a> i2c::I2CMaster<'a> for Lpi2c<'a> {
     fn set_master_client(&self, master_client: &'a dyn I2CHwMasterClient) {
         self.master_client.replace(master_client);
-    }
-    fn enable(&self) {
-        self.registers.mcr.modify(MCR::RRF::SET);
-        self.registers.mcr.modify(MCR::RTF::SET);
-        self.registers.mcr.modify(MCR::MEN::SET);
-    }
-    fn disable(&self) {
-        self.registers.mcr.modify(MCR::MEN::CLEAR);
     }
     fn write_read(
         &self,

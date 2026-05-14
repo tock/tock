@@ -679,15 +679,6 @@ impl<'c> hil::i2c::I2CMaster<'c> for I2c<'_, 'c> {
         self.client.set(client);
     }
 
-    fn enable(&self) {
-        self.enable();
-        // TODO: set as master once we support slave mode too
-    }
-
-    fn disable(&self) {
-        self.disable();
-    }
-
     fn write_read(
         &self,
         addr: u8,

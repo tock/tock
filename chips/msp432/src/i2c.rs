@@ -88,6 +88,20 @@ impl I2c<'_> {
         }
     }
 
+    fn enable(&self) {
+        if self.mode.get() == OperatingMode::Unconfigured {
+            self.setup();
+        }
+
+        self.clear_module_reset();
+        self.mode.set(OperatingMode::Idle);
+    }
+
+    fn disable(&self) {
+        self.set_module_to_reset();
+        self.mode.set(OperatingMode::Disabled);
+    }
+
     fn enable_interrupts(&self) {
         // Enable interrupts
         //
@@ -273,20 +287,6 @@ impl I2c<'_> {
 impl<'a> i2c::I2CMaster<'a> for I2c<'a> {
     fn set_master_client(&self, master_client: &'a dyn i2c::I2CHwMasterClient) {
         self.master_client.replace(master_client);
-    }
-
-    fn enable(&self) {
-        if self.mode.get() == OperatingMode::Unconfigured {
-            self.setup();
-        }
-
-        self.clear_module_reset();
-        self.mode.set(OperatingMode::Idle);
-    }
-
-    fn disable(&self) {
-        self.set_module_to_reset();
-        self.mode.set(OperatingMode::Disabled);
     }
 
     fn write(

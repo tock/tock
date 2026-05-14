@@ -715,6 +715,39 @@ impl<'a> I2CHw<'a> {
         )
     }
 
+    /// This enables the entire I2C peripheral
+    fn enable_master(&self) {
+        //disable the i2c slave peripheral
+        self.disable_slave();
+
+        let twim = &TWIMRegisterManager::new(self);
+
+        // enable, reset, disable
+        twim.registers.cr.write(Control::MEN::SET);
+        twim.registers.cr.write(Control::SWRST::SET);
+        twim.registers.cr.write(Control::MDIS::SET);
+
+        // Init the bus speed
+        self.set_bus_speed(twim);
+
+        // slew
+        twim.registers.srr.write(
+            SlewRate::FILTER::StandardOrFast
+                + SlewRate::CLDRIVEL.val(7)
+                + SlewRate::DADRIVEL.val(7),
+        );
+
+        // clear interrupts
+        twim.registers.scr.set(!0);
+    }
+
+    /// This disables the entire I2C peripheral
+    fn disable_master(&self) {
+        let twim = &TWIMRegisterManager::new(self);
+        twim.registers.cr.write(Control::MDIS::SET);
+        self.disable_interrupts(twim);
+    }
+
     /// Set the clock prescaler and the time widths of the I2C signals
     /// in the CWGR register to make the bus run at a particular I2C speed.
     fn set_bus_speed(&self, twim: &TWIMRegisterManager) {
@@ -1016,6 +1049,52 @@ impl<'a> I2CHw<'a> {
 
     fn disable_interrupts(&self, twim: &TWIMRegisterManager) {
         twim.registers.idr.set(!0);
+    }
+
+    fn enable_slave(&self) {
+        if self.slave_mmio_address.is_some() {
+            let twis = &TWISRegisterManager::new(self);
+
+            // enable, reset, disable
+            twis.registers.cr.write(ControlSlave::SEN::SET);
+            twis.registers.cr.write(ControlSlave::SWRST::SET);
+            twis.registers.cr.set(0);
+
+            // slew
+            twis.registers
+                .srr
+                .write(SlewRateSlave::FILTER.val(0x2) + SlewRateSlave::DADRIVEL.val(7));
+
+            // clear interrupts
+            twis.registers.scr.set(!0);
+
+            // We want to interrupt only on slave address match so we can
+            // wait for a message from a master and then decide what to do
+            // based on read/write.
+            twis.registers.ier.write(InterruptSlave::SAM::SET);
+
+            // Also setup all of the error interrupts.
+            twis.registers.ier.write(
+                InterruptSlave::BUSERR::SET
+                    + InterruptSlave::SMBPECERR::SET
+                    + InterruptSlave::SMBTOUT::SET
+                    + InterruptSlave::ORUN::SET
+                    + InterruptSlave::URUN::SET,
+            );
+        }
+
+        self.slave_enabled.set(true);
+    }
+
+    /// This disables the entire I2C peripheral
+    fn disable_slave(&self) {
+        self.slave_enabled.set(false);
+
+        if self.slave_mmio_address.is_some() {
+            let twis = &TWISRegisterManager::new(self);
+            twis.registers.cr.set(0);
+            self.slave_disable_interrupts(twis);
+        }
     }
 
     /// Handle possible interrupt for TWIS module.
@@ -1354,38 +1433,6 @@ impl<'a> hil::i2c::I2CMaster<'a> for I2CHw<'a> {
     fn set_master_client(&self, client: &'a dyn hil::i2c::I2CHwMasterClient) {
         self.master_client.set(Some(client));
     }
-    /// This enables the entire I2C peripheral
-    fn enable(&self) {
-        //disable the i2c slave peripheral
-        hil::i2c::I2CSlave::disable(self);
-
-        let twim = &TWIMRegisterManager::new(self);
-
-        // enable, reset, disable
-        twim.registers.cr.write(Control::MEN::SET);
-        twim.registers.cr.write(Control::SWRST::SET);
-        twim.registers.cr.write(Control::MDIS::SET);
-
-        // Init the bus speed
-        self.set_bus_speed(twim);
-
-        // slew
-        twim.registers.srr.write(
-            SlewRate::FILTER::StandardOrFast
-                + SlewRate::CLDRIVEL.val(7)
-                + SlewRate::DADRIVEL.val(7),
-        );
-
-        // clear interrupts
-        twim.registers.scr.set(!0);
-    }
-
-    /// This disables the entire I2C peripheral
-    fn disable(&self) {
-        let twim = &TWIMRegisterManager::new(self);
-        twim.registers.cr.write(Control::MDIS::SET);
-        self.disable_interrupts(twim);
-    }
 
     fn write(
         &self,
@@ -1431,51 +1478,6 @@ impl<'a> hil::i2c::I2CMaster<'a> for I2CHw<'a> {
 impl<'a> hil::i2c::I2CSlave<'a> for I2CHw<'a> {
     fn set_slave_client(&self, client: &'a dyn hil::i2c::I2CHwSlaveClient) {
         self.slave_client.set(Some(client));
-    }
-    fn enable(&self) {
-        if self.slave_mmio_address.is_some() {
-            let twis = &TWISRegisterManager::new(self);
-
-            // enable, reset, disable
-            twis.registers.cr.write(ControlSlave::SEN::SET);
-            twis.registers.cr.write(ControlSlave::SWRST::SET);
-            twis.registers.cr.set(0);
-
-            // slew
-            twis.registers
-                .srr
-                .write(SlewRateSlave::FILTER.val(0x2) + SlewRateSlave::DADRIVEL.val(7));
-
-            // clear interrupts
-            twis.registers.scr.set(!0);
-
-            // We want to interrupt only on slave address match so we can
-            // wait for a message from a master and then decide what to do
-            // based on read/write.
-            twis.registers.ier.write(InterruptSlave::SAM::SET);
-
-            // Also setup all of the error interrupts.
-            twis.registers.ier.write(
-                InterruptSlave::BUSERR::SET
-                    + InterruptSlave::SMBPECERR::SET
-                    + InterruptSlave::SMBTOUT::SET
-                    + InterruptSlave::ORUN::SET
-                    + InterruptSlave::URUN::SET,
-            );
-        }
-
-        self.slave_enabled.set(true);
-    }
-
-    /// This disables the entire I2C peripheral
-    fn disable(&self) {
-        self.slave_enabled.set(false);
-
-        if self.slave_mmio_address.is_some() {
-            let twis = &TWISRegisterManager::new(self);
-            twis.registers.cr.set(0);
-            self.slave_disable_interrupts(twis);
-        }
     }
 
     fn set_address(&self, addr: u8) -> Result<(), hil::i2c::Error> {

@@ -19,7 +19,6 @@ pub struct MuxI2C<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBus> 
     smbus: Option<&'a S>,
     i2c_devices: List<'a, I2CDevice<'a, I, S>>,
     smbus_devices: List<'a, SMBusDevice<'a, I, S>>,
-    enabled: Cell<usize>,
     i2c_inflight: OptionalCell<&'a I2CDevice<'a, I, S>>,
     smbus_inflight: OptionalCell<&'a SMBusDevice<'a, I, S>>,
     deferred_call: DeferredCall,
@@ -47,26 +46,9 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
             smbus,
             i2c_devices: List::new(),
             smbus_devices: List::new(),
-            enabled: Cell::new(0),
             i2c_inflight: OptionalCell::empty(),
             smbus_inflight: OptionalCell::empty(),
             deferred_call: DeferredCall::new(),
-        }
-    }
-
-    fn enable(&self) {
-        let enabled = self.enabled.get();
-        self.enabled.set(enabled + 1);
-        if enabled == 0 {
-            self.i2c.enable();
-        }
-    }
-
-    fn disable(&self) {
-        let enabled = self.enabled.get();
-        self.enabled.set(enabled - 1);
-        if enabled == 1 {
-            self.i2c.disable();
         }
     }
 
@@ -206,7 +188,6 @@ enum Op {
 pub struct I2CDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBus> {
     mux: &'a MuxI2C<'a, I, S>,
     addr: u8,
-    enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, I2CDevice<'a, I, S>>,
@@ -218,7 +199,6 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CDevice<'a, I, S> {
         I2CDevice {
             mux,
             addr,
-            enabled: Cell::new(false),
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
@@ -249,20 +229,6 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, I2CDevice<
 }
 
 impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CDevice for I2CDevice<'a, I> {
-    fn enable(&self) {
-        if !self.enabled.get() {
-            self.enabled.set(true);
-            self.mux.enable();
-        }
-    }
-
-    fn disable(&self) {
-        if self.enabled.get() {
-            self.enabled.set(false);
-            self.mux.disable();
-        }
-    }
-
     fn write_read(
         &self,
         data: &'static mut [u8],
@@ -309,7 +275,6 @@ impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CDevice for I2CDevice<'a, I> {
 pub struct SMBusDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> {
     mux: &'a MuxI2C<'a, I, S>,
     addr: u8,
-    enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, SMBusDevice<'a, I, S>>,
@@ -325,7 +290,6 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> SMBusDevice<'a, I, S> {
         SMBusDevice {
             mux,
             addr,
-            enabled: Cell::new(false),
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
@@ -356,20 +320,6 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, SMBusDevic
 }
 
 impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::I2CDevice for SMBusDevice<'a, I, S> {
-    fn enable(&self) {
-        if !self.enabled.get() {
-            self.enabled.set(true);
-            self.mux.enable();
-        }
-    }
-
-    fn disable(&self) {
-        if self.enabled.get() {
-            self.enabled.set(false);
-            self.mux.disable();
-        }
-    }
-
     fn write_read(
         &self,
         data: &'static mut [u8],
