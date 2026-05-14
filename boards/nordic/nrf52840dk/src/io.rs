@@ -13,7 +13,11 @@ use nrf52840::gpio::Pin;
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)
-    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
+    let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(
+        Pin::P0_13,
+        nrf52840::gpio::GPIOTE_BASE,
+        nrf52840::gpio::GPIO_BASE_PORT0,
+    );
     let led = &mut led::LedLow::new(led_kernel_pin);
 
     if crate::USB_DEBUGGING {
