@@ -18,6 +18,7 @@ pub mod math;
 pub mod mut_imut_buffer;
 pub mod peripheral_management;
 pub mod single_thread_value;
+pub mod singleton;
 pub mod static_init;
 pub mod storage_volume;
 pub mod streaming_process_slice;
@@ -38,8 +39,8 @@ pub mod registers {
     pub use tock_registers::interfaces;
     pub use tock_registers::registers::InMemoryRegister;
     pub use tock_registers::registers::{Aliased, ReadOnly, ReadWrite, WriteOnly};
-    pub use tock_registers::{LocalRegisterCopy, RegisterLongName};
     pub use tock_registers::{register_bitfields, register_structs};
+    pub use tock_registers::{LocalRegisterCopy, RegisterLongName};
 }
 
 /// The Tock `Cell` types.
