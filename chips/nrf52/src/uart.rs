@@ -842,10 +842,10 @@ impl kernel::platform::chip::PanicWriter for Uarte<'_> {
 
         let inner = Uarte::new(UARTE0_BASE);
         inner.initialize(
-            pinmux::Pinmux::from_pin(config.txd),
-            pinmux::Pinmux::from_pin(config.rxd),
-            config.cts.map(|c| unsafe { pinmux::Pinmux::from_pin(c) }),
-            config.rts.map(|r| unsafe { pinmux::Pinmux::from_pin(r) }),
+            pinmux::Pinmux::new(config.txd),
+            pinmux::Pinmux::new(config.rxd),
+            config.cts.map(pinmux::Pinmux::new),
+            config.rts.map(pinmux::Pinmux::new),
         );
         let _ = inner.configure(config.params);
         UartPanicWriter { inner }
