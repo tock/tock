@@ -122,9 +122,3 @@ pub static IRQS: [unsafe extern "C" fn(); 64] = [
     unhandled_interrupt,   // Reserved (62)
     unhandled_interrupt,   // Reserved (63)
 ];
-
-pub unsafe fn init() {
-    cortexm4::nvic::disable_all();
-    cortexm4::nvic::clear_all_pending();
-    cortexm4::nvic::enable_all();
-}

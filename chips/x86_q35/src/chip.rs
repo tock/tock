@@ -124,7 +124,13 @@ impl<I2: InterruptService, const PR: u16> Pc<'static, PcDefaultPeripherals<PR>, 
 impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<'a, I1, I2, PR> {
     type ThreadIdProvider = x86::thread_id::X86ThreadIdProvider;
 
-    fn init() {}
+    fn init() {
+        // CPU/interrupt controller
+        unsafe {
+            x86::init();
+            crate::pic::init();
+        }
+    }
 
     type MPU = PagingMPU<'a>;
     fn mpu(&self) -> &Self::MPU {
@@ -255,11 +261,9 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
         ),
         page_dir: &mut PD,
     ) -> Self {
-        // CPU/interrupt controller/VGA baseline init
+        // VGA baseline init
         // SAFETY: PAGE_DIR is identity-mapped, aligned, and unique
         unsafe {
-            x86::init();
-            crate::pic::init();
             let pd_ref: &mut PD = &mut *core::ptr::from_mut(page_dir);
             // Enable the VGA path by building or running with the feature flag, e.g.:
             //   `cargo run -- -display none`

@@ -113,7 +113,13 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
     type ThreadIdProvider = cortexm4::thread_id::CortexMThreadIdProvider;
 
-    fn init() {}
+    fn init() {
+        unsafe {
+            cortexm4::nvic::disable_all();
+            cortexm4::nvic::clear_all_pending();
+            cortexm4::nvic::enable_all();
+        }
+    }
 
     fn service_pending_interrupts(&self) {
         unsafe {

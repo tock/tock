@@ -84,7 +84,3 @@ pub static IRQS: [unsafe extern "C" fn(); 62] = [
     CortexM4::GENERIC_ISR, // DMA2_CH7 (60)
     CortexM4::GENERIC_ISR, // DMAMUX1_OVR (61)
 ];
-
-pub unsafe fn init() {
-    stm32wle5xx::init();
-}
