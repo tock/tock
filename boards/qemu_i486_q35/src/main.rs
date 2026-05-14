@@ -23,6 +23,7 @@ use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::ipc::IPC;
+use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
@@ -226,6 +227,7 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
 #[no_mangle]
 unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
