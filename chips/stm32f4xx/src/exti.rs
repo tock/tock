@@ -325,43 +325,28 @@ register_bitfields![u32,
 const EXTI_BASE: StaticRef<ExtiRegisters> =
     unsafe { StaticRef::new(0x40013C00 as *const ExtiRegisters) };
 
-/// EXTI block has 23 lines going into NVIC. This arrangement is described here
-/// [^1].
-///
-/// The 23 lines going into NVIC, are mapped to the following NVIC IRQs. Note
-/// there is *no* one-to-one mapping between the 23 lines to NVIC IRQs. The 23
-/// lines going into NVIC translates to 14 IRQs on NVIC.
-///
-///  - `EXTI0` (6)
-///  - `EXTI1` (7)
-///  - `EXTI2` (8)
-///  - `EXTI3` (9)
-///  - `EXTI4` (10)
-///  - `EXTI9_5` (23)
-///  - `EXTI15_10` (40)
-///
-///  - `EXTI16` -> `PVD` (1)
-///  - `EXTI17` -> `RTC_Alarm` (41)
-///  - `EXTI18` -> `OTG_FS_WKUP` (42)
-///  - `EXTI19` -> `<UNKNOWN>`
-///  - `EXTI20` -> `OTG_FS` (67)
-///  - `EXTI21` -> `TAMP_STAMP` (2)
-///  - `EXTI22` -> `RTC_WKUP` (3)
-///
-/// The EXTI_PR (pending) register when set, generates a level-triggered
-/// interrupt on the NVIC. This means, that its the responsibility of the IRQ
-/// handler to clear the interrupt source (pending bit), in order to prevent
-/// multiple interrupts from occurring.
-///
-/// `EXTI_EVENTS` is modeled to capture information from `EXTI_PR` register. In
-/// the top half IRQ handler, prior to clearing the pending bit, we set the
-/// corresponding bit in `EXTI_EVENTS`. Once the bit is set, in `EXTI_EVENTS`,
-/// we clear the pending bit and exit the ISR.
-///
-/// [^1]: Section 10.2.2, EXTI block diagram, page 243 of reference manual.
-#[no_mangle]
-#[used]
-pub static mut EXTI_EVENTS: u32 = 0;
+// /// EXTI block has 23 lines going into NVIC. This arrangement is described here
+// /// [^1].
+// ///
+// /// The 23 lines going into NVIC, are mapped to the following NVIC IRQs. Note
+// /// there is *no* one-to-one mapping between the 23 lines to NVIC IRQs. The 23
+// /// lines going into NVIC translates to 14 IRQs on NVIC.
+// ///
+// ///  - `EXTI0` (6)
+// ///  - `EXTI1` (7)
+// ///  - `EXTI2` (8)
+// ///  - `EXTI3` (9)
+// ///  - `EXTI4` (10)
+// ///  - `EXTI9_5` (23)
+// ///  - `EXTI15_10` (40)
+// ///
+// ///  - `EXTI16` -> `PVD` (1)
+// ///  - `EXTI17` -> `RTC_Alarm` (41)
+// ///  - `EXTI18` -> `OTG_FS_WKUP` (42)
+// ///  - `EXTI19` -> `<UNKNOWN>`
+// ///  - `EXTI20` -> `OTG_FS` (67)
+// ///  - `EXTI21` -> `TAMP_STAMP` (2)
+// ///  - `EXTI22` -> `RTC_WKUP` (3)
 
 enum_from_primitive! {
     #[repr(u8)]
