@@ -3,16 +3,27 @@
 // Copyright Tock Contributors 2022.
 
 //! Platform Level Interrupt Control peripheral driver for VeeR.
-/* Currently no peripheral that would generate interupts is defined in the reference
+/* Currently no peripheral that would generate interrupts is defined in the reference
 testbench for VeeR EL2, so the Pic is not expected to handle any interrupts. */
 
-use kernel::utilities::cells::VolatileCell;
+use core::sync::atomic::{AtomicU32, Ordering};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    register_bitfields, register_structs, LocalRegisterCopy, ReadWrite,
-};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 use riscv_csr::csr::ReadWriteRiscvCsr;
+
+/// Bitmap data structure to hold the interrupt number of pending interrupts.
+///
+/// Holds interrupts numbers 0-31.
+pub static INTERRUPT_BITMAP1: AtomicU32 = AtomicU32::new(0);
+/// Bitmap data structure to hold the interrupt number of pending interrupts.
+///
+/// Holds interrupts numbers 32-63.
+pub static INTERRUPT_BITMAP2: AtomicU32 = AtomicU32::new(0);
+/// Bitmap data structure to hold the interrupt number of pending interrupts.
+///
+/// Holds interrupts numbers 64-95.
+pub static INTERRUPT_BITMAP3: AtomicU32 = AtomicU32::new(0);
 
 register_structs! {
     pub PicRegisters {
@@ -94,7 +105,6 @@ register_bitfields![usize,
 #[allow(dead_code)]
 pub struct Pic {
     registers: StaticRef<PicRegisters>,
-    saved: [VolatileCell<LocalRegisterCopy<u32>>; 3],
     meivt: ReadWriteRiscvCsr<usize, MEIVT::Register, 0xBC8>,
     meipt: ReadWriteRiscvCsr<usize, MEIPT::Register, 0xBC9>,
     meicpct: ReadWriteRiscvCsr<usize, MEICPCT::Register, 0xBCA>,
@@ -107,11 +117,6 @@ impl Pic {
     pub const fn new(base: StaticRef<PicRegisters>) -> Self {
         Pic {
             registers: base,
-            saved: [
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-            ],
             meivt: ReadWriteRiscvCsr::new(),
             meipt: ReadWriteRiscvCsr::new(),
             meicpct: ReadWriteRiscvCsr::new(),
@@ -185,33 +190,38 @@ impl Pic {
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
     pub fn save_interrupt(&self, index: u32) {
-        let offset = if index < 32 {
-            0
+        let irq = index % 32;
+        if index < 32 {
+            let bitmap = INTERRUPT_BITMAP1.load(Ordering::Relaxed);
+            INTERRUPT_BITMAP1.store(bitmap | (1 << irq), Ordering::Relaxed);
         } else if index < 64 {
-            1
+            let bitmap = INTERRUPT_BITMAP2.load(Ordering::Relaxed);
+            INTERRUPT_BITMAP2.store(bitmap | (1 << irq), Ordering::Relaxed);
         } else if index < 96 {
-            2
+            let bitmap = INTERRUPT_BITMAP3.load(Ordering::Relaxed);
+            INTERRUPT_BITMAP3.store(bitmap | (1 << irq), Ordering::Relaxed);
         } else {
             panic!("Unsupported index {}", index);
-        };
-        let irq = index % 32;
-
-        // OR the current saved state with the new value
-        let new_saved = self.saved[offset].get().get() | 1 << irq;
-
-        // Set the new state
-        self.saved[offset].set(LocalRegisterCopy::new(new_saved));
+        }
     }
 
     /// The `next_pending()` function will only return enabled interrupts.
     /// This function will return a pending interrupt that has been disabled by
     /// `save_interrupt()`.
     pub fn get_saved_interrupts(&self) -> Option<u32> {
-        for (i, pending) in self.saved.iter().enumerate() {
-            let saved = pending.get().get();
-            if saved != 0 {
-                return Some(saved.trailing_zeros() + (i as u32 * 32));
-            }
+        let bitmap = INTERRUPT_BITMAP1.load(Ordering::Relaxed);
+        if bitmap != 0 {
+            return Some(bitmap.trailing_zeros());
+        }
+
+        let bitmap = INTERRUPT_BITMAP2.load(Ordering::Relaxed);
+        if bitmap != 0 {
+            return Some(bitmap.trailing_zeros() + 32);
+        }
+
+        let bitmap = INTERRUPT_BITMAP3.load(Ordering::Relaxed);
+        if bitmap != 0 {
+            return Some(bitmap.trailing_zeros() + 64);
         }
 
         None
@@ -230,19 +240,16 @@ impl Pic {
         // Enable the interrupt
         self.registers.meie[index as usize - 1].write(MEIE::INTEN::ENABLE);
 
-        let offset = if index < 32 {
-            0
-        } else if index < 64 {
-            1
-        } else {
-            2
-        };
         let irq = index % 32;
-
-        // OR the current saved state with the new value
-        let new_saved = self.saved[offset].get().get() & !(1 << irq);
-
-        // Set the new state
-        self.saved[offset].set(LocalRegisterCopy::new(new_saved));
+        if index < 32 {
+            let bitmap = INTERRUPT_BITMAP1.load(Ordering::Relaxed);
+            INTERRUPT_BITMAP1.store(bitmap & !(1 << irq), Ordering::Relaxed);
+        } else if index < 64 {
+            let bitmap = INTERRUPT_BITMAP2.load(Ordering::Relaxed);
+            INTERRUPT_BITMAP2.store(bitmap & !(1 << irq), Ordering::Relaxed);
+        } else if index < 96 {
+            let bitmap = INTERRUPT_BITMAP3.load(Ordering::Relaxed);
+            INTERRUPT_BITMAP3.store(bitmap & !(1 << irq), Ordering::Relaxed);
+        }
     }
 }

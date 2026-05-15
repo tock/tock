@@ -7,7 +7,6 @@
 
 use crate::machine_timer::Clint;
 use core::fmt::Write;
-use core::ptr::addr_of;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::StaticRef;
@@ -21,11 +20,8 @@ use crate::pic::PicRegisters;
 pub const PIC_BASE: StaticRef<PicRegisters> =
     unsafe { StaticRef::new(0xf00c_0000 as *const PicRegisters) };
 
-pub static mut PIC: Pic = Pic::new(PIC_BASE);
-
 pub struct VeeR<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
-    pic: &'a Pic,
     mtimer: &'static Clint<'static>,
     pic_interrupt_service: &'a I,
     pmp: PMPUserMPU<4, SimplePMP<8>>,
@@ -65,7 +61,6 @@ impl<'a, I: InterruptService + 'a> VeeR<'a, I> {
     pub unsafe fn new(pic_interrupt_service: &'a I, mtimer: &'static Clint) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pic: &*addr_of!(PIC),
             mtimer,
             pic_interrupt_service,
             pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
@@ -73,17 +68,19 @@ impl<'a, I: InterruptService + 'a> VeeR<'a, I> {
     }
 
     pub fn enable_pic_interrupts(&self) {
-        self.pic.enable_all();
+        let pic = Pic::new(PIC_BASE);
+        pic.enable_all();
     }
 
-    unsafe fn handle_pic_interrupts(&self) {
-        while let Some(interrupt) = self.pic.get_saved_interrupts() {
+    unsafe fn handle_pic_interrupts(&self, pic: &Pic) {
+        while let Some(interrupt) = pic.get_saved_interrupts() {
             if !self.pic_interrupt_service.service_interrupt(interrupt) {
                 panic!("Unhandled interrupt {}", interrupt);
             }
+
             self.with_interrupts_disabled(|| {
                 // Safe as interrupts are disabled
-                self.pic.complete(interrupt);
+                pic.complete(interrupt);
             });
         }
     }
@@ -103,6 +100,9 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
     }
 
     fn service_pending_interrupts(&self) {
+        // Need to create a PIC object to use
+        let pic = Pic::new(PIC_BASE);
+
         loop {
             let mip = CSR.mip.extract();
 
@@ -110,14 +110,13 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
             if mip.is_set(mip::mtimer) {
                 self.mtimer.handle_interrupt();
             }
-            if self.pic.get_saved_interrupts().is_some() {
+            if pic.get_saved_interrupts().is_some() {
                 unsafe {
-                    self.handle_pic_interrupts();
+                    self.handle_pic_interrupts(&pic);
                 }
             }
 
-            if !mip.any_matching_bits_set(mip::mtimer::SET)
-                && self.pic.get_saved_interrupts().is_none()
+            if !mip.any_matching_bits_set(mip::mtimer::SET) && pic.get_saved_interrupts().is_none()
             {
                 break;
             }
@@ -129,8 +128,9 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
     }
 
     fn has_pending_interrupts(&self) -> bool {
+        let pic = Pic::new(PIC_BASE);
         let mip = CSR.mip.extract();
-        self.pic.get_saved_interrupts().is_some() || mip.any_matching_bits_set(mip::mtimer::SET)
+        pic.get_saved_interrupts().is_some() || mip.any_matching_bits_set(mip::mtimer::SET)
     }
 
     fn sleep(&self) {
@@ -196,16 +196,19 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // We received an interrupt, disable interrupts while we handle them
             CSR.mie.modify(mie::mext::CLEAR);
 
+            // Need to create a PIC object to use
+            let pic = Pic::new(PIC_BASE);
+
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PIC
             loop {
-                let interrupt = (*addr_of!(PIC)).next_pending();
+                let interrupt = pic.next_pending();
 
                 match interrupt {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        (*addr_of!(PIC)).save_interrupt(irq);
+                        pic.save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts
