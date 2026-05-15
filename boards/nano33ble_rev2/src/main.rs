@@ -10,8 +10,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of;
-
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
@@ -298,6 +296,9 @@ pub unsafe fn start() -> (
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
+    // Get FICR instance to read chip properties.
+    let ficr = nrf52840::ficr::Ficr::new();
+
     //--------------------------------------------------------------------------
     // CAPABILITIES
     //--------------------------------------------------------------------------
@@ -383,8 +384,7 @@ pub unsafe fn start() -> (
     // Create the strings we include in the USB descriptor. We use the hardcoded
     // DEVICEADDR register on the nRF52 to set the serial number.
     let serial_number_buf = static_init!([u8; 17], [0; 17]);
-    let serial_number_string: &'static str =
-        (*addr_of!(nrf52::ficr::FICR_INSTANCE)).address_str(serial_number_buf);
+    let serial_number_string: &'static str = ficr.address_str(serial_number_buf);
     let strings = static_init!(
         [&str; 3],
         [
@@ -597,7 +597,7 @@ pub unsafe fn start() -> (
             nrf52840::aes::AesECB
         ));
 
-    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
+    let device_id = ficr.id();
     let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
