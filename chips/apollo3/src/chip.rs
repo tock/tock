@@ -108,7 +108,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
             // correctly for Tock. The bootloader _may_ set this for us, but it may not
             // so that any errors early in the Tock boot process trap back to the bootloader.
             // To be safe we unconditionally set the vector table.
-            crate::scb::set_vector_table_offset(crate::BASE_VECTORS.as_ptr() as *const ());
+            crate::scb::set_vector_table_offset(crate::BASE_VECTORS.as_ptr().cast::<()>());
 
             // Disable the FPU (it might be enalbed by a prior stage)
             crate::scb::disable_fpca();
