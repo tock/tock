@@ -8,6 +8,8 @@ contribute, and we appreciate all of them.
 * [Bug Reports](#bug-reports)
 * [Pull Requests](#pull-requests)
 * [Issue Triage](#issue-triage)
+* [AI Policy](#ai-policy)
+* [Notes](#notes)
 
 If you have questions, please make a post on the [mailing list][listserv] or
 join us on [Slack][slack].
@@ -239,6 +241,17 @@ leave a comment letting us know if it is or is not. The [least recently
 updated sort][lru] is good for finding issues like this.
 
 [lru]: https://github.com/tock/tock/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-asc
+
+
+## AI Policy
+
+The Tock project recognizes the utility of AI/LLM coding tools. We permit
+developers to use AI coding tools, however, developers must review any
+AI-generated code themselves for correctness and compatibility with Tock's
+code expectations. All AI use must be disclosed in the pull request
+description, including which AI tool was used, what portion of the patch was
+created by AI, and how the AI-generated code was reviewed.
+
 
 ## Notes
 
