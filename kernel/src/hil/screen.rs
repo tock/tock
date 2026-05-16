@@ -30,8 +30,8 @@
 //! Configuration sets cause a `command_complete` callback unless noted
 //! otherwise.
 
-use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
+use crate::utilities::leasable_buffer::SubSliceMut;
 use core::ops::Add;
 use core::ops::Sub;
 

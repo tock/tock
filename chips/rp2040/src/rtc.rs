@@ -168,7 +168,7 @@ const RTC_BASE: StaticRef<RtcRegisters> =
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
     client: OptionalCell<&'a dyn date_time::DateTimeClient>,
-    clocks: OptionalCell<&'a clocks::Clocks>,
+    clocks: &'a clocks::Clocks,
     time: Cell<DateTimeValues>,
 
     deferred_call: DeferredCall,
@@ -196,11 +196,11 @@ impl DeferredCallClient for Rtc<'_> {
 }
 
 impl<'a> Rtc<'a> {
-    pub fn new() -> Rtc<'a> {
+    pub fn new(clocks: &'a clocks::Clocks) -> Rtc<'a> {
         Rtc {
             registers: RTC_BASE,
             client: OptionalCell::empty(),
-            clocks: OptionalCell::empty(),
+            clocks,
             time: Cell::new(DateTimeValues {
                 year: 0,
                 month: Month::January,
@@ -285,10 +285,6 @@ impl<'a> Rtc<'a> {
             .map(|client| client.get_date_time_done(Ok(self.time.get())));
     }
 
-    pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
-        self.clocks.replace(clocks);
-    }
-
     fn date_time_setup(&self, datetime: date_time::DateTimeValues) -> Result<(), ErrorCode> {
         let month_val: u32 = self.month_into_u32(datetime.month);
         let day_val: u32 = self.dotw_into_u32(datetime.day_of_week);
@@ -366,9 +362,7 @@ impl<'a> Rtc<'a> {
     }
 
     pub fn rtc_init(&self) -> Result<(), ErrorCode> {
-        let mut rtc_freq = self
-            .clocks
-            .map_or(46875, |clocks| clocks.get_frequency(clocks::Clock::Rtc));
+        let mut rtc_freq = self.clocks.get_frequency(clocks::Clock::Rtc);
 
         rtc_freq -= rtc_freq;
 

@@ -4,9 +4,9 @@
 
 //! Interface for Hasher
 
+use crate::ErrorCode;
 use crate::utilities::leasable_buffer::SubSlice;
 use crate::utilities::leasable_buffer::SubSliceMut;
-use crate::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
 ///

@@ -6,7 +6,7 @@
 name = "kernel"
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
+edition = "2024"
 
 # Justification and details on external dependencies, refer to the documentation at
 # doc/ExternalDependencies.md#approved-exceptions-for-core-kernel-external-dependencies

@@ -1497,7 +1497,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         } else {
             div / denom
         };
-        let v1 = 31 - tot_per.leading_zeros();
+        let v1 = tot_per.ilog2();
         let fsel = if v1 > 7 { v1 + n - 6 } else { n + 1 };
 
         if fsel > 7 {

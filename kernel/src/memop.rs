@@ -4,10 +4,10 @@
 
 //! Implementation of the MEMOP family of syscalls.
 
+use crate::ErrorCode;
 use crate::process::Process;
 use crate::syscall::SyscallReturn;
 use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
-use crate::ErrorCode;
 
 /// Handle the `memop` syscall.
 ///
@@ -47,14 +47,15 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         // Op Type 0: BRK
         0 => process
             .brk(r1 as *const u8)
-            .map(|_| SyscallReturn::Success)
-            .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
+            .map_or(SyscallReturn::Failure(ErrorCode::NOMEM), |_| {
+                SyscallReturn::Success
+            }),
 
         // Op Type 1: SBRK
-        1 => process
-            .sbrk(r1 as isize)
-            .map(SyscallReturn::SuccessPtr)
-            .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
+        1 => process.sbrk(r1 as isize).map_or(
+            SyscallReturn::Failure(ErrorCode::NOMEM),
+            SyscallReturn::SuccessPtr,
+        ),
 
         // Op Type 2: Process memory start
         2 => SyscallReturn::SuccessPtr(unsafe {

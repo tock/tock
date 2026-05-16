@@ -288,14 +288,14 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
         panic!("kernel stack overflow");
     } else {
         // Show the normal kernel hardfault message.
-        let stacked_r0: u32 = *faulting_stack.offset(0);
-        let stacked_r1: u32 = *faulting_stack.offset(1);
-        let stacked_r2: u32 = *faulting_stack.offset(2);
-        let stacked_r3: u32 = *faulting_stack.offset(3);
-        let stacked_r12: u32 = *faulting_stack.offset(4);
-        let stacked_lr: u32 = *faulting_stack.offset(5);
-        let stacked_pc: u32 = *faulting_stack.offset(6);
-        let stacked_xpsr: u32 = *faulting_stack.offset(7);
+        let stacked_r0: u32 = *faulting_stack.add(0);
+        let stacked_r1: u32 = *faulting_stack.add(1);
+        let stacked_r2: u32 = *faulting_stack.add(2);
+        let stacked_r3: u32 = *faulting_stack.add(3);
+        let stacked_r12: u32 = *faulting_stack.add(4);
+        let stacked_lr: u32 = *faulting_stack.add(5);
+        let stacked_pc: u32 = *faulting_stack.add(6);
+        let stacked_xpsr: u32 = *faulting_stack.add(7);
 
         let mode_str = "Kernel";
 

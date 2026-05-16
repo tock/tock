@@ -88,8 +88,8 @@ macro_rules! stack_size {
         /// it is incompatible with Mach-O objects and yields the following
         /// error: `mach-o section specifier requires a segment and section
         /// separated by a comma`.
-        #[cfg_attr(not(target_os = "macos"), link_section = ".stack_buffer")]
-        #[no_mangle]
+        #[cfg_attr(not(target_os = "macos"), unsafe(link_section = ".stack_buffer"))]
+        #[unsafe(no_mangle)]
         static mut STACK_MEMORY: [u8; $size] = [0; $size];
     }
 }

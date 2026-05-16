@@ -181,9 +181,14 @@ pub fn initialize_deferred_call_state<P: ThreadIdProvider>() {
 /// concurrently with calls to `initialize_deferred_call_state` or other calls
 /// to [`initialize_deferred_call_state_unsafe`].
 pub unsafe fn initialize_deferred_call_state_unsafe<P: ThreadIdProvider>() {
-    let _ = CTR.bind_to_thread_unsafe::<P>(Cell::new(0));
-    let _ = BITMASK.bind_to_thread_unsafe::<P>(Cell::new(0));
-    let _ = DEFCALLS.bind_to_thread_unsafe::<P>([const { OptionalCell::empty() }; 32]);
+    // # Safety
+    //
+    // See function safety description.
+    unsafe {
+        let _ = CTR.bind_to_thread_unsafe::<P>(Cell::new(0));
+        let _ = BITMASK.bind_to_thread_unsafe::<P>(Cell::new(0));
+        let _ = DEFCALLS.bind_to_thread_unsafe::<P>([const { OptionalCell::empty() }; 32]);
+    }
 }
 
 pub struct DeferredCall {

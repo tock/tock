@@ -20,7 +20,6 @@
 
 use kernel::debug;
 use kernel::hil;
-use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -319,7 +318,7 @@ const PWM_BASE: StaticRef<PwmRegisters> =
 /// Main struct for controlling PWM peripheral
 pub struct Pwm<'a> {
     registers: StaticRef<PwmRegisters>,
-    clocks: OptionalCell<&'a clocks::Clocks>,
+    clocks: &'a clocks::Clocks,
 }
 
 impl<'a> Pwm<'a> {
@@ -330,10 +329,10 @@ impl<'a> Pwm<'a> {
     /// + This peripheral depends on the chip's clocks.
     /// + Also, if interrupts are required, then an interrupt handler must be set. Otherwise, all
     /// the interrupts will be ignored.
-    pub fn new() -> Self {
+    pub fn new(clocks: &'a clocks::Clocks) -> Self {
         let pwm = Self {
             registers: PWM_BASE,
-            clocks: OptionalCell::empty(),
+            clocks,
         };
         pwm.init();
         pwm
@@ -602,12 +601,6 @@ impl<'a> Pwm<'a> {
         self.registers.intr.write(CH::CH.val(0));
     }
 
-    // This method should be called when resolving dependencies for the
-    // default peripherals. See [crate::chip::Rp2040DefaultPeripherals::resolve_dependencies]
-    pub(crate) fn set_clocks(&self, clocks: &'a clocks::Clocks) {
-        self.clocks.set(clocks);
-    }
-
     // Given a channel number and a channel pin, return a struct that allows controlling it
     fn new_pwm_pin(&'a self, channel_number: ChannelNumber, channel_pin: ChannelPin) -> PwmPin<'a> {
         PwmPin {
@@ -788,9 +781,7 @@ impl hil::pwm::Pwm for Pwm<'_> {
     ///
     /// This method will panic if the dependencies are not resolved.
     fn get_maximum_frequency_hz(&self) -> usize {
-        self.clocks
-            .unwrap_or_panic()
-            .get_frequency(clocks::Clock::System) as usize
+        self.clocks.get_frequency(clocks::Clock::System) as usize
     }
 
     /// Return an opaque value representing 100% duty cycle

@@ -804,8 +804,10 @@ mod miri_tests {
     // memory using the pointer exposed by the DMA wrapper, which is legal
     // because the wrapper owns the mutable borrow.
     unsafe fn simulate_dma_write<T: Copy>(dst: *mut T, val: T, offset: usize) {
-        let target = dst.add(offset);
-        ptr::write(target, val);
+        let target = unsafe { dst.add(offset) };
+        unsafe {
+            ptr::write(target, val);
+        }
     }
 
     #[test]

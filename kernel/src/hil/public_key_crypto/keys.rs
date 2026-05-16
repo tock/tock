@@ -4,8 +4,8 @@
 
 //! Key interface for Public/Private key encryption
 
-use crate::hil::entropy;
 use crate::ErrorCode;
+use crate::hil::entropy;
 
 /// Upcall from the `PubPrivKeyGenerate` trait.
 pub trait PubPrivKeyGenerateClient<'a> {
@@ -387,7 +387,7 @@ pub trait SetKeyBySlice<'a, const KL: usize> {
     /// `Ok()` if the key setting operation was accepted. Otherwise:
     /// - `Err(ErrorCode::FAIL)` if the key cannot be set.
     fn set_key(&self, key: &'static mut [u8; KL])
-        -> Result<(), (ErrorCode, &'static mut [u8; KL])>;
+    -> Result<(), (ErrorCode, &'static mut [u8; KL])>;
 
     fn set_client(&self, client: &'a dyn SetKeyBySliceClient<KL>);
 }
