@@ -17,12 +17,6 @@ pub struct Pinmux(Pin);
 
 impl Pinmux {
     /// Creates a new `Pinmux` wrapping the numbered pin.
-    ///
-    /// # Panics
-    ///
-    /// If a `Pinmux` for this pin has already
-    /// been created.
-    ///
     pub fn new(pin: Pin) -> Pinmux {
         Pinmux(pin)
     }
