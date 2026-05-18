@@ -323,8 +323,8 @@ pub extern "C" fn _start_trap() -> ! {
     // Else, save the current value of s1 to `custom_trap_handler[0]`,
     // load `custom_trap_handler[1]` into s1 and jump to it (invoking
     // a custom trap handler).
-    sw    s1, 0*4(s0)             // custom_trap_handler[0] = s1
-    lw    s1, 1*4(s0)             // s1 = custom_trap_handler[1]
+    sw    s1, 0*({XLEN}/8)(s0)    // custom_trap_handler[0] = s1
+    lw    s1, 1*({XLEN}/8)(s0)    // s1 = custom_trap_handler[1]
     jr    s1                      // goto s1
 
   100: // _start_kernel_trap
@@ -360,29 +360,29 @@ pub extern "C" fn _start_trap() -> ! {
 
     // Make room for the caller saved registers we need to restore after running
     // any trap handler code.
-    addi sp, sp, -20*4            // riscv32: sp = sp - (20*4)
+    addi sp, sp, -20*({XLEN}/8)   // riscv32: sp = sp - (20*4)
 
     // Save all of the caller saved registers.
-    sw   ra,  0*4(sp)             // riscv32: *(stackptr +  (0*4)) = ra
-    sw   t0,  1*4(sp)             // riscv32: *(stackptr +  (1*4)) = t0
-    sw   t1,  2*4(sp)             // riscv32: *(stackptr +  (2*4)) = t1
-    sw   t2,  3*4(sp)             // riscv32: *(stackptr +  (3*4)) = t2
-    sw   t3,  4*4(sp)             // riscv32: *(stackptr +  (4*4)) = t3
-    sw   t4,  5*4(sp)             // riscv32: *(stackptr +  (5*4)) = t4
-    sw   t5,  6*4(sp)             // riscv32: *(stackptr +  (6*4)) = t5
-    sw   t6,  7*4(sp)             // riscv32: *(stackptr +  (7*4)) = t6
-    sw   a0,  8*4(sp)             // riscv32: *(stackptr +  (8*4)) = a0
-    sw   a1,  9*4(sp)             // riscv32: *(stackptr +  (9*4)) = a1
-    sw   a2, 10*4(sp)             // riscv32: *(stackptr + (10*4)) = a2
-    sw   a3, 11*4(sp)             // riscv32: *(stackptr + (11*4)) = a3
-    sw   a4, 12*4(sp)             // riscv32: *(stackptr + (12*4)) = a4
-    sw   a5, 13*4(sp)             // riscv32: *(stackptr + (13*4)) = a5
-    sw   a6, 14*4(sp)             // riscv32: *(stackptr + (14*4)) = a6
-    sw   a7, 15*4(sp)             // riscv32: *(stackptr + (15*4)) = a7
+    sw   ra,  0*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (0*4)) = ra
+    sw   t0,  1*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (1*4)) = t0
+    sw   t1,  2*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (2*4)) = t1
+    sw   t2,  3*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (3*4)) = t2
+    sw   t3,  4*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (4*4)) = t3
+    sw   t4,  5*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (5*4)) = t4
+    sw   t5,  6*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (6*4)) = t5
+    sw   t6,  7*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (7*4)) = t6
+    sw   a0,  8*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (8*4)) = a0
+    sw   a1,  9*({XLEN}/8)(sp)    // riscv32: *(stackptr +  (9*4)) = a1
+    sw   a2, 10*({XLEN}/8)(sp)    // riscv32: *(stackptr + (10*4)) = a2
+    sw   a3, 11*({XLEN}/8)(sp)    // riscv32: *(stackptr + (11*4)) = a3
+    sw   a4, 12*({XLEN}/8)(sp)    // riscv32: *(stackptr + (12*4)) = a4
+    sw   a5, 13*({XLEN}/8)(sp)    // riscv32: *(stackptr + (13*4)) = a5
+    sw   a6, 14*({XLEN}/8)(sp)    // riscv32: *(stackptr + (14*4)) = a6
+    sw   a7, 15*({XLEN}/8)(sp)    // riscv32: *(stackptr + (15*4)) = a7
 
     // Save one callee-saved register (s0), which we place the address of
     // the hart-specific 'are we in a trap handler' flag in:
-    sw   s0, 16*4(sp)             // riscv32: *(stackptr + (16*4)) = s0
+    sw   s0, 16*({XLEN}/8)(sp)    // riscv32: *(stackptr + (16*4)) = s0
 
     // Determine the address of the hart-specific 'are we in a trap handler'
     // flag as an offset to the _trap_handler_active symbol. The chip crate
@@ -407,29 +407,29 @@ pub extern "C" fn _start_trap() -> ! {
     sw   x0, 0(s0)                // _trap_handler_active[hartid] = 0
 
     // Restore the caller saved registers from the stack.
-    lw   ra,  0*4(sp)             // riscv32: ra = *(stackptr +  (0*4))
-    lw   t0,  1*4(sp)             // riscv32: t0 = *(stackptr +  (1*4))
-    lw   t1,  2*4(sp)             // riscv32: t1 = *(stackptr +  (2*4))
-    lw   t2,  3*4(sp)             // riscv32: t2 = *(stackptr +  (3*4))
-    lw   t3,  4*4(sp)             // riscv32: t3 = *(stackptr +  (4*4))
-    lw   t4,  5*4(sp)             // riscv32: t4 = *(stackptr +  (5*4))
-    lw   t5,  6*4(sp)             // riscv32: t5 = *(stackptr +  (6*4))
-    lw   t6,  7*4(sp)             // riscv32: t6 = *(stackptr +  (7*4))
-    lw   a0,  8*4(sp)             // riscv32: a0 = *(stackptr +  (8*4))
-    lw   a1,  9*4(sp)             // riscv32: a1 = *(stackptr +  (9*4))
-    lw   a2, 10*4(sp)             // riscv32: a2 = *(stackptr + (10*4))
-    lw   a3, 11*4(sp)             // riscv32: a3 = *(stackptr + (11*4))
-    lw   a4, 12*4(sp)             // riscv32: a4 = *(stackptr + (12*4))
-    lw   a5, 13*4(sp)             // riscv32: a5 = *(stackptr + (13*4))
-    lw   a6, 14*4(sp)             // riscv32: a6 = *(stackptr + (14*4))
-    lw   a7, 15*4(sp)             // riscv32: a7 = *(stackptr + (15*4))
+    lw   ra,  0*({XLEN}/8)(sp)    // riscv32: ra = *(stackptr +  (0*4))
+    lw   t0,  1*({XLEN}/8)(sp)    // riscv32: t0 = *(stackptr +  (1*4))
+    lw   t1,  2*({XLEN}/8)(sp)    // riscv32: t1 = *(stackptr +  (2*4))
+    lw   t2,  3*({XLEN}/8)(sp)    // riscv32: t2 = *(stackptr +  (3*4))
+    lw   t3,  4*({XLEN}/8)(sp)    // riscv32: t3 = *(stackptr +  (4*4))
+    lw   t4,  5*({XLEN}/8)(sp)    // riscv32: t4 = *(stackptr +  (5*4))
+    lw   t5,  6*({XLEN}/8)(sp)    // riscv32: t5 = *(stackptr +  (6*4))
+    lw   t6,  7*({XLEN}/8)(sp)    // riscv32: t6 = *(stackptr +  (7*4))
+    lw   a0,  8*({XLEN}/8)(sp)    // riscv32: a0 = *(stackptr +  (8*4))
+    lw   a1,  9*({XLEN}/8)(sp)    // riscv32: a1 = *(stackptr +  (9*4))
+    lw   a2, 10*({XLEN}/8)(sp)    // riscv32: a2 = *(stackptr + (10*4))
+    lw   a3, 11*({XLEN}/8)(sp)    // riscv32: a3 = *(stackptr + (11*4))
+    lw   a4, 12*({XLEN}/8)(sp)    // riscv32: a4 = *(stackptr + (12*4))
+    lw   a5, 13*({XLEN}/8)(sp)    // riscv32: a5 = *(stackptr + (13*4))
+    lw   a6, 14*({XLEN}/8)(sp)    // riscv32: a6 = *(stackptr + (14*4))
+    lw   a7, 15*({XLEN}/8)(sp)    // riscv32: a7 = *(stackptr + (15*4))
 
     // Restore the one callee-saved register (s0), which used to hold the
     // address of the hart-specific 'are we in a trap handler flag':
-    lw   s0, 16*4(sp)             // riscv32: s0 = *(stackptr + (16*4))
+    lw   s0, 16*({XLEN}/8)(sp)    // riscv32: s0 = *(stackptr + (16*4))
 
     // Reset the stack pointer.
-    addi sp, sp, 20*4             // sp = sp + (20*4)
+    addi sp, sp, 20*({XLEN}/8)    // sp = sp + (20*4)
 
     // mret returns from the trap handler. The PC is set to what is in
     // mepc and execution proceeds from there. Since we did not modify
@@ -438,6 +438,7 @@ pub extern "C" fn _start_trap() -> ! {
         ",
         estack = sym _estack,
         sstack = sym _sstack,
+        XLEN = const XLEN,
     );
 }
 
