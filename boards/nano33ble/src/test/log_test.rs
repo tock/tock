@@ -46,7 +46,7 @@ use kernel::storage_volume;
 use kernel::utilities::cells::{NumericCellExt, TakeCell};
 use kernel::ErrorCode;
 use nrf52840::{
-    gpio::{GPIOPin, Pin},
+    gpio::Pin,
     nvmc::{NrfPage, Nvmc},
     rtc::Rtc,
 };
@@ -84,11 +84,7 @@ pub unsafe fn run(mux_alarm: &'static MuxAlarm<'static, Rtc>, flash_controller: 
     test.alarm.set_alarm_client(test);
 
     // Configure GPIO pin P1.08 as the log erase pin.
-    let log_erase_pin = GPIOPin::new(
-        Pin::P1_08,
-        nrf52840::gpio::GPIOTE_BASE,
-        nrf52840::gpio::GPIO_BASE_PORT1,
-    );
+    let log_erase_pin = nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P1_08);
     log_erase_pin.enable_interrupts(InterruptEdge::RisingEdge);
     log_erase_pin.set_client(test);
 

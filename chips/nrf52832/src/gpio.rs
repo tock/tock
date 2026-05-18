@@ -14,6 +14,10 @@ pub const GPIOTE_BASE: StaticRef<GpioteRegisters> =
 pub const GPIO_BASE_PORT0: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new((GPIO_BASE_ADDRESS) as *const GpioRegisters) };
 
+pub fn nrf52832_gpio_create_pin<'a>(pin: Pin) -> GPIOPin<'a> {
+    GPIOPin::new(pin, GPIOTE_BASE, GPIO_BASE_PORT0)
+}
+
 pub fn nrf52832_gpio_create<'a>() -> Port<'a, NUM_PINS> {
     Port::new([
         GPIOPin::new(Pin::P0_00, GPIOTE_BASE, GPIO_BASE_PORT0),
