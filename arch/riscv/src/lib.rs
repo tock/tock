@@ -19,14 +19,7 @@ pub mod syscall;
 pub mod thread_id;
 
 /// `XLEN` is the width of an integer register in bits (either 32 or 64).
-#[cfg(target_arch = "riscv32")]
-pub const XLEN: usize = 32;
-#[cfg(target_arch = "riscv64")]
-pub const XLEN: usize = 64;
-// Default to 32 bit if no architecture is specified of if this is being
-// compiled for docs or testing on a different architecture.
-#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-pub const XLEN: usize = 32;
+pub const XLEN: usize = 1 << XLEN_LOG2;
 
 /// `XLEN_LOG2` is the log base 2 of XLEN.
 #[cfg(target_arch = "riscv32")]
