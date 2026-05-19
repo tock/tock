@@ -325,29 +325,6 @@ register_bitfields![u32,
 const EXTI_BASE: StaticRef<ExtiRegisters> =
     unsafe { StaticRef::new(0x40013C00 as *const ExtiRegisters) };
 
-// /// EXTI block has 23 lines going into NVIC. This arrangement is described here
-// /// [^1].
-// ///
-// /// The 23 lines going into NVIC, are mapped to the following NVIC IRQs. Note
-// /// there is *no* one-to-one mapping between the 23 lines to NVIC IRQs. The 23
-// /// lines going into NVIC translates to 14 IRQs on NVIC.
-// ///
-// ///  - `EXTI0` (6)
-// ///  - `EXTI1` (7)
-// ///  - `EXTI2` (8)
-// ///  - `EXTI3` (9)
-// ///  - `EXTI4` (10)
-// ///  - `EXTI9_5` (23)
-// ///  - `EXTI15_10` (40)
-// ///
-// ///  - `EXTI16` -> `PVD` (1)
-// ///  - `EXTI17` -> `RTC_Alarm` (41)
-// ///  - `EXTI18` -> `OTG_FS_WKUP` (42)
-// ///  - `EXTI19` -> `<UNKNOWN>`
-// ///  - `EXTI20` -> `OTG_FS` (67)
-// ///  - `EXTI21` -> `TAMP_STAMP` (2)
-// ///  - `EXTI22` -> `RTC_WKUP` (3)
-
 enum_from_primitive! {
     #[repr(u8)]
     #[derive(Copy, Clone)]
