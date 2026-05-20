@@ -223,8 +223,8 @@ pub fn compress<'a>(
     };
 
     // Do not contexts that are not marked to be available for compression
-    src_ctx = src_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
-    dst_ctx = dst_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
+    src_ctx = src_ctx.filter(|&ctx| ctx.compress);
+    dst_ctx = dst_ctx.filter(|&ctx| ctx.compress);
 
     // Context Identifier Extension
     compress_cie(src_ctx.as_ref(), dst_ctx.as_ref(), buf, &mut written);

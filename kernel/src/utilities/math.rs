@@ -46,20 +46,12 @@ impl PowerOfTwo {
 /// Note: this is the floor of the result. Also, an input of 0 results in an
 /// output of 0.
 pub fn log_base_two(num: u32) -> u32 {
-    if num == 0 {
-        0
-    } else {
-        31 - num.leading_zeros()
-    }
+    num.checked_ilog2().unwrap_or(0)
 }
 
 /// Log base 2 of 64 bit unsigned integers.
 pub fn log_base_two_u64(num: u64) -> u32 {
-    if num == 0 {
-        0
-    } else {
-        63 - num.leading_zeros()
-    }
+    num.checked_ilog2().unwrap_or(0)
 }
 
 // f32 log10 function adapted from [micromath](https://github.com/NeoBirth/micromath)

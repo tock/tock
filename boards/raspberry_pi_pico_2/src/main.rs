@@ -177,26 +177,26 @@ core::arch::global_asm!(
     "
 );
 
-fn init_clocks(peripherals: &Rp2350DefaultPeripherals) {
+fn init_clocks(
+    peripherals: &Rp2350DefaultPeripherals,
+    clocks: &'static rp2350::clocks::Clocks,
+    resets: &'static rp2350::resets::Resets,
+) {
     // // Start tick in watchdog
     // peripherals.watchdog.start_tick(12);
     //
     // Disable the Resus clock
-    peripherals.clocks.disable_resus();
+    clocks.disable_resus();
 
     // Setup the external Oscillator
     peripherals.xosc.init();
 
     // disable ref and sys clock aux sources
-    peripherals.clocks.disable_sys_aux();
-    peripherals.clocks.disable_ref_aux();
+    clocks.disable_sys_aux();
+    clocks.disable_ref_aux();
 
-    peripherals
-        .resets
-        .reset(&[Peripheral::PllSys, Peripheral::PllUsb]);
-    peripherals
-        .resets
-        .unreset(&[Peripheral::PllSys, Peripheral::PllUsb], true);
+    resets.reset(&[Peripheral::PllSys, Peripheral::PllUsb]);
+    resets.unreset(&[Peripheral::PllSys, Peripheral::PllUsb], true);
 
     // Configure PLLs (from Pico SDK)
     //                   REF     FBDIV VCO            POSTDIV
@@ -205,22 +205,18 @@ fn init_clocks(peripherals: &Rp2350DefaultPeripherals) {
 
     // It seems that the external oscillator is clocked at 12 MHz
 
-    peripherals
-        .clocks
-        .pll_init(PllClock::Sys, 12, 1, 1500 * 1000000, 6, 2);
-    peripherals
-        .clocks
-        .pll_init(PllClock::Usb, 12, 1, 480 * 1000000, 5, 2);
+    clocks.pll_init(PllClock::Sys, 12, 1, 1500 * 1000000, 6, 2);
+    clocks.pll_init(PllClock::Usb, 12, 1, 480 * 1000000, 5, 2);
 
     // pico-sdk: // CLK_REF = XOSC (12MHz) / 1 = 12MHz
-    peripherals.clocks.configure_reference(
+    clocks.configure_reference(
         ReferenceClockSource::Xosc,
         ReferenceAuxiliaryClockSource::PllUsb,
         12000000,
         12000000,
     );
     // pico-sdk: CLK SYS = PLL SYS (125MHz) / 1 = 125MHz
-    peripherals.clocks.configure_system(
+    clocks.configure_system(
         SystemClockSource::Auxiliary,
         SystemAuxiliaryClockSource::PllSys,
         125000000,
@@ -228,27 +224,29 @@ fn init_clocks(peripherals: &Rp2350DefaultPeripherals) {
     );
 
     // pico-sdk: CLK USB = PLL USB (48MHz) / 1 = 48MHz
-    peripherals
-        .clocks
-        .configure_usb(UsbAuxiliaryClockSource::PllSys, 48000000, 48000000);
+    clocks.configure_usb(UsbAuxiliaryClockSource::PllSys, 48000000, 48000000);
     // pico-sdk: CLK ADC = PLL USB (48MHZ) / 1 = 48MHz
-    peripherals
-        .clocks
-        .configure_adc(AdcAuxiliaryClockSource::PllUsb, 48000000, 48000000);
+    clocks.configure_adc(AdcAuxiliaryClockSource::PllUsb, 48000000, 48000000);
     // pico-sdk: CLK HSTX = PLL USB (48MHz) / 1024 = 46875Hz
-    peripherals
-        .clocks
-        .configure_hstx(HstxAuxiliaryClockSource::PllSys, 48000000, 46875);
+    clocks.configure_hstx(HstxAuxiliaryClockSource::PllSys, 48000000, 46875);
     // pico-sdk:
     // CLK PERI = clk_sys. Used as reference clock for Peripherals. No dividers so just select and enable
     // Normally choose clk_sys or clk_usb
-    peripherals
-        .clocks
-        .configure_peripheral(PeripheralAuxiliaryClockSource::System, 125000000);
+    clocks.configure_peripheral(PeripheralAuxiliaryClockSource::System, 125000000);
 }
 
-unsafe fn get_peripherals() -> &'static mut Rp2350DefaultPeripherals<'static> {
-    static_init!(Rp2350DefaultPeripherals, Rp2350DefaultPeripherals::new())
+unsafe fn get_peripherals() -> (
+    &'static mut Rp2350DefaultPeripherals<'static>,
+    &'static rp2350::clocks::Clocks,
+    &'static rp2350::resets::Resets,
+) {
+    let clocks = static_init!(rp2350::clocks::Clocks, rp2350::clocks::Clocks::new());
+    let resets = static_init!(rp2350::resets::Resets, rp2350::resets::Resets::new());
+    let peripherals = static_init!(
+        Rp2350DefaultPeripherals,
+        Rp2350DefaultPeripherals::new(clocks)
+    );
+    (peripherals, clocks, resets)
 }
 
 /// Main function called after RAM initialized.
@@ -267,19 +265,19 @@ pub unsafe fn main() {
             PanicResources::new(),
         );
 
-    let peripherals = get_peripherals();
-    peripherals.resolve_dependencies();
+    let (peripherals, clocks, resets) = get_peripherals();
+    peripherals.init();
 
-    peripherals.resets.reset_all_except(&[
+    resets.reset_all_except(&[
         Peripheral::IOQSpi,
         Peripheral::PadsQSpi,
         Peripheral::PllUsb,
         Peripheral::PllSys,
     ]);
 
-    init_clocks(peripherals);
+    init_clocks(peripherals, clocks, resets);
 
-    peripherals.resets.unreset_all_except(&[], true);
+    resets.unreset_all_except(&[], true);
 
     // Set the UART used for panic
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);

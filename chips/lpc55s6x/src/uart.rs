@@ -562,8 +562,8 @@ const USART4_BASE: StaticRef<UsartRegisters> =
 pub struct Uart<'a> {
     registers: StaticRef<UsartRegisters>,
     instance: u8,
-    clocks: OptionalCell<&'a Clock>,
-    flexcomm: OptionalCell<&'a Flexcomm>,
+    clocks: &'a Clock,
+    flexcomm: &'a Flexcomm,
 
     uart_clock_source: Cell<FrgClockSource>,
 
@@ -582,12 +582,17 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub fn new(registers: StaticRef<UsartRegisters>, instance: u8) -> Self {
+    pub fn new(
+        registers: StaticRef<UsartRegisters>,
+        instance: u8,
+        clocks: &'a Clock,
+        flexcomm: &'a Flexcomm,
+    ) -> Self {
         Self {
             registers,
             instance,
-            clocks: OptionalCell::empty(),
-            flexcomm: OptionalCell::empty(),
+            clocks,
+            flexcomm,
 
             uart_clock_source: Cell::new(FrgClockSource::Fro12Mhz),
 
@@ -605,20 +610,12 @@ impl<'a> Uart<'a> {
             rx_status: Cell::new(UARTStateRX::Idle),
         }
     }
-    pub fn new_uart0() -> Self {
-        Self::new(USART0_BASE, 0)
+    pub fn new_uart0(clocks: &'a Clock, flexcomm: &'a Flexcomm) -> Self {
+        Self::new(USART0_BASE, 0, clocks, flexcomm)
     }
 
-    pub fn new_uart4() -> Self {
-        Self::new(USART4_BASE, 4)
-    }
-
-    pub fn set_clocks(&self, clocks: &'a Clock) {
-        self.clocks.set(clocks);
-    }
-
-    pub fn set_flexcomm(&self, flexcomm: &'a Flexcomm) {
-        self.flexcomm.set(flexcomm);
+    pub fn new_uart4(clocks: &'a Clock, flexcomm: &'a Flexcomm) -> Self {
+        Self::new(USART4_BASE, 4, clocks, flexcomm)
     }
 
     pub fn set_clock_source(&self, source: FrgClockSource) {
@@ -836,17 +833,15 @@ impl<'a> Uart<'a> {
 
 impl Configure for Uart<'_> {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
-        let clocks = self.clocks.get().ok_or(ErrorCode::OFF)?;
-        let flexcomm = self.flexcomm.get().ok_or(ErrorCode::OFF)?;
         let clock_source = self.uart_clock_source.get();
         let frg_id = FrgId::from_u32(self.instance.into()).ok_or(ErrorCode::INVAL)?;
-        clocks.setup_uart_clock(frg_id, clock_source);
-        flexcomm.configure_for_uart();
+        self.clocks.setup_uart_clock(frg_id, clock_source);
+        self.flexcomm.configure_for_uart();
 
         // --- Disable USART before configuration ---
         self.registers.cfg.modify(CFG::ENABLE::CLEAR);
 
-        let clk = clocks.get_frg_clock_frequency(clock_source);
+        let clk = self.clocks.get_frg_clock_frequency(clock_source);
         let brg_val = (clk / (16 * params.baud_rate)).saturating_sub(1);
         if brg_val > 0xFFFF {
             return Err(ErrorCode::INVAL); // Baud rate not possible

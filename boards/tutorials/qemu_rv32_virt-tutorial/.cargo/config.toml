@@ -23,5 +23,3 @@ runner = ["qemu-system-riscv32",
           "-serial", "stdio",
           "-bios", "qemu_rv32_virt_tutorial.bin"]
 
-[unstable]
-config-include = true

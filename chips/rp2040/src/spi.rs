@@ -238,7 +238,7 @@ const SPI1_BASE: StaticRef<SpiRegisters> =
 
 pub struct Spi<'a> {
     registers: StaticRef<SpiRegisters>,
-    clocks: OptionalCell<&'a clocks::Clocks>,
+    clocks: &'a clocks::Clocks,
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
     active_slave: OptionalCell<ChipSelectPolar<'a, crate::gpio::RPGpioPin<'a>>>,
 
@@ -254,10 +254,10 @@ pub struct Spi<'a> {
 }
 
 impl<'a> Spi<'a> {
-    pub fn new_spi0() -> Self {
+    pub fn new_spi0(clocks: &'a clocks::Clocks) -> Self {
         Self {
             registers: SPI0_BASE,
-            clocks: OptionalCell::empty(),
+            clocks,
             master_client: OptionalCell::empty(),
             active_slave: OptionalCell::empty(),
 
@@ -274,10 +274,10 @@ impl<'a> Spi<'a> {
         }
     }
 
-    pub fn new_spi1() -> Self {
+    pub fn new_spi1(clocks: &'a clocks::Clocks) -> Self {
         Self {
             registers: SPI1_BASE,
-            clocks: OptionalCell::empty(),
+            clocks,
             master_client: OptionalCell::empty(),
             active_slave: OptionalCell::empty(),
 
@@ -292,10 +292,6 @@ impl<'a> Spi<'a> {
             transfers: Cell::new(SPI_IDLE),
             active_after: Cell::new(false),
         }
-    }
-
-    pub(crate) fn set_clocks(&self, clocks: &'a clocks::Clocks) {
-        self.clocks.set(clocks);
     }
 
     fn enable(&self) {
@@ -577,9 +573,7 @@ impl<'a> SpiMaster<'a> for Spi<'a> {
     }
 
     fn set_rate(&self, baudrate: u32) -> Result<u32, ErrorCode> {
-        let freq_in = self.clocks.map_or(125_000_000, |clocks| {
-            clocks.get_frequency(clocks::Clock::Peripheral)
-        });
+        let freq_in = self.clocks.get_frequency(clocks::Clock::Peripheral);
 
         if baudrate > freq_in {
             return Err(ErrorCode::INVAL);
@@ -615,9 +609,7 @@ impl<'a> SpiMaster<'a> for Spi<'a> {
     }
 
     fn get_rate(&self) -> u32 {
-        let freq_in = self.clocks.map_or(125_000_000, |clocks| {
-            clocks.get_frequency(clocks::Clock::Peripheral)
-        });
+        let freq_in = self.clocks.get_frequency(clocks::Clock::Peripheral);
         let prescale = self.registers.sspcpsr.read(SSPCPSR::CPSDVSR);
         let postdiv = self.registers.sspcr0.read(SSPCR0::SCR) + 1;
         freq_in / (prescale * postdiv)
