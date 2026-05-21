@@ -32,9 +32,6 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-const RNG_BASE: StaticRef<RngRegisters> =
-    unsafe { StaticRef::new(0x4000D000 as *const RngRegisters) };
-
 #[repr(C)]
 pub struct RngRegisters {
     /// Task starting the random number generator
@@ -117,9 +114,9 @@ pub struct Trng<'a> {
 }
 
 impl<'a> Trng<'a> {
-    pub const fn new() -> Trng<'a> {
+    pub const fn new(registers: StaticRef<RngRegisters>) -> Trng<'a> {
         Trng {
-            registers: RNG_BASE,
+            registers,
             client: OptionalCell::empty(),
             index: Cell::new(0),
             randomness: Cell::new(0),
