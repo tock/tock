@@ -13,7 +13,7 @@
 //! `xlen_macros!` defines macros `lx` and `sx`, which function as
 //! pseudoinstructions for loading and storing XLEN-sized values.
 
-#[cfg(target_arch = "riscv32")]
+#[cfg(any(doc, target_arch = "riscv32"))]
 #[macro_export]
 macro_rules! xlen_macros[() => [r"
     .macro sx src, dest
