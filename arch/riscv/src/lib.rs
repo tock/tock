@@ -472,87 +472,38 @@ pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> u
 
 /// Print a readable string for an mcause reason.
 pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
-    match mcval {
+    let s = match mcval {
         csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
-            csr::mcause::Interrupt::UserSoft => {
-                let _ = writer.write_fmt(format_args!("User software interrupt"));
-            }
-            csr::mcause::Interrupt::SupervisorSoft => {
-                let _ = writer.write_fmt(format_args!("Supervisor software interrupt"));
-            }
-            csr::mcause::Interrupt::MachineSoft => {
-                let _ = writer.write_fmt(format_args!("Machine software interrupt"));
-            }
-            csr::mcause::Interrupt::UserTimer => {
-                let _ = writer.write_fmt(format_args!("User timer interrupt"));
-            }
-            csr::mcause::Interrupt::SupervisorTimer => {
-                let _ = writer.write_fmt(format_args!("Supervisor timer interrupt"));
-            }
-            csr::mcause::Interrupt::MachineTimer => {
-                let _ = writer.write_fmt(format_args!("Machine timer interrupt"));
-            }
-            csr::mcause::Interrupt::UserExternal => {
-                let _ = writer.write_fmt(format_args!("User external interrupt"));
-            }
-            csr::mcause::Interrupt::SupervisorExternal => {
-                let _ = writer.write_fmt(format_args!("Supervisor external interrupt"));
-            }
-            csr::mcause::Interrupt::MachineExternal => {
-                let _ = writer.write_fmt(format_args!("Machine external interrupt"));
-            }
-            csr::mcause::Interrupt::Unknown(_) => {
-                let _ = writer.write_fmt(format_args!("Reserved/Unknown"));
-            }
+            csr::mcause::Interrupt::UserSoft => "User software interrupt",
+            csr::mcause::Interrupt::SupervisorSoft => "Supervisor software interrupt",
+            csr::mcause::Interrupt::MachineSoft => "Machine software interrupt",
+            csr::mcause::Interrupt::UserTimer => "User timer interrupt",
+            csr::mcause::Interrupt::SupervisorTimer => "Supervisor timer interrupt",
+            csr::mcause::Interrupt::MachineTimer => "Machine timer interrupt",
+            csr::mcause::Interrupt::UserExternal => "User external interrupt",
+            csr::mcause::Interrupt::SupervisorExternal => "Supervisor external interrupt",
+            csr::mcause::Interrupt::MachineExternal => "Machine external interrupt",
+            csr::mcause::Interrupt::Unknown(_) => "Reserved/Unknown",
         },
         csr::mcause::Trap::Exception(exception) => match exception {
-            csr::mcause::Exception::InstructionMisaligned => {
-                let _ = writer.write_fmt(format_args!("Instruction access misaligned"));
-            }
-            csr::mcause::Exception::InstructionFault => {
-                let _ = writer.write_fmt(format_args!("Instruction access fault"));
-            }
-            csr::mcause::Exception::IllegalInstruction => {
-                let _ = writer.write_fmt(format_args!("Illegal instruction"));
-            }
-            csr::mcause::Exception::Breakpoint => {
-                let _ = writer.write_fmt(format_args!("Breakpoint"));
-            }
-            csr::mcause::Exception::LoadMisaligned => {
-                let _ = writer.write_fmt(format_args!("Load address misaligned"));
-            }
-            csr::mcause::Exception::LoadFault => {
-                let _ = writer.write_fmt(format_args!("Load access fault"));
-            }
-            csr::mcause::Exception::StoreMisaligned => {
-                let _ = writer.write_fmt(format_args!("Store/AMO address misaligned"));
-            }
-            csr::mcause::Exception::StoreFault => {
-                let _ = writer.write_fmt(format_args!("Store/AMO access fault"));
-            }
-            csr::mcause::Exception::UserEnvCall => {
-                let _ = writer.write_fmt(format_args!("Environment call from U-mode"));
-            }
-            csr::mcause::Exception::SupervisorEnvCall => {
-                let _ = writer.write_fmt(format_args!("Environment call from S-mode"));
-            }
-            csr::mcause::Exception::MachineEnvCall => {
-                let _ = writer.write_fmt(format_args!("Environment call from M-mode"));
-            }
-            csr::mcause::Exception::InstructionPageFault => {
-                let _ = writer.write_fmt(format_args!("Instruction page fault"));
-            }
-            csr::mcause::Exception::LoadPageFault => {
-                let _ = writer.write_fmt(format_args!("Load page fault"));
-            }
-            csr::mcause::Exception::StorePageFault => {
-                let _ = writer.write_fmt(format_args!("Store/AMO page fault"));
-            }
-            csr::mcause::Exception::Unknown => {
-                let _ = writer.write_fmt(format_args!("Reserved"));
-            }
+            csr::mcause::Exception::InstructionMisaligned => "Instruction access misaligned",
+            csr::mcause::Exception::InstructionFault => "Instruction access fault",
+            csr::mcause::Exception::IllegalInstruction => "Illegal instruction",
+            csr::mcause::Exception::Breakpoint => "Breakpoint",
+            csr::mcause::Exception::LoadMisaligned => "Load address misaligned",
+            csr::mcause::Exception::LoadFault => "Load access fault",
+            csr::mcause::Exception::StoreMisaligned => "Store/AMO address misaligned",
+            csr::mcause::Exception::StoreFault => "Store/AMO access fault",
+            csr::mcause::Exception::UserEnvCall => "Environment call from U-mode",
+            csr::mcause::Exception::SupervisorEnvCall => "Environment call from S-mode",
+            csr::mcause::Exception::MachineEnvCall => "Environment call from M-mode",
+            csr::mcause::Exception::InstructionPageFault => "Instruction page fault",
+            csr::mcause::Exception::LoadPageFault => "Load page fault",
+            csr::mcause::Exception::StorePageFault => "Store/AMO page fault",
+            csr::mcause::Exception::Unknown => "Reserved",
         },
-    }
+    };
+    let _ = writer.write_fmt(format_args!("{}", s));
 }
 
 /// Prints out RISCV machine state, including basic system registers
