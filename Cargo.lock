@@ -965,6 +965,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nrf52840dk-test-base"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "nrf52840",
+ "nrf52_components",
+ "segger",
+]
+
+[[package]]
 name = "nrf52840dk-test-dynamic-app-load"
 version = "0.2.3-dev"
 dependencies = [
