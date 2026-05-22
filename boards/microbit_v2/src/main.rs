@@ -238,10 +238,11 @@ unsafe fn start() -> (
         [u8; nrf52833::ieee802154_radio::ACK_BUF_SIZE],
         [0; nrf52833::ieee802154_radio::ACK_BUF_SIZE]
     );
+    let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
     // Initialize chip peripheral drivers
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
-        Nrf52833DefaultPeripherals::new(ieee802154_ack_buf)
+        Nrf52833DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
     );
 
     // set up circular peripheral dependencies
