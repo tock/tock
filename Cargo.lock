@@ -943,6 +943,7 @@ dependencies = [
  "cortexm4",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock_build_scripts",
