@@ -447,19 +447,19 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
     let res;
     asm!(
         "
-    .balign 16
-    .option push
-    .option norelax
-    .option norvc
-    slli x0, x0, 0x1f
-    ebreak
-    srai x0, x0, 7
+    .balign 16                    // ensure 16 byte alignment
+    .option push                  // enable the following options:
+    .option norelax               // - norelax: do not replace these instructions
+    .option norvc                 // - norvc: force full 32 bit instructions
+    slli x0, x0, 0x1f             // useless instruction (writes to x0), but serves as sentinel for semihosting
+    ebreak                        // trap to debugger
+    srai x0, x0, 7                // useless instruction (writes to x0), but serves as second sentinel
     .option pop
         ",
-        in("a0") command,
-        in("a1") arg0,
-        in("a2") arg1,
-        lateout("a0") res,
+        in("a0") command,         // a0 holds command (and return code)
+        in("a1") arg0,            // a1 holds first argument
+        in("a2") arg1,            // a2 holds second argument
+        lateout("a0") res,        // semihosting replaces a0 with return code
     );
     res
 }
