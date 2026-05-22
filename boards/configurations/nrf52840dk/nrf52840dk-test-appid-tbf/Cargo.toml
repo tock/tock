@@ -10,6 +10,8 @@ build = "../../../build.rs"
 edition.workspace = true
 
 [dependencies]
+nrf52840dk-test-base = { path = "../nrf52840dk-test-base" }
+
 components = { path = "../../../components" }
 cortexm4 = { path = "../../../../arch/cortex-m4" }
 kernel = { path = "../../../../kernel" }
