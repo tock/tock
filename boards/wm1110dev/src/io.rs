@@ -16,7 +16,7 @@ use nrf52840::gpio::Pin;
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // Red Led
-    let led_red_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_14);
+    let led_red_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_14);
     let led = &mut led::LedHigh::new(led_red_pin);
 
     debug::panic::<_, nrf52840::uart::Uarte, _, _>(
