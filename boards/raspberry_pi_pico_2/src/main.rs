@@ -42,14 +42,8 @@ mod io;
 
 mod flash_bootloader;
 
-/// Allocate memory for the stack
-//
-// When compiling for a macOS host, the `link_section` attribute is elided as
-// it yields the following error: `mach-o section specifier requires a segment
-// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".stack_buffer")]
-#[no_mangle]
-static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
+// Allocate memory for the stack
+kernel::stack_size! {0x3000}
 
 // Manually setting the boot header section that contains the FCB header
 //
