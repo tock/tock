@@ -8,6 +8,7 @@
 #![no_main]
 #![deny(missing_docs)]
 
+use kernel::component::Component;
 use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability};
@@ -17,11 +18,16 @@ use kernel::{capabilities, create_capability};
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
+type Sha = components::sha::ShaSoftware256ComponentType;
+const SHA_DIGEST_LEN: usize = 32;
+type ShaDriver = components::sha::ShaDriverComponentType<Sha, SHA_DIGEST_LEN>;
+
 struct Platform {
     base: nrf52840dk_lib::Platform,
     eui64_driver: &'static nrf52840dk_lib::Eui64Driver,
     ieee802154_driver: &'static nrf52840dk_lib::Ieee802154Driver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
+    sha_driver: &'static ShaDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -33,6 +39,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64_driver)),
             capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_driver)),
+            capsules_extra::sha_driver::DRIVER_NUM => f(Some(self.sha_driver)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -86,11 +93,25 @@ pub unsafe fn main() {
     let (eui64_driver, ieee802154_driver, udp_driver) =
         nrf52840dk_lib::ieee802154_udp(board_kernel, default_peripherals, mux_alarm);
 
+    let sha = components::sha::ShaSoftware256Component::new()
+        .finalize(components::sha_software_256_component_static!());
+
+    let sha_driver = components::sha::ShaDriverComponent::new(
+        board_kernel,
+        capsules_extra::sha_driver::DRIVER_NUM,
+        sha,
+    )
+    .finalize(components::sha_driver_component_static!(
+        Sha,
+        SHA_DIGEST_LEN
+    ));
+
     let platform = Platform {
         base: base_platform,
         eui64_driver,
         ieee802154_driver,
         udp_driver,
+        sha_driver,
     };
 
     // These symbols are defined in the linker script.
