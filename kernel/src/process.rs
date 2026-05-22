@@ -28,9 +28,9 @@ pub use crate::process_array::{ProcessArray, ProcessSlot};
 pub use crate::process_binary::ProcessBinary;
 pub use crate::process_checker::AcceptedCredential;
 pub use crate::process_checker::{ProcessCheckerMachine, ProcessCheckerMachineClient};
+pub use crate::process_loading::load_processes;
 pub use crate::process_loading::ProcessLoadError;
 pub use crate::process_loading::SequentialProcessLoaderMachine;
-pub use crate::process_loading::load_processes;
 pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
 pub use crate::process_policies::{ProcessFaultPolicy, ProcessStandardStoragePermissionsPolicy};
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext};
@@ -917,8 +917,8 @@ pub enum Error {
     AlreadyInUse,
 }
 
-impl From<Error> for Result<(), ErrorCode> {
-    fn from(err: Error) -> Result<(), ErrorCode> {
+impl<T> From<Error> for Result<T, ErrorCode> {
+    fn from(err: Error) -> Result<T, ErrorCode> {
         match err {
             Error::OutOfMemory => Err(ErrorCode::NOMEM),
             Error::AddressOutOfBounds => Err(ErrorCode::INVAL),
