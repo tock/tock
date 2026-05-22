@@ -926,6 +926,7 @@ dependencies = [
  "ecdsa-sw",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock-tbf",
