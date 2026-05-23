@@ -209,12 +209,12 @@ unsafe fn set_pin_primary_functions(
     });
 
     // button is connected on pa00
-    gpio_ports.get_pin(PinId::PA00).map(|pin| {
+    gpio_ports.get_pin(PinId::PA00).map(|pin| unsafe {
         pin.enable_interrupt();
     });
 
     // enable interrupt for gpio 0
-    gpio_ports.get_pin(PinId::PC01).map(|pin| {
+    gpio_ports.get_pin(PinId::PC01).map(|pin| unsafe {
         pin.enable_interrupt();
     });
 
@@ -351,14 +351,20 @@ unsafe fn set_pin_primary_functions(
 /// Helper function for miscellaneous peripheral functions
 unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
     // USART1 IRQn is 37
-    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART1).enable();
+    unsafe {
+        cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART1).enable();
+    }
     // USART2 IRQn is 38
-    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART2).enable();
+    unsafe {
+        cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART2).enable();
+    }
 
     // TIM2 IRQn is 28
     tim2.enable_clock();
     let _ = tim2.start();
-    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::TIM2).enable();
+    unsafe {
+        cortexm4::nvic::Nvic::new(stm32f303xc::nvic::TIM2).enable();
+    }
 }
 
 /// Main function.
@@ -372,7 +378,9 @@ unsafe fn start() -> (
     STM32F3Discovery,
     &'static stm32f303xc::chip::Stm32f3xx<'static, Stm32f3xxDefaultPeripherals<'static>>,
 ) {
-    stm32f303xc::init();
+    unsafe {
+        stm32f303xc::init();
+    }
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -403,14 +411,18 @@ unsafe fn start() -> (
 
     peripherals.setup_circular_deps();
 
-    set_pin_primary_functions(
-        syscfg,
-        &peripherals.spi1,
-        &peripherals.i2c1,
-        &peripherals.gpio_ports,
-    );
+    unsafe {
+        set_pin_primary_functions(
+            syscfg,
+            &peripherals.spi1,
+            &peripherals.i2c1,
+            &peripherals.gpio_ports,
+        );
+    }
 
-    setup_peripherals(&peripherals.tim2);
+    unsafe {
+        setup_peripherals(&peripherals.tim2);
+    }
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -424,7 +436,7 @@ unsafe fn start() -> (
 
     let chip = static_init!(
         stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>,
-        stm32f303xc::chip::Stm32f3xx::new(peripherals)
+        unsafe { stm32f303xc::chip::Stm32f3xx::new(peripherals) }
     );
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
@@ -441,7 +453,9 @@ unsafe fn start() -> (
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
-    (*addr_of_mut!(io::WRITER)).set_initialized();
+    unsafe {
+        (*addr_of_mut!(io::WRITER)).set_initialized();
+    }
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -772,7 +786,7 @@ unsafe fn start() -> (
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
-    extern "C" {
+    unsafe extern "C" {
         /// Beginning on the ROM region containing app images.
         static _sstorage: u8;
         static _estorage: u8;
@@ -833,7 +847,7 @@ unsafe fn start() -> (
 
         scheduler,
         // Systick uses the HSI, which runs at 8MHz
-        systick: cortexm4::systick::SysTick::new_with_calibration(8_000_000),
+        systick: unsafe { cortexm4::systick::SysTick::new_with_calibration(8_000_000) },
         watchdog: &peripherals.watchdog,
     };
 
@@ -845,7 +859,7 @@ unsafe fn start() -> (
     debug!("Initialization complete. Entering main loop");
 
     // These symbols are defined in the linker script.
-    extern "C" {
+    unsafe extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
         /// End of the ROM region containing app images.
@@ -856,17 +870,24 @@ unsafe fn start() -> (
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
-        board_kernel,
-        chip,
+    let flash = unsafe {
         core::slice::from_raw_parts(
             core::ptr::addr_of!(_sapps),
             core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
+        )
+    };
+    let ram = unsafe {
         core::slice::from_raw_parts_mut(
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
+        )
+    };
+
+    kernel::process::load_processes(
+        board_kernel,
+        chip,
+        flash,
+        ram,
         &FAULT_RESPONSE,
         &process_management_capability,
     )
@@ -887,10 +908,10 @@ unsafe fn start() -> (
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, platform, chip) = start();
+    let (board_kernel, platform, chip) = unsafe { start() };
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

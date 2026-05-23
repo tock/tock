@@ -58,8 +58,8 @@ use kernel::static_init;
 
 pub unsafe fn run_virtual_uart_receive(mux: &'static MuxUart<'static>) {
     debug!("Starting virtual reads.");
-    let small = static_init_test_receive_small(mux);
-    let large = static_init_test_receive_large(mux);
+    let small = unsafe { static_init_test_receive_small(mux) };
+    let large = unsafe { static_init_test_receive_large(mux) };
     small.run();
     large.run();
 }
@@ -72,7 +72,7 @@ unsafe fn static_init_test_receive_small(
     device.setup();
     let test = static_init!(
         TestVirtualUartReceive,
-        TestVirtualUartReceive::new(device, &mut *addr_of_mut!(SMALL))
+        TestVirtualUartReceive::new(device, unsafe { &mut *addr_of_mut!(SMALL) })
     );
     device.set_receive_client(test);
     test
@@ -86,7 +86,7 @@ unsafe fn static_init_test_receive_large(
     device.setup();
     let test = static_init!(
         TestVirtualUartReceive,
-        TestVirtualUartReceive::new(device, &mut *addr_of_mut!(BUFFER))
+        TestVirtualUartReceive::new(device, unsafe { &mut *addr_of_mut!(BUFFER) })
     );
     device.set_receive_client(test);
     test

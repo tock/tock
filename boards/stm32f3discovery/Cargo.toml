@@ -7,7 +7,7 @@ name = "stm32f3discovery"
 version.workspace = true
 authors.workspace = true
 build = "../build.rs"
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 components = { path = "../components" }
