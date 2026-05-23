@@ -31,11 +31,11 @@
 //! * Date: April 21, 2017
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::ErrorCode;
 pub use nrf5x_unsafe::aes::AesEcbRegisters;
 pub use nrf5x_unsafe::aes::AesEcbRegistersManager;
 
