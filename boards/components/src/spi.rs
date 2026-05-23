@@ -113,6 +113,8 @@ pub struct SpiMuxComponent<S: 'static + spi::SpiMaster<'static>> {
     spi: &'static S,
 }
 
+pub type SpiSyscallComponentType<S> = Spi<'static, VirtualSpiMasterDevice<'static, S>>;
+
 pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster<'static>> {
     board_kernel: &'static kernel::Kernel,
     spi_mux: &'static MuxSpiMaster<'static, S>,
