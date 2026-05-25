@@ -310,7 +310,7 @@ impl DeferredCall {
     // we don't actually have an Option (we have an OptionalCell) and
     // IntoIterator is not implemented for OptionalCell.
     #[allow(clippy::iter_filter_is_some)]
-    pub fn verify_setup() {
+    pub fn verify_setup<P: ThreadIdProvider>() {
         if let Some(defcalls) = DEFCALLS.get() {
             if let Some(ctr) = CTR.get() {
                 let num_deferred_calls = ctr.get();
@@ -325,6 +325,11 @@ A component may have forgotten to register a deferred call.",
                     );
                 }
             }
+        } else if P::running_thread_id() != 0 {
+            // Non-zero thread ID means a secondary hart running in normal
+            // (non-trap-handler) context. Secondary harts in SMP configurations
+            // may not have initialized their own deferred call state. Nothing
+            // to verify for this thread.
         } else {
             // The board must call initialize_deferred_call_state() or
             // initialize_deferred_call_state_unsafe() before creating any

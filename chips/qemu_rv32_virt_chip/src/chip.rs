@@ -125,28 +125,36 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
     }
 
     fn service_pending_interrupts(&self) {
+        // On harts that have not enabled mext (e.g. hart 1 in lockstep mode),
+        // PLIC interrupts saved by other harts must not be processed here —
+        // this hart's peripheral structs may be uninitialized.
+        let mext_enabled = CSR.mie.is_set(mie::mext);
         loop {
             let mip = CSR.mip.extract();
 
             if mip.is_set(mip::mtimer) {
                 self.timer.handle_interrupt();
             }
-            if self.plic.get_saved_interrupts().is_some() {
+            if mext_enabled && self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
             }
 
             if !mip.any_matching_bits_set(mip::mtimer::SET)
-                && self.plic.get_saved_interrupts().is_none()
+                && (!mext_enabled || self.plic.get_saved_interrupts().is_none())
             {
                 break;
             }
         }
 
-        // Re-enable all MIE interrupts that we care about. Since we looped
-        // until we handled them all, we can re-enable all of them.
-        CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
+        // Re-enable MIE bits for this hart. Hart 1 (lockstep) does not enable
+        // mext, so we only set the bits that were originally requested.
+        if mext_enabled {
+            CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
+        } else {
+            CSR.mie.modify(mie::mtimer::SET);
+        }
     }
 
     fn has_pending_interrupts(&self) -> bool {
@@ -292,9 +300,9 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 /// track whether any given hart is currently in a trap handler. The
 /// array must be zero-initialized.
 ///
-/// While the QEMU rv32 virt target supports multiple harts, Tock
-/// currently always runs on the first hart, with ID zero. Hence, we
-/// allocate an array of `usizes` with length one for this purpose,
-/// intialized to zero:
+/// The QEMU rv32 virt target is configured with two harts (IDs 0 and 1)
+/// for software lockstep. Hart 0 runs the kernel; hart 1 idles in WFI
+/// until brought up for lockstep execution. We therefore allocate two
+/// entries, one per hart.
 #[export_name = "_trap_handler_active"]
-static mut TRAP_HANDLER_ACTIVE: [usize; 1] = [0; 1];
+static mut TRAP_HANDLER_ACTIVE: [usize; 2] = [0; 2];

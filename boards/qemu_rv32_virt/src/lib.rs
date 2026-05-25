@@ -409,27 +409,30 @@ pub unsafe fn start() -> (
         // Register the queues and driver with the transport, so interrupts
         // are routed properly
         let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [control_queue; 1]);
-        peripherals.virtio_mmio[gpu_idx]
+        if peripherals.virtio_mmio[gpu_idx]
             .initialize(gpu, mmio_queues)
-            .unwrap();
+            .is_err()
+        {
+            None
+        } else {
+            // Convert the `ARGB_8888` pixel mode offered by this device into a
+            // pixel mode that the rest of the kernel and userspace understands,
+            // namely the cursed `Mono_8BitPage` mode:
+            let screen_argb_8888_to_mono_8bit_page =
+                components::screen_adapters::ScreenAdapterARGB8888ToMono8BitPageComponent::new(gpu)
+                    .finalize(
+                        components::screen_adapter_argb8888_to_mono8bitpage_component_static!(
+                            ScreenHw,
+                            VIDEO_WIDTH,
+                            VIDEO_HEIGHT,
+                            PIXEL_STRIDE
+                        ),
+                    );
 
-        // Convert the `ARGB_8888` pixel mode offered by this device into a
-        // pixel mode that the rest of the kernel and userspace understands,
-        // namely the cursed `Mono_8BitPage` mode:
-        let screen_argb_8888_to_mono_8bit_page =
-            components::screen_adapters::ScreenAdapterARGB8888ToMono8BitPageComponent::new(gpu)
-                .finalize(
-                    components::screen_adapter_argb8888_to_mono8bitpage_component_static!(
-                        ScreenHw,
-                        VIDEO_WIDTH,
-                        VIDEO_HEIGHT,
-                        PIXEL_STRIDE
-                    ),
-                );
+            gpu.initialize().unwrap();
 
-        gpu.initialize().unwrap();
-
-        Some(screen_argb_8888_to_mono_8bit_page)
+            Some(screen_argb_8888_to_mono_8bit_page)
+        }
     } else {
         // No VirtIO GPU device discovered
         None
@@ -466,16 +469,19 @@ pub unsafe fn start() -> (
         // Register the queues and driver with the transport, so interrupts
         // are routed properly
         let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
-        peripherals.virtio_mmio[rng_idx]
+        if peripherals.virtio_mmio[rng_idx]
             .initialize(rng, mmio_queues)
-            .unwrap();
+            .is_err()
+        {
+            None
+        } else {
+            // Provide an internal randomness buffer
+            let rng_buffer = static_init!([u8; 64], [0; 64]);
+            rng.provide_buffer(rng_buffer)
+                .expect("rng: providing initial buffer failed");
 
-        // Provide an internal randomness buffer
-        let rng_buffer = static_init!([u8; 64], [0; 64]);
-        rng.provide_buffer(rng_buffer)
-            .expect("rng: providing initial buffer failed");
-
-        Some(rng)
+            Some(rng)
+        }
     } else {
         // No VirtIO EntropySource discovered
         None
@@ -551,35 +557,41 @@ pub unsafe fn start() -> (
         // Register the queues and driver with the transport, so
         // interrupts are routed properly
         let mmio_queues = static_init!([&'static dyn Virtqueue; 2], [rx_queue, tx_queue]);
-        peripherals.virtio_mmio[net_idx]
+        if peripherals.virtio_mmio[net_idx]
             .initialize(virtio_net, mmio_queues)
-            .unwrap();
-
-        // Instantiate the userspace tap network driver over this device:
-        let virtio_ethernet_tap_tx_buffer = static_init!(
-            [u8; capsules_extra::ethernet_tap::MAX_MTU],
-            [0; capsules_extra::ethernet_tap::MAX_MTU],
-        );
-        let virtio_ethernet_tap = static_init!(
-            EthernetTapDriver<'static, VirtIONet<'static, RiscvCoherentDmaFence>>,
-            EthernetTapDriver::new(
-                virtio_net,
-                board_kernel.create_grant(
-                    capsules_extra::ethernet_tap::DRIVER_NUM,
-                    &memory_allocation_cap
+            .is_err()
+        {
+            None
+        } else {
+            // Instantiate the userspace tap network driver over this device:
+            let virtio_ethernet_tap_tx_buffer = static_init!(
+                [u8; capsules_extra::ethernet_tap::MAX_MTU],
+                [0; capsules_extra::ethernet_tap::MAX_MTU],
+            );
+            let virtio_ethernet_tap = static_init!(
+                EthernetTapDriver<'static, VirtIONet<'static, RiscvCoherentDmaFence>>,
+                EthernetTapDriver::new(
+                    virtio_net,
+                    board_kernel.create_grant(
+                        capsules_extra::ethernet_tap::DRIVER_NUM,
+                        &memory_allocation_cap
+                    ),
+                    virtio_ethernet_tap_tx_buffer,
                 ),
-                virtio_ethernet_tap_tx_buffer,
-            ),
-        );
-        virtio_net.set_client(virtio_ethernet_tap);
+            );
+            virtio_net.set_client(virtio_ethernet_tap);
 
-        // This enables reception on the underlying device:
-        virtio_ethernet_tap.initialize();
+            // This enables reception on the underlying device:
+            virtio_ethernet_tap.initialize();
 
-        Some(
-            virtio_ethernet_tap
-                as &'static EthernetTapDriver<'static, VirtIONet<'static, RiscvCoherentDmaFence>>,
-        )
+            Some(
+                virtio_ethernet_tap
+                    as &'static EthernetTapDriver<
+                        'static,
+                        VirtIONet<'static, RiscvCoherentDmaFence>,
+                    >,
+            )
+        }
     } else {
         // No VirtIO NetworkCard discovered
         None
@@ -638,13 +650,15 @@ pub unsafe fn start() -> (
         // Register the queues and driver with the transport, so
         // interrupts are routed properly
         let mmio_queues = static_init!([&'static dyn Virtqueue; 2], [event_queue, status_queue]);
-        peripherals.virtio_mmio[input_idx]
+        if peripherals.virtio_mmio[input_idx]
             .initialize(virtio_input, mmio_queues)
-            .unwrap();
-
-        virtio_input.provide_buffers(event_buf1, event_buf2, event_buf3);
-
-        Some(virtio_input)
+            .is_err()
+        {
+            None
+        } else {
+            virtio_input.provide_buffers(event_buf1, event_buf2, event_buf3);
+            Some(virtio_input)
+        }
     } else {
         // No Input device
         None
@@ -777,6 +791,193 @@ pub unsafe fn start() -> (
     } else {
         debug!("- VirtIO Input device not found, disabling Input");
     }
+
+    // Signal hart 1 to begin its own initialization. CLINT MSIP registers are
+    // at CLINT_BASE + 4 * hart_id; writing 1 to hart 1's MSIP sets the bit
+    // hart 1 is polling before calling start_secondary().
+    core::ptr::write_volatile(0x0200_0004 as *mut u32, 1);
+
+    (board_kernel, platform, chip)
+}
+
+// ---------------------------------------------------------------------------
+// Hart 1 minimal platform — no peripherals connected
+// ---------------------------------------------------------------------------
+
+pub struct Hart1Platform {
+    pub scheduler: &'static SchedulerInUse,
+    pub scheduler_timer: &'static SchedulerTimerHw,
+}
+
+impl kernel::platform::SyscallDriverLookup for Hart1Platform {
+    fn with_driver<F, R>(&self, _driver_num: usize, f: F) -> R
+    where
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
+    {
+        f(None)
+    }
+}
+
+impl
+    kernel::platform::KernelResources<
+        qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
+            'static,
+            QemuRv32VirtDefaultPeripherals<'static>,
+        >,
+    > for Hart1Platform
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = SchedulerInUse;
+    type SchedulerTimer = SchedulerTimerHw;
+    type WatchDog = ();
+    type ContextSwitchCallback = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        self.scheduler_timer
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+}
+
+/// Minimal initialization for hart 1: CPU-local state only, no peripherals.
+///
+/// Call this only after `start()` has run on hart 0 and signalled readiness
+/// via CLINT MSIP[1].  The caller must spin-wait on MSIP[1] before invoking
+/// this function (see hart 1's `main()`).
+#[inline(never)]
+pub unsafe fn start_secondary() -> (
+    &'static kernel::Kernel,
+    Hart1Platform,
+    &'static qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
+        'static,
+        QemuRv32VirtDefaultPeripherals<'static>,
+    >,
+) {
+    extern "C" {
+        static _stext: u8;
+        static _etext: u8;
+        static _sflash: u8;
+        static _eflash: u8;
+        static _ssram: u8;
+        static _esram_h1: u8;
+    }
+
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
+
+    rv32i::configure_trap_handler();
+
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
+    >();
+
+    // Memory protection covering both harts' RAM: 0x80400000..0x80800000 (4 MB NAPOT).
+    // Hart 1 needs access to hart 0's .bss for large shared statics (which use absolute
+    // linker addresses, not GP-relative), so the region must span both private areas.
+    let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
+        rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
+                core::ptr::addr_of!(_sflash),
+                core::ptr::addr_of!(_eflash),
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
+                core::ptr::addr_of!(_ssram),    // 0x80400000 — covers both harts' RAM
+                core::ptr::addr_of!(_esram_h1), // 0x80800000
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::MMIORegion(
+            rv32i::pmp::NAPOTRegionSpec::from_start_size(
+                core::ptr::null::<u8>(),
+                0x20000000,
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::KernelTextRegion(
+            rv32i::pmp::TORRegionSpec::from_start_end(
+                core::ptr::addr_of!(_stext),
+                core::ptr::addr_of!(_etext),
+            )
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
+
+    // Per-hart timer: each hart has its own mtimecmp register in the CLINT.
+    let hardware_timer = static_init!(
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint::new(
+            &qemu_rv32_virt_chip::clint::CLINT_BASE
+        )
+    );
+    let mux_alarm = static_init!(
+        MuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
+        MuxAlarm::new(hardware_timer)
+    );
+    hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
+
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
+
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(AlarmHw));
+
+    // QemuRv32VirtChip needs a peripherals struct even though hart 1 won't use them.
+    let peripherals = static_init!(
+        QemuRv32VirtDefaultPeripherals,
+        QemuRv32VirtDefaultPeripherals::new(),
+    );
+
+    let chip = static_init!(
+        QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
+        QemuRv32VirtChip::new(peripherals, hardware_timer, epmp),
+    );
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
+
+    // Enable machine timer and software interrupts only — no PLIC (external).
+    csr::CSR
+        .mie
+        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
+    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+
+    let platform = Hart1Platform {
+        scheduler,
+        scheduler_timer,
+    };
 
     (board_kernel, platform, chip)
 }

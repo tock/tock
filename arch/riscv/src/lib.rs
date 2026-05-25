@@ -45,6 +45,18 @@ extern "C" {
     // The global pointer, value set in the linker script
     #[link_name = "__global_pointer$"]
     static __global_pointer: usize;
+
+    // Byte in ROM whose value controls secondary-hart startup behavior.
+    // Default (weak) definition = 0: secondary harts jump to _hart1_entry.
+    // Override with value 1 in a secondary-hart binary to force full boot.
+    static _hart_always_boot: u8;
+
+    // Entry point for secondary harts.
+    // Default (weak) definition loops in WFI.
+    // Boards can override this via a linker-script absolute assignment
+    // (e.g. `_hart1_entry = 0x80400000;`) to redirect the secondary hart
+    // into a separate binary at that address.
+    fn _hart1_entry() -> !;
 }
 
 /// Entry point of all programs
@@ -90,6 +102,19 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     // Re-enable linker relaxations.
     .option pop
 
+    // In a multi-hart system all harts start executing here simultaneously.
+    // Hart 0 always takes the primary boot path.  Non-zero harts check the
+    // _hart_always_boot byte: 0 → redirect to _hart1_entry (e.g. a separate
+    // binary loaded at another address); non-zero → proceed with full boot
+    // (used by a secondary-hart binary whose entry lands here).
+    csrr t0, mhartid            // t0 = this hart's ID
+    beqz t0, 10f                // hart 0 always boots
+    la   t1, {always_boot}      // address of _hart_always_boot byte
+    lb   t1, 0(t1)              // load the byte value (0 or 1)
+    bnez t1, 10f                // non-zero → forced boot in secondary binary
+    j    50f                    // zero → redirect to _hart1_entry
+
+10: // primary_boot_path
     // Initialize the stack pointer register. This comes directly from
     // the linker script.
     la sp, {estack}             // Set the initial stack pointer.
@@ -137,6 +162,17 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     // With that initial setup out of the way, we now branch to the main
     // code, likely defined in a board's main.rs.
     j main
+
+50: // secondary_hart_redirect
+    // Non-boot hart, not in a forced-boot binary.  Silence interrupts then
+    // jump to _hart1_entry.  For single-hart boards this falls through to a
+    // WFI loop (the weak default).  For multi-hart boards the linker script
+    // can set _hart1_entry to the physical start of a second binary.
+    csrw 0x340, zero            // mscratch = 0 (kernel context)
+    csrw 0x304, zero            // mie = 0 (disable all machine interrupt sources)
+    csrci 0x300, 8              // mstatus.MIE = 0 (disable global machine interrupts)
+    la   t0, {hart1_entry}      // load entry address for this hart's binary
+    jr   t0                     // jump there (no return)
         ",
         gp = sym __global_pointer,
         estack = sym _estack,
@@ -145,6 +181,8 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
         sdata = sym _srelocate,
         edata = sym _erelocate,
         etext = sym _etext,
+        always_boot = sym _hart_always_boot,
+        hart1_entry = sym _hart1_entry,
     );
 }
 
@@ -153,6 +191,28 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     unimplemented!()
 }
+
+// Named defaults for hart-dispatch symbols.  Both are GLOBAL (not weak) so
+// that LTO merging doesn't produce "symbol already defined" errors when a
+// board also defines the real symbol.  The linker script uses PROVIDE to
+// alias _hart1_entry → _hart1_entry_default and
+//             _hart_always_boot → _hart_always_boot_default
+// only when the board has not provided its own strong definition.
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+core::arch::global_asm!(r#"
+    .section .text._hart1_idle, "ax", %progbits
+    .global _hart1_entry_default
+    .type _hart1_entry_default, @function
+    _hart1_entry_default:
+    .L_hart1_idle_wfi:
+        wfi
+        j .L_hart1_idle_wfi
+
+    .section .rodata._hart_config, "a", %progbits
+    .global _hart_always_boot_default
+    _hart_always_boot_default:
+        .byte 0
+"#);
 
 /// The various privilege levels in RISC-V.
 pub enum PermissionMode {

@@ -64,6 +64,7 @@ endif
 QEMU_BASE_CMDLINE := \
   $(QEMU_CMD) \
     -machine virt \
+    -smp 2 \
     -semihosting \
     -global driver=riscv-cpu,property=smepmp,value=true \
     -global virtio-mmio.force-legacy=false \
@@ -71,7 +72,9 @@ QEMU_BASE_CMDLINE := \
     -device virtio-keyboard-device \
     $(QEMU_NETDEV_CMDLINE)
 
-# Run the kernel inside a qemu-riscv32-system "virt" machine type simulation
+# Run the kernel inside a qemu-riscv32-system "virt" machine type simulation.
+# The single ELF contains code for both harts; hart 1 wakes after hart 0
+# signals readiness via CLINT MSIP[1].
 .PHONY: run
 run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo
@@ -99,8 +102,8 @@ run-gui: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	  -device virtio-gpu-device \
 	  -serial stdio
 
-# Same as `run`, but load an application specified by $(APP) into the respective
-# memory location.
+# Same as `run`, but load an application specified by $(APP) into the
+# app flash region.
 .PHONY: run-app
 run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo

@@ -42,6 +42,17 @@
 PAGE_SIZE = DEFINED(PAGE_SIZE) ? PAGE_SIZE : 512;
 ENTRY(initialize_ram_jump_to_main)
 
+/* Default _hart_always_boot to the zero byte defined by the arch crate.
+ * A secondary-hart binary can override this by defining _hart_always_boot
+ * as a strong symbol (a .byte 1) in its main.rs, which causes the startup
+ * code to boot that hart instead of jumping to _hart1_entry. */
+PROVIDE(_hart_always_boot = _hart_always_boot_default);
+
+/* Default _hart1_entry to the WFI idle loop defined by the arch crate.
+ * Boards that need secondary harts to do real work should define a strong
+ * _hart1_entry function (e.g. via global_asm! in main.rs). */
+PROVIDE(_hart1_entry = _hart1_entry_default);
+
 SECTIONS
 {
 

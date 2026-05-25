@@ -423,7 +423,7 @@ impl Kernel {
     ) -> ! {
         resources.watchdog().setup();
         // Before we begin, verify that deferred calls were soundly setup.
-        DeferredCall::verify_setup();
+        DeferredCall::verify_setup::<C::ThreadIdProvider>();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }

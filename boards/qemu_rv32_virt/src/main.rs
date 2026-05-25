@@ -87,6 +87,87 @@ impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Hart 1 entry — runs instead of main() on secondary harts
+// ---------------------------------------------------------------------------
+
+// Override the weak WFI stub from the arch crate. Sets GP (same global
+// pointer as hart 0 — shared binary, shared .data), then SP from the
+// dedicated hart-1 stack symbol, then jumps to the Rust secondary-hart init.
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+core::arch::global_asm!(r#"
+    .section .text._hart1_entry_board, "ax", @progbits
+    .global _hart1_entry
+    .type _hart1_entry, @function
+    _hart1_entry:
+        /* Set GP to hart 1's own data midpoint before any data access. */
+        .option push
+        .option norelax
+        la gp, _gp_h1
+        .option pop
+        la sp, _estack_h1
+
+        /* Copy .data for hart 1: flash LMA (_etext) → hart 1 VMA (_srelocate_h1.._erelocate_h1). */
+        la a0, _srelocate_h1
+        la a1, _erelocate_h1
+        la a2, _etext
+    .L_copy_data_h1:
+        beq  a0, a1, .L_copy_data_h1_done
+        lw   t0, 0(a2)
+        sw   t0, 0(a0)
+        addi a0, a0, 4
+        addi a2, a2, 4
+        j    .L_copy_data_h1
+    .L_copy_data_h1_done:
+
+        /* Zero .bss for hart 1: _szero_h1.._ezero_h1. */
+        la a0, _szero_h1
+        la a1, _ezero_h1
+    .L_zero_bss_h1:
+        beq  a0, a1, .L_zero_bss_h1_done
+        sw   zero, 0(a0)
+        addi a0, a0, 4
+        j    .L_zero_bss_h1
+    .L_zero_bss_h1_done:
+
+        call main_secondary
+    .L_h1_halt:
+        wfi
+        j .L_h1_halt
+"#);
+
+/// Secondary-hart entry point called from `_hart1_entry`.
+///
+/// Spins until hart 0 has finished all peripheral initialization (signalled
+/// via CLINT MSIP[1]), then runs a minimal, peripheral-free Tock kernel loop.
+#[no_mangle]
+pub unsafe extern "C" fn main_secondary() -> ! {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    // Wait for hart 0 to write 1 to CLINT MSIP[1] (= CLINT_BASE + 4) at
+    // the end of start(), guaranteeing all shared hardware is configured.
+    // Spin until hart 0 writes 1 to CLINT MSIP[1] (= CLINT_BASE + 4).
+    // No wfi here: the arch startup disables all machine interrupts (mie=0)
+    // before jumping to _hart1_entry, so wfi would never wake on the pending
+    // MSIP even though the signal has already been sent.
+    let msip1 = 0x0200_0004 as *const u32;
+    loop {
+        if core::ptr::read_volatile(msip1) != 0 {
+            break;
+        }
+    }
+    core::ptr::write_volatile(0x0200_0004 as *mut u32, 0);
+
+    let (board_kernel, platform, chip) = qemu_rv32_virt_lib::start_secondary();
+
+    board_kernel.kernel_loop(
+        &platform,
+        chip,
+        None::<&kernel::ipc::IPC<{ qemu_rv32_virt_lib::NUM_PROCS as u8 }>>,
+        &main_loop_capability,
+    );
+}
+
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
