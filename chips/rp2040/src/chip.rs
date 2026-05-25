@@ -169,6 +169,7 @@ impl Rp2040DefaultPeripherals<'_> {
         self.watchdog.resolve_dependencies(&self.resets);
         self.spi0.set_clocks(&self.clocks);
         self.uart0.set_clocks(&self.clocks);
+        self.uart1.set_clocks(&self.clocks);
         kernel::deferred_call::DeferredCallClient::register(&self.uart0);
         kernel::deferred_call::DeferredCallClient::register(&self.uart1);
         kernel::deferred_call::DeferredCallClient::register(&self.rtc);
@@ -203,6 +204,10 @@ impl InterruptService for Rp2040DefaultPeripherals<'_> {
             }
             interrupts::UART0_IRQ => {
                 self.uart0.handle_interrupt();
+                true
+            }
+            interrupts::UART1_IRQ => {
+                self.uart1.handle_interrupt();
                 true
             }
             interrupts::ADC_IRQ_FIFO => {

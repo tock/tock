@@ -50,11 +50,39 @@ use core::cmp;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::uart;
+use kernel::processbuffer::ReadableProcessBuffer;
+use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
+use kernel::{ErrorCode, ProcessId};
 
 pub const RX_BUF_LEN: usize = 64;
+pub const DRIVER_NUM: usize = 0x22;
+pub const TX_BUF_LEN: usize = 64;
+
+mod upcall {
+    pub const COMPLETE: usize = 0;
+    pub const COUNT: u8 = 1;
+}
+
+mod ro_allow {
+    pub const WRITE: usize = 1;
+    pub const COUNT: u8 = 2;
+}
+
+mod rw_allow {
+    pub const COUNT: u8 = 2;
+}
+
+mod command {
+    pub const EXISTS: usize = 0;
+    pub const WRITE: usize = 1;
+    pub const READ: usize = 2;
+}
+
+#[derive(Default)]
+pub struct App;
 
 pub struct MuxUart<'a> {
     uart: &'a dyn uart::Uart<'a>,
@@ -493,4 +521,157 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
     fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
+}
+
+pub struct UartController<'a> {
+    uart0: &'a dyn uart::Transmit<'a>,
+    uart1: &'a dyn uart::Transmit<'a>,
+    grant: Grant<
+        App,
+        UpcallCount<{ upcall::COUNT }>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
+    tx_buffer: TakeCell<'static, [u8]>,
+    current_process: OptionalCell<ProcessId>,
+    current_port: OptionalCell<usize>,
+    current_len: Cell<usize>,
+}
+
+impl<'a> UartController<'a> {
+    pub fn new(
+        uart0: &'a dyn uart::Transmit<'a>,
+        uart1: &'a dyn uart::Transmit<'a>,
+        tx_buffer: &'static mut [u8],
+        grant: Grant<
+            App,
+            UpcallCount<{ upcall::COUNT }>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
+    ) -> Self {
+        Self {
+            uart0,
+            uart1,
+            grant,
+            tx_buffer: TakeCell::new(tx_buffer),
+            current_process: OptionalCell::empty(),
+            current_port: OptionalCell::empty(),
+            current_len: Cell::new(0),
+        }
+    }
+
+    fn port_uart(&self, port: usize) -> Result<&'a dyn uart::Transmit<'a>, ErrorCode> {
+        match port {
+            0 => Ok(self.uart0),
+            1 => Ok(self.uart1),
+            _ => Err(ErrorCode::INVAL),
+        }
+    }
+}
+
+impl SyscallDriver for UartController<'_> {
+    fn command(
+        &self,
+        command_num: usize,
+        arg1: usize,
+        arg2: usize,
+        process_id: ProcessId,
+    ) -> CommandReturn {
+        match command_num {
+            command::EXISTS => CommandReturn::success(),
+            command::WRITE => {
+                if self.current_process.is_some() {
+                    return CommandReturn::failure(ErrorCode::BUSY);
+                }
+
+                let uart = match self.port_uart(arg2) {
+                    Ok(uart) => uart,
+                    Err(error) => return CommandReturn::failure(error),
+                };
+
+                let result = self
+                    .grant
+                    .enter(process_id, |_, kernel_data| {
+                        let source = kernel_data
+                            .get_readonly_processbuffer(ro_allow::WRITE)
+                            .map_err(ErrorCode::from)?;
+
+                        if arg1 == 0 || arg1 > source.len() {
+                            return Err(ErrorCode::INVAL);
+                        }
+
+                        let Some(tx_buffer) = self.tx_buffer.take() else {
+                            return Err(ErrorCode::BUSY);
+                        };
+
+                        if arg1 > tx_buffer.len() {
+                            self.tx_buffer.replace(tx_buffer);
+                            return Err(ErrorCode::SIZE);
+                        }
+
+                        if source
+                            .enter(|data| data[..arg1].copy_to_slice_or_err(&mut tx_buffer[..arg1]))
+                            .map_err(ErrorCode::from)?
+                            .is_err()
+                        {
+                            self.tx_buffer.replace(tx_buffer);
+                            return Err(ErrorCode::SIZE);
+                        }
+
+                        self.current_process.set(process_id);
+                        self.current_port.set(arg2);
+                        self.current_len.set(arg1);
+
+                        uart.transmit_buffer(tx_buffer, arg1).map_err(|(error, buffer)| {
+                            self.current_process.clear();
+                            self.current_port.clear();
+                            self.current_len.set(0);
+                            self.tx_buffer.replace(buffer);
+                            error
+                        })
+                    })
+                    .map_err(ErrorCode::from);
+
+                match result {
+                    Ok(Ok(())) => CommandReturn::success(),
+                    Ok(Err(error)) => CommandReturn::failure(error),
+                    Err(error) => CommandReturn::failure(error),
+                }
+            }
+            command::READ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+        }
+    }
+
+    fn allocate_grant(&self, process_id: ProcessId) -> Result<(), kernel::process::Error> {
+        self.grant.enter(process_id, |_, _| {})
+    }
+}
+
+impl uart::TransmitClient for UartController<'_> {
+    fn transmitted_buffer(
+        &self,
+        tx_buffer: &'static mut [u8],
+        _tx_len: usize,
+        result: Result<(), ErrorCode>,
+    ) {
+        let requested_len = self.current_len.get();
+        let port = self.current_port.map_or(0, |current_port| current_port);
+        let status = result.err().map(usize::from).unwrap_or(0);
+
+        self.current_len.set(0);
+        self.current_port.clear();
+        self.tx_buffer.replace(tx_buffer);
+
+        self.current_process.map(|process_id| {
+            let _ = self.grant.enter(process_id, |_, kernel_data| {
+                let _ =
+                    kernel_data.schedule_upcall(upcall::COMPLETE, (requested_len, status, port));
+            });
+        });
+        self.current_process.clear();
+    }
+
+    fn transmitted_word(&self, _result: Result<(), ErrorCode>) {}
 }

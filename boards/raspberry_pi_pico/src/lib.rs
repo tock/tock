@@ -8,6 +8,7 @@
 use capsules_core::i2c_master::I2CMasterDriver;
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_uart;
 use capsules_extra::usb::cdc::CdcAcm;
 use enum_primitive::cast::FromPrimitive;
 use kernel::capabilities;
@@ -51,6 +52,7 @@ static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
+const UART_CONTROLLER_DRIVER_NUM: usize = virtual_uart::DRIVER_NUM;
 
 pub type ChipHw = Rp2040<'static, Rp2040DefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
@@ -83,6 +85,7 @@ pub struct Platform {
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, Spi<'static>>,
     >,
+    uart_controller: &'static virtual_uart::UartController<'static>,
     date_time:
         &'static capsules_extra::date_time::DateTimeCapsule<'static, rp2040::rtc::Rtc<'static>>,
     console: &'static capsules_core::console::Console<'static>,
@@ -102,6 +105,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            UART_CONTROLLER_DRIVER_NUM => f(Some(self.uart_controller)),
             capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
@@ -235,6 +239,7 @@ pub unsafe fn cdc_setup(
 }
 
 /// Use either CDC or UART as output
+#[derive(Copy, Clone)]
 pub enum Output {
     Cdc,
     Uart,
@@ -295,11 +300,17 @@ pub unsafe fn setup(
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
 
-    //set RX and TX pins in UART mode
-    let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
-    let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);
-    gpio_rx.set_function(GpioFunction::UART);
-    gpio_tx.set_function(GpioFunction::UART);
+    // Set UART0 RX/TX pins in UART mode.
+    let uart0_tx_pin = peripherals.pins.get_pin(RPGpio::GPIO0);
+    let uart0_rx_pin = peripherals.pins.get_pin(RPGpio::GPIO1);
+    uart0_rx_pin.set_function(GpioFunction::UART);
+    uart0_tx_pin.set_function(GpioFunction::UART);
+
+    // Reserve UART1 on GPIO8/GPIO9 for the process console.
+    let uart1_tx_pin = peripherals.pins.get_pin(RPGpio::GPIO8);
+    let uart1_rx_pin = peripherals.pins.get_pin(RPGpio::GPIO9);
+    uart1_rx_pin.set_function(GpioFunction::UART);
+    uart1_tx_pin.set_function(GpioFunction::UART);
 
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
@@ -339,7 +350,7 @@ pub unsafe fn setup(
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
-    let uart_mux = match output {
+    let console_uart_mux = match output {
         Output::Cdc => {
             let strings = static_init!(
                 [&str; 3],
@@ -377,16 +388,25 @@ pub unsafe fn setup(
             .finalize(components::uart_mux_component_static!()),
     };
 
+    let uart1_mux = components::console::UartMuxComponent::new(&peripherals.uart1, 115200)
+        .finalize(components::uart_mux_component_static!());
+
+    let uart0_userspace_mux = match output {
+        Output::Cdc => components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+            .finalize(components::uart_mux_component_static!()),
+        Output::Uart => console_uart_mux,
+    };
+
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
-        uart_mux,
+        console_uart_mux,
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new_unsafe(
-        uart_mux,
+        console_uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
@@ -401,7 +421,7 @@ pub unsafe fn setup(
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             RPGpioPin,
-            // Used for serial communication. Comment them in if you don't use serial.
+            // Pins 0(TX), 1(RX) used for UART0 communication. Comment them in if you don't use serial.
             // 0 => peripherals.pins.get_pin(RPGpio::GPIO0),
             // 1 => peripherals.pins.get_pin(RPGpio::GPIO1),
             2 => peripherals.pins.get_pin(RPGpio::GPIO2),
@@ -411,15 +431,16 @@ pub unsafe fn setup(
             // 5 => peripherals.pins.get_pin(RPGpio::GPIO5),
             6 => peripherals.pins.get_pin(RPGpio::GPIO6),
             7 => peripherals.pins.get_pin(RPGpio::GPIO7),
-            8 => peripherals.pins.get_pin(RPGpio::GPIO8),
-            9 => peripherals.pins.get_pin(RPGpio::GPIO9),
+            // Pins 8(TX), 9(RX) used for UART1 process console.
+            // 8 => peripherals.pins.get_pin(RPGpio::GPIO8),
+            // 9 => peripherals.pins.get_pin(RPGpio::GPIO9),
             10 => peripherals.pins.get_pin(RPGpio::GPIO10),
             11 => peripherals.pins.get_pin(RPGpio::GPIO11),
             12 => peripherals.pins.get_pin(RPGpio::GPIO12),
             13 => peripherals.pins.get_pin(RPGpio::GPIO13),
             14 => peripherals.pins.get_pin(RPGpio::GPIO14),
             15 => peripherals.pins.get_pin(RPGpio::GPIO15),
-            // Used for SPI0. Comment them in if you don't use SPI.
+            // Pins 16(RX), 17(CSn), 18(SCK) 19(TX) used for SPI0. Comment them in if you don't use SPI.
             // 16 => peripherals.pins.get_pin(RPGpio::GPIO16),
             // 17 => peripherals.pins.get_pin(RPGpio::GPIO17),
             // 18 => peripherals.pins.get_pin(RPGpio::GPIO18),
@@ -431,7 +452,6 @@ pub unsafe fn setup(
             24 => peripherals.pins.get_pin(RPGpio::GPIO24),
             // LED pin
             // 25 => peripherals.pins.get_pin(RPGpio::GPIO25),
-
             // Uncomment to use these as GPIO pins instead of ADC pins
             // 26 => peripherals.pins.get_pin(RPGpio::GPIO26),
             // 27 => peripherals.pins.get_pin(RPGpio::GPIO27),
@@ -511,16 +531,42 @@ pub unsafe fn setup(
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
-        uart_mux,
+        uart1_mux,
         mux_alarm,
         process_printer,
         Some(cortexm0p::support::reset),
     )
     .finalize(components::process_console_component_static!(RPTimer));
-    // Do not start the process console on the shared CDC/UART mux. Even in
-    // hibernated mode it still consumes RX bytes, which prevents userspace
-    // console readers from receiving command input.
-    let _ = process_console;
+    let _ = process_console.start();
+    //let _ = process_console;
+
+    // Expose both physical UARTs to userspace through the shared virtual UART
+    // controller capsule in the Tock kernel.
+    let userspace_uart0 = static_init!(
+        virtual_uart::UartDevice<'static>,
+        virtual_uart::UartDevice::new(uart0_userspace_mux, false)
+    );
+    userspace_uart0.setup();
+
+    let userspace_uart1 = static_init!(
+        virtual_uart::UartDevice<'static>,
+        virtual_uart::UartDevice::new(uart1_mux, false)
+    );
+    userspace_uart1.setup();
+
+    let uart_controller_tx_buffer =
+        static_init!([u8; virtual_uart::TX_BUF_LEN], [0; virtual_uart::TX_BUF_LEN]);
+    let uart_controller = static_init!(
+        virtual_uart::UartController<'static>,
+        virtual_uart::UartController::new(
+            userspace_uart0,
+            userspace_uart1,
+            uart_controller_tx_buffer,
+            board_kernel.create_grant(UART_CONTROLLER_DRIVER_NUM, &memory_allocation_capability),
+        )
+    );
+    kernel::hil::uart::Transmit::set_transmit_client(userspace_uart0, uart_controller);
+    kernel::hil::uart::Transmit::set_transmit_client(userspace_uart1, uart_controller);
 
     let sda_pin = peripherals.pins.get_pin(RPGpio::GPIO4);
     let scl_pin = peripherals.pins.get_pin(RPGpio::GPIO5);
@@ -603,6 +649,7 @@ pub unsafe fn setup(
         temperature,
         i2c,
         spi_controller,
+        uart_controller,
         date_time,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
         ipc: kernel::ipc::IPC::new(
