@@ -2294,6 +2294,207 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         Ok((Some(process), unused_memory))
     }
 
+    /// Create a replica of `primary` whose kernel-side state lives entirely
+    /// within `replica_memory` (a slice of the same byte-length as the
+    /// primary's `memory_len`).
+    ///
+    /// The replica is a fully independent `ProcessStandard`:
+    /// - All immutable fields (flash, header, app_id, …) are copied verbatim.
+    /// - All mutable kernel-side structures (grant pointer table, upcall ring
+    ///   buffer, stored_state, mpu_config) are freshly allocated from
+    ///   `replica_memory` and independently initialised.
+    /// - The app-accessible portion of `replica_memory` is zeroed and the same
+    ///   initial `FunctionCall` task is enqueued (with addresses adjusted to
+    ///   `replica_memory`) so the replica can be scheduled just like the primary.
+    ///
+    /// Call this only after `load_processes()` has completed on the primary
+    /// kernel and before either hart enters `kernel_loop`.  Runtime process
+    /// loading while the system is running is not supported.
+    ///
+    /// # Safety
+    ///
+    /// `replica_memory` must be at least `primary.memory_len` bytes long, must
+    /// not alias any memory already in use, and must remain valid for the
+    /// lifetime of the returned reference.
+    pub unsafe fn create_replica(
+        primary: &'static Self,
+        replica_memory: *mut [u8],
+        chip: &'static C,
+    ) -> Option<&'static dyn Process> {
+        if replica_memory.len() < primary.memory_len {
+            return None;
+        }
+
+        // Derive kernel region size from primary's actual layout rather than
+        // recomputing it from scratch.  If create() ever changes its sizing or
+        // alignment logic the replica automatically mirrors it.
+        let primary_kernel_break = primary.kernel_memory_break.get();
+        let kernel_region_size = unsafe {
+            primary.memory_start.add(primary.memory_len) as usize
+                - primary_kernel_break as usize
+        };
+
+        let grant_ptrs_num = primary.kernel.get_grant_count_and_finalize();
+        let app_accessible_size =
+            primary.app_break.get() as usize - primary.memory_start as usize;
+
+        // ----------------------------------------------------------------
+        // MPU configuration for the replica's memory region.
+        // ----------------------------------------------------------------
+        let mut mpu_config = chip.mpu().new_config()?;
+
+        // Flash region: identical to the primary (same physical flash).
+        if chip
+            .mpu()
+            .allocate_region(
+                primary.flash.as_ptr(),
+                primary.flash.len(),
+                primary.flash.len(),
+                mpu::Permissions::ReadExecuteOnly,
+                &mut mpu_config,
+            )
+            .is_none()
+        {
+            return None;
+        }
+
+        // RAM region: replica_memory, same total size as the primary.
+        let (replica_start, _allocation_size) = chip.mpu().allocate_app_memory_region(
+            replica_memory.cast(),
+            replica_memory.len(),
+            primary.memory_len,
+            app_accessible_size,
+            kernel_region_size,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )?;
+        let replica_start: *const u8 = replica_start;
+
+        // ----------------------------------------------------------------
+        // Copy the entire kernel region from primary to replica, then patch
+        // address-dependent fields.  Everything else is identity-correct.
+        // ----------------------------------------------------------------
+        let replica_kernel_break: *mut u8 = unsafe {
+            replica_start
+                .cast_mut()
+                .add(primary.memory_len)
+                .sub(kernel_region_size)
+        };
+        unsafe {
+            ptr::copy_nonoverlapping(primary_kernel_break, replica_kernel_break, kernel_region_size);
+        }
+
+        // ----------------------------------------------------------------
+        // Copy the primary's app-accessible region into the replica.
+        // At replica-creation time the primary has not yet been scheduled,
+        // so this is a snapshot of the initial (loader-placed) state.  If
+        // create_replica is ever called on a live primary this also correctly
+        // captures the primary's current stack, .data, and .bss rather than
+        // forcing the replica to re-run _start from a blank slate.
+        // ----------------------------------------------------------------
+        unsafe {
+            ptr::copy_nonoverlapping(
+                primary.memory_start,
+                replica_start.cast_mut(),
+                app_accessible_size,
+            );
+        }
+
+        // ----------------------------------------------------------------
+        // Replica's ProcessStandard struct sits at the start of the kernel region.
+        // ----------------------------------------------------------------
+        let replica: &mut ProcessStandard<C, D> =
+            unsafe { &mut *replica_kernel_break.cast() };
+
+        // ----------------------------------------------------------------
+        // Patch address-dependent fields using the delta between region bases.
+        // ----------------------------------------------------------------
+        let delta = replica_start as isize - primary.memory_start as isize;
+
+        replica.memory_start = replica_start;
+        replica.kernel_memory_break = Cell::new(replica_kernel_break);
+        replica.app_break = Cell::new(unsafe { primary.app_break.get().offset(delta) });
+        replica.allow_high_water_mark = Cell::new(replica_start);
+
+        // ----------------------------------------------------------------
+        // Re-initialize grant pointer table: same relative offset within the
+        // kernel region, but entries zeroed (replica has no active grants).
+        // ----------------------------------------------------------------
+        let replica_grant_ptrs: *mut GrantPointerEntry = unsafe {
+            replica_kernel_break
+                .add(Self::PROCESS_STRUCT_OFFSET + Self::CALLBACKS_OFFSET)
+                .cast()
+        };
+        for i in 0..grant_ptrs_num {
+            unsafe {
+                replica_grant_ptrs.add(i).write(GrantPointerEntry {
+                    driver_num: 0,
+                    grant_ptr: ptr::null_mut(),
+                });
+            }
+        }
+        let replica_grant_slice: &'static mut [GrantPointerEntry] =
+            unsafe { slice::from_raw_parts_mut(replica_grant_ptrs, grant_ptrs_num) };
+        replica.grant_pointers = MapCell::new(replica_grant_slice);
+
+        // ----------------------------------------------------------------
+        // Re-initialize upcall ring buffer pointing to replica's own buffer.
+        // ----------------------------------------------------------------
+        let upcall_buf: *mut Task =
+            unsafe { replica_kernel_break.add(Self::PROCESS_STRUCT_OFFSET).cast() };
+        let upcall_buf: &'static mut [Task] =
+            unsafe { slice::from_raw_parts_mut(upcall_buf, Self::CALLBACK_LEN) };
+        replica.tasks = MapCell::new(RingBuffer::new(upcall_buf));
+
+        // ----------------------------------------------------------------
+        // Per-hart independent state: fresh for the replica.
+        // ----------------------------------------------------------------
+        replica.stored_state = MapCell::new(Default::default());
+        replica.state = Cell::new(State::Yielded);
+        replica.mpu_config = MapCell::new(mpu_config);
+        replica.mpu_regions = [
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+            Cell::new(None),
+        ];
+        replica.restart_count = Cell::new(0);
+        replica.completion_code = OptionalCell::empty();
+        replica.is_yield_wait_for_ready = Cell::new(false);
+        replica.debug = D::default();
+
+        // ----------------------------------------------------------------
+        // Enqueue the initial FunctionCall with replica memory addresses.
+        // ----------------------------------------------------------------
+        let flash_start = replica.flash.as_ptr();
+        let app_start =
+            flash_start.wrapping_add(replica.header.get_app_start_offset() as usize) as usize;
+        let init_addr =
+            flash_start.wrapping_add(replica.header.get_init_function_offset() as usize) as usize;
+        let init_fn = unsafe {
+            CapabilityPtr::new_with_authority(
+                init_addr as *const (),
+                flash_start as usize,
+                replica.flash.len(),
+                CapabilityPtrPermissions::Execute,
+            )
+        };
+        replica.tasks.map(|tasks| {
+            tasks.enqueue(Task::FunctionCall(FunctionCall {
+                source: FunctionCallSource::Kernel,
+                pc: init_fn,
+                argument0: app_start,
+                argument1: replica.memory_start as usize,
+                argument2: replica.memory_len,
+                argument3: (replica.app_break.get() as usize).into(),
+            }));
+        });
+
+        Some(replica)
+    }
+
     /// Reset the process, resetting all of its state and re-initializing it so
     /// it can start running. Assumes the process is not running but is still in
     /// flash and still has its memory region allocated to it.

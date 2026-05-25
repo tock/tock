@@ -59,4 +59,11 @@ SECTIONS {
     _erelocate_h1 = _erelocate + _stride_h1;
     _szero_h1     = _szero     + _stride_h1;
     _ezero_h1     = _ezero     + _stride_h1;
+
+    /* Hart 1 process replica memory: from end of hart 1 BSS to the base of
+     * hart 1's kernel stack.  The kernel stack for hart 1 grows downward from
+     * _estack_h1 (= _esram_h1), so we leave the same stack_size headroom that
+     * the primary hart leaves at the bottom of its own ram region. */
+    _sappmem_h1 = _ezero_h1;
+    _eappmem_h1 = _esram_h1 - (_estack - _sstack);
 }

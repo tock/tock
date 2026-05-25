@@ -26,6 +26,74 @@ pub mod io;
 pub const NUM_PROCS: usize = 4;
 
 pub type ChipHw = QemuRv32VirtChip<'static, QemuRv32VirtDefaultPeripherals<'static>>;
+
+/// Concrete process type used on this board (matches what `load_processes` creates).
+pub type ProcessHw = kernel::process::ProcessStandard<
+    'static,
+    ChipHw,
+    kernel::process::ProcessStandardDebugFull,
+>;
+
+/// Pointer to the hart-1 process array, written by `finish_lockstep_setup()`
+/// before the MSIP signal and read by `start_secondary()` after it.
+pub static HART1_PROCS_PTR: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(0);
+
+/// Entry type for the inter-hart lockstep synchronization channel.
+///
+/// Currently carries only a sequence number.  Will be extended with raw
+/// a0–a3 register values once the post-syscall hook is in place, allowing
+/// hart 1 to apply identical return values to the replica process.
+#[derive(Clone, Copy)]
+pub struct SyncEntry {
+    pub seq: u32,
+}
+
+/// Inter-hart synchronization channel for software lockstep.
+///
+/// Hart 0 (side A) pushes one `SyncEntry` just before each `switch_to()`
+/// via its `ContextSwitchCallback`.  Hart 1 (side B) calls `b_spin_recv`
+/// before each of its own `switch_to()` calls, ensuring both harts activate
+/// their processes in the same order and at the same logical rate.
+///
+/// Declared as a plain `static` in hart 0's BSS.  Because the Tock BSS is
+/// far larger than the ±2 KB GP-relative window, the compiler generates
+/// PC-relative addressing for all accesses, so both harts compute the same
+/// absolute address from the shared `.text` — only one instance exists.
+pub static LOCKSTEP_CHAN: kernel::collections::spsc_channel::BiChannel<32, SyncEntry> =
+    kernel::collections::spsc_channel::BiChannel::new();
+
+/// `ContextSwitchCallback` for hart 0 (primary, side A).
+/// Pushes a sequence-number entry before each process activation.
+pub struct Hart0SyncCallback;
+
+impl kernel::platform::ContextSwitchCallback for Hart0SyncCallback {
+    fn context_switch_hook(&self, _process: &dyn kernel::process::Process) {
+        static SEQ: core::sync::atomic::AtomicU32 =
+            core::sync::atomic::AtomicU32::new(0);
+        let seq = SEQ.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        // Spin on full: hart 1 must drain faster than hart 0 produces (it
+        // always will in a cooperative scheduler), but we cannot drop entries.
+        while !LOCKSTEP_CHAN.a_send(SyncEntry { seq }) {
+            core::hint::spin_loop();
+        }
+    }
+}
+
+/// `ContextSwitchCallback` for hart 1 (replica, side B).
+/// Waits for hart 0's signal before each process activation.
+pub struct Hart1SyncCallback;
+
+impl kernel::platform::ContextSwitchCallback for Hart1SyncCallback {
+    fn context_switch_hook(&self, _process: &dyn kernel::process::Process) {
+        // Block until hart 0 signals that it is about to run the primary.
+        let _entry = LOCKSTEP_CHAN.b_spin_recv();
+        // TODO: extend SyncEntry with a0–a3 return registers and apply them
+        // to the replica's stored state here (requires a small upstream hook
+        // to capture the return value after handle_syscall).
+    }
+}
+
 type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
 type RngDriver = components::rng::RngRandomComponentType<
@@ -145,7 +213,7 @@ impl
     type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
-    type ContextSwitchCallback = ();
+    type ContextSwitchCallback = Hart0SyncCallback;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -166,7 +234,7 @@ impl
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
-        &()
+        &Hart0SyncCallback
     }
 }
 
@@ -185,6 +253,7 @@ pub unsafe fn start() -> (
         'static,
         QemuRv32VirtDefaultPeripherals<'static>,
     >,
+    &'static kernel::process::ProcessArray<NUM_PROCS>,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -200,6 +269,10 @@ pub unsafe fn start() -> (
         static _ssram: u8;
         /// The end of the kernel / app RAM (Included only for kernel PMP)
         static _esram: u8;
+        /// End of hart 1 RAM region — used to extend hart 0's ePMP RAMRegion
+        /// to cover both harts so that finish_lockstep_setup can write
+        /// replica PCBs into the hart 1 RAM region.
+        static _esram_h1: u8;
     }
     // ---------- BASIC INITIALIZATION -----------
 
@@ -227,10 +300,12 @@ pub unsafe fn start() -> (
             )
             .unwrap(),
         ),
+        // Cover both harts' RAM (0x80800000..0x81000000, 8 MB NAPOT) so that
+        // finish_lockstep_setup() can write replica PCBs into hart 1's region.
         rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
             rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_ssram),
-                core::ptr::addr_of!(_esram),
+                core::ptr::addr_of!(_esram_h1),
             )
             .unwrap(),
         ),
@@ -792,12 +867,78 @@ pub unsafe fn start() -> (
         debug!("- VirtIO Input device not found, disabling Input");
     }
 
-    // Signal hart 1 to begin its own initialization. CLINT MSIP registers are
-    // at CLINT_BASE + 4 * hart_id; writing 1 to hart 1's MSIP sets the bit
-    // hart 1 is polling before calling start_secondary().
-    core::ptr::write_volatile(0x0200_0004 as *mut u32, 1);
+    (board_kernel, platform, chip, processes)
+}
 
-    (board_kernel, platform, chip)
+// ---------------------------------------------------------------------------
+// Lockstep replica setup — called from main() after load_processes()
+// ---------------------------------------------------------------------------
+
+/// Create replica process PCBs for hart 1 and signal hart 1 to start.
+///
+/// Must be called after `load_processes()` has populated `processes` and
+/// before either hart enters `kernel_loop`.  Carves replica memory from the
+/// `_sappmem_h1.._eappmem_h1` linker region, creates one replica PCB per
+/// primary process, and stores the hart-1 process array pointer in
+/// `HART1_PROCS_PTR` before writing the MSIP signal to wake hart 1.
+#[inline(never)]
+pub unsafe fn finish_lockstep_setup(
+    processes: &'static kernel::process::ProcessArray<NUM_PROCS>,
+    chip: &'static ChipHw,
+) {
+    extern "C" {
+        static mut _sappmem_h1: u8;
+        static _eappmem_h1: u8;
+    }
+
+    let h1_processes = static_init!(
+        kernel::process::ProcessArray<NUM_PROCS>,
+        kernel::process::ProcessArray::new()
+    );
+
+    let sappmem_h1 = core::ptr::addr_of_mut!(_sappmem_h1);
+    let eappmem_h1 = core::ptr::addr_of!(_eappmem_h1) as usize;
+    let mut replica_ptr: *mut u8 = sappmem_h1;
+    let mut replica_remaining: usize = eappmem_h1 - sappmem_h1 as usize;
+
+    let ext_cap = create_capability!(kernel::capabilities::ExternalProcessCapability);
+
+    for (h0_slot, h1_slot) in processes
+        .as_slice()
+        .iter()
+        .zip(h1_processes.as_slice().iter())
+    {
+        if let Some(proc) = h0_slot.get() {
+            let addrs = proc.get_addresses();
+            let mem_len = addrs.sram_end - addrs.sram_start;
+
+            if replica_remaining < mem_len {
+                debug!("Hart 1: not enough replica memory for all processes");
+                break;
+            }
+
+            let chunk: *mut [u8] = core::ptr::slice_from_raw_parts_mut(replica_ptr, mem_len);
+            replica_ptr = replica_ptr.add(mem_len);
+            replica_remaining -= mem_len;
+
+            // All processes from load_processes() are ProcessStandard. Extract
+            // the data pointer from the fat pointer via a fat→thin cast.
+            let primary: &'static ProcessHw =
+                &*(proc as *const dyn kernel::process::Process as *const ProcessHw);
+
+            if let Some(replica) = ProcessHw::create_replica(primary, chunk, chip) {
+                h1_slot.set_external(replica, &ext_cap);
+            }
+        }
+    }
+
+    HART1_PROCS_PTR.store(
+        h1_processes as *const _ as usize,
+        core::sync::atomic::Ordering::Release,
+    );
+
+    // Signal hart 1 to begin initialization. CLINT MSIP[1] = CLINT_BASE + 4.
+    core::ptr::write_volatile(0x0200_0004 as *mut u32, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -832,7 +973,7 @@ impl
     type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
-    type ContextSwitchCallback = ();
+    type ContextSwitchCallback = Hart1SyncCallback;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -853,15 +994,16 @@ impl
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
-        &()
+        &Hart1SyncCallback
     }
 }
 
 /// Minimal initialization for hart 1: CPU-local state only, no peripherals.
 ///
-/// Call this only after `start()` has run on hart 0 and signalled readiness
-/// via CLINT MSIP[1].  The caller must spin-wait on MSIP[1] before invoking
-/// this function (see hart 1's `main()`).
+/// Reads the hart-1 process array pointer written by `finish_lockstep_setup()`
+/// (called on hart 0 before the MSIP signal) and constructs a minimal Tock
+/// kernel loop.  The caller must spin-wait on MSIP[1] before invoking this
+/// function (see hart 1's `main()`).
 #[inline(never)]
 pub unsafe fn start_secondary() -> (
     &'static kernel::Kernel,
@@ -891,9 +1033,8 @@ pub unsafe fn start_secondary() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
-    // Memory protection covering both harts' RAM: 0x80400000..0x80800000 (4 MB NAPOT).
-    // Hart 1 needs access to hart 0's .bss for large shared statics (which use absolute
-    // linker addresses, not GP-relative), so the region must span both private areas.
+    // Memory protection covering both harts' RAM (0x80800000..0x81000000, 8 MB NAPOT).
+    // Hart 1 needs access to hart 0's .bss for large shared statics.
     let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
         rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
             rv32i::pmp::NAPOTRegionSpec::from_start_end(
@@ -904,8 +1045,8 @@ pub unsafe fn start_secondary() -> (
         ),
         rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
             rv32i::pmp::NAPOTRegionSpec::from_start_end(
-                core::ptr::addr_of!(_ssram),    // 0x80400000 — covers both harts' RAM
-                core::ptr::addr_of!(_esram_h1), // 0x80800000
+                core::ptr::addr_of!(_ssram),    // 0x80800000 — covers both harts' RAM
+                core::ptr::addr_of!(_esram_h1), // 0x81000000
             )
             .unwrap(),
         ),
@@ -926,8 +1067,20 @@ pub unsafe fn start_secondary() -> (
     )
     .unwrap();
 
-    let processes = components::process_array::ProcessArrayComponent::new()
-        .finalize(components::process_array_component_static!(NUM_PROCS));
+    // Retrieve the hart-1 process array stored by finish_lockstep_setup().
+    // finish_lockstep_setup() uses Release ordering on the store; we use
+    // Acquire here so all replica PCB writes are visible before we use them.
+    let h1_procs_ptr = HART1_PROCS_PTR.load(core::sync::atomic::Ordering::Acquire)
+        as *const kernel::process::ProcessArray<NUM_PROCS>;
+    let processes: &'static kernel::process::ProcessArray<NUM_PROCS> = if h1_procs_ptr.is_null() {
+        static_init!(
+            kernel::process::ProcessArray<NUM_PROCS>,
+            kernel::process::ProcessArray::new()
+        )
+    } else {
+        &*h1_procs_ptr
+    };
+
     PANIC_RESOURCES.get().map(|resources| {
         resources.processes.put(processes.as_slice());
     });
@@ -968,10 +1121,20 @@ pub unsafe fn start_secondary() -> (
         resources.chip.put(chip);
     });
 
-    // Enable machine timer and software interrupts only — no PLIC (external).
-    csr::CSR
-        .mie
-        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
+    // Disarm hart 1's mtimecmp before enabling interrupts.
+    //
+    // Both `QemuRv32VirtClint` instances share the same ClintRegisters struct
+    // offset (0x4000), so hart 1's driver inadvertently writes to hart 0's
+    // mtimecmp. Until the CLINT driver gains per-hart support we simply keep
+    // hart 1's mtimecmp pinned to max and suppress the mtimer interrupt in MIE.
+    const CLINT_MTIMECMP1_LO: *mut u32 = 0x0200_4008 as *mut u32;
+    const CLINT_MTIMECMP1_HI: *mut u32 = 0x0200_400C as *mut u32;
+    core::ptr::write_volatile(CLINT_MTIMECMP1_HI, 0xFFFF_FFFF);
+    core::ptr::write_volatile(CLINT_MTIMECMP1_LO, 0xFFFF_FFFF);
+
+    // Enable only the machine software interrupt (for future IPI) — NOT
+    // mtimer, to avoid the broken shared-CLINT driver from clobbering hart 0.
+    csr::CSR.mie.modify(csr::mie::mie::msoft::SET);
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     let platform = Hart1Platform {
