@@ -9,11 +9,12 @@ use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Aes as usize;
 
 use core::cell::Cell;
+use core::marker::PhantomData;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, CCMClient, Client, GCMClient, AES128, AES128CBC, AES128CCM, AES128ECB, AES128GCM,
-    AES128_BLOCK_SIZE,
+    AESCtr, AESKeySize, CCMClient, Client, GCMClient, AES, AESCBC, AESCCM, AESECB, AESGCM,
+    AES_BLOCK_SIZE,
 };
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -36,7 +37,11 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static> + AES128GCM<'static>> {
+pub struct AesDriver<'a, A, K>
+where
+    K: AESKeySize,
+    A: AES<'a, K> + AESCCM<'static, K> + AESGCM<'static, K>,
+{
     aes: &'a A,
 
     active: Cell<bool>,
@@ -52,16 +57,13 @@ pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static> + AES128GCM<'static>
     source_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
     dest_buffer: TakeCell<'static, [u8]>,
+    _phantom: PhantomData<K>,
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > AesDriver<'static, A>
+        K: AESKeySize,
+        A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K> + AESGCM<'static, K>,
+    > AesDriver<'static, A, K>
 {
     pub fn new(
         aes: &'static A,
@@ -73,7 +75,7 @@ impl<
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> AesDriver<'static, A> {
+    ) -> AesDriver<'static, A, K> {
         AesDriver {
             aes,
             active: Cell::new(false),
@@ -82,6 +84,8 @@ impl<
             source_buffer: TakeCell::new(source_buffer),
             data_copied: Cell::new(0),
             dest_buffer: TakeCell::new(dest_buffer),
+
+            _phantom: PhantomData::<K>,
         }
     }
 
@@ -91,17 +95,11 @@ impl<
                 .enter(processid, |app, kernel_data| {
                     self.aes.enable();
                     match app.aes_operation {
-                        Some(AesOperation::AES128Ctr(encrypt)) => {
-                            self.aes.set_mode_aes128ctr(encrypt)?
-                        }
-                        Some(AesOperation::AES128CBC(encrypt)) => {
-                            self.aes.set_mode_aes128cbc(encrypt)?
-                        }
-                        Some(AesOperation::AES128ECB(encrypt)) => {
-                            self.aes.set_mode_aes128ecb(encrypt)?
-                        }
-                        Some(AesOperation::AES128CCM(_encrypt)) => {}
-                        Some(AesOperation::AES128GCM(_encrypt)) => {}
+                        Some(AesOperation::AESCtr(encrypt)) => self.aes.set_mode_aesctr(encrypt)?,
+                        Some(AesOperation::AESCBC(encrypt)) => self.aes.set_mode_aescbc(encrypt)?,
+                        Some(AesOperation::AESECB(encrypt)) => self.aes.set_mode_aesecb(encrypt)?,
+                        Some(AesOperation::AESCCM(_encrypt)) => {}
+                        Some(AesOperation::AESGCM(_encrypt)) => {}
                         _ => return Err(ErrorCode::INVAL),
                     }
 
@@ -124,18 +122,18 @@ impl<
 
                                     if let Some(op) = app.aes_operation.as_ref() {
                                         match op {
-                                            AesOperation::AES128Ctr(_)
-                                            | AesOperation::AES128CBC(_)
-                                            | AesOperation::AES128ECB(_) => {
-                                                AES128::set_key(self.aes, buf)?;
+                                            AesOperation::AESCtr(_)
+                                            | AesOperation::AESCBC(_)
+                                            | AesOperation::AESECB(_) => {
+                                                AES::set_key(self.aes, buf)?;
                                                 Ok(())
                                             }
-                                            AesOperation::AES128CCM(_) => {
-                                                AES128CCM::set_key(self.aes, buf)?;
+                                            AesOperation::AESCCM(_) => {
+                                                AESCCM::set_key(self.aes, buf)?;
                                                 Ok(())
                                             }
-                                            AesOperation::AES128GCM(_) => {
-                                                AES128GCM::set_key(self.aes, buf)?;
+                                            AesOperation::AESGCM(_) => {
+                                                AESGCM::set_key(self.aes, buf)?;
                                                 Ok(())
                                             }
                                         }
@@ -166,18 +164,18 @@ impl<
 
                                     if let Some(op) = app.aes_operation.as_ref() {
                                         match op {
-                                            AesOperation::AES128Ctr(_)
-                                            | AesOperation::AES128CBC(_)
-                                            | AesOperation::AES128ECB(_) => {
-                                                AES128::set_iv(self.aes, buf)?;
+                                            AesOperation::AESCtr(_)
+                                            | AesOperation::AESCBC(_)
+                                            | AesOperation::AESECB(_) => {
+                                                AES::set_iv(self.aes, buf)?;
                                                 Ok(())
                                             }
-                                            AesOperation::AES128CCM(_) => {
-                                                AES128CCM::set_nonce(self.aes, &buf[0..13])?;
+                                            AesOperation::AESCCM(_) => {
+                                                AESCCM::set_nonce(self.aes, &buf[0..13])?;
                                                 Ok(())
                                             }
-                                            AesOperation::AES128GCM(_) => {
-                                                AES128GCM::set_iv(self.aes, &buf[0..13])?;
+                                            AesOperation::AESGCM(_) => {
+                                                AESGCM::set_iv(self.aes, &buf[0..13])?;
                                                 Ok(())
                                             }
                                         }
@@ -197,9 +195,9 @@ impl<
 
                                 if let Some(op) = app.aes_operation.as_ref() {
                                     match op {
-                                        AesOperation::AES128Ctr(_)
-                                        | AesOperation::AES128CBC(_)
-                                        | AesOperation::AES128ECB(_) => {
+                                        AesOperation::AESCtr(_)
+                                        | AesOperation::AESCBC(_)
+                                        | AesOperation::AESECB(_) => {
                                             self.source_buffer.map_or(
                                                 Err(ErrorCode::NOMEM),
                                                 |buf| {
@@ -221,7 +219,7 @@ impl<
                                                 },
                                             )?;
                                         }
-                                        AesOperation::AES128CCM(_) => {
+                                        AesOperation::AESCCM(_) => {
                                             self.dest_buffer.map_or(
                                                 Err(ErrorCode::NOMEM),
                                                 |buf| {
@@ -243,7 +241,7 @@ impl<
                                                 },
                                             )?;
                                         }
-                                        AesOperation::AES128GCM(_) => {
+                                        AesOperation::AESGCM(_) => {
                                             self.dest_buffer.map_or(
                                                 Err(ErrorCode::NOMEM),
                                                 |buf| {
@@ -299,16 +297,14 @@ impl<
         confidential: bool,
     ) -> Result<(), ErrorCode> {
         match op {
-            AesOperation::AES128Ctr(_)
-            | AesOperation::AES128CBC(_)
-            | AesOperation::AES128ECB(_) => {
+            AesOperation::AESCtr(_) | AesOperation::AESCBC(_) | AesOperation::AESECB(_) => {
                 if let Some(dest_buf) = self.dest_buffer.take() {
-                    if let Some((e, source, dest)) = AES128::crypt(
+                    if let Some((e, source, dest)) = AES::crypt(
                         self.aes,
                         self.source_buffer.take(),
                         dest_buf,
                         0,
-                        AES128_BLOCK_SIZE,
+                        AES_BLOCK_SIZE,
                     ) {
                         // Error, clear the processid and data
                         self.aes.disable();
@@ -324,9 +320,9 @@ impl<
                     return Err(ErrorCode::FAIL);
                 }
             }
-            AesOperation::AES128CCM(encrypting) => {
+            AesOperation::AESCCM(encrypting) => {
                 if let Some(buf) = self.dest_buffer.take() {
-                    if let Err((e, dest)) = AES128CCM::crypt(
+                    if let Err((e, dest)) = AESCCM::crypt(
                         self.aes,
                         buf,
                         aoff,
@@ -347,10 +343,10 @@ impl<
                     return Err(ErrorCode::FAIL);
                 }
             }
-            AesOperation::AES128GCM(encrypting) => {
+            AesOperation::AESGCM(encrypting) => {
                 if let Some(buf) = self.dest_buffer.take() {
                     if let Err((e, dest)) =
-                        AES128GCM::crypt(self.aes, buf, aoff, moff, mlen, *encrypting)
+                        AESGCM::crypt(self.aes, buf, aoff, moff, mlen, mic_len, *encrypting)
                     {
                         // Error, clear the appid and data
                         self.aes.disable();
@@ -392,13 +388,9 @@ impl<
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > Client<'static> for AesDriver<'static, A>
+        K: AESKeySize,
+        A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K> + AESGCM<'static, K>,
+    > Client<'static> for AesDriver<'static, A, K>
 {
     fn crypt_done(&self, source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
         if let Some(source_buf) = source {
@@ -547,13 +539,9 @@ impl<
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > CCMClient for AesDriver<'static, A>
+        K: AESKeySize,
+        A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K> + AESGCM<'static, K>,
+    > CCMClient for AesDriver<'static, A, K>
 {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.dest_buffer.replace(buf);
@@ -623,13 +611,9 @@ impl<
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > GCMClient for AesDriver<'static, A>
+        K: AESKeySize,
+        A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K> + AESGCM<'static, K>,
+    > GCMClient for AesDriver<'static, A, K>
 {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.dest_buffer.replace(buf);
@@ -699,13 +683,9 @@ impl<
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > SyscallDriver for AesDriver<'static, A>
+        K: AESKeySize,
+        A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K> + AESGCM<'static, K>,
+    > SyscallDriver for AesDriver<'static, A, K>
 {
     fn command(
         &self,
@@ -788,23 +768,23 @@ impl<
                     // set_algorithm
                     1 => match data1 {
                         0 => {
-                            app.aes_operation = Some(AesOperation::AES128Ctr(data2 != 0));
+                            app.aes_operation = Some(AesOperation::AESCtr(data2 != 0));
                             CommandReturn::success()
                         }
                         1 => {
-                            app.aes_operation = Some(AesOperation::AES128CBC(data2 != 0));
+                            app.aes_operation = Some(AesOperation::AESCBC(data2 != 0));
                             CommandReturn::success()
                         }
                         2 => {
-                            app.aes_operation = Some(AesOperation::AES128ECB(data2 != 0));
+                            app.aes_operation = Some(AesOperation::AESECB(data2 != 0));
                             CommandReturn::success()
                         }
                         3 => {
-                            app.aes_operation = Some(AesOperation::AES128CCM(data2 != 0));
+                            app.aes_operation = Some(AesOperation::AESCCM(data2 != 0));
                             CommandReturn::success()
                         }
                         4 => {
-                            app.aes_operation = Some(AesOperation::AES128GCM(data2 != 0));
+                            app.aes_operation = Some(AesOperation::AESGCM(data2 != 0));
                             CommandReturn::success()
                         }
                         _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
@@ -955,11 +935,11 @@ impl<
 }
 
 enum AesOperation {
-    AES128Ctr(bool),
-    AES128CBC(bool),
-    AES128ECB(bool),
-    AES128CCM(bool),
-    AES128GCM(bool),
+    AESCtr(bool),
+    AESCBC(bool),
+    AESECB(bool),
+    AESCCM(bool),
+    AESGCM(bool),
 }
 
 #[derive(Default)]

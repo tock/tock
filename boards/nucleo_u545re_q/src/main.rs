@@ -52,6 +52,11 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
+        'static,
+        stm32u545::aes::Aes<'static, AES256>,
+        AES256,
+    >,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -64,6 +69,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             _ => f(None),
         }
     }
@@ -151,11 +157,15 @@ unsafe fn start() -> (
         stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
     );
     usart1.register();
+    let aes = static_init!(
+        stm32u545::aes::Aes<'static, AES256>,
+        stm32u545::aes::Aes::new(stm32u545::aes::AES_BASE)
+    );
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, aes)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -164,6 +174,16 @@ unsafe fn start() -> (
     // Board specific wiring
     periphs.tim2.start();
     set_pin_primary_functions(periphs);
+
+    // Driver Config
+    use kernel::hil::uart::Configure;
+    let _ = periphs.usart1.configure(kernel::hil::uart::Parameters {
+        baud_rate: 115200,
+        stop_bits: kernel::hil::uart::StopBits::One,
+        parity: kernel::hil::uart::Parity::None,
+        hw_flow_control: false,
+        width: kernel::hil::uart::Width::Eight,
+    });
 
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -233,6 +253,59 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let aes_driver = components::aes::AesDriverComponent::new(
+        board_kernel,
+        capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
+        aes,
+    )
+    .finalize(components::aes_driver_component_static!(
+        stm32u545::aes::Aes<'static, AES256>,
+        AES256
+    ));
+
+    // AES-256 CTR Test
+    let aes_ctr_key = static_init!([u8; 32], [0; 32]); // Updated to 32 bytes for AES-256
+                                                       // let aes_ctr_iv = static_init!([u8; 16], [0; 16]);
+    let aes_ctr_src = static_init!([u8; 64], [0; 64]);
+    let aes_ctr_dst = static_init!([u8; 96], [0; 96]); // 96 bytes is plenty (needs at least 80)
+    let aes_ctr_test = static_init!(
+        capsules_extra::test::aes256::TestAES256Ecb<'static, stm32u545::aes::Aes<'static, AES256>>,
+        capsules_extra::test::aes256::TestAES256Ecb::new(
+            aes,
+            aes_ctr_key,
+            // aes_ctr_iv,
+            aes_ctr_src,
+            aes_ctr_dst,
+            true // test_decrypt
+        )
+    );
+    aes.set_client(aes_ctr_test);
+
+    aes_ctr_test.run();
+
+    // AES-256 GCM Test
+
+    // use kernel::hil::symmetric_encryption::AESGCM;
+    // let aes_gcm_buf = static_init!([u8; 128], [0; 128]);
+    // let aes_gcm_test = static_init!(
+    //     capsules_extra::test::aes_gcm_256::TestAES256Gcm<
+    //         'static,
+    //         stm32u545::aes::Aes<'static, AES256>,
+    //     >,
+    //     capsules_extra::test::aes_gcm_256::TestAES256Gcm::new(aes, aes_gcm_buf)
+    // );
+    // AESGCM::set_client(aes, aes_gcm_test);
+    // aes_gcm_test.run();
+
+    // use kernel::hil::symmetric_encryption::AESCCM;
+    // let aes_ccm_buf = static_init!([u8; 128], [0; 128]);
+    // let aes_ccm_test = static_init!(
+    //     capsules_extra::test::aes_ccm_256::TestAES256Ccm<stm32u545::aes::Aes<'static, AES256>>,
+    //     capsules_extra::test::aes_ccm_256::TestAES256Ccm::new(aes, aes_ccm_buf)
+    // );
+    // AESCCM::set_client(aes, aes_ccm_test);
+    // aes_ccm_test.run();
+
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -244,6 +317,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            aes: aes_driver,
         }
     );
 

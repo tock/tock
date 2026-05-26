@@ -1,6 +1,7 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
+// Copyright OxidOS Automotive 2026.
 
 //! Interface for symmetric-cipher encryption
 //!
@@ -16,10 +17,33 @@ pub trait Client<'a> {
 
 /// The number of bytes used for AES block operations.  Keys and IVs must have this length,
 /// and encryption/decryption inputs must be have a multiple of this length.
-pub const AES128_BLOCK_SIZE: usize = 16;
+pub const AES_BLOCK_SIZE: usize = 16;
 pub const AES128_KEY_SIZE: usize = 16;
+pub const AES256_KEY_SIZE: usize = 32;
+pub const AES256_IV_SIZE: usize = 16;
+pub const AES128_IV_SIZE: usize = 16;
 
-pub trait AES128<'a> {
+mod sealed {
+    pub trait Sealed {}
+}
+pub trait AESKeySize: sealed::Sealed {
+    const LENGTH: usize;
+}
+
+pub struct AES128;
+impl sealed::Sealed for AES128 {}
+
+impl AESKeySize for AES128 {
+    const LENGTH: usize = 16;
+}
+
+pub struct AES256;
+impl sealed::Sealed for AES256 {}
+impl AESKeySize for AES256 {
+    const LENGTH: usize = 32;
+}
+
+pub trait AES<'a, K: AESKeySize> {
     /// Enable the AES hardware.
     /// Must be called before any other methods
     fn enable(&self);
@@ -35,7 +59,7 @@ pub trait AES128<'a> {
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
 
     /// Set the IV (or initial counter).
-    /// Returns `INVAL` if length is not `AES128_BLOCK_SIZE`
+    /// Returns `INVAL` if length is not `AES_BLOCK_SIZE`
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode>;
 
     /// Begin a new message (with the configured IV) when `crypt()` is
@@ -65,7 +89,7 @@ pub trait AES128<'a> {
     /// The indices `start_index` and `stop_index` must be valid
     /// offsets in the destination buffer, and the length
     /// `stop_index - start_index` must be a multiple of
-    /// `AES128_BLOCK_SIZE`.  Otherwise, `Some(INVAL, ...)` will be
+    /// `AES_BLOCK_SIZE`.  Otherwise, `Some(INVAL, ...)` will be
     /// returned.
     ///
     /// If the source buffer is not `None`, its length must be
@@ -94,19 +118,19 @@ pub trait AES128<'a> {
     )>;
 }
 
-pub trait AES128Ctr {
-    /// Call before `AES128::crypt()` to perform AES128Ctr
-    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode>;
+pub trait AESCtr {
+    /// Call before `AES::crypt()` to perform AESCtr
+    fn set_mode_aesctr(&self, encrypting: bool) -> Result<(), ErrorCode>;
 }
 
-pub trait AES128CBC {
-    /// Call before `AES128::crypt()` to perform AES128CBC
-    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode>;
+pub trait AESCBC {
+    /// Call before `AES::crypt()` to perform AESCBC
+    fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode>;
 }
 
-pub trait AES128ECB {
-    /// Call before `AES128::crypt()` to perform AES128ECB
-    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode>;
+pub trait AESECB {
+    /// Call before `AES::crypt()` to perform AESECB
+    fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode>;
 }
 
 pub trait CCMClient {
@@ -121,7 +145,7 @@ pub trait CCMClient {
 
 pub const CCM_NONCE_LENGTH: usize = 13;
 
-pub trait AES128CCM<'a> {
+pub trait AESCCM<'a, K: AESKeySize> {
     /// Set the client instance which will receive `crypt_done()` callbacks
     fn set_client(&'a self, client: &'a dyn CCMClient);
 
@@ -154,7 +178,7 @@ pub trait GCMClient {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool);
 }
 
-pub trait AES128GCM<'a> {
+pub trait AESGCM<'a, K: AESKeySize> {
     /// Set the client instance which will receive `crypt_done()` callbacks
     fn set_client(&'a self, client: &'a dyn GCMClient);
 
@@ -177,6 +201,7 @@ pub trait AES128GCM<'a> {
         aad_offset: usize,
         message_offset: usize,
         message_len: usize,
+        tag_len: usize,
         encrypting: bool,
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }

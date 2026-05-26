@@ -12,7 +12,7 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+use crate::hil::symmetric_encryption::AES_BLOCK_SIZE;
 use crate::otbn::OtbnComponent;
 use crate::pinmux_layout::BoardPinmuxLayout;
 use capsules_aes_gcm::aes_gcm;
@@ -31,7 +31,7 @@ use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
-use kernel::hil::symmetric_encryption::AES128;
+use kernel::hil::symmetric_encryption::{AES, AES128};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -212,6 +212,7 @@ struct EarlGrey {
             'static,
             virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
+        AES128,
     >,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
@@ -814,7 +815,7 @@ unsafe fn setup() -> (
     );
     entropy_to_random.set_client(rng);
 
-    const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
+    const CRYPT_SIZE: usize = 7 * AES_BLOCK_SIZE;
 
     let ccm_mux = static_init!(
         virtual_aes_ccm::MuxAES128CCM<'static, earlgrey::aes::Aes<'static>>,
@@ -847,6 +848,7 @@ unsafe fn setup() -> (
             'static,
             virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
+        AES128
     ));
 
     AES = Some(gcm_client);
@@ -861,8 +863,8 @@ unsafe fn setup() -> (
         SHA256SOFT = Some(sha_soft);
     }
 
-    hil::symmetric_encryption::AES128GCM::set_client(gcm_client, aes);
-    hil::symmetric_encryption::AES128::set_client(gcm_client, ccm_client);
+    hil::symmetric_encryption::AESGCM::set_client(gcm_client, aes);
+    hil::symmetric_encryption::AES::set_client(gcm_client, ccm_client);
 
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
     let scheduler = components::sched::priority::PriorityComponent::new(
