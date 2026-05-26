@@ -106,8 +106,48 @@ Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prab
 <details>
   <summary>Other Tock-related papers</summary>
 
+  <p>In SOSP'25 we reflected on 10 years of Tock development.</p>
+
+  <h4><a href="https://dl.acm.org/doi/10.1145/3731569.3764828">[SOSP'25] Tock: From Research To Securing 10 Million Computers</a></h4>
+<pre>
+@inproceedings{10.1145/3731569.3764828,
+  author = {Schuermann, Leon and Campbell, Brad and Ghena, Branden and Levis, Philip and Levy, Amit and Pannuto, Pat},
+  title = {Tock: From Research To Securing 10 Million Computers},
+  year = {2025},
+  isbn = {9798400718700},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3731569.3764828},
+  doi = {10.1145/3731569.3764828},
+  booktitle = {Proceedings of the ACM SIGOPS 31st Symposium on Operating Systems Principles},
+  pages = {36–49},
+  numpages = {14},
+  location = {Lotte Hotel World, Seoul, Republic of Korea},
+  series = {SOSP '25}
+}</pre>
+
+  <p>There is a paper on the Tock security model. The threat model documentation in the docs/ folder is the source of truth for the current Tock threat model, but this paper represents a snapshot of the reasoning behind the Tock threat model and details how it compares to those in similar embedded OSes.</p>
+  <h4><a href="https://dx.doi.org/10.1145/3517208.3523752">[EuroSec'22] Tiered Trust for useful embedded systems security</a></h4>
+<pre>
+@inproceedings{10.1145/3517208.3523752,
+	author = {Ayers, Hudson and Dutta, Prabal and Levis, Philip and Levy, Amit and Pannuto, Pat and Van Why, Johnathan and Watson, Jean-Luc},
+	title = {Tiered Trust for Useful Embedded Systems Security},
+	year = {2022},
+	isbn = {9781450392556},
+	publisher = {Association for Computing Machinery},
+	address = {New York, NY, USA},
+	url = {https://doi.org/10.1145/3517208.3523752},
+	doi = {10.1145/3517208.3523752},
+	booktitle = {Proceedings of the 15th European Workshop on Systems Security},
+	pages = {15–21},
+	numpages = {7},
+	keywords = {security, embedded systems, operating systems, IoT},
+	location = {Rennes, France},
+	series = {EuroSec '22}
+}</pre>
+
   <p>There are two shorter papers that look at potential limitations of the Rust language for embedded software development. The earlier PLOS paper lays out challenges and the later APSys paper lays out potential solutions. Some persons describing work on programming languages and type theory may benefit from these references, but generally, most work should cite the SOSP paper above.</p>
-  <h4><a href="http://doi.acm.org/10.1145/3124680.3124717">APSys: The Case for Writing a Kernel in Rust</a></h4>
+  <h4><a href="http://doi.acm.org/10.1145/3124680.3124717">[APSys'17] The Case for Writing a Kernel in Rust</a></h4>
 <pre>
 @inproceedings{levy17rustkernel,
 	title = {The Case for Writing a Kernel in Rust},
@@ -129,7 +169,7 @@ Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prab
 	author = {Levy, Amit and Campbell, Bradford and Ghena, Branden and Pannuto, Pat and Dutta, Prabal and Levis, Philip},
 }</pre>
 
-  <h4><a href="http://dx.doi.org/10.1145/2818302.2818306">PLOS: Ownership is Theft: Experiences Building an Embedded OS in Rust</a></h4>
+  <h4><a href="http://dx.doi.org/10.1145/2818302.2818306">[PLOS'15] Ownership is Theft: Experiences Building an Embedded OS in Rust</a></h4>
 <pre>
 @inproceedings{levy15ownership,
 	title = {Ownership is Theft: Experiences Building an Embedded {OS} in {R}ust},
@@ -145,25 +185,6 @@ Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prab
 	address = {New York, NY, USA},
 	conference-url = {http://plosworkshop.org/2015/},
 	author = {Levy, Amit and Andersen, Michael P and Campbell, Bradford and Culler, David and Dutta, Prabal and Ghena, Branden and Levis, Philip and Pannuto, Pat},
-}</pre>
-  <p>There is also a paper on the Tock security model. The threat model documentation in the docs/ folder is the source of truth for the current Tock threat model, but this paper represents a snapshot of the reasoning behind the Tock threat model and details how it compares to those in similar embedded OSes.</p>
-  <h4><a href="https://dx.doi.org/10.1145/3517208.3523752">EuroSec: Tiered Trust for useful embedded systems security</a></h4>
-<pre>
-@inproceedings{10.1145/3517208.3523752,
-	author = {Ayers, Hudson and Dutta, Prabal and Levis, Philip and Levy, Amit and Pannuto, Pat and Van Why, Johnathan and Watson, Jean-Luc},
-	title = {Tiered Trust for Useful Embedded Systems Security},
-	year = {2022},
-	isbn = {9781450392556},
-	publisher = {Association for Computing Machinery},
-	address = {New York, NY, USA},
-	url = {https://doi.org/10.1145/3517208.3523752},
-	doi = {10.1145/3517208.3523752},
-	booktitle = {Proceedings of the 15th European Workshop on Systems Security},
-	pages = {15–21},
-	numpages = {7},
-	keywords = {security, embedded systems, operating systems, IoT},
-	location = {Rennes, France},
-	series = {EuroSec '22}
 }</pre>
 </details>
 
