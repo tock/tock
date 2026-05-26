@@ -547,8 +547,10 @@ pub unsafe fn setup(
     );
     userspace_uart1.setup();
 
-    let uart_controller_tx_buffer =
-        static_init!([u8; virtual_uart::TX_BUF_LEN], [0; virtual_uart::TX_BUF_LEN]);
+    let uart_controller_tx_buffer = static_init!(
+        [u8; virtual_uart::TX_BUF_LEN],
+        [0; virtual_uart::TX_BUF_LEN]
+    );
     let uart_controller = static_init!(
         virtual_uart::UartController<'static>,
         virtual_uart::UartController::new(

@@ -623,13 +623,14 @@ impl SyscallDriver for UartController<'_> {
                         self.current_port.set(arg2);
                         self.current_len.set(arg1);
 
-                        uart.transmit_buffer(tx_buffer, arg1).map_err(|(error, buffer)| {
-                            self.current_process.clear();
-                            self.current_port.clear();
-                            self.current_len.set(0);
-                            self.tx_buffer.replace(buffer);
-                            error
-                        })
+                        uart.transmit_buffer(tx_buffer, arg1)
+                            .map_err(|(error, buffer)| {
+                                self.current_process.clear();
+                                self.current_port.clear();
+                                self.current_len.set(0);
+                                self.tx_buffer.replace(buffer);
+                                error
+                            })
                     })
                     .map_err(ErrorCode::from);
 
@@ -658,7 +659,7 @@ impl uart::TransmitClient for UartController<'_> {
     ) {
         let requested_len = self.current_len.get();
         let port = self.current_port.map_or(0, |current_port| current_port);
-        let status = result.err().map(usize::from).unwrap_or(0);
+        let status = result.err().map_or(0, usize::from);
 
         self.current_len.set(0);
         self.current_port.clear();
