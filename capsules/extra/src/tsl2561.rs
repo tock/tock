@@ -285,10 +285,9 @@ impl<'a, I: i2c::I2CDevice> TSL2561<'a, I> {
 
         // Find the ratio of the channel values (Channel1/Channel0).
         // Protect against divide by zero.
-        let mut ratio1 = 0;
-        if channel0 != 0 {
-            ratio1 = (channel1 << (RATIO_SCALE + 1)) / channel0;
-        }
+        let ratio1 = (channel1 << (RATIO_SCALE + 1))
+            .checked_div(channel0)
+            .unwrap_or(0);
 
         // round the ratio value
         let ratio = (ratio1 + 1) >> 1;

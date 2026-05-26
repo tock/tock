@@ -49,7 +49,7 @@ const R_A4: usize = 13;
 /// Values for encoding the stored state buffer in a binary slice.
 const VERSION: u32 = 1;
 const STORED_STATE_SIZE: u32 = size_of::<Riscv32iStoredState>() as u32;
-const TAG: [u8; 4] = [b'r', b'v', b'5', b'i'];
+const TAG: [u8; 4] = *b"rv5i";
 const METADATA_LEN: usize = 3;
 
 const VERSION_IDX: usize = 0;

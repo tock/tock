@@ -111,7 +111,10 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         self.uart.map_or_else(
             || {
-                let uart = Uart::new_uart0();
+                let clocks = lpc55s6x::clocks::Clock::new();
+                let flexcomm = lpc55s6x::flexcomm::Flexcomm::new(0);
+
+                let uart = Uart::new_uart0(&clocks, &flexcomm);
                 self.configure_uart(&uart);
                 self.write_to_uart(&uart, buf);
             },

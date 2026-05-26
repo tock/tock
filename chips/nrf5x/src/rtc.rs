@@ -12,11 +12,8 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-const RTC1_BASE: StaticRef<RtcRegisters> =
-    unsafe { StaticRef::new(0x40011000 as *const RtcRegisters) };
-
 #[repr(C)]
-struct RtcRegisters {
+pub struct RtcRegisters {
     /// Start RTC Counter.
     tasks_start: WriteOnly<u32, Task::Register>,
     /// Stop RTC Counter.
@@ -96,9 +93,9 @@ pub struct Rtc<'a> {
 }
 
 impl Rtc<'_> {
-    pub const fn new() -> Self {
+    pub const fn new(registers: StaticRef<RtcRegisters>) -> Self {
         Self {
-            registers: RTC1_BASE,
+            registers,
             overflow_client: OptionalCell::empty(),
             alarm_client: OptionalCell::empty(),
             enabled: Cell::new(false),

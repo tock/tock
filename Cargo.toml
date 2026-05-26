@@ -230,7 +230,8 @@ result_unit_err = "allow"
 unusual-byte-groupings = "allow"
 # We widely use upper case acronyms for hardware registers and fields.
 upper_case_acronyms = "allow"
-
+# Condensing match statements can make code harder to read and inconsistent.
+collapsible-match = "allow"
 
 missing_safety_doc = "allow"
 doc_lazy_continuation = "allow"

@@ -34,8 +34,14 @@ fn system_init() {
     clocks.start_timer_clocks();
 }
 
-unsafe fn get_peripherals() -> &'static mut Lpc55s69DefaultPeripheral<'static> {
-    static_init!(Lpc55s69DefaultPeripheral, Lpc55s69DefaultPeripheral::new())
+unsafe fn get_peripherals(
+    clocks: &'static Clock,
+    flexcomm: &'static flexcomm::Flexcomm,
+) -> &'static Lpc55s69DefaultPeripheral<'static> {
+    static_init!(
+        Lpc55s69DefaultPeripheral,
+        Lpc55s69DefaultPeripheral::new(clocks, flexcomm)
+    )
 }
 
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -134,7 +140,9 @@ unsafe fn start() -> (
 
     system_init();
 
-    let peripherals = get_peripherals();
+    let clock = static_init!(clocks::Clock, clocks::Clock::new());
+    let flexcomm0 = static_init!(flexcomm::Flexcomm, flexcomm::Flexcomm::new_id(0).unwrap());
+    let peripherals = get_peripherals(clock, flexcomm0);
 
     peripherals.pins.init();
 
@@ -282,16 +290,11 @@ unsafe fn start() -> (
 
     peripherals.pins.pint.configure_interrupt(0, Edge::Rising);
 
-    let clock = static_init!(clocks::Clock, clocks::Clock::new());
-    let flexcomm0 = static_init!(flexcomm::Flexcomm, flexcomm::Flexcomm::new_id(0).unwrap());
-
     clock.setup_uart_clock(FrgId::Frg0, FrgClockSource::Fro96Mhz);
 
     let uart = &peripherals.uart;
 
     uart.set_clock_source(FrgClockSource::Fro96Mhz);
-    uart.set_clocks(clock);
-    uart.set_flexcomm(flexcomm0);
 
     peripherals.pins.iocon.configure_pin(
         LPCPin::P0_29,

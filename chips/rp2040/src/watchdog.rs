@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -106,19 +105,15 @@ const WATCHDOG_BASE: StaticRef<WatchdogRegisters> =
 
 pub struct Watchdog<'a> {
     registers: StaticRef<WatchdogRegisters>,
-    resets: OptionalCell<&'a resets::Resets>,
+    resets: &'a resets::Resets,
 }
 
 impl<'a> Watchdog<'a> {
-    pub const fn new() -> Watchdog<'a> {
+    pub const fn new(resets: &'a resets::Resets) -> Watchdog<'a> {
         Watchdog {
             registers: WATCHDOG_BASE,
-            resets: OptionalCell::empty(),
+            resets,
         }
-    }
-
-    pub fn resolve_dependencies(&self, resets: &'a resets::Resets) {
-        self.resets.set(resets);
     }
 
     pub fn start_tick(&self, cycles_in_mhz: u32) {
@@ -128,8 +123,7 @@ impl<'a> Watchdog<'a> {
     }
 
     pub fn reboot(&self) {
-        self.resets
-            .map(|resets| resets.watchdog_reset_all_except(&[]));
+        self.resets.watchdog_reset_all_except(&[]);
         self.registers.ctrl.write(CTRL::TRIGGER::SET);
     }
 }

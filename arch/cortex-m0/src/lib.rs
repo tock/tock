@@ -33,14 +33,14 @@ struct HardFaultStackedRegisters {
 /// by the naked hard_fault_handler function.
 unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
     let hardfault_stacked_registers = HardFaultStackedRegisters {
-        r0: *faulting_stack.offset(0),
-        r1: *faulting_stack.offset(1),
-        r2: *faulting_stack.offset(2),
-        r3: *faulting_stack.offset(3),
-        r12: *faulting_stack.offset(4),
-        lr: *faulting_stack.offset(5),
-        pc: *faulting_stack.offset(6),
-        xpsr: *faulting_stack.offset(7),
+        r0: *faulting_stack.add(0),
+        r1: *faulting_stack.add(1),
+        r2: *faulting_stack.add(2),
+        r3: *faulting_stack.add(3),
+        r12: *faulting_stack.add(4),
+        lr: *faulting_stack.add(5),
+        pc: *faulting_stack.add(6),
+        xpsr: *faulting_stack.add(7),
     };
 
     panic!(
