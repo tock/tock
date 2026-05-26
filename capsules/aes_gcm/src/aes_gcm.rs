@@ -134,8 +134,11 @@ impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>> Aes
             None => {
                 self.state.set(GCMState::GenerateHashKey);
             }
-            Some((_res, _, crypt_buf)) => {
+            Some((res, _, crypt_buf)) => {
                 self.crypt_buf.replace(crypt_buf);
+                if let Err(e) = res {
+                    return Err((e, buf));
+                }
             }
         }
 

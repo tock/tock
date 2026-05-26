@@ -63,6 +63,10 @@ struct NucleoU545RE {
         'static,
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         32,
+    aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
+        'static,
+        stm32u545::aes::Aes<'static, AES256>,
+        AES256,
     >,
 }
 
@@ -81,6 +85,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             _ => f(None),
         }
     }
@@ -193,6 +198,12 @@ unsafe fn start() -> (
     let dma1 = static_init!(
         stm32u545::dma::Dma,
         stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
+    );
+
+    usart1.register();
+    let aes = static_init!(
+        stm32u545::aes::Aes<'static, AES256>,
+        stm32u545::aes::Aes::new(stm32u545::aes::AES_BASE)
     );
 
     // Load Peripherals Bundle
@@ -411,6 +422,7 @@ unsafe fn start() -> (
             dac,
             gpio,
             hmac
+            aes: aes_driver,
         }
     );
 
