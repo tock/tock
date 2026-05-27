@@ -186,7 +186,8 @@ impl<
         }
 
         self.client_key_select.map(|client| {
-            client.select_key_done(self.active_key.get().unwrap_or(0), error);
+            let key_index = self.active_key.get().unwrap_or(0);
+            client.select_key_done(key_index, key_index, error);
         });
     }
 }
