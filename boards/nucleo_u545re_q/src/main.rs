@@ -263,48 +263,7 @@ unsafe fn start() -> (
         AES256
     ));
 
-    // AES-256 CTR Test
-    let aes_ctr_key = static_init!([u8; 32], [0; 32]); // Updated to 32 bytes for AES-256
-                                                       // let aes_ctr_iv = static_init!([u8; 16], [0; 16]);
-    let aes_ctr_src = static_init!([u8; 64], [0; 64]);
-    let aes_ctr_dst = static_init!([u8; 96], [0; 96]); // 96 bytes is plenty (needs at least 80)
-    let aes_ctr_test = static_init!(
-        capsules_extra::test::aes256::TestAES256Ecb<'static, stm32u545::aes::Aes<'static, AES256>>,
-        capsules_extra::test::aes256::TestAES256Ecb::new(
-            aes,
-            aes_ctr_key,
-            // aes_ctr_iv,
-            aes_ctr_src,
-            aes_ctr_dst,
-            true // test_decrypt
-        )
-    );
-    aes.set_client(aes_ctr_test);
-
-    aes_ctr_test.run();
-
-    // AES-256 GCM Test
-
-    // use kernel::hil::symmetric_encryption::AESGCM;
-    // let aes_gcm_buf = static_init!([u8; 128], [0; 128]);
-    // let aes_gcm_test = static_init!(
-    //     capsules_extra::test::aes_gcm_256::TestAES256Gcm<
-    //         'static,
-    //         stm32u545::aes::Aes<'static, AES256>,
-    //     >,
-    //     capsules_extra::test::aes_gcm_256::TestAES256Gcm::new(aes, aes_gcm_buf)
-    // );
-    // AESGCM::set_client(aes, aes_gcm_test);
-    // aes_gcm_test.run();
-
-    // use kernel::hil::symmetric_encryption::AESCCM;
-    // let aes_ccm_buf = static_init!([u8; 128], [0; 128]);
-    // let aes_ccm_test = static_init!(
-    //     capsules_extra::test::aes_ccm_256::TestAES256Ccm<stm32u545::aes::Aes<'static, AES256>>,
-    //     capsules_extra::test::aes_ccm_256::TestAES256Ccm::new(aes, aes_ccm_buf)
-    // );
-    // AESCCM::set_client(aes, aes_ccm_test);
-    // aes_ccm_test.run();
+    aes.set_client(aes_driver);
 
     // Platform and Interrupts
     let platform = static_init!(
