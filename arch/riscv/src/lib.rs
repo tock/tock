@@ -503,7 +503,7 @@ pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
             csr::mcause::Exception::Unknown => "Reserved",
         },
     };
-    let _ = writer.write_fmt(format_args!("{}", s));
+    let _ = writer.write_str(s);
 }
 
 /// Prints out RISCV machine state, including basic system registers
