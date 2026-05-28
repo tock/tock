@@ -12,7 +12,6 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use crate::hil::symmetric_encryption::AES_BLOCK_SIZE;
 use crate::otbn::OtbnComponent;
 use crate::pinmux_layout::BoardPinmuxLayout;
 use capsules_aes_gcm::aes_gcm;
@@ -31,7 +30,7 @@ use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
-use kernel::hil::symmetric_encryption::{AES, AES128};
+use kernel::hil::symmetric_encryption::{AES, AES128, AES_BLOCK_SIZE};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
