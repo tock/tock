@@ -25,6 +25,7 @@ install: flash
 build-with-app: $(BUILD_TYPE) # let cargo rebuild
 ifeq ($(APP),)
 	$(info Built kernel without application (old application will still be present))
+	cp $(KERNEL) $(KERNEL_WITH_APP)
 else
 	$(info Building kernel with application $(APP))
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)

@@ -8,8 +8,6 @@
 
 //! Tock kernel for the PSC3M5-EVK evaluation board.
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::led::LedsComponent;
 use kernel::component::Component;
@@ -22,7 +20,6 @@ use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use psc3::chip::{Psc3, Psc3DefaultPeripherals};
 use psc3::gpio;
-use psc3::icache;
 use psc3::tcpwm::Tcpwm0;
 #[allow(unused)]
 use psc3::{BASE_VECTORS, IRQS};
@@ -45,7 +42,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
@@ -141,8 +138,6 @@ pub unsafe fn start() -> (
     &'static Psc3<'static, Psc3DefaultPeripherals<'static>>,
 ) {
     /* Only after peripherals.sys_init() was called peripheral view for debugging works */
-    icache::sys_init_enable_cache();
-    // Todo do dmb after enabling cache (done in infineon board support package)
     // cortexm33::support::dmb();
     cortexm33::nvic::enable_all();
 
@@ -155,10 +150,14 @@ pub unsafe fn start() -> (
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
 
+    /* Only after peripherals.sys_init() was called peripheral view for debugging works */
     peripherals.preinit_peripherals();
     peripherals.init();
 
@@ -183,9 +182,6 @@ pub unsafe fn start() -> (
         .gpio
         .get_pin(gpio::PsocPin::P8_5)
         .preconfigure(&GPIO_CONFIG);
-
-    // Set the UART used for panic
-    (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb3);
 
     let chip = static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals));
     PANIC_RESOURCES.get().map(|resources| {

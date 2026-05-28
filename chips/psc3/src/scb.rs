@@ -8,6 +8,7 @@ use core::cell::Cell;
 use core::num::NonZeroUsize;
 use kernel::errorcode::ErrorCode;
 use kernel::hil::uart::{self, Configure, Receive, ReceiveClient, Transmit, TransmitClient};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::StaticRef;
 use kernel::utilities::{
     cells::{OptionalCell, TakeCell},
@@ -395,5 +396,52 @@ impl Configure for Scb<'_> {
             }
             Ok(())
         }
+    }
+}
+
+/// A synchronous writer for panic output using the SCB UART.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+struct ScbPanicWriter<'a> {
+    scb: Scb<'a>,
+}
+
+impl IoWrite for ScbPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.scb.transmit_uart_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for ScbPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for the synchronous SCB panic writer.
+pub struct ScbPanicWriterConfig {
+    pub params: kernel::hil::uart::Parameters,
+}
+
+impl kernel::platform::chip::PanicWriter for Scb<'_> {
+    type Config = ScbPanicWriterConfig;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        use kernel::hil::uart::Configure as _;
+
+        let scb = Scb::new();
+
+        scb.disable_scb();
+        scb.set_standard_uart_mode();
+
+        // Configure the UART correctly for panics.
+        let _ = scb.configure(config.params);
+
+        scb.enable_scb();
+
+        ScbPanicWriter { scb }
     }
 }

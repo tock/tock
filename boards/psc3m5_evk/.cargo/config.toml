@@ -2,13 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Infineon Technologies AG 2026.
 
-include = [
-"../../cargo/tock_flags.toml",
-"../../cargo/unstable_flags.toml",
-]
+include = ["../../cargo/tock_flags.toml", "../../cargo/unstable_flags.toml"]
 
 [build]
 target = "thumbv8m.main-none-eabi"
-
-[unstable]
-config-include = true

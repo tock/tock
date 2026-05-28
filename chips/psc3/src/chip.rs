@@ -13,6 +13,7 @@ use crate::cpuss_ppu;
 use crate::flashc;
 use crate::gpio;
 use crate::hsiom_registers;
+use crate::icache;
 use crate::interrupts;
 use crate::peri;
 use crate::peri_clk;
@@ -120,6 +121,14 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
                 n.clear_pending();
                 n.enable();
             }
+        }
+    }
+
+    fn init() {
+        icache::sys_init_enable_cache();
+        unsafe {
+            cortexm33::nvic::disable_all();
+            cortexm33::nvic::clear_all_pending();
         }
     }
 
