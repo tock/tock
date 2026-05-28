@@ -7,7 +7,7 @@ Kernel Analog-to-Digital Conversion HIL
 **Status:** Draft <br/>
 **Author:** Philip Levis and Branden Ghena<br/>
 **Draft-Created:** Dec 18, 2016<br/>
-**Draft-Modified:** June 12, 2017<br/>
+**Draft-Modified:** May 15, 2026<br/>
 **Draft-Version:** 2<br/>
 **Draft-Discuss:** devel@lists.tockos.org</br>
 
@@ -312,13 +312,6 @@ impl AdcChannel {
         }
     }
 }
-
-/// Statically allocated ADC channels. Used in board configurations to specify
-/// which channels are used on the platform.
-pub static mut CHANNEL_AD0: AdcChannel = AdcChannel::new(Channel::AD0);
-pub static mut CHANNEL_AD1: AdcChannel = AdcChannel::new(Channel::AD1);
-...
-pub static mut CHANNEL_REFERENCE_GROUND: AdcChannel = AdcChannel::new(Channel::ReferenceGround);
 ```
 
 6.2 Client Handling

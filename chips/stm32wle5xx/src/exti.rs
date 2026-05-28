@@ -375,23 +375,6 @@ register_bitfields![u32,
 const EXTI_BASE: StaticRef<ExtiRegisters> =
     unsafe { StaticRef::new(0x5800_0800 as *const ExtiRegisters) };
 
-/// The EXTI_PR (pending) register when set, generates a level-triggered
-/// interrupt on the NVIC.
-///
-/// This means, that its the responsibility of the IRQ handler to
-/// clear the interrupt source (pending bit), in order to prevent
-/// multiple interrupts from occurring.
-///
-/// `EXTI_EVENTS` is modeled to capture information from `EXTI_PR` register. In
-/// the top half IRQ handler, prior to clearing the pending bit, we set the
-/// corresponding bit in `EXTI_EVENTS`. Once the bit is set, in `EXTI_EVENTS`,
-/// we clear the pending bit and exit the ISR.
-///
-/// [^1]: Section 10.2.2, EXTI block diagram, page 243 of reference manual.
-#[no_mangle]
-#[used]
-pub static mut EXTI_EVENTS: u32 = 0;
-
 enum_from_primitive! {
     #[repr(u8)]
     #[derive(Copy, Clone)]
