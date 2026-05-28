@@ -30,7 +30,7 @@
 use core::{cell::Cell, marker::PhantomData};
 use kernel::utilities::StaticRef;
 use tock_cells::volatile_cell::VolatileCell;
-use tock_registers::{register_layouts, Address, Bus, BusWrite, RegisterArray, Write};
+use tock_registers::{register_map, Address, Bus, BusWrite, RegisterArray, Write};
 
 /// Write an 8-bit value to an I/O Port.
 /// Read an 8-bit value from an I/O port.
@@ -282,8 +282,8 @@ impl BusWrite<u8> for Attribute {
     }
 }
 
-register_layouts! {
-    #![bus(Attribute)]
+register_map! {
+    #[bus(Attribute)]
     attributes {
         0x00 => palette: [u8; 16] { Write },
         0x10 => mode_control: u8 { Write },

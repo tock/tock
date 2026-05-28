@@ -11,12 +11,12 @@ use kernel::utilities::registers::{register_bitfields, InMemoryRegister};
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::super::queues::Virtqueue;
 use super::super::transports::{VirtIOInitializationError, VirtIOTransport};
-use tock_registers::{mmio32_register_layouts, Read, ReadWrite, Write};
+use tock_registers::{mmio32_register_map, Read, ReadWrite, Write};
 
 // Magic string "virt" every device has to expose
 const VIRTIO_MAGIC_VALUE: [u8; 4] = [0x76, 0x69, 0x72, 0x74];
 
-mmio32_register_layouts! {
+mmio32_register_map! {
     pub virtio_mmio_device_registers {
         /// 0x000 Magic string "virt" for identification
         0x0 => magic_value: u32 { Read },
