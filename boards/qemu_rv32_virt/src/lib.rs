@@ -72,10 +72,18 @@ impl kernel::platform::ContextSwitchCallback for Hart0SyncCallback {
         static SEQ: core::sync::atomic::AtomicU32 =
             core::sync::atomic::AtomicU32::new(0);
         let seq = SEQ.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-        // Spin on full: hart 1 must drain faster than hart 0 produces (it
-        // always will in a cooperative scheduler), but we cannot drop entries.
+        // Send our step notification to hart 1.
         while !LOCKSTEP_CHAN.a_send(SyncEntry { seq }) {
             core::hint::spin_loop();
+        }
+        // Wait for hart 1's acknowledgment before proceeding.  This turns the
+        // one-directional ping into a rendezvous: neither hart advances to its
+        // next switch_to until both have finished handling the previous syscall.
+        let _ack = LOCKSTEP_CHAN.a_spin_recv();
+        static FIRST_SYNC: core::sync::atomic::AtomicBool =
+            core::sync::atomic::AtomicBool::new(false);
+        if !FIRST_SYNC.swap(true, core::sync::atomic::Ordering::Relaxed) {
+            debug!("Lockstep: first rendezvous complete (seq={})", seq);
         }
     }
 }
@@ -86,11 +94,13 @@ pub struct Hart1SyncCallback;
 
 impl kernel::platform::ContextSwitchCallback for Hart1SyncCallback {
     fn context_switch_hook(&self, _process: &dyn kernel::process::Process) {
-        // Block until hart 0 signals that it is about to run the primary.
+        // Block until hart 0 is ready, then acknowledge so hart 0 can proceed.
+        // The rendezvous guarantees both harts have finished handling the
+        // previous syscall before either advances to the next switch_to.
         let _entry = LOCKSTEP_CHAN.b_spin_recv();
-        // TODO: extend SyncEntry with a0–a3 return registers and apply them
-        // to the replica's stored state here (requires a small upstream hook
-        // to capture the return value after handle_syscall).
+        while !LOCKSTEP_CHAN.b_send(SyncEntry { seq: _entry.seq }) {
+            core::hint::spin_loop();
+        }
     }
 }
 
@@ -928,6 +938,9 @@ pub unsafe fn finish_lockstep_setup(
 
             if let Some(replica) = ProcessHw::create_replica(primary, chunk, chip) {
                 h1_slot.set_external(replica, &ext_cap);
+                debug!("Lockstep: replica created for '{}'", proc.get_process_name());
+            } else {
+                debug!("Lockstep: create_replica failed for '{}'", proc.get_process_name());
             }
         }
     }
@@ -1120,6 +1133,17 @@ pub unsafe fn start_secondary() -> (
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
+
+    // Patch each replica's chip pointer to use hart 1's own chip.  The
+    // replicas were created in finish_lockstep_setup() using hart 0's chip
+    // for MPU config allocation; they must now use hart 1's chip so that
+    // setup_mpu() and enable_app_mpu() share the same shadow PMP state.
+    for slot in processes.as_slice().iter() {
+        if let Some(proc) = slot.get() {
+            let ps = proc as *const dyn kernel::process::Process as *const ProcessHw;
+            (*ps).set_chip(chip);
+        }
+    }
 
     // Disarm hart 1's mtimecmp before enabling interrupts.
     //

@@ -440,7 +440,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     /// differences. Specifically, the actual syscall interface and how
     /// processes are switched to is architecture-specific, and how memory must
     /// be allocated for memory protection units is also hardware-specific.
-    chip: &'static C,
+    chip: Cell<&'static C>,
 
     /// Application memory layout:
     ///
@@ -893,7 +893,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // `ProcessStandard` does not provide safe, publically accessible
             // APIs to add other arbitrary MPU regions to this configuration.
             unsafe {
-                self.chip.mpu().configure_mpu(config);
+                self.chip.get().mpu().configure_mpu(config);
             }
         });
     }
@@ -905,7 +905,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         min_region_size: usize,
     ) -> Option<mpu::Region> {
         self.mpu_config.and_then(|config| {
-            let new_region = self.chip.mpu().allocate_region(
+            let new_region = self.chip.get().mpu().allocate_region(
                 unallocated_memory_start,
                 unallocated_memory_size,
                 min_region_size,
@@ -931,6 +931,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             if let Some(internal_region) = self.mpu_regions.iter().find(|r| r.get() == Some(region))
             {
                 self.chip
+                    .get()
                     .mpu()
                     .remove_memory_region(region, config)
                     .or(Err(ErrorCode::FAIL))?;
@@ -965,7 +966,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 Err(Error::AddressOutOfBounds)
             } else if new_break > self.kernel_memory_break.get() {
                 Err(Error::OutOfMemory)
-            } else if let Err(()) = self.chip.mpu().update_app_memory_region(
+            } else if let Err(()) = self.chip.get().mpu().update_app_memory_region(
                 new_break,
                 self.kernel_memory_break.get(),
                 mpu::Permissions::ReadWriteOnly,
@@ -989,7 +990,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // accessible APIs to add other arbitrary MPU regions to this
                 // configuration.
                 unsafe {
-                    self.chip.mpu().configure_mpu(config);
+                    self.chip.get().mpu().configure_mpu(config);
                 }
 
                 if new_break > old_break {
@@ -1431,6 +1432,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // unsafe promise we are making is that the bounds passed to the UKB
             // are correct.
             self.chip
+                .get()
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
                     self.mem_start(),
@@ -1482,7 +1484,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // unsafe here because we are guaranteeing that the memory bounds
             // passed to `set_process_function` are correct.
             unsafe {
-                self.chip.userspace_kernel_boundary().set_process_function(
+                self.chip.get().userspace_kernel_boundary().set_process_function(
                     self.mem_start(),
                     self.app_break.get(),
                     stored_state,
@@ -1530,6 +1532,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 unsafe {
                     let (switch_reason, optional_stack_pointer) = self
                         .chip
+                        .get()
                         .userspace_kernel_boundary()
                         .switch_to_process(self.mem_start(), self.app_break.get(), stored_state);
                     (Some(switch_reason), optional_stack_pointer)
@@ -1606,7 +1609,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // We guarantee the memory bounds pointers provided to the UKB are
             // correct.
             unsafe {
-                self.chip.userspace_kernel_boundary().print_context(
+                self.chip.get().userspace_kernel_boundary().print_context(
                     self.mem_start(),
                     self.app_break.get(),
                     stored_state,
@@ -1692,6 +1695,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         self.stored_state
             .map(|stored_state| {
                 self.chip
+                    .get()
                     .userspace_kernel_boundary()
                     .store_context(stored_state, out)
             })
@@ -2173,7 +2177,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             .set(ProcessId::new(kernel, unique_identifier, index));
         process.app_id = app_id;
         process.kernel = kernel;
-        process.chip = chip;
+        process.chip = Cell::new(chip);
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
         process.memory_start = allocated_memory_start;
         process.memory_len = allocated_memory_len;
@@ -2449,7 +2453,16 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // ----------------------------------------------------------------
         // Per-hart independent state: fresh for the replica.
         // ----------------------------------------------------------------
-        replica.stored_state = MapCell::new(Default::default());
+        let mut init_state = Default::default();
+        // Safety: replica_start and app_break are valid pointers within the
+        // replica's allocated memory region, which is the same invariant
+        // required by the enclosing unsafe fn create_replica.
+        unsafe {
+            let _ = chip
+                .userspace_kernel_boundary()
+                .initialize_process(replica_start, replica.app_break.get(), &mut init_state);
+        }
+        replica.stored_state = MapCell::new(init_state);
         replica.state = Cell::new(State::Yielded);
         replica.mpu_config = MapCell::new(mpu_config);
         replica.mpu_regions = [
@@ -2495,6 +2508,21 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         Some(replica)
     }
 
+    /// Replace the chip reference stored in this process.
+    ///
+    /// Intended for lockstep replica setup: the replica is created on the
+    /// primary hart (using the primary's chip for MPU config allocation), but
+    /// must later be patched to use the secondary hart's own chip so that
+    /// `setup_mpu` and `enable_app_mpu` operate on the same chip instance and
+    /// share the same shadow PMP state.
+    ///
+    /// The caller must ensure the process is not currently scheduled and that
+    /// the new chip is compatible with the MPU config already allocated for
+    /// this process.
+    pub fn set_chip(&self, chip: &'static C) {
+        self.chip.set(chip);
+    }
+
     /// Reset the process, resetting all of its state and re-initializing it so
     /// it can start running. Assumes the process is not running but is still in
     /// flash and still has its memory region allocated to it.
@@ -2527,10 +2555,10 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // a new MPU configuration, as this may eventually exhaust the
         // number of available MPU configurations.
         let mut mpu_config = self.mpu_config.take().ok_or(ErrorCode::FAIL)?;
-        self.chip.mpu().reset_config(&mut mpu_config);
+        self.chip.get().mpu().reset_config(&mut mpu_config);
 
         // Allocate MPU region for flash.
-        let app_mpu_flash = self.chip.mpu().allocate_region(
+        let app_mpu_flash = self.chip.get().mpu().allocate_region(
             self.flash.as_ptr(),
             self.flash.len(),
             self.flash.len(),
@@ -2552,6 +2580,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // implementation.
         let min_process_memory_size = self
             .chip
+            .get()
             .userspace_kernel_boundary()
             .initial_process_app_brk_size();
 
@@ -2563,7 +2592,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let initial_kernel_memory_size =
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
-        let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
+        let app_mpu_mem = self.chip.get().mpu().allocate_app_memory_region(
             self.mem_start(),
             self.memory_len,
             self.memory_len, //we want exactly as much as we had before restart
@@ -2606,7 +2635,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // Handle any architecture-specific requirements for a process when it
         // first starts (as it would when it is new).
         let ukb_init_process = self.stored_state.map_or(Err(()), |stored_state| unsafe {
-            self.chip.userspace_kernel_boundary().initialize_process(
+            self.chip.get().userspace_kernel_boundary().initialize_process(
                 app_mpu_mem_start,
                 app_brk,
                 stored_state,
@@ -2738,7 +2767,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             } else if new_break > self.kernel_memory_break.get() {
                 None
                 // Verify this is compatible with the MPU.
-            } else if let Err(()) = self.chip.mpu().update_app_memory_region(
+            } else if let Err(()) = self.chip.get().mpu().update_app_memory_region(
                 self.app_break.get(),
                 new_break,
                 mpu::Permissions::ReadWriteOnly,
