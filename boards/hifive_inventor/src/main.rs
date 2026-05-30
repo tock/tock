@@ -180,7 +180,7 @@ unsafe fn start() -> (
 
     let hardware_timer = static_init!(
         e310_g003::chip::E310xClint,
-        e310_g003::chip::E310xClint::new(&e310_g003::clint::CLINT_BASE)
+        e310_g003::chip::E310xClint::new(&e310_g003::clint::CLINT_BASE, 0)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware

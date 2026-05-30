@@ -36,16 +36,23 @@ pub struct Clint<'a, F: Frequency> {
 }
 
 impl<'a, F: Frequency> Clint<'a, F> {
-    pub fn new(base: &'a StaticRef<ClintRegisters>) -> Self {
+    /// `hart_id` selects which hart's mtimecmp registers to use.
+    /// mtimecmp[n] is at CLINT_BASE + 0x4000 + n*8 (lo) and + n*8 + 4 (hi).
+    pub fn new(base: &'a StaticRef<ClintRegisters>, hart_id: usize) -> Self {
+        // Safety: mtimecmp[hart_id] is at a valid MMIO address within the
+        // ClintRegisters region (which extends to 0xC000) for any hart_id
+        // present on this SoC.
+        let (compare_low, compare_high): (&'a ReadWrite<u32>, &'a ReadWrite<u32>) = unsafe {
+            let base_addr = &**base as *const ClintRegisters as usize;
+            (
+                &*((base_addr + 0x4000 + hart_id * 8) as *const ReadWrite<u32>),
+                &*((base_addr + 0x4004 + hart_id * 8) as *const ReadWrite<u32>),
+            )
+        };
         Self {
             registers: *base,
             client: OptionalCell::empty(),
-            mtimer: MachineTimer::new(
-                &base.compare_low,
-                &base.compare_high,
-                &base.value_low,
-                &base.value_high,
-            ),
+            mtimer: MachineTimer::new(compare_low, compare_high, &base.value_low, &base.value_high),
             _freq: PhantomData,
         }
     }

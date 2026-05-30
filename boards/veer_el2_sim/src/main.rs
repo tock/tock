@@ -144,7 +144,7 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.sim_uart, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    let mtimer = static_init!(Clint, Clint::new(&CLINT_BASE));
+    let mtimer = static_init!(Clint, Clint::new(&CLINT_BASE, 0));
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.

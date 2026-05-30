@@ -122,7 +122,7 @@ pub type ScreenHw = qemu_rv32_virt_chip::virtio::devices::virtio_gpu::VirtIOGPU<
 type AlarmHw = qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>;
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
-type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
@@ -372,7 +372,7 @@ pub unsafe fn start() -> (
     // Use the RISC-V machine timer timesource
     let hardware_timer = static_init!(
         qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
-        qemu_rv32_virt_chip::chip::QemuRv32VirtClint::new(&qemu_rv32_virt_chip::clint::CLINT_BASE)
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint::new(&qemu_rv32_virt_chip::clint::CLINT_BASE, 0)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
@@ -824,8 +824,8 @@ pub unsafe fn start() -> (
 
     // ---------- SCHEDULER ----------
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let scheduler_timer =
         components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
@@ -1104,7 +1104,7 @@ pub unsafe fn start_secondary() -> (
     let hardware_timer = static_init!(
         qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
         qemu_rv32_virt_chip::chip::QemuRv32VirtClint::new(
-            &qemu_rv32_virt_chip::clint::CLINT_BASE
+            &qemu_rv32_virt_chip::clint::CLINT_BASE, 1
         )
     );
     let mux_alarm = static_init!(
@@ -1113,8 +1113,8 @@ pub unsafe fn start_secondary() -> (
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let scheduler_timer =
         components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
@@ -1156,9 +1156,9 @@ pub unsafe fn start_secondary() -> (
     core::ptr::write_volatile(CLINT_MTIMECMP1_HI, 0xFFFF_FFFF);
     core::ptr::write_volatile(CLINT_MTIMECMP1_LO, 0xFFFF_FFFF);
 
-    // Enable only the machine software interrupt (for future IPI) — NOT
-    // mtimer, to avoid the broken shared-CLINT driver from clobbering hart 0.
-    csr::CSR.mie.modify(csr::mie::mie::msoft::SET);
+    // Enable machine software and timer interrupts. The CLINT driver now uses
+    // per-hart mtimecmp offsets so hart 1's timer no longer clobbers hart 0.
+    csr::CSR.mie.modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     let platform = Hart1Platform {
