@@ -270,10 +270,6 @@ impl Dma {
         }
     }
 
-    pub fn match_channel(&self, channel: ChannelId) -> Option<usize> {
-        Some(channel.into())
-    }
-
     pub fn setup(
         &self,
         channel: ChannelId,
