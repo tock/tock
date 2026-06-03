@@ -105,13 +105,15 @@ impl<'a> Exti<'a> {
     pub fn handle_interrupt(&self, line: LineId) {
         let line_num = line as usize;
 
-        // Clear pending flags
-        self.clear_pending(line);
+        if line_num < 16 {
+            // Clear pending flags
+            self.clear_pending(line);
 
-        // Notify the client
-        self.clients[line_num].map(|client| {
-            client.fired();
-        });
+            // Notify the client
+            self.clients[line_num].map(|client| {
+                client.fired();
+            });
+        }
     }
 
     pub(crate) fn register_client(&self, line: LineId, client: &'a dyn kernel::hil::gpio::Client) {
@@ -123,16 +125,19 @@ impl<'a> Exti<'a> {
 
     pub(crate) fn select_port(&self, line: LineId, port: u32) {
         let line_num = line as usize;
-        let register_index = line_num / 4;
-        let field_index = line_num % 4;
 
-        let reg = &self.registers.exticr[register_index];
-        match field_index {
-            0 => reg.modify(EXTICR::EXTI0.val(port)),
-            1 => reg.modify(EXTICR::EXTI1.val(port)),
-            2 => reg.modify(EXTICR::EXTI2.val(port)),
-            3 => reg.modify(EXTICR::EXTI3.val(port)),
-            _ => unreachable!(),
+        if line_num < 16 {
+            let register_index = line_num / 4;
+            let field_index = line_num % 4;
+
+            let reg = &self.registers.exticr[register_index];
+            match field_index {
+                0 => reg.modify(EXTICR::EXTI0.val(port)),
+                1 => reg.modify(EXTICR::EXTI1.val(port)),
+                2 => reg.modify(EXTICR::EXTI2.val(port)),
+                3 => reg.modify(EXTICR::EXTI3.val(port)),
+                _ => unreachable!(),
+            }
         }
     }
 
