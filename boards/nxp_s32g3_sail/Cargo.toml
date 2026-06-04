@@ -1,0 +1,33 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "nxp_s32g3_sail"
+version.workspace = true
+authors.workspace = true
+build = "build.rs"
+edition.workspace = true
+
+[lib]
+name = "nxp_s32g3_sail_lib"
+[[bin]]
+name = "nxp_s32g3_sail"
+path = "src/main.rs"
+[features]
+default = []
+test-harness = ["nxp_s32g3/test-harness"]
+
+[dependencies]
+components = { path = "../components" }
+cortexm7 = { path = "../../arch/cortex-m7" }
+kernel = { path = "../../kernel", features = ["debug_load_processes"] }
+nxp_s32g3 = { path = "../../chips/nxp_s32g3" }
+capsules-system = { path = "../../capsules/system" }
+capsules-core = { path = "../../capsules/core" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true
