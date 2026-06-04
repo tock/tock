@@ -189,14 +189,13 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
-            "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
+            "Loading processes from flash2={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
             app_flash.as_ptr() as usize,
             app_flash.as_ptr() as usize + app_flash.len() - 1,
             app_memory.addr(),
             app_memory.addr() + app_memory.len() - 1
         );
     }
-
     let mut remaining_flash = app_flash;
     let mut remaining_memory = app_memory;
 
