@@ -9,7 +9,7 @@
 
 use crate::ErrorCode;
 
-/// Implement this trait and use `set_client()` in order to receive callbacks from an `AES128`
+/// Implement this trait and use `set_client()` in order to receive callbacks from an `AES`
 /// instance.
 pub trait Client<'a> {
     fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]);
