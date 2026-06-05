@@ -394,7 +394,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         let package_length = HEADER_LENGTH + value.len();
         let object_length = HEADER_LENGTH + value.len() + CHECK_SUM_LEN;
 
-        if object_length > 0xFFF {
+        if object_length >= 0xFFF {
             return Err(ErrorCode::ObjectTooLarge);
         }
 
