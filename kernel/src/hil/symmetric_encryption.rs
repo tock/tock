@@ -54,7 +54,7 @@ pub trait AES<'a, K: AESKeySize> {
     fn set_client(&'a self, client: &'a dyn Client<'a>);
 
     /// Set the encryption key.
-    /// Returns `INVAL` if length is not `AES128_KEY_SIZE`
+    /// Returns `INVAL` if length is not `AESKeySize::LENGTH`
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
 
     /// Set the IV (or initial counter).
@@ -182,7 +182,7 @@ pub trait AESGCM<'a, K: AESKeySize> {
     fn set_client(&'a self, client: &'a dyn GCMClient);
 
     /// Set the key to be used for GCM encryption
-    /// Returns `INVAL` if length is not `AES128_KEY_SIZE`
+    /// Returns `INVAL` if length is not `AESKeySize::LENGTH`
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
 
     /// Set the IV to be used for GCM encryption. The IV should be less
