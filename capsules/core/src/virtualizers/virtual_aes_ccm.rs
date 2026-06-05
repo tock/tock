@@ -667,7 +667,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
     }
 
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
-        if key.len() < AES128_KEY_SIZE {
+        if key.len() != AES128_KEY_SIZE {
             Err(ErrorCode::INVAL)
         } else {
             let mut new_key = [0u8; AES128_KEY_SIZE];
@@ -678,7 +678,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
     }
 
     fn set_nonce(&self, nonce: &[u8]) -> Result<(), ErrorCode> {
-        if nonce.len() < CCM_NONCE_LENGTH {
+        if nonce.len() != CCM_NONCE_LENGTH {
             Err(ErrorCode::INVAL)
         } else {
             let mut new_nonce = [0u8; CCM_NONCE_LENGTH];
