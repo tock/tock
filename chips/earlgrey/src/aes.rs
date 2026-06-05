@@ -109,8 +109,8 @@ register_bitfields![u32,
 enum Mode {
     IDLE,
     AES128CTR,
-    AESCBC,
-    AESECB,
+    AES128CBC,
+    AES128ECB,
 }
 
 // https://docs.opentitan.org/hw/top_earlgrey/doc/
@@ -462,7 +462,7 @@ impl kernel::hil::symmetric_encryption::AESCtr for Aes<'_> {
 impl kernel::hil::symmetric_encryption::AESECB for Aes<'_> {
     fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.wait_on_idle_ready()?;
-        self.mode.set(Mode::AESECB);
+        self.mode.set(Mode::AES128ECB);
 
         let mut ctrl = if encrypting {
             CTRL::OPERATION::Encrypting
@@ -485,7 +485,7 @@ impl kernel::hil::symmetric_encryption::AESECB for Aes<'_> {
 impl kernel::hil::symmetric_encryption::AESCBC for Aes<'_> {
     fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.wait_on_idle_ready()?;
-        self.mode.set(Mode::AESCBC);
+        self.mode.set(Mode::AES128CBC);
 
         let mut ctrl = if encrypting {
             CTRL::OPERATION::Encrypting
