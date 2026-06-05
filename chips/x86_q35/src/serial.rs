@@ -63,7 +63,7 @@ register_map! {
 pub struct Fake8250 {
     tx_buffer: Cell<Option<u8>>,
     lcr: Cell<LocalRegisterCopy<u8, LCR::Register>>,
-    ier: Cell<LocalRegisterCopy<u8, IER::Register>>,
+    ier: Cell<u8>,
 }
 
 impl Fake8250 {
@@ -71,7 +71,7 @@ impl Fake8250 {
         Self {
             tx_buffer: Cell::new(None),
             lcr: Cell::new(LocalRegisterCopy::new(0)),
-            ier: Cell::new(LocalRegisterCopy::new(0)),
+            ier: Cell::new(0),
         }
     }
 }
@@ -98,7 +98,7 @@ impl serial_registers::Interface for &Fake8250 {
                 "tried to write TX buffer with DLAB bit set"
             );
             assert!(
-                s.tx_buffer.replace(Some(byte.get())).is_none(),
+                s.tx_buffer.replace(Some(byte)).is_none(),
                 "TX buffer overflow"
             );
         })
