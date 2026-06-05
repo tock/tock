@@ -12,6 +12,7 @@ use kernel::component::Component;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::{create_capability, debug};
+use qemu_rv32_virt_chip::chip::{SyncEntry, LOCKSTEP_CHAN};
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -160,12 +161,19 @@ pub unsafe extern "C" fn main_secondary() -> ! {
 
     let (board_kernel, platform, chip) = qemu_rv32_virt_lib::start_secondary();
 
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        None::<&kernel::ipc::IPC<{ qemu_rv32_virt_lib::NUM_PROCS as u8 }>>,
-        &main_loop_capability,
-    );
+    loop {
+        let entry = LOCKSTEP_CHAN.b_spin_recv();
+        board_kernel.kernel_loop_operation(
+            &platform,
+            chip,
+            None::<&kernel::ipc::IPC<{ qemu_rv32_virt_lib::NUM_PROCS as u8 }>>,
+            true,
+            &main_loop_capability,
+        );
+        while !LOCKSTEP_CHAN.b_send(entry) {
+            core::hint::spin_loop();
+        }
+    }
 }
 
 /// Main function called after RAM initialized.
@@ -243,10 +251,22 @@ pub unsafe fn main() {
 
     debug!("Entering main loop.");
 
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        Some(&platform.base.ipc),
-        &main_loop_capability,
-    );
+    let mut seq: u32 = 0;
+    loop {
+        while !LOCKSTEP_CHAN.a_send(SyncEntry { seq }) {
+            core::hint::spin_loop();
+        }
+        board_kernel.kernel_loop_operation(
+            &platform,
+            chip,
+            Some(&platform.base.ipc),
+            false,
+            &main_loop_capability,
+        );
+        let _ = LOCKSTEP_CHAN.a_spin_recv();
+        if seq == 0 {
+            debug!("Lockstep: first sync complete");
+        }
+        seq = seq.wrapping_add(1);
+    }
 }

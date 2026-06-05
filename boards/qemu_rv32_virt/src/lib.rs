@@ -39,70 +39,8 @@ pub type ProcessHw = kernel::process::ProcessStandard<
 pub static HART1_PROCS_PTR: core::sync::atomic::AtomicUsize =
     core::sync::atomic::AtomicUsize::new(0);
 
-/// Entry type for the inter-hart lockstep synchronization channel.
-///
-/// Currently carries only a sequence number.  Will be extended with raw
-/// a0–a3 register values once the post-syscall hook is in place, allowing
-/// hart 1 to apply identical return values to the replica process.
-#[derive(Clone, Copy)]
-pub struct SyncEntry {
-    pub seq: u32,
-}
+use qemu_rv32_virt_chip::chip::{SyncEntry, CLINT_MSIP1, LOCKSTEP_CHAN};
 
-/// Inter-hart synchronization channel for software lockstep.
-///
-/// Hart 0 (side A) pushes one `SyncEntry` just before each `switch_to()`
-/// via its `ContextSwitchCallback`.  Hart 1 (side B) calls `b_spin_recv`
-/// before each of its own `switch_to()` calls, ensuring both harts activate
-/// their processes in the same order and at the same logical rate.
-///
-/// Declared as a plain `static` in hart 0's BSS.  Because the Tock BSS is
-/// far larger than the ±2 KB GP-relative window, the compiler generates
-/// PC-relative addressing for all accesses, so both harts compute the same
-/// absolute address from the shared `.text` — only one instance exists.
-pub static LOCKSTEP_CHAN: kernel::collections::spsc_channel::BiChannel<32, SyncEntry> =
-    kernel::collections::spsc_channel::BiChannel::new();
-
-/// `ContextSwitchCallback` for hart 0 (primary, side A).
-/// Pushes a sequence-number entry before each process activation.
-pub struct Hart0SyncCallback;
-
-impl kernel::platform::ContextSwitchCallback for Hart0SyncCallback {
-    fn context_switch_hook(&self, _process: &dyn kernel::process::Process) {
-        static SEQ: core::sync::atomic::AtomicU32 =
-            core::sync::atomic::AtomicU32::new(0);
-        let seq = SEQ.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-        // Send our step notification to hart 1.
-        while !LOCKSTEP_CHAN.a_send(SyncEntry { seq }) {
-            core::hint::spin_loop();
-        }
-        // Wait for hart 1's acknowledgment before proceeding.  This turns the
-        // one-directional ping into a rendezvous: neither hart advances to its
-        // next switch_to until both have finished handling the previous syscall.
-        let _ack = LOCKSTEP_CHAN.a_spin_recv();
-        static FIRST_SYNC: core::sync::atomic::AtomicBool =
-            core::sync::atomic::AtomicBool::new(false);
-        if !FIRST_SYNC.swap(true, core::sync::atomic::Ordering::Relaxed) {
-            debug!("Lockstep: first rendezvous complete (seq={})", seq);
-        }
-    }
-}
-
-/// `ContextSwitchCallback` for hart 1 (replica, side B).
-/// Waits for hart 0's signal before each process activation.
-pub struct Hart1SyncCallback;
-
-impl kernel::platform::ContextSwitchCallback for Hart1SyncCallback {
-    fn context_switch_hook(&self, _process: &dyn kernel::process::Process) {
-        // Block until hart 0 is ready, then acknowledge so hart 0 can proceed.
-        // The rendezvous guarantees both harts have finished handling the
-        // previous syscall before either advances to the next switch_to.
-        let _entry = LOCKSTEP_CHAN.b_spin_recv();
-        while !LOCKSTEP_CHAN.b_send(SyncEntry { seq: _entry.seq }) {
-            core::hint::spin_loop();
-        }
-    }
-}
 
 type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
@@ -223,7 +161,7 @@ impl
     type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
-    type ContextSwitchCallback = Hart0SyncCallback;
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -244,7 +182,7 @@ impl
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
-        &Hart0SyncCallback
+        &()
     }
 }
 
@@ -951,7 +889,15 @@ pub unsafe fn finish_lockstep_setup(
     );
 
     // Signal hart 1 to begin initialization. CLINT MSIP[1] = CLINT_BASE + 4.
-    core::ptr::write_volatile(0x0200_0004 as *mut u32, 1);
+    core::ptr::write_volatile(CLINT_MSIP1, 1);
+
+    // Init sync: ping hart 1 and wait for ack.  This confirms the
+    // channel is live before either hart enters kernel_loop.
+    while !LOCKSTEP_CHAN.a_send(SyncEntry { seq: 0xDEAD }) {
+        core::hint::spin_loop();
+    }
+    let _ack = LOCKSTEP_CHAN.a_spin_recv();
+    debug!("Lockstep: init sync complete");
 }
 
 // ---------------------------------------------------------------------------
@@ -986,7 +932,7 @@ impl
     type Scheduler = SchedulerInUse;
     type SchedulerTimer = SchedulerTimerHw;
     type WatchDog = ();
-    type ContextSwitchCallback = Hart1SyncCallback;
+    type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -1007,7 +953,7 @@ impl
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
-        &Hart1SyncCallback
+        &()
     }
 }
 
@@ -1165,6 +1111,12 @@ pub unsafe fn start_secondary() -> (
         scheduler,
         scheduler_timer,
     };
+
+    // Init sync: receive hart 0's ping and ack it.
+    let entry = LOCKSTEP_CHAN.b_spin_recv();
+    while !LOCKSTEP_CHAN.b_send(entry) {
+        core::hint::spin_loop();
+    }
 
     (board_kernel, platform, chip)
 }

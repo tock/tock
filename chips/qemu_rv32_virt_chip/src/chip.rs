@@ -7,6 +7,7 @@
 use core::fmt::Write;
 use core::ptr::addr_of;
 
+use kernel::collections::spsc_channel::BiChannel;
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
@@ -21,6 +22,33 @@ use sifive::plic::Plic;
 use crate::interrupts;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
+
+/// Entry type for the inter-hart lockstep synchronization channel.
+#[derive(Clone, Copy)]
+pub struct SyncEntry {
+    pub seq: u32,
+}
+
+/// Inter-hart synchronization channel for software lockstep.
+///
+/// Hart 0 (side A) sends one `SyncEntry` at the top of each kernel loop
+/// iteration, runs the iteration, then waits for hart 1's ack.  Hart 1
+/// (side B) receives the signal, runs its iteration, then acks.  This
+/// keeps both harts advancing one loop step at a time without any
+/// interrupt forwarding.
+///
+/// Lives in the chip crate so the board's `main.rs` loop and the
+/// one-time init sync in `lib.rs` can both reach it without a circular
+/// dependency.
+///
+/// Declared as a plain `static` in hart 0's BSS.  Because the Tock BSS is
+/// far larger than the ±2 KB GP-relative window, the compiler generates
+/// PC-relative addressing for all accesses, so both harts compute the same
+/// absolute address from the shared `.text` — only one instance exists.
+pub static LOCKSTEP_CHAN: BiChannel<32, SyncEntry> = BiChannel::new();
+
+/// CLINT MSIP[1] register address — used by hart 0 to interrupt hart 1.
+pub const CLINT_MSIP1: *mut u32 = 0x0200_0004 as *mut u32;
 
 type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
     5,
