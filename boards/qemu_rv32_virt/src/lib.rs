@@ -893,7 +893,7 @@ pub unsafe fn finish_lockstep_setup(
 
     // Init sync: ping hart 1 and wait for ack.  This confirms the
     // channel is live before either hart enters kernel_loop.
-    while !LOCKSTEP_CHAN.a_send(SyncEntry { seq: 0xDEAD }) {
+    while !LOCKSTEP_CHAN.a_send(SyncEntry { seq: 0xDEAD, fingerprint: 0 }) {
         core::hint::spin_loop();
     }
     let _ack = LOCKSTEP_CHAN.a_spin_recv();

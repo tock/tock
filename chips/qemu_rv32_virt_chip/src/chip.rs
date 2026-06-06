@@ -27,6 +27,9 @@ use virtio::transports::mmio::VirtIOMMIODevice;
 #[derive(Clone, Copy)]
 pub struct SyncEntry {
     pub seq: u32,
+    /// Fingerprint of the `KernelActivity` performed this iteration.
+    /// Hart 1 echoes back its own fingerprint; hart 0 compares against its own.
+    pub fingerprint: u32,
 }
 
 /// Inter-hart synchronization channel for software lockstep.

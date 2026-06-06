@@ -81,6 +81,32 @@ pub trait Scheduler<C: Chip> {
     }
 }
 
+/// The activity the kernel performed during a single `kernel_loop_operation` call.
+///
+/// Used by the lockstep synchronization mechanism to detect divergence between
+/// harts: both harts should report the same `KernelActivity` each iteration.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum KernelActivity {
+    /// The kernel serviced pending interrupts or deferred calls.
+    KernelWork,
+    /// The kernel ran the process at the given process array index.
+    RanProcess(usize),
+    /// The kernel had no work to do and put the chip to sleep (or skipped
+    /// sleep due to `no_sleep`).
+    Slept,
+}
+
+impl KernelActivity {
+    /// Encode this activity as a `u32` fingerprint for lockstep comparison.
+    pub fn fingerprint(self) -> u32 {
+        match self {
+            KernelActivity::KernelWork => 0x0100_0000,
+            KernelActivity::RanProcess(idx) => 0x0200_0000 | (idx as u32 & 0xFFFF),
+            KernelActivity::Slept => 0x0300_0000,
+        }
+    }
+}
+
 /// Enum representing the actions the scheduler can request in each call to
 /// `scheduler.next()`.
 #[derive(Copy, Clone)]

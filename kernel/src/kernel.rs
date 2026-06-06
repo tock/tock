@@ -28,7 +28,7 @@ use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessSlot;
 use crate::process::{self, ProcessId, Task};
-use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::scheduler::{KernelActivity, Scheduler, SchedulingDecision};
 use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
@@ -354,7 +354,7 @@ impl Kernel {
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
-    ) {
+    ) -> KernelActivity {
         let scheduler = resources.scheduler();
 
         resources.watchdog().tickle();
@@ -368,16 +368,19 @@ impl Kernel {
                     // interrupts and is how code in the chips/ and capsules
                     // crates is able to execute.
                     scheduler.execute_kernel_work(chip);
+                    KernelActivity::KernelWork
                 }
                 false => {
                     // No kernel work ready, so ask scheduler for a process.
                     match scheduler.next() {
                         SchedulingDecision::RunProcess((processid, timeslice_us)) => {
+                            let idx = processid.index;
                             self.process_map_or((), processid, |process| {
                                 let (reason, time_executed) =
                                     self.do_process(resources, chip, process, ipc, timeslice_us);
                                 scheduler.result(reason, time_executed);
                             });
+                            KernelActivity::RanProcess(idx)
                         }
                         SchedulingDecision::TrySleep => {
                             // For testing, it may be helpful to
@@ -403,6 +406,7 @@ impl Kernel {
                                     }
                                 });
                             }
+                            KernelActivity::Slept
                         }
                     }
                 }

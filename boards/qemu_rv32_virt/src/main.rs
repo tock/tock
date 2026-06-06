@@ -163,14 +163,17 @@ pub unsafe extern "C" fn main_secondary() -> ! {
 
     loop {
         let entry = LOCKSTEP_CHAN.b_spin_recv();
-        board_kernel.kernel_loop_operation(
+        let activity = board_kernel.kernel_loop_operation(
             &platform,
             chip,
             None::<&kernel::ipc::IPC<{ qemu_rv32_virt_lib::NUM_PROCS as u8 }>>,
             true,
             &main_loop_capability,
         );
-        while !LOCKSTEP_CHAN.b_send(entry) {
+        while !LOCKSTEP_CHAN.b_send(SyncEntry {
+            seq: entry.seq,
+            fingerprint: activity.fingerprint(),
+        }) {
             core::hint::spin_loop();
         }
     }
@@ -253,19 +256,23 @@ pub unsafe fn main() {
 
     let mut seq: u32 = 0;
     loop {
-        while !LOCKSTEP_CHAN.a_send(SyncEntry { seq }) {
+        while !LOCKSTEP_CHAN.a_send(SyncEntry { seq, fingerprint: 0 }) {
             core::hint::spin_loop();
         }
-        board_kernel.kernel_loop_operation(
+        let activity = board_kernel.kernel_loop_operation(
             &platform,
             chip,
             Some(&platform.base.ipc),
             false,
             &main_loop_capability,
         );
-        let _ = LOCKSTEP_CHAN.a_spin_recv();
-        if seq == 0 {
-            debug!("Lockstep: first sync complete");
+        let ack = LOCKSTEP_CHAN.a_spin_recv();
+        let fp0 = activity.fingerprint();
+        if ack.fingerprint != fp0 {
+            panic!(
+                "Lockstep divergence at seq {}: hart0={:#010x} hart1={:#010x}",
+                seq, fp0, ack.fingerprint
+            );
         }
         seq = seq.wrapping_add(1);
     }
