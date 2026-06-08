@@ -246,7 +246,6 @@ impl<'a> Counter<'a> for Stm<'a> {
     fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {
         // There is no overflow interrupt in the STM, so this method is a no-op.
         // implementing it would require to dedicate a compare channel to overflow tracking, which would preclude its use for alarms.
-        unimplemented!()
     }
     fn start(&self) -> Result<(), kernel::ErrorCode> {
         // Prescaler value 0xFF selects /256 (RM §41.3.2 field `15-8 CPS`).

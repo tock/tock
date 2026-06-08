@@ -7,12 +7,7 @@ fn main() {
     tock_build_scripts::default::include_tock_kernel_layout();
     tock_build_scripts::default::add_board_dir_to_linker_search_path();
 
-    let linker_script = if std::env::var_os("CARGO_FEATURE_GW_CORE0_INIT").is_some() {
-        "layout_gw_core0.ld"
-    } else {
-        "layout.ld"
-    };
-    tock_build_scripts::default::set_and_track_linker_script(linker_script);
+    tock_build_scripts::default::set_and_track_linker_script("layout.ld");
 
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR unset");
     let map = std::path::Path::new(&manifest_dir)

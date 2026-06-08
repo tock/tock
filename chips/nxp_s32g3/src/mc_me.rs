@@ -332,6 +332,7 @@ pub const RDC_BASE: StaticRef<RdcRegisters> =
 /// The function is a no-op when the partition is already enabled (PCE
 /// already reflected in PCS).
 pub fn partition_enable(part: usize) {
+    assert!(part < 4, "S32G3 only has 4 partitions");
     let mc_me = MC_ME_BASE;
     let mc_rgm = MC_RGM_BASE;
     let rdc = RDC_BASE;
@@ -406,6 +407,8 @@ fn mc_me_wait(part: usize, is_osse: bool) {
             }
         }
     }
+    // The hardware should have completed the transition well before this point;
+    // There is not much we can do if it hasn't, so panic with a message.
     panic!(
         "MC_ME wait timed out on partition {} is_osse: {}",
         part, is_osse

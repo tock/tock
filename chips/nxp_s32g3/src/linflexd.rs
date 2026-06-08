@@ -29,7 +29,7 @@ use kernel::{
 pub const LF0_BASE: StaticRef<LinFlexDRegisters> =
     unsafe { StaticRef::new(0x401C_8000 as *const LinFlexDRegisters) };
 
-/// LINFlexD_
+/// LINFlexD_1
 pub const LF1_BASE: StaticRef<LinFlexDRegisters> =
     unsafe { StaticRef::new(0x401C_C000 as *const LinFlexDRegisters) };
 
@@ -702,6 +702,13 @@ impl LinFlexD<'_> {
 // ---------------------------------------------------------------------------
 
 impl Configure for LinFlexD<'_> {
+    /// Configure the LINFlexD for UART operation with the specified parameters.
+    /// Note that we only support a subset of possible configurations for now:
+    /// - 8 data bits
+    /// - No parity
+    /// - 1 stop bit
+    /// - No hardware flow control
+    /// - Baud rates of 115200 and 921600 (at 48 MHz FIRC)
     fn configure(&self, params: kernel::hil::uart::Parameters) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
