@@ -362,9 +362,9 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
             self.tx_client.map(move |client| {
                 client.transmitted_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL));
             });
-            Ok(())
+            Err(kernel::ErrorCode::BUSY)
         } else {
-            Err(kernel::ErrorCode::OFF)
+            Ok(())
         }
     }
 
@@ -451,9 +451,9 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
                     uart::Error::Aborted,
                 );
             });
-            Ok(())
+            Err(kernel::ErrorCode::BUSY)
         } else {
-            Err(kernel::ErrorCode::OFF)
+            Ok(())
         }
     }
 
