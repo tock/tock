@@ -9,6 +9,7 @@
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
@@ -148,6 +149,7 @@ unsafe fn start() -> (
         stm32u545::usart::Usart<'static>,
         stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
     );
+    usart1.register();
 
     // Load Peripherals Bundle
     let periphs = static_init!(

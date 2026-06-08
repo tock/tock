@@ -5,6 +5,7 @@
 use crate::dma::{ChannelId, Dma, DmaPeripheral};
 use core::cell::Cell;
 use cortexm33::dma_fence::CortexMDmaFence;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{self};
 use kernel::platform::chip::PanicWriter;
 use kernel::utilities::cells::MapCell;
@@ -166,10 +167,13 @@ pub struct Usart<'a> {
     rx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     tx_len: Cell<usize>,
     rx_len: Cell<usize>,
+    deferred_call: DeferredCall,
+    tx_deferred: Cell<bool>,
+    rx_deferred: Cell<bool>,
 }
 
 impl<'a> Usart<'a> {
-    pub const fn new(base: StaticRef<UsartRegisters>) -> Self {
+    pub fn new(base: StaticRef<UsartRegisters>) -> Self {
         Self {
             registers: base,
             dma: OptionalCell::empty(),
@@ -181,6 +185,9 @@ impl<'a> Usart<'a> {
             rx_dma_buf: MapCell::empty(),
             tx_len: Cell::new(0),
             rx_len: Cell::new(0),
+            deferred_call: DeferredCall::new(),
+            tx_deferred: Cell::new(false),
+            rx_deferred: Cell::new(false),
         }
     }
 
@@ -225,6 +232,7 @@ impl<'a> Usart<'a> {
                 }
             });
             self.registers.cr3.modify(CR3::DMAT::CLEAR);
+            self.tx_deferred.set(false);
             if let Some(dma_slice) = self.tx_dma_buf.take() {
                 let fence = unsafe { CortexMDmaFence::new() };
                 let mut subslice = unsafe { dma_slice.take(fence) };
@@ -242,6 +250,7 @@ impl<'a> Usart<'a> {
                 }
             });
             self.registers.cr3.modify(CR3::DMAR::CLEAR);
+            self.rx_deferred.set(false);
             if let Some(dma_slice) = self.rx_dma_buf.take() {
                 let fence = unsafe { CortexMDmaFence::new() };
                 let mut subslice = unsafe { dma_slice.take(fence) };
@@ -277,6 +286,42 @@ impl<'a> Usart<'a> {
         // 4. Restore DMA state
         if dmat_enabled {
             regs.cr3.modify(CR3::DMAT::SET);
+        }
+    }
+}
+
+impl DeferredCallClient for Usart<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
+    fn handle_deferred_call(&self) {
+        if self.tx_deferred.get() {
+            self.tx_deferred.set(false);
+            self.tx_client.map(move |client| {
+                let dma_slice = self.tx_dma_buf.take().unwrap();
+                let fence = unsafe { CortexMDmaFence::new() };
+                let mut subslice = unsafe { dma_slice.take(fence) };
+                subslice.reset();
+                let buf = subslice.take();
+                client.transmitted_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL));
+            });
+        }
+        if self.rx_deferred.get() {
+            self.rx_deferred.set(false);
+            self.rx_client.map(move |client| {
+                let dma_slice = self.rx_dma_buf.take().unwrap();
+                let fence = unsafe { CortexMDmaFence::new() };
+                let mut subslice = unsafe { dma_slice.take(fence) };
+                subslice.reset();
+                let buf = subslice.take();
+                client.received_buffer(
+                    buf,
+                    0,
+                    Err(kernel::ErrorCode::CANCEL),
+                    uart::Error::Aborted,
+                );
+            });
         }
     }
 }
@@ -352,16 +397,9 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
 
     fn transmit_abort(&self) -> Result<(), kernel::ErrorCode> {
         self.registers.cr3.modify(CR3::DMAT::CLEAR);
-        if let Some(dma_slice) = self.tx_dma_buf.take() {
-            let fence = unsafe { CortexMDmaFence::new() };
-
-            let mut subslice = unsafe { dma_slice.take(fence) };
-            subslice.reset();
-            let buf = subslice.take();
-
-            self.tx_client.map(move |client| {
-                client.transmitted_buffer(buf, 0, Err(kernel::ErrorCode::CANCEL));
-            });
+        if self.tx_dma_buf.is_some() {
+            self.tx_deferred.set(true);
+            self.deferred_call.set();
             Err(kernel::ErrorCode::BUSY)
         } else {
             Ok(())
@@ -438,19 +476,9 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
 
     fn receive_abort(&self) -> Result<(), kernel::ErrorCode> {
         self.registers.cr3.modify(CR3::DMAR::CLEAR);
-        if let Some(dma_slice) = self.rx_dma_buf.take() {
-            let fence = unsafe { CortexMDmaFence::new() };
-            let mut subslice = unsafe { dma_slice.take(fence) };
-            subslice.reset();
-            let buf = subslice.take();
-            self.rx_client.map(move |client| {
-                client.received_buffer(
-                    buf,
-                    0,
-                    Err(kernel::ErrorCode::CANCEL),
-                    uart::Error::Aborted,
-                );
-            });
+        if self.rx_dma_buf.is_some() {
+            self.rx_deferred.set(true);
+            self.deferred_call.set();
             Err(kernel::ErrorCode::BUSY)
         } else {
             Ok(())
