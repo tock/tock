@@ -111,8 +111,9 @@ impl<CFG: EarlGreyConfig> time::Time for RvTimer<'_, CFG> {
 }
 
 impl<'a, CFG: EarlGreyConfig> time::Counter<'a> for RvTimer<'a, CFG> {
-    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) -> Result<(), ErrorCode> {
         self.overflow_client.set(client);
+        Ok(())
     }
 
     fn start(&self) -> Result<(), ErrorCode> {

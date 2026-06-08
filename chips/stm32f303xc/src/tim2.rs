@@ -376,7 +376,9 @@ impl Time for Tim2<'_> {
 }
 
 impl<'a> Counter<'a> for Tim2<'a> {
-    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {}
+    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
 
     // starts the timer
     fn start(&self) -> Result<(), ErrorCode> {

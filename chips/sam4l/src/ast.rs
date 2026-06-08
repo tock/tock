@@ -321,7 +321,9 @@ impl time::Time for Ast<'_> {
 }
 
 impl<'a> time::Counter<'a> for Ast<'a> {
-    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) {}
+    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
 
     fn start(&self) -> Result<(), ErrorCode> {
         self.enable();

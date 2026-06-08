@@ -206,8 +206,9 @@ impl<F: time::Frequency, const C3: bool> time::Time for TimG<'_, F, C3> {
 }
 
 impl<'a, F: time::Frequency, const C3: bool> Counter<'a> for TimG<'a, F, C3> {
-    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) -> Result<(), ErrorCode> {
         // We have no way to know when this happens
+        Err(ErrorCode::NOSUPPORT)
     }
 
     fn start(&self) -> Result<(), ErrorCode> {

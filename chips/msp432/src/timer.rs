@@ -345,7 +345,9 @@ impl Time for TimerA<'_> {
 }
 
 impl<'a> Counter<'a> for TimerA<'a> {
-    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {}
+    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
 
     fn start(&self) -> Result<(), ErrorCode> {
         self.setup_for_alarm();
