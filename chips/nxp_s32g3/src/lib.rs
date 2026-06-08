@@ -1,12 +1,13 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
 
 #![no_std]
 
 pub mod chip;
 pub mod linflexd;
 pub mod mc_me;
-pub mod nvic;
+pub mod mscm;
 pub mod siul2;
 pub mod stm;
 
@@ -43,8 +44,8 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); nvic::NUM_EXTERNAL_IRQS] =
-    [CortexM7::GENERIC_ISR; nvic::NUM_EXTERNAL_IRQS];
+pub static IRQS: [unsafe extern "C" fn(); mscm::NUM_EXTERNAL_IRQS] =
+    [CortexM7::GENERIC_ISR; mscm::NUM_EXTERNAL_IRQS];
 
 pub unsafe fn init() {
     cortexm7::nvic::disable_all();
@@ -52,10 +53,5 @@ pub unsafe fn init() {
     let vector_table: *const [unsafe extern "C" fn(); 16] = core::ptr::addr_of!(BASE_VECTORS);
     let vector_table: *const () = vector_table.cast();
     cortexm7::scb::set_vector_table_offset(vector_table);
-    // MSCM Shared Peripheral Routing: steering LINFlexD interrupts (82, 83, 84) to M7_0 (bit 1)
-    for irq in &[82, 83, 84] {
-        let addr = (0x4019_8880 + (irq * 2)) as *mut u16;
-        core::ptr::write_volatile(addr, core::ptr::read_volatile(addr) | 0x0002);
-    }
     cortexm7::nvic::enable_all();
 }

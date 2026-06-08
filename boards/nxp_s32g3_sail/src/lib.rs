@@ -1,5 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
 
 //! Board library for NXP S32G3 SAIL.
 
@@ -16,23 +17,24 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 use nxp_s32g3::linflexd::LinFlexD;
-use nxp_s32g3::nvic;
+use nxp_s32g3::mscm;
 use nxp_s32g3::stm::{Stm, STM_1_BASE};
 pub const NUM_PROCS: usize = 4;
 
 pub struct NxpS32g3SailPeripherals {
     pub uart: &'static LinFlexD<'static>,
     pub stm: &'static Stm<'static>,
+    pub mscm: &'static mscm::Mscm,
 }
 
 impl kernel::platform::chip::InterruptService for NxpS32g3SailPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            nvic::LINFLEXD_0 => {
+            mscm::LINFLEXD_0 => {
                 self.uart.handle_interrupt();
                 true
             }
-            nvic::STM_1 => {
+            mscm::STM_1 => {
                 self.stm.handle_interrupt();
                 true
             }
@@ -170,17 +172,19 @@ pub unsafe fn start() -> (
     nxp_s32g3::mc_me::partition_enable(3);
     let uart = static_init!(LinFlexD, LinFlexD::new_lf0());
     let stm = static_init!(Stm<'static>, Stm::new(STM_1_BASE));
+    let mscm = static_init!(mscm::Mscm, mscm::Mscm::new());
+
+    // MSCM Shared Peripheral Routing: steering interrupts to M7_0
+    for &irq in &[mscm::LINFLEXD_0, mscm::STM_1] {
+        mscm.enable_interrupt(irq, mscm::S32G3Core::M7_0);
+        cortexm7::nvic::Nvic::new(irq).enable();
+    }
 
     let peripherals = static_init!(
         NxpS32g3SailPeripherals,
-        NxpS32g3SailPeripherals { uart, stm }
+        NxpS32g3SailPeripherals { uart, stm, mscm }
     );
     let chip = static_init!(ChipHw, ChipHw::new(peripherals));
-
-    // Enable LINFlexD0 NVIC interrupt
-    cortexm7::nvic::Nvic::new(82).enable();
-    // Enable STM1 NVIC interrupt
-    cortexm7::nvic::Nvic::new(25).enable();
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart, 115200)

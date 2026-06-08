@@ -1,5 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
 
 //! Mode Entry (MC_ME), Reset Generation Module (MC_RGM), and Reset Domain
 //! Controller (RDC) driver for NXP S32G3.
@@ -386,13 +387,27 @@ fn mc_me_trigger() {
 /// reached. `is_osse` selects between waiting for the partition clock
 /// transition (`false`, observes PCS) and the output-safe-state transition
 /// (`true`, observes OSSS). See RM §33.4.9 and §33.4.34.
+/// This function must only be called from init code.
 fn mc_me_wait(part: usize, is_osse: bool) {
+    const MAX_WAIT_CYCLES: usize = 1_000_000;
     let mc_me = MC_ME_BASE;
-    if is_osse {
-        let want = mc_me.partitions[part].pconf.is_set(PCONF::OSSE);
-        while mc_me.partitions[part].stat.is_set(STAT::OSSS) != want {}
-    } else {
-        let want = mc_me.partitions[part].pconf.is_set(PCONF::PCE);
-        while mc_me.partitions[part].stat.is_set(STAT::PCS) != want {}
+
+    // This is okay to poll here, as we are in board initialization code.
+    for _ in 0..MAX_WAIT_CYCLES {
+        if is_osse {
+            let want = mc_me.partitions[part].pconf.is_set(PCONF::OSSE);
+            if mc_me.partitions[part].stat.is_set(STAT::OSSS) == want {
+                return;
+            }
+        } else {
+            let want = mc_me.partitions[part].pconf.is_set(PCONF::PCE);
+            if mc_me.partitions[part].stat.is_set(STAT::PCS) == want {
+                return;
+            }
+        }
     }
+    panic!(
+        "MC_ME wait timed out on partition {} is_osse: {}",
+        part, is_osse
+    );
 }

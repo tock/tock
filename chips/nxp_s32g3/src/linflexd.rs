@@ -1,5 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
 
 //! LINFlexD UART driver for NXP S32G3.
 //!
@@ -159,7 +160,12 @@ register_bitfields![u32,
         /// Release Message Buffer: release message buffer and indicates data ready for software
         RMB   OFFSET(9)  NUMBITS(1) [],
         /// LIN State: indicates current state of LINFlexD internal state machine
-        LINS  OFFSET(12) NUMBITS(4) [],
+        LINS  OFFSET(12) NUMBITS(4) [
+            // LINFlexD state machine states — LINSR[LINS] field values (RM §49.5.4).
+            SLEEP = 0b0000,
+            INIT  = 0b0001,
+            IDLE  = 0b0010
+        ],
         /// Receive Data Byte Count: contains the number of bytes currently in RX buffer
         RDC   OFFSET(16) NUMBITS(3) []
     ],
@@ -401,14 +407,7 @@ register_bitfields![u32,
         DRE0 OFFSET(0) NUMBITS(1) []
     ]
 ];
-/// LINFlexD state machine states — LINSR[LINS] field values (RM §49.5.4).
-mod lins {
-    #[allow(dead_code)]
-    pub const SLEEP: u32 = 0b0000; // not currently used but documented for completeness
-    pub const INIT: u32 = 0b0001;
-    #[allow(dead_code)]
-    pub const IDLE: u32 = 0b0010;
-}
+
 const HW_POLL_MAX: u32 = 200_000;
 
 // ---------------------------------------------------------------------------
@@ -469,11 +468,13 @@ impl LinFlexD<'_> {
     // ---------------------------------------------------------------------------
 
     /// Busy-wait until LINSR[LINS] == INIT mode.
+    /// RM does not talk about how long it takes to enter init mode after setting LINCR1[INIT]
+    /// NXP driver does the poll. We assume it is needed to ensure state machine is correctly reset before we proceed with configuration.
     #[inline]
     fn wait_for_init_mode(&self) -> bool {
         let regs = self.registers;
         for _ in 0..HW_POLL_MAX {
-            if regs.linsr.read(LINSR::LINS) == lins::INIT {
+            if regs.linsr.read(LINSR::LINS) == LINSR::LINS::Value::INIT as u32 {
                 return true;
             }
         }
@@ -481,6 +482,7 @@ impl LinFlexD<'_> {
     }
 
     /// Wait for UARTSR[DTFTFF] (TX complete / TX FIFO not full) to be set.
+    /// This is only used for the sync transmition, in panic situations or for early bring up debug
     #[inline]
     fn wait_for_tx_done(&self) -> bool {
         let regs = self.registers;
@@ -493,13 +495,12 @@ impl LinFlexD<'_> {
     }
 
     fn disable_tx_interrupt(&self) {
-        let regs = self.registers;
-        regs.linier.modify(LINIER::DTIE::CLEAR);
+        self.registers.linier.modify(LINIER::DTIE::CLEAR);
     }
 
     fn disable_rx_interrupt(&self) {
-        let regs = self.registers;
-        regs.linier
+        self.registers
+            .linier
             .modify(LINIER::DRIE::CLEAR + LINIER::TOIE::CLEAR + LINIER::BOIE::CLEAR);
     }
 
@@ -719,7 +720,7 @@ impl Configure for LinFlexD<'_> {
         regs.lincr1
             .write(LINCR1::SLEEP::CLEAR + LINCR1::INIT::SET + LINCR1::MME::CLEAR);
 
-        // Poll for hardware acknowledgment.
+        // Poll for hardware acknowledgment. (see `wait_for_init_mode` for explanation on why this is busy polling).
         if !self.wait_for_init_mode() {
             return Err(ErrorCode::BUSY);
         }
@@ -854,11 +855,27 @@ impl<'a> Transmit<'a> for LinFlexD<'a> {
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        // Could set LINCR2[ABRQ] here but the buffer is lost either way.
-        self.tx_buffer.take();
+        if !self.sending.get() {
+            return Ok(());
+        }
+        self.sending.set(false);
         self.tx_len.set(0);
         self.tx_index.set(0);
         self.disable_tx_interrupt();
+        // finally notify the client about the abort, if we were in the middle of transmitting a buffer, notify with transmitted_buffer callback, otherwise with transmitted_word callback
+        self.tx_client.map(|client| {
+            if self
+                .tx_buffer
+                .take()
+                .map(|buf| {
+                    client.transmitted_buffer(buf, self.tx_len.get(), Err(ErrorCode::CANCEL));
+                })
+                .is_none()
+            {
+                // if no buffer was taken, means we were sending a single word, so notify with transmitted_word callback
+                client.transmitted_word(Err(ErrorCode::CANCEL));
+            }
+        });
         Ok(())
     }
 }
@@ -906,12 +923,21 @@ impl<'a> Receive<'a> for LinFlexD<'a> {
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
-        // TODO: implement for 9-bit / 16-bit word modes
-        Err(ErrorCode::FAIL)
+        // TODO: implement word receive state machine
+        Err(ErrorCode::NOSUPPORT)
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        self.rx_buffer.take();
+        self.rx_client.map(|client| {
+            self.rx_buffer.take().map(|buf| {
+                client.received_buffer(
+                    buf,
+                    self.rx_index.get(),
+                    Err(ErrorCode::CANCEL),
+                    uart::Error::None,
+                );
+            });
+        });
         self.rx_len.set(0);
         self.rx_index.set(0);
         self.disable_rx_interrupt();

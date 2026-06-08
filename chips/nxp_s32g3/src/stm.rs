@@ -1,5 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
 
 //! System Timer Module (STM) for NXP S32G3.
 //!
@@ -188,8 +189,7 @@ register_bitfields![u32,
 ];
 
 /// Module clock frequency: 520,833 Hz (per S32G3 clocking for the M7 cores).
-/// RM §24 (clocking summary); matches the value programmed by the M7 bare
-/// demo bootloader.
+/// RM §24 (clocking summary);
 pub struct Freq520KHz;
 impl kernel::hil::time::Frequency for Freq520KHz {
     fn frequency() -> u32 {
@@ -234,6 +234,8 @@ impl Stm<'_> {
     }
 }
 impl Time for Stm<'_> {
+    // The STM timer frequency is XBAR_DIV_4/256 520,833 Hz for s32g3 reference platform §24.7.3.
+    // This can be different according to the clock/PLL configuration of the platform, but 520,833 Hz is the only one currently supported by this driver.
     type Frequency = Freq520KHz;
     type Ticks = Ticks32;
     fn now(&self) -> Self::Ticks {
@@ -241,7 +243,11 @@ impl Time for Stm<'_> {
     }
 }
 impl<'a> Counter<'a> for Stm<'a> {
-    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {}
+    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {
+        // There is no overflow interrupt in the STM, so this method is a no-op.
+        // implementing it would require to dedicate a compare channel to overflow tracking, which would preclude its use for alarms.
+        unimplemented!()
+    }
     fn start(&self) -> Result<(), kernel::ErrorCode> {
         // Prescaler value 0xFF selects /256 (RM §41.3.2 field `15-8 CPS`).
         self.registers.cr.modify(CR::CPS.val(255) + CR::TEN::SET);

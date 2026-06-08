@@ -1,5 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
 
 use core::fmt::Write;
 use cortexm7::{CortexM7, CortexMVariant};
@@ -46,8 +47,7 @@ impl<I: InterruptService + 'static> Chip for S32g3<I> {
                 let handled = self.interrupt_service.service_interrupt(interrupt);
                 let nvic = cortexm7::nvic::Nvic::new(interrupt);
                 if !handled {
-                    nvic.disable();
-                    nvic.clear_pending();
+                    panic!("Unhandled interrupt {}", interrupt);
                 } else {
                     nvic.clear_pending();
                     nvic.enable();

@@ -6,7 +6,7 @@ user-invokable: true
 
 # Writing Tock Device Drivers
 
-This skill guides the agent in writing robust, standard-compliant, and compile-time safe Tock device drivers for the NXP S32G3 SoC. It is based on learnings from implementing the `LINFlexD` UART driver and the `STM` (System Timer Module) driver.
+This skill guides the agent in writing robust, standard-compliant, and compile-time safe Tock device drivers.
 
 ---
 
@@ -90,7 +90,7 @@ register_bitfields![u32,
 
 Tock decouples hardware-specific logic from generic OS capsules using Hardware Interface Layer (**HIL**) traits.
 
-### Key HIL Locations in `code/tock/kernel/src/hil/`
+### Key HIL Locations in `kernel/src/hil/`
 * **Console / Serial**: `kernel::hil::uart::Configure`, `kernel::hil::uart::Transmit`, `kernel::hil::uart::Receive`
 * **Timers / Alarms**: `kernel::hil::time::Time`, `kernel::hil::time::Counter`, `kernel::hil::time::Alarm`
 * **GPIO**: `kernel::hil::gpio::Pin`, `kernel::hil::gpio::InterruptPin`
@@ -203,7 +203,16 @@ self.registers.cr.set(val | (1 << 0));
 
 ---
 
+## 5. Miscellaneous Best Practices
+
+- **Silent Failures**: Avoid silent failures. If an operation fails (e.g. invalid configuration), return an appropriate `ErrorCode` instead of silently ignoring it.
+  panic! instead of swallowing unhandled interrupts.
+
+- **Empty functions**: Do not leave empty function bodies. If a trait method is not applicable, return `Err(ErrorCode::NOSUPPORT)` or unimplemented!(), at least in debug mode.
+
+---
+
 ## Reference Implementations in Codebase
 Refer to these production-tested files when implementing new S32G3 drivers:
-- **`code/tock/chips/nxp_s32g3/src/linflexd.rs`**: Full implementation of LINFlexD UART console driver.
-- **`code/tock/chips/nxp_s32g3/src/stm.rs`**: System Timer Module driver implementing `Time`, `Counter`, and `Alarm` traits.
+- **`chips/nxp_s32g3/src/linflexd.rs`**: Full implementation of LINFlexD UART console driver.
+- **`chips/nxp_s32g3/src/stm.rs`**: System Timer Module driver implementing `Time`, `Counter`, and `Alarm` traits.
