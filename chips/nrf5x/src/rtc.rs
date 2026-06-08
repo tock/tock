@@ -127,12 +127,6 @@ impl Time for Rtc<'_> {
 }
 
 impl<'a> time::Counter<'a> for Rtc<'a> {
-    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) -> Result<(), ErrorCode> {
-        self.overflow_client.set(client);
-        self.registers.intenset.write(Inte::OVRFLW::SET);
-        Ok(())
-    }
-
     fn start(&self) -> Result<(), ErrorCode> {
         self.registers.prescaler.write(Prescaler::PRESCALER.val(0));
         self.registers.tasks_start.write(Task::ENABLE::SET);
@@ -154,6 +148,13 @@ impl<'a> time::Counter<'a> for Rtc<'a> {
 
     fn is_running(&self) -> bool {
         self.enabled.get()
+    }
+}
+
+impl<'a> time::CounterOverflow<'a> for Rtc<'a> {
+    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
+        self.overflow_client.set(client);
+        self.registers.intenset.write(Inte::OVRFLW::SET);
     }
 }
 

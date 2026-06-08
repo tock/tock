@@ -234,16 +234,6 @@ pub trait OverflowClient {
 
 /// Represents a free-running hardware counter that can be started and stopped.
 pub trait Counter<'a>: Time {
-    /// Specify the callback for when the counter overflows its maximum
-    /// value (defined by `Ticks`). If there was a previously registered
-    /// callback this call replaces it.
-    ///
-    /// Valid `Result<(), ErrorCode>` values are:
-    ///   - `Ok(())`: The client was successfully registered.
-    ///   - `Err(ErrorCode::NOSUPPORT)`: The underlying hardware does not support
-    ///     generating interrupts or notifications on counter overflow.
-    fn set_overflow_client(&self, client: &'a dyn OverflowClient) -> Result<(), ErrorCode>;
-
     /// Starts the free-running hardware counter. Valid `Result<(), ErrorCode>` values are:
     ///   - `Ok(())`: the counter is now running
     ///   - `Err(ErrorCode::OFF)`: underlying clocks or other hardware resources
@@ -272,6 +262,11 @@ pub trait Counter<'a>: Time {
 
     /// Returns whether the counter is currently running.
     fn is_running(&self) -> bool;
+}
+
+/// Extension trait for counters that support hardware overflow notifications.
+pub trait CounterOverflow<'a>: Counter<'a> {
+    fn set_overflow_client(&self, client: &'a dyn OverflowClient);
 }
 
 /// Callback handler for when an Alarm fires (a `Counter` reaches a specific

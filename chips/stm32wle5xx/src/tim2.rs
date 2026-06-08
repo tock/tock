@@ -3,9 +3,7 @@
 // Copyright Tock Contributors 2025.
 
 use cortexm4::support::with_interrupts_disabled;
-use kernel::hil::time::{
-    Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
-};
+use kernel::hil::time::{Alarm, AlarmClient, Counter, Freq16KHz, Ticks, Ticks32, Time};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -378,10 +376,6 @@ impl Time for Tim2<'_> {
 }
 
 impl<'a> Counter<'a> for Tim2<'a> {
-    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
-    }
-
     // starts the timer
     fn start(&self) -> Result<(), ErrorCode> {
         self.start_counter();

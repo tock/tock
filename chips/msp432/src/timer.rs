@@ -5,9 +5,7 @@
 //! Timer (TIMER_Ax)
 
 use core::cell::Cell;
-use kernel::hil::time::{
-    Alarm, AlarmClient, Counter, Frequency, OverflowClient, Ticks, Ticks16, Time,
-};
+use kernel::hil::time::{Alarm, AlarmClient, Counter, Frequency, Ticks, Ticks16, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
@@ -345,10 +343,6 @@ impl Time for TimerA<'_> {
 }
 
 impl<'a> Counter<'a> for TimerA<'a> {
-    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
-    }
-
     fn start(&self) -> Result<(), ErrorCode> {
         self.setup_for_alarm();
         Ok(())

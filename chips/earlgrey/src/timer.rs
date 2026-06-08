@@ -109,11 +109,6 @@ impl<CFG: EarlGreyConfig> time::Time for RvTimer<'_, CFG> {
 }
 
 impl<'a, CFG: EarlGreyConfig> time::Counter<'a> for RvTimer<'a, CFG> {
-    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) -> Result<(), ErrorCode> {
-        // Hardware counter overflow interrupts are not currently implemented for Earlgrey.
-        Err(ErrorCode::NOSUPPORT)
-    }
-
     fn start(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
