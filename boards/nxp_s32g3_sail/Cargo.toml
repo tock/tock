@@ -17,6 +17,7 @@ path = "src/main.rs"
 [features]
 default = []
 fault-test = []
+test-harness = ["fault-test"]
 
 [dependencies]
 components = { path = "../components" }

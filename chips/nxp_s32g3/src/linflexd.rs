@@ -13,6 +13,7 @@
 use core::cell::Cell;
 
 use kernel::{
+    deferred_call::{DeferredCall, DeferredCallClient},
     hil::uart::{self, Configure, Parity, Receive, StopBits, Transmit, Width},
     utilities::{
         cells::{OptionalCell, TakeCell},
@@ -411,13 +412,31 @@ register_bitfields![u32,
 const HW_POLL_MAX: u32 = 200_000;
 
 // ---------------------------------------------------------------------------
+// Deferred-call state for TX/RX abort notifications
+// ---------------------------------------------------------------------------
+
+#[derive(Copy, Clone, PartialEq)]
+enum TxState {
+    Idle,
+    Transmitting,
+    Aborted(Result<(), ErrorCode>),
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum RxState {
+    Idle,
+    Receiving,
+    Aborted(Result<(), ErrorCode>, uart::Error),
+}
+
+// ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
 /// LINFlexD UART instance bound to an MMIO base address.
 ///
-/// Construct with [`LinFlexD::new`] (a `const fn`) so instances can live in
-/// `static` storage without a runtime initializer.
+/// Construct with [`LinFlexD::new`] and place the instance in
+/// `static` storage via `static_init!`.
 pub struct LinFlexD<'a> {
     registers: StaticRef<LinFlexDRegisters>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
@@ -428,7 +447,9 @@ pub struct LinFlexD<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
     rx_len: Cell<usize>,
     rx_index: Cell<usize>,
-    sending: Cell<bool>,
+    tx_state: Cell<TxState>,
+    rx_state: Cell<RxState>,
+    deferred_call: DeferredCall,
 }
 
 impl LinFlexD<'_> {
@@ -438,7 +459,7 @@ impl LinFlexD<'_> {
 
     /// Create a new `LinFlexD` bound to `base`.  The instance is inert until
     /// [`configure`](Hil::uart::Configure::configure) succeeds.
-    pub const fn new(base: StaticRef<LinFlexDRegisters>) -> Self {
+    pub fn new(base: StaticRef<LinFlexDRegisters>) -> Self {
         Self {
             registers: base,
             tx_client: OptionalCell::empty(),
@@ -449,7 +470,9 @@ impl LinFlexD<'_> {
             rx_buffer: TakeCell::empty(),
             rx_len: Cell::new(0),
             rx_index: Cell::new(0),
-            sending: Cell::new(false),
+            tx_state: Cell::new(TxState::Idle),
+            rx_state: Cell::new(RxState::Idle),
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -521,6 +544,10 @@ impl LinFlexD<'_> {
         self.tx_index.set(idx + 1);
     }
 
+    fn is_transmitting(&self) -> bool {
+        self.tx_state.get() == TxState::Transmitting
+    }
+
     /// Called by the platform interrupt handler.
     ///
     /// Clears relevant status flags and drives TX/RX progress.
@@ -536,7 +563,7 @@ impl LinFlexD<'_> {
             self.disable_tx_interrupt();
 
             if self.tx_index.get() >= self.tx_len.get() {
-                self.sending.set(false);
+                self.tx_state.set(TxState::Idle);
                 // All bytes transmitted; notify the client.
                 self.tx_client.map(|client| {
                     if self
@@ -566,6 +593,7 @@ impl LinFlexD<'_> {
             // readable from BDRL.
             if linier.is_set(LINIER::DRIE) {
                 self.disable_rx_interrupt();
+                self.rx_state.set(RxState::Idle);
 
                 // Copy received bytes into the client buffer.
                 // In buffer mode with RDFL=0 (1 byte expected) we read only DATA0.
@@ -631,6 +659,7 @@ impl LinFlexD<'_> {
             let rx_len = self.rx_index.get();
             if rx_len > 0 {
                 self.disable_rx_interrupt();
+                self.rx_state.set(RxState::Idle);
                 self.rx_client.map(|client| {
                     self.rx_buffer.take().map(|buf| {
                         client.received_buffer(buf, rx_len, Ok(()), uart::Error::None);
@@ -642,6 +671,7 @@ impl LinFlexD<'_> {
         // ---- Buffer overrun --------------------------------------------------
         if uartsr.is_set(UARTSR::BOF) && linier.is_set(LINIER::BOIE) {
             regs.uartsr.write(UARTSR::BOF::SET);
+            self.rx_state.set(RxState::Idle);
             self.rx_client.map(|client| {
                 self.rx_buffer.take().map(|buf| {
                     client.received_buffer(
@@ -693,6 +723,43 @@ impl LinFlexD<'_> {
     pub fn transmit_sync(&self, bytes: &[u8]) {
         for b in bytes.iter() {
             self.putc(*b);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DeferredCallClient — deferred TX/RX abort notifications
+// ---------------------------------------------------------------------------
+
+impl DeferredCallClient for LinFlexD<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
+    fn handle_deferred_call(&self) {
+        if let TxState::Aborted(rcode) = self.tx_state.get() {
+            self.tx_state.set(TxState::Idle);
+            self.tx_client.map(|client| {
+                if self
+                    .tx_buffer
+                    .take()
+                    .map(|buf| {
+                        client.transmitted_buffer(buf, self.tx_len.get(), rcode);
+                    })
+                    .is_none()
+                {
+                    client.transmitted_word(rcode);
+                }
+            });
+        }
+
+        if let RxState::Aborted(rcode, error) = self.rx_state.get() {
+            self.rx_state.set(RxState::Idle);
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|buf| {
+                    client.received_buffer(buf, self.rx_index.get(), rcode, error);
+                });
+            });
         }
     }
 }
@@ -826,13 +893,13 @@ impl<'a> Transmit<'a> for LinFlexD<'a> {
         if tx_len == 0 || tx_len > tx_data.len() {
             return Err((ErrorCode::SIZE, tx_data));
         }
-        if self.sending.get() {
+        if self.is_transmitting() {
             return Err((ErrorCode::BUSY, tx_data));
         }
         self.tx_buffer.replace(tx_data);
         self.tx_len.set(tx_len);
         self.tx_index.set(0);
-        self.sending.set(true);
+        self.tx_state.set(TxState::Transmitting);
 
         // Enable transmitter and kick off the first batch.
         let regs = self.registers;
@@ -846,7 +913,7 @@ impl<'a> Transmit<'a> for LinFlexD<'a> {
     }
 
     fn transmit_word(&self, word: u32) -> Result<(), ErrorCode> {
-        if self.sending.get() {
+        if self.is_transmitting() {
             return Err(ErrorCode::BUSY);
         }
         // ensure we send only one word
@@ -857,33 +924,18 @@ impl<'a> Transmit<'a> for LinFlexD<'a> {
         // Arm the TX completion interrupt.
         regs.linier.modify(LINIER::DTIE::SET);
         regs.bdrl.write(BDRL::DATA0.val(word));
-        self.sending.set(true);
+        self.tx_state.set(TxState::Transmitting);
         Ok(())
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        if !self.sending.get() {
+        if self.tx_state.get() != TxState::Transmitting {
             return Ok(());
         }
-        self.sending.set(false);
-        self.tx_len.set(0);
-        self.tx_index.set(0);
         self.disable_tx_interrupt();
-        // finally notify the client about the abort, if we were in the middle of transmitting a buffer, notify with transmitted_buffer callback, otherwise with transmitted_word callback
-        self.tx_client.map(|client| {
-            if self
-                .tx_buffer
-                .take()
-                .map(|buf| {
-                    client.transmitted_buffer(buf, self.tx_len.get(), Err(ErrorCode::CANCEL));
-                })
-                .is_none()
-            {
-                // if no buffer was taken, means we were sending a single word, so notify with transmitted_word callback
-                client.transmitted_word(Err(ErrorCode::CANCEL));
-            }
-        });
-        Ok(())
+        self.tx_state.set(TxState::Aborted(Err(ErrorCode::CANCEL)));
+        self.deferred_call.set();
+        Err(ErrorCode::BUSY)
     }
 }
 
@@ -904,10 +956,14 @@ impl<'a> Receive<'a> for LinFlexD<'a> {
         if rx_len == 0 || rx_len > rx_buffer.len() {
             return Err((ErrorCode::SIZE, rx_buffer));
         }
+        if self.rx_state.get() == RxState::Receiving {
+            return Err((ErrorCode::BUSY, rx_buffer));
+        }
 
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
         self.rx_index.set(0);
+        self.rx_state.set(RxState::Receiving);
 
         // Configure RDFL to match requested byte count (max 4 in buffer mode).
         // TODO: for >4 bytes chain multiple receive_buffer calls or use FIFO mode.
@@ -935,19 +991,15 @@ impl<'a> Receive<'a> for LinFlexD<'a> {
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        self.rx_client.map(|client| {
-            self.rx_buffer.take().map(|buf| {
-                client.received_buffer(
-                    buf,
-                    self.rx_index.get(),
-                    Err(ErrorCode::CANCEL),
-                    uart::Error::None,
-                );
-            });
-        });
-        self.rx_len.set(0);
-        self.rx_index.set(0);
+        if self.rx_state.get() != RxState::Receiving {
+            return Ok(());
+        }
         self.disable_rx_interrupt();
-        Ok(())
+        self.rx_state.set(RxState::Aborted(
+            Err(ErrorCode::CANCEL),
+            uart::Error::Aborted,
+        ));
+        self.deferred_call.set();
+        Err(ErrorCode::BUSY)
     }
 }

@@ -8,10 +8,12 @@
 #![no_main]
 
 pub mod io;
+mod tests;
 
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -21,8 +23,10 @@ use nxp_s32g3::mscm;
 use nxp_s32g3::stm::{Stm, STM_1_BASE};
 pub const NUM_PROCS: usize = 4;
 
+#[derive(Copy, Clone)]
 pub struct NxpS32g3SailPeripherals {
-    pub uart: &'static LinFlexD<'static>,
+    pub lf0: &'static LinFlexD<'static>,
+    pub lf1: &'static LinFlexD<'static>,
     pub stm: &'static Stm<'static>,
     pub mscm: &'static mscm::Mscm,
 }
@@ -31,7 +35,11 @@ impl kernel::platform::chip::InterruptService for NxpS32g3SailPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             mscm::LINFLEXD_0 => {
-                self.uart.handle_interrupt();
+                self.lf0.handle_interrupt();
+                true
+            }
+            mscm::LINFLEXD_1 => {
+                self.lf1.handle_interrupt();
                 true
             }
             mscm::STM_1 => {
@@ -170,24 +178,35 @@ pub unsafe fn start() -> (
     // TODO: remove magic numbers
     nxp_s32g3::mc_me::partition_enable(2);
     nxp_s32g3::mc_me::partition_enable(3);
-    let uart = static_init!(LinFlexD, LinFlexD::new_lf0());
+    let lf0 = static_init!(LinFlexD, LinFlexD::new_lf0());
+    lf0.register();
+
+    // LinFlexD_1 — dedicated test UART at max speed (921600 baud)
+    let lf1 = static_init!(LinFlexD, LinFlexD::new_lf1());
+    lf1.register();
+
     let stm = static_init!(Stm<'static>, Stm::new(STM_1_BASE));
     let mscm = static_init!(mscm::Mscm, mscm::Mscm::new());
 
     // MSCM Shared Peripheral Routing: steering interrupts to M7_0
-    for &irq in &[mscm::LINFLEXD_0, mscm::STM_1] {
+    for &irq in &[mscm::LINFLEXD_0, mscm::LINFLEXD_1, mscm::STM_1] {
         mscm.enable_interrupt(irq, mscm::S32G3Core::M7_0);
         cortexm7::nvic::Nvic::new(irq).enable();
     }
 
     let peripherals = static_init!(
         NxpS32g3SailPeripherals,
-        NxpS32g3SailPeripherals { uart, stm, mscm }
+        NxpS32g3SailPeripherals {
+            lf0,
+            lf1,
+            stm,
+            mscm
+        }
     );
     let chip = static_init!(ChipHw, ChipHw::new(peripherals));
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(lf0, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
@@ -240,6 +259,9 @@ pub unsafe fn start() -> (
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
+    #[cfg(feature = "test-harness")]
+    run_tests(*peripherals);
+
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let ipc = kernel::ipc::IPC::new(
         board_kernel,
@@ -256,4 +278,29 @@ pub unsafe fn start() -> (
         systick: cortexm7::systick::SysTick::new_with_calibration(100_000_000),
     };
     (board_kernel, platform, chip)
+}
+
+/// # Safety: this function contains static initialization and must only be called once from `start()`.
+///
+#[cfg(feature = "test-harness")]
+unsafe fn run_tests(peripherals: NxpS32g3SailPeripherals) {
+    use kernel::hil::uart::Configure;
+
+    // ---- Hardware tests -------------------------------------------------------
+    // Tests run on LF1 (921600 baud) so the console on LF0 remains available.
+    // Connect a second serial adapter to the LF1 TX/RX pins.
+    // Phase 1 (RX) requires pressing 4 keys on LF1.
+
+    peripherals
+        .lf1
+        .configure(kernel::hil::uart::Parameters {
+            baud_rate: 921600,
+            width: kernel::hil::uart::Width::Eight,
+            parity: kernel::hil::uart::Parity::None,
+            stop_bits: kernel::hil::uart::StopBits::One,
+            hw_flow_control: false,
+        })
+        .unwrap();
+
+    tests::uart_suite::run(peripherals.lf1);
 }
