@@ -9,20 +9,68 @@ use kernel::utilities::StaticRef;
 pub const NUM_EXTERNAL_IRQS: usize = 240;
 
 // MSCM Interrupts
+// Documented in RM §8.5.2.2 (MSCM interrupt router functional description) and
+// docs/pcu/mscm_interrupt_management.md (MSCM C2C Interrupt Mapping (S32G3)).
+//
+// These represent the 14 inter-core interrupt registers per target core, where
+// Index 3 and 4 are PCIe MSI, and the remaining 12 are mapped to GIC SPIs.
+// On the Cortex-M7 core, they are routed directly to the NVIC external vectors.
+
+/// MSCM PCIe1 Interrupt (Index 4, GIC SPI 0).
+/// RM §8.4.21, §8.5.1.2.
 pub const MSCM_PCIE_1_MSI: u32 = 0;
+
+/// MSCM Core-to-Core Interrupt 0 (Index 0, GIC SPI 1, INTID 33).
+/// Used by IPCF/MSCM DTS (RM §8.4.19, §8.5.1.1).
 pub const MSCM_INT0: u32 = 1;
+
+/// MSCM Core-to-Core Interrupt 1 (Index 1, GIC SPI 2, INTID 34).
+/// Used by IPCF Instance 0 (M7→A53) (RM §8.4.19, §8.5.1.1).
 pub const MSCM_INT1: u32 = 2;
+
+/// MSCM Core-to-Core Interrupt 2 (Index 2, GIC SPI 3, INTID 35).
+/// Used by IPCF/MSCM DTS (RM §8.4.19, §8.5.1.1).
 pub const MSCM_INT2: u32 = 3;
+
+/// MSCM PCIe0 Interrupt (Index 3, GIC SPI 4).
+/// RM §8.4.21, §8.5.1.2.
 pub const MSCM_PCIE_0_MSI: u32 = 4;
+
+/// MSCM Core-to-Core Interrupt 3 (Index 5, GIC SPI 22, INTID 54).
+/// Used by IPCF Instance 1 (M7→A53, Valeo SHM) (RM §8.4.19, §8.5.1.1).
 pub const MSCM_INT3: u32 = 22;
+
+/// MSCM Core-to-Core Interrupt 4 (Index 6, GIC SPI 23, INTID 55).
+/// Used by IPCF/MSCM DTS (RM §8.4.19, §8.5.1.1).
 pub const MSCM_INT4: u32 = 23;
+
+/// MSCM Core-to-Core Interrupt 5 (Index 7, GIC SPI 68, INTID 100).
+/// Used by IPCF Instance 1 (A53→M7 tx confirm) (RM §8.4.19, §8.5.1.1).
 pub const MSCM_INT5: u32 = 68;
+
+/// MSCM Core-to-Core Interrupt 6 (Index 8, GIC SPI 69, INTID 101).
+/// Used by IPCF/MSCM DTS (RM §8.4.19, §8.5.1.1).
 pub const MSCM_INT6: u32 = 69;
-pub const MCSCM_INT7: u32 = 164;
-pub const MCSCM_INT8: u32 = 165;
-pub const MCSCM_INT9: u32 = 166;
-pub const MCSCM_INT10: u32 = 167;
-pub const MCSCM_INT11: u32 = 168;
+
+/// MSCM Core-to-Core Interrupt 7 (Index 9, GIC SPI 164, INTID 196).
+/// Used by IRC M7→VM Doorbell (RM §8.4.19, §8.5.1.1).
+pub const MSCM_INT7: u32 = 164;
+
+/// MSCM Core-to-Core Interrupt 8 (Index 10, GIC SPI 165, INTID 197).
+/// Used by IRC QNX→VM Doorbell (RM §8.4.19, §8.5.1.1).
+pub const MSCM_INT8: u32 = 165;
+
+/// MSCM Core-to-Core Interrupt 9 (Index 11, GIC SPI 166, INTID 198).
+/// Reserved for IRC future use (RM §8.4.19, §8.5.1.1).
+pub const MSCM_INT9: u32 = 166;
+
+/// MSCM Core-to-Core Interrupt 10 (Index 12, GIC SPI 167, INTID 199).
+/// Reserved for IRC future use (RM §8.4.19, §8.5.1.1).
+pub const MSCM_INT10: u32 = 167;
+
+/// MSCM Core-to-Core Interrupt 11 (Index 13, GIC SPI 168, INTID 200).
+/// Reserved for IRC future use (RM §8.4.19, §8.5.1.1).
+pub const MSCM_INT11: u32 = 168;
 
 // CTI Interrupts
 pub const CTI_INT0: u32 = 5;
