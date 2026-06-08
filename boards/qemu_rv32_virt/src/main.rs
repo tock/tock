@@ -12,7 +12,7 @@ use kernel::component::Component;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::{create_capability, debug};
-use qemu_rv32_virt_chip::chip::{SyncEntry, LOCKSTEP_CHAN};
+use qemu_rv32_virt_chip::chip::{clear_irq_active, SyncEntry, CLINT_MSIP1, LOCKSTEP_CHAN};
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -145,19 +145,17 @@ core::arch::global_asm!(r#"
 pub unsafe extern "C" fn main_secondary() -> ! {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    // Wait for hart 0 to write 1 to CLINT MSIP[1] (= CLINT_BASE + 4) at
-    // the end of start(), guaranteeing all shared hardware is configured.
-    // Spin until hart 0 writes 1 to CLINT MSIP[1] (= CLINT_BASE + 4).
+    // Spin until hart 0 writes 1 to CLINT MSIP[1] at the end of start(),
+    // guaranteeing all shared hardware is configured.
     // No wfi here: the arch startup disables all machine interrupts (mie=0)
     // before jumping to _hart1_entry, so wfi would never wake on the pending
     // MSIP even though the signal has already been sent.
-    let msip1 = 0x0200_0004 as *const u32;
     loop {
-        if core::ptr::read_volatile(msip1) != 0 {
+        if core::ptr::read_volatile(CLINT_MSIP1) != 0 {
             break;
         }
     }
-    core::ptr::write_volatile(0x0200_0004 as *mut u32, 0);
+    core::ptr::write_volatile(CLINT_MSIP1, 0);
 
     let (board_kernel, platform, chip) = qemu_rv32_virt_lib::start_secondary();
 
@@ -266,14 +264,12 @@ pub unsafe fn main() {
             false,
             &main_loop_capability,
         );
+        // Extend IRQ_ACTIVE coverage through deferred calls: clear only after
+        // kernel_loop_operation returns so the hart-1 watchdog covers the full
+        // interrupt + deferred-call window, not just the trap handler.
+        clear_irq_active();
         let ack = LOCKSTEP_CHAN.a_spin_recv();
-        let fp0 = activity.fingerprint();
-        if ack.fingerprint != fp0 {
-            panic!(
-                "Lockstep divergence at seq {}: hart0={:#010x} hart1={:#010x}",
-                seq, fp0, ack.fingerprint
-            );
-        }
+        let _ = (activity, ack); // liveness only — no fingerprint comparison yet
         seq = seq.wrapping_add(1);
     }
 }

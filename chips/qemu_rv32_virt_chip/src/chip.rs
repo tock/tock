@@ -6,6 +6,7 @@
 
 use core::fmt::Write;
 use core::ptr::addr_of;
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use kernel::collections::spsc_channel::BiChannel;
 use kernel::debug;
@@ -52,6 +53,53 @@ pub static LOCKSTEP_CHAN: BiChannel<32, SyncEntry> = BiChannel::new();
 
 /// CLINT MSIP[1] register address — used by hart 0 to interrupt hart 1.
 pub const CLINT_MSIP1: *mut u32 = 0x0200_0004 as *mut u32;
+
+/// CLINT mtime registers (read-only, shared across harts).
+const CLINT_MTIME_LO: *const u32 = 0x0200_BFF8 as *const u32;
+const CLINT_MTIME_HI: *const u32 = 0x0200_BFFC as *const u32;
+
+/// CLINT mtimecmp[1] — written by hart 1's MachineSoft handler to arm the watchdog.
+const CLINT_MTIMECMP1_LO: *mut u32 = 0x0200_4008 as *mut u32;
+const CLINT_MTIMECMP1_HI: *mut u32 = 0x0200_400C as *mut u32;
+
+/// Watchdog timeout: 100 ms at 10 MHz.
+const WATCHDOG_TICKS: u64 = 1_000_000;
+
+/// Set when hart 0 enters an interrupt handler; cleared when
+/// `service_pending_interrupts` finishes. Hart 1's MachineSoft handler
+/// watches this flag and panics if it stays set past the deadline.
+///
+/// Must be in .bss (not .sbss) so both harts share the same instance
+/// rather than each getting a GP-relative private copy.
+#[link_section = ".bss"]
+static IRQ_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Watchdog deadline stored by Hart 1's MachineSoft handler.
+/// Small (4 bytes each) → lives in .sbss → per-hart; only Hart 1 reads/writes.
+static WATCHDOG_DEADLINE_LO: AtomicU32 = AtomicU32::new(0);
+static WATCHDOG_DEADLINE_HI: AtomicU32 = AtomicU32::new(u32::MAX);
+
+/// Called by hart 0's main loop after kernel_loop_operation returns.
+/// Clears IRQ_ACTIVE to signal hart 1's watchdog that all kernel work
+/// (interrupt handling + deferred calls) has completed.
+pub fn clear_irq_active() {
+    IRQ_ACTIVE.store(false, Ordering::Release);
+}
+
+/// Read the CLINT mtime counter, handling the 32-bit lo/hi rollover.
+///
+/// # Safety
+/// Caller must ensure MMIO is mapped and accessible.
+unsafe fn read_mtime() -> u64 {
+    loop {
+        let hi1 = core::ptr::read_volatile(CLINT_MTIME_HI) as u64;
+        let lo = core::ptr::read_volatile(CLINT_MTIME_LO) as u64;
+        let hi2 = core::ptr::read_volatile(CLINT_MTIME_HI) as u64;
+        if hi1 == hi2 {
+            return (hi1 << 32) | lo;
+        }
+    }
+}
 
 type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
     5,
@@ -165,6 +213,26 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
             if mip.is_set(mip::mtimer) {
                 self.timer.handle_interrupt();
+                // On Hart 1 (lockstep): timer.handle_interrupt() may have
+                // reset mtimecmp[1] to the next scheduler deadline, which
+                // could be before the watchdog deadline. Re-arm to the stored
+                // watchdog deadline so the watchdog still fires if Hart 0 hangs.
+                if !mext_enabled && IRQ_ACTIVE.load(Ordering::Acquire) {
+                    unsafe {
+                        core::ptr::write_volatile(
+                            CLINT_MTIMECMP1_LO,
+                            0xFFFF_FFFF_u32,
+                        );
+                        core::ptr::write_volatile(
+                            CLINT_MTIMECMP1_HI,
+                            WATCHDOG_DEADLINE_HI.load(Ordering::Relaxed),
+                        );
+                        core::ptr::write_volatile(
+                            CLINT_MTIMECMP1_LO,
+                            WATCHDOG_DEADLINE_LO.load(Ordering::Relaxed),
+                        );
+                    }
+                }
             }
             if mext_enabled && self.plic.get_saved_interrupts().is_some() {
                 unsafe {
@@ -172,16 +240,15 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
                 }
             }
 
-            if !mip.any_matching_bits_set(mip::mtimer::SET)
+            if !mip.is_set(mip::mtimer)
                 && (!mext_enabled || self.plic.get_saved_interrupts().is_none())
             {
                 break;
             }
         }
 
-        // Re-enable MIE bits for this hart. Hart 1 (lockstep) does not enable
-        // mext, so we only set the bits that were originally requested.
         if mext_enabled {
+            IRQ_ACTIVE.store(false, Ordering::Release);
             CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
         } else {
             CSR.mie.modify(mie::mtimer::SET);
@@ -258,29 +325,69 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 
         mcause::Interrupt::MachineSoft => {
             CSR.mie.modify(mie::msoft::CLEAR);
+            let hartid: u32;
+            core::arch::asm!("csrr {}, mhartid", out(reg) hartid);
+            if hartid == 1 {
+                // Arm hart 1's hardware watchdog timer: if hart 0 doesn't
+                // finish interrupt handling within WATCHDOG_TICKS, the
+                // MachineTimer handler will fire and panic.
+                // Store the deadline so service_pending_interrupts can
+                // re-arm after a scheduler preemption resets mtimecmp[1].
+                core::ptr::write_volatile(CLINT_MSIP1, 0); // clear MSIP[1]
+                let deadline = read_mtime() + WATCHDOG_TICKS;
+                WATCHDOG_DEADLINE_HI.store((deadline >> 32) as u32, Ordering::Relaxed);
+                WATCHDOG_DEADLINE_LO.store(deadline as u32, Ordering::Relaxed);
+                // Write LO=MAX first to prevent a spurious timer fire while
+                // HI is being updated, then set both to the deadline.
+                core::ptr::write_volatile(CLINT_MTIMECMP1_LO, 0xFFFF_FFFF_u32);
+                core::ptr::write_volatile(CLINT_MTIMECMP1_HI, (deadline >> 32) as u32);
+                core::ptr::write_volatile(CLINT_MTIMECMP1_LO, deadline as u32);
+                CSR.mie.modify(mie::msoft::SET);
+            }
         }
         mcause::Interrupt::MachineTimer => {
-            CSR.mie.modify(mie::mtimer::CLEAR);
+            let hartid: u32;
+            core::arch::asm!("csrr {}, mhartid", out(reg) hartid);
+            if hartid == 0 {
+                IRQ_ACTIVE.store(true, Ordering::Release);
+                core::ptr::write_volatile(CLINT_MSIP1, 1);
+                CSR.mie.modify(mie::mtimer::CLEAR);
+            } else {
+                // Hart 1: could be the watchdog deadline or a scheduler preemption.
+                // In both cases, clear mie.mtimer and leave mip.mtimer set so the
+                // kernel can detect the preemption via has_pending_interrupts().
+                // service_pending_interrupts will call timer.handle_interrupt() to
+                // reset mtimecmp[1] and re-enable mie.mtimer.
+                CSR.mie.modify(mie::mtimer::CLEAR);
+                if IRQ_ACTIVE.load(Ordering::Acquire) {
+                    // Check whether the watchdog deadline has actually been reached.
+                    // If so, hart 0 is hung in interrupt handling → panic.
+                    // If not, this was a scheduler preemption that fired while the
+                    // watchdog was ticking; fall through and let the kernel preempt.
+                    let now = read_mtime();
+                    let deadline = ((WATCHDOG_DEADLINE_HI.load(Ordering::Relaxed) as u64) << 32)
+                        | (WATCHDOG_DEADLINE_LO.load(Ordering::Relaxed) as u64);
+                    if now >= deadline {
+                        panic!("Lockstep watchdog: hart 0 hung in interrupt handler");
+                    }
+                }
+                // Leave mip.mtimer set for kernel preemption detection.
+            }
         }
         mcause::Interrupt::MachineExternal => {
-            // We received an interrupt, disable interrupts while we handle them
+            IRQ_ACTIVE.store(true, Ordering::Release);
+            core::ptr::write_volatile(CLINT_MSIP1, 1);
             CSR.mie.modify(mie::mext::CLEAR);
 
-            // Claim the interrupt, unwrap() as we know an interrupt exists
-            // Once claimed this interrupt won't fire until it's completed
-            // NOTE: The interrupt is no longer pending in the PLIC
             loop {
                 let interrupt = (*addr_of!(PLIC)).next_pending();
 
                 match interrupt {
                     Some(irq) => {
-                        // Safe as interrupts are disabled
                         (*addr_of!(PLIC)).save_interrupt(irq);
                     }
                     None => {
-                        // Enable generic interrupts
                         CSR.mie.modify(mie::mext::SET);
-
                         break;
                     }
                 }
