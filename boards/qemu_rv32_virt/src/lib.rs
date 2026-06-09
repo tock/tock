@@ -7,8 +7,6 @@
 #![no_std]
 #![no_main]
 
-// Uncomment if you want to use Round Robin policy for UART virtualizer.
-// use capsules_core::virtualizers::selection_policy::RoundRobinPolicy;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
@@ -70,8 +68,6 @@ pub struct QemuRv32VirtPlatform {
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
-        // Uncomment if you want to use Round Robin policy.
-        // capsules_core::virtualizers::virtual_uart::UartDevice<'static, RoundRobinPolicy>,
     >,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -287,16 +283,6 @@ pub unsafe fn start() -> (
     // UART.
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
-
-    // Uncomment if you want to use Round Robin policy.
-    // let uart_mux = components::console::UartMuxComponent::new_with_policy(
-    //     &peripherals.uart0,
-    //     115200,
-    //     capsules_core::virtualizers::selection_policy::RoundRobinPolicy::default(),
-    // )
-    // .finalize(components::uart_mux_component_static!(
-    //     capsules_core::virtualizers::selection_policy::RoundRobinPolicy
-    // ));
 
     // Use the RISC-V machine timer timesource
     let hardware_timer = static_init!(
@@ -701,9 +687,7 @@ pub unsafe fn start() -> (
         None,
     )
     .finalize(components::process_console_component_static!(
-        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
-        // Uncomment if you want to use Round Robin policy.
-        // capsules_core::virtualizers::selection_policy::RoundRobinPolicy,
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint
     ));
 
     // Setup the console.
@@ -712,10 +696,7 @@ pub unsafe fn start() -> (
         capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_static!(
-        // Uncomment if you want to use Round Robin policy.
-        // capsules_core::virtualizers::selection_policy::RoundRobinPolicy
-    ));
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
