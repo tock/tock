@@ -38,7 +38,7 @@
 use capsules_core::console;
 use capsules_core::console_ordered::ConsoleOrdered;
 
-use capsules_core::virtualizers::selection_policy::{InsertionFirstPolicy, SelectionPolicy};
+use capsules_core::virtualizers::selection_policy::{RoundRobinPolicy, SelectionPolicy};
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
@@ -54,6 +54,20 @@ use capsules_core::console::DEFAULT_BUF_SIZE;
 #[macro_export]
 macro_rules! uart_mux_component_static {
     // Common logic for both branches
+    ($rx_buffer_len: expr) => {{
+        use capsules_core::virtualizers::virtual_uart::MuxUart;
+        use kernel::static_buf;
+        let uart_mux = static_buf!(MuxUart<'static>);
+        let rx_buf = static_buf!([u8; $rx_buffer_len]);
+        (uart_mux, rx_buf)
+    }};
+    () => {
+        $crate::uart_mux_component_static!(capsules_core::virtualizers::virtual_uart::RX_BUF_LEN);
+    };
+    ($rx_buffer_len: literal) => {
+        $crate::uart_mux_component_static!($rx_buffer_len);
+    };
+    // Allow choosing a selection policy.
     ($rx_buffer_len: expr, $P: ty) => {{
         use capsules_core::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
@@ -61,47 +75,29 @@ macro_rules! uart_mux_component_static {
         let rx_buf = static_buf!([u8; $rx_buffer_len]);
         (uart_mux, rx_buf)
     }};
-    ($P: ty) => {{
+    ($P: ty) => {
         $crate::uart_mux_component_static!(
             capsules_core::virtualizers::virtual_uart::RX_BUF_LEN,
             $P
-        )
-    }};
-    // By default, if no selection policy is provided we will use the `InsertionFirstPolicy`.
-    // This option has been chosen as the default to maintain backwards compatibility.
-    () => {{
-        use capsules_core::virtualizers::selection_policy::InsertionFirstPolicy;
-        $crate::uart_mux_component_static!(
-            capsules_core::virtualizers::virtual_uart::RX_BUF_LEN,
-            InsertionFirstPolicy
-        )
-    }};
-    ($rx_buffer_len: literal) => {{
-        use capsules_core::virtualizers::selection_policy::InsertionFirstPolicy;
-        $crate::uart_mux_component_static!($rx_buffer_len, InsertionFirstPolicy)
-    }};
+        );
+    };
 }
 
 pub struct UartMuxComponent<
     const RX_BUF_LEN: usize,
-    P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static = InsertionFirstPolicy,
+    P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static = RoundRobinPolicy,
 > {
     uart: &'static dyn uart::Uart<'static>,
     baud_rate: u32,
     selection_policy: P,
 }
 
-// Implemented for backward compatibility
-impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN, InsertionFirstPolicy> {
-    /// Create a new MuxComponent with the [`InsertionFirstPolicy`] selection policy.
-    pub fn new(
-        uart: &'static dyn uart::Uart<'static>,
-        baud_rate: u32,
-    ) -> UartMuxComponent<RX_BUF_LEN, InsertionFirstPolicy> {
-        UartMuxComponent {
+impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
+    pub fn new(uart: &'static dyn uart::Uart<'static>, baud_rate: u32) -> Self {
+        Self {
             uart,
             baud_rate,
-            selection_policy: InsertionFirstPolicy,
+            selection_policy: RoundRobinPolicy::default(),
         }
     }
 }
@@ -110,18 +106,12 @@ impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN, InsertionFirstPolicy>
 impl<const RX_BUF_LEN: usize, P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static>
     UartMuxComponent<RX_BUF_LEN, P>
 {
-    /// Create a new MuxComponent with a custom selection policy.
-    /// It determines which device will be selected next
-    /// from the list of devices in the virtualizer.
-    ///
-    /// For the default implementation, please refer to `new` function
-    /// which uses `InsertionFirstPolicy` selection polity.
     pub fn new_with_policy(
         uart: &'static dyn uart::Uart<'static>,
         baud_rate: u32,
         selection_policy: P,
-    ) -> UartMuxComponent<RX_BUF_LEN, P> {
-        UartMuxComponent {
+    ) -> Self {
+        Self {
             uart,
             baud_rate,
             selection_policy,
@@ -159,6 +149,23 @@ impl<const RX_BUF_LEN: usize, P: SelectionPolicy<&'static UartDevice<'static, P>
 #[macro_export]
 macro_rules! console_component_static {
     // Common logic for both branches
+    ($rx_buffer_len: expr, $tx_buffer_len: expr) => {{
+        use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
+        use capsules_core::virtualizers::virtual_uart::UartDevice;
+        use kernel::static_buf;
+        let read_buf = static_buf!([u8; $rx_buffer_len]);
+        let write_buf = static_buf!([u8; $tx_buffer_len]);
+        // Create virtual device for console.
+        let console_uart = static_buf!(UartDevice);
+        let console = static_buf!(Console<'static>);
+        (write_buf, read_buf, console_uart, console)
+    }};
+    () => {
+        $crate::console_component_static!(DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE);
+    };
+    ($rx_buffer_len: literal, $tx_buffer_len: literal) => {
+        $crate::console_component_static!($rx_buffer_len, $tx_buffer_len);
+    };
     ($rx_buffer_len: expr, $tx_buffer_len: expr, $P: ty) => {{
         use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
         use capsules_core::virtualizers::virtual_uart::UartDevice;
@@ -173,17 +180,6 @@ macro_rules! console_component_static {
     ($rx_buffer_len: literal, $tx_buffer_len: literal, $P: ty) => {
         $crate::console_component_static!($rx_buffer_len, $tx_buffer_len, $P);
     };
-    ($rx_buffer_len: literal, $tx_buffer_len: literal) => {{
-        use capsules_core::virtualizers::selection_policy::InsertionFirstPolicy;
-        $crate::console_component_static!($rx_buffer_len, $tx_buffer_len, InsertionFirstPolicy)
-    }};
-    ($P: ty) => {
-        $crate::console_component_static!(DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE, $P);
-    };
-    () => {{
-        use capsules_core::virtualizers::selection_policy::InsertionFirstPolicy;
-        $crate::console_component_static!(DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE, InsertionFirstPolicy)
-    }};
 }
 
 pub struct ConsoleComponent<

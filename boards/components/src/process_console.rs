@@ -65,8 +65,8 @@ macro_rules! process_console_component_static {
         $crate::process_console_component_static!($A, $P, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
     };};
     ($A: ty $(,)?) => {{
-        use capsules_core::virtualizers::selection_policy::InsertionFirstPolicy;
-        $crate::process_console_component_static!($A, InsertionFirstPolicy, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
+        use capsules_core::virtualizers::selection_policy::RoundRobinPolicy;
+        $crate::process_console_component_static!($A, RoundRobinPolicy, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
     };};
 }
 

@@ -56,6 +56,18 @@ const DEBUG_BUFFER_SPLIT: usize = 64;
 /// quick succession.
 #[macro_export]
 macro_rules! debug_writer_component_static {
+    ($BUF_SIZE_KB:expr) => {{
+        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
+        let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
+        let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
+        let debug =
+            kernel::static_buf!(capsules_system::debug_writer::uart_debug_writer::UartDebugWriter);
+
+        (uart, ring, buffer, debug)
+    };};
+    () => {{
+        $crate::debug_writer_component_static!($crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE)
+    };};
     ($BUF_SIZE_KB:expr, $P: ty) => {{
         let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice<$P>);
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
@@ -67,18 +79,6 @@ macro_rules! debug_writer_component_static {
     };};
     ($P: ty) => {{
         $crate::debug_writer_component_static!($crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE, $P)
-    };};
-    ($BUF_SIZE_KB:expr) => {{
-        $crate::debug_writer_component_static!(
-            $BUF_SIZE_KB,
-            capsules_core::virtualizers::selection_policy::InsertionFirstPolicy
-        )
-    };};
-    () => {{
-        $crate::debug_writer_component_static!(
-            $crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE,
-            capsules_core::virtualizers::selection_policy::InsertionFirstPolicy
-        )
     };};
 }
 
