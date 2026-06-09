@@ -54,15 +54,15 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
         unsafe {
             cortexm33::nvic::disable_all();
             cortexm33::nvic::clear_all_pending();
-            let sio = crate::gpio::SIO::new();
-            let processor = sio.get_processor();
-            match processor {
-                crate::chip::Processor::Processor0 => {}
-                _ => panic!(
-                    "Kernel should run only using processor 0 (now processor {})",
-                    processor as u8
-                ),
-            }
+        }
+        let sio = crate::gpio::SIO::new();
+        let processor = sio.get_processor();
+        match processor {
+            crate::chip::Processor::Processor0 => {}
+            _ => panic!(
+                "Kernel should run only using processor 0 (now processor {})",
+                processor as u8
+            ),
         }
     }
 
