@@ -104,7 +104,8 @@ impl<'a> Exti<'a> {
     /// hardware pending flags and calls `fired()` on the associated client.
     pub fn handle_interrupt(&self, line: LineId) {
         let line_num = line as usize;
-
+        // line_num is of type line with size usize
+        // line is of type LineId, where LineId is an enumeration that can take only values between 0 and 15
         if line_num < 16 {
             // Clear pending flags
             self.clear_pending(line);

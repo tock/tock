@@ -336,6 +336,8 @@ impl Dma {
     }
 
     pub fn clear_interrupt(&self, channel: ChannelId) {
+        // `channel_id` is a `usize` converted from `ChannelId`
+        // which is an enum that can only take values between 0 and 15.
         let channel_id: usize = channel.into();
         let ch = &self.registers.channels[channel_id];
         ch.f_cr.write(
@@ -359,6 +361,8 @@ impl Dma {
     }
 
     pub fn release_channel(&self, id: ChannelId) {
+        // `channel_id` is a `usize` converted from `ChannelId`
+        // which is an enum that can only take values between 0 and 15.
         let index: usize = id.into();
         if self.channels[index].in_use.get() {
             self.channels[index].in_use.set(false);
@@ -367,12 +371,16 @@ impl Dma {
     }
 
     pub fn set_client(&self, id: ChannelId, client: &'static dyn DmaClient) {
+        // `channel_id` is a `usize` converted from `ChannelId`
+        // which is an enum that can only take values between 0 and 15.
         let index: usize = id.into();
         self.channels[index].client.set(client);
     }
 
     pub fn handle_interrupt(&self, id: ChannelId) {
         self.clear_interrupt(id);
+        // `channel_id` is a `usize` converted from `ChannelId`
+        // which is an enum that can only take values between 0 and 15.
         let index: usize = id.into();
         self.channels[index].client.map(|client| {
             client.transfer_done(id);
