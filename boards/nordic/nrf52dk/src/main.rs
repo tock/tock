@@ -71,7 +71,6 @@
 
 use core::ptr::addr_of;
 
-use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
@@ -141,41 +140,38 @@ type RngDriver = components::rng::RngComponentType<nrf52832::trng::Trng<'static>
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type BleHw = nrf52832::ble_radio::Radio<'static>;
+type AlarmHw = nrf52832::rtc::Rtc<'static>;
+type GpioHw = nrf52832::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedLow<'static, nrf52832::gpio::GPIOPin<'static>>;
+type AnalogComparatorHw = nrf52832::acomp::Comparator<'static>;
+
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 4>;
+type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type AnalogComparatorDriver =
+    components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
+type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf52832::ble_radio::Radio<'static>,
-        VirtualMuxAlarm<'static, Rtc<'static>>,
-    >,
-    button: &'static capsules_core::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        VirtualMuxAlarm<'static, Rtc<'static>>,
-        components::process_console::Capability,
-    >,
+    ble_radio: &'static BleDriver,
+    button: &'static ButtonDriver,
+    pconsole: &'static ProcessConsoleDriver,
     console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52832::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
-        4,
-    >,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
     rng: &'static RngDriver,
     temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
-        'static,
-        nrf52832::acomp::Comparator<'static>,
-    >,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52832::rtc::Rtc<'static>,
-        >,
-    >,
+    analog_comparator: &'static AnalogComparatorDriver,
+    alarm: &'static AlarmDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }

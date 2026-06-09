@@ -107,7 +107,8 @@ fn crc(s: &'static str) -> u32 {
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
-type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 
 type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
 type ScreenDriver = components::screen::ScreenSharedComponentType<Screen>;
@@ -124,40 +125,37 @@ type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type BleHw = nrf52840::ble_radio::Radio<'static>;
+type GpioHw = nrf52::gpio::GPIOPin<'static>;
+type Nrf52840GpioHw = nrf52840::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedLow<'static, nrf52::gpio::GPIOPin<'static>>;
+
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 1>;
+type ButtonDriver = components::button::ButtonComponentType<Nrf52840GpioHw>;
+type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+type UdpDriver = components::udp_driver::UDPDriverComponentType;
+
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
+    ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
     console: &'static capsules_core::console::Console<'static>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-        components::process_console::Capability,
-    >,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        LedLow<'static, nrf52::gpio::GPIOPin<'static>>,
-        1,
-    >,
+    pconsole: &'static ProcessConsoleDriver,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static AlarmDriver,
-    button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
+    button: &'static ButtonDriver,
     screen: &'static ScreenDriver,
-    udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
+    udp_driver: &'static UdpDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }

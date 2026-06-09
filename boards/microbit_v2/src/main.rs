@@ -88,60 +88,56 @@ type Ieee802154RawDriver =
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type BleHw = nrf52::ble_radio::Radio<'static>;
+type AlarmHw = nrf52833::rtc::Rtc<'static>;
+type GpioHw = nrf52::gpio::GPIOPin<'static>;
+type I2cHw = nrf52833::i2c::TWI<'static>;
+type PwmHw = nrf52833::pwm::Pwm;
+type LedMatrixLed = capsules_extra::led_matrix::LedMatrixLed<
+    'static,
+    GpioHw,
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
+>;
+
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedMatrixLed, 25>;
+type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type Lsm303agrDriver = capsules_extra::lsm303agr::Lsm303agrI2C<
+    'static,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
+>;
+type BuzzerDriver = capsules_extra::buzzer_driver::Buzzer<
+    'static,
+    capsules_extra::buzzer_pwm::PwmBuzzer<
+        'static,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
+        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
+    >,
+>;
+
 /// Supported drivers by the platform
 pub struct MicroBit {
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
+    ble_radio: &'static BleDriver,
     eui64: &'static capsules_extra::eui64::Eui64,
     ieee802154: &'static Ieee802154RawDriver,
     console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        capsules_extra::led_matrix::LedMatrixLed<
-            'static,
-            nrf52::gpio::GPIOPin<'static>,
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                'static,
-                nrf52::rtc::Rtc<'static>,
-            >,
-        >,
-        25,
-    >,
-    button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
+    button: &'static ButtonDriver,
     rng: &'static RngDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<
-        'static,
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52833::i2c::TWI<'static>>,
-    >,
+    lsm303agr: &'static Lsm303agrDriver,
     temperature: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
-    buzzer_driver: &'static capsules_extra::buzzer_driver::Buzzer<
-        'static,
-        capsules_extra::buzzer_pwm::PwmBuzzer<
-            'static,
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                'static,
-                nrf52833::rtc::Rtc<'static>,
-            >,
-            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
-        >,
-    >,
+    alarm: &'static AlarmDriver,
+    buzzer_driver: &'static BuzzerDriver,
     pwm: &'static capsules_extra::pwm::Pwm<'static, 1>,
     app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules_extra::sound_pressure::SoundPressureSensor<'static>,

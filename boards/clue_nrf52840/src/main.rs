@@ -156,47 +156,45 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type BleHw = nrf52840::ble_radio::Radio<'static>;
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type GpioHw = nrf52::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedHigh<'static, nrf52::gpio::GPIOPin<'static>>;
+type PwmHw = nrf52840::pwm::Pwm;
+
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 2>;
+type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type ScreenDriver = components::screen::ScreenComponentType;
+type BuzzerDriver = capsules_extra::buzzer_driver::Buzzer<
+    'static,
+    capsules_extra::buzzer_pwm::PwmBuzzer<
+        'static,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
+        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
+    >,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
+    ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
     console: &'static capsules_core::console::Console<'static>,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        LedHigh<'static, nrf52::gpio::GPIOPin<'static>>,
-        2,
-    >,
-    button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
-    screen: &'static capsules_extra::screen::screen::Screen<'static>,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
+    button: &'static ButtonDriver,
+    screen: &'static ScreenDriver,
     rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
-    buzzer: &'static capsules_extra::buzzer_driver::Buzzer<
-        'static,
-        capsules_extra::buzzer_pwm::PwmBuzzer<
-            'static,
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                'static,
-                nrf52840::rtc::Rtc<'static>,
-            >,
-            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
-        >,
-    >,
+    alarm: &'static AlarmDriver,
+    buzzer: &'static BuzzerDriver,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,

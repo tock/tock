@@ -97,35 +97,35 @@ type NonvolatileDriver = components::nonvolatile_storage::NonvolatileStorageComp
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type GpioHw = nrf52::gpio::GPIOPin<'static>;
+type Nrf52840GpioHw = nrf52840::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedHigh<'static, nrf52::gpio::GPIOPin<'static>>;
+type SpiHw = nrf52840::spi::SPIM<'static>;
+
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 2>;
+type Lr1110GpioDriver = components::gpio::GpioComponentType<Nrf52840GpioHw>;
+type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        LedHigh<'static, nrf52::gpio::GPIOPin<'static>>,
-        2,
-    >,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
     rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     nonvolatile_storage: &'static NonvolatileDriver,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
+    alarm: &'static AlarmDriver,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
-    lr1110_gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
-    lr1110_spi: &'static capsules_core::spi_controller::Spi<
-        'static,
-        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-            'static,
-            nrf52840::spi::SPIM<'static>,
-        >,
-    >,
+    lr1110_gpio: &'static Lr1110GpioDriver,
+    lr1110_spi: &'static SpiControllerDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }

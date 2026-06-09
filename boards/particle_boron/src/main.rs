@@ -11,9 +11,8 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver;
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
-use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
@@ -95,37 +94,37 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type BleHw = nrf52840::ble_radio::Radio<'static>;
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type GpioHw = nrf52840::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>;
+type I2cHw = nrf52840::i2c::TWI<'static>;
+
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 4>;
+type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
+
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf52840::ble_radio::Radio<'static>,
-        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-    >,
+    ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
-    button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
+    button: &'static ButtonDriver,
     console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
-        4,
-    >,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     rng: &'static RngDriver,
     temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
-        'static,
-        nrf52840::i2c::TWI<'static>,
-    >,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52840::rtc::Rtc<'static>,
-        >,
-    >,
+    i2c_master_slave: &'static I2CMasterSlaveDriver,
+    alarm: &'static AlarmDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
@@ -541,7 +540,7 @@ pub unsafe fn start_particle_boron() -> (
     let i2c_slave_buffer2 = static_init!([u8; 128], [0; 128]);
 
     let i2c_master_slave = static_init!(
-        I2CMasterSlaveDriver<nrf52840::i2c::TWI<'static>>,
+        I2CMasterSlaveDriver,
         I2CMasterSlaveDriver::new(
             &base_peripherals.twi1,
             i2c_master_buffer,
