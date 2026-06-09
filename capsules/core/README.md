@@ -71,6 +71,7 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual SPI](src/virtualizers/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
 - **[Virtual Timer](src/virtualizers/virtual_timer.rs)**: Shared timer.
 - **[Virtual UART](src/virtualizers/virtual_uart.rs)**: Shared UART bus.
+- **[Selection Policy](src/virtualizers/selection_policy.rs)**: Policy that determines in what order the virtual peripherals are selected for execution.
 
 Miscallenous Capsules & Infrastructure
 --------------------------------------

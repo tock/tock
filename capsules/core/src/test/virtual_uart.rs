@@ -4,6 +4,8 @@
 
 //! Test reception on the virtualized UART: best if multiple Tests are
 //! instantiated and tested in parallel.
+
+use crate::virtualizers::selection_policy::{RoundRobinPolicy, SelectionPolicy};
 use crate::virtualizers::virtual_uart::UartDevice;
 
 use kernel::debug;
@@ -12,8 +14,10 @@ use kernel::hil::uart::Receive;
 use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
 
-pub struct TestVirtualUartReceive {
-    device: &'static UartDevice<'static>,
+pub struct TestVirtualUartReceive<
+    P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static = RoundRobinPolicy,
+> {
+    device: &'static UartDevice<'static, P>,
     buffer: TakeCell<'static, [u8]>,
 }
 

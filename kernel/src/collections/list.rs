@@ -26,6 +26,16 @@ pub struct ListIterator<'a, T: 'a + ?Sized + ListNode<'a, T>> {
     cur: Option<&'a T>,
 }
 
+// Since `ListIterator` stores a reference of T, it is safe to implement `Clone`
+// for `ListIterator` so that several iterators can be made out of one.
+//
+// This is useful for the [`SelectionPolicy`] implementations.
+impl<'a, T: ?Sized + ListNode<'a, T>> Clone for ListIterator<'a, T> {
+    fn clone(&self) -> Self {
+        Self { cur: self.cur }
+    }
+}
+
 impl<'a, T: ?Sized + ListNode<'a, T>> Iterator for ListIterator<'a, T> {
     type Item = &'a T;
 
