@@ -1,14 +1,13 @@
 Kernel Time HIL
 ========================================
 
-**TRD:** 105<br/>
+**TRD:** xxx<br/>
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Obsoletes:** 101 <br/>
-**Author:** Guillaume Endignoux, Amit Levy, Philip Levis, and Jett Rink <br/>
-**Draft-Created:** 2021/07/23 <br/>
-**Draft-Modified:** 2021/07/23 <br/>
+**Obsoletes:** 105 <br/>
+**Author:** Guillaume Endignoux, Amit Levy, Philip Levis, Jett Rink and Gabriel Stanciu<br/>
+**Draft-Created:** 2026/06/09 <br/>
 **Draft-Version:** 1.0 <br/>
 **Draft-Discuss:** Github PR <br/>
 
@@ -30,15 +29,16 @@ broad categories: alarms and timers. Alarms continuously increment a clock and
 can fire an event when the clock reaches a specific value. Timers can fire an
 event after a certain number of clock ticks have elapsed.
 
-The time HIL is in the kernel crate, in module `hil::time`. It provides six
+The time HIL is in the kernel crate, in module `hil::time`. It provides several
 main traits:
 
 
   * `kernel::hil::time::Time`: provides an abstraction of a moment in time. It has two associated types. One describes the width and maximum value of a time value. The other specifies the frequency of the ticks of the time value.
   * `kernel::hil::time::Counter`: derives from `Time` and provides an abstraction of a free-running counter that can be started or stopped. A `Counter`'s moment in time is the current value of the counter.
+  * `kernel::hil::time::CounterOverflow`: derives from `Counter`, and provides an abstraction for hardware counters that can generate overflow notifications.
   * `kernel::hil::time::Alarm`: derives from `Time`, and provides an abstraction of being able to receive a callback at a future moment in time.
   * `kernel::hil::time::Timer`: derives from `Time`, and provides an abstraction of being able to receive a callback at some amount of time in the future, or a series of callbacks at a given period.
-  * `kernel::hil::time::OverflowClient`: handles an overflow callback from a `Counter`.
+  * `kernel::hil::time::OverflowClient`: handles an overflow callback from a `CounterOverflow`.
   * `kernel::hil::time::AlarmClient`: handles the callback from an `Alarm`.
   * `kernel::hil::time::TimerClient`: handles the callback from a `Timer`.
 
@@ -170,13 +170,16 @@ is 30.5 microseconds.
 [associated_type]: https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#specifying-placeholder-types-in-trait-definitions-with-associated-types
 
 
-3 `Counter` and `OverflowClient` traits
+3 `Counter`, `CounterOverflow`, and `OverflowClient` traits
 ===============================
 
 The `Counter` trait is the abstraction of a free-running counter that
 can be started and stopped. This trait derives from the `Time` trait, so
-it has associated `Frequency` and `Tick` types. The `Counter` trait
-allows a client to register for callbacks when the counter overflows.
+it has associated `Frequency` and `Tick` types.
+
+To support hardware that can explicitly notify the system when the timer
+wraps around, the `CounterOverflow` trait extends `Counter`. This is provided
+as a separate extension trait so that support is explicit at compile-time.
 
 ```rust
 pub trait OverflowClient {
@@ -188,7 +191,10 @@ pub trait Counter<'a>: Time {
   fn stop(&self) -> Result<(), ErrorCode>;
   fn reset(&self) -> Result<(), ErrorCode>;
   fn is_running(&self) -> bool;
-  fn set_overflow_client(&self, &'a dyn OverflowClient);
+}
+
+pub trait CounterOverflow<'a>: Counter<'a> {
+  fn set_overflow_client(&self, client: &'a dyn OverflowClient);
 }
 ```
 
@@ -433,19 +439,12 @@ The traits and abstractions in this document draw from contributions
 and ideas from Patrick Mooney and Guillaume Endignoux as well as
 others.
 
-11 Modification After TRD 101
+11 Modification After TRD 105
 ===============================
 
-This TRD obsoletes TRD 101, and the changes include:
+This TRD obsoletes TRD 105, and the changes include:
 
-  * The `tick_from_` helper methods moved from `Time` trait to `ConvertTicks`
-    trait
-    * This allow downstream clients to use trait objects (i.e. `dyn`) with the
-      `Time`, `Alarm`, and `Timer` traits. Even though it is possible to use
-      trait objects with `Time` and sub traits, it is still beneficial to use
-      generic parameters when there is only a single concrete type.
-  * Added `ticks_to_` helper methods on `ConvertTicks`
-  * Added a few more support methods on `Ticks` trait.
+  * Extracted overflow management from `Counter` into a separate `CounterOverflow` trait to provide compile-time guarantees for hardware support.
 
 12 Authors' Address
 =================================
@@ -465,4 +464,7 @@ guillaumee@google.com
 
 Jett Rink
 jettrink@google.com
+
+Gabriel Stanciu
+github.com/stanciugabriel
 ```
