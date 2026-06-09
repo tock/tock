@@ -806,20 +806,21 @@ pub enum UartId {
 ///
 /// This captures everything needed to setup the UART for panic display, even
 /// if the normal kernel had initialized it differently.
-pub struct UartPanicWriterConfig {
+pub struct UartPanicWriterConfig<'a> {
     pub id: UartId,
     pub params: hil::uart::Parameters,
+    pub clocks: &'a clocks::Clocks,
 }
 
-impl kernel::platform::chip::PanicWriter for Uart<'_> {
-    type Config = UartPanicWriterConfig;
+impl<'a> kernel::platform::chip::PanicWriter for Uart<'a> {
+    type Config = UartPanicWriterConfig<'a>;
 
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
         use hil::uart::Configure as _;
 
         let uart = match config.id {
-            UartId::Uart0 => Uart::new_uart0(),
-            UartId::Uart1 => Uart::new_uart1(),
+            UartId::Uart0 => Uart::new_uart0(config.clocks),
+            UartId::Uart1 => Uart::new_uart1(config.clocks),
         };
         let _ = uart.configure(config.params);
 

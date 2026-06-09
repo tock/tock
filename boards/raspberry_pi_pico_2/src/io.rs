@@ -8,6 +8,7 @@ use kernel::debug;
 use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
 
+use rp2350::clocks::Clocks;
 use rp2350::gpio::{RPGpio, RPGpioPin};
 use rp2350::uart::{Uart, UartId, UartPanicWriterConfig};
 
@@ -21,6 +22,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25);
     let led = &mut LedHigh::new(led_kernel_pin);
 
+    let clocks = Clocks::new();
     debug::panic::<_, Uart, _, _>(
         &mut [led],
         UartPanicWriterConfig {
@@ -32,6 +34,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
                 stop_bits: StopBits::One,
                 hw_flow_control: false,
             },
+            clocks: &clocks,
         },
         pi,
         &cortexm33::support::nop,

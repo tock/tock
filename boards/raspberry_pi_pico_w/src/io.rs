@@ -8,6 +8,7 @@ use core::panic::PanicInfo;
 use kernel::debug;
 use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
 
+use rp2040::clocks::Clocks;
 use rp2040::uart::{Uart, UartId, UartPanicWriterConfig};
 
 /// Default panic handler for the Raspberry Pi Pico board.
@@ -16,6 +17,7 @@ use rp2040::uart::{Uart, UartId, UartPanicWriterConfig};
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+    let clocks = Clocks::new();
     debug::panic_print::<Uart, _, _>(
         UartPanicWriterConfig {
             id: UartId::Uart0,
@@ -26,6 +28,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
                 stop_bits: StopBits::One,
                 hw_flow_control: false,
             },
+            clocks: &clocks,
         },
         pi,
         &cortexm0p::support::nop,
