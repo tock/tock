@@ -4,7 +4,8 @@
 
 //! Test reception on the virtualized UART: best if multiple Tests are
 //! instantiated and tested in parallel.
-use crate::virtualizers::selection_policy::SelectionPolicy;
+
+use crate::virtualizers::selection_policy::{RoundRobinPolicy, SelectionPolicy};
 use crate::virtualizers::virtual_uart::UartDevice;
 
 use kernel::debug;
@@ -13,13 +14,15 @@ use kernel::hil::uart::Receive;
 use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
 
-pub struct TestVirtualUartReceive<P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static> {
+pub struct TestVirtualUartReceive<
+    P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static = RoundRobinPolicy,
+> {
     device: &'static UartDevice<'static, P>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<P: SelectionPolicy<&'static UartDevice<'static, P>>> TestVirtualUartReceive<P> {
-    pub fn new(device: &'static UartDevice<'static, P>, buffer: &'static mut [u8]) -> Self {
+impl TestVirtualUartReceive {
+    pub fn new(device: &'static UartDevice<'static>, buffer: &'static mut [u8]) -> Self {
         TestVirtualUartReceive {
             device,
             buffer: TakeCell::new(buffer),
@@ -36,9 +39,7 @@ impl<P: SelectionPolicy<&'static UartDevice<'static, P>>> TestVirtualUartReceive
     }
 }
 
-impl<P: SelectionPolicy<&'static UartDevice<'static, P>> + 'static> uart::ReceiveClient
-    for TestVirtualUartReceive<P>
-{
+impl uart::ReceiveClient for TestVirtualUartReceive {
     fn received_buffer(
         &self,
         rx_buffer: &'static mut [u8],
