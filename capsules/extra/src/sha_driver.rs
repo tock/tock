@@ -352,7 +352,7 @@ impl<'a, H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: u
                 // Mark app operation as completed.
                 app.operation.clear();
 
-                let res = result.and_then(|_| {
+                let res = result.and_then(|()| {
                     // Do our best to copy to the app's buffer. The app MUST have given
                     // us a `DIGEST_LEN` length buffer to copy to. If not, the app won't
                     // get the digest.
@@ -372,8 +372,7 @@ impl<'a, H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: u
                 });
 
                 // Notify the app the operation has finished.
-                let _ =
-                    kernel_data.schedule_upcall(upcall::HASH, (into_statuscode(res.into()), 0, 0));
+                let _ = kernel_data.schedule_upcall(upcall::HASH, (into_statuscode(res), 0, 0));
             });
         });
 
@@ -520,11 +519,10 @@ impl<'a, H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: u
                         // or was queued for later. This also ensures we are not already in
                         // the grant.
                         self.check_queue()
-                            .map_err(|e| {
+                            .inspect_err(|_| {
                                 let _ = self.apps.enter(processid, |app, _kernel_data| {
                                     app.operation.clear();
                                 });
-                                e
                             })
                             .into()
                     }
@@ -552,11 +550,10 @@ impl<'a, H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: u
                         // or was queued for later. This also ensures we are not already in
                         // the grant.
                         self.check_queue()
-                            .map_err(|e| {
+                            .inspect_err(|_| {
                                 let _ = self.apps.enter(processid, |app, _kernel_data| {
                                     app.operation.clear();
                                 });
-                                e
                             })
                             .into()
                     }
