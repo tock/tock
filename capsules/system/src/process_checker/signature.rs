@@ -39,7 +39,7 @@ pub struct AppCheckerSignature<
     credential_type: TbfFooterV2CredentialsType,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'static [u8]>,
-    active_key_index: Cell<(usize, usize)>,
+    active_key_index: Cell<(usize, usize, usize)>,
 }
 
 impl<
@@ -67,7 +67,7 @@ impl<
             credential_type,
             credentials: OptionalCell::empty(),
             binary: OptionalCell::empty(),
-            active_key_index: Cell::new((0, 0)),
+            active_key_index: Cell::new((0, 0, 0)),
         }
     }
 
@@ -154,7 +154,7 @@ impl<
     fn get_key_count_done(&self, count: usize) {
         // We have the hash, we know how many keys, now we need to select the
         // first key to check. Activate the first key.
-        self.active_key_index.set((0, count));
+        self.active_key_index.set((0, 0, count));
         if let Err(_e) = self.verifier.select_key(0) {
             self.client.map(|c| {
                 let binary = self.binary.take().unwrap();
@@ -164,7 +164,7 @@ impl<
         }
     }
 
-    fn select_key_done(&self, _index: usize, error: Result<(), ErrorCode>) {
+    fn select_key_done(&self, _index: usize, metadata: usize, error: Result<(), ErrorCode>) {
         match error {
             Err(e) => {
                 // Could not switch to the requested key.
@@ -174,7 +174,14 @@ impl<
                     c.check_done(Err(e), cred, binary)
                 });
             }
-            Ok(()) => self.do_verify(),
+            Ok(()) => {
+                // Save the metadata for the newly selected key.
+                let (current_key, _, number_keys) = self.active_key_index.get();
+                self.active_key_index
+                    .set((current_key, metadata, number_keys));
+
+                self.do_verify()
+            }
         }
     }
 }
@@ -257,7 +264,7 @@ impl<
         self.hash.replace(hash);
         self.signature.replace(signature);
 
-        let (current_key, number_keys) = self.active_key_index.get();
+        let (current_key, key_metadata, number_keys) = self.active_key_index.get();
 
         // Check if the verification was successful. If so, we can issue the
         // callback.
@@ -268,7 +275,7 @@ impl<
                 c.check_done(
                     Ok(CheckResult::Accept(Some(
                         kernel::process_checker::CheckResultAcceptMetadata {
-                            metadata: current_key,
+                            metadata: key_metadata,
                         },
                     ))),
                     cred,
@@ -290,7 +297,7 @@ impl<
                 });
             } else {
                 // Activate the next key.
-                self.active_key_index.set((next_key, number_keys));
+                self.active_key_index.set((next_key, 0, number_keys));
                 if self.verifier.select_key(next_key).is_err() {
                     self.client.map(|c| {
                         let binary = self.binary.take().unwrap();

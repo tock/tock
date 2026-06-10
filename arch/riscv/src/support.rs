@@ -6,7 +6,7 @@
 
 use crate::csr::{mstatus::mstatus, CSR};
 
-#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(any(doc, target_arch = "riscv32", target_arch = "riscv64"))]
 #[inline(always)]
 /// NOP instruction
 pub fn nop() {
@@ -16,9 +16,9 @@ pub fn nop() {
     }
 }
 
-#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(any(doc, target_arch = "riscv32", target_arch = "riscv64"))]
 #[inline(always)]
-/// WFI instruction
+/// Wait For Interrupt (WFI) instruction.
 pub unsafe fn wfi() {
     use core::arch::asm;
     asm!("wfi", options(nomem, nostack));
@@ -51,13 +51,13 @@ where
 }
 
 // Mock implementations for tests on Travis-CI.
-#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+#[cfg(not(any(doc, target_arch = "riscv32", target_arch = "riscv64")))]
 /// NOP instruction (mock)
 pub fn nop() {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+#[cfg(not(any(doc, target_arch = "riscv32", target_arch = "riscv64")))]
 /// WFI instruction (mock)
 pub unsafe fn wfi() {
     unimplemented!()

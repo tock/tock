@@ -466,8 +466,13 @@ ENTRY(_stext);
  */
 ASSERT((_eattributes == _erom) || (_eattributes == _erom + SIZEOF(.attributes)), "Kernel attributes are not at the end of ROM.")
 
-/* This assert works out because even though some of the relative positions are
- * off, the sizes are sane in each pass.
+/* Another dirty, not-fully-understood, hack. See previous comment.
+ * Only enforce the ROM-budget check on the converged lld pass, where
+ * `_eattributes == _erom`. On the other passes the symbol values are
+ * unreliable, so we skip the check by short-circuiting the OR. If the kernel
+ * genuinely overflows ROM the linker still emits its own "section will not fit
+ * in region `rom'" error.
  */
-ASSERT((_etext - _stext) + (_erelocate - _srelocate) + (_eattributes - _sattributes) < LENGTH(rom),
+ASSERT((_eattributes != _erom) ||
+       (((_etext - _stext) + (_erelocate - _srelocate) + (_eattributes - _sattributes)) < LENGTH(rom)),
 "Text plus relocations plus attributes exceeds the available ROM space.");

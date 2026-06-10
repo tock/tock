@@ -1,17 +1,17 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2024.
+# Copyright Tock Contributors 2026.
 
 [package]
-name = "nrf52840dk-test-invs"
+name = "nrf52840dk-test-base"
 version.workspace = true
 authors.workspace = true
-build = "../../../build.rs"
 edition.workspace = true
 
-[dependencies]
-nrf52840dk-test-base = { path = "../nrf52840dk-test-base" }
+[lib]
+name = "nrf52840dk_test_base_lib"
 
+[dependencies]
 components = { path = "../../../components" }
 cortexm4 = { path = "../../../../arch/cortex-m4" }
 kernel = { path = "../../../../kernel" }
@@ -22,9 +22,6 @@ nrf52_components = { path = "../../../nordic/nrf52_components" }
 capsules-core = { path = "../../../../capsules/core" }
 capsules-extra = { path = "../../../../capsules/extra" }
 capsules-system = { path = "../../../../capsules/system" }
-
-[build-dependencies]
-tock_build_scripts = { path = "../../../build_scripts" }
 
 [lints]
 workspace = true

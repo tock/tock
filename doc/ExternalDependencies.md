@@ -115,6 +115,12 @@ Such functionality includes:
   correct and resistant to attacks is challenging. Leveraging validated,
   high-quality cryptographic libraries instead of Tock-specific cryptographic
   code increases the security of the Tock kernel.
+* Procedural macro support. The `syn`, `quote`, and `proc-macro2` crates are
+  effectively a core part of the Rust language, despite being distributed
+  separately from the Rust toolchain. They enable tock-registers to expose
+  sound, highly-testable interfaces to hardware peripherals. Unit- and
+  integration-testing code increases the reliability and security of the Tock
+  kernel.
 
 #### Project Understandability
 
@@ -196,7 +202,7 @@ development in a standalone repository is necessary for the continued
 development, improvement, and impact of the crate.
 
 All crates permitted by this exception MUST NOT have any external dependencies
-themselves.
+themselves unless explicitly permitted by this document.
 
 Any crates included in this exception list, with their associated justification,
 do not imply any predisposition to allowing an exception for any future
@@ -205,14 +211,13 @@ crates. All exceptions will be considered independently.
 #### Approved Exceptions for Core Kernel External Dependencies
 
 ##### **tock-registers**
-This crate provides an interface for using MMIO registers which are extensively
-used in `chips/` crates.
+The `tock-registers` crates provide an interface for using MMIO registers which
+is extensively used in `chips/` crates.
 
 - **Repository:** https://github.com/tock/tock-registers
-- **Justification:** This crate has moved to an external dependency to
+- **Justification:** This project has moved to an external dependency to
   encourage its development and use in projects beyond Tock. Specifically, the
   benefits of development in a separate repository include:
-
   1. Encouraging more rigorous backwards compatibility considerations for
      external users. The close interplay of Tock and tock-registers means
      breaking changes for external users can be hidden in Tock-specific pull
@@ -229,6 +234,24 @@ used in `chips/` crates.
      repository makes it clear it is a standalone project and can be developed
      independently of Tock. This should help contributions that benefit
      tock-registers but not necessarily Tock as well.
+- **Dependencies:** `tock-registers` crates may have dev-dependencies on
+  external crates to support unit testing, as those dev-dependencies are not
+  included in a Tock kernel build. Additionally, `tock-registers` crates may
+  depend on the `syn`, `quote`, and `proc-macro2` crates for the following
+  reasons:
+  1. **Important functionality:** Procedural macros need to parse nontrivial
+     Rust code and generate nontrivial Rust code, and `syn` and `quote` provide
+     that functionality. It would require considerable effort for us to
+     implement and maintain that ourselves. `quote` has a hard dependency on
+     `proc-macro2`, which is also useful to support the procedural macros' unit
+     tests, so that is included as well.
+  2. **Project maturity:** These crates are core Rust ecosystem mechanisms, and
+     have been stable for years. All three crates are in the top 10
+     all-time-most-downloaded crates on crates.io.
+  3. **Limited sub-dependencies:** The only additional dependency these crates
+     bring in is `unicode-ident`, which has no dependencies. `unicode-ident` is
+     relatively small and simple, and is a top 30 all-time-most-downloaded crate
+     on crates.io.
 
 ##### **flux-rs**
 This crate provides support for formal verification of Rust code via
