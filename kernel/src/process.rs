@@ -32,7 +32,9 @@ pub use crate::process_loading::ProcessLoadError;
 pub use crate::process_loading::SequentialProcessLoaderMachine;
 pub use crate::process_loading::load_processes;
 pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
-pub use crate::process_policies::{ProcessFaultPolicy, ProcessStandardStoragePermissionsPolicy};
+pub use crate::process_policies::{
+    ProcessFaultPolicy, ProcessRestart, ProcessStandardStoragePermissionsPolicy,
+};
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext};
 pub use crate::process_standard::ProcessStandard;
 pub use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull};
