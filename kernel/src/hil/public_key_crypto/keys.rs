@@ -292,13 +292,21 @@ pub trait SelectKeyClient {
     /// Called when the specified key is active and ready to use for the next
     /// cryptographic operation.
     ///
+    /// ### Arguments
+    ///
+    /// - `index`: The index of the key that was selected.
+    /// - `metadata`: An opaque usize of metadata associated with the key. This
+    ///   can be used with
+    ///   [`CheckResultAcceptMetadata`](crate::process_checker::CheckResultAcceptMetadata)
+    ///   to assign metadata with the accepted credential.
+    ///
     /// ### `error`:
     ///
     /// - `Ok(())`: The key was selected successfully.
     /// - `Err(())`: The key was selected set successfully.
     ///   - `ErrorCode::INVAL`: The index was not valid.
     ///   - `ErrorCode::FAIL`: The key could not be set.
-    fn select_key_done(&self, index: usize, error: Result<(), ErrorCode>);
+    fn select_key_done(&self, index: usize, metadata: usize, error: Result<(), ErrorCode>);
 }
 
 /// Interface for selecting an active key among the number of available keys.
