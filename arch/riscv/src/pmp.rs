@@ -327,7 +327,7 @@ pub mod misc_pmp_test {
     fn test_napot_region_spec_from_pmpaddr_csr() {
         use super::NAPOTRegionSpec;
 
-        // Unfortunatly, we can't run these unit tests for different platforms,
+        // Unfortunately, we can't run these unit tests for different platforms,
         // with arbitrary bit-widths (at least when using `usize` in the
         // `TORRegionSpec` internally.
         //
@@ -419,7 +419,7 @@ pub mod misc_pmp_test {
     #[test]
     fn test_tor_region_spec_from_pmpaddr_csrs() {
         use super::TORRegionSpec;
-        // Unfortunatly, we can't run these unit tests for different platforms,
+        // Unfortunately, we can't run these unit tests for different platforms,
         // with arbitrary bit-widths (at least when using `usize` in the
         // `TORRegionSpec` internally.
         //
@@ -577,7 +577,7 @@ pub mod misc_pmp_test {
 ///
 /// This function is unsafe, as it relies on the PMP CSRs to be accessible, and
 /// the hardware to feature `PHYSICAL_ENTRIES` PMP CSR entries. If these
-/// conditions are not met, calling this function can result in undefinied
+/// conditions are not met, calling this function can result in undefined
 /// behavior (e.g., cause a system trap).
 pub unsafe fn format_pmp_entries<const PHYSICAL_ENTRIES: usize>(
     f: &mut fmt::Formatter<'_>,
@@ -763,11 +763,11 @@ pub trait TORUserPMP<const MAX_REGIONS: usize> {
     ///   configured either as a TOR region (`A = 0b01`), or disabled (all bits
     ///   set to `0`).
     ///
-    /// - second value (`*const u8`): the region's start addres. As a PMP TOR
+    /// - second value (`*const u8`): the region's start address. As a PMP TOR
     ///   region has a 4-byte address granularity, this address is rounded down
     ///   to the next 4-byte boundary.
     ///
-    /// - third value (`*const u8`): the region's end addres. As a PMP TOR
+    /// - third value (`*const u8`): the region's end address. As a PMP TOR
     ///   region has a 4-byte address granularity, this address is rounded down
     ///   to the next 4-byte boundary.
     ///
@@ -795,7 +795,7 @@ pub trait TORUserPMP<const MAX_REGIONS: usize> {
     /// Disable the user-mode memory protection.
     ///
     /// Disables the memory protection for user-mode. If enabling the user-mode
-    /// memory protetion made user-mode accessible regions inaccessible to
+    /// memory protection made user-mode accessible regions inaccessible to
     /// machine-mode, this method should make these regions accessible again.
     ///
     /// For PMP implementations where configured regions are only enforced in
@@ -995,7 +995,7 @@ unsafe impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
             // that performed this check before adjusting the requested region
             // size to meet PMP region layout constraints (4 byte alignment for
             // start and end address). Existing applications whose end-address
-            // is aligned on a less than 4-byte bondary would thus be given
+            // is aligned on a less than 4-byte boundary would thus be given
             // access to additional memory which should be inaccessible.
             // Unfortunately, we can't fix this without breaking existing
             // applications. Thus, we perform the same insecure hack here, and
@@ -1458,12 +1458,12 @@ pub mod simple {
     /// expected to be set to the number of available entries.
     ///
     /// [`SimplePMP`] implements [`TORUserPMP`] to expose all of its regions as
-    /// "top of range" (TOR) regions (each taking up two physical PMP entires)
+    /// "top of range" (TOR) regions (each taking up two physical PMP entries)
     /// for use as a user-mode memory protection mechanism.
     ///
     /// Notably, [`SimplePMP`] implements `TORUserPMP<MPU_REGIONS>` over a
     /// generic `MPU_REGIONS` where `MPU_REGIONS <= (AVAILABLE_ENTRIES / 2)`. As
-    /// PMP re-configuration can have a significiant runtime overhead, users are
+    /// PMP re-configuration can have a significant runtime overhead, users are
     /// free to specify a small `MPU_REGIONS` const-generic parameter to reduce
     /// the runtime overhead induced through PMP configuration, at the cost of
     /// having less PMP regions available to use for userspace memory
@@ -2278,7 +2278,7 @@ pub mod kernel_protection_mml_epmp {
         for KernelProtectionMMLEPMP<AVAILABLE_ENTRIES, MPU_REGIONS>
     {
         // Ensure that the MPU_REGIONS (starting at entry, and occupying two
-        // entries per region) don't overflow the available entires, excluding
+        // entries per region) don't overflow the available entries, excluding
         // the 7 entries used for implementing the kernel memory protection:
         const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 5) / 2));
 
