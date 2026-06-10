@@ -4,17 +4,18 @@
 // Copyright OxidOS Automotive 2026.
 
 use crate::dma::{ChannelId, Dma};
+use crate::entropy::Trng;
 use crate::gpio;
 use crate::nvic::{
     EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
     GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
     GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
-    PKA_IRQ, TIM2_IRQ, USART1_IRQ,
+    PKA_IRQ, RNG_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::rcc;
 use crate::tim;
 use crate::usart;
-use crate::{exti, rsa};
+use crate::{entropy, exti, rsa};
 
 use core::fmt::Write;
 use kernel::platform::chip::Chip;
@@ -35,6 +36,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_a: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
     pub pka: rsa::Pka<'a>,
+    pub trng: &'a entropy::Trng<'a>,
 }
 
 fn enable_tim2_clock() {
@@ -43,7 +45,12 @@ fn enable_tim2_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(
+        usart1: &'a usart::Usart<'a>,
+        exti: &'a exti::Exti<'a>,
+        dma1: &'a Dma,
+        trng: &'a Trng<'a>,
+    ) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
@@ -53,6 +60,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             pka: rsa::Pka::new(),
+            trng,
         }
     }
 
@@ -63,6 +71,8 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
+        self.rcc.enable_trng();
+        self.trng.init();
         self.rcc.set_usart1_source_pclk();
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
@@ -159,6 +169,10 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             PKA_IRQ => {
                 self.pka.handle_interrupt();
+                true
+            }
+            RNG_IRQ => {
+                self.trng.handle_interrupt();
                 true
             }
             _ => false,

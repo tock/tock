@@ -6,7 +6,6 @@
 #![no_std]
 #![no_main]
 
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
@@ -14,6 +13,7 @@ use kernel::hil::public_key_crypto::rsa_math::RsaCryptoBase;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::{capabilities, debug};
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
@@ -152,11 +152,15 @@ unsafe fn start() -> (
         stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
     );
     usart1.register();
+    let trng = static_init!(
+        stm32u545::entropy::Trng<'static>,
+        stm32u545::entropy::Trng::new(stm32u545::entropy::RNG_BASE, DeferredCall::new())
+    );
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, trng)
     );
 
     // Initialize wiring (DMA, clocks)
