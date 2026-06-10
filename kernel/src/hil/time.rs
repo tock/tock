@@ -265,6 +265,9 @@ pub trait Counter<'a>: Time {
 }
 
 /// Extension trait for counters that support hardware overflow notifications.
+#[deprecated(
+    note = "set_overflow_client never used so moved to an independent trait. Set to be removed in future releases unless a concrete use case is raised."
+)]
 pub trait CounterOverflow<'a>: Counter<'a> {
     fn set_overflow_client(&self, client: &'a dyn OverflowClient);
 }

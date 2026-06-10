@@ -151,6 +151,7 @@ impl<'a> time::Counter<'a> for Rtc<'a> {
     }
 }
 
+#[allow(deprecated)]
 impl<'a> time::CounterOverflow<'a> for Rtc<'a> {
     fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
         self.overflow_client.set(client);
