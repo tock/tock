@@ -195,35 +195,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 }
 
 pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
-    let _ccr: u32;
-    let cfsr: u32;
-    let hfsr: u32;
-    let mmfar: u32;
-    let bfar: u32;
-
-    // Retrieve the stored SCB register values using assembly.
-    unsafe {
-        core::arch::asm!(
-                "
-    ldr r0, =SCB_REGISTERS            // r0 = &SCB_REGISTERS
-    ldr r1, [r0]                      // r1 = _ccr = SCB_REGISTERS[0]
-    add r0, r0, #4                    // r0 = &SCB_REGISTERS[1]
-    ldr r2, [r0]                      // r2 = cfsr = SCB_REGISTERS[1]
-    add r0, r0, #4                    // r0 = &SCB_REGISTERS[2]
-    ldr r3, [r0]                      // r3 = hfsr = SCB_REGISTERS[2]
-    add r0, r0, #4                    // r0 = &SCB_REGISTERS[3]
-    ldr r4, [r0]                      // r4 = mmfar = SCB_REGISTERS[3]
-    add r0, r0, #4                    // r0 = &SCB_REGISTERS[4]
-    ldr r5, [r0]                      // r5 = bfar = SCB_REGISTERS[4]
-                    ",
-                out("r0") _,
-                out("r1") _ccr,
-                out("r2") cfsr,
-                out("r3") hfsr,
-                out("r4") mmfar,
-                out("r5") bfar,
-        );
-    }
+    let (_ccr, cfsr, hfsr, mmfar, bfar) = crate::syscall::get_global_scb_registers();
 
     let iaccviol = (cfsr & 0x01) == 0x01;
     let daccviol = (cfsr & 0x02) == 0x02;
