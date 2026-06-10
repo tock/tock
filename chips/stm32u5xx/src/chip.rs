@@ -42,6 +42,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
     pub dac: dac::Dac,
+    pub trng: &'a entropy::Trng<'a>,
 }
 
 fn enable_tim2_clock() {
@@ -55,7 +56,12 @@ fn enable_dac1_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(
+        usart1: &'a usart::Usart<'a>,
+        exti: &'a exti::Exti<'a>,
+        dma1: &'a Dma,
+        trng: &'a Trng<'a>,
+    ) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
@@ -68,6 +74,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
+            trng,
         }
     }
 
@@ -80,6 +87,8 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_syscfg();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
+        self.rcc.enable_trng();
+        self.trng.init();
         self.rcc.set_usart1_source_pclk();
 
         // ADC
@@ -247,6 +256,10 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             GPDMA1_CH15_IRQ => {
                 self.dma1.handle_interrupt(ChannelId::Channel15);
+                true
+            }
+            RNG_IRQ => {
+                self.trng.handle_interrupt();
                 true
             }
             _ => false,

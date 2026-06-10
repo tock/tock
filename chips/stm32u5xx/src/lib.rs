@@ -8,6 +8,7 @@ pub mod adc;
 pub mod chip;
 pub mod dac;
 pub mod dma;
+pub mod entropy;
 pub mod exti;
 pub mod gpio;
 pub mod nvic;
