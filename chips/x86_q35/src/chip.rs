@@ -125,11 +125,15 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
     type ThreadIdProvider = x86::thread_id::X86ThreadIdProvider;
 
     fn init() {
-        // CPU/interrupt controller
-        unsafe {
-            x86::init();
-            crate::pic::init();
-        }
+        // TODO: Correctly implement the x86 init API.
+        //
+        // As of June 2026 we are not currently using this init() because the
+        // safety requirements cannot be properly handled. The current safety
+        // requirements require assurance init is only called once, which we
+        // can't enforce.
+        //
+        // As the safety of the x86 crate is better understood, we expect
+        // the requirement to be easier to satisfy.
     }
 
     type MPU = PagingMPU<'a>;
@@ -261,9 +265,11 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
         ),
         page_dir: &mut PD,
     ) -> Self {
-        // VGA baseline init
+        // CPU/interrupt controller/VGA baseline init
         // SAFETY: PAGE_DIR is identity-mapped, aligned, and unique
         unsafe {
+            x86::init();
+            crate::pic::init();
             let pd_ref: &mut PD = &mut *core::ptr::from_mut(page_dir);
             // Enable the VGA path by building or running with the feature flag, e.g.:
             //   `cargo run -- -display none`
