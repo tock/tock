@@ -5,7 +5,7 @@
 use core::cell::Cell;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::entropy::{self, Client32, Continue, Entropy32};
+use kernel::hil::entropy::{Client32, Continue, Entropy32};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
