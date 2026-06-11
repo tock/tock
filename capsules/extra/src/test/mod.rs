@@ -8,6 +8,7 @@ pub mod aes_gcm;
 pub mod crc;
 pub mod hmac_sha256;
 pub mod kv_system;
+pub mod rng;
 pub mod sha256;
 pub mod siphash24;
 pub mod udp;
