@@ -2100,7 +2100,6 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //
         // This is safe, `kernel_memory_break` is aligned to a word-boundary,
         // and `grant_ptrs_offset` is a multiple of the word size.
-        #[allow(clippy::cast_ptr_alignment)]
         let grant_pointers_memory_location: *mut MaybeUninit<GrantPointerEntry> =
             kernel_memory_break.cast();
         let grant_pointers_uninit: &mut [MaybeUninit<GrantPointerEntry>] =
@@ -2146,7 +2145,6 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // change, it should be more proactively enforced.
         //
         // TODO: https://github.com/tock/tock/issues/1739
-        #[allow(clippy::cast_ptr_alignment)]
         let upcall_buf = unsafe { slice::from_raw_parts_mut(upcall_buf, Self::CALLBACK_LEN) };
         let tasks = RingBuffer::new(upcall_buf);
 
