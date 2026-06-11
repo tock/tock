@@ -74,6 +74,7 @@ name = "capsules-extra"
 version = "0.2.3-dev"
 dependencies = [
  "capsules-core",
+ "capsules-system",
  "enum_primitive",
  "kernel",
  "tickv",
