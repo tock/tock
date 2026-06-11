@@ -21,6 +21,7 @@ use crate::usart;
 use crate::{dac, exti};
 
 use core::fmt::Write;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -88,7 +89,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
         self.rcc.enable_trng();
-        self.trng.init();
+        self.trng.register();
         self.rcc.set_usart1_source_pclk();
 
         // ADC
