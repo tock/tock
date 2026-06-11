@@ -1301,6 +1301,7 @@ name = "qemu_rv32_virt_chip"
 version = "0.2.3-dev"
 dependencies = [
  "kernel",
+ "qemu_virt_chip",
  "rv32i",
  "sifive",
  "virtio",
@@ -1330,6 +1331,13 @@ dependencies = [
  "rv64i",
  "sifive",
  "virtio",
+]
+
+[[package]]
+name = "qemu_virt_chip"
+version = "0.2.3-dev"
+dependencies = [
+ "kernel",
 ]
 
 [[package]]
