@@ -142,8 +142,7 @@ impl PmpConfigCSRIter {
                 // bytes in a usize.
                 let mut pmpcfg_csr_mask = 1_usize
                     .checked_shl((current_csr_byte_offset * 8) as u32)
-                    .map(|v| v - 1)
-                    .unwrap_or(usize::MAX);
+                    .map_or(usize::MAX, |v| v - 1);
                 // Now, remove bits between the least significant octet to the
                 // start_csr_byte_offset, e.g.: 0x00FFFF00.
                 pmpcfg_csr_mask ^= (1_usize << (start_csr_byte_offset * 8)) - 1;
@@ -194,7 +193,7 @@ impl Iterator for PmpConfigCSRIter {
         // If we've just flowed over into a new CSR, set our cached CSR value to
         // None. This will force it to be fetched again on the next call to
         // `next()`:
-        if self.current_entry % OCTETS_PER_PMPCFG_CSR == 0 {
+        if self.current_entry.is_multiple_of(OCTETS_PER_PMPCFG_CSR) {
             self.pmpcfg_csr_value = None;
         }
 
@@ -1594,7 +1593,7 @@ pub mod simple {
     use super::{pmpcfg_octet, PmpConfigCSRIter, TORUserPMP, TORUserPMPCFG, OCTETS_PER_PMPCFG_CSR};
     use crate::csr;
     use core::fmt;
-    use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
+    use kernel::utilities::registers::LocalRegisterCopy;
 
     /// A "simple" RISC-V PMP implementation.
     ///
@@ -1721,10 +1720,10 @@ pub mod simple {
 
                         pmpcfg
                     })
-                    .chain(
-                        core::iter::repeat(TORUserPMPCFG::OFF)
-                            .take(AVAILABLE_ENTRIES - (MPU_REGIONS * 2)),
-                    )
+                    .chain(core::iter::repeat_n(
+                        TORUserPMPCFG::OFF,
+                        AVAILABLE_ENTRIES - (MPU_REGIONS * 2),
+                    ))
                     .map(TORUserPMPCFG::get_reg),
             );
 
