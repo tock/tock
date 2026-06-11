@@ -18,6 +18,7 @@ use crate::usart;
 use crate::{entropy, exti, rsa};
 
 use core::fmt::Write;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -72,7 +73,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
         self.rcc.enable_trng();
-        self.trng.init();
+        self.trng.register();
         self.rcc.set_usart1_source_pclk();
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();

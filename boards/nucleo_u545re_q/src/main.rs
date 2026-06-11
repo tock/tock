@@ -8,12 +8,13 @@
 
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::deferred_call::DeferredCall;
-use kernel::deferred_call::DeferredCallClient;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::public_key_crypto::rsa_math::RsaCryptoBase;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::utilities::registers::interfaces::Readable;
+use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, debug};
 use kernel::{create_capability, static_init};
@@ -262,19 +263,6 @@ unsafe fn start() -> (
     );
 
     // 1. Import
-    use capsules_extra::test::rng::RngEntropy32Test;
-
-    // 2. Statically allocate the test struct (inside your component/board setup)
-    let rng_test = static_init!(
-        RngEntropy32Test<'static, stm32u545::entropy::Trng>,
-        RngEntropy32Test::new(trng)
-    );
-
-    // 3. Register the test as the driver's client
-    trng.set_client(rng_test);
-
-    // 4. Kick it off — call after the kernel loop is about to start
-    rng_test.run();
     // Symbols for linker
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -306,6 +294,7 @@ unsafe fn start() -> (
         &capsules_system::process_policies::PanicFaultPolicy {},
         &create_capability!(capabilities::ProcessManagementCapability),
     );
+    use capsules_extra::test::rng::RngEntropy32Test;
 
     // Test RSA
     // TODO remove before PR
@@ -322,6 +311,18 @@ unsafe fn start() -> (
 
     kernel::debug!("Pka status: {:?}", status);
 
+    // 2. Statically allocate the test struct (inside your component/board setup)
+    let rng_test = static_init!(
+        RngEntropy32Test<'static, stm32u545::entropy::Trng>,
+        RngEntropy32Test::new(trng)
+    );
+
+    // 3. Register the test as the driver's client
+    trng.set_client(rng_test);
+    trng.register();
+    // 4. Kick it off — call after the kernel loop is about to start
+    // // temporary diagnostic
+    rng_test.run();
     (board_kernel, platform, chip)
 }
 
