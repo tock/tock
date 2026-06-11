@@ -57,7 +57,8 @@ type LedDriver = components::led::LedsComponentType<Led, 4>;
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 
-type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+/// Scheduler in use by this platform.
+pub type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
