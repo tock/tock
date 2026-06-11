@@ -11,7 +11,7 @@ use kernel::hil::uart;
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    debug::panic_print::<qemu_rv32_virt_chip::uart::Uart16550, _, _>(
+    debug::panic_print::<qemu_rv32_virt_chip::uart::UartPanicWriter, _, _>(
         qemu_rv32_virt_chip::uart::UartPanicWriterConfig {
             params: uart::Parameters {
                 baud_rate: 115200,
