@@ -1,0 +1,34 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
+[package]
+name = "qemu_rv64_virt"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+build = "../build.rs"
+
+[lib]
+name = "qemu_rv64_virt_lib"
+
+[[bin]]
+name = "qemu_rv64_virt"
+path = "src/main.rs"
+
+[dependencies]
+components = { path = "../components" }
+sifive = { path = "../../chips/sifive" }
+rv64i = { path = "../../arch/rv64i" }
+kernel = { path = "../../kernel" }
+qemu_rv64_virt_chip = { path = "../../chips/qemu_rv64_virt_chip" }
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true
