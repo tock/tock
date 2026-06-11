@@ -50,6 +50,7 @@ in
 
     buildInputs = with pkgs; [
       # --- Toolchains ---
+      llvm
       rustBuild
       openocd
 
