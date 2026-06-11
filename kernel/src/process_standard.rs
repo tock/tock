@@ -2186,49 +2186,57 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //
         // TODO: how do we ensure we never miss a field?
         let process_uptr = process_uninit.as_mut_ptr();
-        (&raw mut (*process_uptr).process_id).write(Cell::new(ProcessId::new(
-            kernel,
-            kernel.create_process_identifier(),
-            index,
-        )));
-        (&raw mut (*process_uptr).app_id).write(app_id);
-        (&raw mut (*process_uptr).kernel).write(kernel);
-        (&raw mut (*process_uptr).chip).write(chip);
-        (&raw mut (*process_uptr).allow_high_water_mark)
-            .write(Cell::new(initial_allow_high_water_mark));
-        (&raw mut (*process_uptr).memory_start).write(allocated_memory_start);
-        (&raw mut (*process_uptr).memory_len).write(allocated_memory_len);
-        (&raw mut (*process_uptr).header).write(pb.header);
-        (&raw mut (*process_uptr).kernel_memory_break).write(Cell::new(kernel_memory_break));
-        (&raw mut (*process_uptr).app_break).write(Cell::new(initial_app_brk));
-        (&raw mut (*process_uptr).grant_pointers).write(MapCell::new(grant_pointers));
 
-        (&raw mut (*process_uptr).credential).write(pb.credential.get());
-        (&raw mut (*process_uptr).footers).write(pb.footers);
-        (&raw mut (*process_uptr).flash).write(pb.flash);
+        // # Safety
+        //
+        // These need to be valid and aligned writes. When we create the `MaybeUnint`
+        // ProcessStandard struct we ensure there is valid memory for the object and
+        // that it is aligned.
+        unsafe {
+            (&raw mut (*process_uptr).process_id).write(Cell::new(ProcessId::new(
+                kernel,
+                kernel.create_process_identifier(),
+                index,
+            )));
+            (&raw mut (*process_uptr).app_id).write(app_id);
+            (&raw mut (*process_uptr).kernel).write(kernel);
+            (&raw mut (*process_uptr).chip).write(chip);
+            (&raw mut (*process_uptr).allow_high_water_mark)
+                .write(Cell::new(initial_allow_high_water_mark));
+            (&raw mut (*process_uptr).memory_start).write(allocated_memory_start);
+            (&raw mut (*process_uptr).memory_len).write(allocated_memory_len);
+            (&raw mut (*process_uptr).header).write(pb.header);
+            (&raw mut (*process_uptr).kernel_memory_break).write(Cell::new(kernel_memory_break));
+            (&raw mut (*process_uptr).app_break).write(Cell::new(initial_app_brk));
+            (&raw mut (*process_uptr).grant_pointers).write(MapCell::new(grant_pointers));
 
-        (&raw mut (*process_uptr).stored_state).write(MapCell::new(Default::default()));
-        (&raw mut (*process_uptr).state).write(Cell::new(State::Yielded));
-        (&raw mut (*process_uptr).fault_policy).write(fault_policy);
-        (&raw mut (*process_uptr).restart_count).write(Cell::new(0));
-        (&raw mut (*process_uptr).completion_code).write(OptionalCell::empty());
+            (&raw mut (*process_uptr).credential).write(pb.credential.get());
+            (&raw mut (*process_uptr).footers).write(pb.footers);
+            (&raw mut (*process_uptr).flash).write(pb.flash);
 
-        (&raw mut (*process_uptr).storage_permissions)
-            .write(Cell::new(StoragePermissions::new_null()));
+            (&raw mut (*process_uptr).stored_state).write(MapCell::new(Default::default()));
+            (&raw mut (*process_uptr).state).write(Cell::new(State::Yielded));
+            (&raw mut (*process_uptr).fault_policy).write(fault_policy);
+            (&raw mut (*process_uptr).restart_count).write(Cell::new(0));
+            (&raw mut (*process_uptr).completion_code).write(OptionalCell::empty());
 
-        (&raw mut (*process_uptr).mpu_config).write(MapCell::new(mpu_config));
-        (&raw mut (*process_uptr).mpu_regions).write([
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-        ]);
-        (&raw mut (*process_uptr).tasks).write(MapCell::new(tasks));
-        (&raw mut (*process_uptr).is_yield_wait_for_ready).write(Cell::new(false));
+            (&raw mut (*process_uptr).storage_permissions)
+                .write(Cell::new(StoragePermissions::new_null()));
 
-        (&raw mut (*process_uptr).debug).write(D::default());
+            (&raw mut (*process_uptr).mpu_config).write(MapCell::new(mpu_config));
+            (&raw mut (*process_uptr).mpu_regions).write([
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+                Cell::new(None),
+            ]);
+            (&raw mut (*process_uptr).tasks).write(MapCell::new(tasks));
+            (&raw mut (*process_uptr).is_yield_wait_for_ready).write(Cell::new(false));
+
+            (&raw mut (*process_uptr).debug).write(D::default());
+        }
 
         // Convert the originally uninitialized `ProcessStandard` to a proper
         // `ProcessStandard` struct reference.
