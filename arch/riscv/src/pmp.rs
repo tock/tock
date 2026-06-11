@@ -48,6 +48,161 @@ register_bitfields![u8,
 /// `0xFFFFFFFF` on RV32 platforms.
 const PMPADDR_MASK: usize = (0x003F_FFFF_FFFF_FFFFu64 & usize::MAX as u64) as usize;
 
+const OCTETS_PER_PMPCFG_CSR: usize = core::mem::size_of::<usize>();
+
+pub struct PmpConfigCSRIter {
+    // The pmpcfg octet returned on the next call to next():
+    current_entry: usize,
+    // The current pmpcfg value, containing the pmpcfg octet addressed by
+    // `current_entry`:
+    pmpcfg_csr_value: Option<usize>,
+}
+
+impl PmpConfigCSRIter {
+    pub fn from_pmpcfg_entry_offset(start_entry: usize) -> Self {
+        PmpConfigCSRIter {
+            current_entry: start_entry,
+            pmpcfg_csr_value: None,
+        }
+    }
+
+    pub fn write_back(
+        start_entry: usize,
+        mut iter: impl Iterator<Item = LocalRegisterCopy<u8, pmpcfg_octet::Register>>,
+    ) {
+        let mut current_entry = start_entry;
+        let mut iterator_exhausted = false;
+
+        // RISC-V only supports up to 64 PMP entries. We don't need to check for
+        // `current_entry < 64` in the inner loop, as 64 is evenly divisible by
+        // `OCTETS_PER_PMPCFG_CSR` for both rv32i and rv64i.
+        while !iterator_exhausted && current_entry < 64 {
+            // We use an intermediate `usize` value to collect all of the pmpcfg
+            // CSRs being written. It's possible that the `start_entry` does not
+            // align with the bounds of a CSR, or that we don't have sufficient
+            // entries to fill a CSR. We handle both of these cases below by lazily
+            // perfoming read-modify-write and issuing a CSR read:
+            let mut new_pmpcfg_csr: usize = 0;
+
+            // Determine the pmpcfg CSR address.
+            //
+            // Multiply by `OCTETS_PER_PMPCFG_CSR / 4` (= 1 on rv32i, = 2 on rv64i) to
+            // skip every other PMPCFG CSR on rv64i.
+            let pmpcfg_csr = (current_entry / OCTETS_PER_PMPCFG_CSR) * (OCTETS_PER_PMPCFG_CSR / 4);
+
+            // Determine the byte offset into the `new_pmpcfg_csr`:
+            let start_csr_byte_offset: usize = current_entry % OCTETS_PER_PMPCFG_CSR;
+            let mut current_csr_byte_offset: usize = start_csr_byte_offset;
+
+            // Current pmpcfg_octet, to be read from the iterator in the loop
+            // conditional and used in the loop body:
+            let mut pmpcfg_octet: u8 = 0;
+            while {
+                // First, check that we have more space in the current CSR:
+                if current_csr_byte_offset >= OCTETS_PER_PMPCFG_CSR {
+                    false
+                } else {
+                    // If we have more space, try to pull a new octet out of the
+                    // iterator, and remember if we've exhausted it:
+                    if let Some(o) = iter.next() {
+                        pmpcfg_octet = o.get();
+                        true
+                    } else {
+                        iterator_exhausted = true;
+                        false
+                    }
+                }
+            } {
+                new_pmpcfg_csr |= (pmpcfg_octet as usize) << (current_csr_byte_offset * 8);
+                current_csr_byte_offset += 1;
+                current_entry += 1;
+            }
+
+            // If we haven't written any octets, skip to the next loop iteration
+            // and don't issue any CSR writes:
+            if start_csr_byte_offset == current_csr_byte_offset {
+                continue;
+            }
+
+            // We issue a read to the CSR only if we have any octets that have
+            // not been populated above:
+            if start_csr_byte_offset > 0 || current_csr_byte_offset < OCTETS_PER_PMPCFG_CSR {
+                let prev_pmpcfg_csr = csr::CSR.pmpconfig_get(pmpcfg_csr);
+
+                // Build a mask selecting bits that we're want to replace.
+                //
+                // First, define a mask excluding bits from the most significant
+                // octet to the current_csr_byte_offset, e.g.: 0x00FFFFFF.
+                //
+                // We use checked_shl, as `current_csr_byte_offset * 8` might
+                // exceed 32/64 bits, resulting in an overflow and potentially
+                // panic. We don't need to do so for `start_csr_byte_offset`, as
+                // that one was obtained through a modulo operation with
+                // OCTETS_PER_PMPCFG_CSR, which in turn is equals to the number of
+                // bytes in a usize.
+                let mut pmpcfg_csr_mask = 1_usize
+                    .checked_shl((current_csr_byte_offset * 8) as u32)
+                    .map(|v| v - 1)
+                    .unwrap_or(usize::MAX);
+                // Now, remove bits between the least significant octet to the
+                // start_csr_byte_offset, e.g.: 0x00FFFF00.
+                pmpcfg_csr_mask ^= (1_usize << (start_csr_byte_offset * 8)) - 1;
+
+                // Merge the unchanged octets from the previous CSR value into
+                // the new one:
+                new_pmpcfg_csr |= prev_pmpcfg_csr & !pmpcfg_csr_mask;
+            }
+
+            // Finally, write the new pmpcfg CSR:
+            csr::CSR.pmpconfig_set(pmpcfg_csr, new_pmpcfg_csr);
+        }
+    }
+}
+
+impl Iterator for PmpConfigCSRIter {
+    type Item = LocalRegisterCopy<u8, pmpcfg_octet::Register>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_entry >= 64 {
+            // RISC-V only supports up to 64 PMP entries:
+            return None;
+        }
+
+        // Get the current pmpcfg CSR that contains the `current_entry` octet:
+        let pmpcfg_csr_value = if let Some(v) = self.pmpcfg_csr_value {
+            v
+        } else {
+            // Multiply by `OCTETS_PER_PMPCFG_CSR / 4` (= 1 on rv32i, = 2 on rv64i) to
+            // skip every other PMPCFG CSR on rv64i.
+            let v = csr::CSR.pmpconfig_get(
+                (self.current_entry / OCTETS_PER_PMPCFG_CSR) * (OCTETS_PER_PMPCFG_CSR / 4),
+            );
+            self.pmpcfg_csr_value = Some(v);
+            v
+        };
+
+        // Extract the particular CSR octet we want to return:
+        let csr_byte_offset = self.current_entry % OCTETS_PER_PMPCFG_CSR;
+        let csr_octet = LocalRegisterCopy::new((pmpcfg_csr_value >> (csr_byte_offset * 8)) as u8);
+
+        // Increment the next entry. We use `checked_add` to avoid overflows. As
+        // the maximum number of PMP entries is capped to 64 in practice, it's
+        // fine for us to keep returning none when our `current_entry ==
+        // usize::MAX`:
+        self.current_entry = self.current_entry.checked_add(1)?;
+
+        // If we've just flowed over into a new CSR, set our cached CSR value to
+        // None. This will force it to be fetched again on the next call to
+        // `next()`:
+        if self.current_entry % OCTETS_PER_PMPCFG_CSR == 0 {
+            self.pmpcfg_csr_value = None;
+        }
+
+        // Return the CSR octet:
+        Some(csr_octet)
+    }
+}
+
 /// A `pmpcfg` octet for a user-mode (non-locked) TOR-addressed PMP region.
 ///
 /// This is a wrapper around a [`pmpcfg_octet`] (`u8`) register type, which
@@ -65,12 +220,12 @@ impl TORUserPMPCFG {
     pub const OFF: TORUserPMPCFG = TORUserPMPCFG(LocalRegisterCopy::new(0));
 
     /// Extract the `u8` representation of the [`pmpcfg_octet`] register.
-    pub fn get(&self) -> u8 {
+    pub fn get(self) -> u8 {
         self.0.get()
     }
 
     /// Extract a copy of the contained [`pmpcfg_octet`] register.
-    pub fn get_reg(&self) -> LocalRegisterCopy<u8, pmpcfg_octet::Register> {
+    pub fn get_reg(self) -> LocalRegisterCopy<u8, pmpcfg_octet::Register> {
         self.0
     }
 }
@@ -571,7 +726,7 @@ pub mod misc_pmp_test {
     }
 }
 
-/// Print a table of the configured PMP regions, read from  the HW CSRs.
+/// Print a table of the configured PMP regions, read from the HW CSRs.
 ///
 /// # Safety
 ///
@@ -582,19 +737,10 @@ pub mod misc_pmp_test {
 pub unsafe fn format_pmp_entries<const PHYSICAL_ENTRIES: usize>(
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
-    for i in 0..PHYSICAL_ENTRIES {
-        // Extract the entry's pmpcfgX register value. The pmpcfgX CSRs are
-        // tightly packed and contain 4 octets beloging to individual
-        // entries. Convert this into a u8-wide LocalRegisterCopy<u8,
-        // pmpcfg_octet> as a generic register type, independent of the entry's
-        // offset.
-        let pmpcfg: LocalRegisterCopy<u8, pmpcfg_octet::Register> = LocalRegisterCopy::new(
-            csr::CSR
-                .pmpconfig_get(i / 4)
-                .overflowing_shr(((i % 4) * 8) as u32)
-                .0 as u8,
-        );
-
+    for (i, pmpcfg) in PmpConfigCSRIter::from_pmpcfg_entry_offset(0)
+        .take(PHYSICAL_ENTRIES)
+        .enumerate()
+    {
         // The address interpretation is different for every mode. Return both a
         // string indicating the PMP entry's mode, as well as the effective
         // start and end address (inclusive) affected by the region. For regions
@@ -663,11 +809,11 @@ pub unsafe fn format_pmp_entries<const PHYSICAL_ENTRIES: usize>(
 
         write!(
             f,
-            "  [{:02}]: {}={:#010X}, end={:#010X}, cfg={:#04X} ({}) ({}{}{}{})\r\n",
+            "  [{:02}]: {}={:p}, end={:p}, cfg={:#04X} ({}) ({}{}{}{})\r\n",
             i,
             start_label,
-            start,
-            end,
+            start as *const (),
+            end as *const (),
             pmpcfg.get(),
             mode,
             t(pmpcfg.is_set(pmpcfg_octet::l), "l", "-"),
@@ -1445,7 +1591,7 @@ pub mod tor_user_pmp_test {
 }
 
 pub mod simple {
-    use super::{pmpcfg_octet, TORUserPMP, TORUserPMPCFG};
+    use super::{pmpcfg_octet, PmpConfigCSRIter, TORUserPMP, TORUserPMPCFG, OCTETS_PER_PMPCFG_CSR};
     use crate::csr;
     use core::fmt;
     use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
@@ -1488,12 +1634,18 @@ pub mod simple {
             // right now. Thus, never try to touch a locked region, as we might
             // well revoke access to a kernel region!
             for i in 0..AVAILABLE_ENTRIES {
+                // Multiply by `OCTETS_PER_PMPCFG_CSR / 4` (= 1 on rv32i, = 2 on rv64i) to
+                // skip every other PMPCFG CSR on rv64i.
+                let pmpcfg_csr_idx = (i / OCTETS_PER_PMPCFG_CSR) * (OCTETS_PER_PMPCFG_CSR / 4);
+
                 // Read the entry's CSR:
-                let pmpcfg_csr = csr::CSR.pmpconfig_get(i / 4);
+                let pmpcfg_csr = csr::CSR.pmpconfig_get(pmpcfg_csr_idx);
 
                 // Extract the entry's pmpcfg octet:
                 let pmpcfg: LocalRegisterCopy<u8, pmpcfg_octet::Register> = LocalRegisterCopy::new(
-                    pmpcfg_csr.overflowing_shr(((i % 4) * 8) as u32).0 as u8,
+                    pmpcfg_csr
+                        .overflowing_shr(((i % OCTETS_PER_PMPCFG_CSR) * 8) as u32)
+                        .0 as u8,
                 );
 
                 // As outlined above, we never touch a locked region. Thus, bail
@@ -1507,10 +1659,13 @@ pub mod simple {
                 // denied for machine-mode access. Hence, we can change it in
                 // arbitrary ways without breaking our own memory access. Try to
                 // flip the R/W/X bits:
-                csr::CSR.pmpconfig_set(i / 4, pmpcfg_csr ^ (7 << ((i % 4) * 8)));
+                csr::CSR.pmpconfig_set(
+                    pmpcfg_csr_idx,
+                    pmpcfg_csr ^ (7 << ((i % OCTETS_PER_PMPCFG_CSR) * 8)),
+                );
 
                 // Check if the CSR changed:
-                if pmpcfg_csr == csr::CSR.pmpconfig_get(i / 4) {
+                if pmpcfg_csr == csr::CSR.pmpconfig_get(pmpcfg_csr_idx) {
                     // Didn't change! This means that this region is not backed
                     // by HW. Return an error as `AVAILABLE_ENTRIES` is
                     // incorrect:
@@ -1518,7 +1673,7 @@ pub mod simple {
                 }
 
                 // Finally, turn the region off:
-                csr::CSR.pmpconfig_set(i / 4, pmpcfg_csr & !(0x18 << ((i % 4) * 8)));
+                csr::CSR.pmpconfig_set(pmpcfg_csr_idx, pmpcfg_csr & !(0x18 << ((i % 4) * 8)));
             }
 
             // Hardware PMP is verified to be in a compatible mode / state, and
@@ -1540,80 +1695,38 @@ pub mod simple {
             MPU_REGIONS
         }
 
-        // This implementation is specific for 32-bit systems. We use
-        // `u32::from_be_bytes` and then cast to usize, as it manages to compile
-        // on 64-bit systems as well. However, this implementation will not work
-        // on RV64I systems, due to the changed pmpcfgX CSR layout.
         fn configure_pmp(
             &self,
             regions: &[(TORUserPMPCFG, *const u8, *const u8); MPU_REGIONS],
         ) -> Result<(), ()> {
-            // Could use `iter_array_chunks` once that's stable.
-            let mut regions_iter = regions.iter();
-            let mut i = 0;
+            PmpConfigCSRIter::write_back(
+                0,
+                &mut regions
+                    .iter()
+                    .flat_map(|(region_pmpcfg, region_start, region_end)| {
+                        if *region_pmpcfg == TORUserPMPCFG::OFF {
+                            [(TORUserPMPCFG::OFF, None), (TORUserPMPCFG::OFF, None)]
+                        } else {
+                            [
+                                (TORUserPMPCFG::OFF, Some(region_start)),
+                                (*region_pmpcfg, Some(region_end)),
+                            ]
+                        }
+                    })
+                    .enumerate()
+                    .map(|(i, (pmpcfg, opt_addr))| {
+                        if let Some(addr) = opt_addr {
+                            csr::CSR.pmpaddr_set(i, (*addr as usize).overflowing_shr(2).0);
+                        }
 
-            while let Some(even_region) = regions_iter.next() {
-                let odd_region_opt = regions_iter.next();
-
-                if let Some(odd_region) = odd_region_opt {
-                    // We can configure two regions at once which, given that we
-                    // start at index 0 (an even offset), translates to a single
-                    // CSR write for the pmpcfgX register:
-                    csr::CSR.pmpconfig_set(
-                        i / 2,
-                        u32::from_be_bytes([
-                            odd_region.0.get(),
-                            TORUserPMPCFG::OFF.get(),
-                            even_region.0.get(),
-                            TORUserPMPCFG::OFF.get(),
-                        ]) as usize,
-                    );
-
-                    // Now, set the addresses of the respective regions, if they
-                    // are enabled, respectively:
-                    if even_region.0 != TORUserPMPCFG::OFF {
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 0, (even_region.1 as usize).overflowing_shr(2).0);
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 1, (even_region.2 as usize).overflowing_shr(2).0);
-                    }
-
-                    if odd_region.0 != TORUserPMPCFG::OFF {
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 2, (odd_region.1 as usize).overflowing_shr(2).0);
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 3, (odd_region.2 as usize).overflowing_shr(2).0);
-                    }
-
-                    i += 2;
-                } else {
-                    // TODO: check overhead of code
-                    // Modify the first two pmpcfgX octets for this region:
-                    csr::CSR.pmpconfig_modify(
-                        i / 2,
-                        FieldValue::<usize, csr::pmpconfig::pmpcfg::Register>::new(
-                            0x0000FFFF,
-                            0,
-                            u32::from_be_bytes([
-                                0,
-                                0,
-                                even_region.0.get(),
-                                TORUserPMPCFG::OFF.get(),
-                            ]) as usize,
-                        ),
-                    );
-
-                    // Set the addresses if the region is enabled:
-                    if even_region.0 != TORUserPMPCFG::OFF {
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 0, (even_region.1 as usize).overflowing_shr(2).0);
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 1, (even_region.2 as usize).overflowing_shr(2).0);
-                    }
-
-                    i += 1;
-                }
-            }
+                        pmpcfg
+                    })
+                    .chain(
+                        core::iter::repeat(TORUserPMPCFG::OFF)
+                            .take(AVAILABLE_ENTRIES - (MPU_REGIONS * 2)),
+                    )
+                    .map(TORUserPMPCFG::get_reg),
+            );
 
             Ok(())
         }
@@ -2359,7 +2472,7 @@ pub mod kernel_protection_mml_epmp {
                 // If we're at a "region" offset divisible by two (where "region" =
                 // 2 PMP "entries"), then we can configure an entire `pmpcfgX` CSR
                 // in one operation. As CSR writes are expensive, this is an
-                // operation worth making:
+                // optimization worth making:
                 let second_region_opt = if i % 2 == 0 {
                     shadow_user_pmpcfgs_iter.next()
                 } else {
