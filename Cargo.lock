@@ -1270,6 +1270,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "qemu_rv64_virt"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "kernel",
+ "qemu_rv64_virt_chip",
+ "rv64i",
+ "sifive",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "qemu_rv64_virt_chip"
+version = "0.2.3-dev"
+dependencies = [
+ "kernel",
+ "qemu_virt_chip",
+ "rv64i",
+ "sifive",
+ "virtio",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1419,6 +1445,16 @@ dependencies = [
 
 [[package]]
 name = "rv32i"
+version = "0.2.3-dev"
+dependencies = [
+ "kernel",
+ "riscv",
+ "riscv-csr",
+ "tock-registers",
+]
+
+[[package]]
+name = "rv64i"
 version = "0.2.3-dev"
 dependencies = [
  "kernel",
