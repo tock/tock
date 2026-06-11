@@ -3,6 +3,7 @@
 // Copyright OxidOS Automotive 2026.
 
 use core::cell::Cell;
+use kernel::debug;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::{Client32, Continue, Entropy32};
@@ -17,7 +18,7 @@ register_structs! {
         /// control register
         (0x000 => cr: ReadWrite<u32, CR::Register>),
         /// status register
-        (0x004 => sr: ReadWrite<u32, SR::Register>),
+        (0x004 => pub sr: ReadWrite<u32, SR::Register>),
         /// data register
         (0x008 => dr: ReadOnly<u32>),
         (0x00C => nscr:  ReadWrite<u32, NSCR::Register>),
@@ -125,6 +126,7 @@ impl<'a> Trng<'a> {
         self.registers
             .cr
             .modify(CR::RNGEN::SET + CR::IE::SET + CR::CONDRST::CLEAR);
+        debug!("CR: {:02x?}", self.registers.cr.get());
     }
     fn send_data(&self) {
         let response = self
@@ -132,7 +134,9 @@ impl<'a> Trng<'a> {
             .map(|client| client.entropy_available(&mut TrngIter(self), Ok(())));
         match response {
             Some(Continue::Done) | None => self.entropy_needed.set(false),
-            _ => {}
+            _ => {
+                self.deferred_call.set();
+            }
         }
     }
 
@@ -140,6 +144,8 @@ impl<'a> Trng<'a> {
         let regs = self.registers;
         if regs.sr.any_matching_bits_set(SR::DRDY::SET) && self.entropy_needed.get() {
             self.send_data();
+        } else {
+            self.deferred_call.set();
         }
     }
 }
@@ -170,9 +176,16 @@ impl<'a> Entropy32<'a> for Trng<'a> {
 
 impl DeferredCallClient for Trng<'_> {
     fn handle_deferred_call(&self) {
+        debug!("got");
         if !self.entropy_needed.get() {
             return;
         }
+        debug!(
+            "CR: {:02x?} SR: {:02x?}, need: {}",
+            self.registers.cr.get(),
+            self.registers.sr.get(),
+            self.entropy_needed.get()
+        );
 
         if self.registers.sr.any_matching_bits_set(SR::DRDY::SET) {
             self.send_data();
