@@ -62,6 +62,7 @@ members = [
     "boards/configurations/nrf52840dk/nrf52840dk-test-appid-sha256",
     "boards/configurations/nrf52840dk/nrf52840dk-test-appid-tbf",
     "boards/configurations/nrf52840dk/nrf52840dk-test-base",
+    "boards/configurations/nrf52840dk/nrf52840dk-test-app-watchdog",
     "boards/configurations/nrf52840dk/nrf52840dk-test-invs",
     "boards/configurations/nrf52840dk/nrf52840dk-test-kernel",
     "boards/configurations/nrf52840dk/nrf52840dk-test-dynamic-app-load",
