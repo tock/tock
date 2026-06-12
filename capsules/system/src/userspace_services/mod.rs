@@ -20,7 +20,7 @@
 //! # Architecture
 //!
 //! Support for userspace services builds on capsules and HILs.
-//! Central to this framework is the **userspace service registry** capsule ([`Registry`]),
+//! Central to this framework is the **userspace service registry** capsule ([`Registry`](registry::Registry)),
 //! which tracks and mediates communication with userspace service applications.
 //! Userspace services register with the registry by sending it a syscall,
 //! thereafter communicating exclusively with the registry to fulfill its function.
@@ -32,8 +32,10 @@
 //! clients interact with a **service interface** that implements a HIL defining its function.
 //! Acting as a mapper between HIL functions and usercalls,
 //! the service interface invokes userspace service operations through the userspace service registry.
-//! The two communicate through the [`UserspaceServiceClient`] and [`UserspaceServiceAccess`] traits
-//! to send data between the consumer of the userspace service and the userspace service.
+//! The two communicate through the
+//! [`UserspaceServiceClient`](usercall::UserspaceServiceClient)
+//! and [`UserspaceServiceAccess`](usercall::UserspaceServiceAccess)
+//! traits to send data between the consumer of the userspace service and the userspace service.
 //!
 //! Because service interfaces implement a HIL trait,
 //! existing capsules can consume them and,

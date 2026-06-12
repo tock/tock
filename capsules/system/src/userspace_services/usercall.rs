@@ -110,8 +110,8 @@ pub fn place_arguments(
 /// This an interpreter for userspace service return results.
 /// It provides the two `usize` values returned directly from the userspace service
 /// as well as functions to parse the data in the userspace service's process buffers.
-/// Use [`buffer_n()`](ReturnReader::buffer_n()) to access an argument buffer.
-/// Use [`buffer_n_as_value()`](ReturnReader::buffer_n_as_value()) to parse a buffer as a value supporting [`Deserialize`].
+/// Use [`buffer_n()`](ReturnReader::result_buffer_n()) to access an argument buffer.
+/// Use [`buffer_n_as_value()`](ReturnReader::result_buffer_n_as_value()) to parse a buffer as a value supporting [`Deserialize`].
 pub struct ReturnReader<'a> {
     // Values returned directly through the command syscall.
     direct_rvals: (usize, usize),
