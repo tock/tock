@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-/*! Userspace service grant types.
- */
+//! Userspace service grant types.
 
 use crate::userspace_services::usercall::UserspaceServiceClient;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};

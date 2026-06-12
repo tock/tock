@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-/*! Userspace service registry and management.
- */
+//! Userspace service registry and management.
 
 use core::array;
 use core::mem;

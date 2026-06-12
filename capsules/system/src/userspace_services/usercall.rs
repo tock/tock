@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-/*! Userspace service invocation and data-handling.
-
-Structures and interfaces for calling userspace services and copying data to and from them.
- */
+//! Userspace service invocation and data-handling.
+//!
+//! Structures and interfaces for calling userspace services and copying data to and from them.
 
 use kernel::errorcode::ErrorCode;
 use kernel::grant::GrantKernelData;

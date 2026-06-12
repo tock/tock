@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-/*! Serialization and deserialization for data moving to and from userspace services.
- */
+//! Serialization and deserialization for data moving to and from userspace services.
 
 use core::mem;
 

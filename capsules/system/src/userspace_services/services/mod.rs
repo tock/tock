@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-/*! Userspace service service interfaces.
-
-Service interfaces bridge a HIL client to the userspace service application through the registry,
-preventing the HIL client from needing code to interact with the registry.
-This being the case,
-much of the implementation of the service interface is dedicated
-to mapping HIL trait functions to [`usercall()`](super::usercall::UserspaceServiceAccess::usercall()) calls.
- */
+//! Userspace service service interfaces.
+//!
+//! Service interfaces bridge a HIL client to the userspace service application through the registry,
+//! preventing the HIL client from needing code to interact with the registry.
+//! This being the case,
+//! much of the implementation of the service interface is dedicated
+//! to mapping HIL trait functions to [`usercall()`](super::usercall::UserspaceServiceAccess::usercall()) calls.
 
 pub mod digest;
 
