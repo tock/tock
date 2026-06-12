@@ -73,7 +73,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
         self.rcc.enable_trng();
-        self.trng.register();
         self.rcc.set_usart1_source_pclk();
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
@@ -82,6 +81,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
         }
+        self.trng.init();
     }
 }
 

@@ -3,7 +3,6 @@
 // Copyright OxidOS Automotive 2026.
 
 use core::cell::Cell;
-use kernel::debug;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::{Client32, Continue, Entropy32};
@@ -11,6 +10,9 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+
+const HEALTH_TEST_CONTROL_CONFIG: u32 = 0x76B3;
+const NOISE_SOURCE_CONTROL_CONFIG: u32 = 0x24C2;
 
 register_structs! {
     /// Random number generator
@@ -93,6 +95,15 @@ impl Iterator for TrngIter<'_, '_> {
     }
 }
 
+struct ErrIter;
+impl Iterator for ErrIter {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
 pub struct Trng<'a> {
     registers: StaticRef<RngRegisters>,
     client: OptionalCell<&'a dyn Client32>,
@@ -101,16 +112,16 @@ pub struct Trng<'a> {
 }
 
 impl<'a> Trng<'a> {
-    pub const fn new(base: StaticRef<RngRegisters>, deferred_call: DeferredCall) -> Self {
+    pub fn new(base: StaticRef<RngRegisters>) -> Self {
         Self {
             registers: base,
             client: OptionalCell::empty(),
             entropy_needed: Cell::new(false),
-            deferred_call: deferred_call,
+            deferred_call: DeferredCall::new(),
         }
     }
 
-    pub fn init(&self) {
+    pub fn init(&'static self) {
         // specified in the documentation (NIST compliant RNG configuration table in AN4230 available from www.st.com.)
         // that values for the CR, HTCR and NSCR should be 0x00F11F00, 0x76B3 and 0x24C2 respectivly
         self.registers.cr.modify(
@@ -120,32 +131,30 @@ impl<'a> Trng<'a> {
                 + CR::RNG_CONFIG1.val(0b1111)
                 + CR::CONDRST::SET,
         );
-        self.registers.htcr.modify(HTCR::HTCFG.val(0x76B3));
-        self.registers.nscr.modify(NSCR::NSCFG.val(0x24C2));
-        self.registers.cr.modify(CR::CONFIGLOCK::SET);
         self.registers
-            .cr
-            .modify(CR::RNGEN::SET + CR::IE::SET + CR::CONDRST::CLEAR);
-        debug!("CR: {:02x?}", self.registers.cr.get());
+            .htcr
+            .modify(HTCR::HTCFG.val(HEALTH_TEST_CONTROL_CONFIG));
+        self.registers
+            .nscr
+            .modify(NSCR::NSCFG.val(NOISE_SOURCE_CONTROL_CONFIG));
+        self.registers.cr.modify(CR::CONFIGLOCK::SET);
+        self.registers.cr.modify(CR::CONDRST::CLEAR);
+        self.register();
     }
+
     fn send_data(&self) {
+        self.entropy_needed.set(false);
         let response = self
             .client
             .map(|client| client.entropy_available(&mut TrngIter(self), Ok(())));
         match response {
-            Some(Continue::Done) | None => self.entropy_needed.set(false),
+            Some(Continue::Done) | None => {
+                self.registers.cr.modify(CR::RNGEN::CLEAR);
+            }
             _ => {
+                self.entropy_needed.set(true);
                 self.deferred_call.set();
             }
-        }
-    }
-
-    pub fn handle_interrupt(&self) {
-        let regs = self.registers;
-        if regs.sr.any_matching_bits_set(SR::DRDY::SET) && self.entropy_needed.get() {
-            self.send_data();
-        } else {
-            self.deferred_call.set();
         }
     }
 }
@@ -153,12 +162,12 @@ impl<'a> Trng<'a> {
 impl<'a> Entropy32<'a> for Trng<'a> {
     fn get(&self) -> Result<(), kernel::ErrorCode> {
         let regs = self.registers;
+        regs.cr.modify(CR::RNGEN::SET);
         if regs.sr.any_matching_bits_set(SR::CECS::SET + SR::SECS::SET) {
             return Err(kernel::ErrorCode::FAIL);
         }
         self.entropy_needed.set(true);
         self.deferred_call.set();
-
         Ok(())
     }
 
@@ -176,19 +185,31 @@ impl<'a> Entropy32<'a> for Trng<'a> {
 
 impl DeferredCallClient for Trng<'_> {
     fn handle_deferred_call(&self) {
-        debug!("got");
+        if self.registers.sr.is_set(SR::SECS) {
+            self.registers.sr.modify(SR::SEIS::CLEAR);
+            if self.entropy_needed.get() {
+                self.client.map(|client| {
+                    client.entropy_available(&mut ErrIter, Err(kernel::ErrorCode::FAIL))
+                });
+            }
+            return;
+        }
+        if self.registers.sr.is_set(SR::CECS) {
+            self.registers.sr.modify(SR::CEIS::CLEAR);
+            if self.entropy_needed.get() {
+                self.client.map(|client| {
+                    client.entropy_available(&mut ErrIter, Err(kernel::ErrorCode::FAIL))
+                });
+            }
+            return;
+        }
         if !self.entropy_needed.get() {
             return;
         }
-        debug!(
-            "CR: {:02x?} SR: {:02x?}, need: {}",
-            self.registers.cr.get(),
-            self.registers.sr.get(),
-            self.entropy_needed.get()
-        );
-
         if self.registers.sr.any_matching_bits_set(SR::DRDY::SET) {
             self.send_data();
+        } else {
+            self.deferred_call.set();
         }
     }
 
