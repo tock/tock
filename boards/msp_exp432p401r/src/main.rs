@@ -15,6 +15,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::gpio::Configure;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -125,7 +126,7 @@ impl SyscallDriverLookup for MspExp432P401R {
 /// (which is necessary for 48MHz operation) and enables waitstates and buffering in a way that
 /// the flash returns valid data with 48MHz CPU frequency.
 unsafe fn startup_intilialisation() {
-    msp432::init();
+    ChipHw::init();
 
     // For now, these peripherals are only used at startup, so we do not
     // allocate them for the life of the program. If these are later used by the

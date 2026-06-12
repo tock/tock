@@ -20,6 +20,7 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -216,7 +217,7 @@ pub unsafe fn main() {
             PanicResources::new(),
         );
 
-    stm32wle5jc::init();
+    ChipHw::init();
 
     let peripherals = create_peripherals();
     peripherals.init();

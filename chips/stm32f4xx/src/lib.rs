@@ -65,9 +65,3 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt,        // PendSV
     CortexM4F::SYSTICK_HANDLER, // SysTick
 ];
-
-pub unsafe fn init() {
-    cortexm4f::nvic::disable_all();
-    cortexm4f::nvic::clear_all_pending();
-    cortexm4f::nvic::enable_all();
-}

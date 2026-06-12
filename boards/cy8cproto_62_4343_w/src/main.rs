@@ -19,6 +19,7 @@ use components::led::LedsComponent;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
@@ -120,8 +121,7 @@ fn init_clocks(peripherals: &PsoC62xaDefaultPeripherals) {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    // Set the offset of the vector table
-    cortexm0p::scb::set_vector_table_offset(0x10000000 as *const ());
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state_unsafe::<
