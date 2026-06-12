@@ -15,9 +15,8 @@ use capsules_core::alarm::util::Expiration;
 use kernel::capabilities::ProcessRestartCapability;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::time::{Alarm, ConvertTicks, Ticks};
-use kernel::process::ProcessRestart;
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::{ErrorCode, ProcessId};
+use kernel::{ErrorCode, Kernel, ProcessId};
 
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AppSoftwareWatchdog as usize;
@@ -39,7 +38,7 @@ impl<T: Ticks> Default for AppData<T> {
 pub struct AppSoftwareWatchdog<'a, A: Alarm<'a>, P: ProcessRestartCapability> {
     apps: Grant<AppData<A::Ticks>, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
     alarm: &'a A,
-    app_restarter: &'a dyn ProcessRestart,
+    board_kernel: &'a Kernel,
     capability: P,
 }
 
@@ -47,13 +46,13 @@ impl<'a, A: Alarm<'a>, P: ProcessRestartCapability> AppSoftwareWatchdog<'a, A, P
     pub fn new(
         grant: Grant<AppData<A::Ticks>, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
         alarm: &'a A,
-        app_restarter: &'a dyn ProcessRestart,
+        board_kernel: &'a Kernel,
         capability: P,
     ) -> Self {
         Self {
             apps: grant,
             alarm,
-            app_restarter,
+            board_kernel,
             capability,
         }
     }
@@ -69,7 +68,7 @@ impl<'a, A: Alarm<'a>, P: ProcessRestartCapability> AppSoftwareWatchdog<'a, A, P
     fn iterate_expirations(&self) {
         let expired_handler = |_expir: capsules_core::alarm::util::Expiration<A::Ticks>,
                                pid: &ProcessId| {
-            self.app_restarter.try_restart(*pid, &self.capability);
+            self.board_kernel.restart_process(*pid, &self.capability);
             Option::None::<()>
         };
 

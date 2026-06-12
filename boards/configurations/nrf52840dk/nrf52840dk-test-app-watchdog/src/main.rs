@@ -10,7 +10,7 @@
 #![deny(missing_docs)]
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
-use kernel::capabilities::{ProcessManagementCapability, ProcessRestartCapability};
+use kernel::capabilities::ProcessRestartCapability;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -91,22 +91,15 @@ pub unsafe fn main() {
     // App Software Watchdog
     //--------------------------------------------------------------------------
 
-    // Capability for managing processes that is owned/used by ProcessRestarter
-    // to restart
-    struct PMCapability;
-    unsafe impl ProcessManagementCapability for PMCapability {}
-
     let app_software_watchdog =
         components::app_software_watchdog::AppSoftwareWatchdogComponent::new(
             mux_alarm,
             board_kernel,
             PRCapability,
-            PMCapability,
         )
         .finalize(components::app_softare_watchdog_component_static!(
             nrf52840::rtc::Rtc,
-            PRCapability,
-            PMCapability,
+            PRCapability
         ));
 
     //--------------------------------------------------------------------------

@@ -8,11 +8,9 @@
 //! managing processes. For example, these policies control decisions such as
 //! whether a specific process should be restarted.
 
-use crate::capabilities::ProcessRestartCapability;
 use crate::platform::chip::Chip;
 use crate::process;
 use crate::process::Process;
-use crate::process::ProcessId;
 use crate::process_standard::ProcessStandard;
 use crate::process_standard::ProcessStandardDebug;
 use crate::storage_permissions::StoragePermissions;
@@ -32,27 +30,6 @@ pub trait ProcessFaultPolicy {
 pub trait ProcessStandardStoragePermissionsPolicy<C: Chip, D: ProcessStandardDebug> {
     /// Return the storage permissions for the specified `process`.
     fn get_permissions(&self, process: &ProcessStandard<C, D>) -> StoragePermissions;
-}
-
-/// Trait for objects that can restart a process identified by [`ProcessId`].
-///
-/// Capsules can hold a `&'static dyn ProcessRestart` to trigger restarts
-/// without requiring a direct reference to [`Kernel`](crate::kernel::Kernel)
-/// or a [`ProcessManagementCapability`](crate::capabilities::ProcessManagementCapability).
-///
-/// This enables exposing a more fine grained interface for restarting processes
-/// that does not require exposing a reference to the Kernel or the more powerful
-/// [`ProcessManagementCapability`](crate::capabilities::ProcessManagementCapability).
-pub trait ProcessRestart {
-    /// Attempt to restart the process identified by `pid`.
-    ///
-    /// Has no effect if `pid` does not match a currently loaded process, or
-    /// if the kernel policy declines to restart it.
-    ///
-    /// Restarting a process is a privileged operation and therefore requires
-    /// the [`ProcessRestartCapability`](crate::capabilities::ProcessRestartCapability)
-    /// to call this method.
-    fn try_restart(&self, pid: ProcessId, _capability: &dyn ProcessRestartCapability);
 }
 
 // Any platforms that do not issue storage permissions can use `&()` as the
