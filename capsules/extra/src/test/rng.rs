@@ -28,12 +28,14 @@
 //! ```
 
 use core::cell::Cell;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::{Client32, Entropy32};
 use kernel::utilities::cells::OptionalCell;
 use kernel::{debug, ErrorCode};
 
 /// Number of `u32` words to collect before declaring the test a success.
-const WORDS_REQUESTED: usize = 8;
+const WORDS_REQUESTED: usize = 5;
+const NUM_ROUNDS: usize = 2;
 
 // ---------------------------------------------------------------------------
 // Test component
@@ -46,6 +48,8 @@ pub struct RngEntropy32Test<'a, E: Entropy32<'a>> {
     collected: OptionalCell<[u32; WORDS_REQUESTED]>,
     /// How many words we have stored so far.
     count: Cell<usize>,
+    round: Cell<usize>,
+    def: DeferredCall,
 }
 
 impl<'a, E: Entropy32<'a>> RngEntropy32Test<'a, E> {
@@ -54,6 +58,8 @@ impl<'a, E: Entropy32<'a>> RngEntropy32Test<'a, E> {
             rng,
             collected: OptionalCell::new([0u32; WORDS_REQUESTED]),
             count: Cell::new(0),
+            round: Cell::new(0),
+            def: DeferredCall::new(),
         }
     }
 
@@ -81,8 +87,10 @@ impl<'a, E: Entropy32<'a>> RngEntropy32Test<'a, E> {
             for (i, w) in words.iter().enumerate() {
                 debug!("  word[{}] = {:#010x}", i, w);
             }
-            // Basic sanity: not *all* zeros (astronomically unlikely with a real RNG).
-            let all_zero = words.iter().all(|&w| w == 0);
+            if self.round.get() < NUM_ROUNDS {
+                self.def.set();
+            }
+            let all_zero = words.iter().any(|&w| w == 0);
             if all_zero {
                 debug!(
                     "[RNG TEST] WARNING: all collected words are zero — verify your RNG source!"
@@ -118,31 +126,21 @@ impl<'a, E: Entropy32<'a>> Client32 for RngEntropy32Test<'a, E> {
             return kernel::hil::entropy::Continue::More;
         }
 
-        let mut done = false;
-
-        self.collected.map(|mut words: [u32; 8]| {
-            // Drain as many words as the iterator offers in this callback.
-            for word in &mut *entropy {
-                let idx = self.count.get();
-                if idx >= WORDS_REQUESTED {
-                    break;
-                }
-                words[idx] = word;
-                self.count.set(idx + 1);
-                debug!(
-                    "[RNG TEST] word[{}] = {:#010x}  ({}/{} collected)",
-                    idx,
-                    word,
-                    idx + 1,
-                    WORDS_REQUESTED
-                );
-                if idx + 1 >= WORDS_REQUESTED {
-                    break;
-                }
+        let mut words = self.collected.take().unwrap_or([0u32; WORDS_REQUESTED]);
+        // Drain as many words as the iterator offers in this callback.
+        for word in entropy {
+            let idx = self.count.get();
+            if idx >= WORDS_REQUESTED {
+                break;
             }
-            done = self.count.get() >= WORDS_REQUESTED;
-        });
-
+            words[idx] = word;
+            self.count.set(idx + 1);
+            if idx + 1 >= WORDS_REQUESTED {
+                break;
+            }
+        }
+        let done = self.count.get() >= WORDS_REQUESTED;
+        self.collected.set(words);
         if done {
             self.finish();
             kernel::hil::entropy::Continue::Done
@@ -151,5 +149,18 @@ impl<'a, E: Entropy32<'a>> Client32 for RngEntropy32Test<'a, E> {
             // again when more entropy is available.
             kernel::hil::entropy::Continue::More
         }
+    }
+}
+
+impl<'a, E: Entropy32<'a>> DeferredCallClient for RngEntropy32Test<'a, E> {
+    fn handle_deferred_call(&self) {
+        let round = self.round.get();
+        self.round.set(round + 1);
+        self.count.set(0);
+        self.run();
+    }
+
+    fn register(&'static self) {
+        self.def.register(self);
     }
 }

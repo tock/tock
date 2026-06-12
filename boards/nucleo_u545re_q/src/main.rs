@@ -12,8 +12,6 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::Entropy32;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, debug};
 use kernel::{create_capability, static_init};
@@ -197,7 +195,7 @@ unsafe fn start() -> (
     usart1.register();
     let trng = static_init!(
         stm32u545::entropy::Trng<'static>,
-        stm32u545::entropy::Trng::new(stm32u545::entropy::RNG_BASE, DeferredCall::new())
+        stm32u545::entropy::Trng::new(stm32u545::entropy::RNG_BASE)
     );
 
     // Load Peripherals Bundle
@@ -417,8 +415,8 @@ unsafe fn start() -> (
     );
 
     // 3. Register the test as the driver's client
+    rng_test.register();
     trng.set_client(rng_test);
-    trng.register();
     // 4. Kick it off — call after the kernel loop is about to start
     // // temporary diagnostic
     rng_test.run();
