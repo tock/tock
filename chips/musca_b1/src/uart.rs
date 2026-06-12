@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
+// Standard PrimeCell® UART (PL011) from ARM
 // https://documentation-service.arm.com/static/5e8e36c2fd977155116a90b5
+// Copy of boards/rp2350/uart.rs
+// adapted for non-rp2350 (no clock input)
 
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -376,7 +379,7 @@ pub struct Uart<'a> {
     deferred_call: DeferredCall,
 }
 
-impl<'a> Uart<'a> {
+impl Uart<'_> {
     pub fn new_uart0_sec() -> Self {
         Self {
             registers: UART0_BASE_SEC,
@@ -459,10 +462,6 @@ impl<'a> Uart<'a> {
 
             deferred_call: DeferredCall::new(),
         }
-    }
-
-    pub(crate) fn set_clock(&self, clock: &'a impl Clock) {
-        self.clock.set(clock);
     }
 
     pub fn enable(&self) {
@@ -867,5 +866,41 @@ impl<'a> Receive<'a> for Uart<'a> {
         } else {
             Ok(())
         }
+    }
+}
+
+struct UartPanicWriter<'a> {
+    uart: Uart<'a>,
+}
+
+impl kernel::utilities::io_write::IoWrite for UartPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        for &c in buf {
+            self.uart.send_byte(c);
+        }
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        kernel::utilities::io_write::IoWrite::write(self, s.as_bytes());
+        Ok(())
+    }
+}
+
+pub struct UartPanicWriterConfig {
+    pub params: Parameters,
+}
+
+impl kernel::platform::chip::PanicWriter for Uart<'_> {
+    type Config = UartPanicWriterConfig;
+
+    unsafe fn create_panic_writer(
+        config: Self::Config,
+    ) -> impl kernel::utilities::io_write::IoWrite + core::fmt::Write {
+        let uart = Uart::new_uart0_sec();
+        let _ = uart.debug_configure(config.params);
+        UartPanicWriter { uart }
     }
 }

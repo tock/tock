@@ -52,6 +52,12 @@ impl<I: InterruptService> Chip for MuscaB1<'_, I> {
         }
     }
 
+    fn init() {
+        unsafe{ 
+        cortexm33::nvic::disable_all();
+        cortexm33::nvic::clear_all_pending()};
+    }
+
     fn has_pending_interrupts(&self) -> bool {
         unsafe { cortexm33::nvic::has_pending() }
     }
