@@ -12,11 +12,10 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -29,14 +28,8 @@ use musca_b1::BASE_VECTORS;
 
 mod io;
 
-/// Allocate memory for the stack
-//
-// When compiling for a macOS host, the `link_section` attribute is elided as
-// it yields the following error: `mach-o section specifier requires a segment
-// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".stack_buffer")]
-#[no_mangle]
-static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
+// Allocate memory for the stack
+kernel::stack_size! {0x3000}
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -51,7 +44,7 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new(PanicResources::new());
+    SingleThreadValue::new();
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
@@ -117,10 +110,16 @@ unsafe fn get_peripherals() -> &'static mut MuscaB1DefaultPeripherals<'static> {
     static_init!(MuscaB1DefaultPeripherals, MuscaB1DefaultPeripherals::new())
 }
 
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    musca_b1::init();
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    MuscaB1Plattform,
+    &'static MuscaB1<'static, MuscaB1DefaultPeripherals<'static>>,
+) {
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -128,13 +127,15 @@ pub unsafe fn main() {
     >();
 
     // Bind global variables to this thread.
-    PANIC_RESOURCES.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     let peripherals = get_peripherals();
     peripherals.resolve_dependencies();
 
     // Set the UART used for panic
-    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
     let chip = static_init!(
         MuscaB1<MuscaB1DefaultPeripherals>,
@@ -252,12 +253,14 @@ pub unsafe fn main() {
         kernel::debug!("{:?}", err);
     });
 
+    (board_kernel, musca_b1_platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    board_kernel.kernel_loop(
-        &musca_b1_platform,
-        chip,
-        Some(&musca_b1_platform.ipc),
-        &main_loop_capability,
-    );
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
