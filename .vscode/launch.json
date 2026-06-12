@@ -30,27 +30,25 @@
             ]
         },
         {
-            "showDevDebugOutput": "none",
+            "showDevDebugOutput": "raw",
             "name": "M33-qemu",
-            "loadFiles": [], // disable loading of binary. .bin is not supported by gdb so we load .bin with qemu
             "type": "cortex-debug",
             "request": "launch",
-            "executable": "",
-            "symbolFiles": [
-                {
-                    "file": "target/thumbv8m.main-none-eabi/debug/musca_b1_board"
-                }
-            ],
-            "svdFile": "../Musca_B1.svd", // optional .svd file for peripheral register view
-            "servertype": "external",
+            "servertype": "qemu",
+            "executable": "target/thumbv8m.main-none-eabi/debug/musca_b1_board-app.elf",
+            "svdFile": "", // optional .svd file for peripheral register view
             "cwd": "${workspaceFolder}",
-            "gdbTarget": "localhost:1234",
+            "cpu": "cortex-m33",
+            "machine": "musca-b1",
             "gdbPath": "arm-none-eabi-gdb",
             "objdumpPath": "arm-none-eabi-objdump",
+            "preLaunchTask": "musca_b1_board.build.debug",
             "preLaunchCommands": [
-                // somehow gdb/qemu doesn't set the stack pointer correctly. only needed for elf debugging.
-                // "set $sp = 0x30003000"
+                "set architecture armv8-m.main"
             ],
+            "postLaunchCommands": [
+                "set $sp = 0x30003000",
+            ]
         }
     ]
 }

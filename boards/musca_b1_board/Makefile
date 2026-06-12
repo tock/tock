@@ -11,68 +11,62 @@ BROKEN_QEMU_VERSIONS  := <= 8.1.5
 # Musca-B1 specific parameters
 QEMU_BASE_CMDLINE := \
     $(QEMU_CMD) \
-    -machine musca-b1 \
+    -machine mps3-an524 \
     -cpu cortex-m33 \
     -nographic \
     -semihosting
 
+APP?=
 MUSCA_ELF := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-MUSCA_BIN := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
-QEMU_MUSCA_B1_BIN := qemu_musca_b1.bin
+MUSCA_ELF_WITH_APP := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM)-app.elf
 
-# Set this as the default local board to write apps to with tockloader
-.PHONY: qemu-init
-qemu-init:
-	tockloader local-board set qemu_musca_b1 --binary-path $(QEMU_MUSCA_B1_BIN)
+.PHONY: build-with-app
+build-with-app: debug # let cargo rebuild
+ifeq ($(APP),)
+	$(info Built kernel without application (old application will still be present))
+	cp $(MUSCA_ELF) $(MUSCA_ELF_WITH_APP)
+else
+	$(info Building kernel with application $(APP))
+	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(MUSCA_ELF) $(MUSCA_ELF_WITH_APP)
+	arm-none-eabi-objcopy --update-section .apps=$(APP) $(MUSCA_ELF_WITH_APP)
+endif
 
-# Write the kernel to the flash file with tockloader
-.PHONY: qemu-flash
-qemu-flash: $(MUSCA_BIN)
-	tockloader flash --address 0x10000000 $<
-
-# does not overwrite installed app
-$(QEMU_MUSCA_B1_BIN): qemu-flash
+comma := ,
+QEMU_APP_ARGS := $(if $(APP),-device loader$(comma)file=$(APP)$(comma)addr=0x10100000,)
 
 .PHONY: qemu
-qemu: $(QEMU_MUSCA_B1_BIN)
+qemu: debug
 	@echo "To exit type C-a x"
 	@echo
-	$(QEMU_BASE_CMDLINE) -device loader,file=$<,addr=0x10000000
-
-.PHONY: qemu-elf
-qemu-elf: $(MUSCA_ELF)
-	$(QEMU_BASE_CMDLINE) -kernel '$<'
+	$(QEMU_BASE_CMDLINE) -kernel $(MUSCA_ELF) $(QEMU_APP_ARGS)
 
 .PHONY: qemu-gdb-listen
-qemu-gdb-listen: $(MUSCA_ELF)
-	$(QEMU_BASE_CMDLINE) -S -gdb tcp::1234
-
-.PHONY: qemu-gdb-listen-bin
-qemu-gdb-listen-bin: $(QEMU_MUSCA_B1_BIN)
-	$(QEMU_BASE_CMDLINE) -device loader,file=$<,addr=0x10000000 -S -gdb tcp::1234
+qemu-gdb-listen: debug
+	@killall qemu-system-arm || true
+	@echo Starting QEMU...
+	$(QEMU_BASE_CMDLINE) -kernel $(MUSCA_ELF) $(QEMU_APP_ARGS) -S -gdb tcp::1234
 
 .PHONY: gdb-connect
-gdb-connect: $(MUSCA_ELF)
+gdb-connect:
 	arm-none-eabi-gdb \
 	 -ex "directory $(TOCK_ROOT_DIRECTORY)" \
 	 -ex "set architecture armv8-m.main" \
 	 -ex "target remote localhost:1234" \
 	 -ex "set confirm off" \
-	 -ex "file $<"
+	 -ex "file $(MUSCA_ELF)"
 
 # somehow sp is not set correctly by gdb/qemu
 .PHONY: gdb-connect-elf
-gdb-connect-elf: $(MUSCA_ELF)
+gdb-connect-elf:
 	arm-none-eabi-gdb -q \
 	 -ex "directory $(TOCK_ROOT_DIRECTORY)" \
 	 -ex "target remote localhost:1234" \
 	 -ex "set confirm off" \
 	 -ex "set architecture armv8-m.main" \
-	 -ex "file $<" \
+	 -ex "file $(MUSCA_ELF)" \
 	 -ex "load" \
 	 -ex "set \$$sp = 0x30003000" \
 	 -ex "b cortexv7m::hard_fault_handler_arm_v7m" 
-
 
 .PHONY: flash
 flash:
