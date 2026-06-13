@@ -48,6 +48,13 @@ SECTIONS {
 
 INCLUDE tock_kernel_layout.ld
 
+/* Pin _sappmem to a stable address so app TBFs can use fixed RAM addresses
+ * without recompiling whenever the kernel binary changes in size.
+ * Must be >= end of kernel BSS (currently ~0x8081b11c) and within ram. */
+SECTIONS {
+    _sappmem = 0x80880000;
+}
+
 /* Derive hart 1's per-hart .data / .bss symbols by adding the stride between
  * the two RAM bases to the corresponding hart-0 symbols.  These are used by
  * the _hart1_entry assembly to copy / zero hart 1's private data region and
