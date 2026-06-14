@@ -382,9 +382,18 @@ impl Uart16550<'_> {
             // Only reachable via handle_interrupt, which panics on Hart 1.
             panic!("UART monitor: receive called on Hart 1");
         }
-        // Receive interrupts must only be enabled when we're currently holding
-        // a buffer to receive data into:
-        let rx_buffer = self.rx_buffer.take().expect("UART 16550: no rx buffer");
+        // Drain stale bytes and silence the interrupt when no buffer is armed.
+        // This handles input that arrives before a process calls read.
+        let rx_buffer = match self.rx_buffer.take() {
+            Some(buf) => buf,
+            None => {
+                while self.regs.lsr.is_set(LSR::DataAvailable) {
+                    let _ = self.regs.rbr_thr.get();
+                }
+                self.regs.ier.modify(IER::ReceivedDataAvailable::CLEAR);
+                return;
+            }
+        };
         let len = self.rx_len.get();
         let mut index = self.rx_index.get();
 
