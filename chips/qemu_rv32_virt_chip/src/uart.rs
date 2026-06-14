@@ -5,6 +5,7 @@
 //! QEMU's memory mapped 16550 UART
 
 use core::cell::Cell;
+use core::sync::atomic::Ordering;
 
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -210,6 +211,7 @@ register_bitfields![u16,
 
 pub struct Uart16550<'a> {
     regs: StaticRef<Uart16550Registers>,
+    hart_id: u32,
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
     tx_buffer: TakeCell<'static, [u8]>,
@@ -222,6 +224,9 @@ pub struct Uart16550<'a> {
 
 impl<'a> Uart16550<'a> {
     pub fn new(regs: StaticRef<Uart16550Registers>) -> Uart16550<'a> {
+        let hart_id: u32;
+        unsafe { core::arch::asm!("csrr {}, mhartid", out(reg) hart_id) };
+
         // Disable all interrupts when constructing the UART
         regs.ier.set(0xF);
 
@@ -229,6 +234,7 @@ impl<'a> Uart16550<'a> {
 
         Uart16550 {
             regs,
+            hart_id,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             tx_buffer: TakeCell::empty(),
@@ -243,6 +249,11 @@ impl<'a> Uart16550<'a> {
 
 impl Uart16550<'_> {
     pub fn handle_interrupt(&self) {
+        if self.hart_id == 1 {
+            // UART interrupts route through the PLIC to Hart 0 only;
+            // Hart 1 has mie.mext disabled and never claims PLIC interrupts.
+            panic!("UART monitor: handle_interrupt called on Hart 1");
+        }
         // Currently we can only receive a tx interrupt, however we
         // need to check the interrupt cause nonetheless as this will
         // clear the TX interrupt bit
@@ -297,6 +308,31 @@ impl Uart16550<'_> {
         }
     }
 
+    /// Called from Hart 1's MachineSoft handler when `MSIP_REASON_UART_RX` is set.
+    /// Copies bytes from the shared replay buffer into Hart 1's pending `rx_buffer`
+    /// and fires the `received_buffer` callback.
+    ///
+    /// If no `rx_buffer` is pending (Hart 1's console capsule not yet set up),
+    /// the replay is silently dropped — this indicates a known gap in lockstep
+    /// coverage that will be addressed when Hart 1 gets a full capsule chain.
+    pub fn replay_rx_done(&self, len: u8) {
+        debug_assert_eq!(self.hart_id, 1);
+        let rx_buffer = match self.rx_buffer.take() {
+            Some(buf) => buf,
+            None => return,
+        };
+        let len = len as usize;
+        use crate::chip::{UART_RX_REPLAY_BUF, UART_RX_REPLAY_MAX};
+        let copy_len = len.min(UART_RX_REPLAY_MAX).min(rx_buffer.len());
+        unsafe {
+            rx_buffer[..copy_len]
+                .copy_from_slice(&(&*UART_RX_REPLAY_BUF.0.get())[..copy_len]);
+        }
+        self.rx_client.map(move |client| {
+            client.received_buffer(rx_buffer, copy_len, Ok(()), hil::uart::Error::None)
+        });
+    }
+
     /// Blocking transmit
     ///
     /// This function will transmit the passed slice in a blocking
@@ -305,6 +341,9 @@ impl Uart16550<'_> {
     /// The current device configuration is used, and the device must
     /// be enabled. Otherwise, this function may block indefinitely.
     pub fn transmit_sync(&self, bytes: &[u8]) {
+        if self.hart_id == 1 {
+            return;
+        }
         // We don't want to cause excessive interrupts here, so
         // disable transmit interrupts temporarily
         let prev_ier = self.regs.ier.extract();
@@ -324,6 +363,10 @@ impl Uart16550<'_> {
     }
 
     fn transmit_continue(&self) {
+        if self.hart_id == 1 {
+            // Only reachable via handle_interrupt, which panics on Hart 1.
+            panic!("UART monitor: transmit_continue called on Hart 1");
+        }
         // This should only be called as a result of a transmit
         // interrupt
 
@@ -355,6 +398,10 @@ impl Uart16550<'_> {
     }
 
     fn receive(&self) {
+        if self.hart_id == 1 {
+            // Only reachable via handle_interrupt, which panics on Hart 1.
+            panic!("UART monitor: receive called on Hart 1");
+        }
         // Receive interrupts must only be enabled when we're currently holding
         // a buffer to receive data into:
         let rx_buffer = self.rx_buffer.take().expect("UART 16550: no rx buffer");
@@ -372,6 +419,22 @@ impl Uart16550<'_> {
             // We're done, disable interrupts and return to the client:
             self.regs.ier.modify(IER::ReceivedDataAvailable::CLEAR);
 
+            // Forward received bytes to Hart 1 via the replay buffer.
+            // Write bytes before storing len (Release) so Hart 1's Acquire
+            // load on UART_RX_REPLAY_LEN sees a fully-written buffer.
+            use crate::chip::{
+                CLINT_MSIP1, MSIP_REASON, MSIP_REASON_UART_RX, UART_RX_REPLAY_BUF,
+                UART_RX_REPLAY_LEN, UART_RX_REPLAY_MAX,
+            };
+            let copy_len = len.min(UART_RX_REPLAY_MAX);
+            unsafe {
+                (&mut *UART_RX_REPLAY_BUF.0.get())[..copy_len]
+                    .copy_from_slice(&rx_buffer[..copy_len]);
+            }
+            UART_RX_REPLAY_LEN.store(copy_len as u8, Ordering::Release);
+            MSIP_REASON.fetch_or(MSIP_REASON_UART_RX, Ordering::Release);
+            unsafe { core::ptr::write_volatile(CLINT_MSIP1, 1) };
+
             self.rx_client.map(move |client| {
                 client.received_buffer(rx_buffer, len, Ok(()), hil::uart::Error::None)
             });
@@ -386,6 +449,48 @@ impl Uart16550<'_> {
 impl hil::uart::Configure for Uart16550<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         use hil::uart::{Parity, StopBits, Width};
+
+        if self.hart_id == 1 {
+            // Verify baud rate divisor.
+            let expected_divisor: u16 = (115_200 / params.baud_rate) as u16;
+            let actual_divisor = self.regs.divisor_latch_reg(|dlr| dlr.get() as u16);
+            assert!(
+                actual_divisor == expected_divisor,
+                "UART monitor: baud divisor mismatch: expected {}, got {}",
+                expected_divisor,
+                actual_divisor
+            );
+
+            // Verify LCR fields that Hart 0 actually writes.
+            let lcr = self.regs.lcr.extract();
+
+            let width_ok = match params.width {
+                Width::Six => lcr.matches_all(LCR::DataWordLength::Bits6),
+                Width::Seven => lcr.matches_all(LCR::DataWordLength::Bits7),
+                Width::Eight => lcr.matches_all(LCR::DataWordLength::Bits8),
+            };
+            assert!(width_ok, "UART monitor: word width mismatch");
+
+            // Hart 0 only sets the parity enable bit, not ParityMode, so only
+            // verify enabled vs. disabled.
+            let parity_ok = match params.parity {
+                Parity::None => !lcr.is_set(LCR::Parity),
+                Parity::Odd | Parity::Even => lcr.is_set(LCR::Parity),
+            };
+            assert!(parity_ok, "UART monitor: parity mismatch");
+
+            let flow_ok = match params.hw_flow_control {
+                true => lcr.is_set(LCR::BreakSignal),
+                false => !lcr.is_set(LCR::BreakSignal),
+            };
+            assert!(flow_ok, "UART monitor: flow control mismatch");
+
+            // StopBits is intentionally not verified: the Hart 0 configure
+            // path computes the field value but discards it (no lcr.modify call),
+            // so the hardware retains its reset value regardless of params.stop_bits.
+
+            return Ok(());
+        }
 
         // 16550 operates at a default frequency of 115200. Dividing
         // this by the target frequency gives the divisor register
@@ -430,6 +535,9 @@ impl hil::uart::Configure for Uart16550<'_> {
 
 impl<'a> hil::uart::Transmit<'a> for Uart16550<'a> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
+        if self.hart_id == 1 {
+            return;
+        }
         self.tx_client.set(client);
     }
 
@@ -438,6 +546,18 @@ impl<'a> hil::uart::Transmit<'a> for Uart16550<'a> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.hart_id == 1 {
+            assert!(
+                self.regs.ier.is_set(IER::TransmitterHoldingRegisterEmpty),
+                "UART monitor: transmit_buffer called but TX interrupt not enabled in IER"
+            );
+            // Store buffer so the LOCKSTEP_CHAN replay path can fire the
+            // transmitted_buffer callback when Hart 0's TX completes.
+            self.tx_buffer.replace(tx_data);
+            self.tx_len.set(tx_len);
+            self.tx_index.set(0);
+            return Ok(());
+        }
         if tx_len > tx_data.len() {
             return Err((ErrorCode::INVAL, tx_data));
         }
@@ -479,6 +599,9 @@ impl<'a> hil::uart::Transmit<'a> for Uart16550<'a> {
 
 impl<'a> hil::uart::Receive<'a> for Uart16550<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
+        if self.hart_id == 1 {
+            return;
+        }
         self.rx_client.set(client);
     }
 
@@ -487,6 +610,22 @@ impl<'a> hil::uart::Receive<'a> for Uart16550<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if self.hart_id == 1 {
+            // Hart 0 enables IER::ReceivedDataAvailable at the end of its
+            // receive_buffer, so this check is slightly racy — Hart 0 may not
+            // have reached that point yet. It still catches cases where receive
+            // is set up on Hart 1 with no corresponding Hart 0 receive in flight.
+            assert!(
+                self.regs.ier.is_set(IER::ReceivedDataAvailable),
+                "UART monitor: receive_buffer called but RX interrupt not enabled in IER"
+            );
+            // Store buffer so the LOCKSTEP_CHAN replay path has somewhere to
+            // write bytes when the receive completes.
+            self.rx_buffer.replace(rx_buffer);
+            self.rx_len.set(rx_len);
+            self.rx_index.set(0);
+            return Ok(());
+        }
         // Ensure the provided buffer holds at least `rx_len` bytes, and
         // `rx_len` is strictly positive (otherwise we'd need to use deferred
         // calls):
@@ -516,6 +655,24 @@ impl<'a> hil::uart::Receive<'a> for Uart16550<'a> {
     fn receive_word(&self) -> Result<(), ErrorCode> {
         // Currently unsupported.
         Err(ErrorCode::FAIL)
+    }
+}
+
+/// Called by Hart 1's `MachineSoft` handler when `MSIP_REASON_UART_RX` is set.
+///
+/// Reads `HART1_UART_PTR` (set during `start_secondary`) and delegates to
+/// `Uart16550::replay_rx_done`. Safe to call before the pointer is initialized
+/// (pointer is zero until `start_secondary` runs).
+pub fn replay_rx_done_for_hart1() {
+    use core::sync::atomic::Ordering;
+    use crate::chip::{HART1_UART_PTR, UART_RX_REPLAY_LEN};
+    let ptr = HART1_UART_PTR.load(Ordering::Acquire) as *const Uart16550<'static>;
+    if ptr.is_null() {
+        return;
+    }
+    let len = UART_RX_REPLAY_LEN.swap(0, Ordering::Acquire);
+    if len > 0 {
+        unsafe { (*ptr).replay_rx_done(len) };
     }
 }
 

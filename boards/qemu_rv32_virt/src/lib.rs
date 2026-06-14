@@ -1072,6 +1072,14 @@ pub unsafe fn start_secondary() -> (
         QemuRv32VirtDefaultPeripherals::new(),
     );
 
+    // Register Hart 1's UART instance so the MachineSoft handler can dispatch
+    // UART RX replays to it.  Must happen before Hart 1 can receive MSIP kicks
+    // from Hart 0's receive() path.
+    qemu_rv32_virt_chip::chip::HART1_UART_PTR.store(
+        core::ptr::addr_of!(peripherals.uart0) as usize,
+        core::sync::atomic::Ordering::Release,
+    );
+
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
         QemuRv32VirtChip::new(peripherals, hardware_timer, epmp),
