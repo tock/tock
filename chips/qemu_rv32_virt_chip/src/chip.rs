@@ -7,7 +7,7 @@
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use core::ptr::addr_of;
-use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 
 use kernel::collections::spsc_channel::BiChannel;
 use kernel::debug;
@@ -59,13 +59,20 @@ pub const CLINT_MSIP1: *mut u32 = 0x0200_0004 as *mut u32;
 pub const UART_RX_REPLAY_MAX: usize = 256;
 
 /// Reason bits for the MSIP kick from Hart 0 to Hart 1.
-pub const MSIP_REASON_WATCHDOG: u8 = 0b01;
-pub const MSIP_REASON_UART_RX: u8 = 0b10;
+pub const MSIP_REASON_WATCHDOG: u8 = 0b001;
+pub const MSIP_REASON_UART_RX: u8 = 0b010;
+pub const MSIP_REASON_UART_TX: u8 = 0b100;
 
 /// Bitmask of pending MSIP reasons. Hart 0 ORs in its reason before writing
-/// CLINT_MSIP1; Hart 1's MachineSoft handler swaps this to 0 and dispatches.
+/// CLINT_MSIP1; Hart 1's MachineSoft handler moves this into HART1_PENDING_REASON.
 #[link_section = ".bss"]
 pub static MSIP_REASON: AtomicU8 = AtomicU8::new(0);
+
+/// Reasons saved by Hart 1's MachineSoft handler for dispatch in
+/// service_pending_interrupts, mirroring how MachineExternal saves PLIC
+/// interrupt numbers for handle_plic_interrupts.
+#[link_section = ".bss"]
+pub static HART1_PENDING_REASON: AtomicU8 = AtomicU8::new(0);
 
 /// Bytes received by Hart 0's UART, to be replayed on Hart 1.
 /// Written before MSIP_REASON/CLINT_MSIP1; read after MSIP_REASON is consumed.
@@ -85,11 +92,6 @@ pub static UART_RX_REPLAY_BUF: UartRxReplayBuf =
 /// Number of valid bytes in UART_RX_REPLAY_BUF. Zero means no replay pending.
 #[link_section = ".bss"]
 pub static UART_RX_REPLAY_LEN: AtomicU8 = AtomicU8::new(0);
-
-/// Pointer to Hart 1's `Uart16550` instance, set during `start_secondary()`.
-/// Zero until initialized; the MachineSoft handler checks this before dispatching.
-#[link_section = ".bss"]
-pub static HART1_UART_PTR: AtomicUsize = AtomicUsize::new(0);
 
 /// CLINT mtime registers (read-only, shared across harts).
 const CLINT_MTIME_LO: *const u32 = 0x0200_BFF8 as *const u32;
@@ -277,8 +279,19 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
                 }
             }
 
+            if !mext_enabled {
+                let reason = HART1_PENDING_REASON.swap(0, Ordering::Acquire);
+                if reason & MSIP_REASON_UART_RX != 0 {
+                    crate::uart::replay_rx_done_for_hart1();
+                }
+                if reason & MSIP_REASON_UART_TX != 0 {
+                    crate::uart::replay_tx_done_for_hart1();
+                }
+            }
+
             if !mip.is_set(mip::mtimer)
                 && (!mext_enabled || self.plic.get_saved_interrupts().is_none())
+                && (mext_enabled || HART1_PENDING_REASON.load(Ordering::Relaxed) == 0)
             {
                 break;
             }
@@ -297,6 +310,10 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         // We would also need to check for additional global interrupt bits
         // if there were to be used for anything in the future.
         if CSR.mip.is_set(mip::mtimer) {
+            return true;
+        }
+
+        if HART1_PENDING_REASON.load(Ordering::Relaxed) != 0 {
             return true;
         }
 
@@ -367,11 +384,11 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             if hartid == 1 {
                 core::ptr::write_volatile(CLINT_MSIP1, 0); // clear MSIP[1]
 
-                // Dispatch on the reason bitmask set by Hart 0 before kicking MSIP.
+                // Save the reason bitmask for dispatch in service_pending_interrupts,
+                // mirroring how MachineExternal saves PLIC IRQ numbers for
+                // handle_plic_interrupts rather than dispatching inline.
                 let reason = MSIP_REASON.swap(0, Ordering::Acquire);
-                if reason & MSIP_REASON_UART_RX != 0 {
-                    crate::uart::replay_rx_done_for_hart1();
-                }
+                HART1_PENDING_REASON.fetch_or(reason, Ordering::Release);
 
                 // Arm hart 1's hardware watchdog timer: if hart 0 doesn't
                 // finish interrupt handling within WATCHDOG_TICKS, the

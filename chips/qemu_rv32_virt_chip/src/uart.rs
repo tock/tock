@@ -308,31 +308,6 @@ impl Uart16550<'_> {
         }
     }
 
-    /// Called from Hart 1's MachineSoft handler when `MSIP_REASON_UART_RX` is set.
-    /// Copies bytes from the shared replay buffer into Hart 1's pending `rx_buffer`
-    /// and fires the `received_buffer` callback.
-    ///
-    /// If no `rx_buffer` is pending (Hart 1's console capsule not yet set up),
-    /// the replay is silently dropped — this indicates a known gap in lockstep
-    /// coverage that will be addressed when Hart 1 gets a full capsule chain.
-    pub fn replay_rx_done(&self, len: u8) {
-        debug_assert_eq!(self.hart_id, 1);
-        let rx_buffer = match self.rx_buffer.take() {
-            Some(buf) => buf,
-            None => return,
-        };
-        let len = len as usize;
-        use crate::chip::{UART_RX_REPLAY_BUF, UART_RX_REPLAY_MAX};
-        let copy_len = len.min(UART_RX_REPLAY_MAX).min(rx_buffer.len());
-        unsafe {
-            rx_buffer[..copy_len]
-                .copy_from_slice(&(&*UART_RX_REPLAY_BUF.0.get())[..copy_len]);
-        }
-        self.rx_client.map(move |client| {
-            client.received_buffer(rx_buffer, copy_len, Ok(()), hil::uart::Error::None)
-        });
-    }
-
     /// Blocking transmit
     ///
     /// This function will transmit the passed slice in a blocking
@@ -390,6 +365,11 @@ impl Uart16550<'_> {
             self.regs
                 .ier
                 .modify(IER::TransmitterHoldingRegisterEmpty::CLEAR);
+
+            // Signal Hart 1 to fire its transmitted_buffer callback.
+            use crate::chip::{CLINT_MSIP1, MSIP_REASON, MSIP_REASON_UART_TX};
+            MSIP_REASON.fetch_or(MSIP_REASON_UART_TX, Ordering::Release);
+            unsafe { core::ptr::write_volatile(CLINT_MSIP1, 1) };
 
             // Callback to the client
             self.tx_client
@@ -658,21 +638,127 @@ impl<'a> hil::uart::Receive<'a> for Uart16550<'a> {
     }
 }
 
-/// Called by Hart 1's `MachineSoft` handler when `MSIP_REASON_UART_RX` is set.
-///
-/// Reads `HART1_UART_PTR` (set during `start_secondary`) and delegates to
-/// `Uart16550::replay_rx_done`. Safe to call before the pointer is initialized
-/// (pointer is zero until `start_secondary` runs).
+/// Called by Hart 1's `service_pending_interrupts` when `MSIP_REASON_UART_RX` is set.
 pub fn replay_rx_done_for_hart1() {
-    use core::sync::atomic::Ordering;
-    use crate::chip::{HART1_UART_PTR, UART_RX_REPLAY_LEN};
-    let ptr = HART1_UART_PTR.load(Ordering::Acquire) as *const Uart16550<'static>;
-    if ptr.is_null() {
-        return;
-    }
+    use crate::chip::UART_RX_REPLAY_LEN;
     let len = UART_RX_REPLAY_LEN.swap(0, Ordering::Acquire);
     if len > 0 {
-        unsafe { (*ptr).replay_rx_done(len) };
+        HART1_UART_BUF.replay_rx_done(len);
+    }
+}
+
+/// Called by Hart 1's `service_pending_interrupts` when `MSIP_REASON_UART_TX` is set.
+pub fn replay_tx_done_for_hart1() {
+    HART1_UART_BUF.replay_tx_done();
+}
+
+/// Software-only UART with no hardware backing, used for Hart 1's console capsule.
+///
+/// Hart 0 owns the physical UART. Hart 1 receives data via the MSIP replay path:
+/// Hart 0 copies received bytes into `UART_RX_REPLAY_BUF`, kicks Hart 1 via CLINT
+/// MSIP, and Hart 1's MachineSoft handler calls `replay_rx_done_for_hart1()`, which
+/// calls `replay_rx_done()` on this struct to deliver bytes to the waiting app.
+pub struct VirtualUartBuffer {
+    rx_client: OptionalCell<&'static dyn hil::uart::ReceiveClient>,
+    tx_client: OptionalCell<&'static dyn hil::uart::TransmitClient>,
+    rx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: TakeCell<'static, [u8]>,
+    tx_len: Cell<usize>,
+}
+
+unsafe impl Sync for VirtualUartBuffer {}
+
+impl VirtualUartBuffer {
+    pub const fn new() -> Self {
+        VirtualUartBuffer {
+            rx_client: OptionalCell::empty(),
+            tx_client: OptionalCell::empty(),
+            rx_buffer: TakeCell::empty(),
+            tx_buffer: TakeCell::empty(),
+            tx_len: Cell::new(0),
+        }
+    }
+
+    pub fn replay_rx_done(&self, len: u8) {
+        let rx_buffer = match self.rx_buffer.take() {
+            Some(buf) => buf,
+            None => return,
+        };
+        let len = len as usize;
+        use crate::chip::{UART_RX_REPLAY_BUF, UART_RX_REPLAY_MAX};
+        let copy_len = len.min(UART_RX_REPLAY_MAX).min(rx_buffer.len());
+        unsafe {
+            rx_buffer[..copy_len]
+                .copy_from_slice(&(&*UART_RX_REPLAY_BUF.0.get())[..copy_len]);
+        }
+        self.rx_client.map(move |client| {
+            client.received_buffer(rx_buffer, copy_len, Ok(()), hil::uart::Error::None)
+        });
+    }
+
+    pub fn replay_tx_done(&self) {
+        let tx_buffer = match self.tx_buffer.take() {
+            Some(buf) => buf,
+            None => return,
+        };
+        let tx_len = self.tx_len.get();
+        self.tx_client
+            .map(move |client| client.transmitted_buffer(tx_buffer, tx_len, Ok(())));
+    }
+}
+
+pub static HART1_UART_BUF: VirtualUartBuffer = VirtualUartBuffer::new();
+
+impl hil::uart::Configure for VirtualUartBuffer {
+    fn configure(&self, _params: hil::uart::Parameters) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+}
+
+impl hil::uart::Transmit<'static> for VirtualUartBuffer {
+    fn set_transmit_client(&self, client: &'static dyn hil::uart::TransmitClient) {
+        self.tx_client.set(client);
+    }
+
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        self.tx_buffer.replace(tx_data);
+        self.tx_len.set(tx_len);
+        Ok(())
+    }
+
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+}
+
+impl hil::uart::Receive<'static> for VirtualUartBuffer {
+    fn set_receive_client(&self, client: &'static dyn hil::uart::ReceiveClient) {
+        self.rx_client.set(client);
+    }
+
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        _rx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        self.rx_buffer.replace(rx_buffer);
+        Ok(())
+    }
+
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
 

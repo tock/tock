@@ -907,14 +907,18 @@ pub unsafe fn finish_lockstep_setup(
 pub struct Hart1Platform {
     pub scheduler: &'static SchedulerInUse,
     pub scheduler_timer: &'static SchedulerTimerHw,
+    pub console: &'static capsules_core::console::Console<'static>,
 }
 
 impl kernel::platform::SyscallDriverLookup for Hart1Platform {
-    fn with_driver<F, R>(&self, _driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
-        f(None)
+        match driver_num {
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            _ => f(None),
+        }
     }
 }
 
@@ -1072,13 +1076,27 @@ pub unsafe fn start_secondary() -> (
         QemuRv32VirtDefaultPeripherals::new(),
     );
 
-    // Register Hart 1's UART instance so the MachineSoft handler can dispatch
-    // UART RX replays to it.  Must happen before Hart 1 can receive MSIP kicks
-    // from Hart 0's receive() path.
-    qemu_rv32_virt_chip::chip::HART1_UART_PTR.store(
-        core::ptr::addr_of!(peripherals.uart0) as usize,
-        core::sync::atomic::Ordering::Release,
-    );
+    // Wire Hart 1's Console to the hardware-free replay stub.
+    // Hart 0 owns the physical UART; Hart 1 receives data via MSIP replay.
+    let memory_alloc_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let console = {
+        use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
+        use qemu_rv32_virt_chip::uart::HART1_UART_BUF;
+        let tx_buf = static_init!([u8; DEFAULT_BUF_SIZE], [0; DEFAULT_BUF_SIZE]);
+        let rx_buf = static_init!([u8; DEFAULT_BUF_SIZE], [0; DEFAULT_BUF_SIZE]);
+        let console: &'static Console<'static> = static_init!(
+            Console<'static>,
+            Console::new(
+                &HART1_UART_BUF,
+                tx_buf,
+                rx_buf,
+                board_kernel.create_grant(capsules_core::console::DRIVER_NUM, &memory_alloc_cap),
+            )
+        );
+        hil::uart::Receive::set_receive_client(&HART1_UART_BUF, console);
+        hil::uart::Transmit::set_transmit_client(&HART1_UART_BUF, console);
+        console
+    };
 
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
@@ -1118,6 +1136,7 @@ pub unsafe fn start_secondary() -> (
     let platform = Hart1Platform {
         scheduler,
         scheduler_timer,
+        console,
     };
 
     // Init sync: receive hart 0's ping and ack it.
