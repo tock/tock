@@ -887,10 +887,7 @@ impl StateMachine {
         // "set pindirs, 0" command created by pioasm
         let set_pindirs_0: u16 = 0b1110000010000000;
         self.with_paused(|| {
-            let mut pindir_val: u8 = 0x00;
-            if is_out {
-                pindir_val = 0x1f;
-            }
+            let pindir_val: u16 = if is_out { 0x1f } else { 0x00 };
             while count > 5 {
                 self.registers.sm[self.sm_number as usize]
                     .pinctrl
@@ -898,7 +895,7 @@ impl StateMachine {
                 self.registers.sm[self.sm_number as usize]
                     .pinctrl
                     .modify(SMx_PINCTRL::SET_BASE.val(pin));
-                self.exec((set_pindirs_0) | (pindir_val as u16));
+                self.exec((set_pindirs_0) | (pindir_val));
                 count -= 5;
                 pin = (pin + 5) & 0x1f;
             }
@@ -908,7 +905,7 @@ impl StateMachine {
             self.registers.sm[self.sm_number as usize]
                 .pinctrl
                 .modify(SMx_PINCTRL::SET_BASE.val(pin));
-            self.exec((set_pindirs_0) | (pindir_val as u16));
+            self.exec((set_pindirs_0) | (pindir_val));
         });
     }
 

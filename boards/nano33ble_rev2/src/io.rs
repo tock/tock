@@ -73,10 +73,7 @@ impl IoWrite for Writer {
         // This will truncate any writes longer than BUF_LEN, but simplifies the
         // code. In practice, BUF_LEN=512 always seems sufficient for the size of
         // individual calls to write made by the panic handler.
-        let mut max = BUF_LEN;
-        if buf.len() < BUF_LEN {
-            max = buf.len();
-        }
+        let max = buf.len().min(BUF_LEN);
 
         unsafe {
             // If CDC_REF_FOR_PANIC is not yet set we panicked very early,

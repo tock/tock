@@ -386,18 +386,20 @@ impl Tlv<'_> {
                 let (offset, id_sequence) = dec_try!(buf, offset; decode_u8);
                 let (offset, active_routers) = dec_try!(buf, offset; decode_u8);
                 let mut offset = offset;
-                let mut sed_buffer_size = None;
-                if offset + mem::size_of::<u16>() < length as usize {
+                let sed_buffer_size = if offset + mem::size_of::<u16>() < length as usize {
                     let (new_offset, sed_buffer_size_raw) = dec_try!(buf, offset; decode_u16);
                     offset = new_offset;
-                    sed_buffer_size = Some(sed_buffer_size_raw);
-                }
-                let mut sed_datagram_count = None;
-                if offset + mem::size_of::<u8>() < length as usize {
+                    Some(sed_buffer_size_raw)
+                } else {
+                    None
+                };
+                let sed_datagram_count = if offset + mem::size_of::<u8>() < length as usize {
                     let (new_offset, sed_datagram_count_raw) = dec_try!(buf, offset; decode_u8);
                     offset = new_offset;
-                    sed_datagram_count = Some(sed_datagram_count_raw);
-                }
+                    Some(sed_datagram_count_raw)
+                } else {
+                    None
+                };
                 stream_done!(
                     offset,
                     Tlv::Connectivity {

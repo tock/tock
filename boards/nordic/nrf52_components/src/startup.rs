@@ -78,48 +78,59 @@ impl Component for NrfStartupComponent<'_> {
         self.nvmc.configure_writeable();
         while !self.nvmc.is_ready() {}
 
-        let mut needs_soft_reset: bool = false;
-
         // Configure reset pins
-        if uicr
+        let psel0_reset = if uicr
             .get_psel0_reset_pin()
             .is_none_or(|pin| pin != self.button_rst_pin)
         {
             uicr.set_psel0_reset_pin(self.button_rst_pin);
             while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
-        if uicr
+            true
+        } else {
+            false
+        };
+        let psel1_reset = if uicr
             .get_psel1_reset_pin()
             .is_none_or(|pin| pin != self.button_rst_pin)
         {
             uicr.set_psel1_reset_pin(self.button_rst_pin);
             while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
+            true
+        } else {
+            false
+        };
 
         // Configure voltage regulator output
-        if uicr.get_vout() != self.reg_vout {
+        let vout_reset = if uicr.get_vout() != self.reg_vout {
             uicr.set_vout(self.reg_vout);
             while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
+            true
+        } else {
+            false
+        };
 
         // Check if we need to free the NFC pins for GPIO
-        if self.nfc_as_gpios {
+        let nfc_reset = if self.nfc_as_gpios {
             uicr.set_nfc_pins_protection(true);
             while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
+            true
+        } else {
+            false
+        };
 
         // If APPROTECT was not already disabled, ensure it is set to disabled.
-        if uicr.is_ap_protect_enabled() {
+        let approtect_reset = if uicr.is_ap_protect_enabled() {
             uicr.disable_ap_protect();
             while !self.nvmc.is_ready() {}
-            needs_soft_reset = true;
-        }
+            true
+        } else {
+            false
+        };
 
         // Any modification of UICR needs a soft reset for the changes to be taken into account.
+        // Use `|` (not `||`) to ensure all side effects above always execute.
+        let needs_soft_reset = psel0_reset | psel1_reset | vout_reset | nfc_reset | approtect_reset;
+
         if needs_soft_reset {
             unsafe {
                 cortexm4::scb::reset();

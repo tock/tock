@@ -273,10 +273,11 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             // Check if the length in the header is matching what the app
             // requested during the setup phase also check if the kernel
             // version matches the version indicated in the new application.
-            let mut new_app_len = 0;
-            if let Some(metadata) = self.process_metadata.get() {
-                new_app_len = metadata.new_app_length;
-            }
+            let new_app_len = if let Some(metadata) = self.process_metadata.get() {
+                metadata.new_app_length
+            } else {
+                0
+            };
             if entry_length as usize != new_app_len {
                 return Err(ErrorCode::INVAL);
             }

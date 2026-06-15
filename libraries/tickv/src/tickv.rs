@@ -155,11 +155,12 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                             | State::Init(InitState::GetKeyReadRegion(_))
                             | State::Init(InitState::EraseRegion(_)) => {
                                 // Erase all regions
-                                let mut start = 0;
-                                if let State::Init(InitState::EraseRegion(reg)) = self.state.get() {
+                                let start = if let State::Init(InitState::EraseRegion(reg)) = self.state.get() {
                                     // We already erased region reg, so move to the next one
-                                    start = reg + 1;
-                                }
+                                    reg + 1
+                                } else {
+                                    0
+                                };
 
                                 if start < (self.flash_size / S) {
                                     for r in start..(self.flash_size / S) {
