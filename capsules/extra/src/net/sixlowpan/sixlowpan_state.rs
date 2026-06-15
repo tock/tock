@@ -875,12 +875,12 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// * `ctx_store` - Stores IPv6 address nextwork context mappings
     ///
     /// * `tx_buf` - A buffer used for storing individual fragments of a packet
-    /// in transmission. This buffer must be at least the length of an 802.15.4
-    /// frame.
+    ///   in transmission. This buffer must be at least the length of an
+    ///   802.15.4 frame.
     ///
     /// * `clock` - A implementation of `Alarm` used for tracking the timing of
-    /// frame arrival. The clock should be continue running during sleep and
-    /// have an accuracy of at least 60 seconds.
+    ///   frame arrival. The clock should be continue running during sleep and
+    ///   have an accuracy of at least 60 seconds.
     pub fn new(ctx_store: C, clock: &'a A) -> Sixlowpan<'a, A, C> {
         Sixlowpan {
             ctx_store,

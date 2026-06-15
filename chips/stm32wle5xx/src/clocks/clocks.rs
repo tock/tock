@@ -66,7 +66,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     /// # Errors:
     ///
     /// + [Err]\([ErrorCode::FAIL]\) if changing the AHB prescaler doesn't preserve APB frequency
-    /// constraints
+    ///   constraints
     /// + [Err]\([ErrorCode::BUSY]\) if changing the AHB prescaler took too long. Retry.
     pub fn set_ahb_prescaler(&self, prescaler: AHBPrescaler) -> Result<(), ErrorCode> {
         // Changing the AHB prescaler affects the APB frequencies. A check must be done to ensure
@@ -205,7 +205,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     ///
     /// + [Err]\([ErrorCode::FAIL]\) if the source is not enabled.
     /// + [Err]\([ErrorCode::SIZE]\) if the source frequency surpasses the system clock frequency
-    /// limit, or the APB1 and APB2 limits are not satisfied.
+    ///   limit, or the APB1 and APB2 limits are not satisfied.
     /// + [Err]\([ErrorCode::BUSY]\) if the source switching took too long. Retry.
     pub fn set_sys_clock_source(&self, source: SysClockSource) -> Result<(), ErrorCode> {
         // Immediately return if the required source is already configured as the system clock

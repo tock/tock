@@ -150,13 +150,13 @@ register_structs! {
 /// Each channel can be configured to run in four different ways:
 ///
 /// + Free running: The fractional clock divider is always enabled. In this mode,
-/// pins A and B are configured as output pins. In other modes, pin B becomes
-/// an input pin.
+///   pins A and B are configured as output pins. In other modes, pin B becomes
+///   an input pin.
 /// + High: The fractional clock divider is enabled when pin B is high.
 /// + Rising: The fractional clock divider is enabled when a rising-edge is
-/// detected on pin B.
+///   detected on pin B.
 /// + Falling: The fractional clock divider is enabled when a falling-edge
-/// is detected on pin B.
+///   is detected on pin B.
 pub enum DivMode {
     FreeRunning,
     High,
@@ -229,9 +229,9 @@ const CHANNEL_NUMBERS: [ChannelNumber; NUMBER_CHANNELS] = [
 /// **Note**:
 ///
 /// + The same PWM output can be selected on two GPIO pins. The same signal will appear on each
-/// GPIO.
+///   GPIO.
 /// + If a PWM B pin is used as an input, and is selected on multiple GPIO pins, then the PWM
-/// channel will see the logical OR of those two GPIO inputs
+///   channel will see the logical OR of those two GPIO inputs
 impl From<RPGpio> for ChannelNumber {
     fn from(gpio: RPGpio) -> Self {
         match gpio as u8 >> 1 & 0b111 {
@@ -328,7 +328,7 @@ impl<'a> Pwm<'a> {
     /// + This method must be called only once when setting up the kernel peripherals.
     /// + This peripheral depends on the chip's clocks.
     /// + Also, if interrupts are required, then an interrupt handler must be set. Otherwise, all
-    /// the interrupts will be ignored.
+    ///   the interrupts will be ignored.
     pub fn new(clocks: &'a clocks::Clocks) -> Self {
         let pwm = Self {
             registers: PWM_BASE,

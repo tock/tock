@@ -126,7 +126,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     /// # Errors
     ///
     /// + [Err]\([ErrorCode::BUSY]\): if enabling the PLL clock took too long. Recall this method to
-    /// ensure the PLL clock is running.
+    ///   ensure the PLL clock is running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         // Enable the PLL clock
         self.rcc.enable_pll_clock();
@@ -149,7 +149,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     ///
     /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is configured as the system clock.
     /// + [Err]\([ErrorCode::BUSY]\): disabling the PLL clock took to long. Retry to ensure it is
-    /// not running.
+    ///   not running.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         // Can't disable the PLL clock when it is used as the system clock
         if self.rcc.get_sys_clock_source() == SysClockSource::PLLR {
@@ -187,7 +187,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     ///
     /// + main output used for configuring the system clock
     /// + a second output called PLL48CLK used by OTG USB FS (48MHz), the random number generator
-    /// (≤ 48MHz) and the SDIO (≤ 48MHz) clocks.
+    ///   (≤ 48MHz) and the SDIO (≤ 48MHz) clocks.
     ///
     /// When calling this method, the given frequency is set for the main output. The method will
     /// attempt to configure the PLL48CLK output to 48MHz, or to the highest value less than 48MHz
@@ -200,7 +200,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     /// + pll_source: PLL source clock (HSI or HSE)
     ///
     /// + source_frequency: the frequency of the PLL source clock in MHz. For the HSI the frequency
-    /// is fixed to 16MHz. For the HSE, the frequency is hardware-dependent
+    ///   is fixed to 16MHz. For the HSE, the frequency is hardware-dependent
     ///
     /// + desired_frequency_mhz: the desired frequency in MHz.
     ///
@@ -208,7 +208,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     ///
     /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
     /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
-    /// configuring it.
+    ///   configuring it.
     pub(super) fn set_frequency_mhz(
         &self,
         pll_source: PllSource,

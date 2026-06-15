@@ -8,7 +8,7 @@
 /// respect to its length in bits (prefix_len):
 ///
 /// - The byte array slice must contain enough bytes to cover the prefix length
-/// (no implicit zero-padding)
+///   (no implicit zero-padding)
 /// - The rest of the prefix array slice is zero-padded
 pub fn verify_prefix_len(prefix: &[u8], prefix_len: u8) -> bool {
     let full_bytes = (prefix_len / 8) as usize;

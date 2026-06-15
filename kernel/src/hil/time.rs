@@ -234,34 +234,21 @@ pub trait OverflowClient {
 
 /// Represents a free-running hardware counter that can be started and stopped.
 pub trait Counter<'a>: Time {
-<<<<<<< HEAD
     /// Starts the free-running hardware counter. Valid `Result<(), ErrorCode>` values are:
     ///   - `Ok(())`: the counter is now running
     ///   - `Err(ErrorCode::OFF)`: underlying clocks or other hardware resources
-=======
-    /// Specify the callback for when the counter overflows its maximum
-    /// value (defined by `Ticks`). If there was a previously registered
-    /// callback this call replaces it.
-    fn set_overflow_client(&self, client: &'a dyn OverflowClient);
-
-    /// Starts the free-running hardware counter. Valid `Result<(), ErrorCode>`
-    /// values are:
-    /// - `Ok(())`: the counter is now running
-    /// - `Err(ErrorCode::OFF)`: underlying clocks or other hardware resources
->>>>>>> c86cab10c (clippy: deny doc_lazy_continuation)
-    ///   are not on, such that the counter cannot start.
-    /// - `Err(ErrorCode::FAIL)`: unidentified failure, counter is not running.
+    ///     are not on, such that the counter cannot start.
+    ///   - `Err(ErrorCode::FAIL)`: unidentified failure, counter is not running.
     ///
     /// After a successful call to `start`, `is_running` MUST return true.
     fn start(&self) -> Result<(), ErrorCode>;
 
-    /// Stops the free-running hardware counter. Valid `Result<(), ErrorCode>`
-    /// values are:
-    /// - `Ok(())`: the counter is now stopped. No further
-    ///   overflow callbacks will be invoked.
-    /// - `Err(ErrorCode::BUSY)`: the counter is in use in a way that means it
-    ///   cannot be stopped and is busy.
-    /// - `Err(ErrorCode::FAIL)`: unidentified failure, counter is running.
+    /// Stops the free-running hardware counter. Valid `Result<(), ErrorCode>` values are:
+    ///   - `Ok(())`: the counter is now stopped. No further
+    ///     overflow callbacks will be invoked.
+    ///   - `Err(ErrorCode::BUSY)`: the counter is in use in a way that means it
+    ///     cannot be stopped and is busy.
+    ///   - `Err(ErrorCode::FAIL)`: unidentified failure, counter is running.
     ///
     /// After a successful call to `stop`, `is_running` MUST return false.
     fn stop(&self) -> Result<(), ErrorCode>;
@@ -271,8 +258,8 @@ pub trait Counter<'a>: Time {
     /// If a client needs to reset and clear pending callbacks it should
     /// call `stop` before `reset`.
     /// Valid `Result<(), ErrorCode>` values are:
-    /// - `Ok(())`: the counter was reset to 0.
-    /// - `Err(ErrorCode::FAIL)`: the counter was not reset to 0.
+    ///   - `Ok(())`: the counter was reset to 0.
+    ///   - `Err(ErrorCode::FAIL)`: the counter was not reset to 0.
     fn reset(&self) -> Result<(), ErrorCode>;
 
     /// Returns whether the counter is currently running.
@@ -327,10 +314,10 @@ pub trait Alarm<'a>: Time {
 
     /// Disable the alarm and stop it from firing in the future.
     /// Valid `Result<(), ErrorCode>` codes are:
-    /// - `Ok(())` the alarm has been disarmed and will not invoke
-    ///   the callback in the future
-    /// - `Err(ErrorCode::FAIL)` the alarm could not be disarmed and will invoke
-    ///   the callback in the future
+    ///   - `Ok(())` the alarm has been disarmed and will not invoke
+    ///     the callback in the future
+    ///   - `Err(ErrorCode::FAIL)` the alarm could not be disarmed and will invoke
+    ///     the callback in the future
     fn disarm(&self) -> Result<(), ErrorCode>;
 
     /// Returns whether the alarm is currently armed. Note that this
@@ -403,11 +390,10 @@ pub trait Timer<'a>: Time {
     /// or `repeating` restarts the timer.
     fn is_enabled(&self) -> bool;
 
-    /// Cancel the current timer, if any. Value `Result<(), ErrorCode>` values
-    /// are:
-    /// - `Ok(())`: no callback will be invoked in the future.
-    /// - `Err(ErrorCode::FAIL)`: the timer could not be cancelled and a
-    ///   callback will be invoked in the future.
+    /// Cancel the current timer, if any. Value `Result<(), ErrorCode>` values are:
+    ///  - `Ok(())`: no callback will be invoked in the future.
+    ///  - `Err(ErrorCode::FAIL)`: the timer could not be cancelled and a callback
+    ///    will be invoked in the future.
     fn cancel(&self) -> Result<(), ErrorCode>;
 }
 

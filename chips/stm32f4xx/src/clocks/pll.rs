@@ -6,9 +6,9 @@
 
 //! Main phase-locked loop (PLL) clock driver for the STM32F4xx family. [^doc_ref]
 //!
-//! Many boards of the STM32F4xx family provide several PLL clocks. However, all of them have a
-//! main PLL clock. This driver is designed for the main PLL clock. It will be simply referred as
-//! the PLL clock.
+//! Many boards of the STM32F4xx family provide several PLL clocks. However, all
+//! of them have a main PLL clock. This driver is designed for the main PLL
+//! clock. It will be simply referred as the PLL clock.
 //!
 //! The PLL clock is composed of two outputs:
 //!
@@ -130,18 +130,18 @@ pub struct Pll<'a, PllConstants> {
 }
 
 impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
-    // Create a new instance of the PLL clock.
-    //
-    // The instance of the PLL clock is configured to run at 96MHz and with minimal PLL jitter
-    // effects.
-    //
-    // # Parameters
-    //
-    // + rcc: an instance of [crate::rcc]
-    //
-    // # Returns
-    //
-    // An instance of the PLL clock.
+    /// Create a new instance of the PLL clock.
+    ///
+    /// The instance of the PLL clock is configured to run at 96MHz and with
+    /// minimal PLL jitter effects.
+    ///
+    /// # Parameters
+    ///
+    /// + rcc: an instance of [crate::rcc]
+    ///
+    /// # Returns
+    ///
+    /// An instance of the PLL clock.
     pub(in crate::clocks) fn new(rcc: &'a Rcc) -> Self {
         const PLLP: usize = match DEFAULT_PLLP_VALUE {
             PLLP::DivideBy2 => 2,
@@ -162,8 +162,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         }
     }
 
-    // The caller must ensure the desired frequency lies between MIN_FREQ_MHZ and
-    // MAX_FREQ_MHZ.  Otherwise, the return value makes no sense.
+    /// The caller must ensure the desired frequency lies between MIN_FREQ_MHZ
+    /// and MAX_FREQ_MHZ. Otherwise, the return value makes no sense.
     fn compute_pllp(desired_frequency_mhz: usize) -> PLLP {
         if desired_frequency_mhz < 55 {
             PLLP::DivideBy8
@@ -176,8 +176,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         }
     }
 
-    // The caller must ensure the desired frequency lies between MIN_FREQ_MHZ and
-    // MAX_FREQ_MHZ. Otherwise, the return value makes no sense.
+    /// The caller must ensure the desired frequency lies between MIN_FREQ_MHZ
+    /// and MAX_FREQ_MHZ. Otherwise, the return value makes no sense.
     fn compute_plln(
         desired_frequency_mhz: usize,
         pll_source_clock_freq: usize,
@@ -187,8 +187,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         desired_frequency_mhz * Into::<usize>::into(pllp) / vco_input_frequency
     }
 
-    // The caller must ensure the VCO output frequency lies between 100 and 432MHz. Otherwise, the
-    // return value makes no sense.
+    /// The caller must ensure the VCO output frequency lies between 100 and
+    /// 432MHz. Otherwise, the return value makes no sense.
     fn compute_pllq(vco_output_frequency_mhz: usize) -> PLLQ {
         for pllq in 3..10 {
             if 48 * pllq >= vco_output_frequency_mhz {
@@ -220,8 +220,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     ///
     /// # Errors
     ///
-    /// + [Err]\([ErrorCode::BUSY]\): if enabling the PLL clock took too long. Recall this method to
-    /// ensure the PLL clock is running.
+    /// + [Err]\([ErrorCode::BUSY]\): if enabling the PLL clock took too long.
+    ///   Recall this method to ensure the PLL clock is running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         // Enable the PLL clock
         self.rcc.enable_pll_clock();
@@ -242,9 +242,10 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     ///
     /// # Errors
     ///
-    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is configured as the system clock.
-    /// + [Err]\([ErrorCode::BUSY]\): disabling the PLL clock took to long. Retry to ensure it is
-    /// not running.
+    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is configured as the
+    ///   system clock.
+    /// + [Err]\([ErrorCode::BUSY]\): disabling the PLL clock took to long.
+    ///   Retry to ensure it is not running.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         // Can't disable the PLL clock when it is used as the system clock
         if self.rcc.get_sys_clock_source() == SysClockSource::PLL {
@@ -304,10 +305,9 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     ///
     /// # Errors
     ///
-    /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be
-    ///   achieved
-    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It
-    ///   must be disabled before configuring it.
+    /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
+    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be
+    ///   disabled before configuring it.
     pub(super) fn set_frequency_mhz(
         &self,
         pll_source: PllSource,
@@ -375,8 +375,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         }
     }
 
-    /// Get the frequency in MHz of the PLL clock from RCC registers instead of using the cached
-    /// value.
+    /// Get the frequency in MHz of the PLL clock from RCC registers instead of
+    /// using the cached value.
     ///
     /// # Returns
     ///
@@ -395,8 +395,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
 
     /// Get the frequency in MHz of the PLL48 clock.
     ///
-    /// **NOTE:** If the PLL clock was not configured with a frequency multiple of 48MHz, the
-    /// returned value is inaccurate.
+    /// **NOTE:** If the PLL clock was not configured with a frequency multiple
+    /// of 48MHz, the returned value is inaccurate.
     ///
     /// # Returns
     ///
@@ -425,8 +425,9 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
 
 /// Tests for the PLL clock
 ///
-/// This module ensures that the PLL clock works as expected. If changes are brought to the PLL
-/// clock, ensure to run all the tests to see if anything is broken.
+/// This module ensures that the PLL clock works as expected. If changes are
+/// brought to the PLL clock, ensure to run all the tests to see if anything is
+/// broken.
 ///
 /// # Usage
 ///
@@ -435,13 +436,16 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
 /// ```rust,ignore
 /// use stm32f429zi::pll;
 /// ```
-/// To run all the available tests, add this line before **kernel::process::load_processes()**:
+///
+/// To run all the available tests, add this line before
+/// `kernel::process::load_processes()`:
 ///
 /// ```rust,ignore
 /// pll::tests::run(&peripherals.stm32f4.clocks.pll);
 /// ```
 ///
-/// If everything works as expected, the following message should be printed on the kernel console:
+/// If everything works as expected, the following message should be printed on
+/// the kernel console:
 ///
 /// ```text
 /// ===============================================
@@ -457,13 +461,14 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
 /// ===============================================
 /// ```
 ///
-/// There is also the possibility to run a part of the test suite. Check the functions present in
-/// this module for more details.
+/// There is also the possibility to run a part of the test suite. Check the
+/// functions present in this module for more details.
 ///
 /// # Errors
 ///
-/// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
-/// output of the test execution.
+/// If there are any errors, open an issue ticket at
+/// <https://github.com/tock/tock>. Please provide the output of the test
+/// execution.
 pub mod tests {
     use super::{
         clock_constants, debug, ErrorCode, Pll, PllSource, DEFAULT_PLLM_VALUE, HSI_FREQUENCY_MHZ,
