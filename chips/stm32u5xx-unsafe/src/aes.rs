@@ -2,9 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
+//! AES driver, stm32u5xx-family, unsafe code
+use cortexm33::dma_fence::CortexMDmaFence;
+use kernel::hil::symmetric_encryption::AES_BLOCK_SIZE;
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::dma_slice::DmaSubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
+use kernel::utilities::StaticRef;
+
+pub const AES_BASE: StaticRef<AesRegisters> =
+    /// ### Safety
+    ///
+    /// The address 0x520C0000 is the dedicated memory-mapped region for the AES
+    /// peripheral on the STM32U5 series, as specified in the reference manual.
+    unsafe { StaticRef::new(0x520C0000 as *const AesRegisters) };
 
 register_structs! {
     pub AesRegisters {
@@ -143,3 +157,89 @@ register_bitfields![u32,
         DATA OFFSET(0)   NUMBITS(32) []
     ]
 ];
+
+pub struct DMABuffers {
+    pub dma_in_buf: MapCell<DmaSubSliceMut<'static, u8>>,
+    pub dma_out_buf: MapCell<DmaSubSliceMut<'static, u8>>,
+    pub dma_aad_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
+    pub dma_message_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
+}
+
+/// Wrapper for managing MMIO for the AES peripheral.
+pub struct AesRegistersManager {
+    /// MMIO registers for the AES peripheral.
+    pub registers: StaticRef<AesRegisters>,
+}
+
+impl AesRegistersManager {
+    /// ### Safety
+    ///
+    /// The caller must ensure that the provided `StaticRef` points to a valid
+    /// memory-mapped AES peripheral and that no other part of the system is
+    /// conflicting with its register access.
+    pub unsafe fn new(regs: StaticRef<AesRegisters>) -> Self {
+        Self { registers: regs }
+    }
+}
+impl DMABuffers {
+    pub const fn new() -> Self {
+        Self {
+            dma_in_buf: MapCell::empty(),
+            dma_out_buf: MapCell::empty(),
+            dma_aad_buff: OptionalCell::empty(),
+            dma_message_buff: OptionalCell::empty(),
+        }
+    }
+    /// Helper function to take the dma_in_buf as a normal [u8]. If there is no dma_in_buf,
+    /// will return None
+    pub fn take_dma_in_buf(&self) -> Option<&'static mut [u8]> {
+        self.dma_in_buf.take().map(|s| {
+            // ### Safety
+            //
+            // This creates a new DMA fence to ensure that all previous DMA
+            // transfers have completed and memory is consistent before the
+            // CPU accesses the buffer.
+            let mut sub = unsafe { s.take(CortexMDmaFence::new()) };
+            sub.reset();
+            sub.take()
+        })
+    }
+
+    /// Helper function to take the dma_out_buf as a normal [u8].
+    /// If there is no dma_in_buf, will return None
+    pub fn take_dma_out_buf(&self) -> Option<&'static mut [u8]> {
+        self.dma_out_buf.take().map(|s| {
+            // ### Safety
+            //
+            // This creates a new DMA fence to ensure that all previous DMA
+            // transfers have completed and memory is consistent before the
+            // CPU accesses the buffer.
+            let mut sub = unsafe { s.take(CortexMDmaFence::new()) };
+            sub.reset();
+            sub.take()
+        })
+    }
+
+    /// Wraps a raw buffer slice into a DmaSubSliceMut, applying the
+    /// necessary memory barriers for safe DMA transfer.
+    pub fn setup_dma_buf(
+        buf: &'static mut [u8],
+        start: usize,
+        len: usize,
+    ) -> (DmaSubSliceMut<'static, u8>, u32) {
+        let mut subslice = SubSliceMut::new(buf);
+        subslice.slice(start..start + len);
+        // ### Safety
+        //
+        // This creates a new DMA fence to ensure that all previous CPU
+        // writes to the buffer are visible to the DMA engine before the
+        // transfer starts.
+        let fence = unsafe { CortexMDmaFence::new() };
+        let dma_slice = DmaSubSliceMut::new_static(subslice, fence);
+        let ptr = dma_slice.as_mut_ptr() as u32;
+        (dma_slice, ptr)
+    }
+}
+r)
+    }
+}

@@ -16,6 +16,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
+use stm32u5xx_unsafe::aes::AES_BASE;
 
 pub mod io;
 
@@ -159,7 +160,9 @@ unsafe fn start() -> (
     usart1.register();
     let aes = static_init!(
         stm32u545::aes::Aes<'static, AES256>,
-        stm32u545::aes::Aes::new(stm32u545::aes::AES_BASE)
+        stm32u545::aes::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
+            registers: AES_BASE
+        })
     );
 
     // Load Peripherals Bundle

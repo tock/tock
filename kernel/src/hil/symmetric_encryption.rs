@@ -20,8 +20,7 @@ pub trait Client<'a> {
 pub const AES_BLOCK_SIZE: usize = 16;
 pub const AES128_KEY_SIZE: usize = 16;
 pub const AES256_KEY_SIZE: usize = 32;
-pub const AES256_IV_SIZE: usize = 16;
-pub const AES128_IV_SIZE: usize = 16;
+pub const AES_IV_SIZE: usize = 16;
 
 mod sealed {
     pub trait Sealed {}
