@@ -48,6 +48,9 @@ register_bitfields![u8,
 /// `0xFFFFFFFF` on RV32 platforms.
 const PMPADDR_MASK: usize = (0x003F_FFFF_FFFF_FFFFu64 & usize::MAX as u64) as usize;
 
+/// The number of bytes, which is also the number of PMP entries, in a PMP
+/// configuration CSR. This is 4 on rv32i, and 8 on rv64i. So, we use the size
+/// of `usize` to make this easy to set.
 const OCTETS_PER_PMPCFG_CSR: usize = core::mem::size_of::<usize>();
 
 pub struct PmpConfigCSRIter {
@@ -1672,7 +1675,10 @@ pub mod simple {
                 }
 
                 // Finally, turn the region off:
-                csr::CSR.pmpconfig_set(pmpcfg_csr_idx, pmpcfg_csr & !(0x18 << ((i % 4) * 8)));
+                csr::CSR.pmpconfig_set(
+                    pmpcfg_csr_idx,
+                    pmpcfg_csr & !(0x18 << ((i % OCTETS_PER_PMPCFG_CSR) * 8)),
+                );
             }
 
             // Hardware PMP is verified to be in a compatible mode / state, and
