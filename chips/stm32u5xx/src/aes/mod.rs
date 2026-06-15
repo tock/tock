@@ -3,21 +3,15 @@
 // Copyright OxidOS Automotive 2026.
 
 pub mod gcm_ccm;
-pub mod registers;
 
-use crate::aes::registers::{AesRegisters, Control, Data, Interrupt};
-use crate::dma::ChannelId;
-use crate::dma::DmaPeripheral;
+use crate::dma::{ChannelId, DmaPeripheral};
 use core::cell::Cell;
 use core::marker::PhantomData;
-use cortexm33::dma_fence::CortexMDmaFence;
-use kernel::hil::symmetric_encryption::{AESKeySize, AES, AES128_IV_SIZE, AES_BLOCK_SIZE};
-use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::utilities::dma_slice::DmaSubSliceMut;
-use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::hil::symmetric_encryption::{AESKeySize, AES, AES_BLOCK_SIZE, AES_IV_SIZE};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+use stm32u5xx_unsafe::aes::{AesRegistersManager, Control, DMABuffers, Data, Interrupt};
 
 use crate::dma::Dma;
 
@@ -28,9 +22,6 @@ pub(crate) const CCM_AAD_L16_MAX: usize = 0xFF00;
 // preceded by the 0xFF 0xFE marker.
 pub(crate) const CCM_AAD_L32_MARKER_0: u8 = 0xFF;
 pub(crate) const CCM_AAD_L32_MARKER_1: u8 = 0xFE;
-
-pub const AES_BASE: StaticRef<AesRegisters> =
-    unsafe { StaticRef::new(0x520C0000 as *const AesRegisters) };
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AESMode {
@@ -76,18 +67,8 @@ pub struct CryptoContext {
     pub using_dma: bool,
 }
 
-pub struct DMACompatibility {
-    pub(crate) dma: OptionalCell<&'static Dma>,
-    pub(crate) dma_in_channel: Cell<Option<ChannelId>>,
-    pub(crate) dma_out_channel: Cell<Option<ChannelId>>,
-    pub(crate) dma_in_buf: MapCell<DmaSubSliceMut<'static, u8>>,
-    pub(crate) dma_out_buf: MapCell<DmaSubSliceMut<'static, u8>>,
-    pub(crate) dma_aad_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
-    pub(crate) dma_message_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
-}
-
 pub struct Aes<'a, K: AESKeySize> {
-    pub(crate) registers: StaticRef<AesRegisters>,
+    pub(crate) register_manager: AesRegistersManager,
     pub(crate) mode: Cell<AESMode>,
     pub(crate) state: Cell<State>,
     pub(crate) encrypting: Cell<bool>,
@@ -96,76 +77,19 @@ pub struct Aes<'a, K: AESKeySize> {
     pub(crate) ccm_client: OptionalCell<&'a dyn kernel::hil::symmetric_encryption::CCMClient>,
     pub(crate) input: TakeCell<'static, [u8]>,
     pub(crate) output: TakeCell<'static, [u8]>,
-    pub(crate) iv: Cell<[u8; AES128_IV_SIZE]>,
-    pub(crate) dma_utils: DMACompatibility,
+    pub(crate) iv: Cell<[u8; AES_IV_SIZE]>,
+    pub(crate) dma: OptionalCell<&'static Dma>,
+    pub(crate) dma_in_channel: Cell<Option<ChannelId>>,
+    pub(crate) dma_out_channel: Cell<Option<ChannelId>>,
+    pub(crate) dma_bufs: DMABuffers,
     pub(crate) _phantom: PhantomData<K>,
 }
 
-impl<'a, K: AESKeySize> Aes<'a, K> {
-    // default mode: ECB , encrypting
-    pub const fn new(base: StaticRef<AesRegisters>) -> Aes<'a, K> {
-        Aes {
-            registers: base,
-            mode: Cell::new(AESMode::ECB),
-            encrypting: Cell::new(true),
-            state: Cell::new(State::Idle),
-            classic_client: OptionalCell::empty(),
-            gcm_client: OptionalCell::empty(),
-            ccm_client: OptionalCell::empty(),
-            input: TakeCell::empty(),
-            output: TakeCell::empty(),
-            iv: Cell::new([0u8; AES128_IV_SIZE]),
-            dma_utils: DMACompatibility {
-                dma: OptionalCell::empty(),
-                dma_in_channel: Cell::new(None),
-                dma_out_channel: Cell::new(None),
-                dma_in_buf: MapCell::empty(),
-                dma_out_buf: MapCell::empty(),
-                dma_aad_buff: OptionalCell::empty(),
-                dma_message_buff: OptionalCell::empty(),
-            },
-            _phantom: PhantomData::<K>,
-        }
-    }
-
-    /// Sets up the in and out channels, and sets the peripheral up as the dma client
-    pub fn set_dma(
-        aes: &'static Self,
-        dma: &'static Dma,
-        in_channel: ChannelId,
-        out_channel: ChannelId,
-    ) {
-        aes.dma_utils.dma.set(dma);
-        aes.dma_utils.dma_in_channel.set(Some(in_channel));
-        aes.dma_utils.dma_out_channel.set(Some(out_channel));
-        dma.set_client(in_channel, aes);
-        dma.set_client(out_channel, aes);
-    }
-
-    /// Helper function to take the dma_in_buf as a normal [u8]. If there is no dma_in_buf,
-    /// will return None
-    pub(crate) fn take_dma_in_buf(&self) -> Option<&'static mut [u8]> {
-        self.dma_utils.dma_in_buf.take().map(|s| {
-            let mut sub = unsafe { s.take(CortexMDmaFence::new()) };
-            sub.reset();
-            sub.take()
-        })
-    }
-
-    /// Helper function to take the dma_out_buf as a normal [u8].
-    /// If there is no dma_in_buf, will return None
-    pub(crate) fn take_dma_out_buf(&self) -> Option<&'static mut [u8]> {
-        self.dma_utils.dma_out_buf.take().map(|s| {
-            let mut sub = unsafe { s.take(CortexMDmaFence::new()) };
-            sub.reset();
-            sub.take()
-        })
-    }
-
+impl DMABuffers {
     /// Helper function designed to calculate the length of the buffer as a multiple of AES_BLOCK_SIZE
     /// and return the remaining bytes inside a 0-padded buffer. If the length of the buffer, beginning
     /// from start is a multiple of AES_BLOCK_SIZE, will return total_len and None
-    pub(crate) fn extract_dma_padding(
+    pub fn extract_dma_padding(
         buf: &[u8],
         start: usize,
         total_len: usize,
@@ -183,21 +107,42 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
             (total_len, None)
         }
     }
+}
 
-    /// Wraps a raw buffer slice into a DmaSubSliceMut, applying the
-    /// necessary memory barriers for safe DMA transfer.
-    pub(crate) fn setup_dma_buf(
-        &self,
-        buf: &'static mut [u8],
-        start: usize,
-        len: usize,
-    ) -> (DmaSubSliceMut<'static, u8>, u32) {
-        let mut subslice = SubSliceMut::new(buf);
-        subslice.slice(start..start + len);
-        let fence = unsafe { CortexMDmaFence::new() };
-        let dma_slice = DmaSubSliceMut::new_static(subslice, fence);
-        let ptr = dma_slice.as_mut_ptr() as u32;
-        (dma_slice, ptr)
+impl<'a, K: AESKeySize> Aes<'a, K> {
+    // default mode: ECB , encrypting
+    pub const fn new(base: AesRegistersManager) -> Aes<'a, K> {
+        Aes {
+            register_manager: base,
+            mode: Cell::new(AESMode::ECB),
+            encrypting: Cell::new(true),
+            state: Cell::new(State::Idle),
+            classic_client: OptionalCell::empty(),
+            gcm_client: OptionalCell::empty(),
+            ccm_client: OptionalCell::empty(),
+            input: TakeCell::empty(),
+            output: TakeCell::empty(),
+            iv: Cell::new([0u8; AES_IV_SIZE]),
+            dma: OptionalCell::empty(),
+            dma_in_channel: Cell::new(None),
+            dma_out_channel: Cell::new(None),
+            dma_bufs: DMABuffers::new(),
+            _phantom: PhantomData::<K>,
+        }
+    }
+
+    /// Sets up the in and out channels, and sets the peripheral up as the dma client
+    pub fn set_dma(
+        aes: &'static Self,
+        dma: &'static Dma,
+        in_channel: ChannelId,
+        out_channel: ChannelId,
+    ) {
+        aes.dma.set(dma);
+        aes.dma_in_channel.set(Some(in_channel));
+        aes.dma_out_channel.set(Some(out_channel));
+        dma.set_client(in_channel, aes);
+        dma.set_client(out_channel, aes);
     }
 
     /// Function that handles sending the buffer back to the client with the result inside after
@@ -208,12 +153,13 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
         }
 
         self.state.set(State::Idle);
-        self.registers
+        self.register_manager
+            .registers
             .cr
             .modify(Control::DMAINEN::CLEAR + Control::DMAOUTEN::CLEAR);
 
-        if let Some(output) = self.take_dma_out_buf() {
-            let input = self.take_dma_in_buf();
+        if let Some(output) = self.dma_bufs.take_dma_out_buf() {
+            let input = self.dma_bufs.take_dma_in_buf();
 
             self.classic_client
                 .map(move |client| client.crypt_done(input, output));
@@ -223,13 +169,15 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     }
 
     pub(crate) fn enable_interrupts(&self) {
-        self.registers
+        self.register_manager
+            .registers
             .intenr
             .modify(Interrupt::CCI::SET + Interrupt::KE::SET + Interrupt::RWE::SET);
     }
 
     pub(crate) fn disable_interrupts(&self) {
-        self.registers
+        self.register_manager
+            .registers
             .intenr
             .modify(Interrupt::CCI::CLEAR + Interrupt::KE::CLEAR + Interrupt::RWE::CLEAR);
     }
@@ -237,9 +185,15 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     pub(crate) fn apply_crypto_direction(&self, encrypting: bool) {
         self.encrypting.set(encrypting);
         if encrypting {
-            self.registers.cr.modify(Control::MODE::Encrypt);
+            self.register_manager
+                .registers
+                .cr
+                .modify(Control::MODE::Encrypt);
         } else {
-            self.registers.cr.modify(Control::MODE::Decrypt);
+            self.register_manager
+                .registers
+                .cr
+                .modify(Control::MODE::Decrypt);
         }
     }
 
@@ -257,7 +211,7 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
 
         for chunk in buf.chunks_exact(4) {
             let word = u32::from_le_bytes(chunk.try_into().unwrap());
-            self.registers.dinr.set(word);
+            self.register_manager.registers.dinr.set(word);
         }
     }
 
@@ -282,7 +236,7 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     pub(crate) fn get_output(&self) -> [u8; AES_BLOCK_SIZE] {
         let mut block = [0u8; AES_BLOCK_SIZE];
         for chunk in block.chunks_exact_mut(4) {
-            let word = self.registers.doutr.get();
+            let word = self.register_manager.registers.doutr.get();
             chunk.copy_from_slice(&word.to_le_bytes());
         }
         block
@@ -296,6 +250,7 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
         if K::LENGTH == 32 {
             // AES-256: Write KEYR7 down to KEYR4 first
             for (reg, chunk) in self
+                .register_manager
                 .registers
                 .keyr2
                 .iter()
@@ -312,6 +267,7 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
 
         // Write KEYR3 down to KEYR0
         for (reg, chunk) in self
+            .register_manager
             .registers
             .keyr
             .iter()
@@ -324,8 +280,15 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     }
 
     /// Helper to write a AES128_IV_SIZE-byte IV into the hardware IV registers
-    pub(crate) fn write_iv_registers(&self, iv: &[u8; AES128_IV_SIZE]) {
-        for (reg, chunk) in self.registers.ivr.iter().rev().zip(iv.chunks_exact(4)) {
+    pub(crate) fn write_iv_registers(&self, iv: &[u8; AES_IV_SIZE]) {
+        for (reg, chunk) in self
+            .register_manager
+            .registers
+            .ivr
+            .iter()
+            .rev()
+            .zip(iv.chunks_exact(4))
+        {
             let word = u32::from_be_bytes(chunk.try_into().expect("IV chunk len mismatch"));
             reg.write(Data::DATA.val(word));
         }
@@ -343,9 +306,9 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     /// accordingly
     pub(crate) fn start_classic_crypt(&self, mut ctx: CryptoContext) {
         if let (Some(dma), Some(in_ch), Some(out_ch)) = (
-            self.dma_utils.dma.get(),
-            self.dma_utils.dma_in_channel.get(),
-            self.dma_utils.dma_out_channel.get(),
+            self.dma.get(),
+            self.dma_in_channel.get(),
+            self.dma_out_channel.get(),
         ) {
             ctx.using_dma = true;
             let len = (ctx.message_end - ctx.message_start) as u32;
@@ -353,15 +316,18 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
             // prepare Output Buffer
             let dest = self.output.take().unwrap();
 
-            let (out_slice, out_ptr) =
-                self.setup_dma_buf(dest, ctx.message_start, ctx.message_end - ctx.message_start);
-            self.dma_utils.dma_out_buf.replace(out_slice);
+            let (out_slice, out_ptr) = DMABuffers::setup_dma_buf(
+                dest,
+                ctx.message_start,
+                ctx.message_end - ctx.message_start,
+            );
+            self.dma_bufs.dma_out_buf.replace(out_slice);
 
             // prepare Input Buffer
             let in_ptr = if let Some(src) = self.input.take() {
                 let (in_slice, ptr) =
-                    self.setup_dma_buf(src, 0, ctx.message_end - ctx.message_start);
-                self.dma_utils.dma_in_buf.replace(in_slice); // Put it directly into in_buf!
+                    DMABuffers::setup_dma_buf(src, 0, ctx.message_end - ctx.message_start);
+                self.dma_bufs.dma_in_buf.replace(in_slice); // Put it directly into in_buf!
                 ptr
             } else {
                 // in-place: Source pointer mirrors the output pointer
@@ -373,17 +339,28 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
             dma.setup(out_ch, DmaPeripheral::AESOUT, out_ptr, len);
 
             self.state.set(State::Classic(ctx));
-            if !self.registers.cr.any_matching_bits_set(Control::EN::SET) {
-                self.registers.cr.modify(Control::EN::SET);
+            if !self
+                .register_manager
+                .registers
+                .cr
+                .any_matching_bits_set(Control::EN::SET)
+            {
+                self.register_manager.registers.cr.modify(Control::EN::SET);
             }
-            self.registers
+            self.register_manager
+                .registers
                 .cr
                 .modify(Control::DMAINEN::SET + Control::DMAOUTEN::SET);
         } else {
             // interrupt fallback
             self.state.set(State::Classic(ctx));
-            if !self.registers.cr.any_matching_bits_set(Control::EN::SET) {
-                self.registers.cr.modify(Control::EN::SET);
+            if !self
+                .register_manager
+                .registers
+                .cr
+                .any_matching_bits_set(Control::EN::SET)
+            {
+                self.register_manager.registers.cr.modify(Control::EN::SET);
             }
             self.write_input(ctx);
         }
@@ -392,32 +369,42 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     /// Function for ECB and CBC decryption modes which goes though Key derivation operation
     pub(crate) fn prepare_decryption_key(&self, key: &[u8]) {
         self.state.set(State::KeyPreparation(DeferredOp::None));
-        self.registers.cr.modify(Control::EN::CLEAR);
-        self.registers
+        self.register_manager
+            .registers
+            .cr
+            .modify(Control::EN::CLEAR);
+        self.register_manager
+            .registers
             .cr
             .modify(Control::MODE::KeyDerivation + Control::KMOD::Normal);
 
         self.write_key_registers(key);
 
-        self.registers.cr.modify(Control::EN::SET);
+        self.register_manager.registers.cr.modify(Control::EN::SET);
     }
 
     /// Main state machine handler for ECB, CBC and CTR modes.
     pub(crate) fn handle_classic_client(&self) {
         match self.state.get() {
             State::KeyPreparation(deferred_op) => {
-                self.registers.cr.modify(Control::EN::CLEAR);
-                self.registers.cr.modify(Control::MODE::Decrypt);
+                self.register_manager
+                    .registers
+                    .cr
+                    .modify(Control::EN::CLEAR);
+                self.register_manager
+                    .registers
+                    .cr
+                    .modify(Control::MODE::Decrypt);
 
                 match deferred_op {
                     DeferredOp::Classic(ctx) => {
                         self.write_iv_registers(&self.iv.get());
-                        self.iv.set([0; AES128_IV_SIZE]);
+                        self.iv.set([0; AES_IV_SIZE]);
                         self.start_classic_crypt(ctx);
                     }
                     DeferredOp::WriteIvx => {
                         self.write_iv_registers(&self.iv.get());
-                        self.iv.set([0; AES128_IV_SIZE]);
+                        self.iv.set([0; AES_IV_SIZE]);
                         self.state.set(State::Idle);
                     }
                     DeferredOp::None => {
@@ -455,8 +442,16 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     }
 
     pub fn handle_interrupt(&self) {
-        if self.registers.intstr.is_set(Interrupt::CCI) {
-            self.registers.intclr.write(Interrupt::CCI::SET);
+        if self
+            .register_manager
+            .registers
+            .intstr
+            .is_set(Interrupt::CCI)
+        {
+            self.register_manager
+                .registers
+                .intclr
+                .write(Interrupt::CCI::SET);
             match self.mode.get() {
                 AESMode::ECB | AESMode::CBC | AESMode::CTR => self.handle_classic_client(),
                 AESMode::GCM => self.handle_gcm_client(),
@@ -466,31 +461,51 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
 
         // triggered on unexpected reads/writes to AES peripheral. These do
         // not stop the AES peripheral computation
-        if self.registers.intstr.is_set(Interrupt::RWE) {
-            self.registers.intclr.write(Interrupt::RWE::SET);
+        if self
+            .register_manager
+            .registers
+            .intstr
+            .is_set(Interrupt::RWE)
+        {
+            self.register_manager
+                .registers
+                .intclr
+                .write(Interrupt::RWE::SET);
         }
 
         // Important for SAES sharing, otherwise states that would trigger it
         // are handled in set_key()
-        if self.registers.intstr.is_set(Interrupt::KE) {
-            self.registers.intclr.write(Interrupt::KE::SET);
+        if self.register_manager.registers.intstr.is_set(Interrupt::KE) {
+            self.register_manager
+                .registers
+                .intclr
+                .write(Interrupt::KE::SET);
         }
     }
 }
 
 impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a, K> {
     fn enable(&self) {
-        self.registers.cr.modify(Control::IPRST::SET);
-        self.registers.cr.write(Control::EN::CLEAR);
-        self.registers.cr.modify(Control::DATATYPE::Byte);
+        self.register_manager
+            .registers
+            .cr
+            .modify(Control::IPRST::SET);
+        self.register_manager.registers.cr.write(Control::EN::CLEAR);
+        self.register_manager
+            .registers
+            .cr
+            .modify(Control::DATATYPE::Byte);
         self.state.set(State::Idle);
         self.enable_interrupts();
     }
 
     fn disable(&self) {
-        self.registers.cr.write(Control::EN::CLEAR);
+        self.register_manager.registers.cr.write(Control::EN::CLEAR);
         self.disable_interrupts();
-        self.registers.cr.modify(Control::IPRST::SET);
+        self.register_manager
+            .registers
+            .cr
+            .modify(Control::IPRST::SET);
         self.state.set(State::Idle);
     }
 
@@ -504,12 +519,23 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a
         }
 
         if K::LENGTH == 16 {
-            self.registers.cr.modify(Control::KEYSIZE::AES128);
+            self.register_manager
+                .registers
+                .cr
+                .modify(Control::KEYSIZE::AES128);
         } else {
-            self.registers.cr.modify(Control::KEYSIZE::AES256);
+            self.register_manager
+                .registers
+                .cr
+                .modify(Control::KEYSIZE::AES256);
         }
 
-        if self.registers.cr.any_matching_bits_set(Control::EN::SET) {
+        if self
+            .register_manager
+            .registers
+            .cr
+            .any_matching_bits_set(Control::EN::SET)
+        {
             return Err(ErrorCode::BUSY);
         }
 
@@ -525,11 +551,16 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a
     }
 
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
-        if iv.len() != AES128_IV_SIZE {
+        if iv.len() != AES_IV_SIZE {
             return Err(ErrorCode::INVAL);
         }
 
-        if self.registers.cr.any_matching_bits_set(Control::EN::SET) {
+        if self
+            .register_manager
+            .registers
+            .cr
+            .any_matching_bits_set(Control::EN::SET)
+        {
             return Err(ErrorCode::BUSY);
         }
 
@@ -608,7 +639,8 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a
 impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESECB for Aes<'_, K> {
     fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.mode.set(AESMode::ECB);
-        self.registers
+        self.register_manager
+            .registers
             .cr
             .modify(Control::CHMOD::ECB + Control::CHMOD_2::CLEAR);
         self.apply_crypto_direction(encrypting);
@@ -619,10 +651,14 @@ impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESECB for Aes<'_, K> {
 impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESCtr for Aes<'_, K> {
     fn set_mode_aesctr(&self, _encrypting: bool) -> Result<(), ErrorCode> {
         self.mode.set(AESMode::CTR);
-        self.registers
+        self.register_manager
+            .registers
             .cr
             .modify(Control::CHMOD::CTR + Control::CHMOD_2::CLEAR);
-        self.registers.cr.modify(Control::MODE::Encrypt);
+        self.register_manager
+            .registers
+            .cr
+            .modify(Control::MODE::Encrypt);
         Ok(())
     }
 }
@@ -630,7 +666,8 @@ impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESCtr for Aes<'_, K> {
 impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESCBC for Aes<'_, K> {
     fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.mode.set(AESMode::CBC);
-        self.registers
+        self.register_manager
+            .registers
             .cr
             .modify(Control::CHMOD::CBC + Control::CHMOD_2::CLEAR);
         self.apply_crypto_direction(encrypting);
@@ -640,7 +677,7 @@ impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESCBC for Aes<'_, K> {
 
 impl<K: AESKeySize> crate::dma::DmaClient for Aes<'_, K> {
     fn transfer_done(&self, channel: ChannelId) {
-        if let Some(out_ch) = self.dma_utils.dma_out_channel.get() {
+        if let Some(out_ch) = self.dma_out_channel.get() {
             match self.mode.get() {
                 AESMode::ECB | AESMode::CBC | AESMode::CTR => {
                     self.handle_dma_ecb_cbc_ctr(channel, out_ch)

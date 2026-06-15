@@ -14,3 +14,4 @@ Currently supported peripherals:
 - TIM2 (Timer)
 - PWM (Pulse Width Modulation)
 - HASH (Hash processor)
+- AES (encryption and decryption)

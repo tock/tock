@@ -1,15 +1,16 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2024.
+# Copyright OxidOS Automotive 2026.
+
 
 [package]
-name = "stm32u5xx"
+name = "stm32u5xx-unsafe"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-stm32u5xx-unsafe = { path = "../stm32u5xx-unsafe" }
 cortexm33 = { path = "../../arch/cortex-m33" }
 kernel = { path = "../../kernel" }
 
