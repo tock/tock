@@ -113,6 +113,8 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
     type UserspaceKernelBoundary = SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
+    fn init() {}
+
     fn service_pending_interrupts(&self) {
         loop {
             if self.intc.get_saved_interrupts().is_some() {

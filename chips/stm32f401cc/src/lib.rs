@@ -104,7 +104,3 @@ pub static IRQS: [unsafe extern "C" fn(); 85] = [
     unhandled_interrupt,    // (83)
     CortexM4F::GENERIC_ISR, // SPI4 (84)
 ];
-
-pub unsafe fn init() {
-    stm32f4xx::init();
-}

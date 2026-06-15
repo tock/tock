@@ -1,29 +1,29 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2026.
 
 //! Tock kernel for the Nordic Semiconductor nRF52840 development kit (DK).
 
 #![no_std]
-#![no_main]
 #![deny(missing_docs)]
 
-use capsules_core::test::capsule_test::{CapsuleTestClient, CapsuleTestError};
-use core::cell::Cell;
+use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
+use capsules_core::virtualizers::virtual_uart::MuxUart;
 use kernel::component::Component;
-use kernel::debug::PanicResources;
+use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::utilities::cells::NumericCellExt;
-use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{capabilities, create_capability, static_init};
-use nrf52840::chip::Nrf52DefaultPeripherals;
+use kernel::static_init;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{UartChannel, UartPins};
 
-mod test;
+// The nRF52840DK LEDs (see back of board)
+const LED1_PIN: Pin = Pin::P0_13;
+const LED2_PIN: Pin = Pin::P0_14;
+const LED3_PIN: Pin = Pin::P0_15;
+const LED4_PIN: Pin = Pin::P0_16;
 
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
@@ -35,15 +35,15 @@ const UART_RXD: Pin = Pin::P0_08;
 /// Debug Writer
 pub mod io;
 
-// Number of concurrent processes this platform supports.
-const NUM_PROCS: usize = 0;
+/// How should the kernel respond when a process faults.
+pub const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
-type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
-type ProcessPrinter = capsules_system::process_printer::ProcessPrinterNull;
+/// Number of concurrent processes this platform supports.
+pub const NUM_PROCS: usize = 8;
 
-/// Resources for when a board panics used by io.rs.
-static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new();
+/// Type of the nrf52840 chip.
+pub type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
 
 kernel::stack_size! {0x2000}
 
@@ -51,57 +51,35 @@ kernel::stack_size! {0x2000}
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
+type ConsoleDriver = components::console::ConsoleComponentType;
+
+type Led = kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>;
+type LedDriver = components::led::LedsComponentType<Led, 4>;
+
+type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
+
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
+    console: &'static ConsoleDriver,
+    led: &'static LedDriver,
+    alarm: &'static AlarmDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
 
 impl SyscallDriverLookup for Platform {
-    fn with_driver<F, R>(&self, _driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
-        f(None)
-    }
-}
-
-//------------------------------------------------------------------------------
-// TEST LAUNCHER FOR RUNNING TESTS
-//------------------------------------------------------------------------------
-
-struct TestLauncher {
-    test_index: Cell<usize>,
-    peripherals: &'static Nrf52DefaultPeripherals<'static>,
-}
-impl TestLauncher {
-    fn new(peripherals: &'static Nrf52DefaultPeripherals<'static>) -> Self {
-        Self {
-            test_index: Cell::new(0),
-            peripherals,
+        match driver_num {
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            _ => f(None),
         }
-    }
-
-    fn next(&'static self) {
-        let index = self.test_index.get();
-        self.test_index.increment();
-        match index {
-            0 => unsafe { test::sha256_test::run_sha256(self) },
-            1 => unsafe { test::hmac_sha256_test::run_hmacsha256(self) },
-            2 => unsafe { test::siphash24_test::run_siphash24(self) },
-            3 => unsafe { test::aes_test::run_aes128_ctr(&self.peripherals.ecb, self) },
-            4 => unsafe { test::aes_test::run_aes128_cbc(&self.peripherals.ecb, self) },
-            5 => unsafe { test::aes_test::run_aes128_ecb(&self.peripherals.ecb, self) },
-            6 => unsafe { test::ecdsa_p256_test::run_ecdsa_p256(self) },
-            _ => kernel::debug!("All tests finished."),
-        }
-    }
-}
-impl CapsuleTestClient for TestLauncher {
-    fn done(&'static self, _result: Result<(), CapsuleTestError>) {
-        self.next();
     }
 }
 
@@ -157,9 +135,16 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     }
 }
 
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
+/// Do baseline setup for a testing configuration board.
+#[inline(never)]
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Platform,
+    &'static ChipHw,
+    &'static Nrf52840DefaultPeripherals<'static>,
+    &'static MuxUart<'static>,
+    &'static MuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+) {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
     //--------------------------------------------------------------------------
@@ -180,12 +165,14 @@ pub unsafe fn main() {
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
+    // Choose the channel for serial output. This board can be configured to use
+    // either the Segger RTT channel or via UART with traditional TX/RX GPIO
+    // pins.
+    let uart_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
+
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PANIC_RESOURCES.get().map(|resources| {
-        resources.processes.put(processes.as_slice());
-    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -196,9 +183,6 @@ pub unsafe fn main() {
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
         nrf52840::chip::NRF52::new(nrf52840_peripherals)
     );
-    PANIC_RESOURCES.get().map(|resources| {
-        resources.chip.put(chip);
-    });
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
@@ -211,12 +195,16 @@ pub unsafe fn main() {
     .finalize(());
 
     //--------------------------------------------------------------------------
-    // CAPABILITIES
+    // LEDs
     //--------------------------------------------------------------------------
 
-    // Create capabilities that the board needs to call certain protected kernel
-    // functions.
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
+        Led,
+        LedLow::new(&nrf52840_peripherals.gpio_port[LED1_PIN]),
+        LedLow::new(&nrf52840_peripherals.gpio_port[LED2_PIN]),
+        LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
+        LedLow::new(&nrf52840_peripherals.gpio_port[LED4_PIN]),
+    ));
 
     //--------------------------------------------------------------------------
     // TIMER
@@ -226,13 +214,19 @@ pub unsafe fn main() {
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules_core::alarm::DRIVER_NUM,
+        mux_alarm,
+    )
+    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
     //--------------------------------------------------------------------------
 
     let uart_channel = nrf52_components::UartChannelComponent::new(
-        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD)),
+        uart_channel,
         mux_alarm,
         &base_peripherals.uarte0,
     )
@@ -241,17 +235,16 @@ pub unsafe fn main() {
     ));
 
     // Virtualize the UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
+    let mux_uart = components::console::UartMuxComponent::new(uart_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new::<
-        <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
+    // Setup the serial console for userspace.
+    let console = components::console::ConsoleComponent::new(
+        board_kernel,
+        capsules_core::console::DRIVER_NUM,
+        mux_uart,
     )
-    .finalize(components::debug_writer_component_static!());
+    .finalize(components::console_component_static!());
 
     //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
@@ -260,33 +253,26 @@ pub unsafe fn main() {
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
     //--------------------------------------------------------------------------
-    // PLATFORM AND SCHEDULER
+    // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
+        console,
+        led,
+        alarm,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
-    let test_launcher = static_init!(TestLauncher, TestLauncher::new(base_peripherals));
-
-    //--------------------------------------------------------------------------
-    // TESTS
-    //--------------------------------------------------------------------------
-
-    test_launcher.next();
-
-    //--------------------------------------------------------------------------
-    // KERNEL LOOP
-    //--------------------------------------------------------------------------
-
-    board_kernel.kernel_loop(
-        &platform,
+    (
+        board_kernel,
+        platform,
         chip,
-        None::<&kernel::ipc::IPC<0>>,
-        &main_loop_capability,
-    );
+        nrf52840_peripherals,
+        mux_uart,
+        mux_alarm,
+    )
 }

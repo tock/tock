@@ -57,7 +57,6 @@ register_bitfields![u32,
 pub struct RvTimer<'a, CFG: EarlGreyConfig> {
     registers: StaticRef<TimerRegisters>,
     alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
-    overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
     mtimer: MachineTimer<'a>,
     _cfg: PhantomData<CFG>,
 }
@@ -67,7 +66,6 @@ impl<CFG: EarlGreyConfig> RvTimer<'_, CFG> {
         Self {
             registers: TIMER_BASE,
             alarm_client: OptionalCell::empty(),
-            overflow_client: OptionalCell::empty(),
             mtimer: MachineTimer::new(
                 &TIMER_BASE.compare_low,
                 &TIMER_BASE.compare_high,
@@ -111,10 +109,6 @@ impl<CFG: EarlGreyConfig> time::Time for RvTimer<'_, CFG> {
 }
 
 impl<'a, CFG: EarlGreyConfig> time::Counter<'a> for RvTimer<'a, CFG> {
-    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
-        self.overflow_client.set(client);
-    }
-
     fn start(&self) -> Result<(), ErrorCode> {
         Ok(())
     }

@@ -21,6 +21,7 @@ use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::led::LedLow;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
@@ -191,7 +192,7 @@ pub unsafe fn start() -> (
     Platform,
     &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
 ) {
-    nrf52840::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

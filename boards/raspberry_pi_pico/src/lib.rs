@@ -18,6 +18,7 @@ use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::FloatingState;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::usb::Client;
+use kernel::platform::chip::Chip;
 use kernel::platform::SyscallDriverLookup;
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -238,7 +239,7 @@ pub unsafe fn setup(
     &'static Rp2040<'static, Rp2040DefaultPeripherals<'static>>,
 ) {
     // Loads relocations and clears BSS
-    rp2040::init();
+    ChipHw::init();
 
     // Bind global variables to this thread.
     let _ = PANIC_RESOURCES

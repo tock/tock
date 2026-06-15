@@ -112,16 +112,3 @@ pub static IRQS: [unsafe extern "C" fn(); 60] = [
     CortexM33::GENERIC_ISR,
     CortexM33::GENERIC_ISR,
 ];
-
-pub unsafe fn init() {
-    cortexm33::nvic::disable_all();
-    cortexm33::nvic::clear_all_pending();
-
-    // Set the vector table offset, which requires casting from a BASE_VECTORS to a *const ()
-    // pointer.
-    let vector_table: *const [unsafe extern "C" fn(); 16] = core::ptr::addr_of!(BASE_VECTORS);
-    let vector_table: *const () = vector_table.cast();
-    cortexm33::scb::set_vector_table_offset(vector_table);
-
-    cortexm33::nvic::enable_all();
-}

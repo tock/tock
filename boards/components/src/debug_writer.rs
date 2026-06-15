@@ -170,6 +170,11 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> Component
 
         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
+        // SAFETY: MaybeUninit<u8> has the same size and alignment as u8.
+        let internal_buf: &mut [core::mem::MaybeUninit<u8>] = unsafe {
+            core::slice::from_raw_parts_mut(internal_buf.as_mut_ptr().cast(), internal_buf.len())
+        };
+
         // Create virtual device for kernel debug.
         let debugger_uart = s.0.write(UartDevice::new(self.uart_mux, false));
         debugger_uart.setup();
@@ -225,6 +230,11 @@ impl<
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let buf = s.1.write([0; BUF_SIZE_BYTES]);
         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
+
+        // SAFETY: MaybeUninit<u8> has the same size and alignment as u8.
+        let internal_buf: &mut [core::mem::MaybeUninit<u8>] = unsafe {
+            core::slice::from_raw_parts_mut(internal_buf.as_mut_ptr().cast(), internal_buf.len())
+        };
 
         // Create virtual device for kernel debug.
         let ring_buffer = s.0.write(RingBuffer::new(internal_buf));

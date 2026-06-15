@@ -30,6 +30,7 @@ use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
@@ -316,7 +317,7 @@ unsafe fn start() -> (
     Imix,
     &'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
 ) {
-    sam4l::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

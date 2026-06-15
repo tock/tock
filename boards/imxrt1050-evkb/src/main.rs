@@ -20,6 +20,7 @@ use kernel::debug;
 use kernel::debug::PanicResources;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
@@ -229,7 +230,7 @@ unsafe fn start() -> (
     Imxrt1050EVKB,
     &'static imxrt10xx::chip::Imxrt10xx<imxrt10xx::chip::Imxrt10xxDefaultPeripherals>,
 ) {
-    imxrt10xx::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

@@ -926,6 +926,7 @@ dependencies = [
  "ecdsa-sw",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock-tbf",
@@ -943,6 +944,7 @@ dependencies = [
  "cortexm4",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock_build_scripts",
@@ -959,9 +961,25 @@ dependencies = [
  "cortexm4",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock_build_scripts",
+]
+
+[[package]]
+name = "nrf52840dk-test-base"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "nrf52840",
+ "nrf52_components",
+ "segger",
 ]
 
 [[package]]
@@ -991,6 +1009,7 @@ dependencies = [
  "cortexm4",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock_build_scripts",

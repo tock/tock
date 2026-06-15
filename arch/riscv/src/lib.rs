@@ -13,17 +13,23 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 pub mod csr;
 pub mod dma_fence;
 pub mod pmp;
+pub mod pseudo_instructions;
 pub mod support;
 pub mod syscall;
 pub mod thread_id;
 
+/// `XLEN` is the width of an integer register in bits (either 32 or 64).
+pub const XLEN: usize = 1 << XLEN_LOG2;
+
+/// `XLEN_LOG2` is the log base 2 of XLEN.
+#[cfg(target_arch = "riscv32")]
+pub const XLEN_LOG2: usize = 5;
+#[cfg(target_arch = "riscv64")]
+pub const XLEN_LOG2: usize = 6;
 // Default to 32 bit if no architecture is specified of if this is being
 // compiled for docs or testing on a different architecture.
-pub const XLEN: usize = if cfg!(target_arch = "riscv64") {
-    64
-} else {
-    32
-};
+#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+pub const XLEN_LOG2: usize = 5;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
@@ -183,7 +189,11 @@ pub unsafe fn configure_trap_handler() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+#[cfg(not(any(
+    doc,
+    all(target_arch = "riscv32", target_os = "none"),
+    all(target_arch = "riscv64", target_os = "none")
+)))]
 pub extern "C" fn _start_trap() -> ! {
     unimplemented!()
 }
@@ -208,10 +218,18 @@ pub extern "C" fn _start_trap() -> ! {
 /// assume that the hart is currently executing kernel code.
 ///
 /// If it contains any other value, we interpret it to be a memory address
-/// pointing to a particular data structure:
+/// pointing to a particular data structure (`custom_trap_handler`):
 ///
 /// ```text
-/// mscratch           0               1               2               3
+/// custom_trap_handler: [usize; 2];
+///
+/// mscratch = &custom_trap_handler;
+/// ```
+///
+/// or in memory:
+///
+/// ```text
+/// mscratch
 ///  \->|--------------------------------------------------------------|
 ///     | scratch word, overwritten with s1 register contents          |
 ///     |--------------------------------------------------------------|
@@ -228,9 +246,9 @@ pub extern "C" fn _start_trap() -> ! {
 /// 2. execute the default kernel trap handler if s0 now contains `0` (meaning
 ///    that the mscratch CSR contained `0` before entering this trap handler),
 ///
-/// 3. otherwise, save s1 to `0*4(s0)`, and finally
+/// 3. otherwise, save s1 to `0*(XLEN/8)(s0)`, and finally
 ///
-/// 4. load the address at `1*4(s0)` into s1, and jump to it.
+/// 4. load the address at `1*(XLEN/8)(s0)` into s1, and jump to it.
 ///
 /// No registers other than s0, s1 and the mscratch CSR are to be clobbered
 /// before continuing execution at the address loaded into the mscratch CSR
@@ -282,7 +300,11 @@ pub extern "C" fn _start_trap() -> ! {
 /// invoked, it may, for instance, choose to ignore a certain trap, access
 /// global state (subject to synchronization), etc. It must still abide to
 /// the contract as stated above.
-#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(any(
+    doc,
+    all(target_arch = "riscv32", target_os = "none"),
+    all(target_arch = "riscv64", target_os = "none")
+))]
 #[link_section = ".riscv.trap"]
 // We need the `_start_trap` function to be 256 byte aligned. The linker script
 // includes a check for whether a symbol named `_start_trap` exists. If it does,
@@ -294,6 +316,7 @@ pub extern "C" fn _start_trap() -> ! {
 pub extern "C" fn _start_trap() -> ! {
     use core::arch::naked_asm;
     naked_asm!(
+        xlen_macros!(),
         "
     // This is the global trap handler. By default, Tock expects this
     // trap handler to be registered at all times, and that all traps
@@ -302,19 +325,21 @@ pub extern "C" fn _start_trap() -> ! {
     //
     // For documentation of its behavior, and how process
     // implementations can hook their own trap handler code, see the
-    // comment on the `extern C _start_trap` symbol above.
+    // comment on the `_start_trap` function.
 
-    // Atomically swap s0 and mscratch:
+    // Atomically swap s0 and mscratch. This puts `&custom_trap_handler`
+    // in s0.
     csrrw s0, mscratch, s0        // s0 = mscratch; mscratch = s0
 
     // If mscratch contained 0, invoke the kernel trap handler.
-    beq   s0, x0, 100f      // if s0==x0: goto 100
+    beq   s0, x0, 100f            // if s0==x0: goto 100
 
-    // Else, save the current value of s1 to `0*4(s0)`, load `1*4(s0)`
-    // into s1 and jump to it (invoking a custom trap handler).
-    sw    s1, 0*4(s0)       // *s0 = s1
-    lw    s1, 1*4(s0)       // s1 = *(s0+4)
-    jr    s1                // goto s1
+    // Else, save the current value of s1 to `custom_trap_handler[0]`,
+    // load `custom_trap_handler[1]` into s1 and jump to it (invoking
+    // a custom trap handler).
+    sx    s1, 0*({XLEN}/8)(s0)    // custom_trap_handler[0] = s1
+    lx    s1, 1*({XLEN}/8)(s0)    // s1 = custom_trap_handler[1]
+    jr    s1                      // goto s1
 
   100: // _start_kernel_trap
 
@@ -328,50 +353,50 @@ pub extern "C" fn _start_trap() -> ! {
 
     // Load the address of the bottom of the stack (`_sstack`) into our
     // newly freed-up s0 register.
-    la s0, {sstack}                     // s0 = _sstack
+    la s0, {sstack}               // s0 = _sstack
 
     // Compare the kernel stack pointer to the bottom of the stack. If
     // the stack pointer is above the bottom of the stack, then continue
     // handling the fault as normal.
-    bgtu sp, s0, 200f                   // branch if sp > s0
+    bgtu sp, s0, 200f             // branch if sp > s0
 
     // If we get here, then we did encounter a stack overflow. We are
     // going to panic at this point, but for that to work we need a
     // valid stack to run the panic code. We do this by just starting
     // over with the kernel stack and placing the stack pointer at the
     // top of the original stack.
-    la sp, {estack}                     // sp = _estack
+    la sp, {estack}               // sp = _estack
 
 200: // _start_kernel_trap_continue
 
     // Restore s0. We reset mscratch to 0 (kernel trap handler mode)
-    csrrw s0, mscratch, zero    // s0 = mscratch; mscratch = 0
+    csrrw s0, mscratch, zero      // s0 = mscratch; mscratch = 0
 
     // Make room for the caller saved registers we need to restore after running
     // any trap handler code.
-    addi sp, sp, -20*4
+    addi sp, sp, -20*({XLEN}/8)   // riscv32: sp = sp - (20*4), riscv64: sp = sp - (20*8)
 
     // Save all of the caller saved registers.
-    sw   ra, 0*4(sp)
-    sw   t0, 1*4(sp)
-    sw   t1, 2*4(sp)
-    sw   t2, 3*4(sp)
-    sw   t3, 4*4(sp)
-    sw   t4, 5*4(sp)
-    sw   t5, 6*4(sp)
-    sw   t6, 7*4(sp)
-    sw   a0, 8*4(sp)
-    sw   a1, 9*4(sp)
-    sw   a2, 10*4(sp)
-    sw   a3, 11*4(sp)
-    sw   a4, 12*4(sp)
-    sw   a5, 13*4(sp)
-    sw   a6, 14*4(sp)
-    sw   a7, 15*4(sp)
+    sx    ra,  0*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (0*4)) = ra, riscv64: *(stackptr +  (0*8)) = ra
+    sx    t0,  1*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (1*4)) = t0, riscv64: *(stackptr +  (1*8)) = t0
+    sx    t1,  2*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (2*4)) = t1, riscv64: *(stackptr +  (2*8)) = t1
+    sx    t2,  3*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (3*4)) = t2, riscv64: *(stackptr +  (3*8)) = t2
+    sx    t3,  4*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (4*4)) = t3, riscv64: *(stackptr +  (4*8)) = t3
+    sx    t4,  5*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (5*4)) = t4, riscv64: *(stackptr +  (5*8)) = t4
+    sx    t5,  6*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (6*4)) = t5, riscv64: *(stackptr +  (6*8)) = t5
+    sx    t6,  7*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (7*4)) = t6, riscv64: *(stackptr +  (7*8)) = t6
+    sx    a0,  8*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (8*4)) = a0, riscv64: *(stackptr +  (8*8)) = a0
+    sx    a1,  9*({XLEN}/8)(sp)   // riscv32: *(stackptr +  (9*4)) = a1, riscv64: *(stackptr +  (9*8)) = a1
+    sx    a2, 10*({XLEN}/8)(sp)   // riscv32: *(stackptr + (10*4)) = a2, riscv64: *(stackptr + (10*8)) = a2
+    sx    a3, 11*({XLEN}/8)(sp)   // riscv32: *(stackptr + (11*4)) = a3, riscv64: *(stackptr + (11*8)) = a3
+    sx    a4, 12*({XLEN}/8)(sp)   // riscv32: *(stackptr + (12*4)) = a4, riscv64: *(stackptr + (12*8)) = a4
+    sx    a5, 13*({XLEN}/8)(sp)   // riscv32: *(stackptr + (13*4)) = a5, riscv64: *(stackptr + (13*8)) = a5
+    sx    a6, 14*({XLEN}/8)(sp)   // riscv32: *(stackptr + (14*4)) = a6, riscv64: *(stackptr + (14*8)) = a6
+    sx    a7, 15*({XLEN}/8)(sp)   // riscv32: *(stackptr + (15*4)) = a7, riscv64: *(stackptr + (15*8)) = a7
 
     // Save one callee-saved register (s0), which we place the address of
     // the hart-specific 'are we in a trap handler' flag in:
-    sw   s0, 16*4(sp)
+    sx    s0, 16*({XLEN}/8)(sp)   // riscv32: *(stackptr + (16*4)) = s0, riscv64: *(stackptr + (16*8)) = s0
 
     // Determine the address of the hart-specific 'are we in a trap handler'
     // flag as an offset to the _trap_handler_active symbol. The chip crate
@@ -379,12 +404,12 @@ pub extern "C" fn _start_trap() -> ! {
     // enough to fit `max(mhartid) * MXLEN` bytes.
     la   s0, _trap_handler_active // s0 = addr(_trap_handler_active)
     csrr t0, mhartid              // t0 = hartid
-    slli t0, t0, 2                // t0 = t0 * 4
+    slli t0, t0, ({XLEN_LOG2}-3)  // t0 = t0 * sizeof(usize)
     add  s0, s0, t0               // s0 = addr(_trap_handler_active[hartid])
 
     // Indicate that we are in a trap handler on this hart:
-    li   t0, 1
-    sw   t0, 0(s0)
+    li   t0, 1                    // t0 = 1
+    sw   t0, 0(s0)                // _trap_handler_active[hartid] = 1
 
     // Jump to board-specific trap handler code. Likely this was an
     // interrupt and we want to disable a particular interrupt, but each
@@ -393,32 +418,32 @@ pub extern "C" fn _start_trap() -> ! {
 
     // Indicate that we are no longer going to be in a trap handler on this
     // hart:
-    sw   x0, 0(s0)
+    sw   x0, 0(s0)                // _trap_handler_active[hartid] = 0
 
     // Restore the caller saved registers from the stack.
-    lw   ra, 0*4(sp)
-    lw   t0, 1*4(sp)
-    lw   t1, 2*4(sp)
-    lw   t2, 3*4(sp)
-    lw   t3, 4*4(sp)
-    lw   t4, 5*4(sp)
-    lw   t5, 6*4(sp)
-    lw   t6, 7*4(sp)
-    lw   a0, 8*4(sp)
-    lw   a1, 9*4(sp)
-    lw   a2, 10*4(sp)
-    lw   a3, 11*4(sp)
-    lw   a4, 12*4(sp)
-    lw   a5, 13*4(sp)
-    lw   a6, 14*4(sp)
-    lw   a7, 15*4(sp)
+    lx    ra,  0*({XLEN}/8)(sp)   // riscv32: ra = *(stackptr +  (0*4)), riscv64: ra = *(stackptr +  (0*8))
+    lx    t0,  1*({XLEN}/8)(sp)   // riscv32: t0 = *(stackptr +  (1*4)), riscv64: t0 = *(stackptr +  (1*8))
+    lx    t1,  2*({XLEN}/8)(sp)   // riscv32: t1 = *(stackptr +  (2*4)), riscv64: t1 = *(stackptr +  (2*8))
+    lx    t2,  3*({XLEN}/8)(sp)   // riscv32: t2 = *(stackptr +  (3*4)), riscv64: t2 = *(stackptr +  (3*8))
+    lx    t3,  4*({XLEN}/8)(sp)   // riscv32: t3 = *(stackptr +  (4*4)), riscv64: t3 = *(stackptr +  (4*8))
+    lx    t4,  5*({XLEN}/8)(sp)   // riscv32: t4 = *(stackptr +  (5*4)), riscv64: t4 = *(stackptr +  (5*8))
+    lx    t5,  6*({XLEN}/8)(sp)   // riscv32: t5 = *(stackptr +  (6*4)), riscv64: t5 = *(stackptr +  (6*8))
+    lx    t6,  7*({XLEN}/8)(sp)   // riscv32: t6 = *(stackptr +  (7*4)), riscv64: t6 = *(stackptr +  (7*8))
+    lx    a0,  8*({XLEN}/8)(sp)   // riscv32: a0 = *(stackptr +  (8*4)), riscv64: a0 = *(stackptr +  (8*8))
+    lx    a1,  9*({XLEN}/8)(sp)   // riscv32: a1 = *(stackptr +  (9*4)), riscv64: a1 = *(stackptr +  (9*8))
+    lx    a2, 10*({XLEN}/8)(sp)   // riscv32: a2 = *(stackptr + (10*4)), riscv64: a2 = *(stackptr + (10*8))
+    lx    a3, 11*({XLEN}/8)(sp)   // riscv32: a3 = *(stackptr + (11*4)), riscv64: a3 = *(stackptr + (11*8))
+    lx    a4, 12*({XLEN}/8)(sp)   // riscv32: a4 = *(stackptr + (12*4)), riscv64: a4 = *(stackptr + (12*8))
+    lx    a5, 13*({XLEN}/8)(sp)   // riscv32: a5 = *(stackptr + (13*4)), riscv64: a5 = *(stackptr + (13*8))
+    lx    a6, 14*({XLEN}/8)(sp)   // riscv32: a6 = *(stackptr + (14*4)), riscv64: a6 = *(stackptr + (14*8))
+    lx    a7, 15*({XLEN}/8)(sp)   // riscv32: a7 = *(stackptr + (15*4)), riscv64: a7 = *(stackptr + (15*8))
 
     // Restore the one callee-saved register (s0), which used to hold the
     // address of the hart-specific 'are we in a trap handler flag':
-    lw   s0, 16*4(sp)
+    lx    s0, 16*({XLEN}/8)(sp)   // riscv32: s0 = *(stackptr + (16*4)), riscv64: s0 = *(stackptr + (16*8))
 
     // Reset the stack pointer.
-    addi sp, sp, 20*4
+    addi sp, sp, 20*({XLEN}/8)    // riscv32: sp = sp + (20*4), riscv32: sp = sp + (20*8)
 
     // mret returns from the trap handler. The PC is set to what is in
     // mepc and execution proceeds from there. Since we did not modify
@@ -427,6 +452,8 @@ pub extern "C" fn _start_trap() -> ! {
         ",
         estack = sym _estack,
         sstack = sym _sstack,
+        XLEN = const XLEN,
+        XLEN_LOG2 = const XLEN_LOG2,
     );
 }
 
@@ -447,19 +474,19 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
     let res;
     asm!(
         "
-    .balign 16
-    .option push
-    .option norelax
-    .option norvc
-    slli x0, x0, 0x1f
-    ebreak
-    srai x0, x0, 7
+    .balign 16                    // ensure 16 byte alignment
+    .option push                  // enable the following options:
+    .option norelax               // - norelax: do not replace these instructions
+    .option norvc                 // - norvc: force full 32 bit instructions
+    slli x0, x0, 0x1f             // useless instruction (writes to x0), but serves as sentinel for semihosting
+    ebreak                        // trap to debugger
+    srai x0, x0, 7                // useless instruction (writes to x0), but serves as second sentinel
     .option pop
         ",
-        in("a0") command,
-        in("a1") arg0,
-        in("a2") arg1,
-        lateout("a0") res,
+        in("a0") command,         // a0 holds command (and return code)
+        in("a1") arg0,            // a1 holds first argument
+        in("a2") arg1,            // a2 holds second argument
+        lateout("a0") res,        // semihosting replaces a0 with return code
     );
     res
 }
@@ -472,87 +499,38 @@ pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> u
 
 /// Print a readable string for an mcause reason.
 pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
-    match mcval {
+    let s = match mcval {
         csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
-            csr::mcause::Interrupt::UserSoft => {
-                let _ = writer.write_fmt(format_args!("User software interrupt"));
-            }
-            csr::mcause::Interrupt::SupervisorSoft => {
-                let _ = writer.write_fmt(format_args!("Supervisor software interrupt"));
-            }
-            csr::mcause::Interrupt::MachineSoft => {
-                let _ = writer.write_fmt(format_args!("Machine software interrupt"));
-            }
-            csr::mcause::Interrupt::UserTimer => {
-                let _ = writer.write_fmt(format_args!("User timer interrupt"));
-            }
-            csr::mcause::Interrupt::SupervisorTimer => {
-                let _ = writer.write_fmt(format_args!("Supervisor timer interrupt"));
-            }
-            csr::mcause::Interrupt::MachineTimer => {
-                let _ = writer.write_fmt(format_args!("Machine timer interrupt"));
-            }
-            csr::mcause::Interrupt::UserExternal => {
-                let _ = writer.write_fmt(format_args!("User external interrupt"));
-            }
-            csr::mcause::Interrupt::SupervisorExternal => {
-                let _ = writer.write_fmt(format_args!("Supervisor external interrupt"));
-            }
-            csr::mcause::Interrupt::MachineExternal => {
-                let _ = writer.write_fmt(format_args!("Machine external interrupt"));
-            }
-            csr::mcause::Interrupt::Unknown(_) => {
-                let _ = writer.write_fmt(format_args!("Reserved/Unknown"));
-            }
+            csr::mcause::Interrupt::UserSoft => "User software interrupt",
+            csr::mcause::Interrupt::SupervisorSoft => "Supervisor software interrupt",
+            csr::mcause::Interrupt::MachineSoft => "Machine software interrupt",
+            csr::mcause::Interrupt::UserTimer => "User timer interrupt",
+            csr::mcause::Interrupt::SupervisorTimer => "Supervisor timer interrupt",
+            csr::mcause::Interrupt::MachineTimer => "Machine timer interrupt",
+            csr::mcause::Interrupt::UserExternal => "User external interrupt",
+            csr::mcause::Interrupt::SupervisorExternal => "Supervisor external interrupt",
+            csr::mcause::Interrupt::MachineExternal => "Machine external interrupt",
+            csr::mcause::Interrupt::Unknown(_) => "Reserved/Unknown",
         },
         csr::mcause::Trap::Exception(exception) => match exception {
-            csr::mcause::Exception::InstructionMisaligned => {
-                let _ = writer.write_fmt(format_args!("Instruction access misaligned"));
-            }
-            csr::mcause::Exception::InstructionFault => {
-                let _ = writer.write_fmt(format_args!("Instruction access fault"));
-            }
-            csr::mcause::Exception::IllegalInstruction => {
-                let _ = writer.write_fmt(format_args!("Illegal instruction"));
-            }
-            csr::mcause::Exception::Breakpoint => {
-                let _ = writer.write_fmt(format_args!("Breakpoint"));
-            }
-            csr::mcause::Exception::LoadMisaligned => {
-                let _ = writer.write_fmt(format_args!("Load address misaligned"));
-            }
-            csr::mcause::Exception::LoadFault => {
-                let _ = writer.write_fmt(format_args!("Load access fault"));
-            }
-            csr::mcause::Exception::StoreMisaligned => {
-                let _ = writer.write_fmt(format_args!("Store/AMO address misaligned"));
-            }
-            csr::mcause::Exception::StoreFault => {
-                let _ = writer.write_fmt(format_args!("Store/AMO access fault"));
-            }
-            csr::mcause::Exception::UserEnvCall => {
-                let _ = writer.write_fmt(format_args!("Environment call from U-mode"));
-            }
-            csr::mcause::Exception::SupervisorEnvCall => {
-                let _ = writer.write_fmt(format_args!("Environment call from S-mode"));
-            }
-            csr::mcause::Exception::MachineEnvCall => {
-                let _ = writer.write_fmt(format_args!("Environment call from M-mode"));
-            }
-            csr::mcause::Exception::InstructionPageFault => {
-                let _ = writer.write_fmt(format_args!("Instruction page fault"));
-            }
-            csr::mcause::Exception::LoadPageFault => {
-                let _ = writer.write_fmt(format_args!("Load page fault"));
-            }
-            csr::mcause::Exception::StorePageFault => {
-                let _ = writer.write_fmt(format_args!("Store/AMO page fault"));
-            }
-            csr::mcause::Exception::Unknown => {
-                let _ = writer.write_fmt(format_args!("Reserved"));
-            }
+            csr::mcause::Exception::InstructionMisaligned => "Instruction access misaligned",
+            csr::mcause::Exception::InstructionFault => "Instruction access fault",
+            csr::mcause::Exception::IllegalInstruction => "Illegal instruction",
+            csr::mcause::Exception::Breakpoint => "Breakpoint",
+            csr::mcause::Exception::LoadMisaligned => "Load address misaligned",
+            csr::mcause::Exception::LoadFault => "Load access fault",
+            csr::mcause::Exception::StoreMisaligned => "Store/AMO address misaligned",
+            csr::mcause::Exception::StoreFault => "Store/AMO access fault",
+            csr::mcause::Exception::UserEnvCall => "Environment call from U-mode",
+            csr::mcause::Exception::SupervisorEnvCall => "Environment call from S-mode",
+            csr::mcause::Exception::MachineEnvCall => "Environment call from M-mode",
+            csr::mcause::Exception::InstructionPageFault => "Instruction page fault",
+            csr::mcause::Exception::LoadPageFault => "Load page fault",
+            csr::mcause::Exception::StorePageFault => "Store/AMO page fault",
+            csr::mcause::Exception::Unknown => "Reserved",
         },
-    }
+    };
+    let _ = writer.write_str(s);
 }
 
 /// Prints out RISCV machine state, including basic system registers

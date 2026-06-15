@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-//! Module for interacting with legacy 8259 PIC
+//! Module for interacting with legacy 8259 Programmable Interrupt Controller (PIC)
 //!
 //! This implementation is based on guidance from the following sources:
 //!

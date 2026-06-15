@@ -266,6 +266,8 @@ impl<
     type UserspaceKernelBoundary = SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
+    fn init() {}
+
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
     }
