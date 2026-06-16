@@ -908,6 +908,10 @@ pub struct Hart1Platform {
     pub scheduler: &'static SchedulerInUse,
     pub scheduler_timer: &'static SchedulerTimerHw,
     pub console: &'static capsules_core::console::Console<'static>,
+    pub alarm: &'static capsules_core::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+    >,
 }
 
 impl kernel::platform::SyscallDriverLookup for Hart1Platform {
@@ -917,6 +921,7 @@ impl kernel::platform::SyscallDriverLookup for Hart1Platform {
     {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
     }
@@ -1070,6 +1075,30 @@ pub unsafe fn start_secondary() -> (
         components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
             .finalize(components::virtual_scheduler_timer_component_static!(AlarmHw));
 
+    // Userspace-facing alarm, independently replicated: Hart 1 has its own
+    // CLINT mtimecmp (unlike the UART, no replay from Hart 0 is needed). A
+    // replica process issuing the same set_alarm syscall as its Hart 0
+    // counterpart will independently compute and arm the same deadline off
+    // the same shared mtime, so both harts fire in lockstep.
+    let memory_alloc_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let virtual_alarm_user = static_init!(
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    virtual_alarm_user.setup();
+
+    let alarm = static_init!(
+        capsules_core::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
+        >,
+        capsules_core::alarm::AlarmDriver::new(
+            virtual_alarm_user,
+            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_alloc_cap)
+        )
+    );
+    hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
+
     // QemuRv32VirtChip needs a peripherals struct even though hart 1 won't use them.
     let peripherals = static_init!(
         QemuRv32VirtDefaultPeripherals,
@@ -1137,6 +1166,7 @@ pub unsafe fn start_secondary() -> (
         scheduler,
         scheduler_timer,
         console,
+        alarm,
     };
 
     // Init sync: receive hart 0's ping and ack it.
