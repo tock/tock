@@ -65,8 +65,8 @@ pub fn get_global_app_hard_fault() -> usize {
     // # Safety
     //
     // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly. We ensure these conditions are met by the
-    // assembly that defines these global variables.
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
     unsafe {
         core::arch::asm!(
             "
@@ -97,8 +97,8 @@ pub fn get_global_syscall_fired() -> usize {
     // # Safety
     //
     // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly. We ensure these conditions are met by the
-    // assembly that defines these global variables.
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
     unsafe {
         core::arch::asm!(
             "
@@ -145,8 +145,8 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     // # Safety
     //
     // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly. We ensure these conditions are met by the
-    // assembly that defines these global variables.
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
     unsafe {
         core::arch::asm!(
             "
