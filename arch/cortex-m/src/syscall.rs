@@ -20,6 +20,9 @@ use crate::CortexMVariant;
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
 /// specific handler.
+///
+/// Because this is a global `static mut` variable, we can only access it from
+/// inline assembly.
 #[no_mangle]
 #[used]
 pub static mut SYSCALL_FIRED: UnsafeCell<usize> = UnsafeCell::new(0);
@@ -30,6 +33,9 @@ pub static mut SYSCALL_FIRED: UnsafeCell<usize> = UnsafeCell::new(0);
 ///
 /// n.b. If the kernel hard faults, it immediately panic's. This flag is only
 /// for handling application hard faults.
+///
+/// Because this is a global `static mut` variable, we can only access it from
+/// inline assembly.
 #[no_mangle]
 #[used]
 pub static mut APP_HARD_FAULT: UnsafeCell<usize> = UnsafeCell::new(0);
@@ -39,6 +45,9 @@ pub static mut APP_HARD_FAULT: UnsafeCell<usize> = UnsafeCell::new(0);
 /// When an app faults, the hardfault handler stores the value of the
 /// SCB registers in this static array. This makes them available to
 /// be displayed in a diagnostic fault message.
+///
+/// Because this is a global `static mut` variable, we can only access it from
+/// inline assembly.
 #[no_mangle]
 #[used]
 pub static mut SCB_REGISTERS: UnsafeCell<[u32; 5]> = UnsafeCell::new([0; 5]);
