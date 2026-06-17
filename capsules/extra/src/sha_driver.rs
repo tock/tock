@@ -450,7 +450,7 @@ impl<'a, H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: u
     ///
     /// We expect userspace not to change the value while running. If userspace
     /// changes the value we have no guarantee of what is passed to the
-    /// hardware. This isn't a security issue, it will just prove the requesting
+    /// hardware. This isn't a security issue, it will just provide the requesting
     /// app with invalid data.
     ///
     /// The driver will take care of clearing data from the underlying
