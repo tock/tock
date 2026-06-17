@@ -16,50 +16,31 @@ use kernel::errorcode::ErrorCode;
 
 use crate::CortexMVariant;
 
-// Global variables used by the cortex-m arch implementation.
-//
-// These track state between exception handlers and the syscall context
-// switching code.
-core::arch::global_asm!(
-    "
-    // This is used in the syscall handler. When set to 1 this means the
-    // svc_handler was called.
-    //
-    // pub static mut SYSCALL_FIRED: usize = 0;
-.section .data
-.global SYSCALL_FIRED
-.align 4
-SYSCALL_FIRED:
-    .word 0x00000000                  // SYSCALL_FIRED = 0
+/// This is used in the syscall handler. When set to 1 this means the
+/// svc_handler was called. Marked `pub` because it is used in the cortex-m*
+/// specific handler.
+#[no_mangle]
+#[used]
+pub static mut SYSCALL_FIRED: usize = 0;
 
-    // This is called in the hard fault handler. When set to 1 this means the
-    // hard fault handler was called.
-    //
-    // pub static mut APP_HARD_FAULT: usize = 0;
-.section .data
-.global APP_HARD_FAULT
-.align 4
-APP_HARD_FAULT:
-    .word 0x00000000                  // APP_HARD_FAULT = 0
+/// This is called in the hard fault handler. When set to 1 this means the hard
+/// fault handler was called. Marked `pub` because it is used in the cortex-m*
+/// specific handler.
+///
+/// n.b. If the kernel hard faults, it immediately panic's. This flag is only
+/// for handling application hard faults.
+#[no_mangle]
+#[used]
+pub static mut APP_HARD_FAULT: usize = 0;
 
-    // This is used in the hardfault handler.
-    //
-    // When an app faults, the hardfault handler stores the value of the
-    // SCB registers in this static array. This makes them available to
-    // be displayed in a diagnostic fault message.
-    //
-    // pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
-.section .data
-.global SCB_REGISTERS
-.align 4
-SCB_REGISTERS:
-    .word 0x00000000                  // SCB_REGISTERS[0] = 0
-    .word 0x00000000                  // SCB_REGISTERS[1] = 0
-    .word 0x00000000                  // SCB_REGISTERS[2] = 0
-    .word 0x00000000                  // SCB_REGISTERS[3] = 0
-    .word 0x00000000                  // SCB_REGISTERS[4] = 0
-    "
-);
+/// This is used in the hardfault handler.
+///
+/// When an app faults, the hardfault handler stores the value of the
+/// SCB registers in this static array. This makes them available to
+/// be displayed in a diagnostic fault message.
+#[no_mangle]
+#[used]
+pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
