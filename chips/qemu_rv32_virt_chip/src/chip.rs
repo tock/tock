@@ -31,6 +31,10 @@ pub struct SyncEntry {
     pub seq: u32,
     /// Fingerprint of the `KernelActivity` performed this iteration.
     /// Hart 1 echoes back its own fingerprint; hart 0 compares against its own.
+    ///
+    /// For the one-time `seq == 0xDEAD` init message, this field instead
+    /// carries the hart-1 `ProcessArray` pointer (as a `u32`, since this is a
+    /// 32-bit target) -- see `finish_lockstep_setup()`/`start_secondary()`.
     pub fingerprint: u32,
 }
 
@@ -313,12 +317,16 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
             return true;
         }
 
-        if HART1_PENDING_REASON.load(Ordering::Relaxed) != 0 {
+        let hartid: u32;
+        unsafe { core::arch::asm!("csrr {}, mhartid", out(reg) hartid) };
+        let is_hart1 = hartid == 1;
+
+        if is_hart1 && HART1_PENDING_REASON.load(Ordering::Relaxed) != 0 {
             return true;
         }
 
         // Then we can check the PLIC.
-        self.plic.get_saved_interrupts().is_some()
+        !is_hart1 && self.plic.get_saved_interrupts().is_some()
     }
 
     fn sleep(&self) {

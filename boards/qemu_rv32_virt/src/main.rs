@@ -269,7 +269,20 @@ pub unsafe fn main() {
         // interrupt + deferred-call window, not just the trap handler.
         clear_irq_active();
         let ack = LOCKSTEP_CHAN.a_spin_recv();
-        let _ = (activity, ack); // liveness only — no fingerprint comparison yet
+        let expected = activity.fingerprint();
+        // Hart 0 alone owns real I/O (process console, virtio devices), so it
+        // legitimately does KernelWork/Slept transitions hart 1 never sees.
+        // Only treat it as divergence when at least one hart ran a process —
+        // that's the invariant lockstep actually needs to hold.
+        const RAN_PROCESS_TAG: u32 = 0x0200_0000;
+        let is_ran_process = |fp: u32| fp & 0xFF00_0000 == RAN_PROCESS_TAG;
+        if (is_ran_process(expected) || is_ran_process(ack.fingerprint)) && ack.fingerprint != expected
+        {
+            panic!(
+                "Lockstep divergence at seq {}: hart 0 fingerprint {:#x}, hart 1 fingerprint {:#x}",
+                seq, expected, ack.fingerprint
+            );
+        }
         seq = seq.wrapping_add(1);
     }
 }

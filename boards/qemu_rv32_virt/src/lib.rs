@@ -34,11 +34,6 @@ pub type ProcessHw = kernel::process::ProcessStandard<
     kernel::process::ProcessStandardDebugFull,
 >;
 
-/// Pointer to the hart-1 process array, written by `finish_lockstep_setup()`
-/// before the MSIP signal and read by `start_secondary()` after it.
-pub static HART1_PROCS_PTR: core::sync::atomic::AtomicUsize =
-    core::sync::atomic::AtomicUsize::new(0);
-
 use qemu_rv32_virt_chip::chip::{SyncEntry, CLINT_MSIP1, LOCKSTEP_CHAN};
 
 
@@ -827,8 +822,9 @@ pub unsafe fn start() -> (
 /// Must be called after `load_processes()` has populated `processes` and
 /// before either hart enters `kernel_loop`.  Carves replica memory from the
 /// `_sappmem_h1.._eappmem_h1` linker region, creates one replica PCB per
-/// primary process, and stores the hart-1 process array pointer in
-/// `HART1_PROCS_PTR` before writing the MSIP signal to wake hart 1.
+/// primary process, then hands the hart-1 process array pointer to hart 1
+/// through `LOCKSTEP_CHAN` itself (see the comment at the `a_send` call
+/// below for why this avoids the separate-flag race a prior version had).
 #[inline(never)]
 pub unsafe fn finish_lockstep_setup(
     processes: &'static kernel::process::ProcessArray<NUM_PROCS>,
@@ -883,17 +879,26 @@ pub unsafe fn finish_lockstep_setup(
         }
     }
 
-    HART1_PROCS_PTR.store(
-        h1_processes as *const _ as usize,
-        core::sync::atomic::Ordering::Release,
-    );
-
-    // Signal hart 1 to begin initialization. CLINT MSIP[1] = CLINT_BASE + 4.
+    // Signal hart 1 it's safe to touch shared bss (including LOCKSTEP_CHAN
+    // itself) now that hart 0 has zeroed it. CLINT MSIP[1] = CLINT_BASE + 4.
+    // This is purely a bss-safety gate now -- it carries no data-readiness
+    // meaning, unlike the removed HART1_PROCS_PTR flag.
     core::ptr::write_volatile(CLINT_MSIP1, 1);
 
-    // Init sync: ping hart 1 and wait for ack.  This confirms the
-    // channel is live before either hart enters kernel_loop.
-    while !LOCKSTEP_CHAN.a_send(SyncEntry { seq: 0xDEAD, fingerprint: 0 }) {
+    // Hand off the hart-1 process array pointer through LOCKSTEP_CHAN rather
+    // than a separate atomic + volatile flag. push()'s internal Release
+    // fence (before advancing `tail`) pairs with pop()'s Acquire load of
+    // `tail`, so hart 1 actually receiving this message -- not merely
+    // observing some other "go" signal -- is what proves every write we
+    // made building h1_processes above (including each replica PCB) is
+    // visible to it. This is the same property an RP2350-style SIO FIFO
+    // handoff gives for free; we get it here from SpscChannel's existing
+    // ordering instead of a hand-reasoned fence between two unrelated
+    // primitives, which is exactly what caused the previous race.
+    while !LOCKSTEP_CHAN.a_send(SyncEntry {
+        seq: 0xDEAD,
+        fingerprint: h1_processes as *const _ as u32,
+    }) {
         core::hint::spin_loop();
     }
     let _ack = LOCKSTEP_CHAN.a_spin_recv();
@@ -1035,19 +1040,19 @@ pub unsafe fn start_secondary() -> (
     )
     .unwrap();
 
-    // Retrieve the hart-1 process array stored by finish_lockstep_setup().
-    // finish_lockstep_setup() uses Release ordering on the store; we use
-    // Acquire here so all replica PCB writes are visible before we use them.
-    let h1_procs_ptr = HART1_PROCS_PTR.load(core::sync::atomic::Ordering::Acquire)
-        as *const kernel::process::ProcessArray<NUM_PROCS>;
-    let processes: &'static kernel::process::ProcessArray<NUM_PROCS> = if h1_procs_ptr.is_null() {
-        static_init!(
-            kernel::process::ProcessArray<NUM_PROCS>,
-            kernel::process::ProcessArray::new()
-        )
-    } else {
-        &*h1_procs_ptr
-    };
+    // Receive the hart-1 process array pointer from hart 0 through
+    // LOCKSTEP_CHAN. b_spin_recv()'s internal Acquire load of `tail` pairs
+    // with finish_lockstep_setup()'s push()-internal Release fence, so
+    // actually receiving this message -- not just being woken up -- is what
+    // guarantees every write hart 0 made building h1_processes is visible
+    // here. See the comment at the matching a_send() call for why this
+    // replaces a separate atomic + volatile-flag handoff.
+    let init_entry = LOCKSTEP_CHAN.b_spin_recv();
+    let processes: &'static kernel::process::ProcessArray<NUM_PROCS> =
+        &*(init_entry.fingerprint as usize as *const kernel::process::ProcessArray<NUM_PROCS>);
+    while !LOCKSTEP_CHAN.b_send(init_entry) {
+        core::hint::spin_loop();
+    }
 
     PANIC_RESOURCES.get().map(|resources| {
         resources.processes.put(processes.as_slice());
@@ -1168,12 +1173,6 @@ pub unsafe fn start_secondary() -> (
         console,
         alarm,
     };
-
-    // Init sync: receive hart 0's ping and ack it.
-    let entry = LOCKSTEP_CHAN.b_spin_recv();
-    while !LOCKSTEP_CHAN.b_send(entry) {
-        core::hint::spin_loop();
-    }
 
     (board_kernel, platform, chip)
 }
