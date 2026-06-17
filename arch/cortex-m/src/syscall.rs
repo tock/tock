@@ -7,6 +7,7 @@
 //! Implementation of the architecture-specific portions of the kernel-userland
 //! system call interface.
 
+use core::cell::UnsafeCell;
 use core::fmt::Write;
 use core::marker::PhantomData;
 use core::mem::{self, size_of};
@@ -21,7 +22,7 @@ use crate::CortexMVariant;
 /// specific handler.
 #[no_mangle]
 #[used]
-pub static mut SYSCALL_FIRED: usize = 0;
+pub static mut SYSCALL_FIRED: UnsafeCell<usize> = UnsafeCell::new(0);
 
 /// This is called in the hard fault handler. When set to 1 this means the hard
 /// fault handler was called. Marked `pub` because it is used in the cortex-m*
@@ -31,7 +32,7 @@ pub static mut SYSCALL_FIRED: usize = 0;
 /// for handling application hard faults.
 #[no_mangle]
 #[used]
-pub static mut APP_HARD_FAULT: usize = 0;
+pub static mut APP_HARD_FAULT: UnsafeCell<usize> = UnsafeCell::new(0);
 
 /// This is used in the hardfault handler.
 ///
@@ -40,7 +41,7 @@ pub static mut APP_HARD_FAULT: usize = 0;
 /// be displayed in a diagnostic fault message.
 #[no_mangle]
 #[used]
-pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
+pub static mut SCB_REGISTERS: UnsafeCell<[u32; 5]> = UnsafeCell::new([0; 5]);
 
 /// Get the `APP_HARD_FAULT` flag.
 ///
