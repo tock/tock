@@ -563,6 +563,9 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     /// the process is in the [`State::YieldedFor`] state.
     is_yield_wait_for_ready: Cell<bool>,
 
+    /// Track if the process has pending request to be restarted.
+    pending_restart: Cell<bool>,
+
     /// Values kept so that we can print useful debug messages when apps fault.
     debug: D,
 }
@@ -744,7 +747,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 panic!("Process {} had a fault", self.get_process_name());
             }
             FaultAction::Restart => {
-                self.try_restart(None);
+                self.enqueue_process_restart();
             }
             FaultAction::Stop => {
                 // This looks a lot like restart, except we just leave the app
@@ -770,7 +773,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
-    fn try_restart(&self, completion_code: Option<u32>) {
+    unsafe fn try_restart(&self, completion_code: Option<u32>) {
         // `try_restart()` cannot be called if the process is terminated. Only
         // `start()` can start a terminated process.
         if self.get_state() == State::Terminated {
@@ -1543,6 +1546,14 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
 
         switch_reason
+    }
+
+    fn enqueue_process_restart(&self) {
+        self.pending_restart.set(true)
+    }
+
+    fn has_pending_restart(&self) -> bool {
+        self.pending_restart.get()
     }
 
     fn debug_syscall_count(&self) -> usize {
@@ -2446,6 +2457,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 CapabilityPtrPermissions::Execute,
             )
         };
+
+        self.pending_restart.set(false);
 
         self.enqueue_task(Task::FunctionCall(FunctionCall {
             source: FunctionCallSource::Kernel,

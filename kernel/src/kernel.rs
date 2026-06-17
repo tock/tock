@@ -330,6 +330,24 @@ impl Kernel {
         }
     }
 
+    /// Attempt to restart the process identified by `pid`.
+    ///
+    /// Has no effect if `pid` does not match a currently loaded process, or
+    /// if the kernel policy declines to restart it.
+    ///
+    /// Restarting a process is a privileged operation and therefore requires
+    /// the [`ProcessRestartCapability`](crate::capabilities::ProcessRestartCapability)
+    /// to call this method.
+    pub fn restart_process<C: capabilities::ProcessRestartCapability>(
+        &self,
+        pid: ProcessId,
+        _capability: &C,
+    ) {
+        self.get_process(pid).map(|process| {
+            process.enqueue_process_restart();
+        });
+    }
+
     /// Perform one iteration of the core Tock kernel loop.
     ///
     /// This function is responsible for three main operations:
@@ -468,6 +486,16 @@ impl Kernel {
         ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
         timeslice_us: Option<NonZeroU32>,
     ) -> (process::StoppedExecutingReason, Option<u32>) {
+        // Before performing any process work, first see if this application
+        // has a pending restart enqueued.
+        if process.has_pending_restart() {
+            // Restarting the process is unsafe if performed in the context of
+            // handling certain syscalls. Because this is handled here and all
+            // kernel functionality to handle syscalls runs to completion, we can
+            // safely call `try_restart` here.
+            unsafe { process.try_restart(None) };
+        }
+
         // We must use a dummy scheduler timer if the process should be executed
         // without any timeslice restrictions. Note, a chip may not provide a
         // real scheduler timer implementation even if a timeslice is requested.
@@ -1425,7 +1453,11 @@ impl Kernel {
                     }
                     // The process called the `exit-restart` system call.
                     1 => {
-                        process.try_restart(Some(completion_code as u32));
+                        // This is safe so long as we do not call `set_syscall_return_value`
+                        // after calling `try_restart` (occurs in `_` branch).
+                        unsafe {
+                            process.try_restart(Some(completion_code as u32));
+                        }
                         None
                     }
                     // The process called an invalid variant of the Exit
