@@ -7,12 +7,9 @@ use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::{Client32, Continue, Entropy32};
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
-
-const HEALTH_TEST_CONTROL_CONFIG: u32 = 0x76B3;
-const NOISE_SOURCE_CONTROL_CONFIG: u32 = 0x24C2;
 
 register_structs! {
     /// Random number generator
@@ -82,8 +79,13 @@ register_bitfields![u32,
 pub const RNG_BASE: StaticRef<RngRegisters> =
     unsafe { StaticRef::new(0x520C0800 as *const RngRegisters) };
 
-struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
-impl Iterator for TrngIter<'_, '_> {
+/// Iterator that retreives the full entropy outputs provided by the RNG peripheral
+struct TrngIter<'a, 'b: 'a, const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32>(
+    &'a Trng<'b, CR_CFG, HTCR_CFG, NSCR_CFG>,
+);
+impl<const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32> Iterator
+    for TrngIter<'_, '_, CR_CFG, HTCR_CFG, NSCR_CFG>
+{
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
@@ -95,6 +97,8 @@ impl Iterator for TrngIter<'_, '_> {
     }
 }
 
+/// Separate Iterator that does not provide any entropy. Only applicable when there
+/// was an error in the peripheral
 struct ErrIter;
 impl Iterator for ErrIter {
     type Item = u32;
@@ -104,14 +108,16 @@ impl Iterator for ErrIter {
     }
 }
 
-pub struct Trng<'a> {
+pub struct Trng<'a, const CR: u32, const HTCR: u32, const NSCR: u32> {
     registers: StaticRef<RngRegisters>,
     client: OptionalCell<&'a dyn Client32>,
     entropy_needed: Cell<bool>,
     deferred_call: DeferredCall,
 }
 
-impl<'a> Trng<'a> {
+impl<'a, const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32>
+    Trng<'a, CR_CFG, HTCR_CFG, NSCR_CFG>
+{
     pub fn new(base: StaticRef<RngRegisters>) -> Self {
         Self {
             registers: base,
@@ -121,24 +127,16 @@ impl<'a> Trng<'a> {
         }
     }
 
+    /// Initialises the RNG peripheral with special config values. These should specified in the documentation
+    /// (NIST compliant RNG configuration table in AN4230 available from www.st.com.)
     pub fn init(&'static self) {
-        // specified in the documentation (NIST compliant RNG configuration table in AN4230 available from www.st.com.)
-        // that values for the CR, HTCR and NSCR should be 0x00F11F00, 0x76B3 and 0x24C2 respectivly
-        self.registers.cr.modify(
-            CR::RNG_CONFIG3.val(0b1111)
-                + CR::NISTC::SET
-                + CR::CLKDIV.val(0x1)
-                + CR::RNG_CONFIG1.val(0b1111)
-                + CR::CONDRST::SET,
-        );
-        self.registers
-            .htcr
-            .modify(HTCR::HTCFG.val(HEALTH_TEST_CONTROL_CONFIG));
-        self.registers
-            .nscr
-            .modify(NSCR::NSCFG.val(NOISE_SOURCE_CONTROL_CONFIG));
+        self.registers.cr.set(CR_CFG);
+        self.registers.htcr.modify(HTCR::HTCFG.val(HTCR_CFG));
+        self.registers.nscr.modify(NSCR::NSCFG.val(NSCR_CFG));
         self.registers.cr.modify(CR::CONFIGLOCK::SET);
-        self.registers.cr.modify(CR::CONDRST::CLEAR);
+        self.registers
+            .cr
+            .modify(CR::CONDRST::CLEAR + CR::RNGEN::SET);
         self.register();
     }
 
@@ -148,9 +146,7 @@ impl<'a> Trng<'a> {
             .client
             .map(|client| client.entropy_available(&mut TrngIter(self), Ok(())));
         match response {
-            Some(Continue::Done) | None => {
-                self.registers.cr.modify(CR::RNGEN::CLEAR);
-            }
+            Some(Continue::Done) | None => {}
             _ => {
                 self.entropy_needed.set(true);
                 self.deferred_call.set();
@@ -159,10 +155,11 @@ impl<'a> Trng<'a> {
     }
 }
 
-impl<'a> Entropy32<'a> for Trng<'a> {
+impl<'a, const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32> Entropy32<'a>
+    for Trng<'a, CR_CFG, HTCR_CFG, NSCR_CFG>
+{
     fn get(&self) -> Result<(), kernel::ErrorCode> {
         let regs = self.registers;
-        regs.cr.modify(CR::RNGEN::SET);
         if regs.sr.any_matching_bits_set(SR::CECS::SET + SR::SECS::SET) {
             return Err(kernel::ErrorCode::FAIL);
         }
@@ -183,7 +180,9 @@ impl<'a> Entropy32<'a> for Trng<'a> {
     }
 }
 
-impl DeferredCallClient for Trng<'_> {
+impl<const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32> DeferredCallClient
+    for Trng<'_, CR_CFG, HTCR_CFG, NSCR_CFG>
+{
     fn handle_deferred_call(&self) {
         if self.registers.sr.is_set(SR::SECS) {
             self.registers.sr.modify(SR::SEIS::CLEAR);
