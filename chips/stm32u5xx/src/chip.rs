@@ -175,6 +175,14 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     type UserspaceKernelBoundary = cortexm33::syscall::SysCall;
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
+    fn init() {
+        unsafe {
+            cortexm33::nvic::disable_all();
+            cortexm33::nvic::clear_all_pending();
+            cortexm33::nvic::enable_all();
+        }
+    }
+
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm33::nvic::next_pending() {
