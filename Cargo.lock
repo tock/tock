@@ -1113,6 +1113,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "nxp_s32g3"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm7",
+ "kernel",
+]
+
+[[package]]
+name = "nxp_s32g3_sail"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-system",
+ "components",
+ "cortexm7",
+ "kernel",
+ "nxp_s32g3",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
