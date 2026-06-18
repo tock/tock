@@ -227,10 +227,11 @@ impl<'a> Uart16550<'a> {
         let hart_id: u32;
         unsafe { core::arch::asm!("csrr {}, mhartid", out(reg) hart_id) };
 
-        // Disable all interrupts when constructing the UART
-        regs.ier.set(0xF);
-
-        regs.iir_fcr.write(FCR::Enable::CLEAR);
+        if hart_id == 0 {
+            // Disable all interrupts when constructing the UART
+            regs.ier.set(0x0);
+            regs.iir_fcr.write(FCR::Enable::CLEAR);
+        }
 
         Uart16550 {
             regs,
@@ -628,6 +629,12 @@ impl<'a> hil::uart::Receive<'a> for Uart16550<'a> {
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
         self.rx_index.set(0);
+
+        // Discard any stray byte already sitting in the RX FIFO before
+        // arming the RX interrupt.
+        while self.regs.lsr.is_set(LSR::DataAvailable) {
+            let _ = self.regs.rbr_thr.read(RBR::Data);
+        }
 
         // Enable receive interrupts:
         self.regs.ier.modify(IER::ReceivedDataAvailable::SET);

@@ -319,14 +319,11 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
         let hartid: u32;
         unsafe { core::arch::asm!("csrr {}, mhartid", out(reg) hartid) };
-        let is_hart1 = hartid == 1;
-
-        if is_hart1 && HART1_PENDING_REASON.load(Ordering::Relaxed) != 0 {
-            return true;
+        if hartid == 1 {
+            HART1_PENDING_REASON.load(Ordering::Relaxed) != 0
+        } else {
+            self.plic.get_saved_interrupts().is_some()
         }
-
-        // Then we can check the PLIC.
-        !is_hart1 && self.plic.get_saved_interrupts().is_some()
     }
 
     fn sleep(&self) {

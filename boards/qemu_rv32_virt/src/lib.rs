@@ -55,7 +55,7 @@ pub type ScreenHw = qemu_rv32_virt_chip::virtio::devices::virtio_gpu::VirtIOGPU<
 type AlarmHw = qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>;
 type SchedulerTimerHw =
     components::virtual_scheduler_timer::VirtualSchedulerTimerComponentType<AlarmHw>;
-type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 /// Resources for when a board panics used by io.rs.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
@@ -757,8 +757,8 @@ pub unsafe fn start() -> (
 
     // ---------- SCHEDULER ----------
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
-        .finalize(components::round_robin_component_static!(NUM_PROCS));
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer =
         components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
@@ -1073,8 +1073,8 @@ pub unsafe fn start_secondary() -> (
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
-        .finalize(components::round_robin_component_static!(NUM_PROCS));
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer =
         components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
