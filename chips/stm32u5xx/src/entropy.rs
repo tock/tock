@@ -115,8 +115,8 @@ pub struct Trng<'a, const CR: u32, const HTCR: u32, const NSCR: u32> {
     deferred_call: DeferredCall,
 }
 
-impl<'a, const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32>
-    Trng<'a, CR_CFG, HTCR_CFG, NSCR_CFG>
+impl<const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32>
+    Trng<'_, CR_CFG, HTCR_CFG, NSCR_CFG>
 {
     pub fn new(base: StaticRef<RngRegisters>) -> Self {
         Self {
