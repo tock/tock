@@ -108,17 +108,13 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     type ThreadIdProvider = cortexm7::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        unsafe {
-            cortexm7::nvic::disable_all();
-            cortexm7::nvic::clear_all_pending();
-        }
+        cortexm7::nvic::disable_all();
+        cortexm7::nvic::clear_all_pending();
 
         // Set the vector table offset.
         crate::initialize_vector_table();
 
-        unsafe {
-            cortexm7::nvic::enable_all();
-        }
+        cortexm7::nvic::enable_all();
     }
 
     fn service_pending_interrupts(&self) {
@@ -134,7 +130,7 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm7::nvic::has_pending() }
+        cortexm7::nvic::has_pending()
     }
 
     fn mpu(&self) -> &cortexm7::mpu::MPU {
