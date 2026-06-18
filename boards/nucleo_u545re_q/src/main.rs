@@ -6,6 +6,7 @@
 #![no_std]
 #![no_main]
 
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -14,7 +15,6 @@ use kernel::hil::public_key_crypto::rsa_math::RsaCryptoBase;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{capabilities, debug};
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;

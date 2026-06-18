@@ -18,7 +18,6 @@ pub type Trng<'a> = stm32u5xx::entropy::Trng<'a, RNG_CR_CONFIG, RNG_HTCR_CONFIG,
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
-
 // Link to the STM32U5 series reference manual (RM0456):
 // Table 186 "STM32U5 series vector table"
 // https://www.st.com/resource/en/reference_manual/rm0456-stm32u5-series-armbased-32bit-mcus-stmicroelectronics.pdf
