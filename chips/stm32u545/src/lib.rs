@@ -7,9 +7,18 @@
 pub use stm32u5xx::{adc, chip, dma, exti, gpio, pwr, rcc, tim, usart};
 
 use cortexm33::{CortexM33, CortexMVariant};
+// specified in the documentation (NIST compliant RNG configuration table in AN4230 available from www.st.com.)
+// that values for the CR, HTCR and NSCR should be 0x00F11F00, 0x76B3 and 0x24C2 respectivly. CR config
+// is that value, 0x00F11F00, plus the CONDRST bit
+pub const RNG_CR_CONFIG: u32 = 0x40F11F00;
+pub const RNG_HTCR_CONFIG: u32 = 0x76B3;
+pub const RNG_NSCR_CONFIG: u32 = 0x24C2;
+
+pub type Trng<'a> = stm32u5xx::entropy::Trng<'a, RNG_CR_CONFIG, RNG_HTCR_CONFIG, RNG_NSCR_CONFIG>;
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
+
 // Link to the STM32U5 series reference manual (RM0456):
 // Table 186 "STM32U5 series vector table"
 // https://www.st.com/resource/en/reference_manual/rm0456-stm32u5-series-armbased-32bit-mcus-stmicroelectronics.pdf

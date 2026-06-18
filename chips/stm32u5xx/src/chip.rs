@@ -21,7 +21,6 @@ use crate::usart;
 use crate::{dac, exti};
 
 use core::fmt::Write;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -57,12 +56,7 @@ fn enable_dac1_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(
-        usart1: &'a usart::Usart<'a>,
-        exti: &'a exti::Exti<'a>,
-        dma1: &'a Dma,
-        trng: &'a Trng<'a>,
-    ) -> Self {
+    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
@@ -107,7 +101,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
         }
-        self.trng.init();
     }
 }
 
