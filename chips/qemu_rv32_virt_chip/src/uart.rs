@@ -317,9 +317,6 @@ impl Uart16550<'_> {
     /// The current device configuration is used, and the device must
     /// be enabled. Otherwise, this function may block indefinitely.
     pub fn transmit_sync(&self, bytes: &[u8]) {
-        if self.hart_id == 1 {
-            return;
-        }
         // We don't want to cause excessive interrupts here, so
         // disable transmit interrupts temporarily
         let prev_ier = self.regs.ier.extract();
@@ -822,7 +819,10 @@ impl kernel::platform::chip::PanicWriter for Uart16550<'_> {
         use hil::uart::Configure as _;
 
         let inner = Uart16550::new(UART0_BASE);
-        let _ = inner.configure(config.params);
+
+        if inner.hart_id == 0 {
+            let _ = inner.configure(config.params);
+        }
         UartPanicWriter { inner }
     }
 }
