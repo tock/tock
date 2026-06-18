@@ -130,8 +130,6 @@ unsafe fn start() -> (
     &'static NucleoU545RE,
     &'static ChipHw,
 ) {
-    stm32u545::init();
-
     kernel::deferred_call::initialize_deferred_call_state::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();

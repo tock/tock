@@ -8,10 +8,6 @@ pub use stm32u5xx::{chip, dma, exti, gpio, rcc, tim, usart};
 
 use cortexm33::{CortexM33, CortexMVariant};
 
-pub unsafe fn init() {
-    stm32u5xx::init();
-}
-
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // Link to the STM32U5 series reference manual (RM0456):
