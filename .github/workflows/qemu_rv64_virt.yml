@@ -1,0 +1,84 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+# This workflow builds a real libtock-c example app, boots the qemu_rv64_virt
+# board kernel under qemu-system-riscv64 with that app loaded, and asserts that
+# the app actually ran. This exercises the rv64 userspace round-trip
+# (switch_to_process -> mret -> ecall -> kernel -> UART), which nothing else in
+# CI currently covers.
+
+name: qemu-rv64-virt-ci
+env:
+  TERM: xterm # Makes tput work in actions output
+
+# Controls when the action will run. Triggers the workflow on push or pull
+# request events but only for the master branch
+on:
+  push: # Run CI for all branches except GitHub merge queue tmp branches
+    branches-ignore:
+    - "gh-readonly-queue/**"
+  pull_request: # Run CI for PRs on any branch
+  merge_group: # Run CI for the GitHub merge queue
+
+permissions:
+  contents: read
+
+jobs:
+  qemu-rv64-virt-ci:
+    runs-on: ubuntu-24.04
+
+    steps:
+      # Checkout the Tock repo, needs to happen at the beginning given
+      # that other steps (such as the Rust toolchain) depend on files
+      # in this repo.
+      - name: Checkout the current repository
+        uses: actions/checkout@v4
+
+      # Install qemu-system-riscv64 (provided by qemu-system-misc) and the
+      # RISC-V userspace toolchain. ubuntu-24.04 ships QEMU 8.2.x, which is new
+      # enough for the qemu_rv64_virt board (known broken: <= 8.1.5).
+      - name: Update packages and install dependencies
+        run: |
+          sudo apt update
+          sudo apt-get install -y qemu-system-misc gcc-riscv64-unknown-elf unzip
+
+      # Install elf2tab, required to build libtock-c userspace apps.
+      - name: Install elf2tab
+        run: |
+          cargo install elf2tab@0.12.0
+
+      # Check out libtock-c to build a real userspace app.
+      - name: Checkout libtock-c
+        uses: actions/checkout@v4
+        with:
+          repository: tock/libtock-c
+          # Pinned to the branch pending tock/libtock-c#572; switch to a pinned
+          # SHA once #572 merges.
+          ref: dev/riscv-medany
+          path: libtock-c
+
+      # Build the qemu_rv64_virt board kernel.
+      - name: Build the qemu_rv64_virt kernel
+        run: |
+          make -C boards/qemu_rv64_virt
+
+      # Build the c_hello example app for the qemu_rv64_virt memory map. A single
+      # rv64imac target fixed-linked at the board's app flash/RAM addresses is
+      # sufficient; the kernel loads it at 0x80100000 (the start of its `prog`
+      # region).
+      - name: Build the c_hello app
+        run: |
+          make -C libtock-c/examples/c_hello \
+            TOCK_TARGETS="rv64imac|rv64imac.0x80100080.0x80300000|0x80100080|0x80300000"
+
+      # Boot the kernel with the app loaded and assert that it ran. QEMU does not
+      # exit on its own (the kernel keeps running after the app yields), so bound
+      # the run with `timeout` and then grep the captured serial output.
+      - name: Run the app on qemu_rv64_virt and assert output
+        run: |
+          set -o pipefail
+          timeout --foreground 60 make run-app -C boards/qemu_rv64_virt \
+            APP=$GITHUB_WORKSPACE/libtock-c/examples/c_hello/build/rv64imac/rv64imac.0x80100080.0x80300000.tbf \
+            2>&1 | tee qemu.log || true
+          grep -q "Hello World!" qemu.log
