@@ -4,7 +4,7 @@
 // Copyright OxidOS Automotive 2026.
 
 use crate::dma::{ChannelId, Dma};
-use crate::entropy::Trng;
+use crate::exti;
 use crate::gpio;
 use crate::nvic::{
     EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
@@ -18,7 +18,6 @@ use crate::usart;
 use crate::{entropy, exti, rsa};
 
 use core::fmt::Write;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -46,12 +45,7 @@ fn enable_tim2_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(
-        usart1: &'a usart::Usart<'a>,
-        exti: &'a exti::Exti<'a>,
-        dma1: &'a Dma,
-        trng: &'a Trng<'a>,
-    ) -> Self {
+    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
@@ -72,7 +66,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
-        self.rcc.enable_trng();
         self.rcc.set_usart1_source_pclk();
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
@@ -81,7 +74,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
         }
-        self.trng.init();
     }
 }
 

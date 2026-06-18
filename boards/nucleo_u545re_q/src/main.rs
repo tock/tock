@@ -161,7 +161,7 @@ unsafe fn start() -> (
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, trng)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -309,18 +309,6 @@ unsafe fn start() -> (
 
     kernel::debug!("Pka status: {:?}", status);
 
-    // 2. Statically allocate the test struct (inside your component/board setup)
-    let rng_test = static_init!(
-        RngEntropy32Test<'static, stm32u545::entropy::Trng>,
-        RngEntropy32Test::new(trng)
-    );
-
-    // 3. Register the test as the driver's client
-    rng_test.register();
-    trng.set_client(rng_test);
-    // 4. Kick it off — call after the kernel loop is about to start
-    // // temporary diagnostic
-    rng_test.run();
     (board_kernel, platform, chip)
 }
 
