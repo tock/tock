@@ -8,6 +8,7 @@ members = [
     "ci/license-checker",
     "ci/litex-ci-runner",
     "ci/qemu-runner",
+    "ci/qemu-virt-ci-runner",
     "build/sha256sum",
     "debugging-and-development/alert_codes",
     "debugging-and-development/usb/bulk-echo",
