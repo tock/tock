@@ -1,13 +1,14 @@
-QEMU RISC-V 32 bit `virt` Platform
+QEMU RISC-V 64 bit `virt` Platform
 ==================================
 
-This board crate targets the QEMU RISC-V 32 bit `virt` platform. It
+This board crate targets the QEMU RISC-V 64 bit `virt` platform. It
 can utilize paravirtualized peripherals through the VirtIO
-transport. Currently supported periphals of this board are:
+transport. Currently supported peripherals of this board are:
 
 - the primary 16550-compatible UART
 - VirtIO-based network adapters
 - VirtIO-based random number generators
+- VirtIO-based GPU
 
 While this target does not feature many peripherals for now, it represents a
 stable QEMU target for using Tock in a virtualized RISC-V environment. This can
@@ -17,7 +18,7 @@ to support VirtIO peripherals.
 Running QEMU
 ------------
 
-To run the board in QEMU, `qemu-system-riscv32` must be started with the
+To run the board in QEMU, `qemu-system-riscv64` must be started with the
 `-machine virt` argument. The Tock kernel expects to be loaded as the BIOS by
 passing `-bios $TOCK_KERNEL.bin`, such that it runs in RISC-V machine mode and
 has full control over the virtual board. `-nographic` can be used to suppress
@@ -32,21 +33,21 @@ QEMU standalone, or with a single app. These can be executed through the
   ```
       Finished `release` profile [optimized + debuginfo] target(s) in 0.08s
      text    data     bss     dec     hex filename
-    87552      48   41940  129540   1fa04 target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt
+    87552      48   41940  129540   1fa04 target/riscv64imac-unknown-none-elf/release/qemu_rv64_virt
 
   Running QEMU emulator version 10.0.2 (tested: 8.2.7, 9.1.3; known broken: <= 8.1.5, >= 9.2.3) with
-    - kernel target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt.elf
+    - kernel target/riscv64imac-unknown-none-elf/release/qemu_rv64_virt.elf
   To exit type C-a x
 
-  qemu-system-riscv32 \
+  qemu-system-riscv64 \
     -machine virt \
     -semihosting \
     -global driver=riscv-cpu,property=smepmp,value=true \
     -global virtio-mmio.force-legacy=false \
     -device virtio-rng-device  \
     -nographic \
-    -bios target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt.elf
-  QEMU RISC-V 32-bit "virt" machine, initialization complete.
+    -bios target/riscv64imac-unknown-none-elf/release/qemu_rv64_virt.elf
+  QEMU RISC-V 64-bit "virt" machine, initialization complete.
   - Found VirtIO EntropySource device, enabling RngDriver
   - VirtIO NetworkCard device not found, disabling EthernetTapDriver
   Entering main loop.
@@ -56,7 +57,7 @@ QEMU standalone, or with a single app. These can be executed through the
 - **`run-app`**: Start Tock on an emulated QEMU board with an app:
 
   ```
-  tock/boards/qemu_rv32_virt $ make run-app APP=$PATH_TO_APP.tbf
+  tock/boards/qemu_rv64_virt $ make run-app APP=$PATH_TO_APP.tbf
   ```
 
 Through the **`NETDEV`** environment variable, QEMU can be instructed to attach
