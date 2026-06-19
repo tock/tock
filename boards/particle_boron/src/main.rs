@@ -11,16 +11,12 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
-
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::FloatingState;
 use kernel::hil::i2c::{I2CMaster, I2CSlave};
 use kernel::hil::led::LedLow;
-use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -431,12 +427,8 @@ pub unsafe fn start_particle_boron() -> (
     )
     .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
-    let aes_mux = static_init!(
-        MuxAES128CCM<'static, nrf52840::aes::AesECB>,
-        MuxAES128CCM::new(&base_peripherals.ecb,)
-    );
-    base_peripherals.ecb.set_client(aes_mux);
-    aes_mux.register();
+    let aes_mux = components::aes::AesMuxComponent::new(&base_peripherals.ecb)
+        .finalize(components::aes_mux_component_static!(nrf52840::aes::AesECB));
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,

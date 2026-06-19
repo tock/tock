@@ -12,15 +12,12 @@
 
 use core::ptr::addr_of;
 
-use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
-
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::hil::buzzer::Buzzer;
 use kernel::hil::led::LedHigh;
-use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
@@ -723,12 +720,8 @@ unsafe fn start() -> (
     )
     .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
-    let aes_mux = static_init!(
-        MuxAES128CCM<'static, nrf52840::aes::AesECB>,
-        MuxAES128CCM::new(&base_peripherals.ecb,)
-    );
-    kernel::deferred_call::DeferredCallClient::register(aes_mux);
-    base_peripherals.ecb.set_client(aes_mux);
+    let aes_mux = components::aes::AesMuxComponent::new(&base_peripherals.ecb)
+        .finalize(components::aes_mux_component_static!(nrf52840::aes::AesECB));
 
     let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
 
