@@ -556,10 +556,7 @@ pub unsafe fn start() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::ble_radio::Radio
-    ));
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
     use capsules_extra::net::ieee802154::MacAddress;
 
@@ -612,7 +609,7 @@ pub unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::udp_mux_component_static!(
-        nrf52840::rtc::Rtc,
+        AlarmHw,
         Ieee802154MacDevice
     ));
 
@@ -625,7 +622,7 @@ pub unsafe fn start() -> (
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(AlarmHw));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

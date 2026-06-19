@@ -380,18 +380,16 @@ unsafe fn start() -> (
     use kernel::hil::time::Alarm;
 
     let mux_pwm = components::pwm::PwmMuxComponent::new(&base_peripherals.pwm0)
-        .finalize(components::pwm_mux_component_static!(nrf52833::pwm::Pwm));
+        .finalize(components::pwm_mux_component_static!(PwmHw));
 
     let virtual_pwm_buzzer = components::pwm::PwmPinUserComponent::new(
         mux_pwm,
         nrf52833::pinmux::Pinmux::new(SPEAKER_PIN),
     )
-    .finalize(components::pwm_pin_user_component_static!(
-        nrf52833::pwm::Pwm
-    ));
+    .finalize(components::pwm_pin_user_component_static!(PwmHw));
 
     let virtual_alarm_buzzer = static_init!(
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_buzzer.setup();
@@ -399,11 +397,8 @@ unsafe fn start() -> (
     let pwm_buzzer = static_init!(
         capsules_extra::buzzer_pwm::PwmBuzzer<
             'static,
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                'static,
-                nrf52833::rtc::Rtc,
-            >,
-            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
+            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
         >,
         capsules_extra::buzzer_pwm::PwmBuzzer::new(
             virtual_pwm_buzzer,
@@ -417,11 +412,8 @@ unsafe fn start() -> (
             'static,
             capsules_extra::buzzer_pwm::PwmBuzzer<
                 'static,
-                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                    'static,
-                    nrf52833::rtc::Rtc,
-                >,
-                capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
+                capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
             >,
         >,
         capsules_extra::buzzer_driver::Buzzer::new(
@@ -440,9 +432,7 @@ unsafe fn start() -> (
 
     let virtual_pwm_driver =
         components::pwm::PwmPinUserComponent::new(mux_pwm, nrf52833::pinmux::Pinmux::new(GPIO_P8))
-            .finalize(components::pwm_pin_user_component_static!(
-                nrf52833::pwm::Pwm
-            ));
+            .finalize(components::pwm_pin_user_component_static!(PwmHw));
 
     let pwm =
         components::pwm::PwmDriverComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
@@ -500,9 +490,7 @@ unsafe fn start() -> (
     );
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
-        .finalize(components::i2c_mux_component_static!(
-            nrf52833::i2c::TWI<'static>
-        ));
+        .finalize(components::i2c_mux_component_static!(I2cHw));
 
     // LSM303AGR
 
@@ -513,9 +501,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::lsm303agr::DRIVER_NUM,
     )
-    .finalize(components::lsm303agr_component_static!(
-        nrf52833::i2c::TWI<'static>
-    ));
+    .finalize(components::lsm303agr_component_static!(I2cHw));
 
     if let Err(error) = lsm303agr.configure(
         capsules_extra::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
@@ -644,7 +630,7 @@ unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::ble_component_static!(
-        nrf52833::rtc::Rtc,
+        AlarmHw,
         nrf52833::ble_radio::Radio
     ));
 
@@ -682,20 +668,9 @@ unsafe fn start() -> (
     ));
 
     let led = static_init!(
-        capsules_core::led::LedDriver<
-            'static,
-            capsules_extra::led_matrix::LedMatrixLed<
-                'static,
-                nrf52::gpio::GPIOPin<'static>,
-                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                    'static,
-                    nrf52::rtc::Rtc<'static>,
-                >,
-            >,
-            25,
-        >,
+        capsules_core::led::LedDriver<'static, LedMatrixLed, 25>,
         capsules_core::led::LedDriver::new(components::led_matrix_leds!(
-            nrf52::gpio::GPIOPin<'static>,
+            GpioHw,
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
                 'static,
                 nrf52::rtc::Rtc<'static>,
@@ -745,9 +720,7 @@ unsafe fn start() -> (
         process_printer,
         Some(cortexm4::support::reset),
     )
-    .finalize(components::process_console_component_static!(
-        nrf52833::rtc::Rtc
-    ));
+    .finalize(components::process_console_component_static!(AlarmHw));
     let _ = _process_console.start();
 
     //--------------------------------------------------------------------------

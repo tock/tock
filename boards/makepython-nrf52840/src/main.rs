@@ -323,21 +323,21 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            Nrf52840GpioHw,
             0 => &nrf52840_peripherals.gpio_port[GPIO_D0],
             1 => &nrf52840_peripherals.gpio_port[GPIO_D1],
             2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
             3 => &nrf52840_peripherals.gpio_port[GPIO_D3],
         ),
     )
-    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(Nrf52840GpioHw));
 
     //--------------------------------------------------------------------------
     // LEDs
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>,
+        LedLow<'static, Nrf52840GpioHw>,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_PIN]),
     ));
 
@@ -349,7 +349,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            Nrf52840GpioHw,
             (
                 &nrf52840_peripherals.gpio_port[BUTTON_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
@@ -357,9 +357,7 @@ pub unsafe fn start() -> (
             )
         ),
     )
-    .finalize(components::button_component_static!(
-        nrf52840::gpio::GPIOPin
-    ));
+    .finalize(components::button_component_static!(Nrf52840GpioHw));
 
     //--------------------------------------------------------------------------
     // ALARM & TIMER
@@ -598,10 +596,7 @@ pub unsafe fn start() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::ble_radio::Radio
-    ));
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
     use capsules_extra::net::ieee802154::MacAddress;
 
@@ -654,7 +649,7 @@ pub unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::udp_mux_component_static!(
-        nrf52840::rtc::Rtc,
+        AlarmHw,
         Ieee802154MacDevice
     ));
 
@@ -667,7 +662,7 @@ pub unsafe fn start() -> (
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(AlarmHw));
 
     //--------------------------------------------------------------------------
     // APP ID CHECKING

@@ -114,7 +114,7 @@ fn baud_rate_reset_bootloader_enter() {
 }
 
 type HS3003Sensor = components::hs3003::Hs3003ComponentType<
-    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<HS3003Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<HS3003Sensor>;
@@ -515,7 +515,7 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
-        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
+        .finalize(components::i2c_mux_component_static!(I2cHw));
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
@@ -529,7 +529,7 @@ pub unsafe fn start() -> (
         0x39,
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
-    .finalize(components::apds9960_component_static!(nrf52840::i2c::TWI));
+    .finalize(components::apds9960_component_static!(I2cHw));
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
@@ -538,7 +538,7 @@ pub unsafe fn start() -> (
     .finalize(components::proximity_component_static!());
 
     let lps22hb = components::lps22hb::Lps22hbComponent::new(sensors_i2c_bus, 0x5C)
-        .finalize(components::lps22hb_component_static!(nrf52840::i2c::TWI));
+        .finalize(components::lps22hb_component_static!(I2cHw));
     let pressure = components::pressure::PressureComponent::new(
         board_kernel,
         capsules_extra::pressure::DRIVER_NUM,
@@ -547,12 +547,12 @@ pub unsafe fn start() -> (
     .finalize(components::pressure_component_static!(
         capsules_extra::lps22hb::Lps22hb<
             'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
         >
     ));
 
     let hs3003 = components::hs3003::Hs3003Component::new(sensors_i2c_bus, 0x44)
-        .finalize(components::hs3003_component_static!(nrf52840::i2c::TWI));
+        .finalize(components::hs3003_component_static!(I2cHw));
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -576,10 +576,7 @@ pub unsafe fn start() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::ble_radio::Radio
-    ));
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
     use capsules_extra::net::ieee802154::MacAddress;
 
@@ -632,7 +629,7 @@ pub unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::udp_mux_component_static!(
-        nrf52840::rtc::Rtc,
+        AlarmHw,
         Ieee802154MacDevice
     ));
 
@@ -645,7 +642,7 @@ pub unsafe fn start() -> (
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(AlarmHw));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

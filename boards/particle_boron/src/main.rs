@@ -281,7 +281,7 @@ pub unsafe fn start_particle_boron() -> (
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            GpioHw,
             // Left Side pins on mesh feather
             // A0 - ADC
             // 0 => &nrf52840_peripherals.gpio_port[Pin::P0_03],
@@ -326,7 +326,7 @@ pub unsafe fn start_particle_boron() -> (
             19 => &nrf52840_peripherals.gpio_port[Pin::P0_26],
         ),
     )
-    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(GpioHw));
 
     //--------------------------------------------------------------------------
     // Buttons
@@ -336,7 +336,7 @@ pub unsafe fn start_particle_boron() -> (
         board_kernel,
         capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            GpioHw,
             (
                 &nrf52840_peripherals.gpio_port[BUTTON_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
@@ -344,16 +344,14 @@ pub unsafe fn start_particle_boron() -> (
             )
         ),
     )
-    .finalize(components::button_component_static!(
-        nrf52840::gpio::GPIOPin
-    ));
+    .finalize(components::button_component_static!(GpioHw));
 
     //--------------------------------------------------------------------------
     // LEDs
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>,
+        LedLow<'static, GpioHw>,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_USR_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED2_R_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED2_G_PIN]),
@@ -375,13 +373,13 @@ pub unsafe fn start_particle_boron() -> (
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(AlarmHw));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::alarm_component_static!(AlarmHw));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -392,9 +390,7 @@ pub unsafe fn start_particle_boron() -> (
         mux_alarm,
         &base_peripherals.uarte0,
     )
-    .finalize(nrf52_components::uart_channel_component_static!(
-        nrf52840::rtc::Rtc
-    ));
+    .finalize(nrf52_components::uart_channel_component_static!(AlarmHw));
 
     // Process Printer for displaying process information.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -433,10 +429,7 @@ pub unsafe fn start_particle_boron() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::ble_radio::Radio
-    ));
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,

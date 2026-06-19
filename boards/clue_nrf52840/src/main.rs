@@ -436,11 +436,11 @@ unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     let mux_pwm = static_init!(
-        capsules_core::virtualizers::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
+        capsules_core::virtualizers::virtual_pwm::MuxPwm<'static, PwmHw>,
         capsules_core::virtualizers::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
         capsules_core::virtualizers::virtual_pwm::PwmPinUser::new(
             mux_pwm,
             nrf52840::pinmux::Pinmux::new(SPEAKER_PIN)
@@ -449,7 +449,7 @@ unsafe fn start() -> (
     virtual_pwm_buzzer.add_to_mux();
 
     let virtual_alarm_buzzer = static_init!(
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_buzzer.setup();
@@ -457,11 +457,8 @@ unsafe fn start() -> (
     let pwm_buzzer = static_init!(
         capsules_extra::buzzer_pwm::PwmBuzzer<
             'static,
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                'static,
-                nrf52840::rtc::Rtc,
-            >,
-            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
+            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
         >,
         capsules_extra::buzzer_pwm::PwmBuzzer::new(
             virtual_pwm_buzzer,
@@ -475,11 +472,8 @@ unsafe fn start() -> (
             'static,
             capsules_extra::buzzer_pwm::PwmBuzzer<
                 'static,
-                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                    'static,
-                    nrf52840::rtc::Rtc,
-                >,
-                capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
+                capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
             >,
         >,
         capsules_extra::buzzer_driver::Buzzer::new(
@@ -711,9 +705,9 @@ unsafe fn start() -> (
             >,
         >,
         // timer type
-        nrf52840::rtc::Rtc,
+        AlarmHw,
         // pin type
-        nrf52::gpio::GPIOPin<'static>
+        GpioHw
     ));
 
     let _ = tft.init();
@@ -736,10 +730,7 @@ unsafe fn start() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::ble_radio::Radio
-    ));
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -779,9 +770,7 @@ unsafe fn start() -> (
         process_printer,
         Some(cortexm4::support::reset),
     )
-    .finalize(components::process_console_component_static!(
-        nrf52840::rtc::Rtc
-    ));
+    .finalize(components::process_console_component_static!(AlarmHw));
     let _ = pconsole.start();
 
     //--------------------------------------------------------------------------

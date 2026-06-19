@@ -281,7 +281,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            Nrf52840GpioHw,
             2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
             3 => &nrf52840_peripherals.gpio_port[GPIO_D3],
             4 => &nrf52840_peripherals.gpio_port[GPIO_D4],
@@ -290,14 +290,14 @@ pub unsafe fn start() -> (
             7 => &nrf52840_peripherals.gpio_port[GPIO_D7],
         ),
     )
-    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(Nrf52840GpioHw));
 
     //--------------------------------------------------------------------------
     // LEDs
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedHigh<'static, nrf52840::gpio::GPIOPin>,
+        LedHigh<'static, Nrf52840GpioHw>,
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_GREEN_PIN]),
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
     ));
@@ -394,7 +394,7 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
-        .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+        .finalize(components::spi_mux_component_static!(SpiHw));
 
     // Create the SPI system call capsule for accessing the LoRa radio.
     let lr1110_spi = components::spi::SpiSyscallComponent::new(
@@ -405,9 +405,7 @@ pub unsafe fn start() -> (
         ),
         LORA_SPI_DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_static!(
-        nrf52840::spi::SPIM
-    ));
+    .finalize(components::spi_syscall_component_static!(SpiHw));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(SPI_MOSI_PIN),
@@ -429,13 +427,13 @@ pub unsafe fn start() -> (
         board_kernel,
         LORA_GPIO_DRIVER_NUM,
         components::gpio_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            Nrf52840GpioHw,
             40 => &nrf52840_peripherals.gpio_port[LR_DIO9],
             42 => &nrf52840_peripherals.gpio_port[RADIO_RESET_PIN],
             43 => &nrf52840_peripherals.gpio_port[RADIO_BUSY_PIN],
         ),
     )
-    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(Nrf52840GpioHw));
 
     //--------------------------------------------------------------------------
     // Process Console
@@ -454,9 +452,7 @@ pub unsafe fn start() -> (
         process_printer,
         Some(cortexm4::support::reset),
     )
-    .finalize(components::process_console_component_static!(
-        nrf52840::rtc::Rtc
-    ));
+    .finalize(components::process_console_component_static!(AlarmHw));
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBERS
