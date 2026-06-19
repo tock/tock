@@ -22,7 +22,6 @@ use capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::screen::Screen;
 use kernel::hil::symmetric_encryption::AES128;

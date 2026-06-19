@@ -82,7 +82,6 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52832::gpio::Pin;
 use nrf52832::interrupt_service::Nrf52832DefaultPeripherals;
-use nrf52832::rtc::Rtc;
 use nrf52_components::{UartChannel, UartPins};
 
 // The nRF52 DK LEDs (see back of board)

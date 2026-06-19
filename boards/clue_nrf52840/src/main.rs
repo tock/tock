@@ -19,7 +19,6 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::hil::buzzer::Buzzer;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Alarm;
