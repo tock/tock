@@ -16,9 +16,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil;
-use kernel::hil::buzzer::Buzzer;
 use kernel::hil::led::LedHigh;
-use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
@@ -171,14 +169,7 @@ type ConsoleDriver = components::console::ConsoleComponentType;
 type ProximityDriver = components::proximity::ProximityComponentType;
 type AdcDriver = components::adc::AdcVirtualComponentType;
 type ScreenDriver = components::screen::ScreenComponentType;
-type BuzzerDriver = capsules_extra::buzzer_driver::Buzzer<
-    'static,
-    capsules_extra::buzzer_pwm::PwmBuzzer<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
-    >,
->;
+type BuzzerDriver = components::buzzer::BuzzerComponentType<AlarmHw, PwmHw>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -440,47 +431,13 @@ unsafe fn start() -> (
     )
     .finalize(components::pwm_pin_user_component_static!(PwmHw));
 
-    let virtual_alarm_buzzer = static_init!(
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-    virtual_alarm_buzzer.setup();
-
-    let pwm_buzzer = static_init!(
-        capsules_extra::buzzer_pwm::PwmBuzzer<
-            'static,
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
-            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
-        >,
-        capsules_extra::buzzer_pwm::PwmBuzzer::new(
-            virtual_pwm_buzzer,
-            virtual_alarm_buzzer,
-            capsules_extra::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
-        )
-    );
-
-    let buzzer = static_init!(
-        capsules_extra::buzzer_driver::Buzzer<
-            'static,
-            capsules_extra::buzzer_pwm::PwmBuzzer<
-                'static,
-                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
-                capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
-            >,
-        >,
-        capsules_extra::buzzer_driver::Buzzer::new(
-            pwm_buzzer,
-            capsules_extra::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-            board_kernel.create_grant(
-                capsules_extra::buzzer_driver::DRIVER_NUM,
-                &memory_allocation_capability
-            )
-        )
-    );
-
-    pwm_buzzer.set_client(buzzer);
-
-    virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
+    let buzzer = components::buzzer::BuzzerComponent::new(
+        board_kernel,
+        capsules_extra::buzzer_driver::DRIVER_NUM,
+        mux_alarm,
+        virtual_pwm_buzzer,
+    )
+    .finalize(components::buzzer_component_static!(AlarmHw, PwmHw));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG

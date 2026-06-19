@@ -119,14 +119,7 @@ type Lsm303agrDriver = capsules_extra::lsm303agr::Lsm303agrI2C<
     'static,
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
 >;
-type BuzzerDriver = capsules_extra::buzzer_driver::Buzzer<
-    'static,
-    capsules_extra::buzzer_pwm::PwmBuzzer<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
-    >,
->;
+type BuzzerDriver = components::buzzer::BuzzerComponentType<AlarmHw, PwmHw>;
 
 /// Supported drivers by the platform
 pub struct MicroBit {
@@ -376,9 +369,6 @@ unsafe fn start() -> (
     // PWM & BUZZER
     //--------------------------------------------------------------------------
 
-    use kernel::hil::buzzer::Buzzer;
-    use kernel::hil::time::Alarm;
-
     let mux_pwm = components::pwm::PwmMuxComponent::new(&base_peripherals.pwm0)
         .finalize(components::pwm_mux_component_static!(PwmHw));
 
@@ -388,47 +378,13 @@ unsafe fn start() -> (
     )
     .finalize(components::pwm_pin_user_component_static!(PwmHw));
 
-    let virtual_alarm_buzzer = static_init!(
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-    virtual_alarm_buzzer.setup();
-
-    let pwm_buzzer = static_init!(
-        capsules_extra::buzzer_pwm::PwmBuzzer<
-            'static,
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
-            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
-        >,
-        capsules_extra::buzzer_pwm::PwmBuzzer::new(
-            virtual_pwm_buzzer,
-            virtual_alarm_buzzer,
-            capsules_extra::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
-        )
-    );
-
-    let buzzer_driver = static_init!(
-        capsules_extra::buzzer_driver::Buzzer<
-            'static,
-            capsules_extra::buzzer_pwm::PwmBuzzer<
-                'static,
-                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
-                capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
-            >,
-        >,
-        capsules_extra::buzzer_driver::Buzzer::new(
-            pwm_buzzer,
-            capsules_extra::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-            board_kernel.create_grant(
-                capsules_extra::buzzer_driver::DRIVER_NUM,
-                &memory_allocation_capability
-            )
-        )
-    );
-
-    pwm_buzzer.set_client(buzzer_driver);
-
-    virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
+    let buzzer_driver = components::buzzer::BuzzerComponent::new(
+        board_kernel,
+        capsules_extra::buzzer_driver::DRIVER_NUM,
+        mux_alarm,
+        virtual_pwm_buzzer,
+    )
+    .finalize(components::buzzer_component_static!(AlarmHw, PwmHw));
 
     let virtual_pwm_driver =
         components::pwm::PwmPinUserComponent::new(mux_pwm, nrf52833::pinmux::Pinmux::new(GPIO_P8))
