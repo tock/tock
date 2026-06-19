@@ -10,6 +10,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
@@ -130,6 +131,8 @@ unsafe fn start() -> (
     &'static NucleoU545RE,
     &'static ChipHw,
 ) {
+    ChipHw::init();
+
     kernel::deferred_call::initialize_deferred_call_state::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
