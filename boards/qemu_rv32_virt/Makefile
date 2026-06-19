@@ -102,20 +102,31 @@ run-gui: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	  -device virtio-gpu-device \
 	  -serial stdio
 
-# Same as `run`, but load an application specified by $(APP) into the
-# app flash region.
+# Hart 1 does not run a byte-copy of hart 0's process: it loads its own,
+# independently-linked TBF of the same app from its own flash region (see
+# layout.ld's prog_h1 region and the comment on finish_lockstep_setup()).
+# APP_H1 is optional; when unset, hart 1 simply has no app to schedule (the
+# same as running `make run` with no APP at all, just hart-1-scoped).
+ifneq ($(APP_H1),)
+  APP_H1_LOADER_DEVICE := -device loader,file=$(APP_H1),addr=0x80200080
+endif
+
+# Same as `run`, but load an application specified by $(APP) into hart 0's
+# app flash region, and optionally $(APP_H1) into hart 1's.
 .PHONY: run-app
 run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo
 	@echo -e "Running $$($(QEMU_CMD) --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSIONS); known broken: $(BROKEN_QEMU_VERSIONS)) with\n"\
           " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf\n"\
-	  " - app $(APP)"
+	  " - app $(APP)\n"\
+	  " - app (hart 1) $(APP_H1)"
 	@echo "To exit type C-a x"
 	@echo
 	$(QEMU_BASE_CMDLINE) \
 	  -bios $< \
 	  -device loader,file=$(APP),addr=0x80100000 \
+	  $(APP_H1_LOADER_DEVICE) \
 	  -nographic
 
 # Same as `run-app`, but with a `virtio-gpu` video device attached, showing the
@@ -126,11 +137,13 @@ run-app-gui: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo -e "Running $$($(QEMU_CMD) --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSIONS); known broken: $(BROKEN_QEMU_VERSIONS)) with\n"\
           " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf\n"\
-	  " - app $(APP)"
+	  " - app $(APP)\n"\
+	  " - app (hart 1) $(APP_H1)"
 	@echo "To exit type C-a x"
 	@echo
 	$(QEMU_BASE_CMDLINE) \
 	  -bios $< \
 	  -device loader,file=$(APP),addr=0x80100000 \
+	  $(APP_H1_LOADER_DEVICE) \
 	  -device virtio-gpu-device \
 	  -serial stdio
