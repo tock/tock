@@ -687,25 +687,25 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) {
         let _ = writer.write_fmt(format_args!(
             "\
-             \r\n R0 : {:#010X}    R16: {:#010X}\
-             \r\n R1 : {:#010X}    R17: {:#010X}\
-             \r\n R2 : {:#010X}    R18: {:#010X}\
-             \r\n R3 : {:#010X}    R19: {:#010X}\
-             \r\n R4 : {:#010X}    R20: {:#010X}\
-             \r\n R5 : {:#010X}    R21: {:#010X}\
-             \r\n R6 : {:#010X}    R22: {:#010X}\
-             \r\n R7 : {:#010X}    R23: {:#010X}\
-             \r\n R8 : {:#010X}    R24: {:#010X}\
-             \r\n R9 : {:#010X}    R25: {:#010X}\
-             \r\n R10: {:#010X}    R26: {:#010X}\
-             \r\n R11: {:#010X}    R27: {:#010X}\
-             \r\n R12: {:#010X}    R28: {:#010X}\
-             \r\n R13: {:#010X}    R29: {:#010X}\
-             \r\n R14: {:#010X}    R30: {:#010X}\
-             \r\n R15: {:#010X}    R31: {:#010X}\
-             \r\n PC : {:#010X}\
+             \r\n R0 : {:#0width$X}    R16: {:#0width$X}\
+             \r\n R1 : {:#0width$X}    R17: {:#0width$X}\
+             \r\n R2 : {:#0width$X}    R18: {:#0width$X}\
+             \r\n R3 : {:#0width$X}    R19: {:#0width$X}\
+             \r\n R4 : {:#0width$X}    R20: {:#0width$X}\
+             \r\n R5 : {:#0width$X}    R21: {:#0width$X}\
+             \r\n R6 : {:#0width$X}    R22: {:#0width$X}\
+             \r\n R7 : {:#0width$X}    R23: {:#0width$X}\
+             \r\n R8 : {:#0width$X}    R24: {:#0width$X}\
+             \r\n R9 : {:#0width$X}    R25: {:#0width$X}\
+             \r\n R10: {:#0width$X}    R26: {:#0width$X}\
+             \r\n R11: {:#0width$X}    R27: {:#0width$X}\
+             \r\n R12: {:#0width$X}    R28: {:#0width$X}\
+             \r\n R13: {:#0width$X}    R29: {:#0width$X}\
+             \r\n R14: {:#0width$X}    R30: {:#0width$X}\
+             \r\n R15: {:#0width$X}    R31: {:#0width$X}\
+             \r\n PC : {:#0width$X}\
              \r\n\
-             \r\n mcause: {:#010X} (",
+             \r\n mcause: {:#0width$X} (",
             0,
             state.regs[15],
             state.regs[0],
@@ -740,13 +740,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             state.regs[30],
             state.pc,
             state.mcause,
+            width = (crate::XLEN / 4) + 2,
         ));
         crate::print_mcause(mcause::Trap::from(state.mcause as usize), writer);
         let _ = writer.write_fmt(format_args!(
             ")\
-             \r\n mtval:  {:#010X}\
+             \r\n mtval:  {:#0width$X}\
              \r\n\r\n",
             state.mtval,
+            width = (crate::XLEN / 4) + 2,
         ));
     }
 
