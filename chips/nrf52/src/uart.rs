@@ -184,6 +184,12 @@ impl UarteRegistersManager {
     /// we must ensure there is only one register manager in existence. Trying
     /// to call this constructor twice will result in a board panic.
     pub fn new_uarte0() -> Self {
+        // We must ensure this register manager is only constructed once to make
+        // this constructor safe. If this is constructed multiple times then
+        // something could control DMA while the other UART register manager is
+        // active.
+        kernel::only_once!();
+
         Self {
             registers: UARTE0_BASE,
             tx_dma_buf: MapCell::empty(),
