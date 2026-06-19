@@ -1113,6 +1113,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nucleo_u545re_q"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "stm32u545",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1598,6 +1612,23 @@ version = "0.2.3-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
+ "kernel",
+]
+
+[[package]]
+name = "stm32u545"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "stm32u5xx",
+]
+
+[[package]]
+name = "stm32u5xx"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
  "kernel",
 ]
 
