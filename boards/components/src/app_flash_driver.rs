@@ -37,6 +37,8 @@ macro_rules! app_flash_component_static {
     };};
 }
 
+pub type AppFlashComponentType = capsules_extra::app_flash_driver::AppFlash<'static>;
+
 pub struct AppFlashComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     const BUF_LEN: usize,
