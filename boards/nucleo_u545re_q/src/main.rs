@@ -15,8 +15,8 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
-use stm32u545::gpio::PinId;
 use stm32u5xx_unsafe::aes::AES_BASE;
+use stm32u545::gpio::PinId;
 
 pub mod io;
 
@@ -408,6 +408,7 @@ unsafe fn start() -> (
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         32
     ));
+    AES::set_client(aes, aes_driver);
 
     // Platform and Interrupts
     let platform = static_init!(

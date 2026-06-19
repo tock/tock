@@ -14,10 +14,6 @@ use kernel::utilities::registers::{
 use kernel::utilities::StaticRef;
 
 pub const AES_BASE: StaticRef<AesRegisters> =
-    /// ### Safety
-    ///
-    /// The address 0x520C0000 is the dedicated memory-mapped region for the AES
-    /// peripheral on the STM32U5 series, as specified in the reference manual.
     unsafe { StaticRef::new(0x520C0000 as *const AesRegisters) };
 
 register_structs! {
@@ -239,7 +235,26 @@ impl DMABuffers {
         let ptr = dma_slice.as_mut_ptr() as u32;
         (dma_slice, ptr)
     }
-}
-r)
+
+    /// Helper function designed to calculate the length of the buffer as a multiple of AES_BLOCK_SIZE
+    /// and return the remaining bytes inside a 0-padded buffer. If the length of the buffer, beginning
+    /// from start is a multiple of AES_BLOCK_SIZE, will return total_len and None
+    pub fn extract_dma_padding(
+        buf: &[u8],
+        start: usize,
+        total_len: usize,
+    ) -> (usize, Option<[u8; AES_BLOCK_SIZE]>) {
+        // check whether the buffer needs 0-padding
+        if total_len > 0 && !total_len.is_multiple_of(AES_BLOCK_SIZE) {
+            // length multiple of AES_BLOCK_SIZE
+            let len = total_len - (total_len % AES_BLOCK_SIZE);
+            // remainder of the buffer, padded with 0s
+            let mut pad = [0u8; AES_BLOCK_SIZE];
+            let rem = total_len - len;
+            pad[..rem].copy_from_slice(&buf[start + len..start + total_len]);
+            (len, Some(pad))
+        } else {
+            (total_len, None)
+        }
     }
 }

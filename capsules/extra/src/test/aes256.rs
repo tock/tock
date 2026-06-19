@@ -291,7 +291,6 @@ impl<'a, A: AES<'a, AES256> + AESCtr> TestAES256Ctr<'a, A> {
         let step = self.step.get();
         let encrypting = is_encrypting(step);
         let in_place = is_in_place(step);
-        debug!("aes_test CTR step: {:?}", step);
 
         if !is_second_chunk(step) {
             self.aes.enable();
