@@ -11,6 +11,17 @@ use kernel::hil::uart;
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+    let hartid: u32;
+    core::arch::asm!("csrr {}, mhartid", out(reg) hartid);
+    // PANIC_RESOURCES is bound (once, permanently) by whichever hart calls
+    // bind_to_thread() first -- hart 0, in start(). Hart 1 has its own,
+    // separately-bound PANIC_RESOURCES_H1; see its declaration for why.
+    let panic_resources = if hartid == 0 {
+        crate::PANIC_RESOURCES.get()
+    } else {
+        crate::PANIC_RESOURCES_H1.get()
+    };
+
     debug::panic_print::<qemu_rv32_virt_chip::uart::Uart16550, _, _>(
         qemu_rv32_virt_chip::uart::UartPanicWriterConfig {
             params: uart::Parameters {
@@ -23,7 +34,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         },
         pi,
         &rv32i::support::nop,
-        crate::PANIC_RESOURCES.get(),
+        panic_resources,
     );
 
     // The system is no longer in a well-defined state. Use

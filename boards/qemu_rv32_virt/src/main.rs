@@ -161,6 +161,7 @@ pub unsafe extern "C" fn main_secondary() -> ! {
 
     loop {
         let entry = LOCKSTEP_CHAN.b_spin_recv();
+        debug!("hart1 loop seq {}", entry.seq);
         let activity = board_kernel.kernel_loop_operation(
             &platform,
             chip,
@@ -182,7 +183,7 @@ pub unsafe extern "C" fn main_secondary() -> ! {
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, base_platform, chip, processes) = qemu_rv32_virt_lib::start();
+    let (board_kernel, base_platform, chip, _processes) = qemu_rv32_virt_lib::start();
 
     let screen = base_platform.virtio_gpu_screen.map(|screen| {
         components::screen::ScreenComponent::new(
@@ -246,14 +247,16 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    // Create shadow PCBs for hart 1 and signal it to start.  Must happen
-    // after load_processes() so the process slots are populated.
-    qemu_rv32_virt_lib::finish_lockstep_setup(processes, chip);
+    // Signal hart 1 it's safe to proceed and synchronize before either hart
+    // enters its kernel loop.  Must happen after load_processes() so hart
+    // 0's own process state is fully set up first.
+    qemu_rv32_virt_lib::finish_lockstep_setup();
 
     debug!("Entering main loop.");
 
     let mut seq: u32 = 0;
     loop {
+        debug!("hart0 loop seq {}", seq);
         while !LOCKSTEP_CHAN.a_send(SyncEntry { seq, fingerprint: 0 }) {
             core::hint::spin_loop();
         }

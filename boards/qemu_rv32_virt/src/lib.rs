@@ -58,7 +58,21 @@ type SchedulerTimerHw =
 type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 /// Resources for when a board panics used by io.rs.
+///
+/// `SingleThreadValue::bind_to_thread()` succeeds exactly once, ever, for a
+/// given instance -- whichever thread (here: hart) calls it first
+/// permanently owns it. Hart 0 and hart 1 each need their own panic
+/// resources (so a panic on either hart gets the full CPU-state/process
+/// dump, not just the bare message), so this can't be a single shared
+/// instance: hart 1's bind would just fail once hart 0's `start()` already
+/// bound this one. `io.rs`'s panic handler picks between this and
+/// `PANIC_RESOURCES_H1` based on `mhartid`.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
+    SingleThreadValue::new();
+
+/// Hart 1's own panic resources -- see `PANIC_RESOURCES` for why this can't
+/// be the same instance.
+static PANIC_RESOURCES_H1: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
     SingleThreadValue::new();
 
 kernel::stack_size! {0x8000}
@@ -817,88 +831,31 @@ pub unsafe fn start() -> (
 // Lockstep replica setup — called from main() after load_processes()
 // ---------------------------------------------------------------------------
 
-/// Create replica process PCBs for hart 1 and signal hart 1 to start.
+/// Signal hart 1 it's safe to proceed, and synchronize before either hart
+/// enters its kernel loop.
 ///
-/// Must be called after `load_processes()` has populated `processes` and
-/// before either hart enters `kernel_loop`.  Carves replica memory from the
-/// `_sappmem_h1.._eappmem_h1` linker region, creates one replica PCB per
-/// primary process, then hands the hart-1 process array pointer to hart 1
-/// through `LOCKSTEP_CHAN` itself (see the comment at the `a_send` call
-/// below for why this avoids the separate-flag race a prior version had).
+/// Must be called after `load_processes()` so hart 0's own process state is
+/// fully set up before lockstep iteration begins. Hart 1 does not receive a
+/// copy of hart 0's processes here: since libtock-c has no PIC support for
+/// RISC-V, an app's compiled memory image embeds absolute addresses for
+/// whatever RAM_START it was linked against, so it can't simply be
+/// byte-copied to hart 1's different base address (see layout.ld). Instead
+/// hart 1 loads its own, independently-built-and-linked copy of each app via
+/// its own `load_processes()` call in `start_secondary()` -- this function
+/// only provides the synchronization handshake.
 #[inline(never)]
-pub unsafe fn finish_lockstep_setup(
-    processes: &'static kernel::process::ProcessArray<NUM_PROCS>,
-    chip: &'static ChipHw,
-) {
-    extern "C" {
-        static mut _sappmem_h1: u8;
-        static _eappmem_h1: u8;
-    }
-
-    let h1_processes = static_init!(
-        kernel::process::ProcessArray<NUM_PROCS>,
-        kernel::process::ProcessArray::new()
-    );
-
-    let sappmem_h1 = core::ptr::addr_of_mut!(_sappmem_h1);
-    let eappmem_h1 = core::ptr::addr_of!(_eappmem_h1) as usize;
-    let mut replica_ptr: *mut u8 = sappmem_h1;
-    let mut replica_remaining: usize = eappmem_h1 - sappmem_h1 as usize;
-
-    let ext_cap = create_capability!(kernel::capabilities::ExternalProcessCapability);
-
-    for (h0_slot, h1_slot) in processes
-        .as_slice()
-        .iter()
-        .zip(h1_processes.as_slice().iter())
-    {
-        if let Some(proc) = h0_slot.get() {
-            let addrs = proc.get_addresses();
-            let mem_len = addrs.sram_end - addrs.sram_start;
-
-            if replica_remaining < mem_len {
-                debug!("Hart 1: not enough replica memory for all processes");
-                break;
-            }
-
-            let chunk: *mut [u8] = core::ptr::slice_from_raw_parts_mut(replica_ptr, mem_len);
-            replica_ptr = replica_ptr.add(mem_len);
-            replica_remaining -= mem_len;
-
-            // All processes from load_processes() are ProcessStandard. Extract
-            // the data pointer from the fat pointer via a fat→thin cast.
-            let primary: &'static ProcessHw =
-                &*(proc as *const dyn kernel::process::Process as *const ProcessHw);
-
-            if let Some(replica) = ProcessHw::create_replica(primary, chunk, chip) {
-                h1_slot.set_external(replica, &ext_cap);
-                debug!("Lockstep: replica created for '{}'", proc.get_process_name());
-            } else {
-                debug!("Lockstep: create_replica failed for '{}'", proc.get_process_name());
-            }
-        }
-    }
-
+pub unsafe fn finish_lockstep_setup() {
     // Signal hart 1 it's safe to touch shared bss (including LOCKSTEP_CHAN
     // itself) now that hart 0 has zeroed it. CLINT MSIP[1] = CLINT_BASE + 4.
-    // This is purely a bss-safety gate now -- it carries no data-readiness
-    // meaning, unlike the removed HART1_PROCS_PTR flag.
     core::ptr::write_volatile(CLINT_MSIP1, 1);
 
-    // Hand off the hart-1 process array pointer through LOCKSTEP_CHAN rather
-    // than a separate atomic + volatile flag. push()'s internal Release
-    // fence (before advancing `tail`) pairs with pop()'s Acquire load of
-    // `tail`, so hart 1 actually receiving this message -- not merely
-    // observing some other "go" signal -- is what proves every write we
-    // made building h1_processes above (including each replica PCB) is
-    // visible to it. This is the same property an RP2350-style SIO FIFO
-    // handoff gives for free; we get it here from SpscChannel's existing
-    // ordering instead of a hand-reasoned fence between two unrelated
-    // primitives, which is exactly what caused the previous race.
-    while !LOCKSTEP_CHAN.a_send(SyncEntry {
-        seq: 0xDEAD,
-        fingerprint: h1_processes as *const _ as u32,
-    }) {
+    // Synchronize with hart 1 through LOCKSTEP_CHAN itself rather than a
+    // separate atomic + volatile flag. push()'s internal Release fence
+    // (before advancing `tail`) pairs with pop()'s Acquire load of `tail`,
+    // so hart 1 actually receiving this message -- not merely observing
+    // some other "go" signal -- is what proves hart 0's shared bss writes up
+    // to this point are visible to it.
+    while !LOCKSTEP_CHAN.a_send(SyncEntry { seq: 0xDEAD, fingerprint: 0 }) {
         core::hint::spin_loop();
     }
     let _ack = LOCKSTEP_CHAN.a_spin_recv();
@@ -990,12 +947,16 @@ pub unsafe fn start_secondary() -> (
         static _stext: u8;
         static _etext: u8;
         static _sflash: u8;
-        static _eflash: u8;
+        static _eflash_h1: u8;
         static _ssram: u8;
         static _esram_h1: u8;
+        static _sapps_h1: u8;
+        static _eapps_h1: u8;
+        static mut _sappmem_h1: u8;
+        static _eappmem_h1: u8;
     }
 
-    let _ = PANIC_RESOURCES
+    let _ = PANIC_RESOURCES_H1
         .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
             PanicResources::new(),
         );
@@ -1009,10 +970,13 @@ pub unsafe fn start_secondary() -> (
     // Memory protection covering both harts' RAM (0x80800000..0x81000000, 8 MB NAPOT).
     // Hart 1 needs access to hart 0's .bss for large shared statics.
     let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
+        // Extends past hart 0's _eflash (0x80200000) to cover hart 1's own
+        // prog_h1 app flash region too -- see _eflash_h1's definition in
+        // layout.ld for why this needs NAPOT rounding up to 4 MB.
         rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
             rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_sflash),
-                core::ptr::addr_of!(_eflash),
+                core::ptr::addr_of!(_eflash_h1),
             )
             .unwrap(),
         ),
@@ -1040,21 +1004,25 @@ pub unsafe fn start_secondary() -> (
     )
     .unwrap();
 
-    // Receive the hart-1 process array pointer from hart 0 through
-    // LOCKSTEP_CHAN. b_spin_recv()'s internal Acquire load of `tail` pairs
-    // with finish_lockstep_setup()'s push()-internal Release fence, so
-    // actually receiving this message -- not just being woken up -- is what
-    // guarantees every write hart 0 made building h1_processes is visible
-    // here. See the comment at the matching a_send() call for why this
-    // replaces a separate atomic + volatile-flag handoff.
+    // Synchronize with hart 0 through LOCKSTEP_CHAN. b_spin_recv()'s
+    // internal Acquire load of `tail` pairs with finish_lockstep_setup()'s
+    // push()-internal Release fence, so actually receiving this message --
+    // not just being woken up -- is what guarantees hart 0's shared bss
+    // writes up to that point are visible here. See the comment at the
+    // matching a_send() call. Hart 1 no longer receives a process array
+    // pointer this way: it loads its own, independently-built copy of each
+    // app below (see layout.ld for why a byte-copy of hart 0's processes
+    // can't work for non-PIC RISC-V apps).
     let init_entry = LOCKSTEP_CHAN.b_spin_recv();
-    let processes: &'static kernel::process::ProcessArray<NUM_PROCS> =
-        &*(init_entry.fingerprint as usize as *const kernel::process::ProcessArray<NUM_PROCS>);
     while !LOCKSTEP_CHAN.b_send(init_entry) {
         core::hint::spin_loop();
     }
 
-    PANIC_RESOURCES.get().map(|resources| {
+    let processes = static_init!(
+        kernel::process::ProcessArray<NUM_PROCS>,
+        kernel::process::ProcessArray::new()
+    );
+    PANIC_RESOURCES_H1.get().map(|resources| {
         resources.processes.put(processes.as_slice());
     });
 
@@ -1072,6 +1040,53 @@ pub unsafe fn start_secondary() -> (
         MuxAlarm::new(hardware_timer)
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
+
+    // QemuRv32VirtChip needs a peripherals struct even though hart 1 won't use them.
+    let peripherals = static_init!(
+        QemuRv32VirtDefaultPeripherals,
+        QemuRv32VirtDefaultPeripherals::new(),
+    );
+
+    let chip = static_init!(
+        QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
+        QemuRv32VirtChip::new(peripherals, hardware_timer, epmp),
+    );
+    PANIC_RESOURCES_H1.get().map(|resources| {
+        resources.chip.put(chip);
+    });
+
+    // Process printer used in panic prints, mirroring hart 0's own.
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
+    PANIC_RESOURCES_H1.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
+
+    // Load hart 1's own, independently-linked copy of each app from its own
+    // flash region, the same way main() loads hart 0's. Built with hart 0's
+    // chip already, so unlike the old create_replica() approach there's no
+    // need to patch up the chip reference afterwards.
+    const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+        capsules_system::process_policies::PanicFaultPolicy {};
+    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+    kernel::process::load_processes(
+        board_kernel,
+        chip,
+        core::slice::from_raw_parts(
+            core::ptr::addr_of!(_sapps_h1),
+            core::ptr::addr_of!(_eapps_h1) as usize - core::ptr::addr_of!(_sapps_h1) as usize,
+        ),
+        core::slice::from_raw_parts_mut(
+            core::ptr::addr_of_mut!(_sappmem_h1),
+            core::ptr::addr_of!(_eappmem_h1) as usize - core::ptr::addr_of!(_sappmem_h1) as usize,
+        ),
+        &FAULT_RESPONSE,
+        &process_mgmt_cap,
+    )
+    .unwrap_or_else(|err| {
+        debug!("Hart 1: error loading processes!");
+        debug!("{:?}", err);
+    });
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
@@ -1104,12 +1119,6 @@ pub unsafe fn start_secondary() -> (
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
-    // QemuRv32VirtChip needs a peripherals struct even though hart 1 won't use them.
-    let peripherals = static_init!(
-        QemuRv32VirtDefaultPeripherals,
-        QemuRv32VirtDefaultPeripherals::new(),
-    );
-
     // Wire Hart 1's Console to the hardware-free replay stub.
     // Hart 0 owns the physical UART; Hart 1 receives data via MSIP replay.
     let memory_alloc_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -1131,25 +1140,6 @@ pub unsafe fn start_secondary() -> (
         hil::uart::Transmit::set_transmit_client(&HART1_UART_BUF, console);
         console
     };
-
-    let chip = static_init!(
-        QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
-        QemuRv32VirtChip::new(peripherals, hardware_timer, epmp),
-    );
-    PANIC_RESOURCES.get().map(|resources| {
-        resources.chip.put(chip);
-    });
-
-    // Patch each replica's chip pointer to use hart 1's own chip.  The
-    // replicas were created in finish_lockstep_setup() using hart 0's chip
-    // for MPU config allocation; they must now use hart 1's chip so that
-    // setup_mpu() and enable_app_mpu() share the same shadow PMP state.
-    for slot in processes.as_slice().iter() {
-        if let Some(proc) = slot.get() {
-            let ps = proc as *const dyn kernel::process::Process as *const ProcessHw;
-            (*ps).set_chip(chip);
-        }
-    }
 
     // Disarm hart 1's mtimecmp before enabling interrupts.
     //
