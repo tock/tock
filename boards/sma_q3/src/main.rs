@@ -399,17 +399,12 @@ pub unsafe fn start() -> (
         nrf52840::temperature::Temp
     ));
 
-    let sensors_i2c_bus = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
-        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
-    );
-    sensors_i2c_bus.register();
-
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_TEMP_SCL_PIN),
         nrf52840::pinmux::Pinmux::new(I2C_TEMP_SDA_PIN),
     );
-    base_peripherals.twi1.set_master_client(sensors_i2c_bus);
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
+        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
 
     let bmp280 = components::bmp280::Bmp280Component::new(
         sensors_i2c_bus,

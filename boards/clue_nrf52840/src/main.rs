@@ -435,18 +435,14 @@ unsafe fn start() -> (
     // PWM & BUZZER
     //--------------------------------------------------------------------------
 
-    let mux_pwm = static_init!(
-        capsules_core::virtualizers::virtual_pwm::MuxPwm<'static, PwmHw>,
-        capsules_core::virtualizers::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
-    );
-    let virtual_pwm_buzzer = static_init!(
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, PwmHw>,
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser::new(
-            mux_pwm,
-            nrf52840::pinmux::Pinmux::new(SPEAKER_PIN)
-        )
-    );
-    virtual_pwm_buzzer.add_to_mux();
+    let mux_pwm = components::pwm::PwmMuxComponent::new(&base_peripherals.pwm0)
+        .finalize(components::pwm_mux_component_static!(PwmHw));
+
+    let virtual_pwm_buzzer = components::pwm::PwmPinUserComponent::new(
+        mux_pwm,
+        nrf52840::pinmux::Pinmux::new(SPEAKER_PIN),
+    )
+    .finalize(components::pwm_pin_user_component_static!(PwmHw));
 
     let virtual_alarm_buzzer = static_init!(
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
@@ -616,16 +612,12 @@ unsafe fn start() -> (
     // SENSORS
     //--------------------------------------------------------------------------
 
-    let sensors_i2c_bus = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
-        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
-    );
-    kernel::deferred_call::DeferredCallClient::register(sensors_i2c_bus);
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
     );
-    base_peripherals.twi1.set_master_client(sensors_i2c_bus);
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
+        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
 
     let apds9960 = components::apds9960::Apds9960Component::new(
         sensors_i2c_bus,
