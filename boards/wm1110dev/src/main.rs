@@ -112,10 +112,11 @@ type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 2>;
 type Lr1110GpioDriver = components::gpio::GpioComponentType<Nrf52840GpioHw>;
 type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
+type ConsoleDriver = components::console::ConsoleComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
-    console: &'static capsules_core::console::Console<'static>,
+    console: &'static ConsoleDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
     rng: &'static RngDriver,

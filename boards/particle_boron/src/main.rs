@@ -109,6 +109,8 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 4>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type ConsoleDriver = components::console::ConsoleComponentType;
+type AdcDriver = components::adc::AdcVirtualComponentType;
 type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
 
 /// Supported drivers by the platform
@@ -116,10 +118,10 @@ pub struct Platform {
     ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
     button: &'static ButtonDriver,
-    console: &'static capsules_core::console::Console<'static>,
+    console: &'static ConsoleDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
-    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    adc: &'static AdcDriver,
     rng: &'static RngDriver,
     temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,

@@ -171,6 +171,9 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 2>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type ConsoleDriver = components::console::ConsoleComponentType;
+type ProximityDriver = components::proximity::ProximityComponentType;
+type AdcDriver = components::adc::AdcVirtualComponentType;
 type ScreenDriver = components::screen::ScreenComponentType;
 type BuzzerDriver = capsules_extra::buzzer_driver::Buzzer<
     'static,
@@ -185,8 +188,8 @@ type BuzzerDriver = capsules_extra::buzzer_driver::Buzzer<
 pub struct Platform {
     ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
-    console: &'static capsules_core::console::Console<'static>,
-    proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
+    console: &'static ConsoleDriver,
+    proximity: &'static ProximityDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
     button: &'static ButtonDriver,
@@ -195,7 +198,7 @@ pub struct Platform {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static AlarmDriver,
     buzzer: &'static BuzzerDriver,
-    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    adc: &'static AdcDriver,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
     scheduler: &'static SchedulerInUse,

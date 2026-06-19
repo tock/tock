@@ -138,6 +138,8 @@ type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
 type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 1>;
 type ButtonDriver = components::button::ButtonComponentType<Nrf52840GpioHw>;
+type ConsoleDriver = components::console::ConsoleComponentType;
+type AdcDriver = components::adc::AdcVirtualComponentType;
 type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
 type UdpDriver = components::udp_driver::UDPDriverComponentType;
 
@@ -145,11 +147,11 @@ type UdpDriver = components::udp_driver::UDPDriverComponentType;
 pub struct Platform {
     ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
-    console: &'static capsules_core::console::Console<'static>,
+    console: &'static ConsoleDriver,
     pconsole: &'static ProcessConsoleDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
-    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    adc: &'static AdcDriver,
     rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static AlarmDriver,

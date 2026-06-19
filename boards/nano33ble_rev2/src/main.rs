@@ -148,6 +148,9 @@ type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
 type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 3>;
+type ConsoleDriver = components::console::ConsoleComponentType;
+type ProximityDriver = components::proximity::ProximityComponentType;
+type AdcDriver = components::adc::AdcVirtualComponentType;
 type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
 type PressureDriver = capsules_extra::pressure::PressureSensor<'static, Lps22hbSensor>;
 type UdpDriver = components::udp_driver::UDPDriverComponentType;
@@ -156,15 +159,15 @@ type UdpDriver = components::udp_driver::UDPDriverComponentType;
 pub struct Platform {
     ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
-    console: &'static capsules_core::console::Console<'static>,
+    console: &'static ConsoleDriver,
     pconsole: &'static ProcessConsoleDriver,
-    proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
+    proximity: &'static ProximityDriver,
     pressure: &'static PressureDriver,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
-    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    adc: &'static AdcDriver,
     rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static AlarmDriver,

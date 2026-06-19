@@ -108,6 +108,13 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedMatrixLed, 25>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type ConsoleDriver = components::console::ConsoleComponentType;
+type Eui64Driver = components::eui64::Eui64ComponentType;
+type NineDofDriver = components::ninedof::NineDofComponentType;
+type AdcDriver = components::adc::AdcVirtualComponentType;
+type PwmDriver = components::pwm::PwmDriverComponentType<1>;
+type AppFlashDriver = components::app_flash_driver::AppFlashComponentType;
+type SoundPressureDriver = components::sound_pressure::SoundPressureComponentType;
 type Lsm303agrDriver = capsules_extra::lsm303agr::Lsm303agrI2C<
     'static,
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
@@ -124,23 +131,23 @@ type BuzzerDriver = capsules_extra::buzzer_driver::Buzzer<
 /// Supported drivers by the platform
 pub struct MicroBit {
     ble_radio: &'static BleDriver,
-    eui64: &'static capsules_extra::eui64::Eui64,
+    eui64: &'static Eui64Driver,
     ieee802154: &'static Ieee802154RawDriver,
-    console: &'static capsules_core::console::Console<'static>,
+    console: &'static ConsoleDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
     button: &'static ButtonDriver,
     rng: &'static RngDriver,
-    ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
+    ninedof: &'static NineDofDriver,
     lsm303agr: &'static Lsm303agrDriver,
     temperature: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    adc: &'static AdcDriver,
     alarm: &'static AlarmDriver,
     buzzer_driver: &'static BuzzerDriver,
-    pwm: &'static capsules_extra::pwm::Pwm<'static, 1>,
-    app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
-    sound_pressure: &'static capsules_extra::sound_pressure::SoundPressureSensor<'static>,
+    pwm: &'static PwmDriver,
+    app_flash: &'static AppFlashDriver,
+    sound_pressure: &'static SoundPressureDriver,
 
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,

@@ -155,6 +155,7 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 4>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type ConsoleDriver = components::console::ConsoleComponentType;
 type AnalogComparatorDriver =
     components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
 type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
@@ -164,7 +165,7 @@ pub struct Platform {
     ble_radio: &'static BleDriver,
     button: &'static ButtonDriver,
     pconsole: &'static ProcessConsoleDriver,
-    console: &'static capsules_core::console::Console<'static>,
+    console: &'static ConsoleDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
     rng: &'static RngDriver,
