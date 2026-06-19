@@ -989,10 +989,10 @@ impl<const MAX_REGIONS: usize> fmt::Display for PMPUserMPUConfig<MAX_REGIONS> {
             let pmpcfg = tor_user_pmpcfg.get_reg();
             write!(
                 f,
-                "     #{:02}: start={:#010X}, end={:#010X}, cfg={:#04X} ({}) (-{}{}{})\r\n",
+                "     #{:02}: start={:p}, end={:p}, cfg={:#04X} ({}) (-{}{}{})\r\n",
                 i,
-                *start as usize,
-                *end as usize,
+                *start,
+                *end,
                 pmpcfg.get(),
                 t(pmpcfg.is_set(pmpcfg_octet::a), "TOR", "OFF"),
                 t(pmpcfg.is_set(pmpcfg_octet::r), "r", "-"),
@@ -2639,11 +2639,11 @@ pub mod kernel_protection_mml_epmp {
 
                 write!(
                     f,
-                    "  [{:02}]: {}={:#010X}, end={:#010X}, cfg={:#04X} ({}  ) ({}{}{}{})\r\n",
+                    "  [{:02}]: {}={:p}, end={:p}, cfg={:#04X} ({}  ) ({}{}{}{})\r\n",
                     (i + Self::TOR_REGIONS_OFFSET) * 2 + 1,
                     start_pmpaddr_label,
-                    startaddr_pmpaddr,
-                    endaddr,
+                    startaddr_pmpaddr as *const (),
+                    endaddr as *const (),
                     shadowed_pmpcfg.get().get(),
                     mode,
                     if shadowed_pmpcfg.get().get_reg().is_set(pmpcfg_octet::l) {
