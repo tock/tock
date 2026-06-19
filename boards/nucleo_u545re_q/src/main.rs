@@ -266,7 +266,7 @@ unsafe fn start() -> (
         AES256
     ));
 
-    aes.set_client(aes_driver);
+    AES::set_client(aes, aes_driver);
 
     // Platform and Interrupts
     let platform = static_init!(
