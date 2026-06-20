@@ -478,16 +478,16 @@ impl<'a> Spi<'a> {
         }
     }
 
-    // Currently the format is set to Motorola SPI frame format, 8 bit mode (octets), MSSPCLKOUT polarity and phase on 0 SPO=1, SPH=0
+    // Currently the format is set to Motorola SPI frame format, 8 bit mode (octets), MSSPCLKOUT polarity and phase on 0 SPO=0, SPH=0
     // This means that in the case of continuous back-to-back transmissions of octets, the SSPFSSOUT signal will be pulsed HIGH between the octets.
     // If your slave device requires the SSPFSSOUT signal to be held LOW for the entire transmission, you will need to either:
     // 1. Set the chip select pin as a GPIO and hold it low for the duration of the octets
-    // 2. In Motorola SPI frame format set SPO=1, SPH=1 and make sure the buffer is continuous
+    // 2. In Motorola SPI frame format set SPO=0, SPH=1 and make sure the buffer is continuous
     // Ref: 4.4.3.13. Motorola SPI Format in the RP2040 Datasheet
     fn set_format(&self) {
         self.registers.sspcr0.modify(SSPCR0::DSS::DATA_8_BIT);
         self.registers.sspcr0.modify(SSPCR0::SPO::CLEAR);
-        self.registers.sspcr0.modify(SSPCR0::SPH::SET);
+        self.registers.sspcr0.modify(SSPCR0::SPH::CLEAR);
         self.registers.sspcr0.modify(SSPCR0::FRF::MOTOROLA_SPI);
     }
 }
