@@ -855,7 +855,7 @@ pub unsafe fn finish_lockstep_setup() {
     // so hart 1 actually receiving this message -- not merely observing
     // some other "go" signal -- is what proves hart 0's shared bss writes up
     // to this point are visible to it.
-    while !LOCKSTEP_CHAN.a_send(SyncEntry { seq: 0xDEAD, fingerprint: 0 }) {
+    while !LOCKSTEP_CHAN.a_send(SyncEntry::Sync { fingerprint: 0 }) {
         core::hint::spin_loop();
     }
     let _ack = LOCKSTEP_CHAN.a_spin_recv();

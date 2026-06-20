@@ -160,8 +160,23 @@ pub unsafe extern "C" fn main_secondary() -> ! {
     let (board_kernel, platform, chip) = qemu_rv32_virt_lib::start_secondary();
 
     loop {
-        let entry = LOCKSTEP_CHAN.b_spin_recv();
-        debug!("hart1 loop seq {}", entry.seq);
+        // Drain the channel until the per-iteration Sync barrier arrives,
+        // dispatching any event popped along the way. This is the only
+        // point guaranteed to see every channel message in arrival order
+        // without risking consuming the next Sync meant for this same loop.
+        loop {
+            match LOCKSTEP_CHAN.b_spin_recv() {
+                SyncEntry::Sync { .. } => break,
+                SyncEntry::UartRxReady { len } => {
+                    qemu_rv32_virt_chip::uart::replay_rx_done_for_hart1(len)
+                }
+                SyncEntry::UartTxDone => qemu_rv32_virt_chip::uart::replay_tx_done_for_hart1(),
+                SyncEntry::RngReady { .. } => {
+                    // Not yet wired up -- see the RNG forwarding design.
+                }
+            }
+        }
+        debug!("hart1 loop");
         let activity = board_kernel.kernel_loop_operation(
             &platform,
             chip,
@@ -169,8 +184,7 @@ pub unsafe extern "C" fn main_secondary() -> ! {
             true,
             &main_loop_capability,
         );
-        while !LOCKSTEP_CHAN.b_send(SyncEntry {
-            seq: entry.seq,
+        while !LOCKSTEP_CHAN.b_send(SyncEntry::Sync {
             fingerprint: activity.fingerprint(),
         }) {
             core::hint::spin_loop();
@@ -254,10 +268,9 @@ pub unsafe fn main() {
 
     debug!("Entering main loop.");
 
-    let mut seq: u32 = 0;
     loop {
-        debug!("hart0 loop seq {}", seq);
-        while !LOCKSTEP_CHAN.a_send(SyncEntry { seq, fingerprint: 0 }) {
+        debug!("hart0 loop");
+        while !LOCKSTEP_CHAN.a_send(SyncEntry::Sync { fingerprint: 0 }) {
             core::hint::spin_loop();
         }
         let activity = board_kernel.kernel_loop_operation(
@@ -271,7 +284,24 @@ pub unsafe fn main() {
         // kernel_loop_operation returns so the hart-1 watchdog covers the full
         // interrupt + deferred-call window, not just the trap handler.
         clear_irq_active();
-        let ack = LOCKSTEP_CHAN.a_spin_recv();
+        // Drain the channel until hart 1's Sync ack arrives, dispatching
+        // any event popped along the way -- mirrors hart 1's own drain
+        // loop, for the same reason: hart 0 can't advance to the next
+        // iteration until it sees this ack, so any hart-1-originated event
+        // pushed beforehand will be interleaved ahead of it in arrival
+        // order. Hart 1 doesn't push any of these back today; reserved for
+        // future hart-1-originated events (the doorbell side of this is
+        // already wired up -- see MachineSoft's hart 0 branch).
+        let ack_fingerprint = loop {
+            match LOCKSTEP_CHAN.a_spin_recv() {
+                SyncEntry::Sync { fingerprint, .. } => break fingerprint,
+                SyncEntry::UartRxReady { .. }
+                | SyncEntry::UartTxDone
+                | SyncEntry::RngReady { .. } => {
+                    unreachable!("hart 1 only ever acks with SyncEntry::Sync today")
+                }
+            }
+        };
         let expected = activity.fingerprint();
         // Hart 0 alone owns real I/O (process console, virtio devices), so it
         // legitimately does KernelWork/Slept transitions hart 1 never sees.
@@ -279,13 +309,12 @@ pub unsafe fn main() {
         // that's the invariant lockstep actually needs to hold.
         const RAN_PROCESS_TAG: u32 = 0x0200_0000;
         let is_ran_process = |fp: u32| fp & 0xFF00_0000 == RAN_PROCESS_TAG;
-        if (is_ran_process(expected) || is_ran_process(ack.fingerprint)) && ack.fingerprint != expected
+        if (is_ran_process(expected) || is_ran_process(ack_fingerprint)) && ack_fingerprint != expected
         {
             panic!(
-                "Lockstep divergence at seq {}: hart 0 fingerprint {:#x}, hart 1 fingerprint {:#x}",
-                seq, expected, ack.fingerprint
+                "Lockstep divergence: hart 0 fingerprint {:#x}, hart 1 fingerprint {:#x}",
+                expected, ack_fingerprint
             );
         }
-        seq = seq.wrapping_add(1);
     }
 }

@@ -7,7 +7,7 @@
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use core::ptr::addr_of;
-use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use kernel::collections::spsc_channel::BiChannel;
 use kernel::debug;
@@ -25,26 +25,42 @@ use crate::interrupts;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
-/// Entry type for the inter-hart lockstep synchronization channel.
+/// Entry type for the inter-hart lockstep channel.
+///
+/// Mirrors the RP2350 SIO inter-core FIFO design: there is one channel pair
+/// (one direction each way) for *all* inter-hart communication
+/// distinguished by tag, rather than a sepaparate channel per purpose.
+/// 
+/// Hart 0 pushes `Sync` once per kernel-loop iteration (and once at init,
+/// as a pure handshake -- see `finish_lockstep_setup()`), and pushes event
+/// variants from its trap handler during interrupts. Hart 1 drains the
+/// channel in a loop, dispatching each event immediately, until it pops a
+/// `Sync`.
+///
+/// Watchdog arming is *not* one of these variants. It needs no payload --
+/// hart 1 arms its own deadline relative to whenever it actually notices
+/// the kick, computed from its own `read_mtime()`, not a value hart 0 could
+/// usefully forward. It stays unconditional on every `MachineSoft` entry,
+/// regardless of channel content.
 #[derive(Clone, Copy)]
-pub struct SyncEntry {
-    pub seq: u32,
-    /// Fingerprint of the `KernelActivity` performed this iteration.
-    /// Hart 1 echoes back its own fingerprint; hart 0 compares against its own.
+pub enum SyncEntry {
+    /// Per-iteration lockstep barrier, and the one-time init handshake.
     ///
-    /// For the one-time `seq == 0xDEAD` init message, this field instead
-    /// carries the hart-1 `ProcessArray` pointer (as a `u32`, since this is a
-    /// 32-bit target) -- see `finish_lockstep_setup()`/`start_secondary()`.
-    pub fingerprint: u32,
+    /// `fingerprint` is the `KernelActivity` fingerprint performed this
+    /// iteration; hart 1 echoes back its own, hart 0 compares against its own.
+    Sync { fingerprint: u32 },
+    /// Hart 0 finished a UART RX completion; `len` bytes are waiting in
+    /// `UART_RX_REPLAY_BUF` for hart 1 to replay.
+    UartRxReady { len: u8 },
+    /// Hart 0 finished transmitting whatever `HART1_UART_BUF` had queued.
+    UartTxDone,
+    /// Hart 0 forwarded `len` words of real entropy; they're waiting in a
+    /// replay buffer for hart 1 to replay. Not yet wired up -- see the RNG
+    /// forwarding design.
+    RngReady { len: u8 },
 }
 
-/// Inter-hart synchronization channel for software lockstep.
-///
-/// Hart 0 (side A) sends one `SyncEntry` at the top of each kernel loop
-/// iteration, runs the iteration, then waits for hart 1's ack.  Hart 1
-/// (side B) receives the signal, runs its iteration, then acks.  This
-/// keeps both harts advancing one loop step at a time without any
-/// interrupt forwarding.
+/// Inter-hart lockstep channel for software lockstep.
 ///
 /// Lives in the chip crate so the board's `main.rs` loop and the
 /// one-time init sync in `lib.rs` can both reach it without a circular
@@ -54,48 +70,39 @@ pub struct SyncEntry {
 /// far larger than the ±2 KB GP-relative window, the compiler generates
 /// PC-relative addressing for all accesses, so both harts compute the same
 /// absolute address from the shared `.text` — only one instance exists.
-pub static LOCKSTEP_CHAN: BiChannel<32, SyncEntry> = BiChannel::new();
+///
+/// Depth of 4 matches the real RP2350 SIO inter-core FIFO (32-bit wide,
+/// 4 entries deep, confirmed against the RP2350 datasheet).
+pub static LOCKSTEP_CHAN: BiChannel<4, SyncEntry> = BiChannel::new();
 
 /// CLINT MSIP[1] register address — used by hart 0 to interrupt hart 1.
 pub const CLINT_MSIP1: *mut u32 = 0x0200_0004 as *mut u32;
 
+/// CLINT MSIP[0] register address — used by hart 1 to interrupt hart 0.
+pub const CLINT_MSIP0: *mut u32 = 0x0200_0000 as *mut u32;
+
 /// Maximum number of bytes that can be forwarded in one UART RX replay.
 pub const UART_RX_REPLAY_MAX: usize = 256;
 
-/// Reason bits for the MSIP kick from Hart 0 to Hart 1.
-pub const MSIP_REASON_WATCHDOG: u8 = 0b001;
-pub const MSIP_REASON_UART_RX: u8 = 0b010;
-pub const MSIP_REASON_UART_TX: u8 = 0b100;
-
-/// Bitmask of pending MSIP reasons. Hart 0 ORs in its reason before writing
-/// CLINT_MSIP1; Hart 1's MachineSoft handler moves this into HART1_PENDING_REASON.
-#[link_section = ".bss"]
-pub static MSIP_REASON: AtomicU8 = AtomicU8::new(0);
-
-/// Reasons saved by Hart 1's MachineSoft handler for dispatch in
-/// service_pending_interrupts, mirroring how MachineExternal saves PLIC
-/// interrupt numbers for handle_plic_interrupts.
-#[link_section = ".bss"]
-pub static HART1_PENDING_REASON: AtomicU8 = AtomicU8::new(0);
-
-/// Bytes received by Hart 0's UART, to be replayed on Hart 1.
-/// Written before MSIP_REASON/CLINT_MSIP1; read after MSIP_REASON is consumed.
+/// Bytes received by Hart 0's UART, to be replayed on Hart 1. The bulk
+/// payload still lives in shared memory rather than the channel itself --
+/// mirroring real RP2350 SIO FIFO usage, where the tiny hardware FIFO only
+/// ever carries a short message ("data's ready"), with bulk data passed via
+/// ordinary shared memory. `LOCKSTEP_CHAN`'s `UartRxReady { len }` message
+/// is that short notification; this buffer is the payload it points at.
 pub struct UartRxReplayBuf(pub UnsafeCell<[u8; UART_RX_REPLAY_MAX]>);
 
-// SAFETY: only Hart 0 writes the buffer (in receive()), and only after
-// storing UART_RX_REPLAY_LEN then writing CLINT_MSIP1.  Hart 1 reads it
-// only inside its MachineSoft handler after consuming MSIP_REASON, by which
-// point Hart 0 has finished the write.  The Release/Acquire on the atomics
-// provide the necessary ordering.
+// SAFETY: only Hart 0 writes the buffer (in receive()), and only before
+// pushing UartRxReady onto LOCKSTEP_CHAN. Hart 1 reads it only after popping
+// that message. The channel's own push/pop ordering (Release before
+// advancing the tail index, Acquire on read) provides the happens-before
+// relationship that makes this raw shared-memory access sound, the same way
+// it already does for the hart-1 ProcessArray pointer handoff.
 unsafe impl Sync for UartRxReplayBuf {}
 
 #[link_section = ".bss"]
 pub static UART_RX_REPLAY_BUF: UartRxReplayBuf =
     UartRxReplayBuf(UnsafeCell::new([0u8; UART_RX_REPLAY_MAX]));
-
-/// Number of valid bytes in UART_RX_REPLAY_BUF. Zero means no replay pending.
-#[link_section = ".bss"]
-pub static UART_RX_REPLAY_LEN: AtomicU8 = AtomicU8::new(0);
 
 /// CLINT mtime registers (read-only, shared across harts).
 const CLINT_MTIME_LO: *const u32 = 0x0200_BFF8 as *const u32;
@@ -283,19 +290,15 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
                 }
             }
 
-            if !mext_enabled {
-                let reason = HART1_PENDING_REASON.swap(0, Ordering::Acquire);
-                if reason & MSIP_REASON_UART_RX != 0 {
-                    crate::uart::replay_rx_done_for_hart1();
-                }
-                if reason & MSIP_REASON_UART_TX != 0 {
-                    crate::uart::replay_tx_done_for_hart1();
-                }
-            }
+            // UART RX/TX replay (and future RNG replay) no longer dispatch
+            // here: they're forwarded via LOCKSTEP_CHAN now, drained and
+            // dispatched directly in hart 1's main-loop sync-wait, since
+            // that's the only point guaranteed to see every channel message
+            // in arrival order without risking consuming the next Sync
+            // barrier meant for the main loop.
 
             if !mip.is_set(mip::mtimer)
                 && (!mext_enabled || self.plic.get_saved_interrupts().is_none())
-                && (mext_enabled || HART1_PENDING_REASON.load(Ordering::Relaxed) == 0)
             {
                 break;
             }
@@ -319,11 +322,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
         let hartid: u32;
         unsafe { core::arch::asm!("csrr {}, mhartid", out(reg) hartid) };
-        if hartid == 1 {
-            HART1_PENDING_REASON.load(Ordering::Relaxed) != 0
-        } else {
-            self.plic.get_saved_interrupts().is_some()
-        }
+        hartid == 0 && self.plic.get_saved_interrupts().is_some()
     }
 
     fn sleep(&self) {
@@ -389,13 +388,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             if hartid == 1 {
                 core::ptr::write_volatile(CLINT_MSIP1, 0); // clear MSIP[1]
 
-                // Save the reason bitmask for dispatch in service_pending_interrupts,
-                // mirroring how MachineExternal saves PLIC IRQ numbers for
-                // handle_plic_interrupts rather than dispatching inline.
-                let reason = MSIP_REASON.swap(0, Ordering::Acquire);
-                HART1_PENDING_REASON.fetch_or(reason, Ordering::Release);
-
-                // Arm hart 1's hardware watchdog timer: if hart 0 doesn't
+                // Arm hart 1's hardware watchdog timer. If hart 0 doesn't
                 // finish interrupt handling within WATCHDOG_TICKS, the
                 // MachineTimer handler will fire and panic.
                 // Store the deadline so service_pending_interrupts can
@@ -408,6 +401,15 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
                 core::ptr::write_volatile(CLINT_MTIMECMP1_LO, 0xFFFF_FFFF_u32);
                 core::ptr::write_volatile(CLINT_MTIMECMP1_HI, (deadline >> 32) as u32);
                 core::ptr::write_volatile(CLINT_MTIMECMP1_LO, deadline as u32);
+                CSR.mie.modify(mie::msoft::SET);
+            } else {
+                // Hart 1 -> hart 0 doorbell. No reason to stage here either:
+                // whatever hart 1 pushed onto LOCKSTEP_CHAN is dispatched by
+                // hart 0's own drain loop in main() (mirrors hart 1's), not
+                // inline in the trap handler. SyncEntry variants hart 1 can
+                // actually send come later -- this just makes the doorbell
+                // itself work so a future producer has somewhere to land.
+                core::ptr::write_volatile(CLINT_MSIP0, 0); // clear MSIP[0]
                 CSR.mie.modify(mie::msoft::SET);
             }
         }

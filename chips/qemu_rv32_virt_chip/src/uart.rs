@@ -5,7 +5,6 @@
 //! QEMU's memory mapped 16550 UART
 
 use core::cell::Cell;
-use core::sync::atomic::Ordering;
 
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -365,8 +364,10 @@ impl Uart16550<'_> {
                 .modify(IER::TransmitterHoldingRegisterEmpty::CLEAR);
 
             // Signal Hart 1 to fire its transmitted_buffer callback.
-            use crate::chip::{CLINT_MSIP1, MSIP_REASON, MSIP_REASON_UART_TX};
-            MSIP_REASON.fetch_or(MSIP_REASON_UART_TX, Ordering::Release);
+            use crate::chip::{CLINT_MSIP1, LOCKSTEP_CHAN, SyncEntry};
+            while !LOCKSTEP_CHAN.a_send(SyncEntry::UartTxDone) {
+                core::hint::spin_loop();
+            }
             unsafe { core::ptr::write_volatile(CLINT_MSIP1, 1) };
 
             // Callback to the client
@@ -406,20 +407,17 @@ impl Uart16550<'_> {
             // We're done, disable interrupts and return to the client:
             self.regs.ier.modify(IER::ReceivedDataAvailable::CLEAR);
 
-            // Forward received bytes to Hart 1 via the replay buffer.
-            // Write bytes before storing len (Release) so Hart 1's Acquire
-            // load on UART_RX_REPLAY_LEN sees a fully-written buffer.
-            use crate::chip::{
-                CLINT_MSIP1, MSIP_REASON, MSIP_REASON_UART_RX, UART_RX_REPLAY_BUF,
-                UART_RX_REPLAY_LEN, UART_RX_REPLAY_MAX,
-            };
+            // Forward received bytes to Hart 1 via the replay buffer. Write
+            // bytes before pushing onto LOCKSTEP_CHAN to avoid a race condition.
+            use crate::chip::{CLINT_MSIP1, LOCKSTEP_CHAN, SyncEntry, UART_RX_REPLAY_BUF, UART_RX_REPLAY_MAX};
             let copy_len = len.min(UART_RX_REPLAY_MAX);
             unsafe {
                 (&mut *UART_RX_REPLAY_BUF.0.get())[..copy_len]
                     .copy_from_slice(&rx_buffer[..copy_len]);
             }
-            UART_RX_REPLAY_LEN.store(copy_len as u8, Ordering::Release);
-            MSIP_REASON.fetch_or(MSIP_REASON_UART_RX, Ordering::Release);
+            while !LOCKSTEP_CHAN.a_send(SyncEntry::UartRxReady { len: copy_len as u8 }) {
+                core::hint::spin_loop();
+            }
             unsafe { core::ptr::write_volatile(CLINT_MSIP1, 1) };
 
             self.rx_client.map(move |client| {
@@ -651,16 +649,17 @@ impl<'a> hil::uart::Receive<'a> for Uart16550<'a> {
     }
 }
 
-/// Called by Hart 1's `service_pending_interrupts` when `MSIP_REASON_UART_RX` is set.
-pub fn replay_rx_done_for_hart1() {
-    use crate::chip::UART_RX_REPLAY_LEN;
-    let len = UART_RX_REPLAY_LEN.swap(0, Ordering::Acquire);
+/// Called by Hart 1's main loop when it pops `SyncEntry::UartRxReady` off
+/// `LOCKSTEP_CHAN`. `len` comes directly from the message now, rather than
+/// a separate `UART_RX_REPLAY_LEN` atomic.
+pub fn replay_rx_done_for_hart1(len: u8) {
     if len > 0 {
         HART1_UART_BUF.replay_rx_done(len);
     }
 }
 
-/// Called by Hart 1's `service_pending_interrupts` when `MSIP_REASON_UART_TX` is set.
+/// Called by Hart 1's main loop when it pops `SyncEntry::UartTxDone` off
+/// `LOCKSTEP_CHAN`.
 pub fn replay_tx_done_for_hart1() {
     HART1_UART_BUF.replay_tx_done();
 }
