@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2026.
 
 //! High-level setup and interrupt mapping for the chip.
 
@@ -13,7 +13,7 @@ use kernel::platform::chip::{Chip, InterruptService};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
-use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
+use rv64i::csr::{mcause, mie::mie, mip::mip, CSR};
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;
@@ -22,27 +22,24 @@ use crate::interrupts;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
-type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
-    5,
-    rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
->;
+type QemuRv64VirtPMP = rv64i::pmp::PMPUserMPU<8, rv64i::pmp::simple::SimplePMP<16>>;
 
-pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
+pub type QemuRv64VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 
-pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
-    userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: QemuRv32VirtPMP,
+pub struct QemuRv64VirtChip<'a, I: InterruptService + 'a> {
+    userspace_kernel_boundary: rv64i::syscall::SysCall,
+    pmp: QemuRv64VirtPMP,
     plic: &'a Plic,
-    timer: &'a QemuRv32VirtClint<'a>,
+    timer: &'a QemuRv64VirtClint<'a>,
     plic_interrupt_service: &'a I,
 }
 
-pub struct QemuRv32VirtDefaultPeripherals<'a> {
+pub struct QemuRv64VirtDefaultPeripherals<'a> {
     pub uart0: qemu_virt_chip::uart::Uart16550<'a>,
     pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
-impl QemuRv32VirtDefaultPeripherals<'_> {
+impl QemuRv64VirtDefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             uart0: qemu_virt_chip::uart::Uart16550::new(crate::uart::UART0_BASE),
@@ -60,7 +57,7 @@ impl QemuRv32VirtDefaultPeripherals<'_> {
     }
 }
 
-impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
+impl InterruptService for QemuRv64VirtDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.uart0.handle_interrupt(),
@@ -78,15 +75,15 @@ impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
     }
 }
 
-impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
+impl<'a, I: InterruptService + 'a> QemuRv64VirtChip<'a, I> {
     pub unsafe fn new(
         plic_interrupt_service: &'a I,
-        timer: &'a QemuRv32VirtClint<'a>,
-        pmp: rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
+        timer: &'a QemuRv64VirtClint<'a>,
+        pmp: rv64i::pmp::simple::SimplePMP<16>,
     ) -> Self {
         Self {
-            userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: rv32i::pmp::PMPUserMPU::new(pmp),
+            userspace_kernel_boundary: rv64i::syscall::SysCall::new(),
+            pmp: rv64i::pmp::PMPUserMPU::new(pmp),
             plic: &*addr_of!(PLIC),
             timer,
             plic_interrupt_service,
@@ -111,10 +108,10 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
-    type MPU = QemuRv32VirtPMP;
-    type UserspaceKernelBoundary = rv32i::syscall::SysCall;
-    type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
+impl<'a, I: InterruptService + 'a> Chip for QemuRv64VirtChip<'a, I> {
+    type MPU = QemuRv64VirtPMP;
+    type UserspaceKernelBoundary = rv64i::syscall::SysCall;
+    type ThreadIdProvider = rv64i::thread_id::RiscvThreadIdProvider;
 
     fn init() {}
 
@@ -122,7 +119,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         &self.pmp
     }
 
-    fn userspace_kernel_boundary(&self) -> &rv32i::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &rv64i::syscall::SysCall {
         &self.userspace_kernel_boundary
     }
 
@@ -165,7 +162,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
     fn sleep(&self) {
         unsafe {
-            rv32i::support::wfi();
+            rv64i::support::wfi();
         }
     }
 
@@ -173,11 +170,11 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::with_interrupts_disabled(f)
+        rv64i::support::with_interrupts_disabled(f)
     }
 
     unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
-        rv32i::print_riscv_state(writer);
+        rv64i::print_riscv_state(writer);
         if let Some(t) = this {
             let _ = writer.write_fmt(format_args!("{}", t.pmp.pmp));
         }
@@ -277,7 +274,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
-pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
+pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u64) {
     match mcause::Trap::from(mcause_val as usize) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt);
@@ -294,7 +291,7 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 /// track whether any given hart is currently in a trap handler. The
 /// array must be zero-initialized.
 ///
-/// While the QEMU rv32 virt target supports multiple harts, Tock
+/// While the QEMU rv64 virt target supports multiple harts, Tock
 /// currently always runs on the first hart, with ID zero. Hence, we
 /// allocate an array of `usizes` with length one for this purpose,
 /// intialized to zero:
