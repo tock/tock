@@ -37,6 +37,9 @@ macro_rules! ble_component_static {
     }};
 }
 
+pub type BLEComponentType<B, A> =
+    capsules_extra::ble_advertising_driver::BLE<'static, B, VirtualMuxAlarm<'static, A>>;
+
 pub struct BLEComponent<
     A: kernel::hil::time::Alarm<'static> + 'static,
     B: kernel::hil::ble_advertising::BleAdvertisementDriver<'static> + BleConfig + 'static,

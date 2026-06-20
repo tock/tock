@@ -116,6 +116,8 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
+    fn init() {}
+
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }

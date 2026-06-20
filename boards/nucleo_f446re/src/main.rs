@@ -19,6 +19,7 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -266,7 +267,7 @@ unsafe fn start() -> (
     NucleoF446RE,
     &'static stm32f446re::chip::Stm32f4xx<'static, Stm32f446reDefaultPeripherals<'static>>,
 ) {
-    stm32f446re::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

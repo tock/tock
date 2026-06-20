@@ -117,6 +117,8 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I>
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
+    fn init() {}
+
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }

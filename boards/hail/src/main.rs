@@ -17,6 +17,7 @@ use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
@@ -228,7 +229,7 @@ unsafe fn start() -> (
     Hail,
     &'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
 ) {
-    sam4l::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

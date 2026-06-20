@@ -29,6 +29,11 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
     type ThreadIdProvider = cortexm0p::thread_id::CortexMThreadIdProvider;
 
+    fn init() {
+        // Set the offset of the vector table
+        crate::initialize_vector_table();
+    }
+
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
     }

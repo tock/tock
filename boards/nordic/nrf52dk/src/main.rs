@@ -76,6 +76,7 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
@@ -243,7 +244,7 @@ pub unsafe fn start() -> (
     Platform,
     &'static nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'static>>,
 ) {
-    nrf52832::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

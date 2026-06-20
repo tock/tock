@@ -64,6 +64,8 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
     type UserspaceKernelBoundary = SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
+    fn init() {}
+
     fn mpu(&self) -> &Self::MPU {
         &self.pmp_mpu
     }

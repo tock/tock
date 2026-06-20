@@ -51,6 +51,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -987,7 +988,7 @@ unsafe fn setup() -> (
 /// setup and RAM initialization.
 #[no_mangle]
 pub unsafe fn main() {
-    apollo3::init();
+    ChipHw::init();
 
     #[cfg(test)]
     test_main();

@@ -23,6 +23,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::{gpio::Configure, led::LedHigh};
+use kernel::platform::chip::Chip;
 use kernel::platform::chip::ClockInterface;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -179,7 +180,7 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
 /// these static_inits is wasted.
 #[inline(never)]
 unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
-    imxrt1060::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

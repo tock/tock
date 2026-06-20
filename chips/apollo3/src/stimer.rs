@@ -4,9 +4,7 @@
 
 //! STimer driver for the Apollo3
 
-use kernel::hil::time::{
-    Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
-};
+use kernel::hil::time::{Alarm, AlarmClient, Counter, Freq16KHz, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
@@ -143,10 +141,6 @@ impl Time for STimer<'_> {
 }
 
 impl<'a> Counter<'a> for STimer<'a> {
-    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {
-        //self.overflow_client.set(client);
-    }
-
     fn start(&self) -> Result<(), ErrorCode> {
         // Set the clock source
         self.registers.stcfg.write(STCFG::CLKSEL::XTAL_DIV2);

@@ -115,17 +115,3 @@ extern "C" {
     static mut _srelocate: usize;
     static mut _erelocate: usize;
 }
-
-pub unsafe fn init() {
-    cortexm33::nvic::disable_all();
-    cortexm33::nvic::clear_all_pending();
-    let sio = gpio::SIO::new();
-    let processor = sio.get_processor();
-    match processor {
-        chip::Processor::Processor0 => {}
-        _ => panic!(
-            "Kernel should run only using processor 0 (now processor {})",
-            processor as u8
-        ),
-    }
-}

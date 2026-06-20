@@ -40,6 +40,17 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM0P::SYSTICK_HANDLER, // SysTick
 ];
 
+pub(crate) fn initialize_vector_table() {
+    // # Safety
+    //
+    // The vector table must setup function pointers for the thumb core
+    // correctly. Because `BASE_VECTORS` is the correct data type this is
+    // safe.
+    unsafe {
+        cortexm0p::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
+    }
+}
+
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
     link_section = ".vectors"
