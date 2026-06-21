@@ -23,6 +23,7 @@
 //! );
 //! virtual_pwm_buzzer.add_to_mux();
 //! ```
+use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil;
@@ -32,6 +33,7 @@ use kernel::ErrorCode;
 pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
     pwm: &'a P,
     devices: List<'a, PwmPinUser<'a, P>>,
+    last_access_position: Cell<usize>,
     inflight: OptionalCell<&'a PwmPinUser<'a, P>>,
 }
 
@@ -40,6 +42,7 @@ impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
         MuxPwm {
             pwm,
             devices: List::new(),
+            last_access_position: Cell::new(0),
             inflight: OptionalCell::empty(),
         }
     }
@@ -48,7 +51,22 @@ impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
     /// one with an outstanding operation and run that.
     fn do_next_op(&self) {
         if self.inflight.is_none() {
-            let mnode = self.devices.iter().find(|node| node.operation.is_some());
+            let mnode = self
+                .devices
+                .iter()
+                .enumerate()
+                .skip(self.last_access_position.get() + 1)
+                .chain(
+                    self.devices
+                        .iter()
+                        .enumerate()
+                        .take(self.last_access_position.get()),
+                )
+                .find(|(_, node)| node.operation.is_some())
+                .map(|(index, node)| {
+                    self.last_access_position.set(index);
+                    node
+                });
             mnode.map(|node| {
                 let started = node.operation.take().is_some_and(|operation| {
                     match operation {

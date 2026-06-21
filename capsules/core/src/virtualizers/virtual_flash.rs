@@ -46,6 +46,7 @@ use kernel::ErrorCode;
 pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
     flash: &'a F,
     users: List<'a, FlashUser<'a, F>>,
+    last_access_position: Cell<usize>,
     inflight: OptionalCell<&'a FlashUser<'a, F>>,
 }
 
@@ -85,6 +86,7 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
         MuxFlash {
             flash,
             users: List::new(),
+            last_access_position: Cell::new(0),
             inflight: OptionalCell::empty(),
         }
     }
@@ -96,7 +98,19 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
             let mnode = self
                 .users
                 .iter()
-                .find(|node| node.operation.get() != Op::Idle);
+                .enumerate()
+                .skip(self.last_access_position.get() + 1)
+                .chain(
+                    self.users
+                        .iter()
+                        .enumerate()
+                        .take(self.last_access_position.get()),
+                )
+                .find(|(_, node)| node.operation.get() != Op::Idle)
+                .map(|(index, node)| {
+                    self.last_access_position.set(index);
+                    node
+                });
             mnode.map(|node| {
                 node.buffer.take().map_or_else(
                     || {

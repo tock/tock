@@ -63,6 +63,7 @@ pub struct MuxUart<'a> {
     inflight: OptionalCell<&'a UartDevice<'a>>,
     buffer: TakeCell<'static, [u8]>,
     completing_read: Cell<bool>,
+    last_access_position: Cell<usize>,
     deferred_call: DeferredCall,
 }
 
@@ -219,6 +220,7 @@ impl<'a> MuxUart<'a> {
             inflight: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             completing_read: Cell::new(false),
+            last_access_position: Cell::new(0),
             deferred_call: DeferredCall::new(),
         }
     }
@@ -235,7 +237,22 @@ impl<'a> MuxUart<'a> {
 
     fn do_next_op(&self) {
         if self.inflight.is_none() {
-            let mnode = self.devices.iter().find(|node| node.operation.is_some());
+            let mnode = self
+                .devices
+                .iter()
+                .enumerate()
+                .skip(self.last_access_position.get() + 1)
+                .chain(
+                    self.devices
+                        .iter()
+                        .enumerate()
+                        .take(self.last_access_position.get()),
+                )
+                .find(|(_, node)| node.operation.is_some())
+                .map(|(index, node)| {
+                    self.last_access_position.set(index);
+                    node
+                });
             mnode.map(|node| {
                 node.tx_buffer.take().map(|buf| {
                     node.operation.take().map(move |op| match op {
