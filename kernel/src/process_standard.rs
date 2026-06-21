@@ -685,7 +685,9 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn set_yielded_for_state(&self, upcall_id: UpcallId) {
-        if self.state.get() == State::Running {
+        if self.state.get() == State::Running
+            || self.state.get() == State::Stopped(StoppedState::YieldedFor(upcall_id))
+        {
             self.state.set(State::YieldedFor(upcall_id));
 
             // Verify if the process has a task that this yield waits for
