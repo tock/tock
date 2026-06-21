@@ -151,6 +151,24 @@ unsafe fn read_mtime() -> u64 {
     }
 }
 
+/// Read the low 32 bits of the free-running `mtime` counter via the
+/// read-only `time` CSR -- a single-cycle `csrr`, not an MMIO bus
+/// transaction, so much cheaper than `read_mtime()`.
+///
+/// Only safe to use for *bounded* deadline checks: every spin-wait timeout
+/// in this crate is far shorter than the ~429 s period before the lower 32
+/// bits of a 10 MHz counter wrap, so a `wrapping_sub` comparison against a
+/// saved start value is sound. Not a substitute for `read_mtime()` in
+/// contexts needing absolute time or correctness across long uptimes.
+#[inline(always)]
+pub fn read_mtime_low() -> u32 {
+    let ticks: u32;
+    unsafe {
+        core::arch::asm!("csrr {0}, time", out(reg) ticks);
+    }
+    ticks
+}
+
 type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
     5,
     rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,

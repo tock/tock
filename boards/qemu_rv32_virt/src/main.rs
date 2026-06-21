@@ -12,11 +12,18 @@ use kernel::component::Component;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::{create_capability, debug};
-use qemu_rv32_virt_chip::chip::{clear_irq_active, SyncEntry, CLINT_MSIP1, LOCKSTEP_CHAN};
+use qemu_rv32_virt_chip::chip::{
+    clear_irq_active, read_mtime_low, SyncEntry, CLINT_MSIP1, LOCKSTEP_CHAN,
+};
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
+
+/// How long hart 0 will wait for hart 1's per-iteration lockstep sync ack
+/// before treating it as a fault (e.g. an SEU leaving hart 1 unable to make
+/// progress). 100 ms at 10 MHz.
+const SYNC_TIMEOUT_MTIME_TICKS: u32 = 1_000_000;
 
 type ScreenDriver = capsules_extra::screen::screen::Screen<'static>;
 
@@ -292,15 +299,35 @@ pub unsafe fn main() {
         // order. Hart 1 doesn't push any of these back today; reserved for
         // future hart-1-originated events (the doorbell side of this is
         // already wired up -- see MachineSoft's hart 0 branch).
+        let sync_wait_start = read_mtime_low();
+        let mut sync_spins: u32 = 0;
         let ack_fingerprint = loop {
-            match LOCKSTEP_CHAN.a_spin_recv() {
-                SyncEntry::Sync { fingerprint, .. } => break fingerprint,
-                SyncEntry::UartRxReady { .. }
-                | SyncEntry::UartTxDone
-                | SyncEntry::RngReady { .. } => {
-                    unreachable!("hart 1 only ever acks with SyncEntry::Sync today")
+            if let Some(entry) = LOCKSTEP_CHAN.a_recv() {
+                match entry {
+                    SyncEntry::Sync { fingerprint, .. } => break fingerprint,
+                    SyncEntry::UartRxReady { .. }
+                    | SyncEntry::UartTxDone
+                    | SyncEntry::RngReady { .. } => {
+                        unreachable!("hart 1 only ever acks with SyncEntry::Sync today")
+                    }
                 }
             }
+            sync_spins = sync_spins.wrapping_add(1);
+
+
+            // Bounded by SYNC_TIMEOUT_MTIME_TICKS: an SEU (or any other fault) that
+            // leaves hart 1 unable to reach its own Sync send would otherwise
+            // spin hart 0 forever. The deadline is only checked every 1024
+            // spins (not every iteration) since `a_recv()` is non-blocking and
+            // most spins are expected to find nothing -- read_mtime_low() is a
+            // single CSR read so this is cheap either way, but there's no
+            // reason to pay it on every spin.
+            if sync_spins & 0x3FF == 0
+                && read_mtime_low().wrapping_sub(sync_wait_start) >= SYNC_TIMEOUT_MTIME_TICKS
+            {
+                panic!("Lockstep: hart 1 sync timeout -- no ack within {} ticks (possible SEU)", SYNC_TIMEOUT_MTIME_TICKS);
+            }
+            core::hint::spin_loop();
         };
         let expected = activity.fingerprint();
         // Hart 0 alone owns real I/O (process console, virtio devices), so it
