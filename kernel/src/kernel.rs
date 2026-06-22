@@ -330,6 +330,51 @@ impl Kernel {
         }
     }
 
+    /// Drain any kernel work (interrupt handling, deferred calls) already
+    /// pending before the main loop begins.
+    ///
+    /// Peripheral initialization during board setup can leave interrupts or
+    /// deferred calls pending right up to the point the main loop starts.
+    /// Without draining them first, the first call to
+    /// [`Kernel::kernel_loop_operation`] reports [`KernelActivity::KernelWork`]
+    /// instead of progressing to process scheduling. On a board that compares
+    /// activity across two independently-scheduled execution contexts (e.g.
+    /// software lockstep across two harts), that one extra round is enough to
+    /// cause a spurious divergence: one context drains its own leftover boot
+    /// work while the other, having none, immediately reaches process
+    /// scheduling a round early.
+    pub fn kernel_preloop_operation<KR: KernelResources<C>, C: Chip>(
+        &self,
+        resources: &KR,
+        chip: &C,
+        _capability: &dyn capabilities::MainLoopCapability,
+    ) {
+        let scheduler = resources.scheduler();
+        // A single drain-until-clean pass isn't always enough: some
+        // peripheral work (e.g. an async device completion) can become
+        // pending a short while after the most recent check found nothing,
+        // not strictly before this function is first called. Keep polling
+        // through a run of consecutive idle checks before giving up,
+        // resetting it any time real work is found and drained, so a
+        // momentary gap doesn't end the drain early.
+        const IDLE_ITERS_THRESHOLD: u32 = 10_000;
+        let mut idle_iters = 0u32;
+        while idle_iters < IDLE_ITERS_THRESHOLD {
+            if scheduler.do_kernel_work_now(chip) {
+                // SAFETY: called from board-init context, before any process
+                // has started and before interrupts/deferred calls are
+                // dispatched anywhere else -- the same precondition
+                // kernel_loop_operation() relies on for this same call.
+                unsafe {
+                    scheduler.execute_kernel_work(chip);
+                }
+                idle_iters = 0;
+            } else {
+                idle_iters += 1;
+            }
+        }
+    }
+
     /// Perform one iteration of the core Tock kernel loop.
     ///
     /// This function is responsible for three main operations:
