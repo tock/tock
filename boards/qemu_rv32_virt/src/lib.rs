@@ -1062,44 +1062,16 @@ pub unsafe fn start_secondary() -> (
         resources.printer.put(process_printer);
     });
 
-    // Load hart 1's own, independently-linked copy of each app from its own
-    // flash region, the same way main() loads hart 0's. Built with hart 0's
-    // chip already, so unlike the old create_replica() approach there's no
-    // need to patch up the chip reference afterwards.
-    const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
-        capsules_system::process_policies::PanicFaultPolicy {};
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    kernel::process::load_processes(
-        board_kernel,
-        chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps_h1),
-            core::ptr::addr_of!(_eapps_h1) as usize - core::ptr::addr_of!(_sapps_h1) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem_h1),
-            core::ptr::addr_of!(_eappmem_h1) as usize - core::ptr::addr_of!(_sappmem_h1) as usize,
-        ),
-        &FAULT_RESPONSE,
-        &process_mgmt_cap,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Hart 1: error loading processes!");
-        debug!("{:?}", err);
-    });
-
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
-
-    let scheduler_timer =
-        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
-            .finalize(components::virtual_scheduler_timer_component_static!(AlarmHw));
-
     // Userspace-facing alarm, independently replicated: Hart 1 has its own
     // CLINT mtimecmp (unlike the UART, no replay from Hart 0 is needed). A
     // replica process issuing the same set_alarm syscall as its Hart 0
     // counterpart will independently compute and arm the same deadline off
     // the same shared mtime, so both harts fire in lockstep.
+    //
+    // Must happen before load_processes() below: creating a grant after
+    // the first process is created panics (Kernel::create_grant ->
+    // "Grants finalized. Cannot create a new grant.", since
+    // load_processes() is what finalizes the grant count).
     let memory_alloc_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let virtual_alarm_user = static_init!(
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
@@ -1140,6 +1112,40 @@ pub unsafe fn start_secondary() -> (
         hil::uart::Transmit::set_transmit_client(&HART1_UART_BUF, console);
         console
     };
+
+    // Load hart 1's own, independently-linked copy of each app from its own
+    // flash region, the same way main() loads hart 0's. Built with hart 0's
+    // chip already, so unlike the old create_replica() approach there's no
+    // need to patch up the chip reference afterwards.
+    const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+        capsules_system::process_policies::PanicFaultPolicy {};
+    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+    let load_result = kernel::process::load_processes(
+        board_kernel,
+        chip,
+        core::slice::from_raw_parts(
+            core::ptr::addr_of!(_sapps_h1),
+            core::ptr::addr_of!(_eapps_h1) as usize - core::ptr::addr_of!(_sapps_h1) as usize,
+        ),
+        core::slice::from_raw_parts_mut(
+            core::ptr::addr_of_mut!(_sappmem_h1),
+            core::ptr::addr_of!(_eappmem_h1) as usize - core::ptr::addr_of!(_sappmem_h1) as usize,
+        ),
+        &FAULT_RESPONSE,
+        &process_mgmt_cap,
+    );
+
+    if let Err(err) = load_result {
+        debug!("Hart 1: error loading processes!");
+        debug!("{:?}", err);
+    }
+
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
+
+    let scheduler_timer =
+        components::virtual_scheduler_timer::VirtualSchedulerTimerComponent::new(mux_alarm)
+            .finalize(components::virtual_scheduler_timer_component_static!(AlarmHw));
 
     // Disarm hart 1's mtimecmp before enabling interrupts.
     //

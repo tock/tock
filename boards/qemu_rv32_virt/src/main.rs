@@ -9,6 +9,7 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::platform::chip::Chip;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::{create_capability, debug};
@@ -183,7 +184,6 @@ pub unsafe extern "C" fn main_secondary() -> ! {
                 }
             }
         }
-        debug!("hart1 loop");
         let activity = board_kernel.kernel_loop_operation(
             &platform,
             chip,
@@ -268,6 +268,19 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    // Drain any interrupts/deferred calls left over from peripheral
+    // initialization (VirtIO negotiation, RNG buffer setup, etc.) before
+    // hart 1 is signaled to start. Otherwise hart 0's first
+    // kernel_loop_operation() call reports KernelWork while hart 1
+    // (peripheral-free, nothing pending) immediately reaches RanProcess --
+    // a spurious one-round divergence at boot, not a real fault.
+    board_kernel.kernel_preloop_operation(&platform, chip, &main_loop_capability);
+    debug!(
+        "TEMP DIAGNOSTIC: after preloop, has_pending_interrupts={}, has_tasks={}",
+        chip.has_pending_interrupts(),
+        kernel::deferred_call::DeferredCall::has_tasks()
+    );
+
     // Signal hart 1 it's safe to proceed and synchronize before either hart
     // enters its kernel loop.  Must happen after load_processes() so hart
     // 0's own process state is fully set up first.
@@ -276,7 +289,6 @@ pub unsafe fn main() {
     debug!("Entering main loop.");
 
     loop {
-        debug!("hart0 loop");
         while !LOCKSTEP_CHAN.a_send(SyncEntry::Sync { fingerprint: 0 }) {
             core::hint::spin_loop();
         }

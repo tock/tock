@@ -108,7 +108,7 @@ run-gui: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 # APP_H1 is optional; when unset, hart 1 simply has no app to schedule (the
 # same as running `make run` with no APP at all, just hart-1-scoped).
 ifneq ($(APP_H1),)
-  APP_H1_LOADER_DEVICE := -device loader,file=$(APP_H1),addr=0x80200080
+  APP_H1_LOADER_DEVICE := -device loader,file=$(APP_H1),addr=0x80200000
 endif
 
 # Same as `run`, but load an application specified by $(APP) into hart 0's
