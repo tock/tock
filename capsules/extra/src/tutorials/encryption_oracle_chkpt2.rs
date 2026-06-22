@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::symmetric_encryption::{AES128Ctr, AES128};
+use kernel::hil::symmetric_encryption::{AESCtr, AES, AES128};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::ErrorCode;
 use kernel::ProcessId;
@@ -17,12 +17,12 @@ pub struct ProcessState {
     request_pending: bool,
 }
 
-pub struct EncryptionOracleDriver<'a, A: AES128<'a> + AES128Ctr> {
+pub struct EncryptionOracleDriver<'a, A: AES<'a, AES128> + AESCtr> {
     aes: &'a A,
     process_grants: Grant<ProcessState, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr> EncryptionOracleDriver<'a, A> {
     /// Create a new instance of our encryption oracle userspace driver:
     pub fn new(
         aes: &'a A,
@@ -37,7 +37,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr> SyscallDriver for EncryptionOracleDriver<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr> SyscallDriver for EncryptionOracleDriver<'a, A> {
     fn command(
         &self,
         command_num: usize,

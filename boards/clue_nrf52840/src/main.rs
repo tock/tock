@@ -21,7 +21,7 @@ use kernel::hil;
 use kernel::hil::buzzer::Buzzer;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
-use kernel::hil::symmetric_encryption::AES128;
+use kernel::hil::symmetric_encryption::AES;
 use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;

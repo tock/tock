@@ -3,8 +3,11 @@
 // Copyright Tock Contributors 2023.
 
 pub mod aes;
+pub mod aes256;
 pub mod aes_ccm;
+pub mod aes_ccm_256;
 pub mod aes_gcm;
+pub mod aes_gcm_256;
 pub mod crc;
 pub mod hmac_sha256;
 pub mod kv_system;

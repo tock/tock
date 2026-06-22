@@ -10,12 +10,14 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::symmetric_encryption::{AES, AES256};
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
+use stm32u5xx_unsafe::aes::AES_BASE;
 
 pub mod io;
 
@@ -52,6 +54,11 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
+        'static,
+        stm32u545::aes::Aes<'static, AES256>,
+        AES256,
+    >,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -64,6 +71,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             _ => f(None),
         }
     }
@@ -151,11 +159,17 @@ unsafe fn start() -> (
         stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
     );
     usart1.register();
+    let aes = static_init!(
+        stm32u545::aes::Aes<'static, AES256>,
+        stm32u545::aes::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
+            registers: AES_BASE
+        })
+    );
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, aes)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -164,6 +178,16 @@ unsafe fn start() -> (
     // Board specific wiring
     periphs.tim2.start();
     set_pin_primary_functions(periphs);
+
+    // Driver Config
+    use kernel::hil::uart::Configure;
+    let _ = periphs.usart1.configure(kernel::hil::uart::Parameters {
+        baud_rate: 115200,
+        stop_bits: kernel::hil::uart::StopBits::One,
+        parity: kernel::hil::uart::Parity::None,
+        hw_flow_control: false,
+        width: kernel::hil::uart::Width::Eight,
+    });
 
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -233,6 +257,18 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let aes_driver = components::aes::AesDriverComponent::new(
+        board_kernel,
+        capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
+        aes,
+    )
+    .finalize(components::aes_driver_component_static!(
+        stm32u545::aes::Aes<'static, AES256>,
+        AES256
+    ));
+
+    AES::set_client(aes, aes_driver);
+
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -244,6 +280,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            aes: aes_driver,
         }
     );
 

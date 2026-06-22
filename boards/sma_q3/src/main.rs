@@ -25,7 +25,7 @@ use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::screen::Screen;
-use kernel::hil::symmetric_encryption::AES128;
+use kernel::hil::symmetric_encryption::AES;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};

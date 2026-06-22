@@ -1123,6 +1123,7 @@ dependencies = [
  "cortexm33",
  "kernel",
  "stm32u545",
+ "stm32u5xx-unsafe",
  "tock_build_scripts",
 ]
 
@@ -1626,6 +1627,15 @@ dependencies = [
 
 [[package]]
 name = "stm32u5xx"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "stm32u5xx-unsafe",
+]
+
+[[package]]
+name = "stm32u5xx-unsafe"
 version = "0.2.3-dev"
 dependencies = [
  "cortexm33",
