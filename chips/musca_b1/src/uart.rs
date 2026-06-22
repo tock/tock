@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025.
+// Copyright OxidOS Automotive 2025, Tock Contributors 2026.
 
 // Standard PrimeCell® UART (PL011) from ARM
 // https://documentation-service.arm.com/static/5e8e36c2fd977155116a90b5

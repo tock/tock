@@ -1,6 +1,9 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025.
+// Copyright Tock Contributors 2026.
+
+//! Timer driver for the CMSDK timer on Musca-B1 located in its SSE-200 subsystem.
+//! The timer is not reliable in qemu. Some times it runs faster sometimes slower...
 
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
