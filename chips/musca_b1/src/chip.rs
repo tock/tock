@@ -53,9 +53,10 @@ impl<I: InterruptService> Chip for MuscaB1<'_, I> {
     }
 
     fn init() {
-        unsafe{ 
-        cortexm33::nvic::disable_all();
-        cortexm33::nvic::clear_all_pending()};
+        unsafe {
+            cortexm33::nvic::disable_all();
+            cortexm33::nvic::clear_all_pending()
+        };
     }
 
     fn has_pending_interrupts(&self) -> bool {
@@ -103,10 +104,9 @@ impl MuscaB1DefaultPeripherals<'_> {
         }
     }
 
-    pub fn resolve_dependencies(&'static self) {
+    pub fn init(&'static self) {
         kernel::deferred_call::DeferredCallClient::register(&self.uart0);
         kernel::deferred_call::DeferredCallClient::register(&self.uart1);
-        //todo
         self.timer0.start_counter();
     }
 }

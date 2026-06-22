@@ -1,11 +1,8 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025.
+// Copyright Tock Contributors 2026.
 
 #![no_std]
-// GPIO has many register definitions in `register_structs()!`
-// and requires a deeper recursion limit than the default to fully expand.
-#![recursion_limit = "256"]
 
 pub mod chip;
 pub mod interrupts;

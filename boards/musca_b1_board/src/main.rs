@@ -133,7 +133,7 @@ pub unsafe fn start() -> (
         );
 
     let peripherals = get_peripherals();
-    peripherals.resolve_dependencies();
+    peripherals.init();
 
     // Set the UART used for panic
 

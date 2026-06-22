@@ -1,6 +1,6 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2025.
+# Copyright Tock Contributors 2026.
 
 include ../Makefile.common
 
@@ -11,7 +11,7 @@ BROKEN_QEMU_VERSIONS  := <= 8.1.5
 # Musca-B1 specific parameters
 QEMU_BASE_CMDLINE := \
     $(QEMU_CMD) \
-    -machine mps3-an524 \
+    -machine musca-b1 \
     -cpu cortex-m33 \
     -nographic \
     -semihosting
@@ -31,20 +31,17 @@ else
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(MUSCA_ELF_WITH_APP)
 endif
 
-comma := ,
-QEMU_APP_ARGS := $(if $(APP),-device loader$(comma)file=$(APP)$(comma)addr=0x10100000,)
-
 .PHONY: qemu
-qemu: debug
+qemu: build-with-app
 	@echo "To exit type C-a x"
 	@echo
-	$(QEMU_BASE_CMDLINE) -kernel $(MUSCA_ELF) $(QEMU_APP_ARGS)
+	$(QEMU_BASE_CMDLINE) -kernel $(MUSCA_ELF_WITH_APP)
 
 .PHONY: qemu-gdb-listen
-qemu-gdb-listen: debug
+qemu-gdb-listen: build-with-app
 	@killall qemu-system-arm || true
 	@echo Starting QEMU...
-	$(QEMU_BASE_CMDLINE) -kernel $(MUSCA_ELF) $(QEMU_APP_ARGS) -S -gdb tcp::1234
+	$(QEMU_BASE_CMDLINE) -kernel $(MUSCA_ELF_WITH_APP) -S -gdb tcp::1234
 
 .PHONY: gdb-connect
 gdb-connect:
