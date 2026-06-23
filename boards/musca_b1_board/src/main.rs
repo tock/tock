@@ -1,15 +1,11 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025.
+// Copyright Tock Contributers 2026.
 
-//! Tock kernel for the Raspberry Pi Pico 2.
-//!
-//! It is based on RP2350SoC SoC (Cortex M33).
+//! Tock kernel for the Musca B1
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;

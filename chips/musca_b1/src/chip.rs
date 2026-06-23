@@ -13,12 +13,6 @@ use crate::timer::CMSDKTimer;
 use crate::uart::Uart;
 use cortexm33::{CortexM33, CortexMVariant};
 
-#[repr(u8)]
-pub enum Processor {
-    Processor0 = 0,
-    Processor1 = 1,
-}
-
 pub struct MuscaB1<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
     userspace_kernel_boundary: cortexm33::syscall::SysCall,
