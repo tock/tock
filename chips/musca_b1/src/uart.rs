@@ -653,10 +653,6 @@ impl Uart<'_> {
             .uartcr
             .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET + UARTCR::RXE::SET);
 
-        self.registers
-            .uartdmacr
-            .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
-
         Ok(())
     }
 }
@@ -771,10 +767,6 @@ impl Configure for Uart<'_> {
         self.registers
             .uartcr
             .modify(UARTCR::UARTEN::SET + UARTCR::TXE::SET + UARTCR::RXE::SET);
-
-        self.registers
-            .uartdmacr
-            .write(UARTDMACR::TXDMAE::SET + UARTDMACR::RXDMAE::SET);
 
         Ok(())
     }
