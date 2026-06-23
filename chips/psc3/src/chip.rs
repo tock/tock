@@ -129,6 +129,7 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
         unsafe {
             cortexm33::nvic::disable_all();
             cortexm33::nvic::clear_all_pending();
+            cortexm33::nvic::enable_all();
         }
     }
 

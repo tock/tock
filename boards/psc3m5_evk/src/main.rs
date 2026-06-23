@@ -13,6 +13,7 @@ use components::led::LedsComponent;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -137,9 +138,7 @@ pub unsafe fn start() -> (
     Psc3Plattform,
     &'static Psc3<'static, Psc3DefaultPeripherals<'static>>,
 ) {
-    /* Only after peripherals.sys_init() was called peripheral view for debugging works */
-    // cortexm33::support::dmb();
-    cortexm33::nvic::enable_all();
+    ChipHw::init();
 
     // Todo set MSP limit to the start of the stack (done in infineon board support package)
     // cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
