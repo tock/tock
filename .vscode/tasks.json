@@ -1,0 +1,15 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "musca_b1_board.build.debug",
+            "command": "APP=${config:tock.app} make -C ${workspaceRoot}/boards/musca_b1_board build-with-app",
+            "type": "shell",
+            "args": [],
+            "presentation": {
+                "reveal": "silent"
+            },
+            "group": "build"
+        },
+    ]
+}

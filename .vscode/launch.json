@@ -28,6 +28,27 @@
             "configFiles": [
                 "${workspaceRoot}/boards/msp_exp432p401r/openocd.cfg",
             ]
+        },
+        {
+            "showDevDebugOutput": "raw",
+            "name": "M33-qemu",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "qemu",
+            "executable": "target/thumbv8m.main-none-eabi/debug/musca_b1_board-app.elf",
+            "svdFile": "", // optional .svd file for peripheral register view
+            "cwd": "${workspaceFolder}",
+            "cpu": "cortex-m33",
+            "machine": "musca-b1",
+            "gdbPath": "arm-none-eabi-gdb",
+            "objdumpPath": "arm-none-eabi-objdump",
+            "preLaunchTask": "musca_b1_board.build.debug",
+            "preLaunchCommands": [
+                "set architecture armv8-m.main"
+            ],
+            "postLaunchCommands": [
+                "set $sp = 0x30003000",
+            ]
         }
     ]
 }
