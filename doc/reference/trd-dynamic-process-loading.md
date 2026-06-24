@@ -249,8 +249,7 @@ process binaries from flash, checks their credentials, and verifies uniqueness.
 The implementation is structured like this:
 
 ```text
- trait DynamicBinaryStore
- trait DynamicProcessLoad
+ trait DynamicBinaryStore, trait DynamicProcessLoad
 ┌────────────────────────────────┐   ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
 │                                │   ╎                                ╎
 │                              ──┼──►╎                                ╎
