@@ -193,7 +193,7 @@ called. This completes the store and the implementation can handle a new
 
 The `abort()` call deallocates any stored resources and resets the
 implementation to handle a new `setup()` call.
-`abort()` can only be called after `setup()` and before `finalize()`.
+`abort()` can only be called after `setup()` and before `finalize()`. If `finalize()` returns an error, it is up to the caller to clean up any resources.
 
 Each operation is asynchronous and must generate a callback if the operation
 returns `Ok(())`.
