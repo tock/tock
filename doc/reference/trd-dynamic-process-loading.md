@@ -224,10 +224,10 @@ trait DynamicProcessLoadClient {
 The `load()` operation is asynchronous and must generate a callback if it
 returns `Ok(())`.
 
-This interface does not mandate that the kernel capsule creates a new process.
-Implementations may include a policy for choosing whether to load a new process
-binary. The implementation must also use the board's chosen credential checking
-policy.
+Even if an application image was written successfully, the request to load a process
+may fail. The platform application loader may include a policy for choosing whether
+ to load a new process binary, which may include steps such as validating the
+ credentials of the newly requested process.
 
 
 5 Sequential Process Loading Implementation
