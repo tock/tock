@@ -9,8 +9,7 @@
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::entropy::Entropy32;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -194,8 +193,8 @@ unsafe fn start() -> (
 
     usart1.register();
     let trng = static_init!(
-        stm32u545::entropy::Trng<'static>,
-        stm32u545::entropy::Trng::new(stm32u545::entropy::RNG_BASE)
+        stm32u545::Trng<'static>,
+        stm32u545::Trng::new(stm32u545::entropy::RNG_BASE)
     );
 
     // Load Peripherals Bundle
@@ -203,6 +202,7 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
     );
+    trng.init();
 
     // Initialize wiring (DMA, clocks)
     periphs.init();
