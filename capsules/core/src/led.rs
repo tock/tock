@@ -56,7 +56,7 @@
 //! - `4`: Read the current state of the LED.
 //!   - `data`: The index of the LED. Starts at 0.
 //!   - Return: `INVAL` if the LED index was invalid, `Ok(0u32)` if the LED is
-//!   off, `Ok(1u32)` if the LED is on.
+//!     off, `Ok(1u32)` if the LED is on.
 
 use kernel::hil::led;
 use kernel::syscall::{CommandReturn, SyscallDriver};

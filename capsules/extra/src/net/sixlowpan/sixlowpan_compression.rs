@@ -589,10 +589,10 @@ fn compress_udp_checksum(udp_header: &UDPHeader, buf: &mut [u8], written: &mut u
 /// * `dst_mac_addr` - the 16-bit MAC address of the frame receiver.
 ///
 /// * `out_buf` - A buffer to write the output to. Must be at least large enough
-/// to store an IPv6 header (XX bytes).
+///   to store an IPv6 header (XX bytes).
 ///
 /// * `dgram_size` - If `is_fragment` is `true`, this is used as the IPv6
-/// packets total payload size. Otherwise, this is ignored.
+///   packets total payload size. Otherwise, this is ignored.
 ///
 /// * `is_fragment` - ???
 ///
@@ -603,7 +603,7 @@ fn compress_udp_checksum(udp_header: &UDPHeader, buf: &mut [u8], written: &mut u
 /// * `consumed` is the number of header bytes consumed from the 6LoWPAN header
 ///
 /// * `written` is the number of uncompressed header bytes written into
-/// `out_buf`.
+///   `out_buf`.
 pub fn decompress(
     ctx_store: &dyn ContextStore,
     buf: &[u8],
