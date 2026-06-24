@@ -248,6 +248,10 @@ process binaries from flash, checks their credentials, and verifies uniqueness.
 
 The implementation is structured like this:
 
+`SequentialDynamicBinaryStorage` uses a `SequentialProcessLoaderMachine` and 
+`hil:NonvolatileStorage` and implements the  `DynamicBinaryStore` and
+`DynamicProcesLoad` traits.
+
 ```text
  trait DynamicBinaryStore, trait DynamicProcessLoad
 ┌────────────────────────────────┐   ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
