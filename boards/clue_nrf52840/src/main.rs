@@ -10,8 +10,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of;
-
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 
 use kernel::capabilities;
@@ -318,6 +316,9 @@ unsafe fn start() -> (
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
+    // Get FICR instance to read chip properties.
+    let ficr = nrf52840::ficr::Ficr::new();
+
     //--------------------------------------------------------------------------
     // CAPABILITIES
     //--------------------------------------------------------------------------
@@ -505,8 +506,7 @@ unsafe fn start() -> (
     // Create the strings we include in the USB descriptor. We use the hardcoded
     // DEVICEADDR register on the nRF52 to set the serial number.
     let serial_number_buf = static_init!([u8; 17], [0; 17]);
-    let serial_number_string: &'static str =
-        (*addr_of!(nrf52::ficr::FICR_INSTANCE)).address_str(serial_number_buf);
+    let serial_number_string: &'static str = ficr.address_str(serial_number_buf);
     let strings = static_init!(
         [&str; 3],
         [
@@ -747,7 +747,7 @@ unsafe fn start() -> (
     kernel::deferred_call::DeferredCallClient::register(aes_mux);
     base_peripherals.ecb.set_client(aes_mux);
 
-    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
+    let device_id = ficr.id();
 
     let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
