@@ -7,32 +7,29 @@
 /// This must be public to work within the macro but should never be used
 /// directly.
 ///
-/// This is a `#[inline(never)]` function that panics internally if the passed
-/// reference is `true`. This function is intended for use within the
+/// This is a `#[inline(never)]` function that panics if the atomic flag has
+/// already been set. This function is intended for use within the
 /// [`only_once!()`](crate::only_once) macro to detect multiple uses of the
 /// macro on the same name.
 ///
-/// This function is implemented separately without inlining to removes the size
+/// This function is implemented separately without inlining to remove the size
 /// bloat of track_caller saving the location of every single call to
 /// [`only_once!()`](crate::only_once).
+#[cfg(target_has_atomic = "ptr")]
 #[inline(never)]
-pub unsafe fn only_once_check_used(used: &mut bool) {
-    // Check if this bool has already been declared and initialized. If it
-    // has, then this is a call which is an error.
-    if *used {
-        // panic, this buf has already been declared and initialized.
-        // NOTE: To save 144 bytes of code size, use loop {} instead of this
-        // panic.
+pub fn only_once_check_used(used: &core::sync::atomic::AtomicUsize) {
+    // swap(1) returns the old value; if it was already 1, this is a second call.
+    if used.swap(1, core::sync::atomic::Ordering::Relaxed) != 0 {
         panic!("Error! only_once!() called twice.");
-    } else {
-        // Otherwise, mark our uninitialized buffer as used.
-        *used = true;
     }
 }
 
 /// Helper macro to ensure an object is only created once.
 ///
 /// Panics if the same object is created twice.
+///
+/// On targets without atomic pointer-sized operations, this macro always panics
+/// because there is no safe way to guarantee single use.
 ///
 /// ```ignore
 ///
@@ -41,25 +38,29 @@ pub unsafe fn only_once_check_used(used: &mut bool) {
 ///
 /// impl PeripheralManagerWithDma {
 ///     fn new() -> Self {
-///     	// Ensure this will panic if constructed twice.
-///     	kernel::only_once!(PERIPHERAL_MANAGER_WITH_DMA);
-///     	Self {}
+///         // Ensure this will panic if constructed twice.
+///         kernel::only_once!(PERIPHERAL_MANAGER_WITH_DMA);
+///         Self {}
 ///     }
 /// }
 /// ```
+#[cfg(target_has_atomic = "ptr")]
 #[macro_export]
 macro_rules! only_once {
     ($N:ident $(,)?) => {{
-        // Statically allocate a read-write buffer for the value without
-        // actually writing anything, as well as a flag to track if
-        // this memory has been initialized yet.
-        static mut $N: bool = false;
+        static $N: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+        $crate::utilities::singleton::only_once_check_used(&$N);
+    }};
+}
 
-        // To minimize the amount of code duplicated across every invocation
-        // of this macro, all of the logic for checking if the buffer has been
-        // used is contained within the static_buf_check_used function,
-        // which panics if the passed boolean has been used and sets the
-        // boolean to true otherwise.
-        unsafe { $crate::utilities::singleton::only_once_check_used(&mut $N) };
+/// Helper macro to ensure an object is only created once.
+///
+/// This is not supported on platforms without atomic
+/// support and will just panic.
+#[cfg(not(target_has_atomic = "ptr"))]
+#[macro_export]
+macro_rules! only_once {
+    ($N:ident $(,)?) => {{
+        panic!("Error! only_once!() is not supported on targets without atomic operations.");
     }};
 }
