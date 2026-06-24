@@ -1,0 +1,269 @@
+{
+    "policy": {
+        "platform": "psoc_c3",
+        "version": 1,
+        "type": "oem_provisioning"
+    },
+    "device_policy": {
+        "target_lcs": {
+            "description": "The LCS to which the transition should be done",
+            "applicable_conf": "NORMAL_PROVISIONED, SECURE",
+            "value": "NORMAL_PROVISIONED"
+        },
+        "program_sflash_assets": {
+            "description": "Indicates whether to program the assets which are placed into SFLASH",
+            "value": true
+        },
+        "program_iak": {
+            "description": "Indicates whether to generate and program Initial Attestation Key",
+            "value": false
+        },
+        "program_hash": {
+            "description": "Enables ASSET_HASH and FACTORY_HASH validation in NORMAL_PROVISIONED LCS",
+            "value": false
+        },
+        "nv_counter_l1": {
+            "description": "L1 application NV counter. 0, if no update",
+            "value": 0
+        },
+        "nv_counter_l2": {
+            "description": "L2 application NV counter. 0, if no update",
+            "value": 0
+        },
+        "prov_oem_complete": {
+            "description": "Indicates OEM assets are finalized in SFLASH",
+            "warning": "!!!Once the 'prov_oem_complete' parameter value is set to true, it cannot be changed!!! No further updates to SFLASH are allowed",
+            "value": false
+        },
+        "debug": {
+            "cpu": {
+                "ap_cm33": {
+                    "description": "Configures the CM33 debug access port availability in the SECURE and NORMAL_PROVISIONED LCS",
+                    "applicable_conf": "Enable, Disable, Permanently Disable",
+                    "value": "Enable"
+                },
+                "listen_window": {
+                    "description": "Configures the listen window time to acquire the CM33 debug access port in the SECURE LCS",
+                    "applicable_conf": "100 ms, 20 ms, 1 ms, 0 ms",
+                    "value": "100 ms"
+                },
+                "cm33_dbg": {
+                    "description": "Configures the invasive debug of CM33 core",
+                    "applicable_conf": "Enable, Disable, Permanently Disable",
+                    "value": "Enable"
+                },
+                "cm33_nid": {
+                    "description": "Configures the non-invasive debug of CM33 core",
+                    "applicable_conf": "Enable, Disable, Permanently Disable",
+                    "value": "Enable"
+                },
+                "cm33_spid": {
+                    "description": "Configures the secure privileged invasive debug of CM33 core",
+                    "applicable_conf": "Enable, Disable, Permanently Disable",
+                    "value": "Enable"
+                },
+                "cm33_spnid": {
+                    "description": "Configures the secure privileged non-invasive debug of CM33 core",
+                    "applicable_conf": "Enable, Disable, Permanently Disable",
+                    "value": "Enable"
+                },
+                "cm33_secure": {
+                    "description": "Enables the CM33 secure AP interface",
+                    "applicable_conf": "Enable, Disable, Permanently Disable",
+                    "value": "Enable"
+                }
+            },
+            "system": {
+                "ap": {
+                    "description": "Configures the System debug access port availability in the SECURE and NORMAL_PROVISIONED LCS",
+                    "applicable_conf": "Enable, Disable, Permanently Disable",
+                    "value": "Enable"
+                },
+                "secure": {
+                    "description": "Enables the system secure AP interface",
+                    "applicable_conf": "Enable, Disable, Permanently Disable",
+                    "value": "Enable"
+                },
+                "mmio_restrictions": {
+                    "description": "MMIO restrictions for System AP",
+                    "applicable_conf": "No restrictions, SRSS_GENERAL2 only, No access",
+                    "value": "No restrictions"
+                },
+                "debug_pins": {
+                    "description": "Configures debug pins and interface",
+                    "comment_1": "0000 - 2 pins (TMS, TCLK), JTAG is disabled",
+                    "comment_2": "0011 - 2 pins (TMS, TCLK), JTAG is enabled",
+                    "comment_3": "0101 - 4 pins (TMS, TCLK, TDO, TDI)",
+                    "comment_4": "0110 - 5 pins (TMS, TCLK, TDO, TDI, TRSTN)",
+                    "comment_5": "1001 - SWJ pins disabled, JTAG is enabled",
+                    "comment_6": "1010 - SWJ pins disabled, JTAG is disabled",
+                    "applicable_conf": "0000, 0011, 0101, 0110, 1001, 1010",
+                    "value": "0000"
+                }
+            }
+        },
+        "boot": {
+            "boot_cfg_id": {
+                "description": "A behavior for BOOT_APP_LAYOUT (BOOT_SIMPLE_APP applicable to NORMAL_PROVISIONED only)",
+                "applicable_conf": "BOOT_SIMPLE_APP, BOOT_ONE_SLOT, BOOT_TWO_SLOTS, BOOT_THREE_SLOTS, BOOT_IDLE",
+                "value": "BOOT_SIMPLE_APP"
+            },
+            "boot_dual_bank_enable": {
+                "description": "Indicates whether to enable flash dual bank feature",
+                "value": false
+            },
+            "boot_bank_ctr_offset": {
+                "description": "An offset from the start of each flash bank where a 32-bit counter for flash dual bank switching is placed",
+                "value": "0xC39D5455"
+            },
+            "boot_auth_l1": {
+                "description": "Fast or full authentication configuration for L1 application",
+                "applicable_conf": "Fast, Full",
+                "value": "Full"
+            },
+            "boot_auth_l2": {
+                "description": "Fast or full authentication configuration for L2 application",
+                "applicable_conf": "Fast, Full",
+                "value": "Full"
+            },
+            "boot_auth_l2_enable": {
+                "description": "Indicates whether to enable L2 slot authentication by Boot FW",
+                "value": false
+            },
+            "boot_move_app": {
+                "description": "Indicates whether the L2 application overwrites the L1 application. Relevant for the case when there is an application in the second slot",
+                "value": false
+            },
+            "boot_app_layout": {
+                "description": "The memory layout for the applications defined by BOOT_CFG_ID. 0x32000000 - 0x33FFFFFF for secure addresses; 0x22000000 - 0x23FFFFFF for non-secure addresses",
+                "value": [
+                    {
+                        "address": "0x32000000",
+                        "size": "0x40000"
+                    },
+                    {
+                        "address": "0x00000000",
+                        "size": "0x00"
+                    },
+                    {
+                        "address": "0x00000000",
+                        "size": "0x00"
+                    }
+                ]
+            }
+        },
+        "dfu": {
+            "dfu_enable": {
+                "description": "Indicates whether Device Firmware Update is enabled",
+                "value": false
+            },
+            "dfu_l1_update": {
+                "description": "Indicates whether to allow L1 update with DFU",
+                "value": false
+            }
+        },
+        "boot_od_clk": {
+            "description": "CM33 boot frequency",
+            "applicable_conf": "48 MHz, 100 MHz, 180 MHz",
+            "value": "180 MHz"
+        },
+        "pc1_ctl_valid": {
+            "description": "True when 'pc1_handler' is valid",
+            "value": false
+        },
+        "pc2_ctl_valid": {
+            "description": "True when 'pc2_handler' is valid",
+            "value": false
+        },
+        "pc3_ctl_valid": {
+            "description": "True when 'pc3_handler' is valid",
+            "value": false
+        },
+        "pc1_handler": {
+            "description": "Used to switch to PC1 when it is a 'Special' PC",
+            "value": "0xFFFFFFFF"
+        },
+        "pc2_handler": {
+            "description": "Used to switch to PC2 when it is a 'Special' PC",
+            "value": "0xFFFFFFFF"
+        },
+        "pc3_handler": {
+            "description": "Used to switch to PC3 when it is a 'Special' PC",
+            "value": "0xFFFFFFFF"
+        },
+        "mpc": {
+            "mpc_struct_ram": {
+                "description": "RAM MPC structures. The total number of RAM and Flash MPC structures must be less than 32",
+                "value": [
+                    {
+                        "description": "Offset and size in KB. The values must be multiple of 2 (e.g. 0 KB, 2 KB, 4 KB, 8 KB, ...)",
+                        "offset": "16 KB",
+                        "size": "48 KB",
+                        "attr": {
+                            "description": "The MPC attributes for this memory region",
+                            "comment_1": "WRN allow write, read, and NS only access",
+                            "comment_2": "-RN allow read, NS-only access",
+                            "comment_3": "--- and --N, no access",
+                            "comment_4": "WR- read and write access, but NS=0 only",
+                            "value": {
+                                "pc0": "WR-",
+                                "pc1": "WR-",
+                                "pc2": "WR-",
+                                "pc3": "WR-",
+                                "pc4": "WR-",
+                                "pc5": "WR-",
+                                "pc6": "WR-",
+                                "pc7": "WR-"
+                            }
+                        }
+                    }
+                ]
+            },
+            "mpc_struct_flash": {
+                "description": "Flash MPC structures. The total number of RAM and Flash MPC structures must be less than 32",
+                "value": [
+                    {
+                        "description": "Offset and size in KB. The values must be multiple of 2 (e.g. 0 KB, 2 KB, 4 KB, 8 KB, ...)",
+                        "offset": "64 KB",
+                        "size": "192 KB",
+                        "attr": {
+                            "description": "The MPC attributes for this memory region",
+                            "comment_1": "WRN allow read, write, and NS only access",
+                            "comment_2": "-RN allow read, NS-only access",
+                            "comment_3": "--- and --N, no access",
+                            "comment_4": "WR- read and write access, but NS=0 only",
+                            "comment_5": "W--, W-N illegal values",
+                            "value": {
+                                "pc0": "WR-",
+                                "pc1": "WR-",
+                                "pc2": "WR-",
+                                "pc3": "WR-",
+                                "pc4": "WR-",
+                                "pc5": "WR-",
+                                "pc6": "WR-",
+                                "pc7": "WR-"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "pre_build": {
+        "comment_1": "Not used at the moment/ Can be used without generating keys.",
+        "keys": {
+            "oem_rot_public_key_0": {
+                "description": "Path to the OEM RoT public key 0",
+                "value": "../keys/oem_rot_pub_key_0.pem"
+            },
+            "oem_rot_public_key_1": {
+                "description": "Path to the OEM RoT public key 1",
+                "value": "../keys/oem_rot_pub_key_1.pem"
+            }
+        }
+    },
+    "raw_data_pc012": {
+        "description": "Path to a binary file containing custom data accessible in PC0, PC1, and PC2. Up to 256 bytes",
+        "value": ""
+    }
+}

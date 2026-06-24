@@ -72,7 +72,7 @@
 
 use core::ptr::addr_of;
 
-use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
@@ -161,15 +161,38 @@ kernel::stack_size! {0x2000}
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
-type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
-type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
+type BleHw = nrf52840::ble_radio::Radio<'static>;
+type ButtonHw = nrf52840::gpio::GPIOPin<'static>;
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type RngHw = nrf52840::trng::Trng<'static>;
+type GpioHw = nrf52840::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>;
+type AdcHw = nrf52840::adc::Adc<'static>;
+type AnalogComparatorHw = nrf52840::acomp::Comparator<'static>;
+type I2cHw = nrf52840::i2c::TWI<'static>;
+type SpiHw = nrf52840::spi::SPIM<'static>;
+type TemperatureHw = nrf52840::temperature::Temp<'static>;
+type AesHw = nrf52840::aes::AesECB<'static>;
+type RadioHw = nrf52840::ieee802154_radio::Radio<'static>;
+type SystickHw = cortexm4::systick::SysTick;
+
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
+type ButtonDriver = components::button::ButtonComponentType<ButtonHw>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type RngDriver = components::rng::RngComponentType<RngHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 4>;
+type AdcDriver = components::adc::AdcDedicatedComponentType<AdcHw>;
+type AnalogComparatorDriver =
+    components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
+type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
+type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
+type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
+type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
 
 // TicKV
-type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
-    nrf52840::spi::SPIM<'static>,
-    nrf52840::gpio::GPIOPin<'static>,
-    nrf52840::rtc::Rtc<'static>,
->;
+type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<SpiHw, GpioHw, AlarmHw>;
 const TICKV_PAGE_SIZE: usize =
     core::mem::size_of::<<Mx25r6435f as kernel::hil::flash::Flash>::Page>();
 type Siphasher24 = components::siphash::Siphasher24ComponentType;
@@ -183,72 +206,39 @@ type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVK
 type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
 type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 
-// Temperature
-type TemperatureDriver =
-    components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
-
 // IEEE 802.15.4
-type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
-    nrf52840::ieee802154_radio::Radio<'static>,
-    nrf52840::aes::AesECB<'static>,
->;
+type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<RadioHw, AesHw>;
 /// Userspace 802.15.4 driver with in-kernel packet framing and MAC layer.
-pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
-    nrf52840::ieee802154_radio::Radio<'static>,
-    nrf52840::aes::AesECB<'static>,
->;
+pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<RadioHw, AesHw>;
 
-// EUI64
 /// Userspace EUI64 driver.
 pub type Eui64Driver = components::eui64::Eui64ComponentType;
+
+/// Userspace UDP driver.
+pub type UdpDriver = components::udp_driver::UDPDriverComponentType;
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf52840::ble_radio::Radio<'static>,
-        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-    >,
-    button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-        components::process_console::Capability,
-    >,
+    ble_radio: &'static BleDriver,
+    button: &'static ButtonDriver,
+    pconsole: &'static ProcessConsoleDriver,
     console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
-        4,
-    >,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
     rng: &'static RngDriver,
-    adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
+    adc: &'static AdcDriver,
     temp: &'static TemperatureDriver,
     /// The IPC driver.
-    pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
-        'static,
-        nrf52840::acomp::Comparator<'static>,
-    >,
+    pub ipc: IpcDriver,
+    analog_comparator: &'static AnalogComparatorDriver,
     alarm: &'static AlarmDriver,
-    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
-        'static,
-        nrf52840::i2c::TWI<'static>,
-    >,
-    spi_controller: &'static capsules_core::spi_controller::Spi<
-        'static,
-        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-            'static,
-            nrf52840::spi::SPIM<'static>,
-        >,
-    >,
+    i2c_master_slave: &'static I2CMasterSlaveDriver,
+    spi_controller: &'static SpiControllerDriver,
     kv_driver: &'static KVDriver,
     scheduler: &'static SchedulerInUse,
-    systick: cortexm4::systick::SysTick,
+    systick: SystickHw,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -281,7 +271,7 @@ impl KernelResources<ChipHw> for Platform {
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = SchedulerInUse;
-    type SchedulerTimer = cortexm4::systick::SysTick;
+    type SchedulerTimer = SystickHw;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -312,11 +302,11 @@ impl KernelResources<ChipHw> for Platform {
 pub unsafe fn ieee802154_udp(
     board_kernel: &'static kernel::Kernel,
     nrf52840_peripherals: &'static Nrf52840DefaultPeripherals<'static>,
-    mux_alarm: &'static MuxAlarm<nrf52840::rtc::Rtc>,
+    mux_alarm: &'static MuxAlarm<AlarmHw>,
 ) -> (
     &'static Eui64Driver,
     &'static Ieee802154Driver,
-    &'static capsules_extra::net::udp::UDPDriver<'static>,
+    &'static UdpDriver,
 ) {
     //--------------------------------------------------------------------------
     // AES
@@ -324,9 +314,7 @@ pub unsafe fn ieee802154_udp(
 
     let aes_mux =
         components::ieee802154::MuxAes128ccmComponent::new(&nrf52840_peripherals.nrf52.ecb)
-            .finalize(components::mux_aes128ccm_component_static!(
-                nrf52840::aes::AesECB
-            ));
+            .finalize(components::mux_aes128ccm_component_static!(AesHw));
 
     //--------------------------------------------------------------------------
     // 802.15.4
@@ -347,10 +335,7 @@ pub unsafe fn ieee802154_udp(
         device_id_bottom_16,
         device_id,
     )
-    .finalize(components::ieee802154_component_static!(
-        nrf52840::ieee802154_radio::Radio,
-        nrf52840::aes::AesECB<'static>
-    ));
+    .finalize(components::ieee802154_component_static!(RadioHw, AesHw));
 
     //--------------------------------------------------------------------------
     // UDP
@@ -380,7 +365,7 @@ pub unsafe fn ieee802154_udp(
         mux_alarm,
     )
     .finalize(components::udp_mux_component_static!(
-        nrf52840::rtc::Rtc,
+        AlarmHw,
         Ieee802154MacDevice
     ));
 
@@ -393,7 +378,7 @@ pub unsafe fn ieee802154_udp(
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(AlarmHw));
 
     (eui64_driver, ieee802154_driver, udp_driver)
 }
@@ -407,7 +392,7 @@ pub unsafe fn start_no_pconsole() -> (
     Platform,
     &'static ChipHw,
     &'static Nrf52840DefaultPeripherals<'static>,
-    &'static MuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    &'static MuxAlarm<'static, AlarmHw>,
 ) {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
@@ -524,7 +509,7 @@ pub unsafe fn start_no_pconsole() -> (
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
-            nrf52840::gpio::GPIOPin,
+           GpioHw,
             0 => &nrf52840_peripherals.gpio_port[Pin::P1_01],
             1 => &nrf52840_peripherals.gpio_port[Pin::P1_02],
             2 => &nrf52840_peripherals.gpio_port[Pin::P1_03],
@@ -546,7 +531,7 @@ pub unsafe fn start_no_pconsole() -> (
             13 => &nrf52840_peripherals.gpio_port[Pin::P1_15],
         ),
     )
-    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(GpioHw));
 
     //--------------------------------------------------------------------------
     // BUTTONS
@@ -556,7 +541,7 @@ pub unsafe fn start_no_pconsole() -> (
         board_kernel,
         capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            ButtonHw,
             (
                 &nrf52840_peripherals.gpio_port[BUTTON1_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
@@ -579,16 +564,14 @@ pub unsafe fn start_no_pconsole() -> (
             )
         ),
     )
-    .finalize(components::button_component_static!(
-        nrf52840::gpio::GPIOPin
-    ));
+    .finalize(components::button_component_static!(ButtonHw));
 
     //--------------------------------------------------------------------------
     // LEDs
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>,
+        LedHw,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED2_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
@@ -602,13 +585,13 @@ pub unsafe fn start_no_pconsole() -> (
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(AlarmHw));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::alarm_component_static!(AlarmHw));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -619,9 +602,7 @@ pub unsafe fn start_no_pconsole() -> (
         mux_alarm,
         &base_peripherals.uarte0,
     )
-    .finalize(nrf52_components::uart_channel_component_static!(
-        nrf52840::rtc::Rtc
-    ));
+    .finalize(nrf52_components::uart_channel_component_static!(AlarmHw));
 
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -643,9 +624,7 @@ pub unsafe fn start_no_pconsole() -> (
         process_printer,
         Some(cortexm4::support::reset),
     )
-    .finalize(components::process_console_component_static!(
-        nrf52840::rtc::Rtc<'static>
-    ));
+    .finalize(components::process_console_component_static!(AlarmHw));
 
     // Setup the serial console for userspace.
     let console = components::console::ConsoleComponent::new(
@@ -674,10 +653,7 @@ pub unsafe fn start_no_pconsole() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::ble_radio::Radio
-    ));
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
@@ -688,9 +664,7 @@ pub unsafe fn start_no_pconsole() -> (
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!(
-        nrf52840::temperature::Temp
-    ));
+    .finalize(components::temperature_component_static!(TemperatureHw));
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBER GENERATOR
@@ -701,7 +675,7 @@ pub unsafe fn start_no_pconsole() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
+    .finalize(components::rng_component_static!(RngHw));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -724,16 +698,14 @@ pub unsafe fn start_no_pconsole() -> (
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
     )
-    .finalize(components::adc_dedicated_component_static!(
-        nrf52840::adc::Adc
-    ));
+    .finalize(components::adc_dedicated_component_static!(AdcHw));
 
     //--------------------------------------------------------------------------
     // SPI
     //--------------------------------------------------------------------------
 
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
-        .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+        .finalize(components::spi_mux_component_static!(SpiHw));
 
     // Create the SPI system call capsule.
     let spi_controller = components::spi::SpiSyscallComponent::new(
@@ -744,9 +716,7 @@ pub unsafe fn start_no_pconsole() -> (
         ),
         capsules_core::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_static!(
-        nrf52840::spi::SPIM
-    ));
+    .finalize(components::spi_syscall_component_static!(SpiHw));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(SPI_MOSI),
@@ -766,9 +736,7 @@ pub unsafe fn start_no_pconsole() -> (
         mux_spi,
     )
     .finalize(components::mx25r6435f_component_static!(
-        nrf52840::spi::SPIM,
-        nrf52840::gpio::GPIOPin,
-        nrf52840::rtc::Rtc
+        SpiHw, GpioHw, AlarmHw
     ));
 
     //--------------------------------------------------------------------------
@@ -841,9 +809,7 @@ pub unsafe fn start_no_pconsole() -> (
         capsules_core::i2c_master_slave_driver::DRIVER_NUM,
         &base_peripherals.twi1,
     )
-    .finalize(components::i2c_master_slave_component_static!(
-        nrf52840::i2c::TWI
-    ));
+    .finalize(components::i2c_master_slave_component_static!(I2cHw));
 
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
@@ -871,7 +837,7 @@ pub unsafe fn start_no_pconsole() -> (
         capsules_extra::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::analog_comparator_component_static!(
-        nrf52840::acomp::Comparator
+        AnalogComparatorHw
     ));
 
     //--------------------------------------------------------------------------
@@ -981,7 +947,7 @@ pub unsafe fn start() -> (
     Platform,
     &'static ChipHw,
     &'static Nrf52840DefaultPeripherals<'static>,
-    &'static MuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    &'static MuxAlarm<'static, AlarmHw>,
 ) {
     let (kernel, platform, chip, peripherals, mux_alarm) = start_no_pconsole();
     let _ = platform.pconsole.start();

@@ -134,6 +134,9 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CComponent<I> {
     }
 }
 
+pub type I2CMasterSlaveDriverComponentType<I> =
+    capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<'static, I>;
+
 pub struct I2CMasterSlaveDriverComponent<I: 'static + i2c::I2CMasterSlave<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

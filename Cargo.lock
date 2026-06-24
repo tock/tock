@@ -1113,6 +1113,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nucleo_u545re_q"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "stm32u545",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1198,6 +1212,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "psc3"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+]
+
+[[package]]
+name = "psc3m5_evk"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "psc3",
+ "tock_build_scripts",
 ]
 
 [[package]]
@@ -1603,6 +1640,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "stm32u545"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "stm32u5xx",
+]
+
+[[package]]
+name = "stm32u5xx"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+]
+
+[[package]]
 name = "stm32wle5jc"
 version = "0.2.3-dev"
 dependencies = [
@@ -1668,7 +1722,7 @@ source = "git+https://github.com/tock/firmware.git#86ad8b00315dc5f44593722ece80a
 [[package]]
 name = "tock-registers"
 version = "0.10.1"
-source = "git+https://github.com/jrvanwhy/tock-registers.git?branch=mod-interface#a9c9d2527f0d703af9041ed9dfdd4803c7622266"
+source = "git+https://github.com/jrvanwhy/tock-registers.git?branch=mod-interface#7dd91b1c7e2c6d74628c8396e2b507d70f71ddc6"
 dependencies = [
  "tock-registers-macros",
 ]
@@ -1676,7 +1730,7 @@ dependencies = [
 [[package]]
 name = "tock-registers-codegen"
 version = "0.10.1"
-source = "git+https://github.com/jrvanwhy/tock-registers.git?branch=mod-interface#a9c9d2527f0d703af9041ed9dfdd4803c7622266"
+source = "git+https://github.com/jrvanwhy/tock-registers.git?branch=mod-interface#7dd91b1c7e2c6d74628c8396e2b507d70f71ddc6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1686,7 +1740,7 @@ dependencies = [
 [[package]]
 name = "tock-registers-macros"
 version = "0.10.1"
-source = "git+https://github.com/jrvanwhy/tock-registers.git?branch=mod-interface#a9c9d2527f0d703af9041ed9dfdd4803c7622266"
+source = "git+https://github.com/jrvanwhy/tock-registers.git?branch=mod-interface#7dd91b1c7e2c6d74628c8396e2b507d70f71ddc6"
 dependencies = [
  "tock-registers-codegen",
 ]
