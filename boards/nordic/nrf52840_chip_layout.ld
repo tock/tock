@@ -5,7 +5,7 @@
 /* Memory Space Definitions, 1M flash, 256K ram */
 MEMORY
 {
-  rom (rx)  : ORIGIN = 0x00000000, LENGTH = 256K
+  rom (rx)  : ORIGIN = 0x00008000, LENGTH = 224K
   prog (rx) : ORIGIN = 0x00040000, LENGTH = 768K
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 256K
 }
