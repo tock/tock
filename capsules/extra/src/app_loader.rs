@@ -427,6 +427,7 @@ impl<
     /// - `6`: Request kernel to unload a processs
     ///  - Returns Ok(()) when the application is successfully scheduled for unload
     ///  - Returns ErrorCode::FAIL when the unload fails
+    ///
     /// The driver returns ErrorCode::INVAL if any operation is called before the
     /// preceeding operation was invoked. For example, `write()` cannot be called before
     /// `setup()`, and `load()` cannot be called before `write()` (for this implementation).
