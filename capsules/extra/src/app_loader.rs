@@ -425,7 +425,7 @@ impl<
     ///    unable to be written, so try again)
     ///  - Returns ErrorCode::FAIL if the driver is not dedicated to this process
     /// - `6`: Request kernel to unload a processs
-    ///  - Returns Ok(identifier) when the application is successfully scheduled for unload
+    ///  - Returns Ok(()) when the application is successfully scheduled for unload
     ///  - Returns ErrorCode::FAIL when the unload fails
     /// The driver returns ErrorCode::INVAL if any operation is called before the
     /// preceeding operation was invoked. For example, `write()` cannot be called before
