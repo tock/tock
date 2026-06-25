@@ -21,6 +21,7 @@ pub mod mpu {
     }
 }
 
+pub use cortexm::CortexMVariant;
 pub use cortexm::dma_fence;
 pub use cortexm::dwt;
 pub use cortexm::initialize_ram_jump_to_main;
@@ -30,7 +31,6 @@ pub use cortexm::support;
 pub use cortexm::systick;
 pub use cortexm::thread_id;
 pub use cortexm::unhandled_interrupt;
-pub use cortexm::CortexMVariant;
 
 // Enum with no variants to ensure that this type is not instantiable. It is
 // only used to pass architecture-specific constants and functions via the
