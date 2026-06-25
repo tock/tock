@@ -347,22 +347,51 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
         panic!("kernel stack overflow");
     } else {
         // Show the normal kernel hardfault message.
-        let stacked_r0: u32 = *faulting_stack.add(0);
-        let stacked_r1: u32 = *faulting_stack.add(1);
-        let stacked_r2: u32 = *faulting_stack.add(2);
-        let stacked_r3: u32 = *faulting_stack.add(3);
-        let stacked_r12: u32 = *faulting_stack.add(4);
-        let stacked_lr: u32 = *faulting_stack.add(5);
-        let stacked_pc: u32 = *faulting_stack.add(6);
-        let stacked_xpsr: u32 = *faulting_stack.add(7);
+
+        // Get the stacked copies of caller-saved registers and other state.
+        //
+        // # Safety
+        //
+        // Because we verified there was not a stack overflow when the hardware
+        // pushed these values to the stack, these are valid pointers to
+        // allocated memory.
+        let (
+            stacked_r0,
+            stacked_r1,
+            stacked_r2,
+            stacked_r3,
+            stacked_r12,
+            stacked_lr,
+            stacked_pc,
+            stacked_xpsr,
+        ) = unsafe {
+            let r0: u32 = *faulting_stack.add(0);
+            let r1: u32 = *faulting_stack.add(1);
+            let r2: u32 = *faulting_stack.add(2);
+            let r3: u32 = *faulting_stack.add(3);
+            let r12: u32 = *faulting_stack.add(4);
+            let lr: u32 = *faulting_stack.add(5);
+            let pc: u32 = *faulting_stack.add(6);
+            let xpsr: u32 = *faulting_stack.add(7);
+
+            (r0, r1, r2, r3, r12, lr, pc, xpsr)
+        };
 
         let mode_str = "Kernel";
 
-        let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
-        let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
-        let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
-        let mmfar: u32 = core::ptr::read_volatile(0xE000ED34 as *const u32);
-        let bfar: u32 = core::ptr::read_volatile(0xE000ED38 as *const u32);
+        // Read system status registers.
+        //
+        // # Safety
+        //
+        // These are the valid locations of 32-bit registers.
+        let (shcsr, cfsr, hfsr, mmfar, bfar) = unsafe {
+            let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
+            let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
+            let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
+            let mmfar: u32 = core::ptr::read_volatile(0xE000ED34 as *const u32);
+            let bfar: u32 = core::ptr::read_volatile(0xE000ED38 as *const u32);
+            (shcsr, cfsr, hfsr, mmfar, bfar)
+        };
 
         let iaccviol = (cfsr & 0x01) == 0x01;
         let daccviol = (cfsr & 0x02) == 0x02;
