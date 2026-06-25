@@ -119,13 +119,30 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
     // IPSR[8:0] holds the currently active interrupt
-    asm!(
-        "
+    //
+    // # Safety
+    //
+    // - INPUTS: This does not use the existing value of any registers.
+    // - OUTPUTS: This only writes `r0` which is marked as an output.
+    // - Options set:
+    //   - nomem: We do not read or write memory.
+    //   - nostack: This does not use the stack.
+    //   - preserves_flags: This does not change flags.
+    // - Options not set:
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on arm
+    //   - raw: not required
+    unsafe {
+        asm!(
+            "
     mrs r0, ipsr
-        ",
-        out("r0") interrupt_number,
-        options(nomem, nostack, preserves_flags),
-    );
+            ",
+            out("r0") interrupt_number,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
 
     interrupt_number &= 0x1ff;
 
@@ -138,6 +155,13 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 /// not valid to run Rust code without RAM initialized.
 ///
 /// See <https://github.com/tock/tock/issues/2222> for more information.
+///
+/// # Safety
+///
+/// - INPUTS: This does not use the existing value of any registers.
+/// - OUTPUTS: This does not write any callee-saved registers, and only uses
+///   caller-saved registers.
+/// - This does not fall-through, it branches at the end.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
