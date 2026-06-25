@@ -52,7 +52,7 @@ impl cortexm::CortexMVariant for CortexM33 {
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
     ) -> *const usize {
-        cortexv7m::switch_to_user_arm_v7m(user_stack, process_regs)
+        unsafe { cortexv7m::switch_to_user_arm_v7m(user_stack, process_regs) }
     }
 
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]

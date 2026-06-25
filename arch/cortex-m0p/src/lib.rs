@@ -93,7 +93,7 @@ impl cortexm::CortexMVariant for CortexM0P {
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
     ) -> *const usize {
-        CortexM0::switch_to_user(user_stack, process_regs)
+        unsafe { CortexM0::switch_to_user(user_stack, process_regs) }
     }
 
     #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
