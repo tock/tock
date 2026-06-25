@@ -19,116 +19,15 @@
 //!
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
-use crate::LPCPin;
-use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
-use kernel::hil::uart::{Configure as UARTconfig, Parameters, Parity, StopBits, Width};
-use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::io_write::IoWrite;
-use lpc55s6x::gpio::GpioPin;
+use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
+use lpc55s6x::gpio::{GpioPin, LPCPin};
 use lpc55s6x::iocon::{Config, Function, Iocon, Pull, Slew};
-use lpc55s6x::uart::Uart;
 
-pub struct Writer {
-    uart: OptionalCell<&'static Uart<'static>>,
-    rtt: OptionalCell<&'static segger::rtt::SeggerRttMemory<'static>>,
-}
-
-impl Writer {
-    pub fn set_uart(&self, uart: &'static Uart) {
-        self.uart.set(uart);
-    }
-
-    pub fn set_rtt_memory(&self, rtt: &'static segger::rtt::SeggerRttMemory<'static>) {
-        self.rtt.set(rtt);
-    }
-
-    fn configure_uart(&self, uart: &Uart) {
-        if !uart.is_configured() {
-            let params = Parameters {
-                // USART initial configuration, using default settings
-                baud_rate: 115200,
-                width: Width::Eight,
-                stop_bits: StopBits::One,
-                parity: Parity::None,
-                hw_flow_control: false,
-            };
-
-            let _ = uart.configure(params);
-
-            let iocon = Iocon::new();
-
-            iocon.configure_pin(
-                LPCPin::P0_29,
-                Config {
-                    function: Function::Alt1,
-                    pull: Pull::None,
-                    digital_mode: true,
-                    slew: Slew::Standard,
-                    invert: false,
-                    open_drain: false,
-                },
-            );
-            iocon.configure_pin(
-                LPCPin::P0_30,
-                Config {
-                    function: Function::Alt1,
-                    pull: Pull::None,
-                    digital_mode: true,
-                    slew: Slew::Standard,
-                    invert: false,
-                    open_drain: false,
-                },
-            );
-        }
-    }
-
-    fn write_to_uart(&self, uart: &Uart, buf: &[u8]) {
-        for &c in buf {
-            uart.send_byte(c);
-            while !uart.uart_is_writable() {}
-        }
-    }
-}
-
-pub static mut WRITER: Writer = Writer {
-    uart: OptionalCell::empty(),
-    rtt: OptionalCell::empty(),
-};
-
-impl Write for Writer {
-    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        self.uart.map_or_else(
-            || {
-                let clocks = lpc55s6x::clocks::Clock::new();
-                let flexcomm = lpc55s6x::flexcomm::Flexcomm::new(0);
-
-                let uart = Uart::new_uart0(&clocks, &flexcomm);
-                self.configure_uart(&uart);
-                self.write_to_uart(&uart, buf);
-            },
-            |uart| {
-                self.configure_uart(uart);
-                self.write_to_uart(uart, buf);
-            },
-        );
-        self.rtt.map(|rtt| {
-            rtt.write_sync(buf);
-        });
-        buf.len()
-    }
-}
+use lpc55s6x::uart::{Uart, UartPanicWriterConfig};
 
 #[panic_handler]
 pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
@@ -145,13 +44,45 @@ pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
     let red_led = GpioPin::new(LPCPin::P1_6);
     red_led.make_output();
     let led = &mut LedHigh::new(&red_led);
-    let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_old(
-        &mut [led],
-        writer,
-        panic_info,
-        &cortexm33::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    if crate::USB_DEBUGGING {
+        // Use the RTT output that needs to be setup in main.rs.
+
+        crate::RTT_BUFFER.get().map_or_else(
+            || debug::panic_blink_forever(&mut [led]),
+            |rtt| {
+                debug::panic::<_, segger::rtt::SeggerRttMemory, _, _>(
+                    &mut [led],
+                    rtt,
+                    panic_info,
+                    &cortexm33::support::nop,
+                    crate::PANIC_RESOURCES.get(),
+                )
+            },
+        )
+    } else {
+        // Use the LPC55 UART for panic output.
+
+        debug::panic::<_, Uart, _, _>(
+            &mut [led],
+            UartPanicWriterConfig {
+                params: Parameters {
+                    baud_rate: 115200,
+                    stop_bits: StopBits::One,
+                    parity: Parity::None,
+                    hw_flow_control: false,
+                    width: Width::Eight,
+                },
+                id: lpc55s6x::uart::UartId::Uart0,
+                clocks: &lpc55s6x::clocks::Clock::new(),
+                flexcomm: &lpc55s6x::flexcomm::Flexcomm::new(0),
+                iocon: &iocon_ctrl,
+                pin1: LPCPin::P0_29,
+                pin2: LPCPin::P0_30,
+            },
+            panic_info,
+            &cortexm33::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }

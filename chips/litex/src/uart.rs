@@ -11,6 +11,7 @@ use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -558,5 +559,58 @@ impl<R: LiteXSoCRegisterConfiguration> DeferredCallClient for LiteXUart<'_, R> {
                 self.rx_data();
             }
         }
+    }
+}
+
+/// A synchronous writer for the litex useful for panics.
+///
+/// For boards that want to use the UART to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+///
+/// TODO: Validate this [`LiteXUartPanicWriter`] is always sound to create.
+struct LiteXUartPanicWriter<R: LiteXSoCRegisterConfiguration> {
+    uart: LiteXUart<'static, R>,
+}
+
+impl<R: LiteXSoCRegisterConfiguration> IoWrite for LiteXUartPanicWriter<R> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.uart.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl<R: LiteXSoCRegisterConfiguration> core::fmt::Write for LiteXUartPanicWriter<R> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for the synchronous LiteX UART panic writer.
+///
+/// This captures everything needed to setup the UART for panic display, even
+/// if the normal kernel had initialized it differently.
+pub struct LiteXUartPanicWriterConfig<R: LiteXSoCRegisterConfiguration> {
+    pub uart_base: StaticRef<LiteXUartRegisters<R>>,
+    pub phy_args: Option<(StaticRef<LiteXUartPhyRegisters<R>>, u32)>,
+    pub params: uart::Parameters,
+}
+
+impl<R: LiteXSoCRegisterConfiguration> kernel::platform::chip::PanicWriter for LiteXUart<'_, R> {
+    type Config = LiteXUartPanicWriterConfig<R>;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        use uart::Configure as _;
+
+        let uart = LiteXUart::new(config.uart_base, config.phy_args);
+        uart.initialize();
+        let _ = uart.configure(config.params);
+
+        LiteXUartPanicWriter { uart }
     }
 }

@@ -12,8 +12,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
@@ -273,9 +271,6 @@ pub unsafe fn main() {
     init_clocks(peripherals, clocks, resets);
 
     resets.unreset_all_except(&[], true);
-
-    // Set the UART used for panic
-    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
     let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);

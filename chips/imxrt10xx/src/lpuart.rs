@@ -4,6 +4,7 @@
 
 use core::cell::Cell;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 
@@ -774,6 +775,12 @@ impl<'a> Lpuart<'a> {
         });
         Ok(())
     }
+
+    fn transmit_sync(&self, bytes: &[u8]) {
+        for &b in bytes {
+            self.send_byte(b);
+        }
+    }
 }
 
 impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
@@ -986,3 +993,66 @@ impl dma::DmaClient for Lpuart<'_> {
         }
     }
 }
+
+/// A synchronous writer for the imxrt10xx useful for panics.
+///
+/// For boards that want to use the LPUART to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+///
+/// TODO: Validate this [`LpuartPanicWriter`] is always sound to create.
+struct LpuartPanicWriter {
+    uart: Lpuart<'static>,
+}
+
+impl IoWrite for LpuartPanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.uart.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for LpuartPanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Selects which LPUART instance to use for panic output.
+pub enum LpuartId {
+    Lpuart1,
+    Lpuart2,
+}
+
+/// Configuration for the synchronous LPUART panic writer.
+///
+/// This captures everything needed to setup the LPUART for panic display, even
+/// if the normal kernel had initialized it differently.
+pub struct LpuartPanicWriterConfig {
+    pub ccm: &'static ccm::Ccm,
+    pub id: LpuartId,
+    pub params: hil::uart::Parameters,
+}
+
+impl kernel::platform::chip::PanicWriter for Lpuart<'_> {
+    type Config = LpuartPanicWriterConfig;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        use hil::uart::Configure as _;
+
+        let uart = match config.id {
+            LpuartId::Lpuart1 => Lpuart::new_lpuart1(config.ccm),
+            LpuartId::Lpuart2 => Lpuart::new_lpuart2(config.ccm),
+        };
+        let _ = uart.configure(config.params);
+
+        LpuartPanicWriter { uart }
+    }
+}
+
+impl Lpuart<'_> {}

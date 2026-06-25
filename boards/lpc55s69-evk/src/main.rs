@@ -7,8 +7,6 @@
 
 mod io;
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_system::scheduler::round_robin::RoundRobinSched;
 use components::led::LedsComponent;
@@ -45,6 +43,12 @@ unsafe fn get_peripherals(
     )
 }
 
+/// Whether to use UART debugging or Segger RTT (USB) debugging.
+///
+/// - Set to false to use UART.
+/// - Set to true to use Segger RTT over USB.
+pub const USB_DEBUGGING: bool = false;
+
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
@@ -57,6 +61,10 @@ type ChipHw = Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
+    SingleThreadValue::new();
+
+/// In-memory buffer used for the Segger Real Time Transfer (RTT) mechanism.
+static RTT_BUFFER: SingleThreadValue<&'static segger::rtt::SeggerRttMemory<'static>> =
     SingleThreadValue::new();
 
 pub struct Lpc55s69evk {
@@ -330,12 +338,12 @@ unsafe fn start() -> (
     };
     uart.configure(params).unwrap();
 
-    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart);
-
-    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+    let rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
         .finalize(components::segger_rtt_memory_component_static!());
-
-    (*addr_of_mut!(io::WRITER)).set_rtt_memory(rtt_memory.rtt_memory);
+    let _ = RTT_BUFFER
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            *core::ptr::addr_of!(rtt_memory_refs.rtt_memory),
+        );
 
     let uart_mux = components::console::UartMuxComponent::new(uart, 115200)
         .finalize(components::uart_mux_component_static!());

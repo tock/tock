@@ -12,8 +12,6 @@ mod io;
 
 kernel::stack_size! {0x2000}
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::led::LedsComponent;
 use kernel::component::Component;
@@ -316,8 +314,6 @@ pub unsafe fn main() {
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
-    (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb);
-
     kernel::debug!("Initialization complete. Entering main loop.");
 
     //--------------------------------------------------------------------------

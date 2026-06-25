@@ -24,6 +24,7 @@ use kernel::hil::uart::{
     Configure, Parameters, Parity, Receive, StopBits, Transmit, TransmitClient, Width,
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -34,6 +35,8 @@ use kernel::{hil, ErrorCode};
 use crate::clocks::FrgId;
 use crate::clocks::{Clock, FrgClockSource};
 use crate::flexcomm::Flexcomm;
+use crate::gpio::LPCPin;
+use crate::iocon::{self, Iocon};
 
 register_structs! {
     /// USARTs
@@ -689,6 +692,13 @@ impl<'a> Uart<'a> {
         self.registers.fifowr.set(data as u32);
     }
 
+    pub fn transmit_sync(&self, bytes: &[u8]) {
+        for &b in bytes {
+            while !self.uart_is_writable() {}
+            self.send_byte(b);
+        }
+    }
+
     pub fn receive_byte(&self) -> u8 {
         (self.registers.fiford.get() & 0xFF) as u8
     }
@@ -997,5 +1007,94 @@ impl<'a> Receive<'a> for Uart<'a> {
         } else {
             Ok(())
         }
+    }
+}
+
+/// A synchronous writer for the lpc55s6x useful for panics.
+///
+/// For boards that want to use the UART to display panic messages, this
+/// provides an implementation of
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+///
+/// TODO: Validate this [`UartPanicWriter`] is always sound to create.
+struct UartPanicWriter<'a> {
+    uart: Uart<'a>,
+}
+
+impl IoWrite for UartPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.uart.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Selects which USART instance to use for panic output.
+pub enum UartId {
+    Uart0,
+    Uart4,
+}
+
+/// Configuration for the synchronous UART panic writer.
+///
+/// This captures everything needed to setup the UART for panic display. Note
+/// that lpc55s6x UART configuration requires chip-specific clock and flexcomm
+/// setup; the panic writer relies on the UART having already been initialized
+/// by the kernel before the panic occurred.
+pub struct UartPanicWriterConfig<'a> {
+    pub params: Parameters,
+    pub id: UartId,
+    pub clocks: &'a Clock,
+    pub flexcomm: &'a Flexcomm,
+    pub iocon: &'a Iocon,
+    pub pin1: LPCPin,
+    pub pin2: LPCPin,
+}
+
+impl<'a> kernel::platform::chip::PanicWriter for Uart<'a> {
+    type Config = UartPanicWriterConfig<'a>;
+
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        let uart = match config.id {
+            UartId::Uart0 => Uart::new_uart0(config.clocks, config.flexcomm),
+            UartId::Uart4 => Uart::new_uart4(config.clocks, config.flexcomm),
+        };
+        let _ = uart.configure(config.params);
+
+        config.iocon.configure_pin(
+            config.pin1,
+            iocon::Config {
+                function: iocon::Function::Alt1,
+                pull: iocon::Pull::None,
+                digital_mode: true,
+                slew: iocon::Slew::Standard,
+                invert: false,
+                open_drain: false,
+            },
+        );
+
+        config.iocon.configure_pin(
+            config.pin2,
+            iocon::Config {
+                function: iocon::Function::Alt1,
+                pull: iocon::Pull::None,
+                digital_mode: true,
+                slew: iocon::Slew::Standard,
+                invert: false,
+                open_drain: false,
+            },
+        );
+
+        UartPanicWriter { uart }
     }
 }

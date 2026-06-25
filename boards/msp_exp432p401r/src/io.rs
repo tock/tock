@@ -2,35 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil::led;
-use kernel::utilities::io_write::IoWrite;
+use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
 use msp432::gpio::IntPinNr;
+use msp432::uart::{Uart, UartId, UartPanicWriterConfig};
 use msp432::wdt::Wdt;
-
-/// Uart is used by kernel::debug to panic message to the serial port.
-pub struct Uart {}
-
-/// Global static for debug writer
-pub static mut UART: Uart = Uart {};
-
-impl Write for Uart {
-    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-impl IoWrite for Uart {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        let uart0 = msp432::uart::Uart::new(msp432::usci::USCI_A0_BASE, 0, 1, 1, 1);
-        uart0.transmit_sync(buf);
-        buf.len()
-    }
-}
 
 /// Panic handler
 #[panic_handler]
@@ -38,13 +16,22 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     const LED1_PIN: IntPinNr = IntPinNr::P01_0;
     let gpio_pin = msp432::gpio::IntPin::new(LED1_PIN);
     let led = &mut led::LedHigh::new(&gpio_pin);
-    let writer = &mut *addr_of_mut!(UART);
-    let wdt = Wdt::new();
 
+    let wdt = Wdt::new();
     wdt.disable();
-    debug::panic_old(
+
+    debug::panic::<_, Uart, _, _>(
         &mut [led],
-        writer,
+        UartPanicWriterConfig {
+            id: UartId::UcA0,
+            params: Parameters {
+                baud_rate: 115200,
+                stop_bits: StopBits::One,
+                parity: Parity::None,
+                hw_flow_control: false,
+                width: Width::Eight,
+            },
+        },
         info,
         &cortexm4::support::nop,
         crate::PANIC_RESOURCES.get(),

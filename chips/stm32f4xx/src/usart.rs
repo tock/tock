@@ -7,6 +7,7 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
@@ -373,6 +374,12 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         while !self.registers.sr.is_set(SR::TXE) {}
 
         self.registers.dr.set(byte.into());
+    }
+
+    pub fn transmit_sync(&self, bytes: &[u8]) {
+        for &b in bytes {
+            self.send_byte(b);
+        }
     }
 
     // enable DMA TX from the peripheral side
@@ -753,6 +760,65 @@ impl<'a> dma::StreamClient<'a, dma::Dma1<'a>> for Usart<'a, dma::Dma1<'a>> {
 impl<'a> dma::StreamClient<'a, dma::Dma2<'a>> for Usart<'a, dma::Dma2<'a>> {
     fn transfer_done(&self, pid: dma::Dma2Peripheral) {
         self.transfer_done(pid);
+    }
+}
+
+pub enum UsartId {
+    Usart1,
+    Usart2,
+    Usart3,
+}
+
+pub struct UsartPanicWriterConfig {
+    pub id: UsartId,
+    pub clocks: &'static dyn Stm32f4Clocks,
+    pub params: hil::uart::Parameters,
+}
+
+struct UsartPanicWriter {
+    registers: StaticRef<UsartRegisters>,
+}
+
+impl IoWrite for UsartPanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        for &b in buf {
+            while !self.registers.sr.is_set(SR::TXE) {}
+            self.registers.dr.set(b.into());
+        }
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UsartPanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+impl<'a, DMA: dma::StreamServer<'a>> kernel::platform::chip::PanicWriter for Usart<'a, DMA> {
+    type Config = UsartPanicWriterConfig;
+    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+        use hil::uart::Configure as _;
+        let UsartPanicWriterConfig { id, clocks, params } = config;
+        let base = match id {
+            UsartId::Usart1 => {
+                let uart = Usart::new_usart1(clocks);
+                let _ = uart.configure(params);
+                USART1_BASE
+            }
+            UsartId::Usart2 => {
+                let uart = Usart::new_usart2(clocks);
+                let _ = uart.configure(params);
+                USART2_BASE
+            }
+            UsartId::Usart3 => {
+                let uart = Usart::new_usart3(clocks);
+                let _ = uart.configure(params);
+                USART3_BASE
+            }
+        };
+        UsartPanicWriter { registers: base }
     }
 }
 

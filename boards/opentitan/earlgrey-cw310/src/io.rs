@@ -2,34 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::str;
 use earlgrey::chip_config::EarlGreyConfig;
 use kernel::debug;
-use kernel::utilities::io_write::IoWrite;
+use kernel::hil::uart::{Parameters, Parity, StopBits, Width};
+use lowrisc::uart::{Uart, UartPanicWriterConfig};
 
-struct Writer {}
-
-static mut WRITER: Writer = Writer {};
-
-impl Write for Writer {
-    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        // This creates a second instance of the UART peripheral, and should only be used
-        // during panic.
-        earlgrey::uart::Uart::new(
-            earlgrey::uart::UART0_BASE,
-            crate::ChipConfig::PERIPHERAL_FREQ,
-        )
-        .transmit_sync(buf);
-        buf.len()
+fn make_uart_config() -> UartPanicWriterConfig {
+    UartPanicWriterConfig {
+        registers: earlgrey::uart::UART0_BASE,
+        clock_frequency: crate::ChipConfig::PERIPHERAL_FREQ,
+        params: Parameters {
+            baud_rate: 115200,
+            stop_bits: StopBits::One,
+            parity: Parity::None,
+            hw_flow_control: false,
+            width: Width::Eight,
+        },
     }
 }
 
@@ -42,7 +31,6 @@ use kernel::hil::led;
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    use core::ptr::addr_of_mut;
     let first_led_pin = &mut earlgrey::gpio::GpioPin::new(
         earlgrey::gpio::GPIO_BASE,
         earlgrey::pinmux::PadConfig::Output(
@@ -53,21 +41,20 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     );
     first_led_pin.make_output();
     let first_led = &mut led::LedLow::new(first_led_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
 
     #[cfg(feature = "sim_verilator")]
-    debug::panic_old(
+    debug::panic::<_, Uart, _, _>(
         &mut [first_led],
-        writer,
+        make_uart_config(),
         pi,
         &|| {},
         crate::PANIC_RESOURCES.get(),
     );
 
     #[cfg(not(feature = "sim_verilator"))]
-    debug::panic_old(
+    debug::panic::<_, Uart, _, _>(
         &mut [first_led],
-        writer,
+        make_uart_config(),
         pi,
         &rv32i::support::nop,
         crate::PANIC_RESOURCES.get(),
@@ -77,19 +64,16 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 #[cfg(test)]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let writer = &mut WRITER;
-
     #[cfg(feature = "sim_verilator")]
-    debug::panic_print_old(writer, pi, &|| {}, crate::PANIC_RESOURCES.get());
+    debug::panic_print::<Uart, _, _>(make_uart_config(), pi, &|| {}, crate::PANIC_RESOURCES.get());
     #[cfg(not(feature = "sim_verilator"))]
-    debug::panic_print_old(
-        writer,
+    debug::panic_print::<Uart, _, _>(
+        make_uart_config(),
         pi,
         &rv32i::support::nop,
         crate::PANIC_RESOURCES.get(),
     );
 
-    let _ = writeln!(writer, "{}", pi);
     // Exit QEMU with a return code of 1
     crate::tests::semihost_command_exit_failure();
 }

@@ -12,8 +12,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -273,8 +271,6 @@ pub unsafe fn main() {
 
     let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
-
-    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     //--------------------------------------------------------------------
     // Alarm
