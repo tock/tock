@@ -17,7 +17,7 @@ pub mod mpu {
         unsafe { StaticRef::new(0xE000ED90 as *const cortexm::mpu::MpuRegisters) };
 
     pub unsafe fn new() -> MPU {
-        MPU::new(MPU_BASE_ADDRESS)
+        unsafe { MPU::new(MPU_BASE_ADDRESS) }
     }
 }
 
