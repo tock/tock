@@ -245,7 +245,7 @@ updated sort][lru] is good for finding issues like this.
 
 ## AI Policy
 
-The Tock project recognizes the utility of AI/LLM coding tools. We permit
+The Tock project permits
 developers to use AI coding tools, however, developers must review any
 AI-generated code themselves for correctness and compatibility with Tock's
 code expectations. All AI use must be disclosed in the pull request
