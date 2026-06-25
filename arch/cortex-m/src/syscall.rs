@@ -136,8 +136,12 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     // Using the normal `ldr  r0, =SCB_REGISTERS` gives
     // "error: out of range pc-relative fixup value". So, instead, we pass in a
     // pointer based on the symbol.
-    extern "C" {
-        static SCB_REGISTERS: u32;
+    //
+    // # Safety
+    //
+    // `SCB_REGISTERS` is the name of an allocated array of five `u32`s.
+    unsafe extern "C" {
+        static SCB_REGISTERS: [u32; 5];
     }
 
     // Retrieve the stored SCB register values using assembly.
@@ -158,7 +162,7 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     ldr r4, [{addr}, #12]             // r4 = mmfar = SCB_REGISTERS[3]
     ldr r5, [{addr}, #16]             // r5 = bfar = SCB_REGISTERS[4]
             ",
-            addr = in(reg) core::ptr::from_ref::<u32>(&SCB_REGISTERS),
+            addr = in(reg) core::ptr::from_ref::<[u32; 5]>(&SCB_REGISTERS),
             out("r1") _ccr,
             out("r2") cfsr,
             out("r3") hfsr,
