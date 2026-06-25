@@ -315,17 +315,22 @@ impl Kernel {
     }
 
     /// Terminate a process if it exists, and remove it from ProcessArray.
-    pub(crate) fn remove_process_from_active_processes(
+    pub fn remove_process_from_active_processes<F>(
         &self,
         shortid: process::ShortId,
-        _capability: &dyn capabilities::ProcessManagementCapability,
-    ) -> Result<usize, ()> {
+        f: F,
+        // _capability: &dyn capabilities::ProcessManagementCapability,
+    ) -> Result<usize, ()>
+    where
+        F: FnOnce(&'static dyn process::Process) -> usize,
+    {
         for slot in self.processes.iter() {
             if let Some(process) = slot.get() {
                 if process.short_app_id() == shortid {
                     process.terminate(None);
+                    let result = f(process);
                     slot.proc.set(None);
-                    return Ok(process.get_addresses().flash_start);
+                    return Ok(result);
                 }
             }
         }
