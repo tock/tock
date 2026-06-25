@@ -121,10 +121,12 @@ pub struct App {
 pub struct AppLoader<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    T: dynamic_binary_storage::DynamicProcessUnload + 'static,
 > {
     // The underlying driver for the process flashing and loading.
     storage_driver: &'static S,
     load_driver: &'static L,
+    unload_driver: &'static T,
     // Per-app state.
     apps: Grant<
         App,
@@ -141,9 +143,10 @@ pub struct AppLoader<
 }
 
 impl<
-    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-> AppLoader<S, L>
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > AppLoader<S, L, T>
 {
     pub fn new(
         grant: Grant<
@@ -154,12 +157,14 @@ impl<
         >,
         storage_driver: &'static S,
         load_driver: &'static L,
+        unload_driver: &'static T,
         buffer: &'static mut [u8],
-    ) -> AppLoader<S, L> {
+    ) -> AppLoader<S, L, T> {
         AppLoader {
             apps: grant,
             storage_driver,
             load_driver,
+            unload_driver,
             buffer: TakeCell::new(buffer),
             current_process: OptionalCell::empty(),
             new_app_length: Cell::new(0),
@@ -239,9 +244,10 @@ impl<
 }
 
 impl<
-    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-> dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L>
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L, T>
 {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self, result: Result<(), ErrorCode>) {
@@ -302,9 +308,10 @@ impl<
 }
 
 impl<
-    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-> dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L>
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L, T>
 {
     /// Let the requesting app know we are done loading the new process
     ///
@@ -345,7 +352,14 @@ impl<
             });
         });
     }
+}
 
+impl<
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > dynamic_binary_storage::DynamicProcessUnloadClient for AppLoader<S, L, T>
+{
     /// Let the app know we have unloaded the target process
     /// and return an opaque identifier for the process binary
     fn unload_done(&self, result: Result<(), ErrorCode>, app_identifier: Option<usize>) {
@@ -368,9 +382,10 @@ impl<
 
 /// Provide an interface for userland.
 impl<
-    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-> SyscallDriver for AppLoader<S, L>
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > SyscallDriver for AppLoader<S, L, T>
 {
     /// Command interface.
     ///
@@ -542,16 +557,14 @@ impl<
                     Some(id) => ShortId::Fixed(id),
                     None => return CommandReturn::failure(ErrorCode::INVAL),
                 };
-                self.load_driver.unload(shortid);
-                CommandReturn::success()
-                // let result = self.storage_driver.unload(shortid);
-                // match result {
-                //     Ok(()) => CommandReturn::success(),
-                //     Err(e) => {
-                //         self.current_process.take();
-                //         CommandReturn::failure(e)
-                //     }
-                // }
+                let res = self.unload_driver.unload(shortid);
+                match res {
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => {
+                        self.current_process.take();
+                        CommandReturn::failure(e)
+                    }
+                }
             }
             // Unsupported command numbers.
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
