@@ -168,11 +168,9 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     type ThreadIdProvider = cortexm4f::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        unsafe {
-            cortexm4f::nvic::disable_all();
-            cortexm4f::nvic::clear_all_pending();
-            cortexm4f::nvic::enable_all();
-        }
+        cortexm4f::nvic::disable_all();
+        cortexm4f::nvic::clear_all_pending();
+        cortexm4f::nvic::enable_all();
     }
 
     fn service_pending_interrupts(&self) {
@@ -190,7 +188,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4f::nvic::has_pending() }
+        cortexm4f::nvic::has_pending()
     }
 
     fn mpu(&self) -> &cortexm4f::mpu::MPU {

@@ -98,10 +98,8 @@ impl<'a> VirtualGpio<'a> for SubGhzRadioInterrupt<'a> {
         // command to the subghz radio. Because of this, we mask
         // the interrupt in the interrupt handler and perform the
         // check here to see if any other interrupts are pending.
-        unsafe {
-            cortexm4::nvic::next_pending_with_mask((u128::MAX, !(1 << crate::nvic::RADIO_IRQ)))
-                .is_some_and(|_| true)
-        }
+        cortexm4::nvic::next_pending_with_mask((u128::MAX, !(1 << crate::nvic::RADIO_IRQ)))
+            .is_some_and(|_| true)
     }
     fn write(&self, _val: u32) {
         // Read-only, write does nothing.
@@ -186,10 +184,8 @@ impl<'a> Interrupt<'a> for SubGhzRadioVirtualGpio<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        unsafe {
-            cortexm4::nvic::next_pending_with_mask((u128::MAX, !(1 << crate::nvic::RADIO_IRQ)))
-                .is_some_and(|_| true)
-        }
+        cortexm4::nvic::next_pending_with_mask((u128::MAX, !(1 << crate::nvic::RADIO_IRQ)))
+            .is_some_and(|_| true)
     }
 
     fn set_client(&self, client: &'a dyn kernel::hil::gpio::Client) {

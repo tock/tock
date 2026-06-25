@@ -176,11 +176,9 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        unsafe {
-            cortexm33::nvic::disable_all();
-            cortexm33::nvic::clear_all_pending();
-            cortexm33::nvic::enable_all();
-        }
+        cortexm33::nvic::disable_all();
+        cortexm33::nvic::clear_all_pending();
+        cortexm33::nvic::enable_all();
     }
 
     fn service_pending_interrupts(&self) {
@@ -198,7 +196,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm33::nvic::has_pending() }
+        cortexm33::nvic::has_pending()
     }
 
     fn mpu(&self) -> &cortexm33::mpu::MPU<8> {

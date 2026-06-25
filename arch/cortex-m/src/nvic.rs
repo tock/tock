@@ -130,21 +130,21 @@ fn number_of_nvic_registers() -> usize {
 }
 
 /// Clear all pending interrupts
-pub unsafe fn clear_all_pending() {
+pub fn clear_all_pending() {
     for icpr in NVIC.icpr.iter().take(number_of_nvic_registers()) {
         icpr.set(!0)
     }
 }
 
 /// Enable all interrupts
-pub unsafe fn enable_all() {
+pub fn enable_all() {
     for icer in NVIC.iser.iter().take(number_of_nvic_registers()) {
         icer.set(!0)
     }
 }
 
 /// Disable all interrupts
-pub unsafe fn disable_all() {
+pub fn disable_all() {
     for icer in NVIC.icer.iter().take(number_of_nvic_registers()) {
         icer.set(!0)
     }
@@ -152,7 +152,7 @@ pub unsafe fn disable_all() {
 
 /// Get the index (0-240) the lowest number pending interrupt, or `None` if none
 /// are pending.
-pub unsafe fn next_pending() -> Option<u32> {
+pub fn next_pending() -> Option<u32> {
     for (block, ispr) in NVIC
         .ispr
         .iter()
@@ -178,7 +178,7 @@ pub unsafe fn next_pending() -> Option<u32> {
 /// Mask is defined as two `u128` fields,
 ///   `mask.0` has the bits corresponding to interrupts from 128 to 240.
 ///   `mask.1` has the bits corresponding to interrupts from 0 to 127.
-pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
+pub fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
     for (block, ispr) in NVIC
         .ispr
         .iter()
@@ -198,7 +198,7 @@ pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
     None
 }
 
-pub unsafe fn has_pending() -> bool {
+pub fn has_pending() -> bool {
     NVIC.ispr
         .iter()
         .take(number_of_nvic_registers())
@@ -212,7 +212,7 @@ pub unsafe fn has_pending() -> bool {
 /// Mask is defined as two `u128` fields,
 ///   `mask.0` has the bits corresponding to interrupts from 128 to 240.
 ///   `mask.1` has the bits corresponding to interrupts from 0 to 127.
-pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
+pub fn has_pending_with_mask(mask: (u128, u128)) -> bool {
     NVIC.ispr
         .iter()
         .take(number_of_nvic_registers())
@@ -232,10 +232,7 @@ pub struct Nvic(u32);
 
 impl Nvic {
     /// Creates a new `Nvic`.
-    ///
-    /// Marked unsafe because only chip/platform configuration code should be
-    /// able to create these.
-    pub const unsafe fn new(idx: u32) -> Nvic {
+    pub const fn new(idx: u32) -> Nvic {
         Nvic(idx)
     }
 

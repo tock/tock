@@ -126,15 +126,13 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
 
     fn init() {
         icache::sys_init_enable_cache();
-        unsafe {
-            cortexm33::nvic::disable_all();
-            cortexm33::nvic::clear_all_pending();
-            cortexm33::nvic::enable_all();
-        }
+        cortexm33::nvic::disable_all();
+        cortexm33::nvic::clear_all_pending();
+        cortexm33::nvic::enable_all();
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm33::nvic::has_pending() }
+        cortexm33::nvic::has_pending()
     }
 
     fn mpu(&self) -> &Self::MPU {
