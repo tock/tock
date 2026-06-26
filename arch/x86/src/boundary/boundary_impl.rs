@@ -7,7 +7,7 @@ use core::fmt::Write;
 use crate::registers::bits32::eflags::{EFlags, EFLAGS};
 
 use kernel::process::FunctionCall;
-use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
+use kernel::syscall::{ContextSwitchReason, SyscallReturn, UserspaceKernelBoundary};
 use kernel::ErrorCode;
 
 use crate::interrupts::{IDT_RESERVED_EXCEPTIONS, SYSCALL_VECTOR};
@@ -215,7 +215,7 @@ impl UserspaceKernelBoundary for Boundary {
                 let arg3 =
                     unsafe { state.read_stack(3, accessible_memory_start, app_brk) }.unwrap_or(0);
 
-                Syscall::from_register_arguments(
+                kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
                     num,
                     arg0 as usize,
                     (arg1 as usize).into(),

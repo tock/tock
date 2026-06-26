@@ -320,7 +320,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
             // Use the helper function to convert these raw values into a Tock
             // `Syscall` type.
-            let syscall = kernel::syscall::Syscall::from_register_arguments(
+            let syscall = kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
                 svc_num,
                 r0,
                 r1.into(),
