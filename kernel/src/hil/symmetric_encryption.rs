@@ -34,6 +34,12 @@ impl sealed::Sealed for AES128 {}
 impl AESKeySize for AES128 {
     const LENGTH: usize = 16;
 }
+pub struct AES192;
+impl sealed::Sealed for AES192 {}
+
+impl AESKeySize for AES192 {
+    const LENGTH: usize = 24;
+}
 
 pub struct AES256;
 impl sealed::Sealed for AES256 {}
