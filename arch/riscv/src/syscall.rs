@@ -113,6 +113,179 @@ impl core::convert::TryFrom<&[u8]> for RiscvStoredState {
     }
 }
 
+/// Helper function for encoding a syscall return into registers.
+///
+/// This is a helper function to wrap the differences between rv32i and rv64i.
+#[cfg(any(doc, target_arch = "riscv32"))]
+fn encode_syscall_return_helper(
+    return_value: kernel::syscall::SyscallReturn,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    // Convert the `&mut usize` references to `&mut u32`s.
+    //
+    // SAFETY: We are guaranteed to be on a 32-bit platform, and converting a
+    // `&mut usize` to a `&mut u32` will be safe. The pointer will always be
+    // aligned and the values will always be initialized to something.
+    let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
+        let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
+        let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
+        let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
+        let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
+        (a0_u32, a1_u32, a2_u32, a3_u32)
+    };
+
+    kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+        &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
+        a0_u32,
+        a1_u32,
+        a2_u32,
+        a3_u32,
+    );
+}
+
+#[cfg(target_arch = "riscv64")]
+fn encode_syscall_return_helper(
+    return_value: kernel::syscall::SyscallReturn,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    // Convert the `&mut usize` references to `&mut u64`s.
+    //
+    // SAFETY: We are guaranteed to be on a 64-bit platform, and converting a
+    // `&mut usize` to a `&mut u64` will be safe. The pointer will always be
+    // aligned and the values will always be initialized to something.
+    let (a0_u64, a1_u64, a2_u64, a3_u64) = unsafe {
+        let a0_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u64>();
+        let a1_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u64>();
+        let a2_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u64>();
+        let a3_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u64>();
+        (a0_u64, a1_u64, a2_u64, a3_u64)
+    };
+
+    kernel::utilities::arch_helpers::encode_syscall_return_trd64bit(
+        &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
+        a0_u64,
+        a1_u64,
+        a2_u64,
+        a3_u64,
+    );
+}
+
+#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
+fn encode_syscall_return_helper(
+    _return_value: kernel::syscall::SyscallReturn,
+    _a0: &mut usize,
+    _a1: &mut usize,
+    _a2: &mut usize,
+    _a3: &mut usize,
+) {
+    unimplemented!()
+}
+
+/// Helper to convert registers to a [`Syscall`](kernel::syscall::Syscall).
+///
+/// The helper wraps both rv32i and rv64i support.
+#[cfg(any(doc, target_arch = "riscv32"))]
+fn syscall_from_register_arguments_helper(
+    syscall_number: usize,
+    r0: usize,
+    r1: usize,
+    r2: usize,
+    r3: usize,
+) -> Option<kernel::syscall::Syscall> {
+    kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
+        syscall_number as u8,
+        r0,
+        r1.into(),
+        r2.into(),
+        r3.into(),
+    )
+}
+
+#[cfg(target_arch = "riscv64")]
+fn syscall_from_register_arguments_helper(
+    syscall_number: usize,
+    r0: usize,
+    r1: usize,
+    r2: usize,
+    r3: usize,
+) -> Option<kernel::syscall::Syscall> {
+    kernel::utilities::arch_helpers::syscall_from_register_arguments_trd64bit(
+        syscall_number as u8,
+        r0,
+        r1.into(),
+        r2.into(),
+        r3.into(),
+    )
+}
+
+/// Helper to put upcall arguments into registers.
+///
+/// The helper wraps both rv32i and rv64i support.
+#[cfg(any(doc, target_arch = "riscv32"))]
+fn encode_upcall_helper(
+    upcall: &kernel::process::FunctionCall,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    // Convert the `&mut usize` references to `&mut u32`s.
+    //
+    // SAFETY: We are guaranteed to be on a 32-bit platform, and converting a
+    // `&mut usize` to a `&mut u32` will be safe. The pointer will always be
+    // aligned and the values will always be initialized to something.
+    let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
+        let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
+        let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
+        let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
+        let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
+        (a0_u32, a1_u32, a2_u32, a3_u32)
+    };
+
+    kernel::utilities::arch_helpers::encode_upcall_trd104(upcall, a0_u32, a1_u32, a2_u32, a3_u32);
+}
+
+#[cfg(target_arch = "riscv64")]
+fn encode_upcall_helper(
+    upcall: &kernel::process::FunctionCall,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    // Convert the `&mut usize` references to `&mut u64`s.
+    //
+    // SAFETY: We are guaranteed to be on a 64-bit platform, and converting a
+    // `&mut usize` to a `&mut u64` will be safe. The pointer will always be
+    // aligned and the values will always be initialized to something.
+    let (a0_u64, a1_u64, a2_u64, a3_u64) = unsafe {
+        let a0_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u64>();
+        let a1_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u64>();
+        let a2_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u64>();
+        let a3_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u64>();
+        (a0_u64, a1_u64, a2_u64, a3_u64)
+    };
+
+    kernel::utilities::arch_helpers::encode_upcall_trd64bit(upcall, a0_u64, a1_u64, a2_u64, a3_u64);
+}
+
+#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
+fn encode_upcall_helper(
+    _upcall: &kernel::process::FunctionCall,
+    _a0: &mut usize,
+    _a1: &mut usize,
+    _a2: &mut usize,
+    _a3: &mut usize,
+) {
+    unimplemented!()
+}
+
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
 pub struct SysCall(());
 
@@ -171,29 +344,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             .get_disjoint_mut([R_A0, R_A1, R_A2, R_A3])
             .or(Err(()))?;
 
-        // Convert the `&mut usize` references to `&mut u32`s.
-        //
-        // SAFETY: Whether we are on a 32-bit platform or a 64-bit platform,
-        // converting a `&mut usize` to a `&mut u32` will be safe. The pointer
-        // will always be aligned and the values will always be initialized to
-        // something.
-        let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
-            let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
-            let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
-            let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
-            let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
-            (a0_u32, a1_u32, a2_u32, a3_u32)
-        };
-
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
-            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
-                return_value,
-            ),
-            a0_u32,
-            a1_u32,
-            a2_u32,
-            a3_u32,
-        );
+        encode_syscall_return_helper(return_value, a0, a1, a2, a3);
 
         // We do not use process memory, so this cannot fail.
         Ok(())
@@ -216,23 +367,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             .get_disjoint_mut([R_A0, R_A1, R_A2, R_A3])
             .or(Err(()))?;
 
-        // Convert the `&mut usize` references to `&mut u32`s.
-        //
-        // SAFETY: Whether we are on a 32-bit platform or a 64-bit platform,
-        // converting a `&mut usize` to a `&mut u32` will be safe. The pointer
-        // will always be aligned and the values will always be initialized to
-        // something.
-        let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
-            let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
-            let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
-            let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
-            let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
-            (a0_u32, a1_u32, a2_u32, a3_u32)
-        };
-
-        kernel::utilities::arch_helpers::encode_upcall_trd104(
-            &callback, a0_u32, a1_u32, a2_u32, a3_u32,
-        );
+        encode_upcall_helper(&callback, a0, a1, a2, a3);
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -691,14 +826,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         // instruction. The hardware does not do this for us.
                         state.pc = state.pc.wrapping_add(4);
 
-                        let syscall =
-                            kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
-                                state.regs[R_A4] as u8,
-                                state.regs[R_A0],
-                                state.regs[R_A1].into(),
-                                state.regs[R_A2].into(),
-                                state.regs[R_A3].into(),
-                            );
+                        let syscall = syscall_from_register_arguments_helper(
+                            state.regs[R_A4],
+                            state.regs[R_A0],
+                            state.regs[R_A1],
+                            state.regs[R_A2],
+                            state.regs[R_A3],
+                        );
 
                         match syscall {
                             Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
