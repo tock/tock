@@ -133,7 +133,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // AES Encryption Oracle
     //--------------------------------------------------------------------------
-    const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+    const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES_BLOCK_SIZE;
     let aes_src_buffer = kernel::static_init!([u8; 16], [0; 16]);
     let aes_dst_buffer = kernel::static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
 
@@ -150,7 +150,7 @@ pub unsafe fn main() {
         )
     );
 
-    kernel::hil::symmetric_encryption::AES128::set_client(
+    kernel::hil::symmetric_encryption::AES::set_client(
         &nrf52840_peripherals.nrf52.ecb,
         encryption_oracle,
     );

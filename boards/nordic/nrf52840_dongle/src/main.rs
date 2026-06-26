@@ -19,7 +19,7 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::led::LedLow;
-use kernel::hil::symmetric_encryption::AES128;
+use kernel::hil::symmetric_encryption::AES;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};

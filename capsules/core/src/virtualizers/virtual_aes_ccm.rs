@@ -47,7 +47,7 @@
 //! # use capsules_core::test::aes_ccm::Test;
 //! # use capsules_core::virtual_aes_ccm;
 //! # use kernel::common::deferred_call::DeferredCallClient;
-//! # use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
+//! # use kernel::hil::symmetric_encryption::{AES, AES128, AESCCM, AES_BLOCK_SIZE};
 //! # use kernel::static_init;
 //! # use sam4l::aes::{Aes, AES};
 //! type AESCCMMUX = virtual_aes_ccm::MuxAES128CCM<'static, Aes<'static>>;
@@ -56,14 +56,14 @@
 //! let ccm_mux = static_init!(AESCCMMUX, virtual_aes_ccm::MuxAES128CCM::new(&AES));
 //! ccm_mux.register();
 //! AES.set_client(ccm_mux);
-//! const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
+//! const CRYPT_SIZE: usize = 7 * AES_BLOCK_SIZE;
 //! let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
 //! let ccm_client1 = static_init!(
 //!     AESCCMCLIENT,
 //!     virtual_aes_ccm::VirtualAES128CCM::new(ccm_mux, crypt_buf1)
 //! );
 //! ccm_client1.setup();
-//! let data1 = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
+//! let data1 = static_init!([u8; 4 * AES_BLOCK_SIZE], [0x00; 4 * AES_BLOCK_SIZE]);
 //! let t1 = static_init!(Test<'static, AESCCMCLIENT>, Test::new(ccm_client1, data1));
 //! ccm_client1.set_client(t1);
 //! let crypt_buf2 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
@@ -72,7 +72,7 @@
 //!     virtual_aes_ccm::VirtualAES128CCM::new(ccm_mux, crypt_buf2)
 //! );
 //! ccm_client2.setup();
-//! let data2 = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
+//! let data2 = static_init!([u8; 4 * AES_BLOCK_SIZE], [0x00; 4 * AES_BLOCK_SIZE]);
 //! let t2 = static_init!(Test<'static, AESCCMCLIENT>, Test::new(ccm_client2, data2));
 //! ccm_client2.set_client(t2);
 //! t1.run();
@@ -87,7 +87,7 @@ use kernel::debug;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
+    AESCtr, AES, AES128, AES128_KEY_SIZE, AESCBC, AESECB, AES_BLOCK_SIZE, CCM_NONCE_LENGTH,
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
@@ -135,7 +135,7 @@ impl CryptFunctionParameters {
     }
 }
 
-pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
+pub struct MuxAES128CCM<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> {
     aes: &'a A,
     client: OptionalCell<&'a dyn symmetric_encryption::Client<'a>>,
     ccm_clients: List<'a, VirtualAES128CCM<'a, A>>,
@@ -143,7 +143,7 @@ pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
     deferred_call: DeferredCall,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> MuxAES128CCM<'a, A> {
     pub fn new(aes: &'a A) -> Self {
         aes.enable(); // enable the hardware, in case it's forgotten elsewhere
         Self {
@@ -198,9 +198,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> 
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> DeferredCallClient
-    for MuxAES128CCM<'a, A>
-{
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> DeferredCallClient for MuxAES128CCM<'a, A> {
     fn handle_deferred_call(&self) {
         self.do_next_op();
     }
@@ -210,7 +208,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> DeferredCallClient
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::Client<'a>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> symmetric_encryption::Client<'a>
     for MuxAES128CCM<'a, A>
 {
     fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
@@ -231,7 +229,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
     }
 }
 
-pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
+pub struct VirtualAES128CCM<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> {
     mux: &'a MuxAES128CCM<'a, A>,
     aes: &'a A,
     next: ListLink<'a, VirtualAES128CCM<'a, A>>,
@@ -249,11 +247,11 @@ pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128EC
     pos: Cell<(usize, usize, usize, usize)>,
     key: Cell<[u8; AES128_KEY_SIZE]>,
     nonce: Cell<[u8; CCM_NONCE_LENGTH]>,
-    saved_tag: Cell<[u8; AES128_BLOCK_SIZE]>,
+    saved_tag: Cell<[u8; AES_BLOCK_SIZE]>,
     queued_up: OptionalCell<CryptFunctionParameters>,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> VirtualAES128CCM<'a, A> {
     pub fn new(
         mux: &'a MuxAES128CCM<'a, A>,
         crypt_buf: &'static mut [u8],
@@ -323,7 +321,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
     /// buffer, along with the prerequisite metadata/padding bytes. On success,
     /// `auth_len` (the length of the AuthData field) and `enc_len` (the
     /// combined length of AuthData and PData/CData) are returned. `auth_len` is
-    /// guaranteed to be >= AES128_BLOCK_SIZE
+    /// guaranteed to be >= AES_BLOCK_SIZE
     fn encode_ccm_buffer(
         buf: &mut [u8],
         nonce: &[u8; CCM_NONCE_LENGTH],
@@ -352,7 +350,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
         }
         flags |= 1;
 
-        stream_len_cond!(buf, AES128_BLOCK_SIZE);
+        stream_len_cond!(buf, AES_BLOCK_SIZE);
         // The first block is flags | nonce | m length
         buf[0] = flags;
         buf[1..14].copy_from_slice(nonce.as_ref());
@@ -375,14 +373,14 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
 
         // Append the auth data and 0-pad to a multiple of 16 bytes
         off = enc_consume!(buf, off; encode_bytes, a_data);
-        let auth_len = off.div_ceil(AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
+        let auth_len = off.div_ceil(AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
         stream_len_cond!(buf, auth_len);
         buf[off..auth_len].iter_mut().for_each(|b| *b = 0);
         off = auth_len;
 
         // Append plaintext data and 0-pad to a multiple of 16 bytes
         off = enc_consume!(buf, off; encode_bytes, m_data);
-        let enc_len = off.div_ceil(AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
+        let enc_len = off.div_ceil(AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
         stream_len_cond!(buf, enc_len);
         buf[off..enc_len].iter_mut().for_each(|b| *b = 0);
         off = enc_len;
@@ -404,9 +402,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
         }
 
         // We are performing CBC-MAC, so always encrypting.
-        self.aes.set_mode_aes128cbc(true)?;
+        self.aes.set_mode_aescbc(true)?;
 
-        let iv = [0u8; AES128_BLOCK_SIZE];
+        let iv = [0u8; AES_BLOCK_SIZE];
         let res = self.aes.set_iv(&iv);
         if res != Ok(()) {
             return res;
@@ -457,14 +455,14 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
         //     }
         // });
 
-        self.aes.set_mode_aes128ctr(self.encrypting.get())?;
+        self.aes.set_mode_aesctr(self.encrypting.get())?;
 
         let res = self.aes.set_key(&self.key.get());
         if res != Ok(()) {
             return res;
         }
 
-        let mut iv = [0u8; AES128_BLOCK_SIZE];
+        let mut iv = [0u8; AES_BLOCK_SIZE];
         // flags = reserved | reserved | 0 | (L - 1)
         // Since L = 2, flags = 1.
         iv[0] = 1;
@@ -483,7 +481,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
         match self.aes.crypt(
             None,
             crypt_buf,
-            self.crypt_auth_len.get() - AES128_BLOCK_SIZE,
+            self.crypt_auth_len.get() - AES_BLOCK_SIZE,
             self.crypt_enc_len.get(),
         ) {
             None => {
@@ -510,7 +508,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
                     buf[m_off..m_off + m_len].copy_from_slice(&cbuf[auth_len..auth_len + m_len]);
 
                     let m_end = m_off + m_len;
-                    let tag_off = auth_len - AES128_BLOCK_SIZE;
+                    let tag_off = auth_len - AES_BLOCK_SIZE;
                     if self.encrypting.get() {
                         // Copy the encrypted tag to the end of the message
                         buf[m_end..m_end + mic_len]
@@ -550,7 +548,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
 
                     // Combine unencrypted tag at end of crypt_buf with saved
                     // CTR-encrypted block to obtain encrypted tag
-                    let tag_off = self.crypt_enc_len.get() - AES128_BLOCK_SIZE;
+                    let tag_off = self.crypt_enc_len.get() - AES_BLOCK_SIZE;
                     self.saved_tag.get()[..mic_len]
                         .iter()
                         .zip(cbuf[tag_off..tag_off + mic_len].iter_mut())
@@ -577,27 +575,27 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
     }
 
     fn save_tag_block(&self) {
-        // Copies [auth_len - AES128_BLOCK_SIZE..auth_len] to saved_tag
+        // Copies [auth_len - AES_BLOCK_SIZE..auth_len] to saved_tag
         // and zeroes it out
         let auth_len = self.crypt_auth_len.get();
         self.crypt_buf.map(|cbuf| {
-            let mut cbuf_block = [0u8; AES128_BLOCK_SIZE];
-            cbuf_block.copy_from_slice(&cbuf[auth_len - AES128_BLOCK_SIZE..auth_len]);
+            let mut cbuf_block = [0u8; AES_BLOCK_SIZE];
+            cbuf_block.copy_from_slice(&cbuf[auth_len - AES_BLOCK_SIZE..auth_len]);
             self.saved_tag.set(cbuf_block);
-            cbuf[auth_len - AES128_BLOCK_SIZE..auth_len]
+            cbuf[auth_len - AES_BLOCK_SIZE..auth_len]
                 .iter_mut()
                 .for_each(|b| *b = 0);
         });
     }
 
     fn swap_tag_block(&self) {
-        // Swaps [auth_len - AES128_BLOCK_SIZE..auth_len] with
+        // Swaps [auth_len - AES_BLOCK_SIZE..auth_len] with
         // the value in saved_tag
         let auth_len = self.crypt_auth_len.get();
         self.crypt_buf.map(|cbuf| {
-            let mut cbuf_block = [0u8; AES128_BLOCK_SIZE];
-            cbuf_block.copy_from_slice(&cbuf[auth_len - AES128_BLOCK_SIZE..auth_len]);
-            cbuf[auth_len - AES128_BLOCK_SIZE..auth_len].copy_from_slice(&self.saved_tag.get());
+            let mut cbuf_block = [0u8; AES_BLOCK_SIZE];
+            cbuf_block.copy_from_slice(&cbuf[auth_len - AES_BLOCK_SIZE..auth_len]);
+            cbuf[auth_len - AES_BLOCK_SIZE..auth_len].copy_from_slice(&self.saved_tag.get());
             self.saved_tag.set(cbuf_block);
         });
     }
@@ -659,7 +657,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::AES128CCM<'a>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> symmetric_encryption::AESCCM<'a, AES128>
     for VirtualAES128CCM<'a, A>
 {
     fn set_client(&self, client: &'a dyn symmetric_encryption::CCMClient) {
@@ -722,7 +720,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::AES128<'a>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> symmetric_encryption::AES<'a, AES128>
     for VirtualAES128CCM<'a, A>
 {
     fn enable(&self) {
@@ -778,37 +776,37 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> AES128Ctr for VirtualAES128CCM<'a, A> {
-    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> AESCtr for VirtualAES128CCM<'a, A> {
+    fn set_mode_aesctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
         if self.mux.inflight.is_none() {
-            self.mux.aes.set_mode_aes128ctr(encrypting)
+            self.mux.aes.set_mode_aesctr(encrypting)
         } else {
             Err(ErrorCode::BUSY)
         }
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> AES128ECB for VirtualAES128CCM<'a, A> {
-    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> AESECB for VirtualAES128CCM<'a, A> {
+    fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
         if self.mux.inflight.is_none() {
-            self.mux.aes.set_mode_aes128ecb(encrypting)
+            self.mux.aes.set_mode_aesecb(encrypting)
         } else {
             Err(ErrorCode::BUSY)
         }
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> AES128CBC for VirtualAES128CCM<'a, A> {
-    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> AESCBC for VirtualAES128CCM<'a, A> {
+    fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         if self.mux.inflight.is_none() {
-            self.mux.aes.set_mode_aes128cbc(encrypting)
+            self.mux.aes.set_mode_aescbc(encrypting)
         } else {
             Err(ErrorCode::BUSY)
         }
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::Client<'a>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> symmetric_encryption::Client<'a>
     for VirtualAES128CCM<'a, A>
 {
     fn crypt_done(&self, _: Option<&'static mut [u8]>, crypt_buf: &'static mut [u8]) {
@@ -825,9 +823,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
                             // If we authenticated over the plaintext, copy the last
                             // block over to the beginning again so that it becomes
                             // the encrypted tag after ctr mode
-                            let auth_last = auth_len - AES128_BLOCK_SIZE;
-                            let enc_last = enc_len - AES128_BLOCK_SIZE;
-                            for i in 0..AES128_BLOCK_SIZE {
+                            let auth_last = auth_len - AES_BLOCK_SIZE;
+                            let enc_last = enc_len - AES_BLOCK_SIZE;
+                            for i in 0..AES_BLOCK_SIZE {
                                 cbuf[auth_last + i] = cbuf[enc_last + i];
                             }
 
@@ -899,7 +897,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
 }
 
 // Fit in the linked list
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> ListNode<'a, VirtualAES128CCM<'a, A>>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> ListNode<'a, VirtualAES128CCM<'a, A>>
     for VirtualAES128CCM<'a, A>
 {
     fn next(&'a self) -> &'a ListLink<'a, VirtualAES128CCM<'a, A>> {

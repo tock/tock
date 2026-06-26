@@ -17,7 +17,7 @@ use crate::scif;
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil;
-use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
+use kernel::hil::symmetric_encryption::{AES128, AES128_KEY_SIZE, AES_BLOCK_SIZE};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
@@ -241,7 +241,7 @@ impl<'a> Aes<'a> {
 
     fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {
         stop_index.checked_sub(start_index).is_some_and(|sublen| {
-            sublen % AES128_BLOCK_SIZE == 0 && {
+            sublen % AES_BLOCK_SIZE == 0 && {
                 self.source.map_or_else(
                     || {
                         // The destination buffer is also the input
@@ -290,7 +290,7 @@ impl<'a> Aes<'a> {
                     },
                     |dest| {
                         let index = self.write_index.get();
-                        let more = index + AES128_BLOCK_SIZE <= self.stop_index.get();
+                        let more = index + AES_BLOCK_SIZE <= self.stop_index.get();
                         if !more {
                             return false;
                         }
@@ -301,16 +301,16 @@ impl<'a> Aes<'a> {
                             v |= (dest[index + (i * 4) + 3] as usize) << 24;
                             self.registers.idata.set(v as u32);
                         }
-                        self.write_index.set(index + AES128_BLOCK_SIZE);
+                        self.write_index.set(index + AES_BLOCK_SIZE);
 
-                        self.write_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get()
+                        self.write_index.get() + AES_BLOCK_SIZE <= self.stop_index.get()
                     },
                 )
             },
             |source| {
                 let index = self.write_index.get();
 
-                let more = index + AES128_BLOCK_SIZE <= source.len();
+                let more = index + AES_BLOCK_SIZE <= source.len();
                 if !more {
                     return false;
                 }
@@ -323,9 +323,9 @@ impl<'a> Aes<'a> {
                     self.registers.idata.set(v as u32);
                 }
 
-                self.write_index.set(index + AES128_BLOCK_SIZE);
+                self.write_index.set(index + AES_BLOCK_SIZE);
 
-                self.write_index.get() + AES128_BLOCK_SIZE <= source.len()
+                self.write_index.get() + AES_BLOCK_SIZE <= source.len()
             },
         )
     }
@@ -341,7 +341,7 @@ impl<'a> Aes<'a> {
             },
             |dest| {
                 let index = self.read_index.get();
-                let more = index + AES128_BLOCK_SIZE <= self.stop_index.get();
+                let more = index + AES_BLOCK_SIZE <= self.stop_index.get();
                 if !more {
                     return false;
                 }
@@ -354,9 +354,9 @@ impl<'a> Aes<'a> {
                     dest[index + (i * 4) + 3] = (v >> 24) as u8;
                 }
 
-                self.read_index.set(index + AES128_BLOCK_SIZE);
+                self.read_index.set(index + AES_BLOCK_SIZE);
 
-                self.read_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get()
+                self.read_index.get() + AES_BLOCK_SIZE <= self.stop_index.get()
             },
         )
     }
@@ -398,7 +398,7 @@ impl<'a> Aes<'a> {
     }
 }
 
-impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
+impl<'a> hil::symmetric_encryption::AES<'a, AES128> for Aes<'a> {
     fn enable(&self) {
         self.enable_clock();
         self.registers.ctrl.write(Control::ENABLE.val(1));
@@ -436,7 +436,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
-        if iv.len() != AES128_BLOCK_SIZE {
+        if iv.len() != AES_BLOCK_SIZE {
             return Err(ErrorCode::INVAL);
         }
 
@@ -497,22 +497,22 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 }
 
-impl hil::symmetric_encryption::AES128Ctr for Aes<'_> {
-    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl hil::symmetric_encryption::AESCtr for Aes<'_> {
+    fn set_mode_aesctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.set_mode(encrypting, ConfidentialityMode::CTR);
         Ok(())
     }
 }
 
-impl hil::symmetric_encryption::AES128CBC for Aes<'_> {
-    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl hil::symmetric_encryption::AESCBC for Aes<'_> {
+    fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.set_mode(encrypting, ConfidentialityMode::CBC);
         Ok(())
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
-    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl kernel::hil::symmetric_encryption::AESECB for Aes<'_> {
+    fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.set_mode(encrypting, ConfidentialityMode::ECB);
         Ok(())
     }
