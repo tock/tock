@@ -145,8 +145,19 @@ fn run() -> Result<(), Error> {
                 println!("Starting test. This will compile a Verilated LiteX simulation and thus might take a bit...");
 
                 // Always expect the kernel greeting
+                //
+                // Note: we truncate this to exactly 64 characters. That is the
+                // expected kernel buffer size for a single continuous print. After
+                // 64 characters (i.e., a full buffer), other print messages might
+                // be interleaved.
+                //
+                // Original Full string:
+                // "Verilated LiteX+VexRiscv: initialization complete, entering main loop."
+                //
+                // Perhaps, there is a better way that could find the complete
+                // message even if other messages are interleaved.
                 p.exp_string(
-                    "Verilated LiteX+VexRiscv: initialization complete, entering main loop.",
+                    "Verilated LiteX+VexRiscv: initialization complete, entering main",
                 )?;
 
                 println!("We're up! Got the kernel greeting. Connecting to ZeroMQ simulation control socket...");
