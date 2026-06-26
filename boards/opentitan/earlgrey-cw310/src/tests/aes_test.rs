@@ -13,7 +13,7 @@ use capsules_extra::test::aes_ccm;
 use capsules_extra::test::aes_gcm;
 use earlgrey::aes::Aes;
 use kernel::debug;
-use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
+use kernel::hil::symmetric_encryption::{AES128_KEY_SIZE, AES_BLOCK_SIZE};
 use kernel::static_init;
 
 /// The only 'test_case' for aes_test as directly invoked by the test runner,
@@ -36,7 +36,7 @@ fn run_aes128_ccm() {
         let aes = AES.unwrap();
 
         let t = static_init_test_ccm(&aes);
-        kernel::hil::symmetric_encryption::AES128CCM::set_client(aes, t);
+        kernel::hil::symmetric_encryption::AESCCM::set_client(aes, t);
 
         t.run();
     }
@@ -51,7 +51,7 @@ unsafe fn static_init_test_ccm(
     'static,
     Aes128Gcm<'static, virtual_aes_ccm::VirtualAES128CCM<'static, Aes<'static>>>,
 > {
-    let buf = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
+    let buf = static_init!([u8; 4 * AES_BLOCK_SIZE], [0; 4 * AES_BLOCK_SIZE]);
 
     static_init!(
         aes_ccm::Test<
@@ -70,7 +70,7 @@ fn run_aes128_gcm() {
         let aes = AES.unwrap();
 
         let t = static_init_test_gcm(&aes);
-        kernel::hil::symmetric_encryption::AES128GCM::set_client(aes, t);
+        kernel::hil::symmetric_encryption::AESGCM::set_client(aes, t);
 
         #[cfg(feature = "hardware_tests")]
         t.run();
@@ -86,7 +86,7 @@ unsafe fn static_init_test_gcm(
     'static,
     Aes128Gcm<'static, virtual_aes_ccm::VirtualAES128CCM<'static, Aes<'static>>>,
 > {
-    let buf = static_init!([u8; 9 * AES128_BLOCK_SIZE], [0; 9 * AES128_BLOCK_SIZE]);
+    let buf = static_init!([u8; 9 * AES_BLOCK_SIZE], [0; 9 * AES_BLOCK_SIZE]);
 
     static_init!(
         aes_gcm::Test<
@@ -120,8 +120,8 @@ fn run_aes128_ecb() {
 }
 
 unsafe fn static_init_test_ecb(aes: &'static Aes) -> &'static TestAes128Ecb<'static, Aes<'static>> {
-    let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
-    let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
+    let source = static_init!([u8; 4 * AES_BLOCK_SIZE], [0; 4 * AES_BLOCK_SIZE]);
+    let data = static_init!([u8; 6 * AES_BLOCK_SIZE], [0; 6 * AES_BLOCK_SIZE]);
     let key = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
 
     static_init!(
@@ -153,8 +153,8 @@ fn run_aes128_cbc() {
 }
 
 unsafe fn static_init_test_cbc(aes: &'static Aes) -> &'static TestAes128Cbc<'static, Aes<'static>> {
-    let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
-    let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
+    let source = static_init!([u8; 4 * AES_BLOCK_SIZE], [0; 4 * AES_BLOCK_SIZE]);
+    let data = static_init!([u8; 6 * AES_BLOCK_SIZE], [0; 6 * AES_BLOCK_SIZE]);
     let key = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
     let iv = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
 
@@ -187,8 +187,8 @@ fn run_aes128_ctr() {
 }
 
 unsafe fn static_init_test_ctr(aes: &'static Aes) -> &'static TestAes128Ctr<'static, Aes<'static>> {
-    let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
-    let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
+    let source = static_init!([u8; 4 * AES_BLOCK_SIZE], [0; 4 * AES_BLOCK_SIZE]);
+    let data = static_init!([u8; 6 * AES_BLOCK_SIZE], [0; 6 * AES_BLOCK_SIZE]);
     let key = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
     let iv = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
 

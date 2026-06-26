@@ -56,8 +56,8 @@ use core::cell::Cell;
 use kernel::capabilities::UdpDriverCapability;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::symmetric_encryption::AES128CCM;
 use kernel::hil::symmetric_encryption::CCMClient;
+use kernel::hil::symmetric_encryption::{AES128, AESCCM};
 use kernel::hil::time;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -98,7 +98,7 @@ pub struct ThreadNetworkDriver<'a, A: time::Alarm<'a>> {
     sender: &'a dyn UDPSender<'a>,
 
     /// AES crypto engine for MLE encryption
-    aes_crypto: &'a dyn AES128CCM<'a>,
+    aes_crypto: &'a dyn AESCCM<'a, AES128>,
 
     /// Alarm for timeouts
     alarm: &'a A,
@@ -150,7 +150,7 @@ pub struct ThreadNetworkDriver<'a, A: time::Alarm<'a>> {
 impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
     pub fn new(
         sender: &'a dyn UDPSender<'a>,
-        aes_crypto: &'a dyn AES128CCM<'a>,
+        aes_crypto: &'a dyn AESCCM<'a, AES128>,
         alarm: &'a A,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
         src_mac_addr: [u8; 8],

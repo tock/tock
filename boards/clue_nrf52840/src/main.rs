@@ -15,6 +15,8 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::hil::led::LedHigh;
+use kernel::hil::symmetric_encryption::AES;
+use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;

@@ -7,10 +7,10 @@
 use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::debug;
-use kernel::hil::symmetric_encryption::{AES128_KEY_SIZE, AES128GCM, GCMClient};
+use kernel::hil::symmetric_encryption::{AES128, AES128_KEY_SIZE, AESGCM, GCMClient};
 use kernel::utilities::cells::TakeCell;
 
-pub struct Test<'a, A: AES128GCM<'a>> {
+pub struct Test<'a, A: AESGCM<'a, AES128>> {
     aes_gcm: &'a A,
 
     buf: TakeCell<'static, [u8]>,
@@ -28,7 +28,7 @@ pub struct Test<'a, A: AES128GCM<'a>> {
     ); 2],
 }
 
-impl<'a, A: AES128GCM<'a>> Test<'a, A> {
+impl<'a, A: AESGCM<'a, AES128>> Test<'a, A> {
     pub fn new(aes_gcm: &'a A, buf: &'static mut [u8]) -> Test<'a, A> {
         Test {
             aes_gcm,
@@ -103,7 +103,7 @@ impl<'a, A: AES128GCM<'a>> Test<'a, A> {
 
         let _ = self
             .aes_gcm
-            .crypt(buf, aad_off, pt_off, pt_len, encrypting)
+            .crypt(buf, aad_off, pt_off, pt_len, tag.len(), encrypting)
             .map_err(|(_code, buf)| {
                 self.buf.replace(buf);
                 panic!("Failed to start test.");
@@ -180,7 +180,7 @@ impl<'a, A: AES128GCM<'a>> Test<'a, A> {
     }
 }
 
-impl<'a, A: AES128GCM<'a>> GCMClient for Test<'a, A> {
+impl<'a, A: AESGCM<'a, AES128>> GCMClient for Test<'a, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.buf.replace(buf);
         if res != Ok(()) {

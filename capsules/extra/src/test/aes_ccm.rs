@@ -7,10 +7,12 @@
 use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::debug;
-use kernel::hil::symmetric_encryption::{AES128_KEY_SIZE, AES128CCM, CCM_NONCE_LENGTH, CCMClient};
+use kernel::hil::symmetric_encryption::{
+    AES128, AES128_KEY_SIZE, AESCCM, CCM_NONCE_LENGTH, CCMClient,
+};
 use kernel::utilities::cells::TakeCell;
 
-pub struct Test<'a, A: AES128CCM<'a>> {
+pub struct Test<'a, A: AESCCM<'a, AES128>> {
     aes_ccm: &'a A,
 
     buf: TakeCell<'static, [u8]>,
@@ -28,7 +30,7 @@ pub struct Test<'a, A: AES128CCM<'a>> {
     ); 3],
 }
 
-impl<'a, A: AES128CCM<'a>> Test<'a, A> {
+impl<'a, A: AESCCM<'a, AES128>> Test<'a, A> {
     pub fn new(aes_ccm: &'a A, buf: &'static mut [u8]) -> Test<'a, A> {
         Test {
             aes_ccm,
@@ -119,7 +121,6 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
             self.tests[self.current_test.get()];
         let (a_off, m_off, m_len) = (0, a_data.len(), m_data.len());
         let encrypting = self.encrypting.get();
-
         let buf = match self.buf.take() {
             None => panic!("aes_ccm_test failed: buffer is not present in check_test."),
             Some(buf) => buf,
@@ -190,7 +191,7 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
     }
 }
 
-impl<'a, A: AES128CCM<'a>> CCMClient for Test<'a, A> {
+impl<'a, A: AESCCM<'a, AES128>> CCMClient for Test<'a, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.buf.replace(buf);
         if res != Ok(()) {

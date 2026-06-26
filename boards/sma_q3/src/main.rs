@@ -20,6 +20,7 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
 use kernel::hil::screen::Screen;
+use kernel::hil::symmetric_encryption::AES;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
