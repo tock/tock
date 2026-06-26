@@ -11,6 +11,9 @@
 
 use crate::ErrorCode;
 use crate::syscall::SyscallReturn;
+use crate::syscall::YieldVariant;
+use crate::syscall::{Syscall, SyscallClass};
+use crate::utilities::machine_register::MachineRegister;
 
 /// Helper function to split a [`u64`] into a higher and lower [`u32`].
 ///
@@ -23,6 +26,82 @@ fn u64_to_be_u32s(src: u64) -> (u32, u32) {
     let src_lsb = u32::from_be_bytes([src_bytes[4], src_bytes[5], src_bytes[6], src_bytes[7]]);
 
     (src_msb, src_lsb)
+}
+
+/// Helper function for converting raw values passed back from an application
+/// into a `Syscall` type.
+///
+/// The `Syscall` represents a typed version of a system call invocation. The
+/// method returns None if the values do not specify a valid system call.
+///
+/// Different architectures have different ABIs for a process and the kernel to
+/// exchange data. The 32-bit ABI for CortexM and RISCV microcontrollers is
+/// specified in TRD104.
+pub fn syscall_from_register_arguments_trd104(
+    syscall_number: u8,
+    r0: usize,
+    r1: MachineRegister,
+    r2: MachineRegister,
+    r3: MachineRegister,
+) -> Option<Syscall> {
+    match SyscallClass::try_from(syscall_number) {
+        Ok(SyscallClass::Yield) => match r0 {
+            0 => Some(Syscall::Yield {
+                yield_type: YieldVariant::NoWait {
+                    ptr: r1.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                },
+            }),
+            1 => Some(Syscall::Yield {
+                yield_type: YieldVariant::Wait,
+            }),
+            2 => Some(Syscall::Yield {
+                yield_type: YieldVariant::WaitFor {
+                    driver_number: r1.as_usize(),
+                    subdriver_number: r2.as_usize(),
+                },
+            }),
+            _ => None,
+        },
+        Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            upcall_ptr: r2.as_capability_ptr(),
+            appdata: r3,
+        }),
+        Ok(SyscallClass::Command) => Some(Syscall::Command {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            arg0: r2.as_usize(),
+            arg1: r3.as_usize(),
+        }),
+        Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            allow_address: r2.as_capability_ptr().as_ptr(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::Memop) => Some(Syscall::Memop {
+            operand: r0,
+            arg0: r1.as_usize(),
+        }),
+        Ok(SyscallClass::Exit) => Some(Syscall::Exit {
+            which: r0,
+            completion_code: r1.as_usize(),
+        }),
+        Err(_) => None,
+    }
 }
 
 /// Enumeration of the system call return type variant identifiers described in
