@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Top-level chip definition for the nRF52 microcontroller.
+
 use core::fmt::Write;
 use cortexm4f::{nvic, CortexM4F, CortexMVariant};
 use kernel::platform::chip::InterruptService;
@@ -145,9 +147,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         // # Safety
         //
         // Need to enable interrupts.
-        unsafe {
-            nvic::enable_all();
-        }
+        nvic::enable_all();
     }
 
     fn mpu(&self) -> &Self::MPU {
@@ -172,7 +172,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { nvic::has_pending() }
+        nvic::has_pending()
     }
 
     fn sleep(&self) {

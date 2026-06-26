@@ -9,6 +9,8 @@ Each MCU folder contains the hardware peripheral drivers for that MCU.
 HIL Support
 -----------
 
+<!-- Updated using tools/repo-maintenance/update_chip_support.py -->
+
 <!--START OF HIL SUPPORT-->
 
 | HIL                                     | apollo3 | arty_e21_chip | e310_g002 | e310_g003 | earlgrey | esp32-c3 | imxrt10xx | litex_vexriscv | lowrisc | msp432 | nrf52832 | nrf52833 | nrf52840 | qemu_rv32_virt_chip | rp2040 | sam4l | segger | stm32f303xc | stm32f401cc | stm32f412g | stm32f429zi | stm32f446re | veer_el2 | i486 | lpc55s6x |

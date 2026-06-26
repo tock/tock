@@ -208,9 +208,7 @@ impl<'a> RPTimer<'a> {
         // Even though clearing the INTE::ALARM_0 bit should be enough to disable
         // the interrupt firing, it seems that RP2040 requires manual NVIC
         // disabling of the interrupt.
-        unsafe {
-            cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).disable();
-        }
+        cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).disable();
     }
 
     pub fn handle_interrupt(&self) {

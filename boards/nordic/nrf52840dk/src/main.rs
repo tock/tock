@@ -21,7 +21,7 @@ struct Platform {
     base: nrf52840dk_lib::Platform,
     eui64_driver: &'static nrf52840dk_lib::Eui64Driver,
     ieee802154_driver: &'static nrf52840dk_lib::Ieee802154Driver,
-    udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
+    udp_driver: &'static nrf52840dk_lib::UdpDriver,
 }
 
 impl SyscallDriverLookup for Platform {

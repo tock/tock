@@ -64,8 +64,8 @@ pub trait Client {
     /// ## Arguments
     ///
     /// - `rval`: Status of the command. `Ok(())` means that it has been completed
-    /// successfully. If the command has failed, it will provide an `ErrorCode` to
-    /// signal the motive.
+    ///   successfully. If the command has failed, it will provide an `ErrorCode` to
+    ///   signal the motive.
     ///
     /// TODO: This maybe should be split between commands. I haven't figured it out yet
     /// on the CYW4343x but we might be able to retrieve from the event status code

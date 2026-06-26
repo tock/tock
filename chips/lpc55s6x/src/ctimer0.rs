@@ -396,9 +396,7 @@ impl<'a> LPCTimer<'a> {
 
     #[allow(dead_code)]
     fn disable_timer_interrupt(&self) {
-        unsafe {
-            cortexm33::nvic::Nvic::new(CTIMER0).disable();
-        }
+        cortexm33::nvic::Nvic::new(CTIMER0).disable();
     }
 
     pub fn handle_interrupt(&self) {

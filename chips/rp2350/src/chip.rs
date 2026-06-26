@@ -51,10 +51,8 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        unsafe {
-            cortexm33::nvic::disable_all();
-            cortexm33::nvic::clear_all_pending();
-        }
+        cortexm33::nvic::disable_all();
+        cortexm33::nvic::clear_all_pending();
         let sio = crate::gpio::SIO::new();
         let processor = sio.get_processor();
         match processor {
@@ -91,7 +89,7 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
             Processor::Processor0 => self.processor0_interrupt_mask,
             Processor::Processor1 => self.processor1_interrupt_mask,
         };
-        unsafe { cortexm33::nvic::has_pending_with_mask(mask) }
+        cortexm33::nvic::has_pending_with_mask(mask)
     }
 
     fn mpu(&self) -> &Self::MPU {

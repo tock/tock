@@ -104,7 +104,7 @@ impl<'a> Hse<'a> {
     ///
     /// + [Err]\([ErrorCode::FAIL]\): if the HSE clock is configured as the system clock.
     /// + [Err]\([ErrorCode::BUSY]\): disabling the HSE clock took to long. Retry to ensure it is
-    /// not running.
+    ///   not running.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         if self.rcc.is_hse_clock_system_clock() {
             return Err(ErrorCode::FAIL);

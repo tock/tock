@@ -643,7 +643,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize, F: DmaFence> SplitVirtqueue<'a, 'b, MA
         let mut i = 0;
         let mut previous_descriptor: Option<usize> = None;
         let mut head = None;
-        let queuebuf_iter = buffer_chain.iter_mut().peekable();
+        let queuebuf_iter = buffer_chain.iter_mut();
         for queuebuf in queuebuf_iter.take_while(|queuebuf| queuebuf.is_some()) {
             // Take the queuebuf out of the caller array
             let taken_queuebuf = queuebuf.take().expect("queuebuf is None");

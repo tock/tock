@@ -136,7 +136,7 @@ mod dma_config {
             .iter()
             .copied()
             // Safety: creating NVIC vector in platform code. Vector is valid.
-            .map(|vector| unsafe { cortexm7::nvic::Nvic::new(vector) })
+            .map(cortexm7::nvic::Nvic::new)
             .for_each(|intr| intr.enable());
     }
 }

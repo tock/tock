@@ -14,8 +14,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of;
-
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice;
@@ -231,6 +229,9 @@ pub unsafe fn start() -> (
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
+
+    // Get FICR instance to read chip properties.
+    let ficr = nrf52840::ficr::Ficr::new();
 
     // GPIOs
     let gpio = components::gpio::GpioComponent::new(
@@ -579,7 +580,7 @@ pub unsafe fn start() -> (
 
     let _ = platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &*addr_of!(nrf52840::ficr::FICR_INSTANCE));
+    debug!("{}", ficr);
 
     load_processes(board_kernel, chip);
     // These symbols are defined in the linker script.
