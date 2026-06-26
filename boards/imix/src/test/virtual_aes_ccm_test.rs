@@ -40,7 +40,7 @@
 //! aes_ccm_test passed: (current_test=2, encrypting=false, tag_is_valid=true)
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_extra::test::aes_ccm::Test;
-use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES, AESCCM, AES_BLOCK_SIZE};
 use kernel::static_init;
 use sam4l::aes::Aes;
 
@@ -54,7 +54,7 @@ pub unsafe fn run(aes: &'static sam4l::aes::Aes) {
     aes.set_client(ccm_mux);
     // ---------------- ONE CLIENT ---------------------
     // client 1
-    const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
+    const CRYPT_SIZE: usize = 7 * AES_BLOCK_SIZE;
     let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
     let ccm_client1 = static_init!(
         AESCCMCLIENT,
@@ -62,9 +62,9 @@ pub unsafe fn run(aes: &'static sam4l::aes::Aes) {
     );
     ccm_client1.setup();
     // test 1
-    let data1 = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
+    let data1 = static_init!([u8; 4 * AES_BLOCK_SIZE], [0x00; 4 * AES_BLOCK_SIZE]);
     let t1 = static_init!(Test<'static, AESCCMCLIENT>, Test::new(ccm_client1, data1));
-    AES128CCM::set_client(ccm_client1, t1);
+    AESCCM::set_client(ccm_client1, t1);
 
     // ---------------- ANOTHER CLIENT ---------------------
     // client 2
@@ -75,9 +75,9 @@ pub unsafe fn run(aes: &'static sam4l::aes::Aes) {
     );
     ccm_client2.setup();
     // test 2
-    let data2 = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
+    let data2 = static_init!([u8; 4 * AES_BLOCK_SIZE], [0x00; 4 * AES_BLOCK_SIZE]);
     let t2 = static_init!(Test<'static, AESCCMCLIENT>, Test::new(ccm_client2, data2));
-    AES128CCM::set_client(ccm_client2, t2);
+    AESCCM::set_client(ccm_client2, t2);
 
     // client 3
     let crypt_buf3 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
@@ -87,9 +87,9 @@ pub unsafe fn run(aes: &'static sam4l::aes::Aes) {
     );
     ccm_client3.setup();
     // test 3
-    let data3 = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0x00; 4 * AES128_BLOCK_SIZE]);
+    let data3 = static_init!([u8; 4 * AES_BLOCK_SIZE], [0x00; 4 * AES_BLOCK_SIZE]);
     let t3 = static_init!(Test<'static, AESCCMCLIENT>, Test::new(ccm_client3, data3));
-    AES128CCM::set_client(ccm_client3, t3);
+    AESCCM::set_client(ccm_client3, t3);
     // ----------------- RUN TESTS NOW ----------------------
     // run
     t1.run();
