@@ -113,6 +113,91 @@ impl core::convert::TryFrom<&[u8]> for RiscvStoredState {
     }
 }
 
+/// Helper function for encoding a syscall return into registers.
+///
+/// This is a helper function to wrap the differences between rv32i and rv64i.
+#[cfg(any(doc, target_arch = "riscv32"))]
+fn encode_syscall_return_helper(
+    return_value: kernel::syscall::SyscallReturn,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+        &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
+        unsafe { &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>() },
+        unsafe { &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>() },
+        unsafe { &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>() },
+        unsafe { &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>() },
+    );
+}
+
+#[cfg(target_arch = "riscv64")]
+fn encode_syscall_return_helper(
+    return_value: kernel::syscall::SyscallReturn,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    kernel::utilities::arch_helpers::encode_syscall_return_trd64bit(
+        &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
+        unsafe { &mut *core::ptr::from_mut::<usize>(a0).cast::<u64>() },
+        unsafe { &mut *core::ptr::from_mut::<usize>(a1).cast::<u64>() },
+        unsafe { &mut *core::ptr::from_mut::<usize>(a2).cast::<u64>() },
+        unsafe { &mut *core::ptr::from_mut::<usize>(a3).cast::<u64>() },
+    );
+}
+
+#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
+fn encode_syscall_return_helper(
+    _return_value: kernel::syscall::SyscallReturn,
+    _a0: &mut usize,
+    _a1: &mut usize,
+    _a2: &mut usize,
+    _a3: &mut usize,
+) {
+    unimplemented!()
+}
+
+/// Helper to convert registers to a [`Syscall`](kernel::syscall::Syscall).
+///
+/// The helper wraps both rv32i and rv64i support.
+#[cfg(any(doc, target_arch = "riscv32"))]
+fn syscall_from_register_arguments_helper(
+    syscall_number: usize,
+    r0: usize,
+    r1: usize,
+    r2: usize,
+    r3: usize,
+) -> Option<kernel::syscall::Syscall> {
+    kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
+        syscall_number as u8,
+        r0,
+        (r1).into(),
+        (r2).into(),
+        (r3).into(),
+    )
+}
+
+#[cfg(target_arch = "riscv64")]
+fn syscall_from_register_arguments_helper(
+    syscall_number: usize,
+    r0: usize,
+    r1: usize,
+    r2: usize,
+    r3: usize,
+) -> Option<kernel::syscall::Syscall> {
+    kernel::utilities::arch_helpers::syscall_from_register_arguments_trd64bit(
+        syscall_number as u8,
+        r0,
+        (r1).into(),
+        (r2).into(),
+        (r3).into(),
+    )
+}
+
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
 pub struct SysCall(());
 
@@ -179,14 +264,12 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
         let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
 
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
-            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
-                return_value,
-            ),
-            unsafe { &mut *core::ptr::from_mut::<usize>(&mut a0slice[0]).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(&mut a1slice[0]).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(&mut a2slice[0]).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(&mut a3slice[0]).cast::<u32>() },
+        encode_syscall_return_helper(
+            return_value,
+            &mut a0slice[0],
+            &mut a1slice[0],
+            &mut a2slice[0],
+            &mut a3slice[0],
         );
 
         // We do not use process memory, so this cannot fail.
@@ -672,14 +755,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         // instruction. The hardware does not do this for us.
                         state.pc = state.pc.wrapping_add(4);
 
-                        let syscall =
-                            kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
-                                state.regs[R_A4] as u8,
-                                state.regs[R_A0],
-                                (state.regs[R_A1]).into(),
-                                (state.regs[R_A2]).into(),
-                                (state.regs[R_A3]).into(),
-                            );
+                        let syscall = syscall_from_register_arguments_helper(
+                            state.regs[R_A4],
+                            state.regs[R_A0],
+                            state.regs[R_A1],
+                            state.regs[R_A2],
+                            state.regs[R_A3],
+                        );
 
                         match syscall {
                             Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
