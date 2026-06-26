@@ -9,7 +9,7 @@ use kernel::debug;
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    debug::panic_print::<esp32::uart::Uart, _, _>(
+    debug::panic_print::<esp32::uart::Uart, _, _, _>(
         esp32::uart::UartPanicWriterConfig {
             registers: esp32::uart::UART0_BASE,
             params: kernel::hil::uart::Parameters {
@@ -23,6 +23,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         pi,
         &rv32i::support::nop,
         crate::PANIC_RESOURCES.get(),
+        &kernel::create_capability!(kernel::capabilities::PanicCapability),
     );
 
     loop {
@@ -33,7 +34,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 #[cfg(test)]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    debug::panic_print::<esp32::uart::Uart, _, _>(
+    debug::panic_print::<esp32::uart::Uart, _, _, _>(
         esp32::uart::UartPanicWriterConfig {
             registers: esp32::uart::UART0_BASE,
             params: kernel::hil::uart::Parameters {
@@ -47,6 +48,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         pi,
         &rv32i::support::nop,
         crate::PANIC_RESOURCES.get(),
+        &kernel::create_capability!(kernel::capabilities::PanicCapability),
     );
 
     loop {
