@@ -664,13 +664,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         // instruction. The hardware does not do this for us.
                         state.pc = state.pc.wrapping_add(4);
 
-                        let syscall = kernel::syscall::Syscall::from_register_arguments(
-                            state.regs[R_A4] as u8,
-                            state.regs[R_A0],
-                            (state.regs[R_A1]).into(),
-                            (state.regs[R_A2]).into(),
-                            (state.regs[R_A3]).into(),
-                        );
+                        let syscall =
+                            kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
+                                state.regs[R_A4] as u8,
+                                state.regs[R_A0],
+                                (state.regs[R_A1]).into(),
+                                (state.regs[R_A2]).into(),
+                                (state.regs[R_A3]).into(),
+                            );
 
                         match syscall {
                             Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
