@@ -9,7 +9,7 @@ use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 use kernel::utilities::io_write::IoWrite;
 use nrf52840::gpio::Pin;
-use nrf52840::uart::{Uarte, UARTE0_BASE};
+use nrf52840::uart::{UARTE0_BASE, Uarte};
 
 struct Writer {
     initialized: bool,

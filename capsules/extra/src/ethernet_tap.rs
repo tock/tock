@@ -162,6 +162,8 @@
 //!   transmit by the driver. The frame transmission must still be scheduled by
 //!   issuing the appropriate command system call (*command system call `6`*).
 
+use kernel::ErrorCode;
+use kernel::ProcessId;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
@@ -169,8 +171,6 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::streaming_process_slice::StreamingProcessSlice;
-use kernel::ErrorCode;
-use kernel::ProcessId;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = capsules_core::driver::NUM::EthernetTap as usize;

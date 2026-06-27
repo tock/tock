@@ -235,7 +235,7 @@ impl VgaDevice {
 
     /// Only needed for graphics modes (linear framebuffer @ LFB_PHYS_BASE).
     pub fn map_for_mode(mode: VgaMode, page_dir: &mut x86::registers::bits32::paging::PD) {
-        use x86::registers::bits32::paging::{PAddr, PDEntry, PDFlags, PDFLAGS};
+        use x86::registers::bits32::paging::{PAddr, PDEntry, PDFLAGS, PDFlags};
 
         if matches!(
             mode,

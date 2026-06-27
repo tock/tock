@@ -9,12 +9,12 @@
 //! settings (e.g., brightness).
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 /// Pending asynchronous screen operation from a user.
 enum ScreenSplitOperation {

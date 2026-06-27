@@ -4,13 +4,13 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
+use kernel::ProcessId;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::symmetric_encryption::{AES128Ctr, Client, AES128, AES128_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128Ctr, Client};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
-use kernel::ProcessId;
 
 pub const DRIVER_NUM: usize = 0x99999;
 

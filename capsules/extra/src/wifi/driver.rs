@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-use crate::wifi::{len, Client, Device, Passphrase, Security, Ssid};
+use crate::wifi::{Client, Device, Passphrase, Security, Ssid, len};
 use enum_primitive::cast::FromPrimitive;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{self, CommandReturn, SyscallDriver};
-use kernel::{process, utilities::cells::OptionalCell, ErrorCode, ProcessId};
+use kernel::{ErrorCode, ProcessId, process, utilities::cells::OptionalCell};
 
 /// Ids for read-only allow buffers
 mod ro_allow {

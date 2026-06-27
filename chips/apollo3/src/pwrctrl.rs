@@ -4,9 +4,9 @@
 
 //! Power Control driver.
 
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 const PWRCTRL_BASE: StaticRef<PwrCtrlRegisters> =
     unsafe { StaticRef::new(0x4002_1000 as *const PwrCtrlRegisters) };

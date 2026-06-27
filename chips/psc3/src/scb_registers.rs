@@ -6,8 +6,8 @@
 //! In seperate file to avoid too large files.
 
 use kernel::utilities::{
-    registers::{register_bitfields, register_structs, ReadWrite},
     StaticRef,
+    registers::{ReadWrite, register_bitfields, register_structs},
 };
 
 register_structs! {

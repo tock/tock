@@ -18,14 +18,14 @@
 //! The integration tests for Raspberry Pi Pico provide some examples using the driver.
 //! See boards/raspberry_pi_pico/src/test/pwm.rs
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 use crate::clocks;
 use crate::gpio::RPGpio;
@@ -899,8 +899,8 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
 /// ```
 pub mod unit_tests {
     use super::{
-        debug, hil, ChannelNumber, ChannelPin, DivMode, Pwm, RPGpio, Readable, CC, CH, CSR, CTR,
-        DIV, TOP,
+        CC, CH, CSR, CTR, ChannelNumber, ChannelPin, DIV, DivMode, Pwm, RPGpio, Readable, TOP,
+        debug, hil,
     };
 
     fn test_channel_number() {
@@ -1223,46 +1223,53 @@ pub mod unit_tests {
         assert_eq!(int, 3);
         assert_eq!(frac, 2);
 
-        assert!(pwm
-            .compute_top_int_frac(max_freq_hz / max_duty_cycle / 256)
-            .is_err());
+        assert!(
+            pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle / 256)
+                .is_err()
+        );
         assert!(pwm.compute_top_int_frac(max_freq_hz + 1).is_err());
 
         let (channel_number, channel_pin) = pwm.gpio_to_pwm(RPGpio::GPIO24);
-        assert!(pwm
-            .start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, 0)
-            .is_ok());
+        assert!(
+            pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, 0)
+                .is_ok()
+        );
         assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 0);
 
-        assert!(pwm
-            .start_pwm_pin(
+        assert!(
+            pwm.start_pwm_pin(
                 channel_number,
                 channel_pin,
                 max_freq_hz / 4,
                 max_duty_cycle / 4 * 3
             )
-            .is_ok());
+            .is_ok()
+        );
         assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 3);
 
-        assert!(pwm
-            .start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, max_duty_cycle)
-            .is_ok());
+        assert!(
+            pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, max_duty_cycle)
+                .is_ok()
+        );
         assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 4);
 
-        assert!(pwm
-            .start_pwm_pin(
+        assert!(
+            pwm.start_pwm_pin(
                 channel_number,
                 channel_pin,
                 max_freq_hz / max_duty_cycle,
                 max_duty_cycle
             )
-            .is_err());
-        assert!(pwm
-            .start_pwm_pin(channel_number, channel_pin, max_freq_hz + 1, max_duty_cycle)
-            .is_err());
-        assert!(pwm
-            .start_pwm_pin(channel_number, channel_pin, max_freq_hz, max_duty_cycle + 1)
-            .is_err());
+            .is_err()
+        );
+        assert!(
+            pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz + 1, max_duty_cycle)
+                .is_err()
+        );
+        assert!(
+            pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz, max_duty_cycle + 1)
+                .is_err()
+        );
         debug!("PWM HIL trait OK")
     }
 

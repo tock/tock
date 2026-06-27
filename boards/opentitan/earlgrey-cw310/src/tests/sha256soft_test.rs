@@ -4,8 +4,8 @@
 
 //! Test SHA256 software implementation
 
-use crate::tests::run_kernel_op;
 use crate::SHA256SOFT;
+use crate::tests::run_kernel_op;
 use capsules_extra::test::sha256::TestSha256;
 use kernel::debug;
 use kernel::static_init;

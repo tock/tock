@@ -23,10 +23,10 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
-use nrf52840::gpio::Pin;
-use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 #[allow(unused_imports)]
 use nrf52_components::{self, UartChannel, UartPins};
+use nrf52840::gpio::Pin;
+use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 
 // The Particle Boron LEDs
 const LED_USR_PIN: Pin = Pin::P1_12;

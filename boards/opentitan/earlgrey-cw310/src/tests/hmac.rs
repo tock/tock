@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
+use crate::tests::run_kernel_op;
 use core::cell::Cell;
 #[allow(unused_imports)] // Can be unused if software only test
 use kernel::hil::digest::DigestData;
@@ -12,7 +12,7 @@ use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::{debug, ErrorCode};
+use kernel::{ErrorCode, debug};
 
 static KEY: [u8; 32] = [0xA1; 32];
 

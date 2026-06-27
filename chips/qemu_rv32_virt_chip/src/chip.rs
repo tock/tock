@@ -13,7 +13,7 @@ use kernel::platform::chip::{Chip, InterruptService};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
-use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
+use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;

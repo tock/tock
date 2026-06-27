@@ -5,10 +5,10 @@
 //! Test the AES GCM implementation on top of AES hardware.
 
 use core::cell::Cell;
-use kernel::debug;
-use kernel::hil::symmetric_encryption::{GCMClient, AES128GCM, AES128_KEY_SIZE};
-use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
+use kernel::debug;
+use kernel::hil::symmetric_encryption::{AES128_KEY_SIZE, AES128GCM, GCMClient};
+use kernel::utilities::cells::TakeCell;
 
 pub struct Test<'a, A: AES128GCM<'a>> {
     aes_gcm: &'a A,
@@ -138,12 +138,14 @@ impl<'a, A: AES128GCM<'a>> Test<'a, A> {
                     tag_is_valid
                 );
             } else {
-                panic!("aes_gcm_test failed: ct_matches={}, tag_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
-                       ct_matches,
-                       tag_matches,
-                       self.current_test.get(),
-                       self.encrypting.get(),
-                       tag_is_valid);
+                panic!(
+                    "aes_gcm_test failed: ct_matches={}, tag_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
+                    ct_matches,
+                    tag_matches,
+                    self.current_test.get(),
+                    self.encrypting.get(),
+                    tag_is_valid
+                );
             }
         } else {
             let pt_matches = buf[pt_off..(pt_off + pt_len)]
@@ -163,12 +165,14 @@ impl<'a, A: AES128GCM<'a>> Test<'a, A> {
                     tag_is_valid
                 );
             } else {
-                panic!("aes_gcm_test failed: pt_matches={}, tag_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
-                       pt_matches,
-                       tag_matches,
-                       self.current_test.get(),
-                       self.encrypting.get(),
-                       tag_is_valid);
+                panic!(
+                    "aes_gcm_test failed: pt_matches={}, tag_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
+                    pt_matches,
+                    tag_matches,
+                    self.current_test.get(),
+                    self.encrypting.get(),
+                    tag_is_valid
+                );
             }
         }
 

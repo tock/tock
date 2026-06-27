@@ -5,10 +5,10 @@
 //! SSD1306/SSD1315 OLED Screen
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 1032;
 

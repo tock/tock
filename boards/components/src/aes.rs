@@ -31,7 +31,7 @@ use kernel::create_capability;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB, AES128GCM,
+    AES128, AES128CBC, AES128CCM, AES128Ctr, AES128ECB, AES128GCM,
 };
 
 const CRYPT_SIZE: usize = 7 * hil::symmetric_encryption::AES128_BLOCK_SIZE;
@@ -162,13 +162,8 @@ impl<A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > Component for AesDriverComponent<A>
+    A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static> + AES128GCM<'static>,
+> Component for AesDriverComponent<A>
 {
     type StaticInput = (
         &'static mut MaybeUninit<capsules_extra::symmetric_encryption::aes::AesDriver<'static, A>>,

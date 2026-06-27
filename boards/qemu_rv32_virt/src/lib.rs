@@ -354,12 +354,12 @@ pub unsafe fn start() -> (
         >,
     > = if let Some(gpu_idx) = virtio_gpu_idx {
         use qemu_rv32_virt_chip::virtio::devices::virtio_gpu::{
-            VirtIOGPU, MAX_REQ_SIZE, MAX_RESP_SIZE, PIXEL_STRIDE,
+            MAX_REQ_SIZE, MAX_RESP_SIZE, PIXEL_STRIDE, VirtIOGPU,
         };
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
-        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
         use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
 
         // Video output dimensions:
@@ -441,10 +441,10 @@ pub unsafe fn start() -> (
         &'static qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<RiscvCoherentDmaFence>,
     > = if let Some(rng_idx) = virtio_rng_idx {
         use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
-        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
         use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
 
         // EntropySource requires a single Virtqueue for retrieved entropy
@@ -496,10 +496,10 @@ pub unsafe fn start() -> (
         use capsules_extra::ethernet_tap::EthernetTapDriver;
         use kernel::hil::ethernet::EthernetAdapterDatapath;
         use qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet;
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
-        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
         use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
 
         // A VirtIO NetworkCard requires 2 Virtqueues:
@@ -591,10 +591,10 @@ pub unsafe fn start() -> (
         >,
     > = if let Some(input_idx) = virtio_input_idx {
         use qemu_rv32_virt_chip::virtio::devices::virtio_input::VirtIOInput;
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
-        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
         use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
 
         // Event Virtqueue

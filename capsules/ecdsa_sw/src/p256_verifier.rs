@@ -8,10 +8,10 @@ use p256::ecdsa;
 use p256::ecdsa::signature::hazmat::PrehashVerifier;
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::public_key_crypto::keys::SetKeyBySliceClient;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 enum State {
     Verifying,
