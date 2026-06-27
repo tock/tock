@@ -349,7 +349,7 @@ impl<'a> I2c<'a, '_> {
         self.registers.ic_fs_scl_lcnt.set(lcnt);
         self.registers
             .ic_fs_spklen
-            .set({ if lcnt < 16 { 1 } else { lcnt / 16 } });
+            .set(if lcnt < 16 { 1 } else { lcnt / 16 });
         self.registers
             .ic_sda_hold
             .modify(IC_SDA_HOLD::IC_SDA_TX_HOLD.val(sda_tx_hold_count));
