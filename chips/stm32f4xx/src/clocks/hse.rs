@@ -50,9 +50,9 @@
 use crate::rcc::HseMode;
 use crate::rcc::Rcc;
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 /// Main HSE clock structure
 pub struct Hse<'a> {
@@ -185,7 +185,7 @@ impl<'a> Hse<'a> {
 ///
 /// **NOTE:** All these tests assume default boot configuration.
 pub mod tests {
-    use super::{debug, Hse, HseMode};
+    use super::{Hse, HseMode, debug};
 
     /// Run the entire test suite.
     pub fn run(hse: &Hse) {

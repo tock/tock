@@ -4,9 +4,9 @@
 
 //! Flash Controller (FLCTL)
 
-use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 const FLCTL_BASE: StaticRef<FlCtlRegisters> =
     unsafe { StaticRef::new(0x4001_1000u32 as *const FlCtlRegisters) };

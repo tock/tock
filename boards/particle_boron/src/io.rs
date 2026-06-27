@@ -10,7 +10,7 @@ use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 use kernel::utilities::io_write::IoWrite;
 use nrf52840::gpio::Pin;
-use nrf52840::uart::{Uarte, UARTE0_BASE};
+use nrf52840::uart::{UARTE0_BASE, Uarte};
 
 // Expand here with more writing methods as required (rtt/cdc etc...)
 enum Writer {

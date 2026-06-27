@@ -9,7 +9,7 @@ use core::cell::Cell;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE,
+    AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE, AES128CBC, AES128Ctr, AES128ECB,
 };
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;

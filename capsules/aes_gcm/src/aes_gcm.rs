@@ -11,16 +11,16 @@
 //! all of supported AES operations in a single API.
 
 use core::cell::Cell;
-use ghash::universal_hash::NewUniversalHash;
-use ghash::universal_hash::UniversalHash;
 use ghash::GHash;
 use ghash::Key;
+use ghash::universal_hash::NewUniversalHash;
+use ghash::universal_hash::UniversalHash;
+use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE,
+    AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE, AES128CBC, AES128CCM, AES128Ctr, AES128ECB,
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum GCMState {

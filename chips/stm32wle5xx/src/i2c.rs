@@ -7,14 +7,14 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient};
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
-use crate::clocks::{phclk, Stm32wle5xxClocks};
+use crate::clocks::{Stm32wle5xxClocks, phclk};
 
 pub enum I2CSpeed {
     Speed100k,

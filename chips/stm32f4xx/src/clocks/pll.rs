@@ -110,12 +110,12 @@ use crate::chip_specific::clock_constants;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
-use crate::rcc::{PllSource, PLLM, PLLP, PLLQ};
 use crate::rcc::{DEFAULT_PLLM_VALUE, DEFAULT_PLLN_VALUE, DEFAULT_PLLP_VALUE, DEFAULT_PLLQ_VALUE};
+use crate::rcc::{PLLM, PLLP, PLLQ, PllSource};
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 use core::cell::Cell;
 use core::marker::PhantomData;
@@ -471,8 +471,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
 /// execution.
 pub mod tests {
     use super::{
-        clock_constants, debug, ErrorCode, Pll, PllSource, DEFAULT_PLLM_VALUE, HSI_FREQUENCY_MHZ,
-        PLLM, PLLP, PLLQ,
+        DEFAULT_PLLM_VALUE, ErrorCode, HSI_FREQUENCY_MHZ, PLLM, PLLP, PLLQ, Pll, PllSource,
+        clock_constants, debug,
     };
 
     // Depending on the default PLLM value, the computed PLLN value changes.

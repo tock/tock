@@ -6,11 +6,11 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::ErrorCode;
 
 pub const PAGE_SIZE: usize = 8 * 1024;
 pub const FLASH_INSTANCE_SIZE: usize = 512 * 1024;

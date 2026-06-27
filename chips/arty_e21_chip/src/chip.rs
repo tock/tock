@@ -10,7 +10,7 @@ use kernel::utilities::registers::interfaces::Readable;
 
 use crate::clint;
 use crate::interrupts;
-use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
+use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 
 pub type ArtyExxClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 

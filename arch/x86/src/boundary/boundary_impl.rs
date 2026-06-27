@@ -4,11 +4,11 @@
 
 use core::fmt::Write;
 
-use crate::registers::bits32::eflags::{EFlags, EFLAGS};
+use crate::registers::bits32::eflags::{EFLAGS, EFlags};
 
+use kernel::ErrorCode;
 use kernel::process::FunctionCall;
 use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
-use kernel::ErrorCode;
 
 use crate::interrupts::{IDT_RESERVED_EXCEPTIONS, SYSCALL_VECTOR};
 use crate::segmentation::{USER_CODE, USER_DATA};

@@ -5,13 +5,13 @@
 //! OTBN Control
 
 use core::cell::Cell;
+use kernel::ErrorCode;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
 pub trait Client<'a> {

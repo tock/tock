@@ -38,12 +38,12 @@ use capsules_extra::net::ipv6::ipv6_send::IP6Sender;
 use capsules_extra::net::ipv6::{IP6Packet, IPPayload, TransportHeader};
 use capsules_extra::net::network_capabilities::{IpVisibilityCapability, UdpVisibilityCapability};
 use capsules_extra::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
+use capsules_extra::net::udp::UDPHeader;
 use capsules_extra::net::udp::udp_port_table::{
-    SocketBindingEntry, UdpPortManager, MAX_NUM_BOUND_PORTS,
+    MAX_NUM_BOUND_PORTS, SocketBindingEntry, UdpPortManager,
 };
 use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_send::MuxUdpSender;
-use capsules_extra::net::udp::UDPHeader;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;

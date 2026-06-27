@@ -200,10 +200,10 @@ pub struct DebugWriterNoMuxComponent<
 }
 
 impl<
-        U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
-        const BUF_SIZE_BYTES: usize,
-        C: SetDebugWriterCapability,
-    > DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES, C>
+    U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
+    const BUF_SIZE_BYTES: usize,
+    C: SetDebugWriterCapability,
+> DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES, C>
 {
     pub fn new(uart: &'static U, capability: C) -> Self {
         Self {
@@ -215,10 +215,10 @@ impl<
 }
 
 impl<
-        U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
-        const BUF_SIZE_BYTES: usize,
-        C: SetDebugWriterCapability,
-    > Component for DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES, C>
+    U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
+    const BUF_SIZE_BYTES: usize,
+    C: SetDebugWriterCapability,
+> Component for DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES, C>
 {
     type StaticInput = (
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,

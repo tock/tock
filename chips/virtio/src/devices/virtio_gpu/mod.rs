@@ -5,12 +5,12 @@
 use core::cell::Cell;
 use core::ops::Range;
 
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
 use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
-use kernel::ErrorCode;
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::super::queues::split_queue::{
@@ -22,6 +22,7 @@ mod helpers;
 mod messages;
 
 use messages::{
+    Rect, VirtIOGPUReq, VirtIOGPUResp,
     ctrl_header::CtrlHeader,
     resource_attach_backing::{MemEntry, ResourceAttachBackingReq, ResourceAttachBackingResp},
     resource_create_2d::{ResourceCreate2DReq, ResourceCreate2DResp, VideoFormat},
@@ -29,7 +30,6 @@ use messages::{
     resource_flush::{ResourceFlushReq, ResourceFlushResp},
     set_scanout::{SetScanoutReq, SetScanoutResp},
     transfer_to_host_2d::{TransferToHost2DReq, TransferToHost2DResp},
-    Rect, VirtIOGPUReq, VirtIOGPUResp,
 };
 
 /// The total number of bytes occupied by a pixel in memory.

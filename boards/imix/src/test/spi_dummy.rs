@@ -6,10 +6,10 @@
 
 use core::ptr::addr_of_mut;
 
+use kernel::ErrorCode;
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::{self, SpiMaster};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 #[allow(unused_variables, dead_code)]
 pub struct DummyCB {

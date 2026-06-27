@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
+use crate::tests::run_kernel_op;
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::i2c::I2CHwSlaveClient;

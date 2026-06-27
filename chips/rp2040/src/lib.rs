@@ -28,7 +28,7 @@ pub mod usb;
 pub mod watchdog;
 pub mod xosc;
 
-use cortexm0p::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM0P, CortexMVariant};
+use cortexm0p::{CortexM0P, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work

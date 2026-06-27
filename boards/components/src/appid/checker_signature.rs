@@ -50,15 +50,12 @@ pub struct AppCheckerSignatureComponent<
 }
 
 impl<
-        S: kernel::hil::public_key_crypto::signature::SignatureVerify<
-                'static,
-                HASH_LEN,
-                SIGNATURE_LEN,
-            > + kernel::hil::public_key_crypto::keys::SelectKey<'static>,
-        H: kernel::hil::digest::DigestDataHash<'static, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > AppCheckerSignatureComponent<S, H, HASH_LEN, SIGNATURE_LEN>
+    S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + kernel::hil::public_key_crypto::keys::SelectKey<'static>,
+    H: kernel::hil::digest::DigestDataHash<'static, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> AppCheckerSignatureComponent<S, H, HASH_LEN, SIGNATURE_LEN>
 {
     pub fn new(
         hasher: &'static H,
@@ -74,16 +71,13 @@ impl<
 }
 
 impl<
-        S: kernel::hil::public_key_crypto::signature::SignatureVerify<
-                'static,
-                HASH_LEN,
-                SIGNATURE_LEN,
-            > + kernel::hil::public_key_crypto::keys::SelectKey<'static>,
-        H: kernel::hil::digest::DigestDataHash<'static, HASH_LEN>
-            + kernel::hil::digest::Digest<'static, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > Component for AppCheckerSignatureComponent<S, H, HASH_LEN, SIGNATURE_LEN>
+    S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + kernel::hil::public_key_crypto::keys::SelectKey<'static>,
+    H: kernel::hil::digest::DigestDataHash<'static, HASH_LEN>
+        + kernel::hil::digest::Digest<'static, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> Component for AppCheckerSignatureComponent<S, H, HASH_LEN, SIGNATURE_LEN>
 {
     type StaticInput = (
         &'static mut MaybeUninit<

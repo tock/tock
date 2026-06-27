@@ -5,7 +5,7 @@
 //! GPIO registers and bitfields
 //! In seperate file to avoid too large files.
 
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 #[repr(C)]
 pub struct GpioPort {

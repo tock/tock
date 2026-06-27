@@ -6,14 +6,14 @@
 //!
 //! <https://docs.opentitan.org/hw/ip/csrng/doc>
 
+use kernel::ErrorCode;
 use kernel::hil::entropy::{Client32, Continue, Entropy32};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 register_structs! {
     pub CsRngRegisters {

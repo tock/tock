@@ -40,7 +40,7 @@
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::bus::{self, BusAddr8};
-use capsules_extra::st77xx::{ST77XXScreen, ST77XX};
+use capsules_extra::st77xx::{ST77XX, ST77XXScreen};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
@@ -83,10 +83,10 @@ pub struct ST77XXComponent<
 }
 
 impl<
-        A: 'static + time::Alarm<'static>,
-        B: 'static + bus::Bus<'static, BusAddr8>,
-        P: 'static + gpio::Pin,
-    > ST77XXComponent<A, B, P>
+    A: 'static + time::Alarm<'static>,
+    B: 'static + bus::Bus<'static, BusAddr8>,
+    P: 'static + gpio::Pin,
+> ST77XXComponent<A, B, P>
 {
     pub fn new(
         alarm_mux: &'static MuxAlarm<'static, A>,
@@ -106,10 +106,10 @@ impl<
 }
 
 impl<
-        A: 'static + time::Alarm<'static>,
-        B: 'static + bus::Bus<'static, BusAddr8>,
-        P: 'static + gpio::Pin,
-    > Component for ST77XXComponent<A, B, P>
+    A: 'static + time::Alarm<'static>,
+    B: 'static + bus::Bus<'static, BusAddr8>,
+    P: 'static + gpio::Pin,
+> Component for ST77XXComponent<A, B, P>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,

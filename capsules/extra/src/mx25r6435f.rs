@@ -56,13 +56,13 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 pub const TX_BUF_LEN: usize = PAGE_SIZE as usize + 4;
 pub const RX_BUF_LEN: usize = PAGE_SIZE as usize + 4;
@@ -192,11 +192,11 @@ pub struct MX25R6435F<
 }
 
 impl<
-        'a,
-        S: hil::spi::SpiMasterDevice<'a> + 'a,
-        P: hil::gpio::Pin + 'a,
-        A: hil::time::Alarm<'a> + 'a,
-    > MX25R6435F<'a, S, P, A>
+    'a,
+    S: hil::spi::SpiMasterDevice<'a> + 'a,
+    P: hil::gpio::Pin + 'a,
+    A: hil::time::Alarm<'a> + 'a,
+> MX25R6435F<'a, S, P, A>
 {
     pub fn new(
         spi: &'a S,
@@ -370,11 +370,11 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::spi::SpiMasterDevice<'a> + 'a,
-        P: hil::gpio::Pin + 'a,
-        A: hil::time::Alarm<'a> + 'a,
-    > hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A>
+    'a,
+    S: hil::spi::SpiMasterDevice<'a> + 'a,
+    P: hil::gpio::Pin + 'a,
+    A: hil::time::Alarm<'a> + 'a,
+> hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A>
 {
     fn read_write_done(
         &self,
@@ -602,11 +602,11 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::spi::SpiMasterDevice<'a> + 'a,
-        P: hil::gpio::Pin + 'a,
-        A: hil::time::Alarm<'a> + 'a,
-    > hil::time::AlarmClient for MX25R6435F<'a, S, P, A>
+    'a,
+    S: hil::spi::SpiMasterDevice<'a> + 'a,
+    P: hil::gpio::Pin + 'a,
+    A: hil::time::Alarm<'a> + 'a,
+> hil::time::AlarmClient for MX25R6435F<'a, S, P, A>
 {
     fn alarm(&self) {
         // After the timer expires we still have to check that the erase/write
@@ -623,12 +623,12 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::spi::SpiMasterDevice<'a> + 'a,
-        P: hil::gpio::Pin + 'a,
-        A: hil::time::Alarm<'a> + 'a,
-        C: hil::flash::Client<Self>,
-    > hil::flash::HasClient<'a, C> for MX25R6435F<'a, S, P, A>
+    'a,
+    S: hil::spi::SpiMasterDevice<'a> + 'a,
+    P: hil::gpio::Pin + 'a,
+    A: hil::time::Alarm<'a> + 'a,
+    C: hil::flash::Client<Self>,
+> hil::flash::HasClient<'a, C> for MX25R6435F<'a, S, P, A>
 {
     fn set_client(&self, client: &'a C) {
         self.client.set(client);
@@ -636,11 +636,11 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::spi::SpiMasterDevice<'a> + 'a,
-        P: hil::gpio::Pin + 'a,
-        A: hil::time::Alarm<'a> + 'a,
-    > hil::flash::Flash for MX25R6435F<'a, S, P, A>
+    'a,
+    S: hil::spi::SpiMasterDevice<'a> + 'a,
+    P: hil::gpio::Pin + 'a,
+    A: hil::time::Alarm<'a> + 'a,
+> hil::flash::Flash for MX25R6435F<'a, S, P, A>
 {
     type Page = Mx25r6435fSector;
 
