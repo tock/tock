@@ -1279,6 +1279,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "qemu_rv32_virt-syscall-return-test"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "kernel",
+ "qemu_rv32_virt",
+ "qemu_rv32_virt_chip",
+ "rv32i",
+ "tock-tbf",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "qemu_rv32_virt-tutorial"
 version = "0.2.3-dev"
 dependencies = [

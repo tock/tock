@@ -100,6 +100,7 @@ pub mod spi;
 pub mod ssd1306;
 pub mod st77xx;
 pub mod storage_permissions;
+pub mod syscall_return_test;
 pub mod temperature;
 pub mod temperature_rp2040;
 pub mod temperature_stm;

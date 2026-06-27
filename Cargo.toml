@@ -74,6 +74,7 @@ members = [
     "boards/tutorials/nrf52840dk-thread-tutorial",
     "boards/lora_e5_mini",
     "boards/tutorials/qemu_rv32_virt-tutorial",
+    "boards/configurations/qemu_rv32_virt/qemu_rv32_virt-syscall-return-test",
     "capsules/aes_gcm",
     "capsules/ecdsa_sw",
     "capsules/core",
