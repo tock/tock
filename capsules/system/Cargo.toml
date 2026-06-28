@@ -9,6 +9,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+capsules-core = { path = "../core" }
 kernel = { path = "../../kernel" }
 tock-tbf = { path = "../../libraries/tock-tbf" }
 
