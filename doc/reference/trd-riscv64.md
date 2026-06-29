@@ -60,7 +60,7 @@ including the sizes of all values.
 3.1 Registers
 ====================================================================
 
-_Modifies TRD 104 [section 3.1](#31-registers)_
+_Modifies TRD 104 [section 3.1](trd104-syscalls.md#31-registers)_
 
 The register mapping remains the same as in TRD 104:
 
@@ -80,6 +80,8 @@ the lowest 32-bits of the register with the upper 32-bits being zero.
 
 | Type                         | C Analog    | Description                                                                                                    |
 |------------------------------|-------------|----------------------------------------------------------------------------------------------------------------|
+| `VALUE_32`                   | `uint32_t ` | Any 32-bit value.                                                                                              |
+| `VALUE_64`                   | `uint64_t ` | Any 64-bit value.                                                                                              |
 | `OPAQUE`                     | `uintptr_t` | Any native machine word sized type.                                                                            |
 | `SIZE`                       | `size_t`    | An unsigned, numeric type with a range capable of expressing in bytes the size of any valid contiguous object. |
 | `POINTER`                    | `void *`    | A type capable of holding a pointer to a valid memory location.                                                |
@@ -90,21 +92,26 @@ the lowest 32-bits of the register with the upper 32-bits being zero.
 3.3 Return Values
 ====================================================================
 
-Return values are the same as [TRD 104](trd104-syscalls.md), but with the
+Return values are similar to [TRD 104](trd104-syscalls.md), but with the
 following register encoding:
 
-| System call return variant  | `a0` | `a1`           | `a2`           | `a3`           |
-|-----------------------------|------|----------------|----------------|----------------|
-| Failure                     | 0    | Error code     | -              | -              |
-| Failure with `u32`          | 1    | Error code     | Return Value 0 |                |
-| Failure with 2 `u32`        | 2    | Error code     | Return Value 0 | Return Value 1 |
-| Failure with `u64`          | 3    | Error code     | Return Value 0 |                |
-| Success                     | 128  |                |                |                |
-| Success with `u32`          | 129  | Return Value 0 |                |                |
-| Success with 2 `u32`        | 130  | Return Value 0 | Return Value 1 |                |
-| Success with `u64`          | 131  | Return Value 0 |                |                |
-| Success with 3 `u32`        | 132  | Return Value 0 | Return Value 1 | Return Value 2 |
-| Success with `u32` and `u64`| 133  | Return Value 0 | Return Value 1 |                |
+| System call return variant                       | `a0` | `a1`                                          | `a2`                                          | `a3`                        | Notes              |
+|--------------------------------------------------|------|-----------------------------------------------|-----------------------------------------------|-----------------------------|--------------------|
+| Failure                                          | 0    | `VALUE_32` - Error code                       |                                               |                             |                    |
+| Failure with `u32`                               | 1    | `VALUE_32` - Error code                       | `VALUE_32` - Return Value 0                   |                             |                    |
+| Failure with 2 `u32`                             | 2    | `VALUE_32` - Error code                       | `VALUE_32` - Return Value 0                   | `VALUE_32` - Return Value 1 |                    |
+| Failure with `u64`                               | 3    | `VALUE_32` - Error code                       | `VALUE_64` - Return Value 0                   |                             |                    |
+| Failure with upcall pointer and opaque parameter | 4    | `VALUE_32` - Error code                       | `C_FUNCTION_POINTER_OR_ZERO` - Upcall Pointer | `OPAQUE`                    | Only for subscribe |
+| Failure with pointer and length                  | 5    | `VALUE_32` - Error code                       | `POINTER_OR_ZERO` - Buffer Pointer            | `SIZE` - Length             | Only for allow     |
+| Success                                          | 128  |                                               |                                               |                             |                    |
+| Success with `u32`                               | 129  | `VALUE_32` - Return Value 0                   |                                               |                             |                    |
+| Success with 2 `u32`                             | 130  | `VALUE_32` - Return Value 0                   | `VALUE_32` - Return Value 1                   |                             |                    |
+| Success with `u64`                               | 131  | `VALUE_32` - Return Value 0                   |                                               |                             |                    |
+| Success with 3 `u32`                             | 132  | `VALUE_32` - Return Value 0                   | `VALUE_32` - Return Value 1                   | `VALUE_32` - Return Value 2 |                    |
+| Success with `u32` and `u64`                     | 133  | `VALUE_32` - Return Value 0                   | `VALUE_64` - Return Value 1                   |                             |                    |
+| Success with upcall pointer and opaque parameter | 134  | `C_FUNCTION_POINTER_OR_ZERO` - Upcall Pointer | `OPAQUE`                                      |                             | Only for subscribe |
+| Success with pointer and length                  | 135  | `POINTER_OR_ZERO` - Buffer Pointer            | `SIZE` - Length                               |                             | Only for allow     |
+| Success with pointer                             | 136  | `POINTER_OR_ZERO` - Memop Pointer             |                                               |                             | Only for memop     |
 
 3.4 Upcalls
 ====================================================================
@@ -157,12 +164,25 @@ This ABI uses the same system calls as [TRD 104](trd104-syscalls.md).
 4.2 Subscribe (Class ID: 1)
 --------------------------------
 
-| Argument          | Register | Type               |
-|-------------------|----------|--------------------|
-| Driver number     | a0       | `u32`              |
-| Subscribe number  | a1       | `u32`              |
-| Upcall pointer    | a2       | C_FUNCTION_POINTER |
-| Application data  | a3       | OPAQUE_GENERIC     |
+| Argument          | Register | Type                       |
+|-------------------|----------|----------------------------|
+| Driver number     | a0       | `u32`                      |
+| Subscribe number  | a1       | `u32`                      |
+| Upcall pointer    | a2       | C_FUNCTION_POINTER_OR_ZERO |
+| Application data  | a3       | OPAQUE                     |
+
+Valid return types:
+
+- `Failure with upcall pointer and opaque parameter`
+- `Success with upcall pointer and opaque parameter`
+
+For success, the upcall pointer is the pointer passed in the previous call to
+Subscribe (the existing upcall) and the opaque parameter is the application
+data parameter passed in the previous call to Subscribe(the existing
+application data). For failure, the upcall pointer is the passed upcall
+pointer and the opaque parameter is the passed application data parameter.
+For the first successful call to Subscribe for a given upcall, the upcall
+pointer and application data parameter returned MUST be the Null Upcall.
 
 4.3 Command (Class ID: 2)
 ---------------------------------
@@ -180,6 +200,19 @@ values), there is no way for the kernel to know the argument is a `u64` and
 to ignore all contents of Argument 1. Therefore, the `u64` data must still be
 split in the lower 32-bits of Argument 0 and Argument 1.
 
+Valid return types:
+
+- `Failure`
+- `Failure with u32`
+- `Failure with 2 u32`
+- `Failure with u64`
+- `Success`
+- `Success with u32`
+- `Success with 2 u32`
+- `Success with u64`
+- `Success with 3 u32`
+- `Success with u32 and u64`
+
 4.4 Read-Write Allow (Class ID: 3)
 ---------------------------------
 
@@ -189,6 +222,14 @@ split in the lower 32-bits of Argument 0 and Argument 1.
 | Allow number     | a1       | `u32`             |                                                                                         |
 | Address          | a2       | `POINTER_OR_ZERO` | Pointers must refer to a contiguous array of writable userspace memory of length `{a3}` |
 | Size             | a3       | `SIZE`            |                                                                                         |
+
+Valid return types:
+
+- `Failure with pointer and length`
+- `Success with pointer and length`
+
+In both cases, Argument 0 contains an address and Argument 1 contains a
+length.
 
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
@@ -200,6 +241,8 @@ split in the lower 32-bits of Argument 0 and Argument 1.
 | Address          | a2       | `POINTER_OR_ZERO` | Pointers must refer to a contiguous array of readable userspace memory of length `{a3}` |
 | Size             | a3       | `SIZE`            |                                                                                         |
 
+Return types are the same as Read-Write Allow.
+
 4.6 Memop (Class ID: 5)
 ---------------------------------
 
@@ -210,20 +253,20 @@ split in the lower 32-bits of Argument 0 and Argument 1.
 
 Memop operations:
 
-| Memop Operation | Operation                                               | Success          | Argument  |
-|-----------------|---------------------------------------------------------|------------------|-----------|
-| 0               | Break                                                   | Success          | `POINTER` |
-| 1               | SBreak                                                  | Success with u64 | `i64`     |
-| 2               | Get process RAM start address                           | Success with u64 |           |
-| 3               | Get address immediately after process RAM allocation    | Success with u64 |           |
-| 4               | Get process flash start address                         | Success with u64 |           |
-| 5               | Get address immediately after process flash region      | Success with u64 |           |
-| 6               | Get lowest address (end) of the grant region            | Success with u64 |           |
-| 7               | Get number of writeable flash regions in process header | Success with u32 |           |
-| 8               | Get start address of a writeable flash region           | Success with u64 | `u32`     |
-| 9               | Get end address of a writeable flash region             | Success with u64 | `u32`     |
-| 10              | Set the start of the process stack                      | Success          | `POINTER` |
-| 11              | Set the start of the process heap                       | Success          | `POINTER` |
+| Memop Operation | Operation                                               | Argument  | Success              | Failure |
+|-----------------|---------------------------------------------------------|-----------|----------------------|---------|
+| 0               | Break                                                   | `POINTER` | Success              | Failure |
+| 1               | SBreak                                                  | `i64`     | Success with pointer | Failure |
+| 2               | Get process RAM start address                           |           | Success with pointer |         |
+| 3               | Get address immediately after process RAM allocation    |           | Success with pointer |         |
+| 4               | Get process flash start address                         |           | Success with pointer |         |
+| 5               | Get address immediately after process flash region      |           | Success with pointer |         |
+| 6               | Get lowest address (end) of the grant region            |           | Success with pointer |         |
+| 7               | Get number of writeable flash regions in process header |           | Success with u32     |         |
+| 8               | Get start address of a writeable flash region           | `u32`     | Success with pointer | Failure |
+| 9               | Get end address of a writeable flash region             | `u32`     | Success with pointer | Failure |
+| 10              | Set the start of the process stack                      | `POINTER` | Success              |         |
+| 11              | Set the start of the process heap                       | `POINTER` | Success              |         |
 
 4.7 Exit (Class ID: 6)
 --------------------------------
@@ -237,3 +280,5 @@ Memop operations:
 5 Author's Address
 ====================================================================
 Johnathan Van Why <jrvanwhy@betterbytes.org>
+
+Brad Campbell <bradjc@virginia.edu>
