@@ -81,6 +81,12 @@ impl Nrf52DefaultPeripherals<'_> {
         // # Safety
         //
         // This must only get constructed once.
+        //
+        // TODO: As of June 2026, we just assume peripherals are only created
+        // once and this is the only call to the AES manager constructor.
+        // However, once we have a strategy for enforcing the only-once
+        // constraint, we need to update this to use that so we can properly
+        // enforce this safety requirement.
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
         Self {
