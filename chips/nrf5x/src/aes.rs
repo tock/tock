@@ -332,7 +332,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     )> {
         // Validate indices and buffer sizes before consuming any buffers.
         let len = match stop_index.checked_sub(start_index) {
-            Some(l) if l % symmetric_encryption::AES128_BLOCK_SIZE == 0 => l,
+            Some(l) if l.is_multiple_of(symmetric_encryption::AES128_BLOCK_SIZE) => l,
             _ => return Some((Err(ErrorCode::INVAL), source, dest)),
         };
 
