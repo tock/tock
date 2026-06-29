@@ -79,6 +79,13 @@ pub struct AesEcbRegistersManager {
 }
 
 impl AesEcbRegistersManager {
+    /// Create a new AES registers manager.
+    ///
+    /// # Safety
+    ///
+    /// This is only valid on an nrf5x-based MCU. This must only be called once
+    /// as having multiple interfaces to DMA registers is not safe. This must
+    /// be the only way the AES DMA registers are controlled.
     pub unsafe fn new(regs: StaticRef<AesEcbRegisters>) -> Self {
         Self {
             registers: regs,
