@@ -1065,6 +1065,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nrf52840dk-userv-tutorial"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "kernel",
+ "nrf52840",
+ "nrf52840dk",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "nrf52_components"
 version = "0.2.3-dev"
 dependencies = [
