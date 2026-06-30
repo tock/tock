@@ -16,18 +16,22 @@ register_structs! {
         (0x088 => ahb1enr: ReadWrite<u32, AHB1ENR::Register>),
         /// AHB2 peripheral clock enable register 1
         (0x08C => ahb2enr1: ReadWrite<u32, AHB2ENR1::Register>),
-        (0x090 => _reserved1: [u32; 3]),
+        (0x090 => _reserved1: [u32; 1]), //this would be AHB2ENR2, but unused for now
+        (0x94 => ahb3enr: ReadWrite<u32, AHB3ENR::Register>),
+        (0x98 => _reserved4: [u32; 1]), //just padding
         /// APB1 peripheral clock enable register 1
         (0x09C => apb1enr1: ReadWrite<u32, APB1ENR1::Register>),
-        (0x0A0 => _reserved2: [u32; 1]),
+        (0x0A0 => _reserved2: [u32; 1]), //this would be APB1ENR2, but unused for now
         /// APB2 peripheral clock enable register
         (0x0A4 => apb2enr: ReadWrite<u32, APB2ENR::Register>),
         /// APB3 peripheral clock enable register
         (0x0A8 => apb3enr: ReadWrite<u32, APB3ENR::Register>),
-        (0x0AC => _reserved3: [u32; 13]),
+        (0x0AC => _reserved3: [u32; 13]), //this is for padding
         /// Peripherals independent clock configuration register 1
         (0x0E0 => ccipr1: ReadWrite<u32, CCIPR1::Register>),
-        (0x0E4 => @END),
+        (0x0E4 => ccipr2: ReadWrite<u32, CCIPR1::Register>),
+        (0x0E8 => ccipr3: ReadWrite<u32, CCIPR3::Register>),
+        (0x0EC => @END),
     }
 }
 
@@ -63,7 +67,24 @@ register_bitfields![u32,
             HSI16 = 2,
             LSE = 3
         ]
-    ]
+    ],
+    pub CCIPR3 [
+        ADCDACSEL OFFSET(12) NUMBITS(3) [
+            HCLK = 0,
+            SYSCLK = 1,
+            PLL2_R_CK = 2,
+            HSE = 3,
+            HSI16 = 4,
+            MSIK = 5
+        ],
+        DAC1SEL OFFSET(15) NUMBITS(1) [
+            LSE = 0,
+            LSI = 1
+        ]
+    ],
+    pub AHB3ENR [
+        DAC1EN OFFSET(6) NUMBITS(1) []
+    ],
 ];
 
 /// Base address for RCC in Secure mode.
@@ -105,5 +126,9 @@ impl Rcc {
 
     pub fn set_usart1_source_pclk(&self) {
         self.registers.ccipr1.modify(CCIPR1::USART1SEL::PCLK);
+    }
+
+    pub fn enable_dac1(&self) {
+        self.registers.ahb3enr.modify(AHB3ENR::DAC1EN::SET);
     }
 }
