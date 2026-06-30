@@ -362,7 +362,7 @@ impl<
 {
     /// Let the app know we have unloaded the target process
     /// and return an opaque identifier for the process binary
-    fn unload_done(&self, result: Result<(), ErrorCode>, app_identifier: Option<usize>) {
+    fn unload_done(&self, result: Result<(), ErrorCode>, app_handle: usize) {
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |app, kernel_data| {
                 // And then signal the app.
@@ -372,7 +372,7 @@ impl<
                 let _ = kernel_data
                     .schedule_upcall(
                         upcall::UNLOAD_DONE,
-                        (into_statuscode(result), app_identifier.unwrap_or(0), 0),
+                        (into_statuscode(result), app_handle, 0),
                     )
                     .ok();
             });

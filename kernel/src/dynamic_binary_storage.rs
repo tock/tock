@@ -37,7 +37,7 @@ pub enum State {
     AppWrite,
     Load,
     Abort,
-    Unload(Result<(), ErrorCode>, Option<usize>),
+    Unload(Result<(), ErrorCode>, usize),
     PaddingWrite,
     Fail,
 }
@@ -145,7 +145,7 @@ pub trait DynamicProcessUnload {
 /// The callback for dynamic process unloading.
 pub trait DynamicProcessUnloadClient {
     /// Terminated app (if running).
-    fn unload_done(&self, result: Result<(), ErrorCode>, app_identifier: Option<usize>);
+    fn unload_done(&self, result: Result<(), ErrorCode>, app_handle: usize);
 }
 
 /// Dynamic process loading machine.
@@ -372,13 +372,15 @@ impl<'b, C: Chip, D: ProcessStandardDebug, F: NonvolatileStorage<'b>> DeferredCa
                     client.finalize_done(Ok(()));
                 });
             }
-            State::Unload(result, Some(app_id)) => {
-                let res = result;
+            State::Unload(result, app_id) => {
+                
+                // let id = app_id;
                 let id = app_id;
+                let res = if id == 0 {Err(ErrorCode::FAIL)} else {result};
                 self.reset_process_loading_metadata();
 
                 self.unload_client.map(|client| {
-                    client.unload_done(res, Some(id));
+                    client.unload_done(res, id);
                 });
             }
             _ => {}
@@ -726,20 +728,23 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     fn unload(&self, app: ShortId) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Idle => {
-                self.state.set(State::Unload(Err(ErrorCode::BUSY), None)); // To ensure the state machine knows not to service other apps
+                self.state.set(State::Unload(Err(ErrorCode::BUSY), 0)); // To ensure the state machine knows not to service other apps
 
-                let (result, app_identifier) = match self
-                    .kernel
-                    .remove_process_from_active_processes(app, |proc| {
+                let (result, _app_handle) = match self.kernel.remove_process_from_active_processes(app, |proc| {
                         proc.get_addresses().flash_start
-                    }) {
-                    Ok(id) => (Ok(()), Some(id)),
-                    Err(()) => (Err(ErrorCode::INVAL), None),
+                    }) 
+                {
+                    Ok(id) => {
+                        let res = Ok(());
+                        let handle = id;
+                        
+                        self.state.set(State::Unload(res, handle));
+                        self.deferred_call.set();
+                        
+                        (res, handle)
+                    }
+                    Err(()) => (Err(ErrorCode::INVAL), 0)
                 };
-
-                self.state.set(State::Unload(result, app_identifier));
-
-                self.deferred_call.set();
 
                 result
             }
