@@ -42,7 +42,7 @@ use capsules_extra::net::udp::udp_recv::UDPReceiver;
 use capsules_extra::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
-use kernel::capabilities::NetworkCapabilityCreationCapability;
+use kernel::capabilities::{NetworkCapabilityCreationCapability, UdpDriverCapability};
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::radio;
@@ -54,7 +54,7 @@ pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES_BLOCK_SIZE + radio::
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! thread_network_component_static {
-    ($A:ty, $B:ty $(,)?) => {{
+    ($A:ty, $B:ty, $C:ty $(,)?) => {{
         use components::udp_mux::MAX_PAYLOAD_LEN;
 
         let udp_send = kernel::static_buf!(
@@ -85,6 +85,7 @@ macro_rules! thread_network_component_static {
             capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, $B>,
         );
         let alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
+        let driver_cap = kernel::static_buf!($C);
 
         (
             udp_send,
@@ -97,12 +98,14 @@ macro_rules! thread_network_component_static {
             crypt_buf,
             crypt,
             alarm,
+            driver_cap,
         )
     };};
 }
 pub struct ThreadNetworkComponent<
     A: Alarm<'static> + 'static,
     B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static,
+    C: UdpDriverCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -113,10 +116,14 @@ pub struct ThreadNetworkComponent<
     aes_mux: &'static MuxAES128CCM<'static, B>,
     serial_num: [u8; 8],
     alarm_mux: &'static MuxAlarm<'static, A>,
+    driver_cap: C,
 }
 
-impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static>
-    ThreadNetworkComponent<A, B>
+impl<
+    A: Alarm<'static> + 'static,
+    B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static,
+    C: UdpDriverCapability + 'static,
+> ThreadNetworkComponent<A, B, C>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -130,6 +137,7 @@ impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AE
         aes_mux: &'static MuxAES128CCM<'static, B>,
         serial_num: [u8; 8],
         alarm_mux: &'static MuxAlarm<'static, A>,
+        driver_cap: C,
     ) -> Self {
         Self {
             board_kernel,
@@ -140,12 +148,16 @@ impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AE
             aes_mux,
             serial_num,
             alarm_mux,
+            driver_cap,
         }
     }
 }
 
-impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static>
-    Component for ThreadNetworkComponent<A, B>
+impl<
+    A: Alarm<'static> + 'static,
+    B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static,
+    C: UdpDriverCapability + 'static,
+> Component for ThreadNetworkComponent<A, B, C>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
@@ -175,6 +187,7 @@ impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AE
             capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, B>,
         >,
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<C>,
     );
     type Output = &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<
         'static,
@@ -202,11 +215,7 @@ impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AE
         let udp_vis = s.1.write(UdpVisibilityCapability::new(&create_cap));
         let udp_send = s.0.write(UDPSendStruct::new(self.udp_send_mux, udp_vis));
 
-        // Can't use create_capability bc need capability to have a static lifetime
-        // so that Thread driver can use it as needed
-        struct DriverCap;
-        unsafe impl capabilities::UdpDriverCapability for DriverCap {}
-        static DRIVER_CAP: DriverCap = DriverCap;
+        let driver_cap: &'static C = s.10.write(self.driver_cap);
 
         let net_cap = s.2.write(NetworkCapability::new(
             AddrRange::Any,
@@ -229,7 +238,7 @@ impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AE
                 self.port_table,
                 kernel::utilities::leasable_buffer::SubSliceMut::new(send_buffer),
                 kernel::utilities::leasable_buffer::SubSliceMut::new(recv_buffer),
-                &DRIVER_CAP,
+                driver_cap,
                 net_cap,
             ),
         );

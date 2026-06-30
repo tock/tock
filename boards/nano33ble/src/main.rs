@@ -128,12 +128,6 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
 >;
 type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
 
-type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
-
-//------------------------------------------------------------------------------
-// SYSCALL DRIVER TYPE DEFINITIONS
-//------------------------------------------------------------------------------
-
 type BleHw = nrf52840::ble_radio::Radio<'static>;
 type AlarmHw = nrf52840::rtc::Rtc<'static>;
 type GpioHw = nrf52::gpio::GPIOPin<'static>;
@@ -146,8 +140,16 @@ type LedDriver = components::led::LedsComponentType<LedHw, 3>;
 type ConsoleDriver = components::console::ConsoleComponentType;
 type ProximityDriver = components::proximity::ProximityComponentType;
 type AdcDriver = components::adc::AdcVirtualComponentType;
-type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+type ProcessConsoleDriver =
+    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type UdpDriver = components::udp_driver::UDPDriverComponentType;
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -412,9 +414,11 @@ pub unsafe fn start() -> (
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        nrf52::rtc::Rtc<'static>
+        nrf52::rtc::Rtc<'static>,
+        ProcessConsoleCap
     ));
 
     // Setup the console.
@@ -557,7 +561,10 @@ pub unsafe fn start() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(AlarmHw, BleHw));
+    .finalize(components::ble_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::ble_radio::Radio
+    ));
 
     use capsules_extra::net::ieee802154::MacAddress;
 
@@ -610,11 +617,12 @@ pub unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::udp_mux_component_static!(
-        AlarmHw,
+        nrf52840::rtc::Rtc,
         Ieee802154MacDevice
     ));
 
     // UDP driver initialization happens here
+    kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::DRIVER_NUM,
@@ -622,8 +630,12 @@ pub unsafe fn start() -> (
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
+        UdpDriverCap,
     )
-    .finalize(components::udp_driver_component_static!(AlarmHw));
+    .finalize(components::udp_driver_component_static!(
+        nrf52840::rtc::Rtc,
+        UdpDriverCap
+    ));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

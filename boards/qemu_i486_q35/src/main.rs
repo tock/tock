@@ -118,8 +118,13 @@ fn init_virtio_dev(
     Some((int_line, dev))
 }
 
-/// Provides interrupt servicing logic for Virtio devices which may or may not be present at
-/// runtime.
+// Provides interrupt servicing logic for Virtio devices which may or may not be present at
+// runtime.
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+
 struct VirtioDevices {
     rng: OptionalCell<(u8, &'static VirtIOPCIDevice)>,
 }
@@ -144,7 +149,7 @@ pub struct QemuI386Q35Platform {
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
-        components::process_console::Capability,
+        ProcessConsoleCap,
     >,
     console: &'static Console<'static>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
@@ -463,9 +468,11 @@ unsafe extern "cdecl" fn main() {
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        Pit<'static, RELOAD_1KHZ>
+        Pit<'static, RELOAD_1KHZ>,
+        ProcessConsoleCap,
     ));
 
     // Setup the console.

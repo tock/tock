@@ -11,8 +11,19 @@
 //! Usage
 //! -----
 //! ```rust
-//! let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, alarm_mux, process_printer, Some(reset_function))
-//!     .finalize(process_console_component_static!());
+//! kernel::declare_capability!(ProcessConsoleCap:
+//!     kernel::capabilities::ProcessManagementCapability,
+//!     kernel::capabilities::ProcessStartCapability
+//! );
+//! let pconsole = ProcessConsoleComponent::new(
+//!     board_kernel,
+//!     uart_mux,
+//!     alarm_mux,
+//!     process_printer,
+//!     Some(reset_function),
+//!     ProcessConsoleCap,
+//! )
+//! .finalize(process_console_component_static!(AlarmType, ProcessConsoleCap));
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -22,7 +33,7 @@ use capsules_core::process_console::{self, ProcessConsole};
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{ProcessManagementCapability, ProcessStartCapability};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::time::Alarm;
@@ -30,14 +41,14 @@ use kernel::process::ProcessPrinter;
 
 #[macro_export]
 macro_rules! process_console_component_static {
-    ($A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
+    ($A: ty, $C: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
         let alarm = kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
         let pconsole = kernel::static_buf!(
             capsules_core::process_console::ProcessConsole<
                 $COMMAND_HISTORY_LEN,
                 capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
-                components::process_console::Capability,
+                $C,
             >
         );
 
@@ -60,28 +71,36 @@ macro_rules! process_console_component_static {
             pconsole,
         )
     };};
-    ($A: ty $(,)?) => {{
-        $crate::process_console_component_static!($A, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
+    ($A: ty, $C: ty $(,)?) => {{
+        $crate::process_console_component_static!($A, $C, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
     };};
 }
 
-pub type ProcessConsoleComponentType<A> = process_console::ProcessConsole<
+pub type ProcessConsoleComponentType<A, C> = process_console::ProcessConsole<
     'static,
     { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
     VirtualMuxAlarm<'static, A>,
-    Capability,
+    C,
 >;
 
-pub struct ProcessConsoleComponent<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> {
+pub struct ProcessConsoleComponent<
+    const COMMAND_HISTORY_LEN: usize,
+    A: 'static + Alarm<'static>,
+    C: ProcessManagementCapability + ProcessStartCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     uart_mux: &'static MuxUart<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     process_printer: &'static dyn ProcessPrinter,
     reset_function: Option<fn() -> !>,
+    capability: C,
 }
 
-impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>>
-    ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
+impl<
+        const COMMAND_HISTORY_LEN: usize,
+        A: 'static + Alarm<'static>,
+        C: ProcessManagementCapability + ProcessStartCapability + 'static,
+    > ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -89,13 +108,15 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>>
         alarm_mux: &'static MuxAlarm<'static, A>,
         process_printer: &'static dyn ProcessPrinter,
         reset_function: Option<fn() -> !>,
-    ) -> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A> {
+        capability: C,
+    ) -> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C> {
         ProcessConsoleComponent {
             board_kernel,
             uart_mux,
             alarm_mux,
             process_printer,
             reset_function,
+            capability,
         }
     }
 }
@@ -114,12 +135,11 @@ extern "C" {
     static _ezero: u8;
 }
 
-pub struct Capability;
-unsafe impl capabilities::ProcessManagementCapability for Capability {}
-unsafe impl capabilities::ProcessStartCapability for Capability {}
-
-impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
-    for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
+impl<
+        const COMMAND_HISTORY_LEN: usize,
+        A: 'static + Alarm<'static>,
+        C: ProcessManagementCapability + ProcessStartCapability + 'static,
+    > Component for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
@@ -130,14 +150,14 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
         &'static mut MaybeUninit<[u8; capsules_core::process_console::COMMAND_BUF_LEN]>,
         &'static mut MaybeUninit<[capsules_core::process_console::Command; COMMAND_HISTORY_LEN]>,
         &'static mut MaybeUninit<
-            ProcessConsole<'static, COMMAND_HISTORY_LEN, VirtualMuxAlarm<'static, A>, Capability>,
+            ProcessConsole<'static, COMMAND_HISTORY_LEN, VirtualMuxAlarm<'static, A>, C>,
         >,
     );
     type Output = &'static process_console::ProcessConsole<
         'static,
         COMMAND_HISTORY_LEN,
         VirtualMuxAlarm<'static, A>,
-        Capability,
+        C,
     >;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
@@ -190,7 +210,7 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
             self.board_kernel,
             kernel_addresses,
             self.reset_function,
-            Capability,
+            self.capability,
         ));
         hil::uart::Transmit::set_transmit_client(console_uart, console);
         hil::uart::Receive::set_receive_client(console_uart, console);

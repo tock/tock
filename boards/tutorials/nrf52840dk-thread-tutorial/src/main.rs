@@ -248,14 +248,18 @@ pub unsafe fn main() {
     // STORAGE PERMISSIONS
     //--------------------------------------------------------------------------
 
+    kernel::declare_capability!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
     let storage_permissions_policy =
-        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
-            .finalize(
-                components::storage_permissions_individual_component_static!(
-                    nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-                    kernel::process::ProcessStandardDebugFull,
-                ),
-            );
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
+            AppStoreCap,
+        )
+        .finalize(
+            components::storage_permissions_individual_component_static!(
+                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+                kernel::process::ProcessStandardDebugFull,
+                AppStoreCap,
+            ),
+        );
 
     //--------------------------------------------------------------------------
     // PROCESS LOADING

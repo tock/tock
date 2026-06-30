@@ -324,15 +324,21 @@ unsafe fn start() -> (
         uart_mux,
     )
     .finalize(components::console_component_static!());
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        sam4l::ast::Ast<'static>
+        sam4l::ast::Ast<'static>,
+        ProcessConsoleCap
     ));
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,

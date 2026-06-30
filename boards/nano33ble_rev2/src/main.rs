@@ -111,6 +111,16 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
+type BleHw = nrf52840::ble_radio::Radio<'static>;
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type GpioHw = nrf52::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedLow<'static, nrf52::gpio::GPIOPin<'static>>;
+type I2cHw = nrf52840::i2c::TWI<'static>;
+type Lps22hbSensor = capsules_extra::lps22hb::Lps22hb<
+    'static,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
+>;
+
 type HS3003Sensor = components::hs3003::Hs3003ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
 >;
@@ -126,22 +136,6 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
 >;
 type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
 
-type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
-
-//------------------------------------------------------------------------------
-// SYSCALL DRIVER TYPE DEFINITIONS
-//------------------------------------------------------------------------------
-
-type BleHw = nrf52840::ble_radio::Radio<'static>;
-type AlarmHw = nrf52840::rtc::Rtc<'static>;
-type GpioHw = nrf52::gpio::GPIOPin<'static>;
-type LedHw = kernel::hil::led::LedLow<'static, nrf52::gpio::GPIOPin<'static>>;
-type I2cHw = nrf52840::i2c::TWI<'static>;
-type Lps22hbSensor = capsules_extra::lps22hb::Lps22hb<
-    'static,
-    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
->;
-
 type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
 type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
 type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
@@ -149,9 +143,17 @@ type LedDriver = components::led::LedsComponentType<LedHw, 3>;
 type ConsoleDriver = components::console::ConsoleComponentType;
 type ProximityDriver = components::proximity::ProximityComponentType;
 type AdcDriver = components::adc::AdcVirtualComponentType;
-type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+type ProcessConsoleDriver =
+    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type PressureDriver = capsules_extra::pressure::PressureSensor<'static, Lps22hbSensor>;
 type UdpDriver = components::udp_driver::UDPDriverComponentType;
+
+type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -418,9 +420,11 @@ pub unsafe fn start() -> (
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        nrf52::rtc::Rtc<'static>
+        nrf52::rtc::Rtc<'static>,
+        ProcessConsoleCap
     ));
 
     // Setup the console.
@@ -516,7 +520,7 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
-        .finalize(components::i2c_mux_component_static!(I2cHw));
+        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
@@ -530,7 +534,7 @@ pub unsafe fn start() -> (
         0x39,
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
-    .finalize(components::apds9960_component_static!(I2cHw));
+    .finalize(components::apds9960_component_static!(nrf52840::i2c::TWI));
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
@@ -539,7 +543,7 @@ pub unsafe fn start() -> (
     .finalize(components::proximity_component_static!());
 
     let lps22hb = components::lps22hb::Lps22hbComponent::new(sensors_i2c_bus, 0x5C)
-        .finalize(components::lps22hb_component_static!(I2cHw));
+        .finalize(components::lps22hb_component_static!(nrf52840::i2c::TWI));
     let pressure = components::pressure::PressureComponent::new(
         board_kernel,
         capsules_extra::pressure::DRIVER_NUM,
@@ -548,12 +552,12 @@ pub unsafe fn start() -> (
     .finalize(components::pressure_component_static!(
         capsules_extra::lps22hb::Lps22hb<
             'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI>,
         >
     ));
 
     let hs3003 = components::hs3003::Hs3003Component::new(sensors_i2c_bus, 0x44)
-        .finalize(components::hs3003_component_static!(I2cHw));
+        .finalize(components::hs3003_component_static!(nrf52840::i2c::TWI));
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -577,7 +581,10 @@ pub unsafe fn start() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(AlarmHw, BleHw));
+    .finalize(components::ble_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::ble_radio::Radio
+    ));
 
     use capsules_extra::net::ieee802154::MacAddress;
 
@@ -630,11 +637,12 @@ pub unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::udp_mux_component_static!(
-        AlarmHw,
+        nrf52840::rtc::Rtc,
         Ieee802154MacDevice
     ));
 
     // UDP driver initialization happens here
+    kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::DRIVER_NUM,
@@ -642,8 +650,12 @@ pub unsafe fn start() -> (
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
+        UdpDriverCap,
     )
-    .finalize(components::udp_driver_component_static!(AlarmHw));
+    .finalize(components::udp_driver_component_static!(
+        nrf52840::rtc::Rtc,
+        UdpDriverCap
+    ));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

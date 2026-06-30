@@ -394,14 +394,22 @@ pub unsafe fn main() {
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm33::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(RPTimer));
+    .finalize(components::process_console_component_static!(
+        RPTimer,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)

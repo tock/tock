@@ -345,15 +345,21 @@ unsafe fn setup() -> (
     // PROCESS CONSOLE
     //
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        esp32_c3::timg::TimG
+        esp32_c3::timg::TimG,
+        ProcessConsoleCap
     ));
     let _ = process_console.start();
 

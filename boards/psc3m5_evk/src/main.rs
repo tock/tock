@@ -237,14 +237,22 @@ pub unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm33::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(Tcpwm0));
+    .finalize(components::process_console_component_static!(
+        Tcpwm0,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     let led_pin = peripherals.gpio.get_pin(gpio::PsocPin::P8_4);

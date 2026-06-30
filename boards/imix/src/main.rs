@@ -124,6 +124,11 @@ type Ieee802154MacDevice =
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+
 struct Imix {
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -132,7 +137,7 @@ struct Imix {
             'static,
             sam4l::ast::Ast<'static>,
         >,
-        components::process_console::Capability,
+        ProcessConsoleCap,
     >,
     console: &'static capsules_core::console_ordered::ConsoleOrdered<
         'static,
@@ -409,9 +414,11 @@ unsafe fn start() -> (
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        sam4l::ast::Ast
+        sam4l::ast::Ast,
+        ProcessConsoleCap
     ));
 
     let console = ConsoleOrderedComponent::new(
@@ -693,6 +700,7 @@ unsafe fn start() -> (
     ));
 
     // UDP driver initialization happens here
+    kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::driver::DRIVER_NUM,
@@ -700,8 +708,12 @@ unsafe fn start() -> (
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
+        UdpDriverCap,
     )
-    .finalize(components::udp_driver_component_static!(sam4l::ast::Ast));
+    .finalize(components::udp_driver_component_static!(
+        sam4l::ast::Ast,
+        UdpDriverCap
+    ));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
@@ -726,14 +738,18 @@ unsafe fn start() -> (
     // STORAGE PERMISSIONS
     //--------------------------------------------------------------------------
 
+    kernel::declare_capability!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
     let storage_permissions_policy =
-        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
-            .finalize(
-                components::storage_permissions_individual_component_static!(
-                    sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
-                    kernel::process::ProcessStandardDebugFull,
-                ),
-            );
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
+            AppStoreCap,
+        )
+        .finalize(
+            components::storage_permissions_individual_component_static!(
+                sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+                kernel::process::ProcessStandardDebugFull,
+                AppStoreCap,
+            ),
+        );
 
     //--------------------------------------------------------------------------
     // PROCESS LOADING

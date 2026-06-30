@@ -236,6 +236,10 @@ unsafe fn start() -> (
     )
     .finalize(components::debug_writer_component_static!());
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
@@ -243,9 +247,11 @@ unsafe fn start() -> (
         components::process_printer::ProcessPrinterTextComponent::new()
             .finalize(components::process_printer_text_component_static!()),
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        stm32u545::tim::Tim2
+        stm32u545::tim::Tim2,
+        ProcessConsoleCap
     ));
     let _ = process_console.start();
 

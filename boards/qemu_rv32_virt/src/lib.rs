@@ -52,6 +52,11 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
 
 kernel::stack_size! {0x8000}
 
+kernel::declare_capability!(pub ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 pub struct QemuRv32VirtPlatform {
@@ -62,7 +67,7 @@ pub struct QemuRv32VirtPlatform {
             'static,
             qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
         >,
-        components::process_console::Capability,
+        ProcessConsoleCap,
     >,
     console: &'static capsules_core::console::Console<'static>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
@@ -685,9 +690,11 @@ pub unsafe fn start() -> (
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        qemu_rv32_virt_chip::chip::QemuRv32VirtClint
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
+        ProcessConsoleCap
     ));
 
     // Setup the console.

@@ -179,14 +179,22 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(Clint));
+    .finalize(components::process_console_component_static!(
+        Clint,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     // Need to enable all interrupts for Tock Kernel

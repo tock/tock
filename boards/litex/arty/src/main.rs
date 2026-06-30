@@ -32,13 +32,18 @@ mod litex_generated_constants;
 // short name.
 use litex_generated_constants as socc;
 
-/// Structure for dynamic interrupt mapping, depending on the SoC
-/// configuration
-///
-/// This struct is deliberately kept in the board crate. Because of
-/// the configurable nature of LiteX, it does not make sense to define
-/// a default interrupt mapping, as the interrupt numbers are
-/// generated sequentially for all softcores.
+// Structure for dynamic interrupt mapping, depending on the SoC
+// configuration
+//
+// This struct is deliberately kept in the board crate. Because of
+// the configurable nature of LiteX, it does not make sense to define
+// a default interrupt mapping, as the interrupt numbers are
+// generated sequentially for all softcores.
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+
 struct LiteXArtyInterruptablePeripherals {
     uart0: &'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>,
     timer0: &'static litex_vexriscv::timer::LiteXTimer<
@@ -113,7 +118,7 @@ struct LiteXArty {
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, AlarmHw>,
-        components::process_console::Capability,
+        ProcessConsoleCap,
     >,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
@@ -452,8 +457,12 @@ unsafe fn start() -> (
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(AlarmHw));
+    .finalize(components::process_console_component_static!(
+        AlarmHw,
+        ProcessConsoleCap
+    ));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

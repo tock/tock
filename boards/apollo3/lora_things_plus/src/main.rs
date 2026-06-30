@@ -944,14 +944,18 @@ unsafe fn setup() -> (
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
 
+    kernel::declare_capability!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
     let storage_permissions_policy =
-        components::storage_permissions::tbf_header::StoragePermissionsTbfHeaderComponent::new()
-            .finalize(
-                components::storage_permissions_tbf_header_component_static!(
-                    apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
-                    kernel::process::ProcessStandardDebugFull,
-                ),
-            );
+        components::storage_permissions::tbf_header::StoragePermissionsTbfHeaderComponent::new(
+            AppStoreCap,
+        )
+        .finalize(
+            components::storage_permissions_tbf_header_component_static!(
+                apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
+                kernel::process::ProcessStandardDebugFull,
+                AppStoreCap,
+            ),
+        );
 
     let app_flash = core::slice::from_raw_parts(
         core::ptr::addr_of!(_sapps),

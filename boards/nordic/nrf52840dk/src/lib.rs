@@ -185,7 +185,12 @@ type AnalogComparatorDriver =
     components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
 type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
 type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
-type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+type ProcessConsoleDriver =
+    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
 type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
 
@@ -211,6 +216,8 @@ pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<Radi
 
 /// Userspace EUI64 driver.
 pub type Eui64Driver = components::eui64::Eui64ComponentType;
+
+kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
 
 /// Userspace UDP driver.
 pub type UdpDriver = components::udp_driver::UDPDriverComponentType;
@@ -377,8 +384,12 @@ pub unsafe fn ieee802154_udp(
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
+        UdpDriverCap,
     )
-    .finalize(components::udp_driver_component_static!(AlarmHw));
+    .finalize(components::udp_driver_component_static!(
+        AlarmHw,
+        UdpDriverCap
+    ));
 
     (eui64_driver, ieee802154_driver, udp_driver)
 }
@@ -627,8 +638,12 @@ pub unsafe fn start_no_pconsole() -> (
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(AlarmHw));
+    .finalize(components::process_console_component_static!(
+        AlarmHw,
+        ProcessConsoleCap
+    ));
 
     // Setup the serial console for userspace.
     let console = components::console::ConsoleComponent::new(
