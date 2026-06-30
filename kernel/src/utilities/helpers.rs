@@ -49,6 +49,47 @@ macro_rules! create_capability {
     }};
 }
 
+/// Declare a named struct that implements the given capability traits.
+///
+/// Unlike [`create_capability!`], this macro creates a named type that can be
+/// used as a generic parameter (e.g., in component static macros). Use this
+/// when you need to name the capability type, such as when passing it to a
+/// component's static buffer macro.
+///
+/// ```
+/// # use kernel::capabilities::ProcessManagementCapability;
+/// # use kernel::declare_capability;
+/// declare_capability!(MyCapability: ProcessManagementCapability);
+/// let cap = MyCapability;
+/// ```
+///
+/// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates,
+/// and is used by trusted code to generate a capability type.
+///
+/// # Safety
+///
+/// This macro can only be used in a context that is allowed to use
+/// `unsafe`. Specifically, an internal `allow(unsafe_code)` directive
+/// will conflict with any `forbid(unsafe_code)` at the crate or block
+/// level.
+#[macro_export]
+macro_rules! declare_capability {
+    (pub $name:ident: $($T:ty),+) => {
+        pub struct $name;
+        $(
+            #[allow(unsafe_code)]
+            unsafe impl $T for $name {}
+        )*
+    };
+    ($name:ident: $($T:ty),+) => {
+        struct $name;
+        $(
+            #[allow(unsafe_code)]
+            unsafe impl $T for $name {}
+        )*
+    };
+}
+
 /// Count the number of passed expressions.
 ///
 /// Useful for constructing variable sized arrays in other macros.
