@@ -78,6 +78,7 @@ type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynami
     nrf52840::chip::NRF52<'a, Nrf52840DefaultPeripherals<'a>>,
     kernel::process::ProcessStandardDebugFull,
     NonVolatilePages,
+    PMCapability,
 >;
 type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
     DynamicBinaryStorage<'static>,
@@ -510,11 +511,13 @@ pub unsafe fn main() {
             board_kernel,
             virtual_flash_dbs,
             loader,
+            PMCapability,
         )
         .finalize(components::sequential_binary_storage_component_static!(
             FlashUser,
             nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
             kernel::process::ProcessStandardDebugFull,
+            PMCapability,
         ));
 
     // Create the dynamic app loader capsule.

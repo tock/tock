@@ -319,7 +319,7 @@ impl Kernel {
         &self,
         shortid: process::ShortId,
         f: F,
-        // _capability: &dyn capabilities::ProcessManagementCapability,
+        _capability: &dyn capabilities::ProcessManagementCapability,
     ) -> Result<usize, ()>
     where
         F: FnOnce(&'static dyn process::Process) -> usize,
