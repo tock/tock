@@ -25,76 +25,9 @@ use crate::interrupts;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
-/// Entry type for the inter-hart lockstep channel.
-///
-/// Mirrors the RP2350 SIO inter-core FIFO design: there is one channel pair
-/// (one direction each way) for *all* inter-hart communication
-/// distinguished by tag, rather than a sepaparate channel per purpose.
-/// 
-/// Hart 0 pushes `Sync` once per kernel-loop iteration (and once at init,
-/// as a pure handshake -- see `finish_lockstep_setup()`), and pushes event
-/// variants from its trap handler during interrupts. Hart 1 drains the
-/// channel in a loop, dispatching each event immediately, until it pops a
-/// `Sync`.
-///
-/// Watchdog arming is *not* one of these variants. It needs no payload --
-/// hart 1 arms its own deadline relative to whenever it actually notices
-/// the kick, computed from its own `read_mtime()`, not a value hart 0 could
-/// usefully forward. It stays unconditional on every `MachineSoft` entry,
-/// regardless of channel content.
-/// Payload of a Layer-2 syscall descriptor exchanged between harts.
-///
-/// Extracted from [`SyncEntry::SyscallDesc`] so it can be stored in the
-/// hart-1 pending queue ([`crate::lockstep::PENDING_SYSCALLS_H1`]) without
-/// carrying the full [`SyncEntry`] discriminant and other variants' data.
-///
-/// `payload_fp` is an FNV-1a fingerprint of the app's RO-allow buffer at
-/// the configured slot (0 if no payload slot is wired up for this driver).
-#[derive(Clone, Copy)]
-pub struct SyscallDesc {
-    pub driver_num: u32,
-    pub sub: u8,
-    pub arg0: u32,
-    pub arg1: u32,
-    pub payload_fp: u32,
-}
-
-#[derive(Clone, Copy)]
-pub enum SyncEntry {
-    /// Per-iteration lockstep barrier, and the one-time init handshake.
-    ///
-    /// `fingerprint` is the `KernelActivity` fingerprint performed this
-    /// iteration; hart 1 echoes back its own, hart 0 compares against its own.
-    Sync { fingerprint: u32 },
-    /// Hart 0 finished a UART RX completion; `len` bytes are waiting in
-    /// `UART_RX_REPLAY_BUF` for hart 1 to replay.
-    UartRxReady { len: u8 },
-    /// Hart 0 finished transmitting whatever `HART1_UART_BUF` had queued.
-    UartTxDone,
-
-    /// Layer-2 syscall descriptor: hart 0 pushes this before dispatching each
-    /// intercepted `Command` syscall; hart 1 stores it during Phase-1 drain
-    /// and pops it in Phase 2 for comparison (see [`crate::lockstep::LockstepDriver`]).
-    SyscallDesc(SyscallDesc),
-
-    /// Layer-2 upcall descriptor: both harts exchange this at each intercepted
-    /// upcall boundary to verify argument equivalence before delivering the
-    /// upcall to userspace (see [`crate::lockstep::QemuUpcallVerifier`]).
-    ///
-    /// `driver_num` / `subscribe_num` identify the upcall; `r0`–`r2` carry the
-    /// masked argument values to compare (unmasked fields are zeroed).
-    ///
-    /// Note: at ~20 bytes this is wider than the 32-bit RP2350 SIO FIFO entry
-    /// this channel models. Acceptable on QEMU's software [`BiChannel`]; a
-    /// faithful RP2350 port would require word-packing.
-    UpcallDesc {
-        driver_num: u32,
-        subscribe_num: u8,
-        r0: u32,
-        r1: u32,
-        r2: u32,
-    },
-}
+// `SyncEntry` and `SyscallDesc` are defined in the shared `lockstep` crate and
+// re-exported here so callers can continue to use `crate::chip::SyncEntry`.
+pub use lockstep::{SyncEntry, SyscallDesc};
 
 /// Inter-hart lockstep channel for software lockstep.
 ///

@@ -116,6 +116,7 @@ members = [
     "chips/virtio",
     "kernel",
     "libraries/enum_primitive",
+    "libraries/lockstep",
     "libraries/riscv-csr",
     "libraries/tock-cells",
     "libraries/tickv",

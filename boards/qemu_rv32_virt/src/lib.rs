@@ -110,6 +110,7 @@ pub struct QemuRv32VirtPlatform {
     console: &'static capsules_core::console::Console<'static>,
     lockstep_console: &'static qemu_rv32_virt_chip::lockstep::LockstepDriver<
         'static,
+        qemu_rv32_virt_chip::lockstep::QemuTransport,
         capsules_core::console::Console<'static>,
     >,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
@@ -342,10 +343,10 @@ pub unsafe fn start() -> (
         qemu_rv32_virt_chip::uart::Uart16550<'static>,
         qemu_rv32_virt_chip::lockstep::QemuUartHooks,
     > = {
-        use qemu_rv32_virt_chip::lockstep::{LockstepUart, QemuUartHooks};
+        use qemu_rv32_virt_chip::lockstep::{LockstepUart, QemuUartHooks, QEMU_TRANSPORT};
         use qemu_rv32_virt_chip::uart::Uart16550;
         let uart_hooks: &'static QemuUartHooks =
-            static_init!(QemuUartHooks, QemuUartHooks::new());
+            static_init!(QemuUartHooks, QemuUartHooks::new(&QEMU_TRANSPORT));
         let w: &'static LockstepUart<'static, Uart16550<'static>, QemuUartHooks> = static_init!(
             LockstepUart<'static, Uart16550<'static>, QemuUartHooks>,
             LockstepUart::new(&peripherals.uart0, uart_hooks),
@@ -806,9 +807,11 @@ pub unsafe fn start() -> (
     let lockstep_console = static_init!(
         qemu_rv32_virt_chip::lockstep::LockstepDriver<
             'static,
+            qemu_rv32_virt_chip::lockstep::QemuTransport,
             capsules_core::console::Console<'static>,
         >,
         qemu_rv32_virt_chip::lockstep::LockstepDriver::new(
+            &qemu_rv32_virt_chip::lockstep::QEMU_TRANSPORT,
             console,
             capsules_core::console::DRIVER_NUM,
         ),
@@ -943,6 +946,7 @@ pub struct Hart1Platform {
     >,
     lockstep_console: &'static qemu_rv32_virt_chip::lockstep::LockstepDriver<
         'static,
+        qemu_rv32_virt_chip::lockstep::QemuTransport,
         capsules_core::console::Console<'static>,
     >,
 }
@@ -1173,12 +1177,12 @@ pub unsafe fn start_secondary() -> (
     let memory_alloc_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let console = {
         use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
-        use qemu_rv32_virt_chip::lockstep::{LockstepUart, QemuUartHooks};
+        use qemu_rv32_virt_chip::lockstep::{LockstepUart, QemuUartHooks, QEMU_TRANSPORT};
         use qemu_rv32_virt_chip::uart::{VirtualUartBuffer, HART1_UART_BUF};
         let tx_buf = static_init!([u8; DEFAULT_BUF_SIZE], [0; DEFAULT_BUF_SIZE]);
         let rx_buf = static_init!([u8; DEFAULT_BUF_SIZE], [0; DEFAULT_BUF_SIZE]);
         let uart_hooks: &'static QemuUartHooks =
-            static_init!(QemuUartHooks, QemuUartHooks::new());
+            static_init!(QemuUartHooks, QemuUartHooks::new(&QEMU_TRANSPORT));
         let lockstep_uart: &'static LockstepUart<'static, VirtualUartBuffer, QemuUartHooks> =
             static_init!(
                 LockstepUart<'static, VirtualUartBuffer, QemuUartHooks>,
@@ -1200,14 +1204,16 @@ pub unsafe fn start_secondary() -> (
         console
     };
 
-    // Layer-2 console interceptor for hart 1. Reads mhartid at construction
-    // so LockstepDriver::command branches to the hart-1 compare path.
+    // Layer-2 console interceptor for hart 1. Uses QEMU_TRANSPORT; core_id()
+    // returns 1 at runtime so LockstepDriver::command branches to the shadow path.
     let lockstep_console = static_init!(
         qemu_rv32_virt_chip::lockstep::LockstepDriver<
             'static,
+            qemu_rv32_virt_chip::lockstep::QemuTransport,
             capsules_core::console::Console<'static>,
         >,
         qemu_rv32_virt_chip::lockstep::LockstepDriver::new(
+            &qemu_rv32_virt_chip::lockstep::QEMU_TRANSPORT,
             console,
             capsules_core::console::DRIVER_NUM,
         ),

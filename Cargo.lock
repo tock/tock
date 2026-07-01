@@ -620,6 +620,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lockstep"
+version = "0.2.3-dev"
+dependencies = [
+ "kernel",
+]
+
+[[package]]
 name = "lora_e5_mini"
 version = "0.2.3-dev"
 dependencies = [
@@ -1245,6 +1252,7 @@ name = "qemu_rv32_virt_chip"
 version = "0.2.3-dev"
 dependencies = [
  "kernel",
+ "lockstep",
  "rv32i",
  "sifive",
  "virtio",

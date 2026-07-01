@@ -3,17 +3,13 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "qemu_rv32_virt_chip"
+name = "lockstep"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sifive = { path = "../sifive" }
-virtio = { path = "../virtio" }
-rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
-lockstep = { path = "../../libraries/lockstep" }
 
 [lints]
 workspace = true

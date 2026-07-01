@@ -13,8 +13,11 @@ use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::scheduler::KernelActivity;
 use kernel::{create_capability, debug};
-use qemu_rv32_virt_chip::chip::{clear_irq_active, read_mtime_low, SyncEntry, CLINT_MSIP1, LOCKSTEP_CHAN};
-use qemu_rv32_virt_chip::lockstep::{dispatch_layer1_event, lockstep_barrier, DRAIN_TIMEOUT_MTIME_TICKS};
+use qemu_rv32_virt_chip::chip::{clear_irq_active, CLINT_MSIP1};
+use qemu_rv32_virt_chip::lockstep::{
+    dispatch_layer1_event, lockstep_barrier, SyncEntry, Transport as _,
+    DRAIN_TIMEOUT_MTIME_TICKS, QEMU_TRANSPORT,
+};
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -182,7 +185,7 @@ pub unsafe extern "C" fn main_secondary() -> ! {
         let is_gate_round;
         let h0_fp_from_drain;
         loop {
-            if let Some(entry) = LOCKSTEP_CHAN.b_recv() {
+            if let Some(entry) = QEMU_TRANSPORT.try_pop() {
                 match entry {
                     SyncEntry::Sync { fingerprint } => {
                         is_gate_round = false;
@@ -194,7 +197,7 @@ pub unsafe extern "C" fn main_secondary() -> ! {
                         store_pending_syscall(desc);
                         // Drain any remaining entries (e.g. UartTxDone that
                         // arrived in the same kick) before running the process.
-                        while let Some(e) = LOCKSTEP_CHAN.b_recv() {
+                        while let Some(e) = QEMU_TRANSPORT.try_pop() {
                             match e {
                                 SyncEntry::SyscallDesc(d) => store_pending_syscall(d),
                                 other => dispatch_layer1_event(other),
@@ -206,12 +209,12 @@ pub unsafe extern "C" fn main_secondary() -> ! {
                     }
                     other => {
                         dispatch_layer1_event(other);
-                        post_l1_start = Some(read_mtime_low());
+                        post_l1_start = Some(QEMU_TRANSPORT.now_ticks());
                     }
                 }
             }
             if let Some(l1_start) = post_l1_start {
-                if read_mtime_low().wrapping_sub(l1_start) >= DRAIN_TIMEOUT_MTIME_TICKS {
+                if QEMU_TRANSPORT.now_ticks().wrapping_sub(l1_start) >= DRAIN_TIMEOUT_MTIME_TICKS {
                     panic!("lockstep: hart 1 sync-wait timeout after L1 event (divergence?)");
                 }
             }
@@ -239,18 +242,18 @@ pub unsafe extern "C" fn main_secondary() -> ! {
         // and the UART TX completes — wait for it now, draining any L1 events
         // (e.g. UartTxDone) that arrive in the interim.
         let h0_fp = if is_gate_round {
-            let mut timeout_start = read_mtime_low();
+            let mut timeout_start = QEMU_TRANSPORT.now_ticks();
             loop {
-                if let Some(entry) = LOCKSTEP_CHAN.b_recv() {
+                if let Some(entry) = QEMU_TRANSPORT.try_pop() {
                     match entry {
                         SyncEntry::Sync { fingerprint } => break fingerprint,
                         other => {
                             dispatch_layer1_event(other);
-                            timeout_start = read_mtime_low();
+                            timeout_start = QEMU_TRANSPORT.now_ticks();
                         }
                     }
                 }
-                if read_mtime_low().wrapping_sub(timeout_start) >= DRAIN_TIMEOUT_MTIME_TICKS {
+                if QEMU_TRANSPORT.now_ticks().wrapping_sub(timeout_start) >= DRAIN_TIMEOUT_MTIME_TICKS {
                     panic!("lockstep: gate round Sync timeout (hart 0 diverged?)");
                 }
                 core::hint::spin_loop();
@@ -266,7 +269,7 @@ pub unsafe extern "C" fn main_secondary() -> ! {
                 h0_fp, h1_fp,
             );
         }
-        while !LOCKSTEP_CHAN.b_send(SyncEntry::Sync { fingerprint: h1_fp }) {
+        while !QEMU_TRANSPORT.try_push(SyncEntry::Sync { fingerprint: h1_fp }) {
             core::hint::spin_loop();
         }
     }
@@ -374,7 +377,7 @@ pub unsafe fn main() {
         // Hart 1 never sends Layer-1 events (it only sends Sync), so the
         // dispatch callback is a no-op on this side.
         let theirs = lockstep_barrier(
-            0,
+            &QEMU_TRANSPORT,
             SyncEntry::Sync { fingerprint: activity.fingerprint() },
             |_| {},
         );
