@@ -174,6 +174,12 @@ struct UarteRegistersManager {
 
 impl UarteRegistersManager {
     pub fn new(regs: StaticRef<UarteRegisters>) -> Self {
+        // We must ensure this register manager is only constructed once to make
+        // this constructor safe. If this is constructed multiple times then
+        // something could control DMA while the other UART register manager is
+        // active.
+        kernel::only_once!(NRF52_UART_ONLY_ONCE);
+
         Self {
             registers: regs,
             tx_dma_buf: MapCell::empty(),
