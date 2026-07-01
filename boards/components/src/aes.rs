@@ -28,12 +28,52 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB, AES128GCM,
 };
 
 const CRYPT_SIZE: usize = 7 * hil::symmetric_encryption::AES128_BLOCK_SIZE;
+
+#[macro_export]
+macro_rules! aes_mux_component_static {
+    ($A:ty $(,)?) => {{
+        kernel::static_buf!(capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, $A>)
+    };};
+}
+
+pub type AesMuxComponentType<A> =
+    capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, A>;
+
+pub struct AesMuxComponent<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> {
+    aes: &'static A,
+}
+
+impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesMuxComponent<A> {
+    pub fn new(aes: &'static A) -> Self {
+        Self { aes }
+    }
+}
+
+impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
+    for AesMuxComponent<A>
+{
+    type StaticInput = &'static mut MaybeUninit<
+        capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, A>,
+    >;
+    type Output = &'static capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, A>;
+
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let aes_mux = static_buffer
+            .write(capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM::new(self.aes));
+
+        DeferredCallClient::register(aes_mux);
+        hil::symmetric_encryption::AES128::set_client(self.aes, aes_mux);
+
+        aes_mux
+    }
+}
 
 #[macro_export]
 macro_rules! aes_virtual_component_static {

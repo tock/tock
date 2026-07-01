@@ -578,30 +578,14 @@ unsafe fn start() -> (
     )
     .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
-    let ac_0 = static_init!(
-        sam4l::acifc::AcChannel,
-        sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
-    );
-    let ac_1 = static_init!(
-        sam4l::acifc::AcChannel,
-        sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
-    );
-    let ac_2 = static_init!(
-        sam4l::acifc::AcChannel,
-        sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
-    );
-    let ac_3 = static_init!(
-        sam4l::acifc::AcChannel,
-        sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
-    );
     let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &peripherals.acifc,
         components::analog_comparator_component_helper!(
             <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
-            ac_0,
-            ac_1,
-            ac_2,
-            ac_3
+            sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0),
+            sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0),
+            sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0),
+            sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0),
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,

@@ -14,16 +14,12 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::screen::Screen;
-use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -73,7 +69,7 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterI
 kernel::stack_size! {0x1000}
 
 type Bmp280Sensor = components::bmp280::Bmp280ComponentType<
-    VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    VirtualMuxAlarm<'static, AlarmHw>,
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<Bmp280Sensor>;
@@ -86,43 +82,42 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type BleHw = nrf52840::ble_radio::Radio<'static>;
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type GpioHw = nrf52840::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedHigh<'static, nrf52840::gpio::GPIOPin<'static>>;
+type AnalogComparatorHw = nrf52840::acomp::Comparator<'static>;
+
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 2>;
+type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
+type ConsoleDriver = components::console::ConsoleComponentType;
+type AnalogComparatorDriver =
+    components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
+type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+type ScreenDriver = components::screen::ScreenComponentType;
+
 /// Supported drivers by the platform
 pub struct Platform {
     temperature: &'static TemperatureDriver,
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf52840::ble_radio::Radio<'static>,
-        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-    >,
+    ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
-    button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-        components::process_console::Capability,
-    >,
-    console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        LedHigh<'static, nrf52840::gpio::GPIOPin<'static>>,
-        2,
-    >,
+    button: &'static ButtonDriver,
+    pconsole: &'static ProcessConsoleDriver,
+    console: &'static ConsoleDriver,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
     rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
-        'static,
-        nrf52840::acomp::Comparator<'static>,
-    >,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52840::rtc::Rtc<'static>,
-        >,
-    >,
-    screen: &'static capsules_extra::screen::screen::Screen<'static>,
+    analog_comparator: &'static AnalogComparatorDriver,
+    alarm: &'static AlarmDriver,
+    screen: &'static ScreenDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
@@ -238,17 +233,17 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            GpioHw,
             0 => &nrf52840_peripherals.gpio_port[Pin::P0_29],
         ),
     )
-    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(GpioHw));
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
         capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            GpioHw,
             (
                 &nrf52840_peripherals.gpio_port[BUTTON_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
@@ -256,12 +251,10 @@ pub unsafe fn start() -> (
             )
         ),
     )
-    .finalize(components::button_component_static!(
-        nrf52840::gpio::GPIOPin
-    ));
+    .finalize(components::button_component_static!(GpioHw));
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedHigh<'static, nrf52840::gpio::GPIOPin>,
+        LedHigh<'static, GpioHw>,
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED1_PIN]),
         LedHigh::new(&nrf52840_peripherals.gpio_port[VIBRA1_PIN]),
     ));
@@ -305,13 +298,13 @@ pub unsafe fn start() -> (
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(AlarmHw));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::alarm_component_static!(AlarmHw));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -331,7 +324,7 @@ pub unsafe fn start() -> (
         self::io::set_rtt_memory(&*core::ptr::from_mut(rtt_memory.rtt_memory));
 
         components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
-            .finalize(components::segger_rtt_component_static!(nrf52840::rtc::Rtc))
+            .finalize(components::segger_rtt_component_static!(AlarmHw))
     };
 
     // Create a shared UART channel for the console and for kernel debug.
@@ -345,9 +338,7 @@ pub unsafe fn start() -> (
         process_printer,
         Some(cortexm4::support::reset),
     )
-    .finalize(components::process_console_component_static!(
-        nrf52840::rtc::Rtc<'static>
-    ));
+    .finalize(components::process_console_component_static!(AlarmHw));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -371,17 +362,10 @@ pub unsafe fn start() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::ble_radio::Radio
-    ));
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
-    let aes_mux = static_init!(
-        MuxAES128CCM<'static, nrf52840::aes::AesECB>,
-        MuxAES128CCM::new(&base_peripherals.ecb,)
-    );
-    base_peripherals.ecb.set_client(aes_mux);
-    aes_mux.register();
+    let aes_mux = components::aes::AesMuxComponent::new(&base_peripherals.ecb)
+        .finalize(components::aes_mux_component_static!(nrf52840::aes::AesECB));
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
@@ -408,17 +392,12 @@ pub unsafe fn start() -> (
         nrf52840::temperature::Temp
     ));
 
-    let sensors_i2c_bus = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
-        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
-    );
-    sensors_i2c_bus.register();
-
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_TEMP_SCL_PIN),
         nrf52840::pinmux::Pinmux::new(I2C_TEMP_SDA_PIN),
     );
-    base_peripherals.twi1.set_master_client(sensors_i2c_bus);
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
+        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
 
     let bmp280 = components::bmp280::Bmp280Component::new(
         sensors_i2c_bus,
@@ -426,7 +405,7 @@ pub unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::bmp280_component_static!(
-        nrf52840::rtc::Rtc<'static>,
+        AlarmHw,
         nrf52840::i2c::TWI
     ));
 
@@ -446,21 +425,17 @@ pub unsafe fn start() -> (
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
-    let analog_comparator_channel = static_init!(
-        nrf52840::acomp::Channel,
-        nrf52840::acomp::Channel::new(nrf52840::acomp::ChannelNumber::AC0)
-    );
     let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
-            analog_comparator_channel,
+            nrf52840::acomp::Channel::new(nrf52840::acomp::ChannelNumber::AC0),
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::analog_comparator_component_static!(
-        nrf52840::acomp::Comparator
+        AnalogComparatorHw
     ));
 
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
@@ -469,7 +444,7 @@ pub unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let periodic_virtual_alarm = static_init!(
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, AlarmHw>,
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     periodic_virtual_alarm.setup();
@@ -501,8 +476,8 @@ pub unsafe fn start() -> (
             mux_alarm,
         )
         .finalize(components::lpm013m126_component_static!(
-            nrf52840::rtc::Rtc<'static>,
-            nrf52840::gpio::GPIOPin,
+            AlarmHw,
+            GpioHw,
             nrf52840::spi::SPIM
         ));
 
