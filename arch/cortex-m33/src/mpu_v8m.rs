@@ -356,7 +356,7 @@ impl CortexMRegion {
 
         // Limit Address register
         let rlar_value = MPU_RLAR::ENABLE::SET
-            + MPU_RLAR::LIMIT.val((logical_end as u32) >> 5)
+            + MPU_RLAR::LIMIT.val(((logical_end - 1) as u32) >> 5)  // shift the logical_end value by one byte, because v8m architechture expects inclusive limit
             + MPU_RLAR::PXN::Disable
             + MPU_RLAR::ATTRINDX.val(0);
 
