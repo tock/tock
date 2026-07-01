@@ -23,6 +23,7 @@ This pull request still needs...
 
 ### AI Use
 
-- [ ] The PR description details my use of AI in the production of the
-      code in this PR, if any, and I have manually checked and
-      personally certify the entire contents of this PR.
+- [ ] No AI was used in the production of the code in this PR, if any.
+- [ ] AI was in the production of the code in this PR, if any. I have manually
+      checked and personally certify the entire contents of this PR. If yes,
+      briefly detail which model and how it was used:
