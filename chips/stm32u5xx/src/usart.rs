@@ -226,11 +226,11 @@ impl<'a> Usart<'a> {
     /// has finished.
     pub fn handle_dma_interrupt(&self, is_tx: bool) {
         if is_tx {
-            self.dma.map(|dma| {
-                if let Some(ch) = self.dma_channel_tx.get() {
-                    dma.clear_interrupt(ch);
-                }
-            });
+            // self.dma.map(|dma| {
+            //     if let Some(ch) = self.dma_channel_tx.get() {
+            //         dma.clear_interrupt(ch);
+            //     }
+            // });
             self.registers.cr3.modify(CR3::DMAT::CLEAR);
             self.tx_deferred.set(false);
             if let Some(dma_slice) = self.tx_dma_buf.take() {
@@ -244,11 +244,11 @@ impl<'a> Usart<'a> {
                 });
             }
         } else {
-            self.dma.map(|dma| {
-                if let Some(ch) = self.dma_channel_rx.get() {
-                    dma.clear_interrupt(ch);
-                }
-            });
+            // self.dma.map(|dma| {
+            //     if let Some(ch) = self.dma_channel_rx.get() {
+            //         dma.clear_interrupt(ch);
+            //     }
+            // });
             self.registers.cr3.modify(CR3::DMAR::CLEAR);
             self.rx_deferred.set(false);
             if let Some(dma_slice) = self.rx_dma_buf.take() {

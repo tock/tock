@@ -6,6 +6,7 @@
 
 use crate::tests::run_kernel_op;
 use crate::SHA256SOFT;
+use capsules_extra::sha256::Sha256Software;
 use capsules_extra::test::sha256::TestSha256;
 use kernel::debug;
 use kernel::static_init;
@@ -36,7 +37,12 @@ fn sha256software_verify() {
         )
     };
 
-    let test = unsafe { static_init!(TestSha256, TestSha256::new(sha, lstring, lhash, true)) };
+    let test = unsafe {
+        static_init!(
+            TestSha256<'static, Sha256Software<'static>>,
+            TestSha256::new(sha, lstring, lhash, true)
+        )
+    };
     test.run();
 
     run_kernel_op(1000);

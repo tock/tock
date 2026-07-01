@@ -45,6 +45,6 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 
 .PHONY: program
 program:
-	# Note: tockloader does not natively wrap probe-rs yet. 
+	# Note: tockloader does not natively wrap probe-rs yet.
 	# The --openocd flag was removed; tockloader will use its default method (usually serial/jlink).
 	tockloader install --board nucleo_u545re_q $(APP)

@@ -6,6 +6,7 @@
 #![no_std]
 #![no_main]
 
+use capsules_extra::test::hmac_sha256::TestHmacSha256;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
@@ -51,6 +52,10 @@ struct NucleoU545RE {
             'static,
             stm32u545::tim::Tim2<'static>,
         >,
+    >,
+    test_hmac_sha256: &'static capsules_extra::test::hmac_sha256::TestHmacSha256<
+        'static,
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
     >,
 }
 
@@ -152,10 +157,17 @@ unsafe fn start() -> (
     );
     usart1.register();
 
+    let hash = static_init!(
+        stm32u545::hash::core_unit::Hash<'static>,
+        stm32u545::hash::core_unit::Hash::new(stm32u545::hash::regs::HASH_BASE)
+    );
+
+    hash.register();
+
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, hash)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -164,6 +176,16 @@ unsafe fn start() -> (
     // Board specific wiring
     periphs.tim2.start();
     set_pin_primary_functions(periphs);
+
+    // Create an adapter for the HASH peripheral.
+    // In this way it is ensured that only one mode is used by the peripheral.
+    let sha256 = static_init!(
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        stm32u545::hash::sha256::Sha256Adapter::new(hash)
+    );
+
+    // Adapter receives callbacks from the peripheral
+    let _ = hash.set_sha256_adapter(sha256);
 
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -233,6 +255,50 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let hmac_key = static_init!(
+        [u8; 64],
+        [
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
+            0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B,
+            0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29,
+            0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+            0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F
+        ]
+    );
+
+    // An example from STM32 RM0456 Reference manual
+    //
+    // “Sample message for keylen = blocklen”
+    let hash_data_buffer = static_init!(
+        [u8; 34],
+        [
+            0x53, 0x61, 0x6d, 0x70, 0x6C, 0x65, 0x20, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
+            0x20, 0x66, 0x6f, 0x72, 0x20, 0x6b, 0x65, 0x79, 0x6C, 0x65, 0x6e, 0x3d, 0x62, 0x6c,
+            0x6f, 0x63, 0x6b, 0x6c, 0x65, 0x6e
+        ]
+    );
+
+    let hash_digest_buffer = static_init!([u8; 32], [0u8; 32]);
+    let correct = static_init!(
+        [u8; 32],
+        [
+            0x8b, 0xb9, 0xa1, 0xdb, 0x98, 0x06, 0xf2, 0x0d, 0xf7, 0xf7, 0x7b, 0x82, 0x13, 0x8c,
+            0x79, 0x14, 0xd1, 0x74, 0xd5, 0x9e, 0x13, 0xdc, 0x4d, 0x01, 0x69, 0xc9, 0x05, 0x7b,
+            0x13, 0x3e, 0x1d, 0x62
+        ]
+    );
+
+    let test_hmac_sha256 = static_init!(
+        TestHmacSha256<'static, stm32u545::hash::sha256::Sha256Adapter<'static>>,
+        TestHmacSha256::new(
+            sha256,
+            hmac_key,
+            hash_data_buffer,
+            hash_digest_buffer,
+            correct
+        )
+    );
+
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -244,6 +310,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            test_hmac_sha256
         }
     );
 
@@ -292,6 +359,7 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
+    platform.test_hmac_sha256.run();
     // Hand over control to the Tock Kernel Loop
     board_kernel.kernel_loop::<NucleoU545RE, ChipHw, { NUM_PROCS as u8 }>(
         platform,

@@ -30,7 +30,7 @@ pub static mut WIKI_HMAC: [u8; 32] = [
 
 unsafe fn static_init_test_hmacsha256(
     client: &'static dyn CapsuleTestClient,
-) -> &'static TestHmacSha256 {
+) -> &'static TestHmacSha256<'static, HmacSha256Software<'static, Sha256Software<'static>>> {
     let sha256_hash_buf = static_init!([u8; 64], [0; 64]);
 
     let sha256 = static_init!(Sha256Software<'static>, Sha256Software::new());
@@ -45,7 +45,7 @@ unsafe fn static_init_test_hmacsha256(
     kernel::hil::digest::Digest::set_client(sha256, hmacsha256);
 
     let test = static_init!(
-        TestHmacSha256,
+        TestHmacSha256<'static, HmacSha256Software<'static, Sha256Software<'static>>>,
         TestHmacSha256::new(
             hmacsha256,
             &mut *addr_of_mut!(WIKI_KEY),

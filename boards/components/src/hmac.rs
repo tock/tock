@@ -62,6 +62,9 @@ impl<
         A: kernel::hil::digest::HmacSha256
             + digest::HmacSha384
             + digest::HmacSha512
+            + digest::HmacMd5
+            + digest::HmacSha224
+            + digest::HmacSha1
             + 'static
             + digest::Digest<'static, L>,
         const L: usize,

@@ -548,3 +548,27 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
         Err(ErrorCode::NOSUPPORT)
     }
 }
+
+impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::HmacSha224
+    for HmacSha256Software<'a, S>
+{
+    fn set_mode_hmacsha224(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::HmacSha1
+    for HmacSha256Software<'a, S>
+{
+    fn set_mode_hmacsha1(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::HmacMd5
+    for HmacSha256Software<'a, S>
+{
+    fn set_mode_hmacmd5(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+}
