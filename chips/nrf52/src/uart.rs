@@ -204,7 +204,7 @@ impl UarteRegistersManager {
         let tx_dma_slice = DmaSubSliceMut::new_static(buf, fence);
 
         // Provide the DmaSlice buffer to the hardware DMA engine.
-        self.registers.txd_ptr.set(tx_dma_slice.as_mut_ptr() as u32);
+        self.registers.txd_ptr.set(tx_dma_slice.ptr_addr() as u32);
 
         // Specify the length to transmit.
         self.registers
@@ -272,7 +272,7 @@ impl UarteRegistersManager {
         let rx_dma_slice = DmaSubSliceMut::new_static(buf, fence);
 
         // Provide the DmaSlice buffer to the hardware DMA engine.
-        self.registers.rxd_ptr.set(rx_dma_slice.as_mut_ptr() as u32);
+        self.registers.rxd_ptr.set(rx_dma_slice.ptr_addr() as u32);
 
         // Specify the length to transmit.
         self.registers
