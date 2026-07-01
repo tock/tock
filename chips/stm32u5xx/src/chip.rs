@@ -15,16 +15,18 @@ use crate::nvic::{
     EXTI14_IRQ, EXTI15_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
     GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
     GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ,
-    GPDMA1_CH15_IRQ, HASH_IRQ, TIM2_IRQ, USART1_IRQ,
+    GPDMA1_CH15_IRQ, HASH_IRQ, SPI1_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::pwr;
 use crate::rcc;
+use crate::spi;
 use crate::tim;
 use crate::usart;
 use crate::{aes, dac, exti};
 
 use core::fmt::Write;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
@@ -41,6 +43,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub tim2: tim::Tim2<'a>,
     pub tim3: tim::Pwm<'a>,
     pub usart1: usart::Usart<'a>,
+    pub spi1: spi::Spi<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub pwr: pwr::Pwr,
@@ -79,6 +82,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
                 tim::ClockSource::RESET_DEFAULT,
             ),
             usart1: usart::Usart::new(usart::USART1_BASE),
+            spi1: spi::Spi::new(spi::SPI1_BASE),
             exti,
             dma1,
             pwr: pwr::Pwr::new(),
@@ -99,14 +103,18 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // Power and Wires
         self.rcc.enable_dma1();
         self.rcc.enable_gpioa();
+        self.rcc.enable_gpiob();
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_aes();
+        self.rcc.enable_spi1();
         self.rcc.enable_syscfg();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
         self.rcc.enable_hash();
         self.rcc.set_usart1_source_pclk();
+
+        let _ = self.spi1.init();
 
         // ADC
         // Decided to use clock source HSI16, so that needs to be enabled in the RCC too
@@ -147,6 +155,14 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.hash.register();
         if let (Some(in_channel), Some(out_channel)) = (aes_in_channel, aes_out_channel) {
             aes::ecb::Aes::set_dma(&self.aes, self.dma1, in_channel, out_channel);
+        }
+
+        // Link DMA to SPI1
+        let spi1_channel_tx = self.dma1.request_channel();
+        let spi1_channel_rx = self.dma1.request_channel();
+
+        if let (Some(tx), Some(rx)) = (spi1_channel_tx, spi1_channel_rx) {
+            spi::Spi::set_dma(&self.spi1, self.dma1, tx, rx);
         }
     }
 }
@@ -219,6 +235,11 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             EXTI12_IRQ => {
                 self.exti.handle_interrupt(crate::exti::LineId::Line12);
+                true
+            }
+            SPI1_IRQ => {
+                // SPI1
+                self.spi1.handle_interrupt();
                 true
             }
             EXTI13_IRQ => {

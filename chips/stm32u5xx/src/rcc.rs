@@ -7,6 +7,27 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
+pub enum ClockSource {
+    Hsi16,
+    Msis(usize),
+    Hse(usize),
+    Pll1(usize),
+}
+
+impl ClockSource {
+    /// MSIS is selected as the system clock on startup after a reset. Configured at 4MHz.
+    pub const RESET_DEFAULT: ClockSource = ClockSource::Msis(4_000_000);
+
+    pub fn as_hz(&self) -> usize {
+        match self {
+            ClockSource::Hsi16 => 16_000_000,
+            ClockSource::Msis(hz) => *hz,
+            ClockSource::Hse(hz) => *hz,
+            ClockSource::Pll1(hz) => *hz,
+        }
+    }
+}
+
 register_structs! {
     pub RccRegisters {
         /// Control register
@@ -71,7 +92,8 @@ register_bitfields![u32,
         TIM3EN OFFSET(1) NUMBITS(1) []
     ],
     pub APB2ENR [
-        USART1EN OFFSET(14) NUMBITS(1) []
+        USART1EN OFFSET(14) NUMBITS(1) [],
+        SPI1EN OFFSET(12) NUMBITS(1) []
     ],
     pub APB3ENR [
         SYSCFGEN OFFSET(1) NUMBITS(1) []
@@ -125,8 +147,16 @@ impl Rcc {
         self.registers.ahb2enr1.modify(AHB2ENR1::GPIOAEN::SET);
     }
 
+    pub fn enable_gpiob(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::GPIOBEN::SET);
+    }
+
     pub fn enable_gpioc(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::GPIOCEN::SET);
+    }
+
+    pub fn enable_spi1(&self) {
+        self.registers.apb2enr.modify(APB2ENR::SPI1EN::SET);
     }
 
     pub fn enable_usart1(&self) {
