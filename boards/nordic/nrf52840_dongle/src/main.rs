@@ -11,8 +11,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of;
-
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
@@ -298,6 +296,9 @@ pub unsafe fn start() -> (
     )
     .finalize(());
 
+    // Get FICR instance to read chip properties.
+    let ficr = nrf52840::ficr::Ficr::new();
+
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =
@@ -457,7 +458,7 @@ pub unsafe fn start() -> (
 
     let _ = platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &*addr_of!(nrf52840::ficr::FICR_INSTANCE));
+    debug!("{}", ficr);
 
     // These symbols are defined in the linker script.
     extern "C" {

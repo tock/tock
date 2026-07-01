@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! nRF5x interrupt numbers
+
 pub const POWER_CLOCK: u32 = 0;
 pub const RADIO: u32 = 1;
 pub const UART0: u32 = 2;

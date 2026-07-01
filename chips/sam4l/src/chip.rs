@@ -241,11 +241,9 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     type ThreadIdProvider = cortexm4::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        unsafe {
-            cortexm4::nvic::disable_all();
-            cortexm4::nvic::clear_all_pending();
-            cortexm4::nvic::enable_all();
-        }
+        cortexm4::nvic::disable_all();
+        cortexm4::nvic::clear_all_pending();
+        cortexm4::nvic::enable_all();
     }
 
     fn service_pending_interrupts(&self) {
@@ -263,7 +261,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() }
+        cortexm4::nvic::has_pending()
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

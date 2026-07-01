@@ -70,8 +70,6 @@
 #![no_std]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of;
-
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
@@ -320,7 +318,9 @@ pub unsafe fn ieee802154_udp(
     // 802.15.4
     //--------------------------------------------------------------------------
 
-    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
+    let ficr = nrf52840::ficr::Ficr::new();
+
+    let device_id = ficr.id();
     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
     let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
@@ -473,6 +473,9 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
+
+    // Get FICR instance to read chip properties.
+    let ficr = nrf52840::ficr::Ficr::new();
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
@@ -923,7 +926,7 @@ pub unsafe fn start_no_pconsole() -> (
     base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &*addr_of!(nrf52840::ficr::FICR_INSTANCE));
+    debug!("{}", ficr);
 
     (
         board_kernel,

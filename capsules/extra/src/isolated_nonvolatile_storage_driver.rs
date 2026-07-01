@@ -57,11 +57,12 @@
 //! 1. App engages with the capsule by making any syscall.
 //! 2. Capsule searches through storage to see if that app has an existing
 //!    region.
-//! 3. a. If the capsule finds a matching region:
-//!    - Cache the app's region information in its grant.
-//!    b. If the capsule DOESN'T find a matching region:
-//!    - Allocate a new region for that app.
-//!    - Erase the region's usable area.
+//! 3. After the search:
+//!    - If the capsule finds a matching region:
+//!      - Cache the app's region information in its grant.
+//!    - If the capsule DOESN'T find a matching region:
+//!      - Allocate a new region for that app.
+//!      - Erase the region's usable area.
 //! 4. Handle the syscall that the app originally made.
 //! 5. When the syscall finishes, notify the app via upcall.
 //!

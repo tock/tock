@@ -61,10 +61,8 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
     type ThreadIdProvider = cortexm0p::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        unsafe {
-            cortexm0p::nvic::disable_all();
-            cortexm0p::nvic::clear_all_pending();
-        }
+        cortexm0p::nvic::disable_all();
+        cortexm0p::nvic::clear_all_pending();
 
         let sio = crate::gpio::SIO::new();
         let processor = sio.get_processor();
@@ -105,7 +103,7 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
             Processor::Processor0 => self.processor0_interrupt_mask,
             Processor::Processor1 => self.processor1_interrupt_mask,
         };
-        unsafe { cortexm0p::nvic::has_pending_with_mask(mask) }
+        cortexm0p::nvic::has_pending_with_mask(mask)
     }
 
     fn mpu(&self) -> &Self::MPU {

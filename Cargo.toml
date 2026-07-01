@@ -40,6 +40,7 @@ members = [
     "boards/sma_q3",
     "boards/nucleo_f429zi",
     "boards/nucleo_f446re",
+    "boards/nucleo_u545re_q",
     "boards/particle_boron",
     "boards/pico_explorer_base",
     "boards/raspberry_pi_pico",
@@ -48,6 +49,7 @@ members = [
     "boards/apollo3/redboard_artemis_atp",
     "boards/apollo3/redboard_artemis_nano",
     "boards/apollo3/lora_things_plus",
+    "boards/psc3m5_evk",
     "boards/redboard_redv",
     "boards/stm32f3discovery",
     "boards/stm32f412gdiscovery",
@@ -99,6 +101,7 @@ members = [
     "chips/pci-x86",
     "chips/x86_q35",
     "chips/qemu_rv32_virt_chip",
+    "chips/psc3",
     "chips/psoc62xa",
     "chips/rp2040",
     "chips/rp2350",
@@ -110,6 +113,8 @@ members = [
     "chips/stm32f429zi",
     "chips/stm32f446re",
     "chips/stm32f412g",
+    "chips/stm32u545",
+    "chips/stm32u5xx",
     "chips/stm32f4xx",
     "chips/veer_el2",
     "chips/stm32wle5xx",
@@ -235,7 +240,6 @@ upper_case_acronyms = "allow"
 collapsible-match = "allow"
 
 missing_safety_doc = "allow"
-doc_lazy_continuation = "allow"
 
 
 # PERF
@@ -273,7 +277,6 @@ option_if_let_else = "allow"
 cognitive_complexity = "allow"
 
 
-unused_peekable = "allow"
 branches_sharing_code = "allow"
 
 
