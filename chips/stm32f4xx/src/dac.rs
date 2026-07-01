@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::clocks::{phclk, Stm32f4Clocks};
+use crate::clocks::{Stm32f4Clocks, phclk};
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
 /// DAC
 #[repr(C)]

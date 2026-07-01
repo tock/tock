@@ -43,10 +43,10 @@
 //! ```
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::i2c;
 use kernel::hil::time::{self, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 #[allow(dead_code)]
 enum Registers {

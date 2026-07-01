@@ -12,9 +12,9 @@
 
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::network_capabilities::NetworkCapability;
-use crate::net::stream::encode_u16;
-use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
+use crate::net::stream::encode_u8;
+use crate::net::stream::encode_u16;
 use crate::net::udp::udp_port_table::{PortQuery, UdpPortManager};
 use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};

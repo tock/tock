@@ -10,12 +10,12 @@ use crate::pm::{self, Clock, PBDClock};
 
 use cortexm4::support;
 
+use kernel::utilities::StaticRef;
 use kernel::utilities::math::log_base_two_u64;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
 };
-use kernel::utilities::StaticRef;
 
 #[repr(C)]
 pub struct WdtRegisters {

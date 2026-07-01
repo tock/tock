@@ -9,7 +9,7 @@ use core::{cmp, fmt};
 
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
+use kernel::utilities::registers::{LocalRegisterCopy, register_bitfields};
 
 use crate::csr;
 
@@ -654,11 +654,7 @@ pub unsafe fn format_pmp_entries<const PHYSICAL_ENTRIES: usize>(
 
         // Ternary operator shortcut function, to avoid bulky formatting...
         fn t<T>(cond: bool, a: T, b: T) -> T {
-            if cond {
-                a
-            } else {
-                b
-            }
+            if cond { a } else { b }
         }
 
         write!(
@@ -825,11 +821,7 @@ impl<const MAX_REGIONS: usize> fmt::Display for PMPUserMPUConfig<MAX_REGIONS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Ternary operator shortcut function, to avoid bulky formatting...
         fn t<T>(cond: bool, a: T, b: T) -> T {
-            if cond {
-                a
-            } else {
-                b
-            }
+            if cond { a } else { b }
         }
 
         write!(
@@ -1237,7 +1229,7 @@ pub mod tor_user_pmp_test {
     #[test]
     fn test_mpu_region_no_overlap() {
         use crate::pmp::PMPUserMPU;
-        use kernel::platform::mpu::{Permissions, MPU};
+        use kernel::platform::mpu::{MPU, Permissions};
 
         let mpu: PMPUserMPU<8, MockTORUserPMP> = PMPUserMPU::new(MockTORUserPMP);
         let mut config = mpu
@@ -1309,27 +1301,29 @@ pub mod tor_user_pmp_test {
 
         // Now, try to allocate another region that spans over both memory
         // regions. This should fail.
-        assert!(mpu
-            .allocate_region(
+        assert!(
+            mpu.allocate_region(
                 0x40000000 as *const u8,
                 0xc0000000,
                 0xc0000000,
                 Permissions::ReadOnly,
                 &mut config,
             )
-            .is_none());
+            .is_none()
+        );
 
         // Try to allocate a region that spans over parts of both memory
         // regions. This should fail.
-        assert!(mpu
-            .allocate_region(
+        assert!(
+            mpu.allocate_region(
                 0x48000000 as *const u8,
                 0x80000000,
                 0x80000000,
                 Permissions::ReadOnly,
                 &mut config,
             )
-            .is_none());
+            .is_none()
+        );
 
         // --> Overlap tests involving a single region (region_0)
         //
@@ -1374,9 +1368,10 @@ pub mod tor_user_pmp_test {
 
         // Make sure that the allocation requests fail with `region_0` defined:
         for (memory_start, memory_size, length, perms) in overlap_region_0_tests.iter() {
-            assert!(mpu
-                .allocate_region(*memory_start, *memory_size, *length, *perms, &mut config,)
-                .is_none());
+            assert!(
+                mpu.allocate_region(*memory_start, *memory_size, *length, *perms, &mut config,)
+                    .is_none()
+            );
         }
 
         // Now, remove `region_0` and re-run the tests. Every test-case should
@@ -1432,20 +1427,21 @@ pub mod tor_user_pmp_test {
         // that we managed to reach an invalid intermediate state:
         mpu.remove_memory_region(region_2, &mut config)
             .expect("Failed to remove valid MPU region allocation");
-        assert!(mpu
-            .allocate_region(
+        assert!(
+            mpu.allocate_region(
                 0xd0000000 as *const u8,
                 0x10000000,
                 0x10000000,
                 Permissions::ReadWriteOnly,
                 &mut config,
             )
-            .is_none());
+            .is_none()
+        );
     }
 }
 
 pub mod simple {
-    use super::{pmpcfg_octet, TORUserPMP, TORUserPMPCFG};
+    use super::{TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
     use crate::csr;
     use core::fmt;
     use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
@@ -1637,7 +1633,7 @@ pub mod simple {
 }
 
 pub mod kernel_protection {
-    use super::{pmpcfg_octet, NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG};
+    use super::{NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
     use crate::csr;
     use core::fmt;
     use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
@@ -2014,7 +2010,7 @@ pub mod kernel_protection {
 }
 
 pub mod kernel_protection_mml_epmp {
-    use super::{pmpcfg_octet, NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG};
+    use super::{NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
     use crate::csr;
     use core::cell::Cell;
     use core::fmt;

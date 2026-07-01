@@ -46,8 +46,8 @@
 
 use crate::rcc::Rcc;
 
-use kernel::debug;
 use kernel::ErrorCode;
+use kernel::debug;
 
 /// HSI frequency in MHz
 pub const HSI_FREQUENCY_MHZ: usize = 16;
@@ -167,7 +167,7 @@ impl<'a> Hsi<'a> {
 ///
 /// **NOTE:** All these tests assume default boot configuration.
 pub mod tests {
-    use super::{debug, ErrorCode, Hsi, HSI_FREQUENCY_MHZ};
+    use super::{ErrorCode, HSI_FREQUENCY_MHZ, Hsi, debug};
 
     /// Run the entire test suite.
     pub fn run(hsi: &Hsi) {

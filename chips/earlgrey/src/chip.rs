@@ -9,15 +9,15 @@ use core::marker::PhantomData;
 use core::ptr::addr_of;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
+use rv32i::csr::{CSR, mcause, mie::mie, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, TORUserPMP};
 use rv32i::syscall::SysCall;
 
 use crate::chip_config::EarlGreyConfig;
 use crate::interrupts;
 use crate::pinmux_config::EarlGreyPinmuxConfig;
-use crate::plic::Plic;
 use crate::plic::PLIC;
+use crate::plic::Plic;
 
 pub struct EarlGrey<
     'a,
@@ -138,13 +138,13 @@ impl<CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig> InterruptService
 }
 
 impl<
-        'a,
-        const MPU_REGIONS: usize,
-        I: InterruptService + 'a,
-        CFG: EarlGreyConfig,
-        PINMUX: EarlGreyPinmuxConfig,
-        PMP: TORUserPMP<{ MPU_REGIONS }> + Display + 'static,
-    > EarlGrey<'a, MPU_REGIONS, I, CFG, PINMUX, PMP>
+    'a,
+    const MPU_REGIONS: usize,
+    I: InterruptService + 'a,
+    CFG: EarlGreyConfig,
+    PINMUX: EarlGreyPinmuxConfig,
+    PMP: TORUserPMP<{ MPU_REGIONS }> + Display + 'static,
+> EarlGrey<'a, MPU_REGIONS, I, CFG, PINMUX, PMP>
 {
     pub unsafe fn new(
         plic_interrupt_service: &'a I,
@@ -254,13 +254,13 @@ impl<
 }
 
 impl<
-        'a,
-        const MPU_REGIONS: usize,
-        I: InterruptService + 'a,
-        CFG: EarlGreyConfig,
-        PINMUX: EarlGreyPinmuxConfig,
-        PMP: TORUserPMP<{ MPU_REGIONS }> + Display + 'static,
-    > kernel::platform::chip::Chip for EarlGrey<'a, MPU_REGIONS, I, CFG, PINMUX, PMP>
+    'a,
+    const MPU_REGIONS: usize,
+    I: InterruptService + 'a,
+    CFG: EarlGreyConfig,
+    PINMUX: EarlGreyPinmuxConfig,
+    PMP: TORUserPMP<{ MPU_REGIONS }> + Display + 'static,
+> kernel::platform::chip::Chip for EarlGrey<'a, MPU_REGIONS, I, CFG, PINMUX, PMP>
 {
     type MPU = PMPUserMPU<MPU_REGIONS, PMP>;
     type UserspaceKernelBoundary = SysCall;

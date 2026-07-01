@@ -5,8 +5,8 @@
 mod device;
 mod driver;
 
-pub use device::{len, Passphrase, Security, Ssid};
 pub use device::{Client, Device};
+pub use device::{Passphrase, Security, Ssid, len};
 
 pub use driver::WifiDriver;
 

@@ -7,10 +7,10 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
+use kernel::ErrorCode;
 use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 pub static BASE_ADDR: u8 = 0x44;
 

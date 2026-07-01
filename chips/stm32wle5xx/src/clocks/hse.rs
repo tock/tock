@@ -14,8 +14,8 @@
 use crate::rcc::HseMode;
 use crate::rcc::Rcc;
 
-use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
+use kernel::utilities::cells::OptionalCell;
 
 /// Main HSE clock structure
 pub struct Hse<'a> {

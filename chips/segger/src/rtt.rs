@@ -85,13 +85,13 @@
 use core::cell::Cell;
 use core::marker::PhantomData;
 use core::ops::Index;
-use core::sync::atomic::{fence, Ordering};
+use core::sync::atomic::{Ordering, fence};
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::time::ConvertTicks;
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::utilities::io_write::IoWrite;
-use kernel::ErrorCode;
 
 /// Suggested length for the up buffer to pass to the Segger RTT capsule.
 pub const DEFAULT_UP_BUFFER_LENGTH: usize = 1024;

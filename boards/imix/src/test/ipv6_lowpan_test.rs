@@ -35,7 +35,7 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::ieee802154::device::{MacDevice, TxClient};
 use capsules_extra::net::ieee802154::MacAddress;
-use capsules_extra::net::ipv6::ip_utils::{ip6_nh, IPAddr};
+use capsules_extra::net::ipv6::ip_utils::{IPAddr, ip6_nh};
 use capsules_extra::net::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
 use capsules_extra::net::sixlowpan::sixlowpan_compression;
 use capsules_extra::net::sixlowpan::sixlowpan_state::{
@@ -45,11 +45,11 @@ use capsules_extra::net::udp::UDPHeader;
 use core::cell::Cell;
 use core::ptr::addr_of_mut;
 use core::sync::atomic::{AtomicUsize, Ordering};
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::static_init;
-use kernel::ErrorCode;
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 
@@ -564,28 +564,28 @@ fn ipv6_check_receive_packet(
                                     TransportHeader::UDP(ref sent_udp_pkt) => {
                                         if rcvudphdr.get_src_port() != sent_udp_pkt.get_src_port() {
                                             debug!(
-                                "Mismatched src_port. Rcvd is: {:?}, expctd is: {:?}",
-                                rcvudphdr.get_src_port(),
-                                sent_udp_pkt.get_src_port()
-                            );
+                                                "Mismatched src_port. Rcvd is: {:?}, expctd is: {:?}",
+                                                rcvudphdr.get_src_port(),
+                                                sent_udp_pkt.get_src_port()
+                                            );
                                             test_success = false;
                                         }
 
                                         if rcvudphdr.get_dst_port() != sent_udp_pkt.get_dst_port() {
                                             debug!(
-                                "Mismatched dst_port. Rcvd is: {:?}, expctd is: {:?}",
-                                rcvudphdr.get_dst_port(),
-                                sent_udp_pkt.get_dst_port()
-                            );
+                                                "Mismatched dst_port. Rcvd is: {:?}, expctd is: {:?}",
+                                                rcvudphdr.get_dst_port(),
+                                                sent_udp_pkt.get_dst_port()
+                                            );
                                             test_success = false;
                                         }
 
                                         if rcvudphdr.get_len() != sent_udp_pkt.get_len() {
                                             debug!(
-                                "Mismatched udp_len. Rcvd is: {:?}, expctd is: {:?}",
-                                rcvudphdr.get_len(),
-                                sent_udp_pkt.get_len()
-                            );
+                                                "Mismatched udp_len. Rcvd is: {:?}, expctd is: {:?}",
+                                                rcvudphdr.get_len(),
+                                                sent_udp_pkt.get_len()
+                                            );
                                             test_success = false;
                                         }
 
@@ -806,7 +806,7 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
                         }
                     }
                 } //This bracket ends mutable borrow of ip6_packet for header
-                  //Now that packet is fully prepared, set checksum
+                //Now that packet is fully prepared, set checksum
                 ip6_packet.set_transport_checksum(); //calculates and sets UDP cksum
             }
             None => debug!("Error! tried to prepare uninitialized IP6Packet"),

@@ -4,8 +4,8 @@
 
 //! Test that the Atecc508a works
 
-use crate::tests::run_kernel_op;
 use crate::ATECC508A;
+use crate::tests::run_kernel_op;
 use kernel::debug;
 
 #[test_case]

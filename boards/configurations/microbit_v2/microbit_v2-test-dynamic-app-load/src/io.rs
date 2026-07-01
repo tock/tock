@@ -10,7 +10,7 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::utilities::io_write::IoWrite;
 use nrf52833::gpio::Pin;
-use nrf52833::uart::{Uarte, UARTE0_BASE};
+use nrf52833::uart::{UARTE0_BASE, Uarte};
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {

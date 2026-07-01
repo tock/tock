@@ -37,13 +37,13 @@
 
 use core::cell::Cell;
 use core::ptr::addr_of;
+use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
 // DMA buffer that the aes chip will mutate during encryption
 // Byte 0-15   - Key

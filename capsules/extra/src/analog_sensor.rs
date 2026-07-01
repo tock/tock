@@ -9,9 +9,9 @@
 //!
 //! It includes support for analog light sensors and analog temperature sensors.
 
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 /// The type of the sensor implies how the raw ADC reading should be converted
 /// to a light value.

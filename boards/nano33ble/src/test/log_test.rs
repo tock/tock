@@ -36,6 +36,7 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
 use core::ptr::addr_of_mut;
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt, InterruptEdge};
@@ -44,7 +45,6 @@ use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::static_init;
 use kernel::storage_volume;
 use kernel::utilities::cells::{NumericCellExt, TakeCell};
-use kernel::ErrorCode;
 use nrf52840::{
     gpio::Pin,
     nvmc::{NrfPage, Nvmc},
@@ -524,11 +524,12 @@ impl<A: Alarm<'static>> LogWriteClient for LogTest<A> {
                 let expected_records_lost =
                     self.write_val.get() > entry_id_to_test_value(TEST_LOG.len());
                 if records_lost && records_lost != expected_records_lost {
-                    panic!("Append callback states records_lost = {}, expected {} (write #{}, offset {:?})!",
-                           records_lost,
-                           expected_records_lost,
-                           self.write_val.get(),
-                           self.log.log_end()
+                    panic!(
+                        "Append callback states records_lost = {}, expected {} (write #{}, offset {:?})!",
+                        records_lost,
+                        expected_records_lost,
+                        self.write_val.get(),
+                        self.log.log_end()
                     );
                 }
 

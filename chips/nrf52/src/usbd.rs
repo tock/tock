@@ -8,13 +8,13 @@ use core::cell::Cell;
 use cortexm4f::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, Field, InMemoryRegister, LocalRegisterCopy, ReadOnly,
-    ReadWrite, WriteOnly,
+    Field, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
+    register_structs,
 };
-use kernel::utilities::StaticRef;
 
 use crate::power;
 
@@ -2181,11 +2181,7 @@ fn inter_endepout(ep: usize) -> Field<u32, Interrupt::Register> {
 // Debugging functions.
 fn packet_to_hex(packet: &[VolatileCell<u8>], packet_hex: &mut [u8]) {
     let hex_char = |x: u8| {
-        if x < 10 {
-            b'0' + x
-        } else {
-            b'a' + x - 10
-        }
+        if x < 10 { b'0' + x } else { b'a' + x - 10 }
     };
 
     for (i, x) in packet.iter().enumerate() {

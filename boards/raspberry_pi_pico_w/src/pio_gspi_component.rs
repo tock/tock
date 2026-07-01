@@ -9,9 +9,7 @@ use rp2040::pio_gspi::PioGSpi;
 use rp2040::{dma, pio, pio_gspi};
 
 macro_rules! pio_gpsi_component_static {
-    () => {{
-        kernel::static_buf!(rp2040::pio_gspi::PioGSpi<'static>)
-    }};
+    () => {{ kernel::static_buf!(rp2040::pio_gspi::PioGSpi<'static>) }};
 }
 pub(super) use pio_gpsi_component_static;
 

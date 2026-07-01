@@ -15,8 +15,8 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil;
-use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
+use kernel::hil::led::LedLow;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -165,12 +165,12 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 
     peripherals.pa[04].configure(Some(A)); // A0 - ADC0
     peripherals.pa[05].configure(Some(A)); // A1 - ADC1
-                                           // DAC/WKP mode
+    // DAC/WKP mode
     peripherals.pa[06].configure(Some(A)); // DAC
     peripherals.pa[07].configure(None); //... WKP - Wakeup
-                                        // // Analog Comparator Mode
-                                        // peripherals.pa[06].configure(Some(E)); // ACAN0 - ACIFC
-                                        // peripherals.pa[07].configure(Some(E)); // ACAP0 - ACIFC
+    // // Analog Comparator Mode
+    // peripherals.pa[06].configure(Some(E)); // ACAN0 - ACIFC
+    // peripherals.pa[07].configure(Some(E)); // ACAP0 - ACIFC
     peripherals.pa[08].configure(Some(A)); // FTDI_RTS - USART0 RTS
     peripherals.pa[09].configure(None); //... ACC_INT1 - FXOS8700CQ Interrupt 1
     peripherals.pa[10].configure(None); //... unused
@@ -184,28 +184,28 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
     peripherals.pa[18].configure(None); //... ACC_INT2 - FXOS8700CQ Interrupt 2
     peripherals.pa[19].configure(None); //... unused
     peripherals.pa[20].configure(None); //... !LIGHT_INT - ISL29035 Light Sensor Interrupt
-                                        // SPI Mode
+    // SPI Mode
     peripherals.pa[21].configure(Some(A)); // D3 - SPI MISO
     peripherals.pa[22].configure(Some(A)); // D2 - SPI MOSI
     peripherals.pa[23].configure(Some(A)); // D4 - SPI SCK
     peripherals.pa[24].configure(Some(A)); // D5 - SPI CS0
-                                           // // I2C Mode
-                                           // peripherals.pa[21].configure(None); // D3
-                                           // peripherals.pa[22].configure(None); // D2
-                                           // peripherals.pa[23].configure(Some(B)); // D4 - TWIMS0 SDA
-                                           // peripherals.pa[24].configure(Some(B)); // D5 - TWIMS0 SCL
-                                           // UART Mode
+    // // I2C Mode
+    // peripherals.pa[21].configure(None); // D3
+    // peripherals.pa[22].configure(None); // D2
+    // peripherals.pa[23].configure(Some(B)); // D4 - TWIMS0 SDA
+    // peripherals.pa[24].configure(Some(B)); // D5 - TWIMS0 SCL
+    // UART Mode
     peripherals.pa[25].configure(Some(B)); // RX - USART2 RXD
     peripherals.pa[26].configure(Some(B)); // TX - USART2 TXD
 
     peripherals.pb[00].configure(Some(A)); // SENSORS_SDA - TWIMS1 SDA
     peripherals.pb[01].configure(Some(A)); // SENSORS_SCL - TWIMS1 SCL
-                                           // ADC Mode
+    // ADC Mode
     peripherals.pb[02].configure(Some(A)); // A2 - ADC3
     peripherals.pb[03].configure(Some(A)); // A3 - ADC4
-                                           // // Analog Comparator Mode
-                                           // peripherals.pb[02].configure(Some(E)); // ACBN0 - ACIFC
-                                           // peripherals.pb[03].configure(Some(E)); // ACBP0 - ACIFC
+    // // Analog Comparator Mode
+    // peripherals.pb[02].configure(Some(E)); // ACBN0 - ACIFC
+    // peripherals.pb[03].configure(Some(E)); // ACBP0 - ACIFC
     peripherals.pb[04].configure(Some(A)); // A4 - ADC5
     peripherals.pb[05].configure(Some(A)); // A5 - ADC6
     peripherals.pb[06].configure(Some(A)); // NRF_CTS - USART3 RTS

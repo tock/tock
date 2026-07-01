@@ -8,13 +8,13 @@ use core::ops::{Index, IndexMut};
 
 use kernel::utilities::StaticRef;
 use lowrisc::gpio::GpioRegisters;
-pub use lowrisc::gpio::{pins, GpioBitfield, GpioPin};
+pub use lowrisc::gpio::{GpioBitfield, GpioPin, pins};
 
 use crate::pinmux::PadConfig;
 use crate::pinmux_config::EarlGreyPinmuxConfig;
 use crate::registers::top_earlgrey::GPIO_BASE_ADDR;
 use crate::registers::top_earlgrey::{
-    MuxedPads, PinmuxInsel, PinmuxOutsel, PinmuxPeripheralIn, PINMUX_MIO_PERIPH_INSEL_IDX_OFFSET,
+    MuxedPads, PINMUX_MIO_PERIPH_INSEL_IDX_OFFSET, PinmuxInsel, PinmuxOutsel, PinmuxPeripheralIn,
 };
 
 pub const GPIO_BASE: StaticRef<GpioRegisters> =

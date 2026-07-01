@@ -5,10 +5,10 @@
 //! SyscallDriver for STM ADC MCU temperature sensor
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::adc;
 use kernel::hil::sensors;
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Temperature as usize;

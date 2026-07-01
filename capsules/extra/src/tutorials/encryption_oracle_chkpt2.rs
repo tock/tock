@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::symmetric_encryption::{AES128Ctr, AES128};
-use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::ErrorCode;
 use kernel::ProcessId;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::hil::symmetric_encryption::{AES128, AES128Ctr};
+use kernel::syscall::{CommandReturn, SyscallDriver};
 
 pub const DRIVER_NUM: usize = 0x99999;
 
