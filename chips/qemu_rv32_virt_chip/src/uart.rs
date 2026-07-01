@@ -5,7 +5,9 @@
 //! QEMU's memory mapped 16550 UART
 
 use core::cell::Cell;
+use core::cell::UnsafeCell;
 
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::io_write::IoWrite;
@@ -208,6 +210,15 @@ register_bitfields![u16,
     ],
 ];
 
+/// Software receive FIFO capacity. Sized to match the RP2350 inter-core FIFO
+/// (8 × 32-bit = 32 bytes): small enough to be cheap, large enough to absorb
+/// one chunk of UART input arriving between consecutive reads. Bytes that
+/// arrive when no `rx_buffer` is armed are saved here rather than discarded.
+/// Actual byte transfer between harts uses shared memory (UART_RX_REPLAY_BUF),
+/// matching the RP2350 pattern where the FIFO carries control words and bulk
+/// data lives in shared SRAM.
+const RX_SW_FIFO_CAP: usize = 32;
+
 pub struct Uart16550<'a> {
     regs: StaticRef<Uart16550Registers>,
     hart_id: u32,
@@ -219,12 +230,23 @@ pub struct Uart16550<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
     rx_len: Cell<usize>,
     rx_index: Cell<usize>,
+    /// Circular software receive buffer. Captures bytes that arrive when no
+    /// `rx_buffer` is armed so they are not discarded between reads.
+    rx_sw_buf: UnsafeCell<[u8; RX_SW_FIFO_CAP]>,
+    rx_sw_head: Cell<usize>,
+    rx_sw_count: Cell<usize>,
+    /// Deferred call used to deliver received bytes to the console capsule
+    /// outside of the `receive_buffer()` call stack, avoiding a grant re-entry
+    /// when data is already in the FIFO at the time `receive_buffer` is called.
+    /// `None` on hart 1, where the real UART is never driven and the deferred
+    /// call system is owned by hart 0's thread (SingleThreadValue cannot bind
+    /// to two threads).
+    rx_deferred_call: Option<DeferredCall>,
 }
 
 impl<'a> Uart16550<'a> {
     pub fn new(regs: StaticRef<Uart16550Registers>) -> Uart16550<'a> {
-        let hart_id: u32;
-        unsafe { core::arch::asm!("csrr {}, mhartid", out(reg) hart_id) };
+        let hart_id = crate::chip::current_hart();
 
         if hart_id == 0 {
             // Disable all interrupts when constructing the UART
@@ -243,7 +265,23 @@ impl<'a> Uart16550<'a> {
             rx_buffer: TakeCell::empty(),
             rx_len: Cell::new(0),
             rx_index: Cell::new(0),
+            rx_sw_buf: UnsafeCell::new([0u8; RX_SW_FIFO_CAP]),
+            rx_sw_head: Cell::new(0),
+            rx_sw_count: Cell::new(0),
+            rx_deferred_call: if hart_id == 0 { Some(DeferredCall::new()) } else { None },
         }
+    }
+}
+
+impl DeferredCallClient for Uart16550<'_> {
+    fn register(&'static self) {
+        if let Some(dc) = &self.rx_deferred_call {
+            dc.register(self);
+        }
+    }
+
+    fn handle_deferred_call(&self) {
+        self.receive();
     }
 }
 
@@ -363,14 +401,7 @@ impl Uart16550<'_> {
                 .ier
                 .modify(IER::TransmitterHoldingRegisterEmpty::CLEAR);
 
-            // Signal Hart 1 to fire its transmitted_buffer callback.
-            use crate::chip::{CLINT_MSIP1, LOCKSTEP_CHAN, SyncEntry};
-            while !LOCKSTEP_CHAN.a_send(SyncEntry::UartTxDone) {
-                core::hint::spin_loop();
-            }
-            unsafe { core::ptr::write_volatile(CLINT_MSIP1, 1) };
-
-            // Callback to the client
+            // Callback to the client (LockstepUart wrapper fires hook before capsule).
             self.tx_client
                 .map(move |client| client.transmitted_buffer(tx_data, self.tx_len.get(), Ok(())));
         }
@@ -381,50 +412,57 @@ impl Uart16550<'_> {
             // Only reachable via handle_interrupt, which panics on Hart 1.
             panic!("UART monitor: receive called on Hart 1");
         }
-        // Drain stale bytes and silence the interrupt when no buffer is armed.
-        // This handles input that arrives before a process calls read.
+
         let rx_buffer = match self.rx_buffer.take() {
             Some(buf) => buf,
             None => {
+                // No buffer armed: save incoming bytes in the SW FIFO instead
+                // of discarding. The interrupt clears naturally once we drain
+                // the hardware FIFO; ReceivedDataAvailable stays enabled so
+                // future bytes are captured too.
                 while self.regs.lsr.is_set(LSR::DataAvailable) {
-                    let _ = self.regs.rbr_thr.get();
+                    let byte = self.regs.rbr_thr.get();
+                    let count = self.rx_sw_count.get();
+                    if count < RX_SW_FIFO_CAP {
+                        let tail =
+                            (self.rx_sw_head.get() + count) % RX_SW_FIFO_CAP;
+                        unsafe { (*self.rx_sw_buf.get())[tail] = byte; }
+                        self.rx_sw_count.set(count + 1);
+                    }
+                    // else: SW FIFO full, byte is dropped
                 }
-                self.regs.ier.modify(IER::ReceivedDataAvailable::CLEAR);
                 return;
             }
         };
+
         let len = self.rx_len.get();
         let mut index = self.rx_index.get();
 
-        // Read in a while loop, until no more data in the FIFO
+        // Drain SW FIFO first (bytes that arrived between reads):
+        while self.rx_sw_count.get() > 0 && index < len {
+            let head = self.rx_sw_head.get();
+            rx_buffer[index] = unsafe { (*self.rx_sw_buf.get())[head] };
+            self.rx_sw_head.set((head + 1) % RX_SW_FIFO_CAP);
+            self.rx_sw_count.set(self.rx_sw_count.get() - 1);
+            index += 1;
+        }
+
+        // Then drain the hardware FIFO:
         while self.regs.lsr.is_set(LSR::DataAvailable) && index < len {
             rx_buffer[index] = self.regs.rbr_thr.get();
             index += 1;
         }
 
-        // Check whether we've read sufficient data:
         if index == len {
-            // We're done, disable interrupts and return to the client:
+            // Done: disable the interrupt and deliver to client.
+            // LockstepUart wrapper's on_received hook fires before the capsule
+            // client is called (copies to UART_RX_REPLAY_BUF + signals hart 1).
             self.regs.ier.modify(IER::ReceivedDataAvailable::CLEAR);
-
-            // Forward received bytes to Hart 1 via the replay buffer. Write
-            // bytes before pushing onto LOCKSTEP_CHAN to avoid a race condition.
-            use crate::chip::{CLINT_MSIP1, LOCKSTEP_CHAN, SyncEntry, UART_RX_REPLAY_BUF, UART_RX_REPLAY_MAX};
-            let copy_len = len.min(UART_RX_REPLAY_MAX);
-            unsafe {
-                (&mut *UART_RX_REPLAY_BUF.0.get())[..copy_len]
-                    .copy_from_slice(&rx_buffer[..copy_len]);
-            }
-            while !LOCKSTEP_CHAN.a_send(SyncEntry::UartRxReady { len: copy_len as u8 }) {
-                core::hint::spin_loop();
-            }
-            unsafe { core::ptr::write_volatile(CLINT_MSIP1, 1) };
 
             self.rx_client.map(move |client| {
                 client.received_buffer(rx_buffer, len, Ok(()), hil::uart::Error::None)
             });
         } else {
-            // Store the new index and place the buffer back:
             self.rx_index.set(index);
             self.rx_buffer.replace(rx_buffer);
         }
@@ -618,21 +656,23 @@ impl<'a> hil::uart::Receive<'a> for Uart16550<'a> {
             return Err((ErrorCode::SIZE, rx_buffer));
         }
 
-        // Store the receive buffer and byte count. We cannot call into the
-        // generic receive routine here, as the client callback needs to be
-        // called from another call stack. Hence simply enable interrupts here.
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
         self.rx_index.set(0);
 
-        // Discard any stray byte already sitting in the RX FIFO before
-        // arming the RX interrupt.
-        while self.regs.lsr.is_set(LSR::DataAvailable) {
-            let _ = self.regs.rbr_thr.read(RBR::Data);
-        }
-
-        // Enable receive interrupts:
+        // Enable receive interrupts, then schedule a deferred call if bytes
+        // are already waiting in the SW FIFO or hardware FIFO. Using a
+        // deferred call rather than calling receive() directly avoids a grant
+        // re-entry: receive_buffer() is called from inside the console
+        // capsule's grant closure (command → receive_new), so firing the
+        // received_buffer callback synchronously would attempt to enter the
+        // same grant a second time and panic.
         self.regs.ier.modify(IER::ReceivedDataAvailable::SET);
+        if self.rx_sw_count.get() > 0 || self.regs.lsr.is_set(LSR::DataAvailable) {
+            if let Some(dc) = &self.rx_deferred_call {
+                dc.set();
+            }
+        }
 
         Ok(())
     }
@@ -664,6 +704,10 @@ pub fn replay_tx_done_for_hart1() {
     HART1_UART_BUF.replay_tx_done();
 }
 
+pub fn replay_pending_tx_done_for_hart1() {
+    HART1_UART_BUF.replay_pending_tx_done();
+}
+
 /// Software-only UART with no hardware backing, used for Hart 1's console capsule.
 ///
 /// Hart 0 owns the physical UART. Hart 1 receives data via the MSIP replay path:
@@ -676,6 +720,10 @@ pub struct VirtualUartBuffer {
     rx_buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
+    // Set when replay_tx_done() fires before transmit_buffer() is called
+    // (hart 0 completes TX before hart 1's process has issued the command).
+    // transmit_buffer() checks this flag and fires the callback immediately.
+    tx_done_early: Cell<bool>,
 }
 
 unsafe impl Sync for VirtualUartBuffer {}
@@ -688,6 +736,7 @@ impl VirtualUartBuffer {
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
+            tx_done_early: Cell::new(false),
         }
     }
 
@@ -711,11 +760,23 @@ impl VirtualUartBuffer {
     pub fn replay_tx_done(&self) {
         let tx_buffer = match self.tx_buffer.take() {
             Some(buf) => buf,
-            None => return,
+            None => {
+                self.tx_done_early.set(true);
+                return;
+            }
         };
+        self.tx_done_early.set(false);
         let tx_len = self.tx_len.get();
         self.tx_client
             .map(move |client| client.transmitted_buffer(tx_buffer, tx_len, Ok(())));
+    }
+
+    /// Called from the hart-1 main loop after each kernel_loop_operation to
+    /// drain any TX-done event that arrived before the capsule's transmit_buffer.
+    pub fn replay_pending_tx_done(&self) {
+        if self.tx_done_early.get() {
+            self.replay_tx_done();
+        }
     }
 }
 

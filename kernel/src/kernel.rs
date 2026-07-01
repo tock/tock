@@ -23,7 +23,7 @@ use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
 use crate::platform::platform::ContextSwitchCallback;
 use crate::platform::platform::KernelResources;
-use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
+use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter, UpcallAction, UpcallVerifier};
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessSlot;
@@ -60,6 +60,11 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
+
+    /// Optional board-provided verifier called before every driver upcall is
+    /// delivered to a process. Set via [`Kernel::register_upcall_verifier`];
+    /// `None` (the default) passes all upcalls through unchanged.
+    upcall_verifier: Cell<Option<&'static dyn UpcallVerifier>>,
 }
 
 /// Represents the different outcomes when trying to allocate a grant region
@@ -94,7 +99,18 @@ impl Kernel {
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
+            upcall_verifier: Cell::new(None),
         }
+    }
+
+    /// Register a board-provided [`UpcallVerifier`] that the kernel calls
+    /// before delivering every driver upcall to a process.
+    ///
+    /// Must be called before entering the main kernel loop. Replaces any
+    /// previously registered verifier. The default (no verifier registered)
+    /// passes all upcalls through unchanged.
+    pub fn register_upcall_verifier(&self, verifier: &'static dyn UpcallVerifier) {
+        self.upcall_verifier.set(Some(verifier));
     }
 
     /// Helper function that moves all non-generic portions of process_map_or
@@ -679,6 +695,36 @@ impl Kernel {
                                         ccb.argument3,
                                     );
                                 }
+                                // Apply any registered upcall verifier before
+                                // committing arguments to the process. Only
+                                // driver-sourced upcalls are intercepted;
+                                // kernel-sourced function calls (e.g. init_fn)
+                                // pass through unchanged.
+                                let ccb = match (
+                                    self.upcall_verifier.get(),
+                                    ccb.source,
+                                ) {
+                                    (
+                                        Some(verifier),
+                                        process::FunctionCallSource::Driver(id),
+                                    ) => match verifier.on_upcall(
+                                        id,
+                                        ccb.argument0,
+                                        ccb.argument1,
+                                        ccb.argument2,
+                                    ) {
+                                        UpcallAction::Proceed => ccb,
+                                        UpcallAction::Overwrite { r0, r1, r2 } => {
+                                            process::FunctionCall {
+                                                argument0: r0,
+                                                argument1: r1,
+                                                argument2: r2,
+                                                ..ccb
+                                            }
+                                        }
+                                    },
+                                    _ => ccb,
+                                };
                                 process.set_process_function(ccb);
                             }
                             Task::IPC((otherapp, ipc_type)) => {

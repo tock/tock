@@ -880,6 +880,51 @@ fn enter_grant_kernel_managed(
     Ok(layout)
 }
 
+/// Compute a 32-bit FNV-1a fingerprint of the RO-allow buffer that
+/// `processid` has shared with `driver_num` at slot `allow_num`.
+///
+/// Returns 0 if the grant is not allocated, the slot is out of range, or
+/// no buffer has been shared. Used by lockstep drivers to fingerprint app
+/// payloads at the syscall boundary for cross-hart comparison.
+///
+/// # Safety
+///
+/// Must only be called while the process is trapped in M-mode (e.g., inside
+/// `SyscallDriver::command`) so the process cannot modify the buffer
+/// concurrently with the hash computation.
+pub fn fingerprint_ro_allow(processid: ProcessId, driver_num: usize, allow_num: usize) -> u32 {
+    let process = match processid.kernel.get_process(processid) {
+        Some(p) => p,
+        None => return 0,
+    };
+    // Extract pointer and length, then release the grant lock before reading
+    // process memory so re-entrant grant access during the hash is possible.
+    let (ptr, len) = {
+        let mut layout = match enter_grant_kernel_managed(process, driver_num) {
+            Ok(l) => l,
+            Err(_) => return 0,
+        };
+        match layout.get_allow_ro_slice().get(allow_num) {
+            Some(s) => (s.ptr, s.len),
+            None => return 0,
+        }
+    };
+    if ptr.is_null() || len == 0 {
+        return 0;
+    }
+    // Safety: pointer and length were validated when the allow was set up;
+    // process is trapped in M-mode so the buffer is stable during the hash.
+    let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };
+    const FNV_OFFSET: u32 = 2_166_136_261;
+    const FNV_PRIME: u32 = 16_777_619;
+    let mut hash = FNV_OFFSET;
+    for &b in bytes {
+        hash ^= b as u32;
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
+
 /// Subscribe to an upcall by saving the upcall in the grant region for the
 /// process and returning the existing upcall for the same UpcallId.
 pub(crate) fn subscribe(

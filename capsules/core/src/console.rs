@@ -465,3 +465,30 @@ impl uart::ReceiveClient for Console<'_> {
         self.rx_buffer.replace(buffer);
     }
 }
+
+impl kernel::syscall::LockstepPayload for Console<'_> {
+    fn command_payload_fp(&self, command_num: usize, process_id: kernel::ProcessId) -> u32 {
+        if command_num != 1 {
+            return 0;
+        }
+        self.apps
+            .enter(process_id, |_, kernel_data| {
+                kernel_data
+                    .get_readonly_processbuffer(ro_allow::WRITE)
+                    .and_then(|buf| {
+                        buf.enter(|bytes| {
+                            const FNV_OFFSET: u32 = 2_166_136_261;
+                            const FNV_PRIME: u32 = 16_777_619;
+                            let mut hash = FNV_OFFSET;
+                            for b in bytes.iter() {
+                                hash ^= b.get() as u32;
+                                hash = hash.wrapping_mul(FNV_PRIME);
+                            }
+                            hash
+                        })
+                    })
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0)
+    }
+}

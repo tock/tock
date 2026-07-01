@@ -73,7 +73,7 @@ use crate::process;
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
 
-pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
+pub use crate::syscall_driver::{CommandReturn, LockstepPayload, SyscallDriver};
 
 // ---------- SYSTEMCALL ARGUMENT DECODING ----------
 

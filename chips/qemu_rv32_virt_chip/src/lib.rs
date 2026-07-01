@@ -13,5 +13,6 @@ pub mod virtio_mmio;
 
 pub mod chip;
 pub mod clint;
+pub mod lockstep;
 pub mod plic;
 pub mod uart;

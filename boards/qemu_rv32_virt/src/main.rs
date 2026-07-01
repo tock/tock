@@ -11,19 +11,14 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
+use kernel::scheduler::KernelActivity;
 use kernel::{create_capability, debug};
-use qemu_rv32_virt_chip::chip::{
-    clear_irq_active, read_mtime_low, SyncEntry, CLINT_MSIP1, LOCKSTEP_CHAN,
-};
+use qemu_rv32_virt_chip::chip::{clear_irq_active, read_mtime_low, SyncEntry, CLINT_MSIP1, LOCKSTEP_CHAN};
+use qemu_rv32_virt_chip::lockstep::{dispatch_layer1_event, lockstep_barrier, DRAIN_TIMEOUT_MTIME_TICKS};
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
-
-/// How long hart 0 will wait for hart 1's per-iteration lockstep sync ack
-/// before treating it as a fault (e.g. an SEU leaving hart 1 unable to make
-/// progress). 100 ms at 10 MHz.
-const SYNC_TIMEOUT_MTIME_TICKS: u32 = 1_000_000;
 
 type ScreenDriver = capsules_extra::screen::screen::Screen<'static>;
 
@@ -167,32 +162,111 @@ pub unsafe extern "C" fn main_secondary() -> ! {
     let (board_kernel, platform, chip) = qemu_rv32_virt_lib::start_secondary();
 
     loop {
-        // Drain the channel until the per-iteration Sync barrier arrives,
-        // dispatching any event popped along the way. This is the only
-        // point guaranteed to see every channel message in arrival order
-        // without risking consuming the next Sync meant for this same loop.
+        // Phase 1: drain Layer-1 events.
+        //
+        // Two exit conditions:
+        //   • Sync{fp}      — normal round: hart 0 ran a non-process op and is
+        //                     ready to compare fingerprints.  Run Phase 2, then
+        //                     compare and reply.
+        //   • SyscallDesc   — gate round: hart 0 is blocked in LockstepDriver
+        //                     waiting for hart 1's process to confirm the same
+        //                     descriptor before emitting to UART.  Run Phase 2
+        //                     (the process sends the gate confirmation), then
+        //                     wait for the Sync that hart 0 sends after the gate
+        //                     and UART TX complete.
+        //
+        // Timeout strategy: only start the fault-detection clock AFTER the
+        // first L1 event arrives. During pure idle (app sleeping on alarm)
+        // hart 0 sends nothing — waiting indefinitely here is correct.
+        let mut post_l1_start: Option<u32> = None;
+        let is_gate_round;
+        let h0_fp_from_drain;
         loop {
-            match LOCKSTEP_CHAN.b_spin_recv() {
-                SyncEntry::Sync { .. } => break,
-                SyncEntry::UartRxReady { len } => {
-                    qemu_rv32_virt_chip::uart::replay_rx_done_for_hart1(len)
-                }
-                SyncEntry::UartTxDone => qemu_rv32_virt_chip::uart::replay_tx_done_for_hart1(),
-                SyncEntry::RngReady { .. } => {
-                    // Not yet wired up -- see the RNG forwarding design.
+            if let Some(entry) = LOCKSTEP_CHAN.b_recv() {
+                match entry {
+                    SyncEntry::Sync { fingerprint } => {
+                        is_gate_round = false;
+                        h0_fp_from_drain = fingerprint;
+                        break;
+                    }
+                    SyncEntry::SyscallDesc(desc) => {
+                        use qemu_rv32_virt_chip::lockstep::store_pending_syscall;
+                        store_pending_syscall(desc);
+                        // Drain any remaining entries (e.g. UartTxDone that
+                        // arrived in the same kick) before running the process.
+                        while let Some(e) = LOCKSTEP_CHAN.b_recv() {
+                            match e {
+                                SyncEntry::SyscallDesc(d) => store_pending_syscall(d),
+                                other => dispatch_layer1_event(other),
+                            }
+                        }
+                        is_gate_round = true;
+                        h0_fp_from_drain = 0; // filled in after Phase 2
+                        break;
+                    }
+                    other => {
+                        dispatch_layer1_event(other);
+                        post_l1_start = Some(read_mtime_low());
+                    }
                 }
             }
+            if let Some(l1_start) = post_l1_start {
+                if read_mtime_low().wrapping_sub(l1_start) >= DRAIN_TIMEOUT_MTIME_TICKS {
+                    panic!("lockstep: hart 1 sync-wait timeout after L1 event (divergence?)");
+                }
+            }
+            core::hint::spin_loop();
         }
-        let activity = board_kernel.kernel_loop_operation(
-            &platform,
-            chip,
-            None::<&kernel::ipc::IPC<{ qemu_rv32_virt_lib::NUM_PROCS as u8 }>>,
-            true,
-            &main_loop_capability,
-        );
-        while !LOCKSTEP_CHAN.b_send(SyncEntry::Sync {
-            fingerprint: activity.fingerprint(),
-        }) {
+
+        // Phase 2: run one non-KernelWork kernel operation.
+        let activity = loop {
+            let a = board_kernel.kernel_loop_operation(
+                &platform,
+                chip,
+                None::<&kernel::ipc::IPC<{ qemu_rv32_virt_lib::NUM_PROCS as u8 }>>,
+                true,
+                &main_loop_capability,
+            );
+            if !matches!(a, KernelActivity::KernelWork) {
+                break a;
+            }
+        };
+        // After a process-running round, drain any TX-done event that
+        // arrived on the channel before the process called transmit_buffer.
+        qemu_rv32_virt_chip::uart::replay_pending_tx_done_for_hart1();
+
+        // For gate rounds, the Sync from hart 0 arrives after the gate passes
+        // and the UART TX completes — wait for it now, draining any L1 events
+        // (e.g. UartTxDone) that arrive in the interim.
+        let h0_fp = if is_gate_round {
+            let mut timeout_start = read_mtime_low();
+            loop {
+                if let Some(entry) = LOCKSTEP_CHAN.b_recv() {
+                    match entry {
+                        SyncEntry::Sync { fingerprint } => break fingerprint,
+                        other => {
+                            dispatch_layer1_event(other);
+                            timeout_start = read_mtime_low();
+                        }
+                    }
+                }
+                if read_mtime_low().wrapping_sub(timeout_start) >= DRAIN_TIMEOUT_MTIME_TICKS {
+                    panic!("lockstep: gate round Sync timeout (hart 0 diverged?)");
+                }
+                core::hint::spin_loop();
+            }
+        } else {
+            h0_fp_from_drain
+        };
+
+        let h1_fp = activity.fingerprint();
+        if h0_fp != h1_fp {
+            panic!(
+                "Lockstep divergence (hart 1): hart 0 {:#x}, hart 1 {:#x}",
+                h0_fp, h1_fp,
+            );
+        }
+        while !LOCKSTEP_CHAN.b_send(SyncEntry::Sync { fingerprint: h1_fp }) {
             core::hint::spin_loop();
         }
     }
@@ -272,17 +346,14 @@ pub unsafe fn main() {
     // 0's own process state is fully set up first.
     qemu_rv32_virt_lib::finish_lockstep_setup();
 
-    debug!("Entering main loop.");
-
     // Drain any interrupts/deferred calls left over from peripheral
     // initialization (VirtIO negotiation, RNG buffer setup, etc.) to avoid
     // a spurious one-round divergence at boot.
     board_kernel.kernel_preloop_operation(&platform, chip, &main_loop_capability);
 
+    debug!("Entering main loop.");
+
     loop {
-        while !LOCKSTEP_CHAN.a_send(SyncEntry::Sync { fingerprint: 0 }) {
-            core::hint::spin_loop();
-        }
         let activity = board_kernel.kernel_loop_operation(
             &platform,
             chip,
@@ -290,61 +361,31 @@ pub unsafe fn main() {
             false,
             &main_loop_capability,
         );
-        // Extend IRQ_ACTIVE coverage through deferred calls: clear only after
-        // kernel_loop_operation returns so the hart-1 watchdog covers the full
-        // interrupt + deferred-call window, not just the trap handler.
         clear_irq_active();
-        // Drain the channel until hart 1's Sync ack arrives, dispatching
-        // any event popped along the way -- mirrors hart 1's own drain
-        // loop, for the same reason: hart 0 can't advance to the next
-        // iteration until it sees this ack, so any hart-1-originated event
-        // pushed beforehand will be interleaved ahead of it in arrival
-        // order. Hart 1 doesn't push any of these back today; reserved for
-        // future hart-1-originated events (the doorbell side of this is
-        // already wired up -- see MachineSoft's hart 0 branch).
-        let sync_wait_start = read_mtime_low();
-        let mut sync_spins: u32 = 0;
-        let ack_fingerprint = loop {
-            if let Some(entry) = LOCKSTEP_CHAN.a_recv() {
-                match entry {
-                    SyncEntry::Sync { fingerprint, .. } => break fingerprint,
-                    SyncEntry::UartRxReady { .. }
-                    | SyncEntry::UartTxDone
-                    | SyncEntry::RngReady { .. } => {
-                        unreachable!("hart 1 only ever acks with SyncEntry::Sync today")
-                    }
-                }
-            }
-            sync_spins = sync_spins.wrapping_add(1);
 
+        // Batch all kernel work before syncing so hart 1 has a chance to
+        // drain the full set of channel events and reach the same scheduler
+        // decision.
+        if matches!(activity, KernelActivity::KernelWork) {
+            continue;
+        }
 
-            // Bounded by SYNC_TIMEOUT_MTIME_TICKS: an SEU (or any other fault) that
-            // leaves hart 1 unable to reach its own Sync send would otherwise
-            // spin hart 0 forever. The deadline is only checked every 1024
-            // spins (not every iteration) since `a_recv()` is non-blocking and
-            // most spins are expected to find nothing -- read_mtime_low() is a
-            // single CSR read so this is cheap either way, but there's no
-            // reason to pay it on every spin.
-            if sync_spins & 0x3FF == 0
-                && read_mtime_low().wrapping_sub(sync_wait_start) >= SYNC_TIMEOUT_MTIME_TICKS
-            {
-                panic!("Lockstep: hart 1 sync timeout -- no ack within {} ticks (possible SEU)", SYNC_TIMEOUT_MTIME_TICKS);
+        // Both harts send their fingerprint and receive the other's.
+        // Hart 1 never sends Layer-1 events (it only sends Sync), so the
+        // dispatch callback is a no-op on this side.
+        let theirs = lockstep_barrier(
+            0,
+            SyncEntry::Sync { fingerprint: activity.fingerprint() },
+            |_| {},
+        );
+        if let SyncEntry::Sync { fingerprint: h1_fp } = theirs {
+            let h0_fp = activity.fingerprint();
+            if h1_fp != h0_fp {
+                panic!(
+                    "Lockstep divergence: hart 0 {:#x}, hart 1 {:#x}",
+                    h0_fp, h1_fp,
+                );
             }
-            core::hint::spin_loop();
-        };
-        let expected = activity.fingerprint();
-        // Hart 0 alone owns real I/O (process console, virtio devices), so it
-        // legitimately does KernelWork/Slept transitions hart 1 never sees.
-        // Only treat it as divergence when at least one hart ran a process —
-        // that's the invariant lockstep actually needs to hold.
-        const RAN_PROCESS_TAG: u32 = 0x0200_0000;
-        let is_ran_process = |fp: u32| fp & 0xFF00_0000 == RAN_PROCESS_TAG;
-        if (is_ran_process(expected) || is_ran_process(ack_fingerprint)) && ack_fingerprint != expected
-        {
-            panic!(
-                "Lockstep divergence: hart 0 fingerprint {:#x}, hart 1 fingerprint {:#x}",
-                expected, ack_fingerprint
-            );
         }
     }
 }

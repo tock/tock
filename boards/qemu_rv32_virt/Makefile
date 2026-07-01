@@ -147,3 +147,10 @@ run-app-gui: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	  $(APP_H1_LOADER_DEVICE) \
 	  -device virtio-gpu-device \
 	  -serial stdio
+
+# Run the LockstepWrapper hook-chain smoke tests.
+# Requires pre-built uart-tx-test and rng-test TBFs (build each with `make`
+# inside their subdirectory). Exits 0 on pass, 1 on any failure.
+.PHONY: test-lockstep
+test-lockstep: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	@./test-lockstep.sh $<

@@ -11,12 +11,10 @@ use kernel::hil::uart;
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let hartid: u32;
-    core::arch::asm!("csrr {}, mhartid", out(reg) hartid);
     // PANIC_RESOURCES is bound (once, permanently) by whichever hart calls
     // bind_to_thread() first -- hart 0, in start(). Hart 1 has its own,
     // separately-bound PANIC_RESOURCES_H1; see its declaration for why.
-    let panic_resources = if hartid == 0 {
+    let panic_resources = if qemu_rv32_virt_chip::chip::current_hart() == 0 {
         crate::PANIC_RESOURCES.get()
     } else {
         crate::PANIC_RESOURCES_H1.get()

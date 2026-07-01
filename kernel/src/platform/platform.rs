@@ -193,3 +193,57 @@ pub trait ContextSwitchCallback {
 impl ContextSwitchCallback for () {
     fn context_switch_hook(&self, _process: &dyn process::Process) {}
 }
+
+/// Trait for inspecting or modifying upcall arguments before they are
+/// delivered to a process.
+///
+/// The kernel calls [`on_upcall`](UpcallVerifier::on_upcall) for every
+/// [`crate::process::Task::FunctionCall`] sourced from a driver
+/// (`FunctionCallSource::Driver`) just before the arguments are committed to
+/// the process's register file. Kernel-sourced function calls (e.g. the
+/// process init function) bypass this hook.
+///
+/// The default no-op implementation is `impl UpcallVerifier for ()`. Boards
+/// install a custom implementation via
+/// [`crate::kernel::Kernel::register_upcall_verifier`].
+pub trait UpcallVerifier {
+    /// Called before an upcall is delivered to a process.
+    ///
+    /// `upcall_id` identifies the driver/subscribe pair. `r0`–`r2` are the
+    /// upcall arguments the capsule scheduled via `schedule_upcall`.
+    ///
+    /// Return [`UpcallAction::Proceed`] to deliver the upcall unchanged, or
+    /// [`UpcallAction::Overwrite`] to substitute different argument values
+    /// (e.g. to normalise a live timestamp that differs between two harts in a
+    /// lockstep configuration).
+    fn on_upcall(
+        &self,
+        upcall_id: crate::upcall::UpcallId,
+        r0: usize,
+        r1: usize,
+        r2: usize,
+    ) -> UpcallAction;
+}
+
+/// Action returned by [`UpcallVerifier::on_upcall`].
+#[derive(Copy, Clone)]
+pub enum UpcallAction {
+    /// Deliver the upcall with its original arguments unchanged.
+    Proceed,
+    /// Deliver the upcall with the provided argument values instead.
+    Overwrite { r0: usize, r1: usize, r2: usize },
+}
+
+/// No-op [`UpcallVerifier`]: all upcalls are delivered unchanged.
+impl UpcallVerifier for () {
+    #[inline(always)]
+    fn on_upcall(
+        &self,
+        _upcall_id: crate::upcall::UpcallId,
+        _r0: usize,
+        _r1: usize,
+        _r2: usize,
+    ) -> UpcallAction {
+        UpcallAction::Proceed
+    }
+}

@@ -390,6 +390,21 @@ pub trait SyscallDriver {
     fn allocate_grant(&self, process_id: ProcessId) -> Result<(), crate::process::Error>;
 }
 
+/// Optional companion trait for [`SyscallDriver`] capsules that participate in
+/// cross-hart lockstep verification.
+///
+/// A capsule implements this trait to expose the bytes that cross the
+/// syscall boundary for a given `command_num`, expressed as an FNV-1a
+/// fingerprint. The [`crate::lockstep::LockstepDriver`] wrapper calls this
+/// before dispatching each `command()` so it can compare the payload between
+/// the two harts without needing to re-derive it from raw grant pointers.
+///
+/// Return `0` for commands that carry no verifiable payload (e.g. a
+/// driver-exists check on sub-command 0).
+pub trait LockstepPayload {
+    fn command_payload_fp(&self, command_num: usize, process_id: ProcessId) -> u32;
+}
+
 #[cfg(test)]
 mod test {
     use crate::ErrorCode;

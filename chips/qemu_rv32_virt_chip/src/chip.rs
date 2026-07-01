@@ -42,6 +42,23 @@ use virtio::transports::mmio::VirtIOMMIODevice;
 /// the kick, computed from its own `read_mtime()`, not a value hart 0 could
 /// usefully forward. It stays unconditional on every `MachineSoft` entry,
 /// regardless of channel content.
+/// Payload of a Layer-2 syscall descriptor exchanged between harts.
+///
+/// Extracted from [`SyncEntry::SyscallDesc`] so it can be stored in the
+/// hart-1 pending queue ([`crate::lockstep::PENDING_SYSCALLS_H1`]) without
+/// carrying the full [`SyncEntry`] discriminant and other variants' data.
+///
+/// `payload_fp` is an FNV-1a fingerprint of the app's RO-allow buffer at
+/// the configured slot (0 if no payload slot is wired up for this driver).
+#[derive(Clone, Copy)]
+pub struct SyscallDesc {
+    pub driver_num: u32,
+    pub sub: u8,
+    pub arg0: u32,
+    pub arg1: u32,
+    pub payload_fp: u32,
+}
+
 #[derive(Clone, Copy)]
 pub enum SyncEntry {
     /// Per-iteration lockstep barrier, and the one-time init handshake.
@@ -54,10 +71,29 @@ pub enum SyncEntry {
     UartRxReady { len: u8 },
     /// Hart 0 finished transmitting whatever `HART1_UART_BUF` had queued.
     UartTxDone,
-    /// Hart 0 forwarded `len` words of real entropy; they're waiting in a
-    /// replay buffer for hart 1 to replay. Not yet wired up -- see the RNG
-    /// forwarding design.
-    RngReady { len: u8 },
+
+    /// Layer-2 syscall descriptor: hart 0 pushes this before dispatching each
+    /// intercepted `Command` syscall; hart 1 stores it during Phase-1 drain
+    /// and pops it in Phase 2 for comparison (see [`crate::lockstep::LockstepDriver`]).
+    SyscallDesc(SyscallDesc),
+
+    /// Layer-2 upcall descriptor: both harts exchange this at each intercepted
+    /// upcall boundary to verify argument equivalence before delivering the
+    /// upcall to userspace (see [`crate::lockstep::QemuUpcallVerifier`]).
+    ///
+    /// `driver_num` / `subscribe_num` identify the upcall; `r0`–`r2` carry the
+    /// masked argument values to compare (unmasked fields are zeroed).
+    ///
+    /// Note: at ~20 bytes this is wider than the 32-bit RP2350 SIO FIFO entry
+    /// this channel models. Acceptable on QEMU's software [`BiChannel`]; a
+    /// faithful RP2350 port would require word-packing.
+    UpcallDesc {
+        driver_num: u32,
+        subscribe_num: u8,
+        r0: u32,
+        r1: u32,
+        r2: u32,
+    },
 }
 
 /// Inter-hart lockstep channel for software lockstep.
@@ -167,6 +203,14 @@ pub fn read_mtime_low() -> u32 {
         core::arch::asm!("csrr {0}, time", out(reg) ticks);
     }
     ticks
+}
+
+pub fn current_hart() -> u32 {
+    let id: u32;
+    unsafe {
+        core::arch::asm!("csrr {0}, mhartid", out(reg) id);
+    }
+    id
 }
 
 type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
@@ -338,9 +382,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
             return true;
         }
 
-        let hartid: u32;
-        unsafe { core::arch::asm!("csrr {}, mhartid", out(reg) hartid) };
-        hartid == 0 && self.plic.get_saved_interrupts().is_some()
+        current_hart() == 0 && self.plic.get_saved_interrupts().is_some()
     }
 
     fn sleep(&self) {
@@ -401,9 +443,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 
         mcause::Interrupt::MachineSoft => {
             CSR.mie.modify(mie::msoft::CLEAR);
-            let hartid: u32;
-            core::arch::asm!("csrr {}, mhartid", out(reg) hartid);
-            if hartid == 1 {
+            if current_hart() == 1 {
                 core::ptr::write_volatile(CLINT_MSIP1, 0); // clear MSIP[1]
 
                 // Arm hart 1's hardware watchdog timer. If hart 0 doesn't
@@ -432,9 +472,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             }
         }
         mcause::Interrupt::MachineTimer => {
-            let hartid: u32;
-            core::arch::asm!("csrr {}, mhartid", out(reg) hartid);
-            if hartid == 0 {
+            if current_hart() == 0 {
                 IRQ_ACTIVE.store(true, Ordering::Release);
                 core::ptr::write_volatile(CLINT_MSIP1, 1);
                 CSR.mie.modify(mie::mtimer::CLEAR);
