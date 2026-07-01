@@ -17,10 +17,20 @@ const USART1_RDR: u32 = USART1_BASE_ADDR + 0x24;
 /// USART1 Transmit Data Register (TDR) address.
 const USART1_TDR: u32 = USART1_BASE_ADDR + 0x28;
 
+/// Base address for I2C1 in Secure Alias mode.
+const I2C1_BASE_ADDR: u32 = 0x50005400;
+/// I2C1 Transmit Data Register address
+const I2C1_TXDR: u32 = I2C1_BASE_ADDR + 0x28;
+/// I2C1 Receive Data Register address
+const I2C1_RXDR: u32 = I2C1_BASE_ADDR + 0x24;
+
 /// GPDMA Request Selection IDs (REQSEL)
-/// Found in the GPDMA request multiplexer table of the STM32U5 reference manual.
+/// These can be found in the STM32U5 Reference Manual
+/// at 17.3.3 GPDMA requests, Table 137, or starting from page 687
 const GPDMA_REQ_USART1_RX: u32 = 24;
 const GPDMA_REQ_USART1_TX: u32 = 25;
+const GPDMA_REQ_I2C1_TX: u32 = 13;
+const GPDMA_REQ_I2C1_RX: u32 = 12;
 
 register_bitfields! [
     u32,
@@ -205,6 +215,8 @@ pub enum DmaDirection {
 pub enum DmaPeripheral {
     Usart1Tx,
     Usart1Rx,
+    I2c1Tx,
+    I2c1Rx,
 }
 
 impl DmaPeripheral {
@@ -218,6 +230,16 @@ impl DmaPeripheral {
             DmaPeripheral::Usart1Rx => (
                 USART1_RDR,
                 GPDMA_REQ_USART1_RX,
+                DmaDirection::PeripheralToMemory,
+            ),
+            DmaPeripheral::I2c1Tx => (
+                I2C1_TXDR,
+                GPDMA_REQ_I2C1_TX,
+                DmaDirection::MemoryToPeripheral,
+            ),
+            DmaPeripheral::I2c1Rx => (
+                I2C1_RXDR,
+                GPDMA_REQ_I2C1_RX,
                 DmaDirection::PeripheralToMemory,
             ),
         }

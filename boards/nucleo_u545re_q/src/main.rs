@@ -52,6 +52,7 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, stm32u545::i2c::I2c<'static>>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -64,6 +65,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
             _ => f(None),
         }
     }
@@ -115,6 +117,34 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
     pin10.set_alternate_function(7);
     pin10.set_speed_high();
 
+    // I2C1 Pins (PB6/PB7)
+    //
+    // Both pins are supposed to be open-drain
+    //      SCL for multi-master
+    //      SDA (intrinsically) such that the slave can use it as well
+    // Both pins are supposed to have AF4 as alternate function
+    //      as written in the STM32U5 Datasheet, Chapter 4.3 or page 138
+    // I2C specification states that both pins should be pulled up
+    //
+    // And in order to make I2C Fast-mode Plus work, we need to set them as high speed
+    //
+    // As for the choice of pin assigments, I want to keep the implementation
+    // consistent with the silkscreen on the board.
+    let pin_scl = periphs.gpio_b.pin(PinId::Pin06);
+    let pin_sda = periphs.gpio_b.pin(PinId::Pin07);
+
+    pin_scl.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    pin_scl.set_alternate_function(4);
+    pin_scl.set_open_drain();
+    pin_scl.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
+    pin_scl.set_speed_high();
+
+    pin_sda.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    pin_sda.set_alternate_function(4);
+    pin_sda.set_open_drain();
+    pin_sda.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
+    pin_sda.set_speed_high();
+
     // LED Pin (PA5)
     periphs.gpio_a.pin(PinId::Pin05).make_output();
 
@@ -142,10 +172,12 @@ unsafe fn start() -> (
         stm32u545::exti::Exti<'static>,
         stm32u545::exti::Exti::new(stm32u545::exti::EXTI_BASE)
     );
+
     let dma1 = static_init!(
         stm32u545::dma::Dma,
         stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
     );
+
     let usart1 = static_init!(
         stm32u545::usart::Usart<'static>,
         stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
@@ -233,6 +265,15 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let i2c = components::i2c::I2CMasterDriverComponent::new(
+        board_kernel,
+        capsules_core::i2c_master::DRIVER_NUM,
+        &periphs.i2c1,
+    )
+    .finalize(components::i2c_master_driver_component_static!(
+        stm32u545::i2c::I2c
+    ));
+
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -242,6 +283,7 @@ unsafe fn start() -> (
                 .finalize(components::round_robin_component_static!(NUM_PROCS)),
             systick: cortexm33::systick::SysTick::new(),
             led,
+            i2c,
             button,
             alarm,
         }

@@ -348,8 +348,13 @@ register_bitfields![u32,
     ]
 ];
 
+/// Found in STM32U5 documentation
+/// Chapter 2.3.2, Table 6, more precisely page 147
 pub const GPIO_A_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x52020000 as *const GpioRegisters) };
+
+pub const GPIO_B_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x52020400 as *const GpioRegisters) };
 
 pub const GPIO_C_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x52020800 as *const GpioRegisters) };
@@ -474,6 +479,30 @@ impl<'a> Pin<'a> {
             PinId::Pin13 => self.registers.ospeedr.modify(OSPEEDR::OSPEEDR13.val(3)),
             PinId::Pin14 => self.registers.ospeedr.modify(OSPEEDR::OSPEEDR14.val(3)),
             PinId::Pin15 => self.registers.ospeedr.modify(OSPEEDR::OSPEEDR15.val(3)),
+        }
+    }
+
+    /// Sets the output to Open-Drain.
+    ///
+    /// This is required for I2C (SDA/SCL) lines.
+    pub fn set_open_drain(&self) {
+        match self.pin {
+            PinId::Pin00 => self.registers.otyper.modify(OTYPER::OT0.val(1)),
+            PinId::Pin01 => self.registers.otyper.modify(OTYPER::OT1.val(1)),
+            PinId::Pin02 => self.registers.otyper.modify(OTYPER::OT2.val(1)),
+            PinId::Pin03 => self.registers.otyper.modify(OTYPER::OT3.val(1)),
+            PinId::Pin04 => self.registers.otyper.modify(OTYPER::OT4.val(1)),
+            PinId::Pin05 => self.registers.otyper.modify(OTYPER::OT5.val(1)),
+            PinId::Pin06 => self.registers.otyper.modify(OTYPER::OT6.val(1)),
+            PinId::Pin07 => self.registers.otyper.modify(OTYPER::OT7.val(1)),
+            PinId::Pin08 => self.registers.otyper.modify(OTYPER::OT8.val(1)),
+            PinId::Pin09 => self.registers.otyper.modify(OTYPER::OT9.val(1)),
+            PinId::Pin10 => self.registers.otyper.modify(OTYPER::OT10.val(1)),
+            PinId::Pin11 => self.registers.otyper.modify(OTYPER::OT11.val(1)),
+            PinId::Pin12 => self.registers.otyper.modify(OTYPER::OT12.val(1)),
+            PinId::Pin13 => self.registers.otyper.modify(OTYPER::OT13.val(1)),
+            PinId::Pin14 => self.registers.otyper.modify(OTYPER::OT14.val(1)),
+            PinId::Pin15 => self.registers.otyper.modify(OTYPER::OT15.val(1)),
         }
     }
 
