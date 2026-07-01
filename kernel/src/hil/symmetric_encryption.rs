@@ -19,30 +19,23 @@ pub trait Client<'a> {
 /// and encryption/decryption inputs must be have a multiple of this length.
 pub const AES_BLOCK_SIZE: usize = 16;
 pub const AES128_KEY_SIZE: usize = 16;
+pub const AES192_KEY_SIZE: usize = 24;
 pub const AES256_KEY_SIZE: usize = 32;
 
-mod sealed {
-    pub trait Sealed {}
-}
-pub trait AESKeySize: sealed::Sealed {
+pub trait AESKeySize {
     const LENGTH: usize;
 }
 
 pub struct AES128;
-impl sealed::Sealed for AES128 {}
-
 impl AESKeySize for AES128 {
     const LENGTH: usize = 16;
 }
 pub struct AES192;
-impl sealed::Sealed for AES192 {}
-
 impl AESKeySize for AES192 {
     const LENGTH: usize = 24;
 }
 
 pub struct AES256;
-impl sealed::Sealed for AES256 {}
 impl AESKeySize for AES256 {
     const LENGTH: usize = 32;
 }
