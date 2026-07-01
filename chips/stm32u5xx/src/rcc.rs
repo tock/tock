@@ -51,7 +51,8 @@ register_bitfields![u32,
         TIM2EN OFFSET(0) NUMBITS(1) []
     ],
     pub APB2ENR [
-        USART1EN OFFSET(14) NUMBITS(1) []
+        USART1EN OFFSET(14) NUMBITS(1) [],
+        SPI1EN OFFSET(12) NUMBITS(1) []
     ],
     pub APB3ENR [
         SYSCFGEN OFFSET(1) NUMBITS(1) []
@@ -89,6 +90,10 @@ impl Rcc {
 
     pub fn enable_gpioc(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::GPIOCEN::SET);
+    }
+
+    pub fn enable_spi1(&self) {
+        self.registers.apb2enr.modify(APB2ENR::SPI1EN::SET);
     }
 
     pub fn enable_usart1(&self) {
