@@ -30,7 +30,6 @@
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use capsules_system::debug_writer::uart_debug_writer::UartDebugWriter;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::capabilities::SetDebugWriterCapability;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
@@ -150,9 +149,6 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability>
         }
     }
 }
-
-pub struct Capability;
-unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> Component
     for DebugWriterComponent<BUF_SIZE_BYTES, C>
