@@ -145,7 +145,7 @@
   not super deep academic, but I don't think we have time to do better.
 - Leon: Agree. I left one comment, can we merge once that's addressed?
 - Amit: I think so.
-- Leon: My suggestion is about a comment that I would'nt have said anything
+- Leon: My suggestion is about a comment that I wouldn't have said anything
   about if it didn't exist, but it does and it's not quite correct.
 - Amit: I've created and applied a suggestion. Approved and merging.
 
