@@ -244,16 +244,16 @@ updated sort][lru] is good for finding issues like this.
 
 All contributions to Tock are expected to be dual-licensed under the
 [Apache 2.0](../LICENSE-APACHE) and [MIT](../LICENSE-MIT) licenses. Copyrights
-in Tock projects are retained by their contributors. For full details, see the
-[Tock Reference Document on Licensing and Copyrights](../doc/reference/trd4-legal.md)
-
-Whenever possible, files should begin with a license header stating its license status. CI
-enforces this.
+in Tock projects are retained by their contributors. Whenever possible, files
+should begin with a license header stating its license status. CI enforces
+this.
 
     // Licensed under the Apache License, Version 2.0 or the MIT License.
     // SPDX-License-Identifier: Apache-2.0 OR MIT
     // Copyright Tock Contributors 2026.
 
+For full details, see the
+[Tock Reference Document on Licensing and Copyrights](../doc/reference/trd4-legal.md).
 
 ## AI Policy
 
