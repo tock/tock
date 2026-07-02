@@ -2,6 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
+use crate::dma::{self, ChannelId, Dma, DmaPeripheral};
+use crate::dma::{Dma1, Dma1Peripheral};
+
+use core::cell::Cell;
+use core::cmp;
+use kernel::hil::gpio::Output;
+use kernel::hil::spi::{self, ClockPhase, ClockPolarity};
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::dma_slice::DmaSubSliceMut;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -199,34 +209,34 @@ register_bitfields![u32,
         // 1: SCK signal is at 1 when idle
         CPOL OFFSET(25) NUMBITS(1) [],
 
-        // clock phase
-        // 0: the first clock transition is the first data capture edge
-        // 1: the second clock transition is the first data capture edge
+        /// Clock Phase
+        /// 0: the first clock transition is the first data capture edge
+        /// 1: the second clock transition is the first data capture edge
         CPHA OFFSET(24) NUMBITS(1) [],
 
-        // data frame format
-        // 0: MSB transmitted first
-        // 1: LSB transmitted first
+        /// data frame format
+        /// 0: MSB transmitted first
+        /// 1: LSB transmitted first
         LSBFRST OFFSET(23) NUMBITS(1) [],
 
-        // SPI master
-        // 0: SPI slave
-        // 1: SPI master
+        /// SPI master
+        /// 0: SPI slave
+        /// 1: SPI master
         MASTER OFFSET(22) NUMBITS(1) [],
 
-        // Serial protocol
-        // 000: SPI Motorola
-        // 001: SPI TI
+        /// Serial protocol
+        /// 000: SPI Motorola
+        /// 001: SPI TI
         SP OFFSET(19) NUMBITS(3) [
             Motorola = 0b000,
             Ti = 0b001
         ],
 
-        // SPI Communication Mode
-        // 00: full-duplex
-        // 01: simplex transmitter
-        // 10: simplex receiver
-        // 11: half-duplex
+        /// SPI Communication Mode
+        /// 00: full-duplex
+        /// 01: simplex transmitter
+        /// 10: simplex receiver
+        /// 11: half-duplex
         COMM OFFSET(17) NUMBITS(2) [
             FullDuplex = 0b00,
             SimplexTx = 0b01,
@@ -234,147 +244,147 @@ register_bitfields![u32,
             HalfDuplex = 0b11
         ],
 
-        // Swap functionality of MISO and MOSI pins
-        // 0: no swap
-        // 1: MOSI and MISO are swapped
+        /// Swap functionality of MISO and MOSI pins
+        /// 0: no swap
+        /// 1: MOSI and MISO are swapped
         IOSWP OFFSET(15) NUMBITS(1) [],
 
-        // RDY signal input/output polarity
-        // 0: high level of the signal means the slave is ready for communication
-        // 1: low level of the signal means the slave is ready for communication
+        /// RDY signal input/output polarity
+        /// 0: high level of the signal means the slave is ready for communication
+        /// 1: low level of the signal means the slave is ready for communication
         RDIOP OFFSET(14) NUMBITS(1) [],
 
-        // RDY signal input/output management
-        // 0: RDY signal is defined internally fixed as permanently active (RDIOP setting has no effect)
-        // 1: RDY signal is overtaken from alternate function input (at master case) or output (at slave case)
+        /// RDY signal input/output management
+        /// 0: RDY signal is defined internally fixed as permanently active (RDIOP setting has no effect)
+        /// 1: RDY signal is overtaken from alternate function input (at master case) or output (at slave case)
         RDIOM OFFSET(13) NUMBITS(1) [],
 
-        // Master Inter-Data Idleness
-        // Specifies minimum time delay (expressed in SPI clock cycles periods) inserted between two
-        // consecutive data frames in master mode.
+        /// Master Inter-Data Idleness
+        /// Specifies minimum time delay (expressed in SPI clock cycles periods) inserted between two
+        /// consecutive data frames in master mode.
         MIDI OFFSET(4) NUMBITS(4) [],
 
-        // Master NSS Idleness
-        // Specifies an extra delay, expressed in number of SPI clock cycle periods, inserted
-        // additionally between active edge of NSS opening a session and the beginning of the first
-        // data frame of the session in master mode when SSOE is enabled.
+        /// Master NSS Idleness
+        /// Specifies an extra delay, expressed in number of SPI clock cycle periods, inserted
+        /// additionally between active edge of NSS opening a session and the beginning of the first
+        /// data frame of the session in master mode when SSOE is enabled.
         MSSI OFFSET(0) NUMBITS(4) []
     ],
 
-    // SPI interrupt enable register
+    /// SPI interrupt enable register
     pub IER [
-        // Mode Fault interrupt enable
+        /// Mode Fault interrupt enable
         MODFIE OFFSET(9) NUMBITS(1) [],
 
-        // TIFRE interrupt enable
+        /// TIFRE interrupt enable
         TIFREIE OFFSET(8) NUMBITS(1) [],
 
-        // CRC error interrupt enable
+        /// CRC error interrupt enable
         CRCEIE OFFSET(7) NUMBITS(1) [],
 
-        // OVR interrupt enable
+        /// OVR interrupt enable
         OVRIE OFFSET(6) NUMBITS(1) [],
 
-        // UDR interrupt enable
+        /// UDR interrupt enable
         UDRIE OFFSET(5) NUMBITS(1) [],
 
-        // TXTF interrupt enable
+        /// TXTF interrupt enable
         TXTFIE OFFSET(4) NUMBITS(1) [],
 
-        // EOT, SUSP and TXC interrupt enable
+        /// EOT, SUSP and TXC interrupt enable
         EOTIE OFFSET(3) NUMBITS(1) [],
 
-        // DXP interrupt enabled
+        /// DXP interrupt enabled
         DXPIE OFFSET(2) NUMBITS(1) [],
 
-        // TXP interrupt enabled
+        /// TXP interrupt enabled
         TXPIE OFFSET(1) NUMBITS(1) [],
 
-        // RXP interrupt enabled
+        /// RXP interrupt enabled
         RXPIE OFFSET(0) NUMBITS(1) []
     ],
 
-    // SPI status register
+    /// SPI status register
     pub SR [
-        // number of data frames remaining in current TSIZE session
+        /// number of data frames remaining in current TSIZE session
         CTSIZE OFFSET(16) NUMBITS(16) [],
 
-        // RxFIFO word not empty
+        /// RxFIFO word not empty
         RXWNE OFFSET(15) NUMBITS(1) [],
 
-        // RxFIFO packing level
+        /// RxFIFO packing level
         RXPLVL OFFSET(13) NUMBITS(2) [],
 
-        // TxFIFO transmission complete
+        /// TxFIFO transmission complete
         TXC OFFSET(12) NUMBITS(1) [],
 
-        // Suspension status
+        /// Suspension status
         SUSP OFFSET(11) NUMBITS(1) [],
 
-        // Mode fault
+        /// Mode fault
         MODF OFFSET(9) NUMBITS(1) [],
 
-        // TI frame format error
+        /// TI frame format error
         TIFRE OFFSET(8) NUMBITS(1) [],
 
-        // CRC error
+        /// CRC error
         CRCE OFFSET(7) NUMBITS(1) [],
 
-        // Overrun
+        /// Overrun
         OVR OFFSET(6) NUMBITS(1) [],
 
-        // Underrun
+        /// Underrun
         UDR OFFSET(5) NUMBITS(1) [],
 
-        // Transmission transfer filled
+        /// Transmission transfer filled
         TXTF OFFSET(4) NUMBITS(1) [],
 
-        // End of transfer
+        /// End of transfer
         EOT OFFSET(3) NUMBITS(1) [],
 
-        // Duplex packet
+        /// Duplex packet
         DXP OFFSET(2) NUMBITS(1) [],
 
-        // Tx-packet space available
+        /// Tx-packet space available
         TXP OFFSET(1) NUMBITS(1) [],
 
-        // RXP: Rx-packet available
+        /// RXP: Rx-packet available
         RXP OFFSET(0) NUMBITS(1) []
     ],
 
     /// SPI interrupt/status flags clear register
     pub IFCR [
-        // Suspend flag clear
+        /// Suspend flag clear
         SUSPC OFFSET(11) NUMBITS(1) [],
-        // Mode fault flag clear
+        /// Mode fault flag clear
         MODFC OFFSET(9) NUMBITS(1) [],
-        // TI frame format error flag clear
+        /// TI frame format error flag clear
         TIFREC OFFSET(8) NUMBITS(1) [],
-        // CRC error flag clear
+        /// CRC error flag clear
         CRCEC OFFSET(7) NUMBITS(1) [],
-        // Overrun flag clear
+        /// Overrun flag clear
         OVRC OFFSET(6) NUMBITS(1) [],
-        // Underrun flag clear
+        /// Underrun flag clear
         UDRC OFFSET(5) NUMBITS(1) [],
-        // Transmission transfer filled flag clear
+        /// Transmission transfer filled flag clear
         TXTFC OFFSET(4) NUMBITS(1) [],
-        // End of transfer flag clear
+        /// End of transfer flag clear
         EOTC OFFSET(3) NUMBITS(1) []
     ],
 
     /// SPI autonomous mode control register
     pub AUTOCR [
-        // Hardware control of CSTART triggering enable
+        /// Hardware control of CSTART triggering enable
         TRIGEN OFFSET(21) NUMBITS(1) [],
-        // Trigger polarity
+        /// Trigger polarity
         TRIGPOL OFFSET(20) NUMBITS(1) [],
-        // Trigger selection
+        /// Trigger selection
         TRIGSEL OFFSET(16) NUMBITS(4) []
     ],
 
     /// SPI transmit data register
     pub TXDR[
-        // Transmit data register
+        /// Transmit data register
         TXDR OFFSET(0) NUMBITS(32) []
     ],
 
@@ -384,27 +394,354 @@ register_bitfields![u32,
         RXDR OFFSET(0) NUMBITS(32) []
     ],
 
-    // SPI polynomial register
+    /// SPI polynomial register
     pub CRCPOLY [
-        // CRC polynomial register
+        /// CRC polynomial register
         CRCPOLY OFFSET(0) NUMBITS(32) []
     ],
 
-    // SPI transmitter CRC register
+    /// SPI transmitter CRC register
     pub TXCRC [
-        // CRC register for transmitter
+        /// CRC register for transmitter
         TXCRC OFFSET(0) NUMBITS(32) []
     ],
 
-    // SPI receiver CRC register
+    /// SPI receiver CRC register
     pub RXCRC [
-        // CRC register for receiver
+        /// CRC register for receiver
         RXCRC OFFSET(0) NUMBITS(32) []
     ],
 
-    // SPI underrun data register
+    /// SPI underrun data register
     pub UDRDR [
-        // Data at slave underrun condition
+        /// Data at slave underrun condition
         UDRDR OFFSET(0) NUMBITS(32) []
     ]
 ];
+
+pub struct Spi<'a> {
+    pub registers: StaticRef<SpiRegisters>,
+    client: OptionalCell<&'a dyn spi::SpiMasterClient>,
+    dma: OptionalCell<&'a Dma>,
+    dma_channel_tx: Cell<Option<ChannelId>>,
+    dma_channel_rx: Cell<Option<ChannelId>>,
+    tx_dma_peripheral: Cell<Option<DmaPeripheral>>,
+    rx_dma_peripheral: Cell<Option<DmaPeripheral>>,
+    tx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
+    rx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
+    dma_len: Cell<usize>,
+    transfers_in_progress: Cell<u8>,
+    active_slave: OptionalCell<&'a crate::gpio::Pin<'a>>,
+    active_after: Cell<bool>,
+}
+
+impl<'a> Spi<'a> {
+    pub fn new(base: StaticRef<SpiRegisters>) -> Self {
+        Self {
+            registers: base,
+            client: OptionalCell::empty(),
+            dma: OptionalCell::empty(),
+            dma_channel_tx: Cell::new(None),
+            dma_channel_rx: Cell::new(None),
+            tx_dma_peripheral: Cell::new(None),
+            rx_dma_peripheral: Cell::new(None),
+            tx_dma_buf: MapCell::empty(),
+            rx_dma_buf: MapCell::empty(),
+            dma_len: Cell::new(0),
+            transfers_in_progress: Cell::new(0),
+            active_slave: OptionalCell::empty(),
+            active_after: Cell::new(false),
+        }
+    }
+
+    /// Associates a DMA controller and channels with the USART driver.
+    pub fn set_dma(
+        spi: &'static Self,
+        dma: &'a Dma,
+        tx_peripheral: DmaPeripheral,
+        tx_channel: ChannelId,
+        rx_peripheral: DmaPeripheral,
+        rx_channel: ChannelId,
+    ) {
+        spi.dma.set(dma);
+        spi.tx_dma_peripheral.set(Some(tx_peripheral));
+        spi.dma_channel_tx.set(Some(tx_channel));
+        spi.rx_dma_peripheral.set(Some(rx_peripheral));
+        spi.dma_channel_rx.set(Some(rx_channel));
+        dma.set_client(tx_channel, spi);
+        dma.set_client(rx_channel, spi);
+    }
+
+    /// 0: SCK signal is at 0 when idle
+    /// 1: SCK signal is at 1 when idle
+    fn set_polarity(&self, polarity: ClockPolarity) {
+        self.set_cr(|| match polarity {
+            ClockPolarity::IdleLow => self.registers.cfg2.modify(CFG2::CPOL::CLEAR),
+            ClockPolarity::IdleHigh => self.registers.cfg2.modify(CFG2::CPOL::SET),
+        });
+    }
+
+    fn get_polarity(&self) -> ClockPolarity {
+        if !self.registers.cfg2.is_set(CFG2::CPOL) {
+            ClockPolarity::IdleLow
+        } else {
+            ClockPolarity::IdleHigh
+        }
+    }
+
+    /// SampleLeading  = CPHA = 0
+    /// SampleTrailing = CPHA = 1
+    fn set_phase(&self, phase: ClockPhase) {
+        self.set_cr(|| match phase {
+            ClockPhase::SampleLeading => self.registers.cfg2.modify(CFG2::CPHA::CLEAR),
+            ClockPhase::SampleTrailing => self.registers.cfg2.modify(CFG2::CPHA::SET),
+        });
+    }
+
+    fn get_phase(&self) -> ClockPhase {
+        if !self.registers.cfg2.is_set(CFG2::CPHA) {
+            ClockPhase::SampleLeading
+        } else {
+            ClockPhase::SampleTrailing
+        }
+    }
+
+    fn set_cr<F>(&self, f: F)
+    where
+        F: FnOnce(),
+    {
+        self.registers.cr1.modify(CR1::SPE::CLEAR);
+        f();
+        self.registers.cr1.modify(CR1::SPE::SET);
+    }
+
+    fn enable_tx(&self) {
+        self.registers.cfg1.modify(CFG1::TXDMAEN::SET);
+    }
+
+    fn disable_tx(&self) {
+        self.registers.cfg1.modify(CFG1::TXDMAEN::CLEAR);
+    }
+
+    fn enable_rx(&self) {
+        self.registers.cfg1.modify(CFG1::RXDMAEN::SET);
+    }
+
+    fn disable_rx(&self) {
+        self.registers.cfg1.modify(CFG1::RXDMAEN::CLEAR);
+    }
+
+    ///*******************  Implemented above this line  *************************
+
+    pub fn handle_interrupt(&self) {
+        // Used only during debugging. Since we use DMA, we do not enable SPI
+        // interrupts during normal operations
+    }
+
+    fn set_active_slave(&self, slave_pin: &'a crate::gpio::Pin<'a>) {
+        self.active_slave.set(slave_pin);
+    }
+
+    fn read_write_bytes(
+        &self,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
+        self.active_slave.map(|p| {
+            p.clear();
+        });
+
+        let mut count: usize = write_buffer.len();
+        read_buffer
+            .as_ref()
+            .map(|buf| count = cmp::min(count, buf.len()));
+
+        self.dma_len.set(count);
+
+        self.transfers_in_progress.set(0);
+
+        read_buffer.map(|rx_buffer| {
+            self.transfers_in_progress
+                .set(self.transfers_in_progress.get() + 1);
+            self.rx_dma.map(move |dma| {
+                dma.do_transfer(rx_buffer);
+            });
+            self.enable_rx();
+        });
+
+        self.transfers_in_progress
+            .set(self.transfers_in_progress.get() + 1);
+        self.tx_dma.map(move |dma| {
+            dma.do_transfer(write_buffer);
+        });
+        self.enable_tx();
+
+        Ok(())
+    }
+}
+
+impl<'a> spi::SpiMaster<'a> for Spi<'a> {
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), kernel::ErrorCode> {
+        let regs = &*self.registers;
+
+        match phase {
+            ClockPhase::SampleLeading => {
+                regs.cfg2.modify(CFG2::CPOL::CLEAR);
+            }
+            ClockPhase::SampleTrailing => {
+                regs.cfg2.modify(CFG2::CPOL::SET);
+            }
+        }
+        Ok(())
+    }
+
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), kernel::ErrorCode> {
+        let regs = &*self.registers;
+
+        match polarity {
+            ClockPolarity::IdleLow => {
+                regs.cfg2.modify(CFG2::CPHA::CLEAR);
+            }
+            ClockPolarity::IdleHigh => {
+                regs.cfg2.modify(CFG2::CPHA::SET);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn set_rate(&self, rate: u32) -> Result<u32, kernel::ErrorCode> {
+        let regs = &*self.registers;
+
+        regs.cfg1.modify(CFG1::MBR::Div8);
+
+        // match rate {
+        //     1_000_000 => self.set_cr(|| {
+        //         // HSI is 16Mhz and Fpclk is also 16Mhz. 0b011 is Fpclk / 16
+        //         self.registers.cr1.modify(CR1::BR.val(0b011));
+        //     }),
+        //     4_000_000 => self.set_cr(|| {
+        //         // HSI is 16Mhz and Fpclk is also 16Mhz. 0b001 is Fpclk / 4
+        //         self.registers.cr1.modify(CR1::BR.val(0b001));
+        //     }),
+        //     _ => panic!("SPI rate must be 1_000_000 or 4_000_000"),
+        // }
+        Ok(rate)
+    }
+
+    fn get_rate(&self) -> u32 {
+        69
+    }
+
+    fn get_phase(&self) -> ClockPhase {
+        let regs = &*self.registers;
+
+        if !regs.cfg2.is_set(CFG2::CPHA) {
+            ClockPhase::SampleLeading
+        } else {
+            ClockPhase::SampleTrailing
+        }
+    }
+
+    fn get_polarity(&self) -> ClockPolarity {
+        let regs = &*self.registers;
+
+        if !regs.cfg2.is_set(CFG2::CPOL) {
+            ClockPolarity::IdleLow
+        } else {
+            ClockPolarity::IdleHigh
+        }
+    }
+
+    fn is_busy(&self) -> bool {
+        let regs = &*self.registers;
+
+        regs.cr1.is_set(CR1::CSTART) || !regs.sr.is_set(SR::TXC)
+    }
+
+    fn hold_low(&self) {
+        self.active_after.set(true);
+    }
+
+    fn release_low(&self) {
+        self.active_after.set(false);
+    }
+
+    fn init(&self) -> Result<(), kernel::ErrorCode> {
+        let regs = &*self.registers;
+
+        //need to disable spi in order to change config
+        regs.cr1.modify(CR1::SPE::CLEAR);
+
+        //set baudrate
+        regs.cfg1.modify(CFG1::MBR::Div8);
+
+        //sets spi in master mode, full-duplex, with slave-select managed by software
+        regs.cfg2
+            .modify(CFG2::MASTER::SET + CFG2::SSM::SET + CFG2::COMM::FullDuplex);
+
+        regs.cr1.modify(CR1::SSI::SET);
+
+        // clear any pending mode faults
+        regs.ifcr.write(IFCR::MODFC::SET);
+
+        //enable spi
+        regs.cr1.modify(CR1::SPE::SET);
+        Ok(())
+    }
+
+    fn set_client(&self, client: &'a dyn spi::SpiMasterClient) {
+        self.client.set(client);
+    }
+
+    fn read_byte(&self) -> Result<u8, kernel::ErrorCode> {
+        self.read_write_byte(0)
+    }
+
+    fn write_byte(&self, val: u8) -> Result<(), kernel::ErrorCode> {
+        let regs = &*self.registers;
+
+        // wait until the FIFO has space for at least one packet
+        while !regs.sr.is_set(SR::TXP) {}
+
+        // write byte into TXDR
+        regs.txdr.write(TXDR::TXDR.val(val as u32));
+
+        // start transfer
+        regs.cr1.modify(CR1::CSTART::SET);
+
+        Ok(())
+    }
+
+    //********* good impl above **********
+
+    fn read_write_byte(&self, val: u8) -> Result<u8, kernel::ErrorCode> {
+        Ok(0)
+    }
+
+    fn read_write_bytes(
+        &self,
+        write_buffer: kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>,
+        read_buffer: Option<kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            kernel::ErrorCode,
+            kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>,
+            Option<kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>>,
+        ),
+    > {
+        Ok(())
+    }
+
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), kernel::ErrorCode> {
+        Ok(())
+    }
+}
