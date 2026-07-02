@@ -19,9 +19,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::usb::UsbController;
 
 #[macro_export]
@@ -38,23 +37,37 @@ macro_rules! usb_component_static {
     }};
 }
 
-pub struct UsbComponent<U: UsbController<'static> + 'static> {
+pub struct UsbComponent<
+    U: UsbController<'static> + 'static,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     usbc: &'static U,
+    mem_cap: CAP,
 }
 
-impl<U: UsbController<'static> + 'static> UsbComponent<U> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, usbc: &'static U) -> Self {
+impl<U: UsbController<'static> + 'static, CAP: MemoryAllocationCapability + 'static>
+    UsbComponent<U, CAP>
+{
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        usbc: &'static U,
+        mem_cap: CAP,
+    ) -> Self {
         Self {
             board_kernel,
             driver_num,
             usbc,
+            mem_cap,
         }
     }
 }
 
-impl<U: UsbController<'static> + 'static> Component for UsbComponent<U> {
+impl<U: UsbController<'static> + 'static, CAP: MemoryAllocationCapability + 'static> Component
+    for UsbComponent<U, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<capsules_extra::usb::usbc_client::Client<'static, U>>,
         &'static mut MaybeUninit<
@@ -70,8 +83,6 @@ impl<U: UsbController<'static> + 'static> Component for UsbComponent<U> {
     >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         // Configure the USB controller
         let usb_client = s.0.write(capsules_extra::usb::usbc_client::Client::new(
             self.usbc,
@@ -83,7 +94,8 @@ impl<U: UsbController<'static> + 'static> Component for UsbComponent<U> {
         let usb_driver =
             s.1.write(capsules_extra::usb::usb_user::UsbSyscallDriver::new(
                 usb_client,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                self.board_kernel
+                    .create_grant(self.driver_num, &self.mem_cap),
             ));
 
         usb_driver

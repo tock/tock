@@ -34,9 +34,8 @@
 
 use capsules_core::button::Button;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::gpio::InterruptWithValue;
 
@@ -86,7 +85,10 @@ macro_rules! button_component_static {
 
 pub type ButtonComponentType<IP> = capsules_core::button::Button<'static, IP>;
 
-pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
+pub struct ButtonComponent<
+    IP: 'static + gpio::InterruptPin<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     button_pins: &'static [(
@@ -94,9 +96,12 @@ pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
         gpio::ActivationMode,
         gpio::FloatingState,
     )],
+    mem_cap: CAP,
 }
 
-impl<IP: 'static + gpio::InterruptPin<'static>> ButtonComponent<IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>, CAP: MemoryAllocationCapability + 'static>
+    ButtonComponent<IP, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -105,24 +110,28 @@ impl<IP: 'static + gpio::InterruptPin<'static>> ButtonComponent<IP> {
             gpio::ActivationMode,
             gpio::FloatingState,
         )],
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             button_pins,
+            mem_cap,
         }
     }
 }
 
-impl<IP: 'static + gpio::InterruptPin<'static>> Component for ButtonComponent<IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>, CAP: MemoryAllocationCapability + 'static> Component
+    for ButtonComponent<IP, CAP>
+{
     type StaticInput = &'static mut MaybeUninit<Button<'static, IP>>;
     type Output = &'static Button<'static, IP>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let button = static_buffer.write(capsules_core::button::Button::new(
             self.button_pins,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
         for (pin, _, _) in self.button_pins.iter() {
             pin.set_client(button);

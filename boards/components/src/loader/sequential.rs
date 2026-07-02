@@ -9,6 +9,7 @@
 //! use.
 
 use core::mem::MaybeUninit;
+use kernel::capabilities::ProcessManagementCapability;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
@@ -35,6 +36,7 @@ pub type ProcessLoaderSequentialComponentType<C, D> =
 pub struct ProcessLoaderSequentialComponent<
     C: Chip + 'static,
     D: ProcessStandardDebug + 'static,
+    CAP: ProcessManagementCapability + 'static,
     const NUM_PROCS: usize,
 > {
     checker: &'static kernel::process::ProcessCheckerMachine,
@@ -45,10 +47,15 @@ pub struct ProcessLoaderSequentialComponent<
     storage_policy: &'static dyn kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
+    proc_manage_cap: CAP,
 }
 
-impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
-    ProcessLoaderSequentialComponent<C, D, NUM_PROCS>
+impl<
+        C: Chip,
+        D: ProcessStandardDebug,
+        CAP: ProcessManagementCapability + 'static,
+        const NUM_PROCS: usize,
+    > ProcessLoaderSequentialComponent<C, D, CAP, NUM_PROCS>
 {
     pub fn new(
         checker: &'static kernel::process::ProcessCheckerMachine,
@@ -59,6 +66,7 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
         storage_policy: &'static dyn kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>,
         app_flash: &'static [u8],
         app_memory: &'static mut [u8],
+        proc_manage_cap: CAP,
     ) -> Self {
         Self {
             checker,
@@ -69,12 +77,17 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
             storage_policy,
             app_flash,
             app_memory,
+            proc_manage_cap,
         }
     }
 }
 
-impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
-    for ProcessLoaderSequentialComponent<C, D, NUM_PROCS>
+impl<
+        C: Chip,
+        D: ProcessStandardDebug,
+        CAP: ProcessManagementCapability + 'static,
+        const NUM_PROCS: usize,
+    > Component for ProcessLoaderSequentialComponent<C, D, CAP, NUM_PROCS>
 {
     type StaticInput = (
         &'static mut MaybeUninit<kernel::process::SequentialProcessLoaderMachine<'static, C, D>>,
@@ -84,9 +97,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
     type Output = &'static kernel::process::SequentialProcessLoaderMachine<'static, C, D>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let proc_manage_cap =
-            kernel::create_capability!(kernel::capabilities::ProcessManagementCapability);
-
         const ARRAY_REPEAT_VALUE: Option<kernel::process::ProcessBinary> = None;
         let process_binary_array = s.1.write([ARRAY_REPEAT_VALUE; NUM_PROCS]);
 
@@ -101,7 +111,7 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
                 self.fault_policy,
                 self.storage_policy,
                 self.appid_policy,
-                &proc_manage_cap,
+                &self.proc_manage_cap,
             ));
         self.checker.set_client(loader);
         loader.register();

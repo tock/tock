@@ -32,9 +32,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 // Setup static space for the objects.
@@ -55,16 +54,22 @@ macro_rules! ctap_component_static {
     };};
 }
 
-pub struct CtapComponent<U: 'static + hil::usb::UsbController<'static>> {
+pub struct CtapComponent<
+    U: 'static + hil::usb::UsbController<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     usb: &'static U,
     vendor_id: u16,
     product_id: u16,
     strings: &'static [&'static str; 3],
+    mem_cap: CAP,
 }
 
-impl<U: 'static + hil::usb::UsbController<'static>> CtapComponent<U> {
+impl<U: 'static + hil::usb::UsbController<'static>, CAP: MemoryAllocationCapability + 'static>
+    CtapComponent<U, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -72,7 +77,8 @@ impl<U: 'static + hil::usb::UsbController<'static>> CtapComponent<U> {
         vendor_id: u16,
         product_id: u16,
         strings: &'static [&'static str; 3],
-    ) -> CtapComponent<U> {
+        mem_cap: CAP,
+    ) -> CtapComponent<U, CAP> {
         CtapComponent {
             board_kernel,
             driver_num,
@@ -80,11 +86,14 @@ impl<U: 'static + hil::usb::UsbController<'static>> CtapComponent<U> {
             vendor_id,
             product_id,
             strings,
+            mem_cap,
         }
     }
 }
 
-impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<U> {
+impl<U: 'static + hil::usb::UsbController<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for CtapComponent<U, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<capsules_extra::usb::ctap::CtapHid<'static, U>>,
         &'static mut MaybeUninit<
@@ -113,8 +122,6 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<
         ));
         self.usb.set_client(ctap);
 
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let send_buffer = s.2.write([0; 64]);
         let recv_buffer = s.3.write([0; 64]);
 
@@ -122,7 +129,8 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<
             ctap,
             send_buffer,
             recv_buffer,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         ctap.set_client(ctap_driver);

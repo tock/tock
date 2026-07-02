@@ -25,9 +25,8 @@
 
 use capsules_extra::analog_comparator::AnalogComparator;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 
 #[macro_export]
 macro_rules! analog_comparator_component_helper {
@@ -56,40 +55,49 @@ pub type AnalogComparatorComponentType<AC> = AnalogComparator<'static, AC>;
 
 pub struct AnalogComparatorComponent<
     AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     comp: &'static AC,
     ac_channels: &'static [&'static AC::Channel],
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
-impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>>
-    AnalogComparatorComponent<AC>
+impl<
+        AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
+        CAP: MemoryAllocationCapability + 'static,
+    > AnalogComparatorComponent<AC, CAP>
 {
     pub fn new(
         comp: &'static AC,
         ac_channels: &'static [&'static AC::Channel],
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
+        mem_cap: CAP,
     ) -> Self {
         Self {
             comp,
             ac_channels,
             board_kernel,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Component
-    for AnalogComparatorComponent<AC>
+impl<
+        AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
+        CAP: MemoryAllocationCapability + 'static,
+    > Component for AnalogComparatorComponent<AC, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<AnalogComparator<'static, AC>>;
     type Output = &'static AnalogComparator<'static, AC>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_ac = self.board_kernel.create_grant(self.driver_num, &grant_cap);
+        let grant_ac = self
+            .board_kernel
+            .create_grant(self.driver_num, &self.mem_cap);
 
         let analog_comparator =
             static_buffer.write(AnalogComparator::new(self.comp, self.ac_channels, grant_ac));

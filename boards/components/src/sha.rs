@@ -24,9 +24,8 @@
 
 use capsules_extra::sha256_driver::ShaDriver;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::digest;
 
 // Setup static space for the objects.
@@ -45,24 +44,43 @@ macro_rules! sha_driver_component_static {
 
 pub type ShaDriverComponentType<A, const L: usize> = ShaDriver<'static, A, L>;
 
-pub struct ShaDriverComponent<A: 'static + digest::DigestDataHash<'static, L>, const L: usize> {
+pub struct ShaDriverComponent<
+    A: 'static + digest::DigestDataHash<'static, L>,
+    const L: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     sha: &'static A,
+    mem_cap: CAP,
 }
 
-impl<A: 'static + digest::DigestDataHash<'static, L>, const L: usize> ShaDriverComponent<A, L> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, sha: &'static A) -> Self {
+impl<
+    A: 'static + digest::DigestDataHash<'static, L>,
+    const L: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> ShaDriverComponent<A, L, CAP>
+{
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        sha: &'static A,
+        mem_cap: CAP,
+    ) -> Self {
         Self {
             board_kernel,
             driver_num,
             sha,
+            mem_cap,
         }
     }
 }
 
-impl<A: kernel::hil::digest::Sha256 + 'static + digest::DigestDataHash<'static, L>, const L: usize>
-    Component for ShaDriverComponent<A, L>
+impl<
+    A: kernel::hil::digest::Sha256 + 'static + digest::DigestDataHash<'static, L>,
+    const L: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for ShaDriverComponent<A, L, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<ShaDriver<'static, A, L>>,
@@ -73,8 +91,6 @@ impl<A: kernel::hil::digest::Sha256 + 'static + digest::DigestDataHash<'static, 
     type Output = &'static ShaDriver<'static, A, L>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let data_buffer = s.1.write([0; 64]);
         let dest_buffer = s.2.write([0; L]);
 
@@ -82,7 +98,8 @@ impl<A: kernel::hil::digest::Sha256 + 'static + digest::DigestDataHash<'static, 
             self.sha,
             data_buffer,
             dest_buffer,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         self.sha.set_client(sha);

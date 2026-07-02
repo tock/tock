@@ -41,10 +41,10 @@ use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_recv::UDPReceiver;
 use capsules_extra::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
-use kernel::capabilities::{NetworkCapabilityCreationCapability, UdpDriverCapability};
+use kernel::capabilities::{
+    MemoryAllocationCapability, NetworkCapabilityCreationCapability, UdpDriverCapability,
+};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 
@@ -106,6 +106,8 @@ pub struct ThreadNetworkComponent<
     A: Alarm<'static> + 'static,
     B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static,
     C: UdpDriverCapability + 'static,
+    MEM: MemoryAllocationCapability + 'static,
+    NET: NetworkCapabilityCreationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -117,13 +119,17 @@ pub struct ThreadNetworkComponent<
     serial_num: [u8; 8],
     alarm_mux: &'static MuxAlarm<'static, A>,
     driver_cap: C,
+    mem_cap: MEM,
+    create_cap: NET,
 }
 
 impl<
     A: Alarm<'static> + 'static,
     B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static,
     C: UdpDriverCapability + 'static,
-> ThreadNetworkComponent<A, B, C>
+    MEM: MemoryAllocationCapability + 'static,
+    NET: NetworkCapabilityCreationCapability + 'static,
+> ThreadNetworkComponent<A, B, C, MEM, NET>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -138,6 +144,8 @@ impl<
         serial_num: [u8; 8],
         alarm_mux: &'static MuxAlarm<'static, A>,
         driver_cap: C,
+        mem_cap: MEM,
+        create_cap: NET,
     ) -> Self {
         Self {
             board_kernel,
@@ -149,6 +157,8 @@ impl<
             serial_num,
             alarm_mux,
             driver_cap,
+            mem_cap,
+            create_cap,
         }
     }
 }
@@ -157,7 +167,9 @@ impl<
     A: Alarm<'static> + 'static,
     B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static,
     C: UdpDriverCapability + 'static,
-> Component for ThreadNetworkComponent<A, B, C>
+    MEM: MemoryAllocationCapability + 'static,
+    NET: NetworkCapabilityCreationCapability + 'static,
+> Component for ThreadNetworkComponent<A, B, C, MEM, NET>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
@@ -199,8 +211,6 @@ impl<
             s.9.write(VirtualMuxAlarm::new(self.alarm_mux));
         thread_virtual_alarm.setup();
 
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         // AES-128CCM setup
         let crypt_buf = s.7.write([0; CRYPT_SIZE]);
         let aes_ccm = s.8.write(
@@ -211,8 +221,7 @@ impl<
         );
         aes_ccm.setup();
 
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
-        let udp_vis = s.1.write(UdpVisibilityCapability::new(&create_cap));
+        let udp_vis = s.1.write(UdpVisibilityCapability::new(&self.create_cap));
         let udp_send = s.0.write(UDPSendStruct::new(self.udp_send_mux, udp_vis));
 
         let driver_cap: &'static C = s.10.write(self.driver_cap);
@@ -221,7 +230,7 @@ impl<
             AddrRange::Any,
             PortRange::Any,
             PortRange::Any,
-            &create_cap,
+            &self.create_cap,
         ));
 
         let send_buffer = s.4.write([0; MAX_PAYLOAD_LEN]);
@@ -232,7 +241,8 @@ impl<
                 udp_send,
                 aes_ccm,
                 thread_virtual_alarm,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                self.board_kernel
+                    .create_grant(self.driver_num, &self.mem_cap),
                 self.serial_num,
                 MAX_PAYLOAD_LEN,
                 self.port_table,

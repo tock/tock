@@ -25,9 +25,8 @@ use capsules_core::virtualizers::virtual_pwm::PwmPinUser;
 use capsules_extra::buzzer_driver::Buzzer;
 use capsules_extra::buzzer_pwm::PwmBuzzer;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -60,31 +59,46 @@ pub type BuzzerComponentType<A, P> = capsules_extra::buzzer_driver::Buzzer<
     >,
 >;
 
-pub struct BuzzerComponent<A: 'static + hil::time::Alarm<'static>, P: 'static + hil::pwm::Pwm> {
+pub struct BuzzerComponent<
+    A: 'static + hil::time::Alarm<'static>,
+    P: 'static + hil::pwm::Pwm,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     mux_alarm: &'static MuxAlarm<'static, A>,
     pwm_pin: &'static PwmPinUser<'static, P>,
+    mem_cap: CAP,
 }
 
-impl<A: 'static + hil::time::Alarm<'static>, P: 'static + hil::pwm::Pwm> BuzzerComponent<A, P> {
+impl<
+        A: 'static + hil::time::Alarm<'static>,
+        P: 'static + hil::pwm::Pwm,
+        CAP: MemoryAllocationCapability + 'static,
+    > BuzzerComponent<A, P, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         mux_alarm: &'static MuxAlarm<'static, A>,
         pwm_pin: &'static PwmPinUser<'static, P>,
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             mux_alarm,
             pwm_pin,
+            mem_cap,
         }
     }
 }
 
-impl<A: 'static + hil::time::Alarm<'static>, P: 'static + hil::pwm::Pwm> Component
-    for BuzzerComponent<A, P>
+impl<
+        A: 'static + hil::time::Alarm<'static>,
+        P: 'static + hil::pwm::Pwm,
+        CAP: MemoryAllocationCapability + 'static,
+    > Component for BuzzerComponent<A, P, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
@@ -104,8 +118,6 @@ impl<A: 'static + hil::time::Alarm<'static>, P: 'static + hil::pwm::Pwm> Compone
     >;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let virtual_alarm_buzzer = static_buffer.0.write(VirtualMuxAlarm::new(self.mux_alarm));
         virtual_alarm_buzzer.setup();
 
@@ -118,7 +130,8 @@ impl<A: 'static + hil::time::Alarm<'static>, P: 'static + hil::pwm::Pwm> Compone
         let buzzer = static_buffer.2.write(Buzzer::new(
             pwm_buzzer,
             capsules_extra::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         hil::buzzer::Buzzer::set_client(pwm_buzzer, buzzer);

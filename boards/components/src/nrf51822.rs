@@ -20,9 +20,8 @@
 
 use capsules_extra::nrf51822_serialization::Nrf51822Serialization;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -43,33 +42,43 @@ macro_rules! nrf51822_component_static {
 pub struct Nrf51822Component<
     U: 'static + hil::uart::UartAdvanced<'static>,
     G: 'static + hil::gpio::Pin,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     uart: &'static U,
     reset_pin: &'static G,
+    mem_cap: CAP,
 }
 
-impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
-    Nrf51822Component<U, G>
+impl<
+        U: 'static + hil::uart::UartAdvanced<'static>,
+        G: 'static + hil::gpio::Pin,
+        CAP: MemoryAllocationCapability + 'static,
+    > Nrf51822Component<U, G, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         uart: &'static U,
         reset_pin: &'static G,
-    ) -> Nrf51822Component<U, G> {
+        mem_cap: CAP,
+    ) -> Nrf51822Component<U, G, CAP> {
         Nrf51822Component {
             board_kernel,
             driver_num,
             uart,
             reset_pin,
+            mem_cap,
         }
     }
 }
 
-impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin> Component
-    for Nrf51822Component<U, G>
+impl<
+        U: 'static + hil::uart::UartAdvanced<'static>,
+        G: 'static + hil::gpio::Pin,
+        CAP: MemoryAllocationCapability + 'static,
+    > Component for Nrf51822Component<U, G, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<Nrf51822Serialization<'static>>,
@@ -79,8 +88,6 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
     type Output = &'static Nrf51822Serialization<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let write_buffer =
             s.1.write([0; capsules_extra::nrf51822_serialization::WRITE_BUF_LEN]);
         let read_buffer =
@@ -88,7 +95,8 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
 
         let nrf_serialization = s.0.write(Nrf51822Serialization::new(
             self.uart,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
             self.reset_pin,
             write_buffer,
             read_buffer,

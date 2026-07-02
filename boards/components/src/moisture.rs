@@ -17,9 +17,8 @@
 
 use capsules_extra::moisture::MoistureSensor;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -31,36 +30,49 @@ macro_rules! moisture_component_static {
 
 pub type MoistureComponentType<H> = capsules_extra::moisture::MoistureSensor<'static, H>;
 
-pub struct MoistureComponent<T: 'static + hil::sensors::MoistureDriver<'static>> {
+pub struct MoistureComponent<
+    T: 'static + hil::sensors::MoistureDriver<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     sensor: &'static T,
+    mem_cap: CAP,
 }
 
-impl<T: 'static + hil::sensors::MoistureDriver<'static>> MoistureComponent<T> {
+impl<
+        T: 'static + hil::sensors::MoistureDriver<'static>,
+        CAP: MemoryAllocationCapability + 'static,
+    > MoistureComponent<T, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         sensor: &'static T,
-    ) -> MoistureComponent<T> {
+        mem_cap: CAP,
+    ) -> MoistureComponent<T, CAP> {
         MoistureComponent {
             board_kernel,
             driver_num,
             sensor,
+            mem_cap,
         }
     }
 }
 
-impl<T: 'static + hil::sensors::MoistureDriver<'static>> Component for MoistureComponent<T> {
+impl<
+        T: 'static + hil::sensors::MoistureDriver<'static>,
+        CAP: MemoryAllocationCapability + 'static,
+    > Component for MoistureComponent<T, CAP>
+{
     type StaticInput = &'static mut MaybeUninit<MoistureSensor<'static, T>>;
     type Output = &'static MoistureSensor<'static, T>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let moisture = s.write(MoistureSensor::new(
             self.sensor,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         hil::sensors::MoistureDriver::set_client(self.sensor, moisture);

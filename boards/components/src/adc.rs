@@ -8,9 +8,8 @@ use capsules_core::adc::AdcDedicated;
 use capsules_core::adc::AdcVirtualized;
 use capsules_core::virtualizers::virtual_adc::{AdcDevice, MuxAdc};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::adc;
 
 #[macro_export]
@@ -109,21 +108,23 @@ impl<A: 'static + adc::Adc<'static>> Component for AdcComponent<A> {
 
 pub type AdcVirtualComponentType = capsules_core::adc::AdcVirtualized<'static>;
 
-pub struct AdcVirtualComponent {
+pub struct AdcVirtualComponent<CAP: MemoryAllocationCapability + 'static> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
-impl AdcVirtualComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> AdcVirtualComponent {
+impl<CAP: MemoryAllocationCapability + 'static> AdcVirtualComponent<CAP> {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, mem_cap: CAP) -> Self {
         AdcVirtualComponent {
             board_kernel,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl Component for AdcVirtualComponent {
+impl<CAP: MemoryAllocationCapability + 'static> Component for AdcVirtualComponent<CAP> {
     type StaticInput = (
         &'static mut MaybeUninit<AdcVirtualized<'static>>,
         &'static [&'static dyn kernel::hil::adc::AdcChannel<'static>],
@@ -131,8 +132,9 @@ impl Component for AdcVirtualComponent {
     type Output = &'static capsules_core::adc::AdcVirtualized<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_adc = self.board_kernel.create_grant(self.driver_num, &grant_cap);
+        let grant_adc = self
+            .board_kernel
+            .create_grant(self.driver_num, &self.mem_cap);
 
         let adc = static_buffer
             .0
@@ -153,33 +155,41 @@ pub type AdcDedicatedComponentType<A> = capsules_core::adc::AdcDedicated<'static
 
 pub struct AdcDedicatedComponent<
     A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     adc: &'static A,
     channels: &'static [A::Channel],
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
-impl<A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static>
-    AdcDedicatedComponent<A>
+impl<
+        A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
+        CAP: MemoryAllocationCapability + 'static,
+    > AdcDedicatedComponent<A, CAP>
 {
     pub fn new(
         adc: &'static A,
         channels: &'static [A::Channel],
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-    ) -> AdcDedicatedComponent<A> {
+        mem_cap: CAP,
+    ) -> AdcDedicatedComponent<A, CAP> {
         AdcDedicatedComponent {
             adc,
             channels,
             board_kernel,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl<A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static>
-    Component for AdcDedicatedComponent<A>
+impl<
+        A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
+        CAP: MemoryAllocationCapability + 'static,
+    > Component for AdcDedicatedComponent<A, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<AdcDedicated<'static, A>>,
@@ -190,15 +200,14 @@ impl<A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static>
     type Output = &'static AdcDedicated<'static, A>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let buffer1 = s.1.write([0; capsules_core::adc::BUF_LEN]);
         let buffer2 = s.2.write([0; capsules_core::adc::BUF_LEN]);
         let buffer3 = s.3.write([0; capsules_core::adc::BUF_LEN]);
 
         let adc = s.0.write(AdcDedicated::new(
             self.adc,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
             self.channels,
             buffer1,
             buffer2,

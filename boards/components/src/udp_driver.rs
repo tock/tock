@@ -34,10 +34,10 @@ use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_recv::UDPReceiver;
 use capsules_extra::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
-use kernel::capabilities::{NetworkCapabilityCreationCapability, UdpDriverCapability};
+use kernel::capabilities::{
+    MemoryAllocationCapability, NetworkCapabilityCreationCapability, UdpDriverCapability,
+};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::time::Alarm;
 
 const MAX_PAYLOAD_LEN: usize = super::udp_mux::MAX_PAYLOAD_LEN;
@@ -81,7 +81,12 @@ macro_rules! udp_driver_component_static {
 
 pub type UDPDriverComponentType = capsules_extra::net::udp::UDPDriver<'static>;
 
-pub struct UDPDriverComponent<A: Alarm<'static> + 'static, C: UdpDriverCapability + 'static> {
+pub struct UDPDriverComponent<
+    A: Alarm<'static> + 'static,
+    C: UdpDriverCapability + 'static,
+    MEM: MemoryAllocationCapability + 'static,
+    NET: NetworkCapabilityCreationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     udp_send_mux:
@@ -90,9 +95,17 @@ pub struct UDPDriverComponent<A: Alarm<'static> + 'static, C: UdpDriverCapabilit
     port_table: &'static UdpPortManager,
     interface_list: &'static [IPAddr],
     driver_cap: C,
+    mem_cap: MEM,
+    create_cap: NET,
 }
 
-impl<A: Alarm<'static>, C: UdpDriverCapability + 'static> UDPDriverComponent<A, C> {
+impl<
+        A: Alarm<'static>,
+        C: UdpDriverCapability + 'static,
+        MEM: MemoryAllocationCapability + 'static,
+        NET: NetworkCapabilityCreationCapability + 'static,
+    > UDPDriverComponent<A, C, MEM, NET>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -104,6 +117,8 @@ impl<A: Alarm<'static>, C: UdpDriverCapability + 'static> UDPDriverComponent<A, 
         port_table: &'static UdpPortManager,
         interface_list: &'static [IPAddr],
         driver_cap: C,
+        mem_cap: MEM,
+        create_cap: NET,
     ) -> Self {
         Self {
             board_kernel,
@@ -113,11 +128,19 @@ impl<A: Alarm<'static>, C: UdpDriverCapability + 'static> UDPDriverComponent<A, 
             port_table,
             interface_list,
             driver_cap,
+            mem_cap,
+            create_cap,
         }
     }
 }
 
-impl<A: Alarm<'static>, C: UdpDriverCapability + 'static> Component for UDPDriverComponent<A, C> {
+impl<
+        A: Alarm<'static>,
+        C: UdpDriverCapability + 'static,
+        MEM: MemoryAllocationCapability + 'static,
+        NET: NetworkCapabilityCreationCapability + 'static,
+    > Component for UDPDriverComponent<A, C, MEM, NET>
+{
     type StaticInput = (
         &'static mut MaybeUninit<
             UDPSendStruct<
@@ -140,9 +163,7 @@ impl<A: Alarm<'static>, C: UdpDriverCapability + 'static> Component for UDPDrive
     type Output = &'static capsules_extra::net::udp::UDPDriver<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
-        let udp_vis = s.1.write(UdpVisibilityCapability::new(&create_cap));
+        let udp_vis = s.1.write(UdpVisibilityCapability::new(&self.create_cap));
         let udp_send = s.0.write(UDPSendStruct::new(self.udp_send_mux, udp_vis));
 
         let driver_cap: &'static C = s.6.write(self.driver_cap);
@@ -151,14 +172,15 @@ impl<A: Alarm<'static>, C: UdpDriverCapability + 'static> Component for UDPDrive
             AddrRange::Any,
             PortRange::Any,
             PortRange::Any,
-            &create_cap,
+            &self.create_cap,
         ));
 
         let buffer = s.4.write([0; MAX_PAYLOAD_LEN]);
 
         let udp_driver = s.3.write(capsules_extra::net::udp::UDPDriver::new(
             udp_send,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
             self.interface_list,
             MAX_PAYLOAD_LEN,
             self.port_table,

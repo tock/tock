@@ -28,9 +28,8 @@
 use capsules_extra::isolated_nonvolatile_storage_driver::IsolatedNonvolatileStorage;
 use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 // How much storage space to allocate per-app. Currently, regions are not
@@ -65,18 +64,21 @@ pub type IsolatedNonvolatileStorageComponentType<const APP_REGION_SIZE: usize> =
 pub struct IsolatedNonvolatileStorageComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     const APP_REGION_SIZE: usize,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     flash: &'static F,
     userspace_start: usize,
     userspace_length: usize,
+    mem_cap: CAP,
 }
 
 impl<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     const APP_REGION_SIZE: usize,
-> IsolatedNonvolatileStorageComponent<F, APP_REGION_SIZE>
+    CAP: MemoryAllocationCapability + 'static,
+> IsolatedNonvolatileStorageComponent<F, APP_REGION_SIZE, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -84,6 +86,7 @@ impl<
         flash: &'static F,
         userspace_start: usize,
         userspace_length: usize,
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
@@ -91,6 +94,7 @@ impl<
             flash,
             userspace_start,
             userspace_length,
+            mem_cap,
         }
     }
 }
@@ -98,7 +102,8 @@ impl<
 impl<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     const APP_REGION_SIZE: usize,
-> Component for IsolatedNonvolatileStorageComponent<F, APP_REGION_SIZE>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for IsolatedNonvolatileStorageComponent<F, APP_REGION_SIZE, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
@@ -111,8 +116,6 @@ impl<
     type Output = &'static IsolatedNonvolatileStorage<'static, APP_REGION_SIZE>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let buffer = static_buffer
             .3
             .write([0; capsules_extra::isolated_nonvolatile_storage_driver::BUF_LEN]);
@@ -128,7 +131,8 @@ impl<
 
         let nonvolatile_storage = static_buffer.2.write(IsolatedNonvolatileStorage::new(
             nv_to_page,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
             self.userspace_start, // Start address for userspace accessible region
             self.userspace_length, // Length of userspace accessible region
             buffer,

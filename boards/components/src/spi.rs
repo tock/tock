@@ -35,9 +35,8 @@ use capsules_core::spi_controller::{DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_L
 use capsules_core::spi_peripheral::SpiPeripheral;
 use capsules_core::virtualizers::virtual_spi;
 use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 
@@ -115,17 +114,25 @@ pub struct SpiMuxComponent<S: 'static + spi::SpiMaster<'static>> {
 
 pub type SpiSyscallComponentType<S> = Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
-pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster<'static>> {
+pub struct SpiSyscallComponent<
+    S: 'static + spi::SpiMaster<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
-pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave<'static>> {
+pub struct SpiSyscallPComponent<
+    S: 'static + spi::SpiSlave<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     spi_slave: &'static S,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
 pub struct SpiComponent<
@@ -162,23 +169,29 @@ impl<S: 'static + spi::SpiMaster<'static>> Component for SpiMuxComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster<'static>> SpiSyscallComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>, CAP: MemoryAllocationCapability + 'static>
+    SpiSyscallComponent<S, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
         driver_num: usize,
+        mem_cap: CAP,
     ) -> Self {
         SpiSyscallComponent {
             board_kernel,
             spi_mux: mux,
             chip_select,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl<S: 'static + spi::SpiMaster<'static>> Component for SpiSyscallComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>, CAP: MemoryAllocationCapability + 'static> Component
+    for SpiSyscallComponent<S, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<Spi<'static, VirtualSpiMasterDevice<'static, S>>>,
@@ -188,15 +201,14 @@ impl<S: 'static + spi::SpiMaster<'static>> Component for SpiSyscallComponent<S> 
     type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let syscall_spi_device = static_buffer
             .0
             .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
 
         let spi_syscalls = static_buffer.1.write(Spi::new(
             syscall_spi_device,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         let spi_read_buf = static_buffer.2.write([0; DEFAULT_READ_BUF_LENGTH]);
@@ -209,21 +221,27 @@ impl<S: 'static + spi::SpiMaster<'static>> Component for SpiSyscallComponent<S> 
     }
 }
 
-impl<S: 'static + spi::SpiSlave<'static>> SpiSyscallPComponent<S> {
+impl<S: 'static + spi::SpiSlave<'static>, CAP: MemoryAllocationCapability + 'static>
+    SpiSyscallPComponent<S, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         slave: &'static S,
         driver_num: usize,
+        mem_cap: CAP,
     ) -> Self {
         SpiSyscallPComponent {
             board_kernel,
             spi_slave: slave,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl<S: 'static + spi::SpiSlave<'static>> Component for SpiSyscallPComponent<S> {
+impl<S: 'static + spi::SpiSlave<'static>, CAP: MemoryAllocationCapability + 'static> Component
+    for SpiSyscallPComponent<S, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<virtual_spi::SpiSlaveDevice<'static, S>>,
         &'static mut MaybeUninit<SpiPeripheral<'static, virtual_spi::SpiSlaveDevice<'static, S>>>,
@@ -233,15 +251,14 @@ impl<S: 'static + spi::SpiSlave<'static>> Component for SpiSyscallPComponent<S> 
     type Output = &'static SpiPeripheral<'static, virtual_spi::SpiSlaveDevice<'static, S>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let syscallp_spi_device = static_buffer
             .0
             .write(virtual_spi::SpiSlaveDevice::new(self.spi_slave));
 
         let spi_syscallsp = static_buffer.1.write(SpiPeripheral::new(
             syscallp_spi_device,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         let spi_read_buf = static_buffer.2.write([0; DEFAULT_READ_BUF_LENGTH]);
@@ -288,38 +305,47 @@ impl<
     }
 }
 
-pub struct SpiPeripheralComponent<S: 'static + spi::SpiSlave<'static>> {
+pub struct SpiPeripheralComponent<
+    S: 'static + spi::SpiSlave<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     device: &'static S,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
-impl<S: 'static + spi::SpiSlave<'static>> SpiPeripheralComponent<S> {
+impl<S: 'static + spi::SpiSlave<'static>, CAP: MemoryAllocationCapability + 'static>
+    SpiPeripheralComponent<S, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         device: &'static S,
         driver_num: usize,
+        mem_cap: CAP,
     ) -> Self {
         SpiPeripheralComponent {
             board_kernel,
             device,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl<S: 'static + spi::SpiSlave<'static> + kernel::hil::spi::SpiSlaveDevice<'static>> Component
-    for SpiPeripheralComponent<S>
+impl<
+        S: 'static + spi::SpiSlave<'static> + kernel::hil::spi::SpiSlaveDevice<'static>,
+        CAP: MemoryAllocationCapability + 'static,
+    > Component for SpiPeripheralComponent<S, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<SpiPeripheral<'static, S>>;
     type Output = &'static SpiPeripheral<'static, S>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let spi_device = static_buffer.write(SpiPeripheral::new(
             self.device,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         spi_device

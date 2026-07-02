@@ -37,9 +37,8 @@ use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_extra::ieee802154::device::MacDevice;
 use capsules_extra::ieee802154::mac::{AwakeMac, Mac};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::radio::{self, MAX_BUF_SIZE};
 use kernel::hil::symmetric_encryption::{self, AES, AES128, AESCBC, AESCCM, AESCtr, AESECB};
 
@@ -172,6 +171,7 @@ pub type Ieee802154ComponentMacDeviceType<R, A> = capsules_extra::ieee802154::fr
 pub struct Ieee802154Component<
     R: 'static + kernel::hil::radio::Radio<'static>,
     A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -180,12 +180,14 @@ pub struct Ieee802154Component<
     pan_id: capsules_extra::net::ieee802154::PanID,
     short_addr: u16,
     long_addr: [u8; 8],
+    mem_cap: CAP,
 }
 
 impl<
     R: 'static + kernel::hil::radio::Radio<'static>,
     A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB,
-> Ieee802154Component<R, A>
+    CAP: MemoryAllocationCapability + 'static,
+> Ieee802154Component<R, A, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -195,6 +197,7 @@ impl<
         pan_id: capsules_extra::net::ieee802154::PanID,
         short_addr: u16,
         long_addr: [u8; 8],
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
@@ -204,6 +207,7 @@ impl<
             pan_id,
             short_addr,
             long_addr,
+            mem_cap,
         }
     }
 }
@@ -211,7 +215,8 @@ impl<
 impl<
     R: 'static + kernel::hil::radio::Radio<'static>,
     A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB,
-> Component for Ieee802154Component<R, A>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for Ieee802154Component<R, A, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
@@ -286,8 +291,6 @@ impl<
     );
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let crypt_buf = static_buffer.8.write([0; CRYPT_SIZE]);
         let aes_ccm = static_buffer.0.write(
             capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM::new(
@@ -339,7 +342,8 @@ impl<
             .5
             .write(capsules_extra::ieee802154::RadioDriver::new(
                 userspace_mac,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                self.board_kernel
+                    .create_grant(self.driver_num, &self.mem_cap),
                 radio_buffer,
             ));
         kernel::deferred_call::DeferredCallClient::register(radio_driver);
@@ -374,27 +378,37 @@ macro_rules! ieee802154_raw_component_static {
 pub type Ieee802154RawComponentType<R> =
     capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>;
 
-pub struct Ieee802154RawComponent<R: 'static + kernel::hil::radio::Radio<'static>> {
+pub struct Ieee802154RawComponent<
+    R: 'static + kernel::hil::radio::Radio<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     radio: &'static R,
+    mem_cap: CAP,
 }
 
-impl<R: 'static + kernel::hil::radio::Radio<'static>> Ieee802154RawComponent<R> {
+impl<R: 'static + kernel::hil::radio::Radio<'static>, CAP: MemoryAllocationCapability + 'static>
+    Ieee802154RawComponent<R, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         radio: &'static R,
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             radio,
+            mem_cap,
         }
     }
 }
 
-impl<R: 'static + kernel::hil::radio::Radio<'static>> Component for Ieee802154RawComponent<R> {
+impl<R: 'static + kernel::hil::radio::Radio<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for Ieee802154RawComponent<R, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>>,
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
@@ -403,8 +417,6 @@ impl<R: 'static + kernel::hil::radio::Radio<'static>> Component for Ieee802154Ra
     type Output = &'static capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let tx_buffer = static_buffer.1.write([0; MAX_BUF_SIZE]);
         let radio_rx_buf = static_buffer.2.write([0; radio::MAX_BUF_SIZE]);
 
@@ -413,7 +425,8 @@ impl<R: 'static + kernel::hil::radio::Radio<'static>> Component for Ieee802154Ra
                 .0
                 .write(capsules_extra::ieee802154::phy_driver::RadioDriver::new(
                     self.radio,
-                    self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                    self.board_kernel
+                        .create_grant(self.driver_num, &self.mem_cap),
                     tx_buffer,
                 ));
 

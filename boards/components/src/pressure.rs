@@ -13,9 +13,8 @@
 
 use capsules_extra::pressure::PressureSensor;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -25,36 +24,49 @@ macro_rules! pressure_component_static {
     };};
 }
 
-pub struct PressureComponent<T: 'static + hil::sensors::PressureDriver<'static>> {
+pub struct PressureComponent<
+    T: 'static + hil::sensors::PressureDriver<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     pressure_sensor: &'static T,
+    mem_cap: CAP,
 }
 
-impl<T: 'static + hil::sensors::PressureDriver<'static>> PressureComponent<T> {
+impl<
+        T: 'static + hil::sensors::PressureDriver<'static>,
+        CAP: MemoryAllocationCapability + 'static,
+    > PressureComponent<T, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         pressure_sensor: &'static T,
-    ) -> PressureComponent<T> {
+        mem_cap: CAP,
+    ) -> PressureComponent<T, CAP> {
         PressureComponent {
             board_kernel,
             driver_num,
             pressure_sensor,
+            mem_cap,
         }
     }
 }
 
-impl<T: 'static + hil::sensors::PressureDriver<'static>> Component for PressureComponent<T> {
+impl<
+        T: 'static + hil::sensors::PressureDriver<'static>,
+        CAP: MemoryAllocationCapability + 'static,
+    > Component for PressureComponent<T, CAP>
+{
     type StaticInput = &'static mut MaybeUninit<PressureSensor<'static, T>>;
     type Output = &'static PressureSensor<'static, T>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let pressure = static_buffer.write(PressureSensor::new(
             self.pressure_sensor,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         hil::sensors::PressureDriver::set_client(self.pressure_sensor, pressure);

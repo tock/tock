@@ -45,9 +45,8 @@ use capsules_extra::net::udp::udp_port_table::{
 use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_send::MuxUdpSender;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{CreatePortTableCapability, NetworkCapabilityCreationCapability};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 
@@ -154,7 +153,12 @@ macro_rules! udp_mux_component_static {
     };};
 }
 
-pub struct UDPMuxComponent<A: Alarm<'static> + 'static, M: MacDevice<'static> + 'static> {
+pub struct UDPMuxComponent<
+    A: Alarm<'static> + 'static,
+    M: MacDevice<'static> + 'static,
+    NET: NetworkCapabilityCreationCapability + 'static,
+    TABLE: CreatePortTableCapability + 'static,
+> {
     mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, M>,
     ctx_pfix_len: u8,
     ctx_pfix: [u8; 16],
@@ -162,9 +166,17 @@ pub struct UDPMuxComponent<A: Alarm<'static> + 'static, M: MacDevice<'static> + 
     src_mac_addr: MacAddress,
     interface_list: &'static [IPAddr],
     alarm_mux: &'static MuxAlarm<'static, A>,
+    create_cap: NET,
+    create_table_cap: TABLE,
 }
 
-impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> UDPMuxComponent<A, M> {
+impl<
+        A: Alarm<'static> + 'static,
+        M: MacDevice<'static>,
+        NET: NetworkCapabilityCreationCapability + 'static,
+        TABLE: CreatePortTableCapability + 'static,
+    > UDPMuxComponent<A, M, NET, TABLE>
+{
     pub fn new(
         mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, M>,
         ctx_pfix_len: u8,
@@ -173,6 +185,8 @@ impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> UDPMuxComponent<A, M> {
         src_mac_addr: MacAddress,
         interface_list: &'static [IPAddr],
         alarm_mux: &'static MuxAlarm<'static, A>,
+        create_cap: NET,
+        create_table_cap: TABLE,
     ) -> Self {
         Self {
             mux_mac,
@@ -182,11 +196,19 @@ impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> UDPMuxComponent<A, M> {
             src_mac_addr,
             interface_list,
             alarm_mux,
+            create_cap,
+            create_table_cap,
         }
     }
 }
 
-impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> Component for UDPMuxComponent<A, M> {
+impl<
+        A: Alarm<'static> + 'static,
+        M: MacDevice<'static>,
+        NET: NetworkCapabilityCreationCapability + 'static,
+        TABLE: CreatePortTableCapability + 'static,
+    > Component for UDPMuxComponent<A, M, NET, TABLE>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<capsules_extra::ieee802154::virtual_mac::MacUser<'static, M>>,
@@ -239,9 +261,8 @@ impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> Component for UDPMuxCom
                 self.mux_mac,
             ));
         self.mux_mac.add_user(udp_mac);
-        let create_cap = create_capability!(capabilities::NetworkCapabilityCreationCapability);
-        let udp_vis = s.14.write(UdpVisibilityCapability::new(&create_cap));
-        let ip_vis = s.15.write(IpVisibilityCapability::new(&create_cap));
+        let udp_vis = s.14.write(UdpVisibilityCapability::new(&self.create_cap));
+        let ip_vis = s.15.write(IpVisibilityCapability::new(&self.create_cap));
 
         let sixlowpan = s.2.write(sixlowpan_state::Sixlowpan::new(
             sixlowpan_compression::Context {
@@ -308,9 +329,8 @@ impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> Component for UDPMuxCom
         ip_send.set_client(udp_send_mux);
 
         let kernel_ports = s.10.write([None; MAX_NUM_BOUND_PORTS]);
-        let create_table_cap = create_capability!(capabilities::CreatePortTableCapability);
         let udp_port_table = s.7.write(UdpPortManager::new(
-            &create_table_cap,
+            &self.create_table_cap,
             kernel_ports,
             udp_vis,
         ));
