@@ -74,6 +74,7 @@ name = "capsules-extra"
 version = "0.2.3-dev"
 dependencies = [
  "capsules-core",
+ "capsules-system",
  "enum_primitive",
  "kernel",
  "tickv",
@@ -911,6 +912,24 @@ dependencies = [
  "kernel",
  "nrf52840",
  "nrf52840dk",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "nrf52840dk-test-app-watchdog"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "ecdsa-sw",
+ "kernel",
+ "nrf52840",
+ "nrf52840dk-test-base",
+ "nrf52_components",
+ "segger",
  "tock_build_scripts",
 ]
 

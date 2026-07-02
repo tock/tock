@@ -330,6 +330,24 @@ impl Kernel {
         }
     }
 
+    /// Attempt to restart the process identified by `pid`.
+    ///
+    /// Has no effect if `pid` does not match a currently loaded process, or
+    /// if the kernel policy declines to restart it.
+    ///
+    /// Restarting a process is a privileged operation and therefore requires
+    /// the [`ProcessRestartCapability`](crate::capabilities::ProcessRestartCapability)
+    /// to call this method.
+    pub fn restart_process<C: capabilities::ProcessRestartCapability>(
+        &self,
+        pid: ProcessId,
+        _capability: &C,
+    ) {
+        self.get_process(pid).map(|process| {
+            process.try_restart(None);
+        });
+    }
+
     /// Perform one iteration of the core Tock kernel loop.
     ///
     /// This function is responsible for three main operations:
