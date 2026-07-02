@@ -88,6 +88,10 @@ impl Rcc {
         self.registers.ahb2enr1.modify(AHB2ENR1::GPIOAEN::SET);
     }
 
+    pub fn enable_gpiob(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::GPIOBEN::SET);
+    }
+
     pub fn enable_gpioc(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::GPIOCEN::SET);
     }

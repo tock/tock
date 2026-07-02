@@ -10,6 +10,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::spi::SpiMaster;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -52,6 +53,13 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    spi: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            stm32u545::spi::Spi<'static>,
+        >,
+    >,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -64,6 +72,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             _ => f(None),
         }
     }
@@ -118,6 +127,31 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
     // LED Pin (PA5)
     periphs.gpio_a.pin(PinId::Pin05).make_output();
 
+    // SPI1 Pins
+    // SPI_CLOCK (PB3)
+    // Warning: SCLK used PB3 instead of PA5 because it would conflict with the on-board LED
+    let spi1_sck = periphs.gpio_b.pin(PinId::Pin03);
+    spi1_sck.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_sck.set_alternate_function(5);
+    spi1_sck.set_speed_high();
+
+    // SPI_MISO (PA6)
+    let spi1_miso = periphs.gpio_a.pin(PinId::Pin06);
+    spi1_miso.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_miso.set_alternate_function(5);
+    spi1_miso.set_speed_high();
+
+    // SPI_MOSI (PA7)
+    let spi1_mosi = periphs.gpio_a.pin(PinId::Pin07);
+    spi1_mosi.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_mosi.set_alternate_function(5);
+    spi1_mosi.set_speed_high();
+
+    // SPI1_CS (PC9)
+    let spi1_cs = periphs.gpio_c.pin(PinId::Pin09);
+    spi1_cs.set_mode(stm32u545::gpio::Mode::Output);
+    spi1_cs.set_speed_high();
+
     // Button Pin (PC13) - Hardware is Active High
     let btn = periphs.gpio_c.pin(PinId::Pin13);
     btn.make_input();
@@ -152,10 +186,15 @@ unsafe fn start() -> (
     );
     usart1.register();
 
+    let spi1 = static_init!(
+        stm32u545::spi::Spi<'static>,
+        stm32u545::spi::Spi::new(stm32u545::spi::SPI1_BASE)
+    );
+
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, spi1, exti, dma1)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -172,6 +211,9 @@ unsafe fn start() -> (
 
     let uart_mux = components::console::UartMuxComponent::new(periphs.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
+
+    let spi_mux = components::spi::SpiMuxComponent::new(periphs.spi1)
+        .finalize(components::spi_mux_component_static!(stm32u545::spi::Spi));
 
     let alarm_mux = components::alarm::AlarmMuxComponent::new(&periphs.tim2).finalize(
         components::alarm_mux_component_static!(stm32u545::tim::Tim2),
@@ -219,6 +261,24 @@ unsafe fn start() -> (
         kernel::hil::led::LedHigh::new(led_pin)
     ));
 
+    let spi_cs = static_init!(
+        stm32u545::gpio::Pin<'static>,
+        periphs.gpio_c.pin(PinId::Pin09)
+    );
+
+    kernel::hil::gpio::Configure::make_output(spi_cs);
+    kernel::hil::gpio::Output::set(spi_cs);
+
+    let spi_syscalls = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        spi_mux,
+        spi_cs,
+        capsules_core::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_static!(
+        stm32u545::spi::Spi<'static>
+    ));
+
     let button = components::button::ButtonComponent::new(
         board_kernel,
         capsules_core::button::DRIVER_NUM,
@@ -244,6 +304,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            spi: spi_syscalls,
         }
     );
 
@@ -251,6 +312,8 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xx<stm32u545::chip::Stm32u5xxDefaultPeripherals>,
         stm32u545::chip::Stm32u5xx::new(periphs)
     );
+
+    let _ = spi1.init();
 
     // Symbols for linker
     extern "C" {
