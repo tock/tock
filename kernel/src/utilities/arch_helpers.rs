@@ -11,6 +11,9 @@
 
 use crate::ErrorCode;
 use crate::syscall::SyscallReturn;
+use crate::syscall::YieldCall;
+use crate::syscall::{Syscall, SyscallClass};
+use crate::utilities::machine_register::MachineRegister;
 
 /// Helper function to split a [`u64`] into a higher and lower [`u32`].
 ///
@@ -23,6 +26,153 @@ fn u64_to_be_u32s(src: u64) -> (u32, u32) {
     let src_lsb = u32::from_be_bytes([src_bytes[4], src_bytes[5], src_bytes[6], src_bytes[7]]);
 
     (src_msb, src_lsb)
+}
+
+/// Helper function for converting raw values passed back from an application
+/// into a `Syscall` type.
+///
+/// The `Syscall` represents a typed version of a system call invocation. The
+/// method returns None if the values do not specify a valid system call.
+///
+/// Different architectures have different ABIs for a process and the kernel to
+/// exchange data. The 32-bit ABI for CortexM and RISCV microcontrollers is
+/// specified in TRD104.
+pub fn syscall_from_register_arguments_trd104(
+    syscall_number: u8,
+    r0: usize,
+    r1: MachineRegister,
+    r2: MachineRegister,
+    r3: MachineRegister,
+) -> Option<Syscall> {
+    match SyscallClass::try_from(syscall_number) {
+        Ok(SyscallClass::Yield) => match r0 {
+            0 => Some(Syscall::Yield {
+                yield_type: YieldCall::NoWait {
+                    ptr: r1.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                },
+            }),
+            1 => Some(Syscall::Yield {
+                yield_type: YieldCall::Wait,
+            }),
+            2 => Some(Syscall::Yield {
+                yield_type: YieldCall::WaitFor {
+                    driver_number: r1.as_usize(),
+                    subdriver_number: r2.as_usize(),
+                },
+            }),
+            _ => None,
+        },
+        Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            upcall_ptr: r2.as_capability_ptr(),
+            appdata: r3,
+        }),
+        Ok(SyscallClass::Command) => Some(Syscall::Command {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            arg0: r2.as_usize(),
+            arg1: r3.as_usize(),
+        }),
+        Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize(),
+            allow_address: r2.as_capability_ptr().as_ptr(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::Memop) => Some(Syscall::Memop {
+            operand: r0,
+            arg0: r1.as_usize(),
+        }),
+        Ok(SyscallClass::Exit) => Some(Syscall::Exit {
+            which: r0,
+            completion_code: r1.as_usize(),
+        }),
+        Err(_) => None,
+    }
+}
+
+/// Helper function for converting raw values passed back from an application
+/// into a `Syscall` type.
+///
+/// This implements a 64-bit ABI.
+pub fn syscall_from_register_arguments_trd64bit(
+    syscall_number: u8,
+    r0: usize,
+    r1: MachineRegister,
+    r2: MachineRegister,
+    r3: MachineRegister,
+) -> Option<Syscall> {
+    match SyscallClass::try_from(syscall_number) {
+        Ok(SyscallClass::Yield) => match r0 {
+            0 => Some(Syscall::Yield {
+                yield_type: YieldCall::NoWait {
+                    ptr: r1.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                },
+            }),
+            1 => Some(Syscall::Yield {
+                yield_type: YieldCall::Wait,
+            }),
+            2 => Some(Syscall::Yield {
+                yield_type: YieldCall::WaitFor {
+                    driver_number: r1.as_usize_32bit(),
+                    subdriver_number: r2.as_usize_32bit(),
+                },
+            }),
+            _ => None,
+        },
+        Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
+            driver_number: r0,
+            subdriver_number: r1.as_usize_32bit(),
+            upcall_ptr: r2.as_capability_ptr(),
+            appdata: r3,
+        }),
+        Ok(SyscallClass::Command) => Some(Syscall::Command {
+            driver_number: r0,
+            subdriver_number: r1.as_usize_32bit(),
+            arg0: r2.as_usize_32bit(),
+            arg1: r3.as_usize_32bit(),
+        }),
+        Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize_32bit(),
+            allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize_32bit(),
+            allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
+            driver_number: r0,
+            subdriver_number: r1.as_usize_32bit(),
+            allow_address: r2.as_capability_ptr().as_ptr(),
+            allow_size: r3.as_usize(),
+        }),
+        Ok(SyscallClass::Memop) => Some(Syscall::Memop {
+            operand: r0,
+            arg0: r1.as_usize(),
+        }),
+        Ok(SyscallClass::Exit) => Some(Syscall::Exit {
+            which: r0,
+            completion_code: r1.as_usize_32bit(),
+        }),
+        Err(_) => None,
+    }
 }
 
 /// Enumeration of the system call return type variant identifiers described in
@@ -239,6 +389,116 @@ pub fn encode_syscall_return_trd104(
             *a0 = data0 as u32;
             *a1 = data1 as u32;
             *a2 = data2 as u32;
+        }
+    }
+}
+
+/// Encode the system call return value into 4 registers.
+///
+/// This follows the encoding specified in TRD-64bit.
+pub fn encode_syscall_return_trd64bit(
+    syscall_return: &TRD104SyscallReturn,
+    a0: &mut u64,
+    a1: &mut u64,
+    a2: &mut u64,
+    a3: &mut u64,
+) {
+    match *syscall_return {
+        TRD104SyscallReturn::Failure(e) => {
+            *a0 = TRD104SyscallReturnVariant::Failure as u32 as u64;
+            *a1 = e as u64;
+        }
+        TRD104SyscallReturn::FailureU32(e, data0) => {
+            *a0 = TRD104SyscallReturnVariant::FailureU32 as u32 as u64;
+            *a1 = e as u64;
+            *a2 = data0 as u64;
+        }
+        TRD104SyscallReturn::FailureU32U32(e, data0, data1) => {
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+            *a1 = e as u64;
+            *a2 = data0 as u64;
+            *a3 = data1 as u64;
+        }
+        TRD104SyscallReturn::FailureU64(e, data0) => {
+            *a0 = TRD104SyscallReturnVariant::FailureU64 as u32 as u64;
+            *a1 = e as u64;
+            *a2 = data0;
+        }
+        TRD104SyscallReturn::Success => {
+            *a0 = TRD104SyscallReturnVariant::Success as u32 as u64;
+        }
+        TRD104SyscallReturn::SuccessU32(data0) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU32 as u32 as u64;
+            *a1 = data0 as u64;
+        }
+        TRD104SyscallReturn::SuccessU32U32(data0, data1) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+            *a1 = data0 as u64;
+            *a2 = data1 as u64;
+        }
+        TRD104SyscallReturn::SuccessU32U32U32(data0, data1, data2) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32U32 as u32 as u64;
+            *a1 = data0 as u64;
+            *a2 = data1 as u64;
+            *a3 = data2 as u64;
+        }
+        TRD104SyscallReturn::SuccessU64(data0) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU64 as u32 as u64;
+            *a1 = data0;
+        }
+        TRD104SyscallReturn::SuccessU32U64(data0, data1) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U64 as u32 as u64;
+            *a1 = data0 as u64;
+            *a2 = data1;
+        }
+        TRD104SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+            *a1 = ptr as u64;
+            *a2 = len as u64;
+        }
+        TRD104SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+            *a1 = ptr as u64;
+            *a2 = len as u64;
+        }
+        TRD104SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+            *a1 = err as u64;
+            *a2 = ptr as u64;
+            *a3 = len as u64;
+        }
+        TRD104SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+            *a1 = err as u64;
+            *a2 = ptr as u64;
+            *a3 = len as u64;
+        }
+        TRD104SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+            *a1 = ptr as u64;
+            *a2 = len as u64;
+        }
+        TRD104SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+            *a1 = err as u64;
+            *a2 = ptr as u64;
+            *a3 = len as u64;
+        }
+        TRD104SyscallReturn::SubscribeSuccess(ptr, data) => {
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+            *a1 = ptr as u64;
+            *a2 = data as u64;
+        }
+        TRD104SyscallReturn::SubscribeFailure(err, ptr, data) => {
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+            *a1 = err as u64;
+            *a2 = ptr as u64;
+            *a3 = data as u64;
+        }
+        TRD104SyscallReturn::YieldWaitFor(data0, data1, data2) => {
+            *a0 = data0 as u64;
+            *a1 = data1 as u64;
+            *a2 = data2 as u64;
         }
     }
 }
