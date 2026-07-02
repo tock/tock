@@ -394,10 +394,15 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         ptr::write(stack_bottom.add(7), state.psr); //......... -> APSR
         ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); //... -> PC
         ptr::write(stack_bottom.add(5), state.yield_pc | 1); // -> LR
-        ptr::write(stack_bottom.add(3), callback.argument3.as_usize()); // -> R3
-        ptr::write(stack_bottom.add(2), callback.argument2); // -> R2
-        ptr::write(stack_bottom.add(1), callback.argument1); // -> R1
-        ptr::write(stack_bottom.add(0), callback.argument0); // -> R0
+
+        // Write upcall arguments to the proper stack locations.
+        kernel::utilities::arch_helpers::encode_upcall_trd104_ptr(
+            &callback,
+            stack_bottom.add(0).cast::<u32>(), // -> R0
+            stack_bottom.add(1).cast::<u32>(), // -> R1
+            stack_bottom.add(2).cast::<u32>(), // -> R2
+            stack_bottom.add(3).cast::<u32>(), // -> R3
+        );
 
         Ok(())
     }
