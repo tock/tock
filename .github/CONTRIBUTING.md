@@ -12,13 +12,14 @@ contribute, and we appreciate all of them.
 * [Notes](#notes)
 
 If you have questions, please make a post on the [mailing list][listserv] or
-join us on [Slack][slack].
+join us on [Matrix][matrix] or [Slack][slack].
 
 As a reminder, all contributors are expected to follow the Rust [Code of
 Conduct][coc].
 
+[matrix]: https://matrix.to/#/#tock:tockos.org
 [slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
-[listserv]: https://groups.google.com/forum/#!forum/tock-dev
+[listserv]: https://lists.tockos.org
 [coc]: https://www.rust-lang.org/conduct.html
 
 ## What Goes Where?
@@ -217,16 +218,13 @@ and make any required changes. PRs must pass the formatting checks before landin
 ### Step 8: Landing
 
 In order to land, a Pull Request needs to be reviewed and
-[approved](#getting-approvals-for-your-pull-request) by at least one person with
+approved by at least one person with
 commit access to the Tock repository and pass the continuous integration tests.
-After that, as long as there are no objections, the Pull Request can be merged.
-
-We use the bors-ng bot to merge PRs. In short, when someone replies `bors r+`,
-your PR has been scheduled for final tests and will be automatically merged. If
-a maintainer replies `bors delegate+`, then you have been granted the authority
-to merge your own PR (usually this will happen if there are some trivial
-changes required). For more on bors,
-[see the bors documentation](https://bors.tech/documentation/).
+[Depending on the significance of the
+PR](https://github.com/tock/tock/blob/master/doc/CodeReview.md#pull-requests),
+it may require review by multiple Core team members. Generally, trivial fixes
+should be easy to merge, and complex updates touching sensitive code may require
+consideration by several people.
 
 
 ## Issue Triage
