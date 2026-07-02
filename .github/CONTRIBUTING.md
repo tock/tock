@@ -240,6 +240,20 @@ updated sort][lru] is good for finding issues like this.
 
 [lru]: https://github.com/tock/tock/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-asc
 
+## Licensing
+
+All contributions to Tock are expected to be dual-licensed under the
+[Apache 2.0](../LICENSE-APACHE) and [MIT](../LICENSE-MIT) licenses. Copyrights
+in Tock projects are retained by their contributors. For full details, see the
+[Tock Reference Document on Licensing and Copyrights](../doc/reference/trd4-legal.md)
+
+Whenever possible, files should begin with a license header stating its license status. CI
+enforces this.
+
+    // Licensed under the Apache License, Version 2.0 or the MIT License.
+    // SPDX-License-Identifier: Apache-2.0 OR MIT
+    // Copyright Tock Contributors 2026.
+
 
 ## AI Policy
 
@@ -249,6 +263,10 @@ AI-generated code themselves for correctness and compatibility with Tock's
 code expectations. All AI use must be disclosed in the pull request
 description, including which AI tool was used, what portion of the patch was
 created by AI, and how the AI-generated code was reviewed.
+
+Contributors remain responsible for ensuring that their contributions are
+compatible with the applicable licenses, do not infringe on any copyright
+claims, and maintain proper attribution.
 
 
 ## Notes
