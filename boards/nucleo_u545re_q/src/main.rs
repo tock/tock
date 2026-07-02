@@ -6,13 +6,13 @@
 #![no_std]
 #![no_main]
 
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::{capabilities, debug};
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
@@ -58,6 +58,8 @@ struct NucleoU545RE {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
+    date_time:
+        &'static capsules_extra::date_time::DateTimeCapsule<'static, stm32u545::rtc::Rtc<'static>>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -73,6 +75,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
     }
@@ -192,11 +195,25 @@ unsafe fn start() -> (
     );
 
     usart1.register();
+    let rtc = static_init!(stm32u545::rtc::Rtc<'static>, stm32u545::rtc::Rtc::new());
+    rtc.register();
+
+    // Turn on the RTC clock and unlock the backup domain.
+    // We handle errors here such that a failure doesn't halt the kernel.
+    if let Err(e) = rtc.initialize_clock() {
+        debug!("{:?}", e)
+    }
+
+    // Set up the RTC mode. (configure prescalers, 24h format, default date/time)
+    // This requires the previous step, the clock and bckup domain to have been sucessfully initialized.
+    if let Err(e) = rtc.init_mode() {
+        debug!("{:?}", e)
+    }
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, rtc)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -253,6 +270,15 @@ unsafe fn start() -> (
         alarm_mux,
     )
     .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
+
+    let date_time = components::date_time::DateTimeComponent::new(
+        board_kernel,
+        capsules_extra::date_time::DRIVER_NUM,
+        rtc,
+    )
+    .finalize(components::date_time_component_static!(
+        stm32u545::rtc::Rtc<'static>
+    ));
 
     let led_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin05));
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
@@ -361,6 +387,7 @@ unsafe fn start() -> (
             adc: adc_syscall,
             dac,
             gpio,
+            date_time,
         }
     );
 

@@ -16,6 +16,7 @@ use crate::nvic::{
 };
 use crate::pwr;
 use crate::rcc;
+use crate::rtc;
 use crate::tim;
 use crate::usart;
 use crate::{dac, exti};
@@ -32,6 +33,7 @@ pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
 
 pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rcc: rcc::Rcc,
+    pub rtc: &'a rtc::Rtc<'a>,
     pub tim2: tim::Tim2<'a>,
     pub usart1: &'a usart::Usart<'a>,
     pub exti: &'a exti::Exti<'a>,
@@ -55,9 +57,15 @@ fn enable_dac1_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(
+        usart1: &'a usart::Usart<'a>,
+        exti: &'a exti::Exti<'a>,
+        dma1: &'a Dma,
+        rtc: &'a rtc::Rtc<'a>,
+    ) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
+            rtc,
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
             usart1,
             exti,
