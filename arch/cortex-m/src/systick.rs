@@ -5,9 +5,9 @@
 //! Cortex-M SysTick Timer
 
 use core::cell::Cell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{FieldValue, ReadOnly, ReadWrite, register_bitfields};
 
 use core::num::NonZeroU32;
 
@@ -92,9 +92,10 @@ impl SysTick {
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU
     ///   speed.
     pub fn new_with_calibration(clock_speed: u32) -> SysTick {
-        let res = SysTick::new();
-        res.hertz.set(clock_speed);
-        res
+        Self {
+            hertz: Cell::new(clock_speed),
+            external_clock: false,
+        }
     }
 
     /// Initialize the `SysTick` with an explicit clock speed and external

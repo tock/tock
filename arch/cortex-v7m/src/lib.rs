@@ -7,7 +7,7 @@
 #![no_std]
 
 // These constants are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     static _estack: u8;
     static _sstack: u8;
 }
@@ -16,6 +16,14 @@ extern "C" {
 ///
 /// For documentation of this function, please see
 /// `CortexMVariant::SYSTICK_HANDLER`.
+///
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+/// - This does not fall-through, it branches at the end.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn systick_handler_arm_v7m() {
@@ -53,6 +61,16 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
 ///
 /// For documentation of this function, please see
 /// `CortexMVariant::SVC_HANDLER`.
+///
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+///   - This writes to `r2`, a caller-saved register.
+///   - This writes to `r3`, a caller-saved register.
+/// - This does not fall-through, it branches in both arms of the branch.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
@@ -129,6 +147,16 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
 /// Generic interrupt handler for ARMv7-M instruction sets.
 ///
 /// For documentation of this function, see `CortexMVariant::GENERIC_ISR`.
+///
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+///   - This writes to `r2`, a caller-saved register.
+///   - This writes to `r3`, a caller-saved register.
+/// - This does not fall-through, it branches at the end.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn generic_isr_arm_v7m() {
@@ -214,8 +242,38 @@ pub unsafe fn switch_to_user_arm_v7m(
     process_regs: &mut [usize; 8],
 ) -> *const usize {
     use core::arch::asm;
-    asm!(
-        "
+    // # Safety
+    //
+    // - INPUTS:
+    //   - This uses `r0`, which is specified as an input from `user_stack`.
+    //   - This uses `r1`, which is specified as an input from `process_regs`.
+    // - CALLER-SAVED registers:
+    //   - This uses `r6`, which is replaced before exiting asm.
+    //   - This uses `r7`, which is replaced before exiting asm.
+    //   - This uses `r9`, which is replaced before exiting asm.
+    // - OUTPUTS:
+    //   - This writes `r0` which is specified as an output.
+    //   - This writes `r2` which is specified as an output.
+    //   - This writes `r3` which is specified as an output.
+    //   - This writes `r4` which is specified as an output.
+    //   - This writes `r5` which is specified as an output.
+    //   - This writes `r8` which is specified as an output.
+    //   - This writes `r10` which is specified as an output.
+    //   - This writes `r11` which is specified as an output.
+    //   - This writes `r12` which is specified as an output.
+    // - Options set:
+    // - Options not set:
+    //   - nomem: We read and write memory.
+    //   - nostack: We use the stack.
+    //   - preserves_flags: This likely change flags in userspace.
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on arm
+    //   - raw: not required
+    unsafe {
+        asm!(
+            "
     // Rust `asm!()` macro (as of May 2021) will not let us mark r6, r7 and r9
     // as clobbers. r6 and r9 is used internally by LLVM, and r7 is used for
     // the frame pointer. However, in the process of restoring and saving the
@@ -260,20 +318,21 @@ pub unsafe fn switch_to_user_arm_v7m(
     mov r6, r2                        // r6 = r2
     mov r7, r3                        // r7 = r3
     mov r9, r12                       // r9 = r12
-        ",
-        inout("r0") user_stack,
-        in("r1") process_regs,
-        out("r2") _,
-        out("r3") _,
-        out("r4") _,
-        out("r5") _,
-        out("r8") _,
-        out("r10") _,
-        out("r11") _,
-        out("r12") _,
-    );
+            ",
+            inout("r0") user_stack,
+            in("r1") process_regs,
+            out("r2") _,
+            out("r3") _,
+            out("r4") _,
+            out("r5") _,
+            out("r8") _,
+            out("r10") _,
+            out("r11") _,
+            out("r12") _,
+        );
 
-    user_stack
+        user_stack
+    }
 }
 
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
@@ -288,22 +347,51 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
         panic!("kernel stack overflow");
     } else {
         // Show the normal kernel hardfault message.
-        let stacked_r0: u32 = *faulting_stack.add(0);
-        let stacked_r1: u32 = *faulting_stack.add(1);
-        let stacked_r2: u32 = *faulting_stack.add(2);
-        let stacked_r3: u32 = *faulting_stack.add(3);
-        let stacked_r12: u32 = *faulting_stack.add(4);
-        let stacked_lr: u32 = *faulting_stack.add(5);
-        let stacked_pc: u32 = *faulting_stack.add(6);
-        let stacked_xpsr: u32 = *faulting_stack.add(7);
+
+        // Get the stacked copies of caller-saved registers and other state.
+        //
+        // # Safety
+        //
+        // Because we verified there was not a stack overflow when the hardware
+        // pushed these values to the stack, these are valid pointers to
+        // allocated memory.
+        let (
+            stacked_r0,
+            stacked_r1,
+            stacked_r2,
+            stacked_r3,
+            stacked_r12,
+            stacked_lr,
+            stacked_pc,
+            stacked_xpsr,
+        ) = unsafe {
+            let r0: u32 = *faulting_stack.add(0);
+            let r1: u32 = *faulting_stack.add(1);
+            let r2: u32 = *faulting_stack.add(2);
+            let r3: u32 = *faulting_stack.add(3);
+            let r12: u32 = *faulting_stack.add(4);
+            let lr: u32 = *faulting_stack.add(5);
+            let pc: u32 = *faulting_stack.add(6);
+            let xpsr: u32 = *faulting_stack.add(7);
+
+            (r0, r1, r2, r3, r12, lr, pc, xpsr)
+        };
 
         let mode_str = "Kernel";
 
-        let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
-        let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
-        let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
-        let mmfar: u32 = core::ptr::read_volatile(0xE000ED34 as *const u32);
-        let bfar: u32 = core::ptr::read_volatile(0xE000ED38 as *const u32);
+        // Read system status registers.
+        //
+        // # Safety
+        //
+        // These are the valid locations of 32-bit registers.
+        let (shcsr, cfsr, hfsr, mmfar, bfar) = unsafe {
+            let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
+            let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
+            let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
+            let mmfar: u32 = core::ptr::read_volatile(0xE000ED34 as *const u32);
+            let bfar: u32 = core::ptr::read_volatile(0xE000ED38 as *const u32);
+            (shcsr, cfsr, hfsr, mmfar, bfar)
+        };
 
         let iaccviol = (cfsr & 0x01) == 0x01;
         let daccviol = (cfsr & 0x02) == 0x02;
@@ -431,6 +519,17 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 ///
 /// For documentation of this function, please see
 /// `CortexMVariant::HARD_FAULT_HANDLER_HANDLER`.
+///
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+///   - This writes to `r1`, a caller-saved register.
+///   - This writes to `r2`, a caller-saved register.
+///   - This writes to `r3`, a caller-saved register.
+/// - This does not fall-through, it branches at the end.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {

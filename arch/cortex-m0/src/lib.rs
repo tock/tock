@@ -32,15 +32,21 @@ struct HardFaultStackedRegisters {
 /// Handle a hard fault that occurred in the kernel. This function is invoked
 /// by the naked hard_fault_handler function.
 unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
-    let hardfault_stacked_registers = HardFaultStackedRegisters {
-        r0: *faulting_stack.add(0),
-        r1: *faulting_stack.add(1),
-        r2: *faulting_stack.add(2),
-        r3: *faulting_stack.add(3),
-        r12: *faulting_stack.add(4),
-        lr: *faulting_stack.add(5),
-        pc: *faulting_stack.add(6),
-        xpsr: *faulting_stack.add(7),
+    // # Safety
+    //
+    // The hardware pushed the register and status values to the stack so
+    // we access them from the stack.
+    let hardfault_stacked_registers = unsafe {
+        HardFaultStackedRegisters {
+            r0: *faulting_stack.add(0),
+            r1: *faulting_stack.add(1),
+            r2: *faulting_stack.add(2),
+            r3: *faulting_stack.add(3),
+            r12: *faulting_stack.add(4),
+            lr: *faulting_stack.add(5),
+            pc: *faulting_stack.add(6),
+            xpsr: *faulting_stack.add(7),
+        }
     };
 
     panic!(
@@ -71,9 +77,28 @@ unsafe extern "C" fn generic_isr() {
     unimplemented!()
 }
 
+/// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
+///
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+///   - This writes to `r1`, a caller-saved register.
+///   - This writes to `r2`, a caller-saved register.
+///   - This writes to `r3`, a caller-saved register.
+///   - This writes to `r4`, a callee-saved register, but it is pushed and
+///     popped to/from the stack to return to its original value.
+///   - This writes to `r5`, a callee-saved register, but it is pushed and
+///     popped to/from the stack to return to its original value.
+///   - This writes to `r6`, a callee-saved register, but it is pushed and
+///     popped to/from the stack to return to its original value.
+///   - This writes to `r7`, a callee-saved register, but it is pushed and
+///     popped to/from the stack to return to its original value.
+/// - This does not fall-through, it branches at the end.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
-/// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 unsafe extern "C" fn generic_isr() {
     use core::arch::naked_asm;
     naked_asm!(
@@ -174,6 +199,14 @@ unsafe extern "C" fn systick_handler() {
 /// interrupt has occurred, but is slightly more efficient than the
 /// `generic_isr` handler on account of not needing to mark the interrupt as
 /// pending.
+///
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+/// - This does not fall-through, it branches at the end.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 unsafe extern "C" fn systick_handler() {
@@ -205,6 +238,14 @@ unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
 
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+///   - This writes to `r1`, a caller-saved register.
+/// - This does not fall-through, it branches in both branches.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 unsafe extern "C" fn svc_handler() {
@@ -249,6 +290,16 @@ unsafe extern "C" fn hard_fault_handler() {
     unimplemented!()
 }
 
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+///   - This writes to `r1`, a caller-saved register.
+///   - This writes to `r2`, a caller-saved register.
+///   - This writes to `r3`, a caller-saved register.
+/// - This does not fall-through, it branches at the end.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 unsafe extern "C" fn hard_fault_handler() {
@@ -363,8 +414,40 @@ impl cortexm::CortexMVariant for CortexM0 {
         process_regs: &mut [usize; 8],
     ) -> *const usize {
         use core::arch::asm;
-        asm!(
-            "
+        unsafe {
+            // # Safety
+            //
+            // - INPUTS:
+            //   - This uses `r0`, which is specified as an input from `user_stack`.
+            //   - This uses `r1`, which is specified as an input from `process_regs`.
+            // - CALLER-SAVED registers:
+            //   - This uses `r6`, which is replaced before exiting asm.
+            //   - This uses `r7`, which is replaced before exiting asm.
+            //   - This uses `r9`, which is replaced before exiting asm.
+            // - OUTPUTS:
+            //   - This writes `r0` which is specified as an output.
+            //   - This writes `r1` which is NOT specified as an output. However,
+            //     the original value is restored before exiting the asm block.
+            //   - This writes `r2` which is specified as an output.
+            //   - This writes `r3` which is specified as an output.
+            //   - This writes `r4` which is specified as an output.
+            //   - This writes `r5` which is specified as an output.
+            //   - This writes `r8` which is specified as an output.
+            //   - This writes `r10` which is specified as an output.
+            //   - This writes `r11` which is specified as an output.
+            //   - This writes `r12` which is specified as an output.
+            // - Options set:
+            // - Options not set:
+            //   - nomem: We read and write memory.
+            //   - nostack: We use the stack.
+            //   - preserves_flags: This likely change flags in userspace.
+            //   - pure: not required
+            //   - readonly: implied by nomem
+            //   - noreturn: we do fall-through
+            //   - att_syntax: not on arm
+            //   - raw: not required
+            asm!(
+                "
     // Rust `asm!()` macro (as of May 2021) will not let us mark r6, r7 and r9
     // as clobbers. r6 and r9 is used internally by LLVM, and r7 is used for
     // the frame pointer. However, in the process of restoring and saving the
@@ -415,18 +498,19 @@ impl cortexm::CortexMVariant for CortexM0 {
     mov r6, r2
     mov r7, r3
     mov r9, r12
-            ",
-            inout("r0") user_stack,
-            in("r1") process_regs,
-            out("r2") _,
-            out("r3") _,
-            out("r4") _,
-            out("r5") _,
-            out("r8") _,
-            out("r10") _,
-            out("r11") _,
-            out("r12") _,
-        );
+                ",
+                inout("r0") user_stack,
+                in("r1") process_regs,
+                out("r2") _,
+                out("r3") _,
+                out("r4") _,
+                out("r5") _,
+                out("r8") _,
+                out("r10") _,
+                out("r11") _,
+                out("r12") _,
+            );
+        }
 
         user_stack
     }

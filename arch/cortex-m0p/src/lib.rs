@@ -17,7 +17,7 @@ pub mod mpu {
         unsafe { StaticRef::new(0xE000ED90 as *const cortexm::mpu::MpuRegisters) };
 
     pub unsafe fn new() -> MPU {
-        MPU::new(MPU_BASE_ADDRESS)
+        unsafe { MPU::new(MPU_BASE_ADDRESS) }
     }
 }
 
@@ -25,6 +25,7 @@ pub mod mpu {
 // valid on cortex-m0.
 pub use cortexm::support;
 
+pub use cortexm::CortexMVariant;
 pub use cortexm::initialize_ram_jump_to_main;
 pub use cortexm::interrupt_mask;
 pub use cortexm::nvic;
@@ -32,7 +33,6 @@ pub use cortexm::scb;
 pub use cortexm::systick;
 pub use cortexm::thread_id;
 pub use cortexm::unhandled_interrupt;
-pub use cortexm::CortexMVariant;
 use cortexm0::CortexM0;
 
 // Mock implementation for tests on Travis-CI.
@@ -93,7 +93,7 @@ impl cortexm::CortexMVariant for CortexM0P {
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
     ) -> *const usize {
-        CortexM0::switch_to_user(user_stack, process_regs)
+        unsafe { CortexM0::switch_to_user(user_stack, process_regs) }
     }
 
     #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
