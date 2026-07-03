@@ -62,7 +62,7 @@ compatible version:
 
 1.  **Install dependencies**:
 
-    **Ubuntu-based distros**
+    **Debian-based distros**
     ```bash
     sudo apt update
     sudo apt install build-essential libusb-1.0-0-dev libftdi1-dev \
