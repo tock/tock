@@ -75,7 +75,7 @@ compatible version:
         libtool autoconf automake texinfo pkgconf
 2.  **Clone and build**:
 
-    **Ubuntu-based distro**
+    **Debian-based distro**
     ```bash
     git clone https://github.com/openocd-org/openocd.git
     cd openocd
