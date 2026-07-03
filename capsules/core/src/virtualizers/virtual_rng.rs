@@ -19,6 +19,7 @@ enum Op {
 pub struct MuxRngMaster<'a> {
     rng: &'a dyn Rng<'a>,
     devices: List<'a, VirtualRngMasterDevice<'a>>,
+    last_access_position: Cell<usize>,
     inflight: OptionalCell<&'a VirtualRngMasterDevice<'a>>,
 }
 
@@ -27,6 +28,7 @@ impl<'a> MuxRngMaster<'a> {
         MuxRngMaster {
             rng,
             devices: List::new(),
+            last_access_position: Cell::new(0),
             inflight: OptionalCell::empty(),
         }
     }
@@ -36,7 +38,19 @@ impl<'a> MuxRngMaster<'a> {
             let mnode = self
                 .devices
                 .iter()
-                .find(|node| node.operation.get() != Op::Idle);
+                .enumerate()
+                .skip(self.last_access_position.get() + 1)
+                .chain(
+                    self.devices
+                        .iter()
+                        .enumerate()
+                        .take(self.last_access_position.get()),
+                )
+                .find(|(_, node)| node.operation.get() != Op::Idle)
+                .map(|(index, node)| {
+                    self.last_access_position.set(index);
+                    node
+                });
 
             let return_code = mnode.map(|node| {
                 let op = node.operation.get();

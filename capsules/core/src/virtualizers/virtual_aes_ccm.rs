@@ -139,6 +139,7 @@ pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
     aes: &'a A,
     client: OptionalCell<&'a dyn symmetric_encryption::Client<'a>>,
     ccm_clients: List<'a, VirtualAES128CCM<'a, A>>,
+    last_access_position: Cell<usize>,
     inflight: OptionalCell<&'a VirtualAES128CCM<'a, A>>,
     deferred_call: DeferredCall,
 }
@@ -150,6 +151,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> 
             aes,
             client: OptionalCell::empty(),
             ccm_clients: List::new(),
+            last_access_position: Cell::new(0),
             inflight: OptionalCell::empty(),
             deferred_call: DeferredCall::new(),
         }
@@ -168,7 +170,19 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> 
             let mnode = self
                 .ccm_clients
                 .iter()
-                .find(|node| node.queued_up.is_some());
+                .enumerate()
+                .skip(self.last_access_position.get() + 1)
+                .chain(
+                    self.ccm_clients
+                        .iter()
+                        .enumerate()
+                        .take(self.last_access_position.get()),
+                )
+                .find(|(_, node)| node.queued_up.is_some())
+                .map(|(index, node)| {
+                    self.last_access_position.set(index);
+                    node
+                });
             mnode.map(|node| {
                 self.inflight.set(node);
                 let parameters: CryptFunctionParameters = node.queued_up.take().unwrap();

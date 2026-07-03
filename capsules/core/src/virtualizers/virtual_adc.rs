@@ -6,6 +6,8 @@
 //!
 //! Support Single Sample for now.
 
+use core::cell::Cell;
+
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
@@ -15,6 +17,7 @@ use kernel::ErrorCode;
 pub struct MuxAdc<'a, A: hil::adc::Adc<'a>> {
     adc: &'a A,
     devices: List<'a, AdcDevice<'a, A>>,
+    last_access_position: Cell<usize>,
     inflight: OptionalCell<&'a AdcDevice<'a, A>>,
 }
 
@@ -40,13 +43,29 @@ impl<'a, A: hil::adc::Adc<'a>> MuxAdc<'a, A> {
         MuxAdc {
             adc,
             devices: List::new(),
+            last_access_position: Cell::new(0),
             inflight: OptionalCell::empty(),
         }
     }
 
     fn do_next_op(&self) {
         if self.inflight.is_none() {
-            let mnode = self.devices.iter().find(|node| node.operation.is_some());
+            let mnode = self
+                .devices
+                .iter()
+                .enumerate()
+                .skip(self.last_access_position.get() + 1)
+                .chain(
+                    self.devices
+                        .iter()
+                        .enumerate()
+                        .take(self.last_access_position.get()),
+                )
+                .find(|(_, node)| node.operation.is_some())
+                .map(|(index, node)| {
+                    self.last_access_position.set(index);
+                    node
+                });
             mnode.map(|node| {
                 let started = node.operation.map_or(false, |operation| match operation {
                     Operation::OneSample => {

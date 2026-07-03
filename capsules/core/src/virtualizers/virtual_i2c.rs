@@ -22,6 +22,7 @@ pub struct MuxI2C<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBus> 
     enabled: Cell<usize>,
     i2c_inflight: OptionalCell<&'a I2CDevice<'a, I, S>>,
     smbus_inflight: OptionalCell<&'a SMBusDevice<'a, I, S>>,
+    last_access_position: Cell<usize>,
     deferred_call: DeferredCall,
 }
 
@@ -50,6 +51,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
             enabled: Cell::new(0),
             i2c_inflight: OptionalCell::empty(),
             smbus_inflight: OptionalCell::empty(),
+            last_access_position: Cell::new(0),
             deferred_call: DeferredCall::new(),
         }
     }
@@ -78,7 +80,19 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
             let mnode = self
                 .i2c_devices
                 .iter()
-                .find(|node| node.operation.get() != Op::Idle);
+                .enumerate()
+                .skip(self.last_access_position.get() + 1)
+                .chain(
+                    self.i2c_devices
+                        .iter()
+                        .enumerate()
+                        .take(self.last_access_position.get()),
+                )
+                .find(|(_, node)| node.operation.get() != Op::Idle)
+                .map(|(index, node)| {
+                    self.last_access_position.set(index);
+                    node
+                });
             mnode.map(|node| {
                 node.buffer.take().map(|buf| {
                     match node.operation.get() {

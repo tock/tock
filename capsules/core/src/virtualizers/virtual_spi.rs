@@ -19,6 +19,7 @@ pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster<'a>> {
     spi: &'a Spi,
     devices: List<'a, VirtualSpiMasterDevice<'a, Spi>>,
     inflight: OptionalCell<&'a VirtualSpiMasterDevice<'a, Spi>>,
+    last_access_position: Cell<usize>,
     deferred_call: DeferredCall,
 }
 
@@ -47,6 +48,7 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
             spi,
             devices: List::new(),
             inflight: OptionalCell::empty(),
+            last_access_position: Cell::new(0),
             deferred_call: DeferredCall::new(),
         }
     }
@@ -56,7 +58,19 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
             let mnode = self
                 .devices
                 .iter()
-                .find(|node| node.operation.get() != Op::Idle);
+                .enumerate()
+                .skip(self.last_access_position.get() + 1)
+                .chain(
+                    self.devices
+                        .iter()
+                        .enumerate()
+                        .take(self.last_access_position.get()),
+                )
+                .find(|(_, node)| node.operation.get() != Op::Idle)
+                .map(|(index, node)| {
+                    self.last_access_position.set(index);
+                    node
+                });
             mnode.map(|node| {
                 let configuration = node.configuration.get();
                 let cs = configuration.chip_select;
