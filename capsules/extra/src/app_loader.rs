@@ -67,11 +67,12 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::num::NonZeroU32;
 
 use kernel::dynamic_binary_storage;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::process::ProcessLoadError;
+use kernel::process::{ProcessLoadError, ShortId};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -94,8 +95,10 @@ mod upcall {
     pub const LOAD_DONE: usize = 3;
     /// Abort done callback.
     pub const ABORT_DONE: usize = 4;
+    /// Unload done callback.
+    pub const UNLOAD_DONE: usize = 5;
     /// Number of upcalls.
-    pub const COUNT: u8 = 5;
+    pub const COUNT: u8 = 6;
 }
 
 // Ids for read-only allow buffers
@@ -118,10 +121,12 @@ pub struct App {
 pub struct AppLoader<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    T: dynamic_binary_storage::DynamicProcessUnload + 'static,
 > {
     // The underlying driver for the process flashing and loading.
     storage_driver: &'static S,
     load_driver: &'static L,
+    unload_driver: &'static T,
     // Per-app state.
     apps: Grant<
         App,
@@ -140,7 +145,8 @@ pub struct AppLoader<
 impl<
         S: dynamic_binary_storage::DynamicBinaryStore + 'static,
         L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > AppLoader<S, L>
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > AppLoader<S, L, T>
 {
     pub fn new(
         grant: Grant<
@@ -151,12 +157,14 @@ impl<
         >,
         storage_driver: &'static S,
         load_driver: &'static L,
+        unload_driver: &'static T,
         buffer: &'static mut [u8],
-    ) -> AppLoader<S, L> {
+    ) -> AppLoader<S, L, T> {
         AppLoader {
             apps: grant,
             storage_driver,
             load_driver,
+            unload_driver,
             buffer: TakeCell::new(buffer),
             current_process: OptionalCell::empty(),
             new_app_length: Cell::new(0),
@@ -238,7 +246,8 @@ impl<
 impl<
         S: dynamic_binary_storage::DynamicBinaryStore + 'static,
         L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L>
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L, T>
 {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self, result: Result<(), ErrorCode>) {
@@ -301,7 +310,8 @@ impl<
 impl<
         S: dynamic_binary_storage::DynamicBinaryStore + 'static,
         L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L>
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L, T>
 {
     /// Let the requesting app know we are done loading the new process
     ///
@@ -344,11 +354,38 @@ impl<
     }
 }
 
+impl<
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > dynamic_binary_storage::DynamicProcessUnloadClient for AppLoader<S, L, T>
+{
+    /// Let the app know we have unloaded the target process
+    /// and return an opaque identifier for the process binary
+    fn unload_done(&self, result: Result<(), ErrorCode>, app_handle: usize) {
+        self.current_process.map(|processid| {
+            let _ = self.apps.enter(processid, move |app, kernel_data| {
+                // And then signal the app.
+                app.pending_command = false;
+
+                self.current_process.take();
+                let _ = kernel_data
+                    .schedule_upcall(
+                        upcall::UNLOAD_DONE,
+                        (into_statuscode(result), app_handle, 0),
+                    )
+                    .ok();
+            });
+        });
+    }
+}
+
 /// Provide an interface for userland.
 impl<
         S: dynamic_binary_storage::DynamicBinaryStore + 'static,
         L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > SyscallDriver for AppLoader<S, L>
+        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    > SyscallDriver for AppLoader<S, L, T>
 {
     /// Command interface.
     ///
@@ -387,11 +424,13 @@ impl<
     ///  - Returns ErrorCode::BUSY when the abort fails(due to padding app being
     ///    unable to be written, so try again)
     ///  - Returns ErrorCode::FAIL if the driver is not dedicated to this process
+    /// - `6`: Request kernel to unload a processs
+    ///  - Returns Ok(()) when the application is successfully scheduled for unload
+    ///  - Returns ErrorCode::FAIL when the unload fails
     ///
-    /// The driver returns ErrorCode::INVAL if any operation is called before
-    /// the preceding operation was invoked. For example, `write()` cannot be
-    /// called before `setup()`, and `load()` cannot be called before `write()`
-    /// (for this implementation).
+    /// The driver returns ErrorCode::INVAL if any operation is called before the
+    /// preceeding operation was invoked. For example, `write()` cannot be called before
+    /// `setup()`, and `load()` cannot be called before `write()` (for this implementation).
     fn command(
         &self,
         command_num: usize,
@@ -506,6 +545,24 @@ impl<
                     }
                     Err(e) => {
                         self.new_app_length.set(0);
+                        self.current_process.take();
+                        CommandReturn::failure(e)
+                    }
+                }
+            }
+            6 => {
+                // Request the kernel to unload a process
+                // by specifying its ShortId
+
+                // returns only the address of the active process (which is the latest version). we need to be able to uninstall any version
+                let shortid = match NonZeroU32::new(arg1 as u32) {
+                    Some(id) => ShortId::Fixed(id),
+                    None => return CommandReturn::failure(ErrorCode::INVAL),
+                };
+                let res = self.unload_driver.unload(shortid);
+                match res {
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => {
                         self.current_process.take();
                         CommandReturn::failure(e)
                     }

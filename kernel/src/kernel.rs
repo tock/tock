@@ -314,6 +314,29 @@ impl Kernel {
         Err(())
     }
 
+    /// Terminate a process if it exists, and remove it from ProcessArray.
+    pub fn remove_process_from_active_processes<F>(
+        &self,
+        shortid: process::ShortId,
+        f: F,
+        _capability: &dyn capabilities::ProcessManagementCapability,
+    ) -> Result<usize, ()>
+    where
+        F: FnOnce(&'static dyn process::Process) -> usize,
+    {
+        for slot in self.processes.iter() {
+            if let Some(process) = slot.get() {
+                if process.short_app_id() == shortid {
+                    process.terminate(None);
+                    let result = f(process);
+                    slot.proc.set(None);
+                    return Ok(result);
+                }
+            }
+        }
+        Err(())
+    }
+
     /// Cause all apps to fault.
     ///
     /// This will call `set_fault_state()` on each app, causing the app to enter
