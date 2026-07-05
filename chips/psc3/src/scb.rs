@@ -14,7 +14,6 @@ use kernel::utilities::{
     cells::{OptionalCell, TakeCell},
     registers::interfaces::{ReadWriteable, Readable, Writeable},
 };
-// use spe::serial::{SerialError, SerialSync};
 
 pub struct Scb<'a> {
     registers: StaticRef<regs::ScbRegisters>,
@@ -309,45 +308,6 @@ impl Scb<'_> {
     }
 }
 
-// impl SerialSync for Scb<'_> {
-//     fn initialize(&self) -> Result<(), SerialError> {
-//         self.set_standard_uart_mode();
-//         Ok(())
-//     }
-
-//     fn uninitialize(&self) -> Result<(), SerialError> {
-//         self.disable_scb();
-//         Ok(())
-//     }
-
-//     fn send(&self, data: &[u8]) -> Result<(), (SerialError, &'static mut [u8])> {
-//         self.transmit_uart_sync(data);
-//         Ok(())
-//     }
-
-//     fn receive(
-//         &self,
-//         data: &'static mut [u8],
-//         num: usize,
-//     ) -> Result<(), (SerialError, &'static mut [u8])> {
-//         if data.len() < num || num == 0 {
-//             Err((SerialError::Size, data))
-//         } else {
-//             self.receive_uart_sync(&mut data[..num]);
-//             Ok(())
-//         }
-//     }
-
-//     fn transfer(
-//         &self,
-//         data_out: &'static mut [u8],
-//         data_in: &'static mut [u8],
-//         _num: usize,
-//     ) -> Result<(), (SerialError, &'static mut [u8], &'static mut [u8])> {
-//         Err((SerialError::NoSupport, data_out, data_in))
-//     }
-// }
-
 impl<'a> Transmit<'a> for Scb<'a> {
     fn set_transmit_client(&self, client: &'a dyn TransmitClient) {
         self.tx_client.set(client);
@@ -500,7 +460,7 @@ impl kernel::platform::chip::PanicWriter for Scb<'_> {
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
         use kernel::hil::uart::Configure as _;
 
-        let scb = Scb::new();
+        let scb = Scb::new_scb3();
 
         scb.disable_scb();
         scb.set_standard_uart_mode();

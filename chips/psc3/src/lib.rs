@@ -20,8 +20,6 @@ extern "C" {
     all(target_arch = "arm", target_os = "none"),
     link_section = ".vectors"
 )]
-// used Ensures that the symbol is kept until the final binary
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     initialize_ram_jump_to_main,
@@ -42,8 +40,6 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 ];
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
-// used Ensures that the symbol is kept until the final binary
-#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 140] = [CortexM33::GENERIC_ISR; 140];
 
 pub mod chip;
@@ -55,7 +51,6 @@ mod gpio_registers;
 mod hsiom_registers;
 pub mod icache;
 pub mod interrupts;
-pub mod mxcm33;
 pub mod peri;
 pub mod peri_clk;
 pub mod pwrmode;
