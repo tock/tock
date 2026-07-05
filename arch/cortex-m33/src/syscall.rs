@@ -17,40 +17,11 @@ use kernel::errorcode::ErrorCode;
 
 use crate::{CortexM33, CortexMVariant};
 
-/// This is used in the syscall handler. When set to 1 this means the
-/// svc_handler was called. Marked `pub` because it is used in the cortex-m*
-/// specific handler.
-///
-/// Because this is a global `static mut` variable, we can only access it from
-/// inline assembly.
-#[no_mangle]
-#[used]
-pub static mut SYSCALL_FIRED: UnsafeCell<usize> = UnsafeCell::new(0);
-
-/// This is called in the hard fault handler. When set to 1 this means the hard
-/// fault handler was called. Marked `pub` because it is used in the cortex-m*
-/// specific handler.
-///
-/// n.b. If the kernel hard faults, it immediately panic's. This flag is only
-/// for handling application hard faults.
-///
-/// Because this is a global `static mut` variable, we can only access it from
-/// inline assembly.
-#[no_mangle]
-#[used]
-pub static mut APP_HARD_FAULT: UnsafeCell<usize> = UnsafeCell::new(0);
-
-/// This is used in the hardfault handler.
-///
-/// When an app faults, the hardfault handler stores the value of the
-/// SCB registers in this static array. This makes them available to
-/// be displayed in a diagnostic fault message.
-///
-/// Because this is a global `static mut` variable, we can only access it from
-/// inline assembly.
-#[no_mangle]
-#[used]
-pub static mut SCB_REGISTERS: UnsafeCell<[u32; 5]> = UnsafeCell::new([0; 5]);
+// Note: We do not define `SYSCALL_FIRED`, `APP_HARD_FAULT`, and `SCB_REGISTERS`
+// here because the `cortex-m33` crate depends on the `cortex-m` crate, which
+// already defines them as `#[no_mangle]` globals. Defining them here would cause
+// a multiple definition linker error. The inline assembly in this file directly
+// references the symbols provided by `cortex-m`.
 
 /// Tracks whether a process was executing in the secure world when it was
 /// preempted. Set by the interrupt/svc handlers and read/written by
