@@ -28,4 +28,6 @@ This pull request still needs...
 #### AI Use
 
 - [ ] No AI was used in this PR.
-- [ ] I have read [Tock's AI policy](https://github.com/tock/tock/blob/master/.github/CONTRIBUTING.md) and have properly disclosed my AI use below.
+- [ ] AI was used in this PR. I have read [Tock's AI policy](https://github.com/tock/tock/blob/master/.github/CONTRIBUTING.md) and have properly disclosed my AI use below.
+
+<!-- Include details of AI use here, if you used any --!>
