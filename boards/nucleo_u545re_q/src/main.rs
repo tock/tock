@@ -6,16 +6,22 @@
 #![no_std]
 #![no_main]
 
+use core::arch::asm;
+
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::gpio::Output;
+use kernel::hil::spi::SpiMaster;
+use kernel::hil::time::{Ticks, Timer};
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
+use stm32u545::spi;
 
 pub mod io;
 
@@ -39,17 +45,24 @@ struct NucleoU545RE {
     console: &'static capsules_core::console::Console<'static>,
     scheduler: &'static components::sched::round_robin::RoundRobinComponentType,
     systick: cortexm33::systick::SysTick,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin<'static>>,
-        1,
-    >,
+    // led: &'static capsules_core::led::LedDriver<
+    //     'static,
+    //     kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin<'static>>,
+    //     1,
+    // >,
     button: &'static capsules_core::button::Button<'static, stm32u545::gpio::Pin<'static>>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
             'static,
             stm32u545::tim::Tim2<'static>,
+        >,
+    >,
+    spi: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            stm32u545::spi::Spi<'static>,
         >,
     >,
 }
@@ -61,9 +74,10 @@ impl SyscallDriverLookup for NucleoU545RE {
     {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            // capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             _ => f(None),
         }
     }
@@ -115,8 +129,30 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
     pin10.set_alternate_function(7);
     pin10.set_speed_high();
 
-    // LED Pin (PA5)
-    periphs.gpio_a.pin(PinId::Pin05).make_output();
+    // SPI1 Pins
+    // SPI_CLOCK + LED Pin (PA5)
+    let spi1_sck = periphs.gpio_a.pin(PinId::Pin05);
+    spi1_sck.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_sck.set_alternate_function(5);
+    spi1_sck.set_speed_high();
+
+    // SPI_MISO (PA6)
+    let spi1_miso = periphs.gpio_a.pin(PinId::Pin06);
+    spi1_miso.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_miso.set_alternate_function(5);
+    spi1_miso.set_speed_high();
+
+    // SPI_MOSI (PA7)
+    let spi1_mosi = periphs.gpio_a.pin(PinId::Pin07);
+    spi1_mosi.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_mosi.set_alternate_function(5);
+    spi1_mosi.set_speed_high();
+
+    // SPI1_CS (PC9)
+    let spi1_cs = periphs.gpio_c.pin(PinId::Pin09);
+    spi1_cs.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_cs.set_alternate_function(5);
+    spi1_cs.set_speed_high();
 
     // Button Pin (PC13) - Hardware is Active High
     let btn = periphs.gpio_c.pin(PinId::Pin13);
@@ -152,10 +188,15 @@ unsafe fn start() -> (
     );
     usart1.register();
 
+    let spi1 = static_init!(
+        stm32u545::spi::Spi<'static>,
+        stm32u545::spi::Spi::new(stm32u545::spi::SPI1_BASE)
+    );
+
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, spi1, exti, dma1)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -172,6 +213,9 @@ unsafe fn start() -> (
 
     let uart_mux = components::console::UartMuxComponent::new(periphs.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
+
+    let spi_mux = components::spi::SpiMuxComponent::new(periphs.spi1)
+        .finalize(components::spi_mux_component_static!(stm32u545::spi::Spi));
 
     let alarm_mux = components::alarm::AlarmMuxComponent::new(&periphs.tim2).finalize(
         components::alarm_mux_component_static!(stm32u545::tim::Tim2),
@@ -213,10 +257,28 @@ unsafe fn start() -> (
     )
     .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
 
-    let led_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin05));
-    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
-        kernel::hil::led::LedHigh::new(led_pin)
+    // let led_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin05));
+    // let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
+    //     kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
+    //     kernel::hil::led::LedHigh::new(led_pin)
+    // ));
+
+    let spi_cs = static_init!(
+        stm32u545::gpio::Pin<'static>,
+        periphs.gpio_c.pin(PinId::Pin09)
+    );
+
+    kernel::hil::gpio::Configure::make_output(spi_cs);
+    kernel::hil::gpio::Output::set(spi_cs);
+
+    let spi_syscalls = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        spi_mux,
+        spi_cs,
+        capsules_core::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_static!(
+        stm32u545::spi::Spi<'static>
     ));
 
     let button = components::button::ButtonComponent::new(
@@ -241,9 +303,10 @@ unsafe fn start() -> (
             scheduler: components::sched::round_robin::RoundRobinComponent::new(processes)
                 .finalize(components::round_robin_component_static!(NUM_PROCS)),
             systick: cortexm33::systick::SysTick::new(),
-            led,
+            // led,
             button,
             alarm,
+            spi: spi_syscalls,
         }
     );
 
@@ -251,6 +314,22 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xx<stm32u545::chip::Stm32u5xxDefaultPeripherals>,
         stm32u545::chip::Stm32u5xx::new(periphs)
     );
+
+    // let _ = spi1.init();
+    // let spi1_cs_test = periphs.gpio_a.pin(PinId::Pin08);
+    // spi1_cs_test.set_mode(stm32u545::gpio::Mode::Output);
+
+    // while true {
+    //     spi1_cs_test.clear();
+    //     spi1.write_byte(250);
+    //     spi1_cs_test.set();
+    //     for _ in 0..80000 {
+    //         // The compiler will keep this loop because of the assembly instruction
+    //         unsafe {
+    //             asm!("nop");
+    //         }
+    //     }
+    // }
 
     // Symbols for linker
     extern "C" {
