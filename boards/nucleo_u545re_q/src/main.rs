@@ -26,9 +26,12 @@ extern "C" {
 
 const NUM_PROCS: usize = 4;
 
+type GpioHw = stm32u545::gpio::Pin<'static>;
 type ChipHw =
     stm32u545::chip::Stm32u5xx<'static, stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
+
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new();
@@ -52,6 +55,7 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    gpio: &'static GpioDriver,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -64,6 +68,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }
@@ -233,6 +238,37 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        capsules_core::gpio::DRIVER_NUM,
+        components::gpio_component_helper_owned!(
+            GpioHw,
+            // CN7
+            0 => periphs.gpio_c.pin(PinId::Pin10),
+            1 => periphs.gpio_c.pin(PinId::Pin11),
+            2 => periphs.gpio_c.pin(PinId::Pin12),
+            3 => periphs.gpio_a.pin(PinId::Pin15),
+            4 => periphs.gpio_a.pin(PinId::Pin00),
+            5 => periphs.gpio_a.pin(PinId::Pin01),
+            6 => periphs.gpio_a.pin(PinId::Pin04),
+            7 => periphs.gpio_c.pin(PinId::Pin02),
+            8 => periphs.gpio_c.pin(PinId::Pin01),
+            9 => periphs.gpio_c.pin(PinId::Pin03),
+            10 => periphs.gpio_c.pin(PinId::Pin00),
+            // CN10
+            11 => periphs.gpio_a.pin(PinId::Pin06),
+            12 => periphs.gpio_a.pin(PinId::Pin07),
+            13 => periphs.gpio_c.pin(PinId::Pin09),
+            14 => periphs.gpio_c.pin(PinId::Pin06),
+            15 => periphs.gpio_c.pin(PinId::Pin07),
+            16 => periphs.gpio_a.pin(PinId::Pin08),
+            17 => periphs.gpio_c.pin(PinId::Pin08),
+            18 => periphs.gpio_a.pin(PinId::Pin02),
+            19 => periphs.gpio_a.pin(PinId::Pin03),
+        ),
+    )
+    .finalize(components::gpio_component_static!(GpioHw));
+
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -244,6 +280,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            gpio,
         }
     );
 
