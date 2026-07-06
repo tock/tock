@@ -1551,4 +1551,46 @@ impl SIO {
             _ => panic!("SIO CPUID cannot be {}", proc_id),
         }
     }
+
+    /// Launches code on core 1 via the bootrom's multicore-launch protocol.
+    ///
+    /// Core 1 is expected to still be idling in the bootrom's launch-wait
+    /// loop, which is where it sits after any chip reset until this
+    /// handshake is performed. Must only be called from core 0.
+    ///
+    /// `vector_table` becomes core 1's VTOR, `sp` its initial main stack
+    /// pointer, and `entry` the address it branches to (the Thumb bit is
+    /// already encoded in any Rust function pointer on this target, same as
+    /// the reset vector in `BASE_VECTORS`).
+    ///
+    /// This is the same six-word `{0, 0, 1, vector_table, sp, entry}`
+    /// command sequence documented for the RP2040/RP2350 bootrom and used
+    /// by the Pico SDK's `multicore_launch_core1_raw`.
+    pub unsafe fn launch_core1(&self, vector_table: u32, sp: u32, entry: u32) {
+        let cmd_sequence: [u32; 6] = [0, 0, 1, vector_table, sp, entry];
+
+        let mut sequence = 0;
+        while sequence < cmd_sequence.len() {
+            let cmd = cmd_sequence[sequence];
+            if cmd == 0 {
+                // Always drain the RX FIFO before sending a 0, and SEV in
+                // case core 1 is blocked in WFE waiting for FIFO space.
+                while self.registers.fifo_st.is_set(FIFO_ST::VLD) {
+                    self.registers.fifo_rd.get();
+                }
+                cortexm33::support::sev();
+            }
+
+            while !self.registers.fifo_st.is_set(FIFO_ST::RDY) {}
+            self.registers.fifo_wr.set(cmd);
+            cortexm33::support::sev();
+
+            while !self.registers.fifo_st.is_set(FIFO_ST::VLD) {
+                cortexm33::support::wfe();
+            }
+            let response = self.registers.fifo_rd.get();
+
+            sequence = if response == cmd { sequence + 1 } else { 0 };
+        }
+    }
 }

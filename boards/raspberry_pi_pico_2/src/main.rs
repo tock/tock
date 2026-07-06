@@ -13,6 +13,7 @@
 #![deny(missing_docs)]
 
 use core::ptr::addr_of_mut;
+use core::sync::atomic::{AtomicU32, Ordering};
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
@@ -23,6 +24,7 @@ use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
@@ -171,6 +173,45 @@ core::arch::global_asm!(
     "
 );
 
+// ---------------------------------------------------------------------------
+// Core 1 launch (lockstep porting Stage A1 — core-1 liveness smoke test)
+// ---------------------------------------------------------------------------
+//
+// This is a minimal proof that the bootrom multicore-launch handshake
+// (`SIO::launch_core1`) works on this board: core 1 is launched with its own
+// small stack, sets `CORE1_ALIVE_MAGIC` into a shared static, and then parks
+// itself. Core 0 waits (bounded) for that write and panics if it never
+// arrives. There is no shared-RAM partition, Transport, or Sync barrier
+// wiring yet — core 1 never touches the kernel. This is deliberately
+// throwaway scaffolding for the next stage (A2-A4) to replace.
+
+/// Dedicated stack for core 1. 1 KiB is enough for `core1_entry`'s minimal
+/// liveness proof; a per-core kernel stack will replace this in stage A2.
+#[repr(align(8))]
+struct Core1Stack([u8; 1024]);
+static mut CORE1_STACK: Core1Stack = Core1Stack([0; 1024]);
+
+/// Written by `core1_entry` once core 1 is executing Rust code.
+static CORE1_ALIVE: AtomicU32 = AtomicU32::new(0);
+const CORE1_ALIVE_MAGIC: u32 = 0xC0FF_EE01;
+
+/// Number of poll iterations core 0 waits for `CORE1_ALIVE` before giving up.
+/// Iteration-bounded rather than timer-bounded since no alarm is configured
+/// this early in boot; a real TIMER0-based timeout arrives with the Sync
+/// barrier in stage A4.
+const CORE1_LAUNCH_POLL_LIMIT: u32 = 10_000_000;
+
+/// Entry point for core 1, branched to directly by the bootrom after the
+/// `SIO::launch_core1` handshake (not a hardware reset — `BASE_VECTORS[1]`
+/// is never executed on core 1).
+#[no_mangle]
+pub unsafe extern "C" fn core1_entry() -> ! {
+    CORE1_ALIVE.store(CORE1_ALIVE_MAGIC, Ordering::Release);
+    loop {
+        cortexm33::support::wfe();
+    }
+}
+
 fn init_clocks(
     peripherals: &Rp2350DefaultPeripherals,
     clocks: &'static rp2350::clocks::Clocks,
@@ -287,6 +328,27 @@ pub unsafe fn main() {
             .pins
             .get_pin(RPGpio::from_usize(pin).unwrap())
             .deactivate_pads();
+    }
+
+    // Stage A1 smoke test: launch core 1 and wait for it to prove it's
+    // executing Rust code. See the `core1_entry` doc comment above.
+    {
+        let sp = addr_of_mut!(CORE1_STACK.0).cast::<u8>().add(1024) as u32;
+        let vtor = core::ptr::addr_of!(BASE_VECTORS) as u32;
+        let entry = core1_entry as *const () as u32;
+        peripherals.sio.launch_core1(vtor, sp, entry);
+
+        let mut waited = 0u32;
+        while CORE1_ALIVE.load(Ordering::Acquire) != CORE1_ALIVE_MAGIC {
+            waited += 1;
+            if waited > CORE1_LAUNCH_POLL_LIMIT {
+                panic!("Core 1 failed to launch (lockstep stage A1 smoke test)");
+            }
+        }
+        // kernel::debug!() is a no-op until DebugWriterComponent registers a
+        // writer further down in this function, so write directly through
+        // the panic-path UART writer instead (already configured above).
+        (*addr_of_mut!(io::WRITER)).write(b"Core 1 is alive.\r\n");
     }
 
     let chip = static_init!(

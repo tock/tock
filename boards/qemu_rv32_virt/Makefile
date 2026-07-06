@@ -129,6 +129,17 @@ run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	  $(APP_H1_LOADER_DEVICE) \
 	  -nographic
 
+# Same as `run-app`, but with a GDB server listening on tcp::1234 for debugging.
+# QEMU runs immediately (no -S). Connect with: lldb <elf> -o "gdb-remote 1234"
+.PHONY: run-app-gdb
+run-app-gdb: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	$(QEMU_BASE_CMDLINE) \
+	  -bios $< \
+	  -device loader,file=$(APP),addr=0x80100000 \
+	  $(APP_H1_LOADER_DEVICE) \
+	  -nographic \
+	  -gdb tcp::1234
+
 # Same as `run-app`, but with a `virtio-gpu` video device attached, showing the
 # screen output in a QEMU window
 .PHONY: run-app-gui
