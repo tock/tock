@@ -91,7 +91,7 @@ pub struct ProcessId {
     /// process at the given index does not match the value saved here, then the
     /// process moved or otherwise ended, and this `ProcessId` is no longer
     /// valid.
-    identifier: usize,
+    identifier: u64,
 }
 
 impl PartialEq for ProcessId {
@@ -128,7 +128,7 @@ impl fmt::Debug for ProcessId {
 impl ProcessId {
     /// Create a new `ProcessId` object based on the app identifier and its
     /// index in the processes array.
-    pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> ProcessId {
+    pub(crate) fn new(kernel: &'static Kernel, identifier: u64, index: usize) -> ProcessId {
         ProcessId {
             kernel,
             index,
@@ -143,7 +143,7 @@ impl ProcessId {
     /// external implementations of `Process` can use it.
     pub fn new_external(
         kernel: &'static Kernel,
-        identifier: usize,
+        identifier: u64,
         index: usize,
         _capability: &dyn capabilities::ExternalProcessCapability,
     ) -> ProcessId {
@@ -168,7 +168,7 @@ impl ProcessId {
         }
     }
 
-    /// Get a `usize` unique identifier for the app this `ProcessId` refers to.
+    /// Get a `u64` unique identifier for the app this `ProcessId` refers to.
     ///
     /// This function should not generally be used, instead code should just use
     /// the `ProcessId` object itself to refer to various apps on the system.
@@ -182,7 +182,7 @@ impl ProcessId {
     /// the app may have restarted, or may have been ended or removed by the
     /// kernel. Therefore, calling `id()` is _not_ a valid way to check that an
     /// application still exists.
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> u64 {
         self.identifier
     }
 
