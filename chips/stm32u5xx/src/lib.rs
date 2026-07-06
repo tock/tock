@@ -4,11 +4,13 @@
 
 #![no_std]
 
+pub mod adc;
 pub mod chip;
 pub mod dma;
 pub mod exti;
 pub mod gpio;
 pub mod nvic;
+pub mod pwr;
 pub mod rcc;
 pub mod tim;
 pub mod usart;

@@ -3,15 +3,17 @@
 // Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
 
+use crate::adc::{Adc, SamplingTime as AdcSamplingTime};
 use crate::dma::{ChannelId, Dma};
 use crate::exti;
 use crate::gpio;
 use crate::nvic::{
-    EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
-    GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
-    GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
-    TIM2_IRQ, USART1_IRQ,
+    ADC1_2_IRQ, EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ,
+    GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ,
+    GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ,
+    GPDMA1_CH9_IRQ, TIM2_IRQ, USART1_IRQ,
 };
+use crate::pwr::Pwr;
 use crate::rcc;
 use crate::tim;
 use crate::usart;
@@ -32,7 +34,10 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub usart1: &'a usart::Usart<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
+    pub pwr: &'a Pwr,
+    pub adc1: &'a Adc<'a>,
     pub gpio_a: gpio::Port<'a>,
+    pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
 }
 
@@ -42,14 +47,23 @@ fn enable_tim2_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(
+        usart1: &'a usart::Usart<'a>,
+        exti: &'a exti::Exti<'a>,
+        dma1: &'a Dma,
+        pwr: &'a Pwr,
+        adc1: &'a Adc<'a>,
+    ) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
             usart1,
             exti,
             dma1,
+            pwr,
+            adc1,
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
+            gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
         }
     }
@@ -61,11 +75,22 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
+        self.rcc.enable_pwr();
+        self.rcc.enable_adc1();
         self.rcc.set_usart1_source_pclk();
+
+        // ADC
+        // Decided to use clock source HSI16, so that needs to be enabled in the RCC too
+        self.rcc.set_adcdacsel_source_hsi16();
+        self.rcc.enable_hsi16();
+        // For the ADC's voltage regulator to receive power, V_DDA must be validated (SVMCR.ASV) in PWR
+        self.pwr.validate_vdda();
+        // As explained in the driver, an application can't change the samplling time, so it's hardcoded here
+        self.adc1.enable(AdcSamplingTime::ClockCycles20);
+
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();
-
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
         }
@@ -75,6 +100,11 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
+            ADC1_2_IRQ => {
+                // ADC1
+                self.adc1.handle_interrupt();
+                true
+            }
             TIM2_IRQ => {
                 // TIM2
                 self.tim2.handle_interrupt();
