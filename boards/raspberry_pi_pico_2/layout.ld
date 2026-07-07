@@ -14,7 +14,7 @@ MEMORY
   bootloader (rx) : ORIGIN = 0x10000000, LENGTH = 1024
   rom (rx)  : ORIGIN = 0x10000400, LENGTH = 255K
   prog (rx) : ORIGIN = 0x10040000, LENGTH = 256K
-  ram (rwx) : ORIGIN = 0x20000000, LENGTH = 264K
+  ram (rwx) : ORIGIN = 0x20000000, LENGTH = 400K
 }
 
 PAGE_SIZE = 4K;
@@ -31,3 +31,16 @@ SECTIONS {
 }
 
 INCLUDE tock_kernel_layout.ld
+
+SECTIONS {
+    /* Core 1 kernel stack. Same size as core 0's (kernel::stack_size! in
+     * main.rs); grows down from _estack_h1. */
+    _sstack_h1 = ORIGIN(ram) + LENGTH(ram);
+    _estack_h1 = _sstack_h1 + 0x3000;
+
+    /* Core 1 app memory: the rest of the physically-present SRAM banks. */
+    _sappmem_h1 = _estack_h1;
+    _eappmem_h1 = 0x20000000 + 512K;
+}
+
+ASSERT(_eappmem_h1 > _sappmem_h1, "Stage A2: core 1 has no room left for app memory.")

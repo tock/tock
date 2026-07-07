@@ -13,7 +13,6 @@
 #![deny(missing_docs)]
 
 use core::ptr::addr_of_mut;
-use core::sync::atomic::{AtomicU32, Ordering};
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
@@ -23,8 +22,8 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::scheduler::KernelActivity;
 use kernel::syscall::SyscallDriver;
-use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
@@ -35,6 +34,7 @@ use rp2350::clocks::{
     SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2350::gpio::{GpioFunction, RPGpio, RPGpioPin};
+use rp2350::lockstep::{lockstep_barrier, SyncEntry, RP2350_TRANSPORT};
 use rp2350::resets::Peripheral;
 use rp2350::timer::RPTimer;
 #[allow(unused)]
@@ -174,41 +174,182 @@ core::arch::global_asm!(
 );
 
 // ---------------------------------------------------------------------------
-// Core 1 launch (lockstep porting Stage A1 — core-1 liveness smoke test)
+// Core 1 — lockstep shadow kernel (Stage A4)
 // ---------------------------------------------------------------------------
 //
-// This is a minimal proof that the bootrom multicore-launch handshake
-// (`SIO::launch_core1`) works on this board: core 1 is launched with its own
-// small stack, sets `CORE1_ALIVE_MAGIC` into a shared static, and then parks
-// itself. Core 0 waits (bounded) for that write and panics if it never
-// arrives. There is no shared-RAM partition, Transport, or Sync barrier
-// wiring yet — core 1 never touches the kernel. This is deliberately
-// throwaway scaffolding for the next stage (A2-A4) to replace.
+// Core 1 runs its own, independent, peripheral-free Tock kernel instance:
+// its own Clocks/SIO/TIMER0 handles (fresh value-type wrappers around the
+// same MMIO -- see the module doc below for why these don't need to be
+// shared with core 0's), own process array, own Cooperative scheduler (so it
+// never needs a scheduler-timer alarm channel, which would otherwise contend
+// with core 0's use of TIMER0's shared alarm registers), and no console/gpio/
+// led/ipc drivers at all. Layer-1 peripheral-input replay and Layer-2
+// syscall verification are not wired up yet (Step B) -- Stage A only proves
+// the two independent kernel loops stay in fingerprint lockstep.
 
-/// Dedicated stack for core 1. 1 KiB is enough for `core1_entry`'s minimal
-/// liveness proof; a per-core kernel stack will replace this in stage A2.
-#[repr(align(8))]
-struct Core1Stack([u8; 1024]);
-static mut CORE1_STACK: Core1Stack = Core1Stack([0; 1024]);
+/// Number of concurrent processes core 1's shadow kernel supports. Kept at 1
+/// (vs. core 0's `NUM_PROCS`): Stage A only needs to run a single
+/// peripheral-light test app (e.g. yield-test) on both cores.
+const NUM_PROCS_H1: usize = 1;
 
-/// Written by `core1_entry` once core 1 is executing Rust code.
-static CORE1_ALIVE: AtomicU32 = AtomicU32::new(0);
-const CORE1_ALIVE_MAGIC: u32 = 0xC0FF_EE01;
+/// Core 1's minimal, peripheral-free platform.
+struct Core1Platform {
+    scheduler: &'static components::sched::cooperative::CooperativeComponentType,
+}
 
-/// Number of poll iterations core 0 waits for `CORE1_ALIVE` before giving up.
-/// Iteration-bounded rather than timer-bounded since no alarm is configured
-/// this early in boot; a real TIMER0-based timeout arrives with the Sync
-/// barrier in stage A4.
-const CORE1_LAUNCH_POLL_LIMIT: u32 = 10_000_000;
+impl SyscallDriverLookup for Core1Platform {
+    fn with_driver<F, R>(&self, _driver_num: usize, f: F) -> R
+    where
+        F: FnOnce(Option<&dyn SyscallDriver>) -> R,
+    {
+        // No drivers registered yet -- Layer-1 UART replay / Layer-2 syscall
+        // verification land in Step B.
+        f(None)
+    }
+}
+
+impl KernelResources<Rp2350<'static, Rp2350DefaultPeripherals<'static>>> for Core1Platform {
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = components::sched::cooperative::CooperativeComponentType;
+    // `()` implements `SchedulerTimer` as a no-op. Combined with a
+    // Cooperative scheduler (no preemption), core 1 never needs to arm a
+    // TIMER0 alarm channel, avoiding contention with core 0's alarm0 use --
+    // TIMER0's alarm registers are shared chip-wide, not banked per-core.
+    type SchedulerTimer = ();
+    type WatchDog = ();
+    type ContextSwitchCallback = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        &()
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+}
 
 /// Entry point for core 1, branched to directly by the bootrom after the
 /// `SIO::launch_core1` handshake (not a hardware reset — `BASE_VECTORS[1]`
-/// is never executed on core 1).
+/// is never executed on core 1). The bootrom protocol already sets core 1's
+/// initial SP and VTOR from the values core 0 passed to `launch_core1`, so
+/// unlike a from-reset boot, no assembly preamble is needed here.
 #[no_mangle]
 pub unsafe extern "C" fn core1_entry() -> ! {
-    CORE1_ALIVE.store(CORE1_ALIVE_MAGIC, Ordering::Release);
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    // Boot handshake: wait for core 0's one-time init Sync (pushed after
+    // load_processes(), see main()), and echo it back. Reusing
+    // `lockstep_barrier` for this (rather than hand-rolled channel calls)
+    // gives the handshake the same bounded timeout / panic-on-divergence
+    // behavior as every subsequent per-round barrier.
+    lockstep_barrier(&RP2350_TRANSPORT, SyncEntry::Sync { fingerprint: 0 }, |_| {});
+
+    // Fresh, independent peripheral handles -- NOT shared with core 0's.
+    // `Clocks` caches configured frequencies in `Cell`s, which are neither
+    // `Sync` (unsound to alias across cores) nor pre-populated by a second,
+    // separately-constructed instance; sharing it would need cross-core
+    // synchronization stage A doesn't require. Core 1 only ever touches
+    // `.sio` and `.timer0` below, both of which are stateless MMIO wrappers
+    // that don't depend on `Clocks` at all, so a fresh, unconfigured
+    // `Clocks::new()` is harmless as long as core 1 never calls anything
+    // that reads it (no uart/xosc/adc use here). `.init()` is deliberately
+    // never called on this instance either, to avoid redundant writes to
+    // shared hardware (e.g. the ticks generator) core 0 already configured.
+    let clocks = static_init!(rp2350::clocks::Clocks, rp2350::clocks::Clocks::new());
+    let peripherals = static_init!(
+        Rp2350DefaultPeripherals,
+        Rp2350DefaultPeripherals::new(clocks)
+    );
+
+    let chip = static_init!(
+        Rp2350<Rp2350DefaultPeripherals>,
+        Rp2350::new(peripherals, &peripherals.sio)
+    );
+
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS_H1));
+    let board_kernel = static_init!(Kernel, Kernel::new(processes.as_slice()));
+
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
+        .finalize(components::cooperative_component_static!(NUM_PROCS_H1));
+
+    let platform = Core1Platform { scheduler };
+
+    extern "C" {
+        static _sapps: u8;
+        static _eapps: u8;
+        static mut _sappmem_h1: u8;
+        static _eappmem_h1: u8;
+    }
+
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
+    kernel::process::load_processes(
+        board_kernel,
+        chip,
+        core::slice::from_raw_parts(
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+        ),
+        core::slice::from_raw_parts_mut(
+            core::ptr::addr_of_mut!(_sappmem_h1),
+            core::ptr::addr_of!(_eappmem_h1) as usize
+                - core::ptr::addr_of!(_sappmem_h1) as usize,
+        ),
+        &FAULT_RESPONSE,
+        &process_management_capability,
+    )
+    .unwrap_or_else(|_err| {
+        // No console on this core to report load errors to; core 0's own
+        // load_processes() call already reports failures for the shared app
+        // image, and Stage A only needs one core running it to compare
+        // fingerprints against a divergence.
+    });
+
     loop {
-        cortexm33::support::wfe();
+        let activity = loop {
+            let a = board_kernel.kernel_loop_operation(
+                &platform,
+                chip,
+                None::<&kernel::ipc::IPC<{ NUM_PROCS_H1 as u8 }>>,
+                true, // no_sleep: core 1 has no interrupt-driven wake configured
+                &main_loop_capability,
+            );
+            if !matches!(a, KernelActivity::KernelWork) {
+                break a;
+            }
+        };
+
+        let theirs = lockstep_barrier(
+            &RP2350_TRANSPORT,
+            SyncEntry::Sync { fingerprint: activity.fingerprint() },
+            |_| {},
+        );
+        if let SyncEntry::Sync { fingerprint: h0_fp } = theirs {
+            let h1_fp = activity.fingerprint();
+            if h0_fp != h1_fp {
+                panic!(
+                    "Lockstep divergence (core 1): core 0 {:#x}, core 1 {:#x}",
+                    h0_fp, h1_fp,
+                );
+            }
+        }
     }
 }
 
@@ -330,25 +471,16 @@ pub unsafe fn main() {
             .deactivate_pads();
     }
 
-    // Stage A1 smoke test: launch core 1 and wait for it to prove it's
-    // executing Rust code. See the `core1_entry` doc comment above.
+    // Launch core 1 straight into `core1_entry`, which immediately blocks on
+    // the boot handshake (see below) until this core finishes load_processes().
     {
-        let sp = addr_of_mut!(CORE1_STACK.0).cast::<u8>().add(1024) as u32;
+        extern "C" {
+            static _estack_h1: u8;
+        }
+        let sp = core::ptr::addr_of!(_estack_h1) as u32;
         let vtor = core::ptr::addr_of!(BASE_VECTORS) as u32;
         let entry = core1_entry as *const () as u32;
         peripherals.sio.launch_core1(vtor, sp, entry);
-
-        let mut waited = 0u32;
-        while CORE1_ALIVE.load(Ordering::Acquire) != CORE1_ALIVE_MAGIC {
-            waited += 1;
-            if waited > CORE1_LAUNCH_POLL_LIMIT {
-                panic!("Core 1 failed to launch (lockstep stage A1 smoke test)");
-            }
-        }
-        // kernel::debug!() is a no-op until DebugWriterComponent registers a
-        // writer further down in this function, so write directly through
-        // the panic-path UART writer instead (already configured above).
-        (*addr_of_mut!(io::WRITER)).write(b"Core 1 is alive.\r\n");
     }
 
     let chip = static_init!(
@@ -517,10 +649,49 @@ pub unsafe fn main() {
 
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    board_kernel.kernel_loop(
-        &raspberry_pi_pico,
-        chip,
-        Some(&raspberry_pi_pico.ipc),
-        &main_loop_capability,
-    );
+    // Boot handshake: send the one-time init Sync and wait for core 1's
+    // echo. Must happen after load_processes() so core 0's own process state
+    // is fully set up before lockstep iteration begins. See `core1_entry`'s
+    // matching call.
+    lockstep_barrier(&RP2350_TRANSPORT, SyncEntry::Sync { fingerprint: 0 }, |_| {});
+    kernel::debug!("Lockstep: init sync complete");
+
+    // Drain any interrupts/deferred calls left over from peripheral
+    // initialization (UART, GPIO, alarm mux setup) to avoid a spurious
+    // one-round divergence at boot.
+    board_kernel.kernel_preloop_operation(&raspberry_pi_pico, chip, &main_loop_capability);
+
+    kernel::debug!("Entering main loop.");
+
+    loop {
+        let activity = board_kernel.kernel_loop_operation(
+            &raspberry_pi_pico,
+            chip,
+            Some(&raspberry_pi_pico.ipc),
+            false,
+            &main_loop_capability,
+        );
+
+        // Batch all kernel work before syncing so core 1 has a chance to
+        // drain the full set of channel events and reach the same scheduler
+        // decision.
+        if matches!(activity, KernelActivity::KernelWork) {
+            continue;
+        }
+
+        let theirs = lockstep_barrier(
+            &RP2350_TRANSPORT,
+            SyncEntry::Sync { fingerprint: activity.fingerprint() },
+            |_| {},
+        );
+        if let SyncEntry::Sync { fingerprint: h1_fp } = theirs {
+            let h0_fp = activity.fingerprint();
+            if h1_fp != h0_fp {
+                panic!(
+                    "Lockstep divergence: core 0 {:#x}, core 1 {:#x}",
+                    h0_fp, h1_fp,
+                );
+            }
+        }
+    }
 }

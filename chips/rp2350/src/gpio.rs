@@ -1526,21 +1526,9 @@ impl SIO {
         }
     }
 
-    pub fn handle_proc_interrupt(&self, for_processor: Processor) {
-        match for_processor {
-            Processor::Processor0 => {
-                // read data from the fifo
-                self.registers.fifo_rd.get();
-                self.registers.fifo_st.set(0xff);
-            }
-            Processor::Processor1 => {
-                if self.registers.cpuid.get() == 1 {
-                    panic!("Kernel should not run on processor 1");
-                } else {
-                    panic!("SIO_PROC1_IRQ should be ignored for processor 1");
-                }
-            }
-        }
+    pub fn handle_proc_interrupt(&self, _for_processor: Processor) {
+        self.registers.fifo_rd.get();
+        self.registers.fifo_st.set(0xff);
     }
 
     pub fn get_processor(&self) -> Processor {
@@ -1549,6 +1537,30 @@ impl SIO {
             0 => Processor::Processor0,
             1 => Processor::Processor1,
             _ => panic!("SIO CPUID cannot be {}", proc_id),
+        }
+    }
+
+    /// Non-blocking attempt to push a word to the peer core's RX FIFO.
+    ///
+    /// Returns `false` if this core's TX FIFO is currently full (peer hasn't
+    /// drained it yet); the caller retries.
+    pub fn fifo_try_push(&self, word: u32) -> bool {
+        if self.registers.fifo_st.is_set(FIFO_ST::RDY) {
+            self.registers.fifo_wr.set(word);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Non-blocking attempt to pop a word from this core's own RX FIFO.
+    ///
+    /// Returns `None` if empty.
+    pub fn fifo_try_pop(&self) -> Option<u32> {
+        if self.registers.fifo_st.is_set(FIFO_ST::VLD) {
+            Some(self.registers.fifo_rd.get())
+        } else {
+            None
         }
     }
 

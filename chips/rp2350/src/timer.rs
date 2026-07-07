@@ -168,6 +168,13 @@ INTS [
 const TIMER0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x400B0000 as *const TimerRegisters) };
 
+/// Free-running 1 MHz tick count, read directly off TIMER0 without needing
+/// an `RPTimer` instance. Used by the lockstep `Transport::now_ticks` impl
+/// for both cores' bounded spin-wait deadlines (see `chips/rp2350/src/lockstep.rs`).
+pub fn now_ticks() -> u32 {
+    TIMER0_BASE.timerawl.get()
+}
+
 pub struct RPTimer<'a> {
     registers: StaticRef<TimerRegisters>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,

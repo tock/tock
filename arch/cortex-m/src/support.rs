@@ -47,6 +47,20 @@ pub unsafe fn wfe() {
     asm!("wfe", options(nomem, preserves_flags));
 }
 
+/// DMB (data memory barrier) instruction
+///
+/// Ensures all memory accesses (loads and stores) issued by this core before
+/// the barrier are observed by other bus masters (e.g. a peer core reading
+/// shared SRAM) before any accesses issued after the barrier. Needed around
+/// shared-memory handoffs between cores, since Cortex-M's write buffer can
+/// otherwise reorder visibility across cores.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[inline(always)]
+pub unsafe fn dmb() {
+    use core::arch::asm;
+    asm!("dmb", options(nomem, nostack, preserves_flags));
+}
+
 /// Single-core critical section operation
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn with_interrupts_disabled<F, R>(f: F) -> R
@@ -86,6 +100,12 @@ pub unsafe fn sev() {
 /// WFE instruction (mock)
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe fn wfe() {
+    unimplemented!()
+}
+
+/// DMB instruction (mock)
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub unsafe fn dmb() {
     unimplemented!()
 }
 

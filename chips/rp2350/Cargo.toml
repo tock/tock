@@ -12,6 +12,7 @@ edition.workspace = true
 cortexm33 = { path = "../../arch/cortex-m33" }
 kernel = { path = "../../kernel" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
+lockstep = { path = "../../libraries/lockstep" }
 
 [lints]
 workspace = true

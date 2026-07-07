@@ -11,6 +11,7 @@ pub mod chip;
 pub mod clocks;
 pub mod gpio;
 pub mod interrupts;
+pub mod lockstep;
 pub mod resets;
 pub mod ticks;
 pub mod timer;

@@ -1404,6 +1404,7 @@ dependencies = [
  "cortexm33",
  "enum_primitive",
  "kernel",
+ "lockstep",
 ]
 
 [[package]]
