@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-
+use kernel::hil::public_key_crypto::rsa_math::{Client, ClientMut, RsaCryptoBase};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
+use kernel::utilities::StaticRef;
 
+const RAM_START: usize = 0x400;
 
 register_structs! {
     PkaRegisters {
@@ -20,7 +23,7 @@ register_structs! {
         (0x08 => clrfr: WriteOnly<u32, CLRFR::Register>),
 
         // PKA RAM
-        (0x0400 => ram: [ReadWrite<u32>, 5336 / 4])
+        (RAM_START => ram: [ReadWrite<u32>, 5336 / 4])
 
         (0x14D8 => @END),
     }
@@ -146,4 +149,67 @@ register_bitfields! [u32,
         // Clear PKA end of op flag
         PROCENDFC OFFSET(17) NUMBITS(1) [],
     ]
-]
+];
+
+const PKA_BASE: StaticRef<PkaRegisters> =
+    unsafe { StaticRef::new(0x50020000 as *const PkaRegisters) };
+
+pub struct Pka {
+    registers: StaticRef<PkaRegisters>,
+    client: OptionalCell<&'a dyn Client<'a>>,
+}
+
+impl Pka {
+    pub const fn new() -> Pka {
+        Pka {
+            registers: PKA_BASE,
+        }
+    }
+
+    // Helper function to write the data to RAM
+    fn write_slice(&self, idx: usize, data: &[u8]) {
+        chunks = data.rchanks(4);
+        for i in 0..chunks.len() {
+            let slice = u32::from_be_bytes(chunk);
+            self.ram[i].set(slice);
+        }
+    }
+}
+
+impl<'a> RsaCryptoBase for Pka {
+    fn set_client(&'a self, client: &'a dyn Client<'a>) {
+        self.client.set(client);
+    }
+
+    fn clear_data(&self) {
+        // Zero-out all current data
+        for i in 0..self.registers.ram.len() {
+            self.registers.ram[i].set(0);
+        }
+    }
+
+    fn mod_exponent(
+        &self,
+        message: &'static mut [u8],
+        modulus: &'static [u8],
+        exponent: &'static [u8],
+        result: &'static mut [u8],
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            &'static mut [u8],
+            &'static [u8],
+            &'static [u8],
+            &'static mut [u8],
+        ),
+    > {
+        // Map the RAM regions for normal modular exponentiation
+        const EXP_LEN_IDX: usize = (0x400 - RAM_START) / 4;
+        const OP_LEN_IDX: usize = (0x408 - RAM_START) / 4;
+        const OP_A_IDX: usize = (0xC68 - RAM_START) / 4;
+        const EXP_IDX: usize = (0xE78 - RAM_START) / 4;
+        const MOD_VALUE_IDX: usize = (0x1088 - RAM_START) / 4;
+        const RESULT_IDX: usize = (0x838 - RAM_START) / 4;
+    }
+}
