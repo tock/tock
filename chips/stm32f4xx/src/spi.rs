@@ -423,8 +423,6 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         Ok(rate)
     }
 
-    /// We *only* support 1Mhz and 4MHz. If we need to return any other value
-    /// than `1_000_000` or `4_000_000`, then this function panics.
     fn get_rate(&self) -> u32 {
         // HSI is 16Mhz and Fpclk is also 16Mhz
         match self.registers.cr1.read(CR1::BR) {

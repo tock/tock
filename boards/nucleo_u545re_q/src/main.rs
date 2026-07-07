@@ -6,22 +6,17 @@
 #![no_std]
 #![no_main]
 
-use core::arch::asm;
-
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::gpio::Output;
 use kernel::hil::spi::SpiMaster;
-use kernel::hil::time::{Ticks, Timer};
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
-use stm32u545::spi;
 
 pub mod io;
 
@@ -315,9 +310,25 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xx::new(periphs)
     );
 
-    // let _ = spi1.init();
+    let _ = spi1.init();
     // let spi1_cs_test = periphs.gpio_a.pin(PinId::Pin08);
     // spi1_cs_test.set_mode(stm32u545::gpio::Mode::Output);
+
+    // spi1_cs_test.set();
+    // let tx_buf = static_init!([u8; 4], [0x00, 0x69, 0x42, 0xFF]);
+    // let rx_buf = static_init!([u8; 4], [0x00; 4]);
+
+    // let write_buffer = SubSliceMut::new(tx_buf);
+    // let read_buffer = SubSliceMut::new(rx_buf);
+
+    // spi1_cs_test.clear();
+    // spi1.read_write_bytes(write_buffer, Some(read_buffer));
+    // for _ in 0..80000 {
+    //     unsafe {
+    //         asm!("nop");
+    //     }
+    // }
+    // spi1_cs_test.set();
 
     // while true {
     //     spi1_cs_test.clear();

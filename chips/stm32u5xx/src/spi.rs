@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
-use crate::dma::{self, ChannelId, Dma, DmaPeripheral};
-use crate::dma::{Dma1, Dma1Peripheral};
-
+use crate::dma::{ChannelId, Dma};
 use core::cell::Cell;
 use core::cmp;
+use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity};
 use kernel::utilities::cells::{MapCell, OptionalCell};
@@ -425,8 +424,8 @@ pub struct Spi<'a> {
     dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<Option<ChannelId>>,
     dma_channel_rx: Cell<Option<ChannelId>>,
-    tx_dma_peripheral: Cell<Option<DmaPeripheral>>,
-    rx_dma_peripheral: Cell<Option<DmaPeripheral>>,
+    // tx_dma_peripheral: Cell<Option<DmaPeripheral>>,
+    // rx_dma_peripheral: Cell<Option<DmaPeripheral>>,
     tx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     rx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     dma_len: Cell<usize>,
@@ -443,8 +442,8 @@ impl<'a> Spi<'a> {
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
             dma_channel_rx: Cell::new(None),
-            tx_dma_peripheral: Cell::new(None),
-            rx_dma_peripheral: Cell::new(None),
+            // tx_dma_peripheral: Cell::new(None),
+            // rx_dma_peripheral: Cell::new(None),
             tx_dma_buf: MapCell::empty(),
             rx_dma_buf: MapCell::empty(),
             dma_len: Cell::new(0),
@@ -454,149 +453,98 @@ impl<'a> Spi<'a> {
         }
     }
 
-    /// Associates a DMA controller and channels with the USART driver.
+    /// associates a DMA controller and channels with the SPI driver.
     pub fn set_dma(
         spi: &'static Self,
         dma: &'a Dma,
-        tx_peripheral: DmaPeripheral,
+        // tx_peripheral: DmaPeripheral,
         tx_channel: ChannelId,
-        rx_peripheral: DmaPeripheral,
+        // rx_peripheral: DmaPeripheral,
         rx_channel: ChannelId,
     ) {
         spi.dma.set(dma);
-        spi.tx_dma_peripheral.set(Some(tx_peripheral));
+        // spi.tx_dma_peripheral.set(Some(tx_peripheral));
         spi.dma_channel_tx.set(Some(tx_channel));
-        spi.rx_dma_peripheral.set(Some(rx_peripheral));
+        // spi.rx_dma_peripheral.set(Some(rx_peripheral));
         spi.dma_channel_rx.set(Some(rx_channel));
-        dma.set_client(tx_channel, spi);
-        dma.set_client(rx_channel, spi);
+        // dma.set_client(tx_channel, spi);
+        // dma.set_client(rx_channel, spi);
     }
 
-    /// 0: SCK signal is at 0 when idle
-    /// 1: SCK signal is at 1 when idle
-    fn set_polarity(&self, polarity: ClockPolarity) {
-        self.set_cr(|| match polarity {
-            ClockPolarity::IdleLow => self.registers.cfg2.modify(CFG2::CPOL::CLEAR),
-            ClockPolarity::IdleHigh => self.registers.cfg2.modify(CFG2::CPOL::SET),
-        });
-    }
-
-    fn get_polarity(&self) -> ClockPolarity {
-        if !self.registers.cfg2.is_set(CFG2::CPOL) {
-            ClockPolarity::IdleLow
-        } else {
-            ClockPolarity::IdleHigh
-        }
-    }
-
-    /// SampleLeading  = CPHA = 0
-    /// SampleTrailing = CPHA = 1
-    fn set_phase(&self, phase: ClockPhase) {
-        self.set_cr(|| match phase {
-            ClockPhase::SampleLeading => self.registers.cfg2.modify(CFG2::CPHA::CLEAR),
-            ClockPhase::SampleTrailing => self.registers.cfg2.modify(CFG2::CPHA::SET),
-        });
-    }
-
-    fn get_phase(&self) -> ClockPhase {
-        if !self.registers.cfg2.is_set(CFG2::CPHA) {
-            ClockPhase::SampleLeading
-        } else {
-            ClockPhase::SampleTrailing
-        }
-    }
-
-    fn set_cr<F>(&self, f: F)
-    where
-        F: FnOnce(),
-    {
-        self.registers.cr1.modify(CR1::SPE::CLEAR);
-        f();
-        self.registers.cr1.modify(CR1::SPE::SET);
-    }
-
-    fn enable_tx(&self) {
-        self.registers.cfg1.modify(CFG1::TXDMAEN::SET);
-    }
-
-    fn disable_tx(&self) {
-        self.registers.cfg1.modify(CFG1::TXDMAEN::CLEAR);
-    }
-
-    fn enable_rx(&self) {
-        self.registers.cfg1.modify(CFG1::RXDMAEN::SET);
-    }
-
-    fn disable_rx(&self) {
-        self.registers.cfg1.modify(CFG1::RXDMAEN::CLEAR);
-    }
-
-    ///*******************  Implemented above this line  *************************
+    // pub fn handle_dma_interrupt(&self, is_tx: bool) {
+    //     if is_tx {
+    //         self.dma.map(|dma| {
+    //             if let Some(ch) = self.dma_channel_tx.get() {
+    //                 dma.clear_interrupt(ch);
+    //             }
+    //         });
+    //         self.registers.cr3.modify(CR3::DMAT::CLEAR);
+    //         self.tx_deferred.set(false);
+    //         if let Some(dma_slice) = self.tx_dma_buf.take() {
+    //             let fence = unsafe { CortexMDmaFence::new() };
+    //             let mut subslice = unsafe { dma_slice.take(fence) };
+    //             subslice.reset();
+    //             let buf = subslice.take();
+    //             let len = self.tx_len.get();
+    //             self.tx_client.map(move |client| {
+    //                 client.transmitted_buffer(buf, len, Ok(()));
+    //             });
+    //         }
+    //     } else {
+    //         self.dma.map(|dma| {
+    //             if let Some(ch) = self.dma_channel_rx.get() {
+    //                 dma.clear_interrupt(ch);
+    //             }
+    //         });
+    //         self.registers.cr3.modify(CR3::DMAR::CLEAR);
+    //         self.rx_deferred.set(false);
+    //         if let Some(dma_slice) = self.rx_dma_buf.take() {
+    //             let fence = unsafe { CortexMDmaFence::new() };
+    //             let mut subslice = unsafe { dma_slice.take(fence) };
+    //             subslice.reset();
+    //             let buf = subslice.take();
+    //             let len = self.rx_len.get();
+    //             self.rx_client.map(move |client| {
+    //                 client.received_buffer(buf, len, Ok(()), uart::Error::None);
+    //             });
+    //         }
+    //     }
+    // }
 
     pub fn handle_interrupt(&self) {
         // Used only during debugging. Since we use DMA, we do not enable SPI
         // interrupts during normal operations
     }
 
-    fn set_active_slave(&self, slave_pin: &'a crate::gpio::Pin<'a>) {
-        self.active_slave.set(slave_pin);
+    fn enable_tx(&self) {
+        self.registers.cfg1.modify(CFG1::TXDMAEN::SET);
     }
 
-    fn read_write_bytes(
-        &self,
-        write_buffer: SubSliceMut<'static, u8>,
-        read_buffer: Option<SubSliceMut<'static, u8>>,
-    ) -> Result<
-        (),
-        (
-            ErrorCode,
-            SubSliceMut<'static, u8>,
-            Option<SubSliceMut<'static, u8>>,
-        ),
-    > {
-        self.active_slave.map(|p| {
-            p.clear();
-        });
+    // fn disable_tx(&self) {
+    //     self.registers.cfg1.modify(CFG1::TXDMAEN::CLEAR);
+    // }
 
-        let mut count: usize = write_buffer.len();
-        read_buffer
-            .as_ref()
-            .map(|buf| count = cmp::min(count, buf.len()));
-
-        self.dma_len.set(count);
-
-        self.transfers_in_progress.set(0);
-
-        read_buffer.map(|rx_buffer| {
-            self.transfers_in_progress
-                .set(self.transfers_in_progress.get() + 1);
-            self.rx_dma.map(move |dma| {
-                dma.do_transfer(rx_buffer);
-            });
-            self.enable_rx();
-        });
-
-        self.transfers_in_progress
-            .set(self.transfers_in_progress.get() + 1);
-        self.tx_dma.map(move |dma| {
-            dma.do_transfer(write_buffer);
-        });
-        self.enable_tx();
-
-        Ok(())
+    fn enable_rx(&self) {
+        self.registers.cfg1.modify(CFG1::RXDMAEN::SET);
     }
+
+    // fn disable_rx(&self) {
+    //     self.registers.cfg1.modify(CFG1::RXDMAEN::CLEAR);
+    // }
 }
 
 impl<'a> spi::SpiMaster<'a> for Spi<'a> {
+    type ChipSelect = &'a crate::gpio::Pin<'a>;
+
     fn set_phase(&self, phase: ClockPhase) -> Result<(), kernel::ErrorCode> {
         let regs = &*self.registers;
 
         match phase {
             ClockPhase::SampleLeading => {
-                regs.cfg2.modify(CFG2::CPOL::CLEAR);
+                regs.cfg2.modify(CFG2::CPHA::CLEAR);
             }
             ClockPhase::SampleTrailing => {
-                regs.cfg2.modify(CFG2::CPOL::SET);
+                regs.cfg2.modify(CFG2::CPHA::SET);
             }
         }
         Ok(())
@@ -607,10 +555,10 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
 
         match polarity {
             ClockPolarity::IdleLow => {
-                regs.cfg2.modify(CFG2::CPHA::CLEAR);
+                regs.cfg2.modify(CFG2::CPOL::CLEAR);
             }
             ClockPolarity::IdleHigh => {
-                regs.cfg2.modify(CFG2::CPHA::SET);
+                regs.cfg2.modify(CFG2::CPOL::SET);
             }
         }
 
@@ -619,25 +567,54 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
 
     fn set_rate(&self, rate: u32) -> Result<u32, kernel::ErrorCode> {
         let regs = &*self.registers;
+        let spi_clock_freq: u32 = 4_000_000;
 
-        regs.cfg1.modify(CFG1::MBR::Div8);
+        let divider = spi_clock_freq / rate;
 
-        // match rate {
-        //     1_000_000 => self.set_cr(|| {
-        //         // HSI is 16Mhz and Fpclk is also 16Mhz. 0b011 is Fpclk / 16
-        //         self.registers.cr1.modify(CR1::BR.val(0b011));
-        //     }),
-        //     4_000_000 => self.set_cr(|| {
-        //         // HSI is 16Mhz and Fpclk is also 16Mhz. 0b001 is Fpclk / 4
-        //         self.registers.cr1.modify(CR1::BR.val(0b001));
-        //     }),
-        //     _ => panic!("SPI rate must be 1_000_000 or 4_000_000"),
-        // }
-        Ok(rate)
+        let (mbr_val, actual_rate) = if divider <= 2 {
+            (CFG1::MBR::Div2, spi_clock_freq / 2)
+        } else if divider <= 4 {
+            (CFG1::MBR::Div4, spi_clock_freq / 4)
+        } else if divider <= 8 {
+            (CFG1::MBR::Div8, spi_clock_freq / 8)
+        } else if divider <= 16 {
+            (CFG1::MBR::Div16, spi_clock_freq / 16)
+        } else if divider <= 32 {
+            (CFG1::MBR::Div32, spi_clock_freq / 32)
+        } else if divider <= 64 {
+            (CFG1::MBR::Div64, spi_clock_freq / 64)
+        } else if divider <= 128 {
+            (CFG1::MBR::Div128, spi_clock_freq / 128)
+        } else {
+            (CFG1::MBR::Div256, spi_clock_freq / 256)
+        };
+
+        if regs.cr1.is_set(CR1::SPE) {
+            regs.cr1.modify(CR1::SPE::CLEAR);
+        }
+
+        self.registers.cfg1.modify(mbr_val);
+
+        if regs.cr1.is_set(CR1::SPE) {
+            regs.cr1.modify(CR1::SPE::SET);
+        }
+
+        Ok(actual_rate)
     }
 
     fn get_rate(&self) -> u32 {
-        69
+        let spi_clock_freq: u32 = 4_000_000;
+
+        match self.registers.cfg1.read(CFG1::MBR) {
+            0b000 => spi_clock_freq / 2,
+            0b001 => spi_clock_freq / 4,
+            0b010 => spi_clock_freq / 8,
+            0b011 => spi_clock_freq / 16,
+            0b100 => spi_clock_freq / 32,
+            0b101 => spi_clock_freq / 64,
+            0b110 => spi_clock_freq / 128,
+            _ => spi_clock_freq / 256,
+        }
     }
 
     fn get_phase(&self) -> ClockPhase {
@@ -681,7 +658,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         regs.cr1.modify(CR1::SPE::CLEAR);
 
         //set baudrate
-        regs.cfg1.modify(CFG1::MBR::Div8);
+        regs.cfg1.modify(CFG1::MBR::Div2);
 
         //sets spi in master mode, full-duplex, with slave-select managed by software
         regs.cfg2
@@ -705,6 +682,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         self.read_write_byte(0)
     }
 
+    // checked with logic analyzer and works
     fn write_byte(&self, val: u8) -> Result<(), kernel::ErrorCode> {
         let regs = &*self.registers;
 
@@ -717,18 +695,50 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         // start transfer
         regs.cr1.modify(CR1::CSTART::SET);
 
+        //wait for transfer
+        while !regs.sr.is_set(SR::TXC) {}
+
         Ok(())
     }
 
-    //********* good impl above **********
-
-    fn read_write_byte(&self, val: u8) -> Result<u8, kernel::ErrorCode> {
-        Ok(0)
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), kernel::ErrorCode> {
+        self.active_slave.set(cs);
+        Ok(())
     }
 
+    // have to check with logic analyzer
+    fn read_write_byte(&self, val: u8) -> Result<u8, kernel::ErrorCode> {
+        let regs = &*self.registers;
+
+        // set the transfer size
+        regs.cr2.modify(CR2::TSIZE.val(1));
+
+        // start the transfer
+        regs.cr1.modify(CR1::CSTART::SET);
+
+        // wait until the tx fifo actually has space then write the byte
+        while !regs.sr.is_set(SR::TXP) {}
+        regs.txdr.write(TXDR::TXDR.val(val as u32));
+
+        // wait for the incoming byte to arrive in the rx fifo
+        while !regs.sr.is_set(SR::RXP) {}
+
+        // retrieve the byte
+        let byte = regs.rxdr.get() as u8;
+
+        // clear the completion flags
+        regs.ifcr.write(IFCR::EOTC::SET + IFCR::TXTFC::SET);
+
+        // wait for the transfer to finish
+        while !regs.sr.is_set(SR::EOT) {}
+
+        Ok(byte)
+    }
+
+    // have to check with logic analyzer
     fn read_write_bytes(
         &self,
-        write_buffer: kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>,
+        mut write_buffer: kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>,
         read_buffer: Option<kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>>,
     ) -> Result<
         (),
@@ -738,10 +748,153 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
             Option<kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>>,
         ),
     > {
+        let regs = &*self.registers;
+
+        // check if there is another transaction pending
+        if self.is_busy() {
+            return Err((kernel::ErrorCode::BUSY, write_buffer, read_buffer));
+        }
+
+        // verify if the dma is associated with this spi instance
+        if self.dma.is_none() {
+            return Err((kernel::ErrorCode::OFF, write_buffer, read_buffer));
+        }
+
+        self.active_slave.map(|p| {
+            p.clear();
+        });
+
+        // we default to the len of the write buf but we pick the minimum of write/ read buf
+        let mut count: usize = write_buffer.len();
+        read_buffer
+            .as_ref()
+            .map(|buf| count = cmp::min(count, buf.len()));
+
+        self.dma_len.set(count);
+        // send the transfer size to hardware
+        regs.cr2.modify(CR2::TSIZE.val(count as u32));
+        self.transfers_in_progress.set(0);
+
+        // rx transfer
+        read_buffer.map(|mut rx_buffer| {
+            self.transfers_in_progress
+                .set(self.transfers_in_progress.get() + 1);
+
+            rx_buffer.slice(0..count);
+            let fence = unsafe { CortexMDmaFence::new() };
+            let dma_slice = DmaSubSliceMut::new_static(rx_buffer, fence);
+
+            let ptr = dma_slice.as_mut_ptr() as u32;
+            let len = dma_slice.len() as u32;
+
+            self.rx_dma_buf.replace(dma_slice);
+
+            self.dma.map(move |dma| {
+                if let Some(ch) = self.dma_channel_rx.get() {
+                    dma.setup(ch, crate::dma::DmaPeripheral::Spi1Rx, ptr, len);
+                    self.enable_rx();
+                }
+            });
+        });
+
+        // tx transfer
+        self.transfers_in_progress
+            .set(self.transfers_in_progress.get() + 1);
+
+        write_buffer.slice(0..count);
+        let fence = unsafe { CortexMDmaFence::new() };
+        let dma_slice = DmaSubSliceMut::new_static(write_buffer, fence);
+
+        let ptr = dma_slice.as_mut_ptr() as u32;
+        let len = dma_slice.len() as u32;
+
+        self.tx_dma_buf.replace(dma_slice);
+
+        self.dma.map(move |dma| {
+            if let Some(ch) = self.dma_channel_tx.get() {
+                dma.setup(ch, crate::dma::DmaPeripheral::Spi1Tx, ptr, len);
+                self.enable_tx();
+            }
+        });
+
+        //start the transfer
+        regs.cr1.modify(CR1::CSTART::SET);
+
         Ok(())
     }
+}
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), kernel::ErrorCode> {
-        Ok(())
+// impl crate::dma::DmaClient for Spi<'_> {
+//     fn transfer_done(&self, channel: ChannelId) {
+//         if let Some(tx_ch) = self.dma_channel_tx.get() {
+//             if channel == tx_ch {
+//                 self.handle_dma_interrupt(true);
+//                 return;
+//             }
+//         }
+//         if let Some(rx_ch) = self.dma_channel_rx.get() {
+//             if channel == rx_ch {
+//                 self.handle_dma_interrupt(false);
+//             }
+//         }
+//     }
+// }
+
+impl crate::dma::DmaClient for Spi<'_> {
+    fn transfer_done(&self, channel: ChannelId) {
+        let regs = &*self.registers;
+
+        if let Some(tx_ch) = self.dma_channel_tx.get() {
+            if channel == tx_ch {
+                regs.cfg1.modify(CFG1::TXDMAEN::CLEAR);
+                self.dma.map(|dma| dma.clear_interrupt(tx_ch));
+                self.transfers_in_progress
+                    .set(self.transfers_in_progress.get() - 1);
+            }
+        }
+
+        if let Some(rx_ch) = self.dma_channel_rx.get() {
+            if channel == rx_ch {
+                regs.cfg1.modify(CFG1::RXDMAEN::CLEAR);
+                self.dma.map(|dma| dma.clear_interrupt(rx_ch));
+                self.transfers_in_progress
+                    .set(self.transfers_in_progress.get() - 1);
+            }
+        }
+
+        if self.transfers_in_progress.get() == 0 {
+            // clear flags
+            regs.ifcr
+                .write(IFCR::EOTC::SET + IFCR::TXTFC::SET + IFCR::OVRC::SET);
+
+            if !self.active_after.get() {
+                self.active_slave.map(|p| {
+                    p.set();
+                });
+            }
+
+            let tx_buffer = self.tx_dma_buf.take().map(|dma_slice| {
+                let fence = unsafe { CortexMDmaFence::new() };
+                let mut subslice = unsafe { dma_slice.take(fence) };
+                subslice.reset();
+                subslice
+            });
+
+            let rx_buffer = self.rx_dma_buf.take().map(|dma_slice| {
+                let fence = unsafe { CortexMDmaFence::new() };
+                let mut subslice = unsafe { dma_slice.take(fence) };
+                subslice.reset();
+                subslice
+            });
+
+            let length = self.dma_len.get();
+            self.dma_len.set(0);
+
+            self.client.map(|client| {
+                tx_buffer.map(|t| {
+                    client.read_write_done(t, rx_buffer, Ok(length));
+                });
+            });
+        }
     }
 }

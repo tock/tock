@@ -11,16 +11,23 @@ use kernel::utilities::registers::{
 use kernel::utilities::StaticRef;
 
 /// Base address for USART1 in Secure Alias mode.
-const USART1_BASE_ADDR: u32 = 0x50013800;
+const USART1_BASE_ADDR: u32 = 0x5001_3800;
 /// USART1 Receive Data Register (RDR) address.
 const USART1_RDR: u32 = USART1_BASE_ADDR + 0x24;
 /// USART1 Transmit Data Register (TDR) address.
 const USART1_TDR: u32 = USART1_BASE_ADDR + 0x28;
 
+/// Base address for SPI1 in Secure Alias mode.
+const SPI1_BASE_ADDR: u32 = 0x5001_3000;
+const SPI1_RXDR: u32 = SPI1_BASE_ADDR + 0x030;
+const SPI1_TXDR: u32 = SPI1_BASE_ADDR + 0x020;
+
 /// GPDMA Request Selection IDs (REQSEL)
 /// Found in the GPDMA request multiplexer table of the STM32U5 reference manual.
 const GPDMA_REQ_USART1_RX: u32 = 24;
 const GPDMA_REQ_USART1_TX: u32 = 25;
+const GPDMA_REQ_SPI1_RX: u32 = 6;
+const GPDMA_REQ_SPI1_TX: u32 = 7;
 
 register_bitfields! [
     u32,
@@ -205,6 +212,8 @@ pub enum DmaDirection {
 pub enum DmaPeripheral {
     Usart1Tx,
     Usart1Rx,
+    Spi1Tx,
+    Spi1Rx,
 }
 
 impl DmaPeripheral {
@@ -218,6 +227,16 @@ impl DmaPeripheral {
             DmaPeripheral::Usart1Rx => (
                 USART1_RDR,
                 GPDMA_REQ_USART1_RX,
+                DmaDirection::PeripheralToMemory,
+            ),
+            DmaPeripheral::Spi1Tx => (
+                SPI1_TXDR,
+                GPDMA_REQ_SPI1_TX,
+                DmaDirection::MemoryToPeripheral,
+            ),
+            DmaPeripheral::Spi1Rx => (
+                SPI1_RXDR,
+                GPDMA_REQ_SPI1_RX,
                 DmaDirection::PeripheralToMemory,
             ),
         }

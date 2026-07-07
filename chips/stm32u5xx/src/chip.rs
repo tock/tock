@@ -10,9 +10,10 @@ use crate::nvic::{
     EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
     GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
     GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
-    TIM2_IRQ, USART1_IRQ,
+    SPI1_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::rcc;
+use crate::spi;
 use crate::tim;
 use crate::usart;
 
@@ -30,6 +31,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub tim2: tim::Tim2<'a>,
     pub usart1: &'a usart::Usart<'a>,
+    pub spi1: &'a spi::Spi<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub gpio_a: gpio::Port<'a>,
@@ -42,11 +44,17 @@ fn enable_tim2_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(
+        usart1: &'a usart::Usart<'a>,
+        spi1: &'a spi::Spi<'a>,
+        exti: &'a exti::Exti<'a>,
+        dma1: &'a Dma,
+    ) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
             usart1,
+            spi1,
             exti,
             dma1,
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
@@ -60,6 +68,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_gpioa();
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
+        self.rcc.enable_spi1();
         self.rcc.enable_syscfg();
         self.rcc.set_usart1_source_pclk();
         // Link DMA to USART1
@@ -68,6 +77,14 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+        }
+
+        // Link DMA to SPI1
+        let spi1_channel_tx = self.dma1.request_channel();
+        let spi1_channel_rx = self.dma1.request_channel();
+
+        if let (Some(tx), Some(rx)) = (spi1_channel_tx, spi1_channel_rx) {
+            spi::Spi::set_dma(self.spi1, self.dma1, tx, rx);
         }
     }
 }
@@ -83,6 +100,11 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             USART1_IRQ => {
                 // USART1
                 self.usart1.handle_interrupt();
+                true
+            }
+            SPI1_IRQ => {
+                // SPI1
+                self.spi1.handle_interrupt();
                 true
             }
             EXTI13_IRQ => {
