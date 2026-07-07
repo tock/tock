@@ -40,11 +40,11 @@ struct NucleoU545RE {
     console: &'static capsules_core::console::Console<'static>,
     scheduler: &'static components::sched::round_robin::RoundRobinComponentType,
     systick: cortexm33::systick::SysTick,
-    // led: &'static capsules_core::led::LedDriver<
-    //     'static,
-    //     kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin<'static>>,
-    //     1,
-    // >,
+    led: &'static capsules_core::led::LedDriver<
+        'static,
+        kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin<'static>>,
+        1,
+    >,
     button: &'static capsules_core::button::Button<'static, stm32u545::gpio::Pin<'static>>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -69,7 +69,7 @@ impl SyscallDriverLookup for NucleoU545RE {
     {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            // capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
@@ -124,9 +124,13 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
     pin10.set_alternate_function(7);
     pin10.set_speed_high();
 
+    // LED Pin (PA5)
+    periphs.gpio_a.pin(PinId::Pin05).make_output();
+
     // SPI1 Pins
-    // SPI_CLOCK + LED Pin (PA5)
-    let spi1_sck = periphs.gpio_a.pin(PinId::Pin05);
+    // SPI_CLOCK (PB3)
+    // Warning: SCLK used PB3 instead of PA5 because it would conflict with the on-board LED
+    let spi1_sck = periphs.gpio_b.pin(PinId::Pin03);
     spi1_sck.set_mode(stm32u545::gpio::Mode::AlternateFunction);
     spi1_sck.set_alternate_function(5);
     spi1_sck.set_speed_high();
@@ -252,11 +256,11 @@ unsafe fn start() -> (
     )
     .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
 
-    // let led_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin05));
-    // let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-    //     kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
-    //     kernel::hil::led::LedHigh::new(led_pin)
-    // ));
+    let led_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin05));
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
+        kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
+        kernel::hil::led::LedHigh::new(led_pin)
+    ));
 
     let spi_cs = static_init!(
         stm32u545::gpio::Pin<'static>,
@@ -298,7 +302,7 @@ unsafe fn start() -> (
             scheduler: components::sched::round_robin::RoundRobinComponent::new(processes)
                 .finalize(components::round_robin_component_static!(NUM_PROCS)),
             systick: cortexm33::systick::SysTick::new(),
-            // led,
+            led,
             button,
             alarm,
             spi: spi_syscalls,
@@ -311,36 +315,6 @@ unsafe fn start() -> (
     );
 
     let _ = spi1.init();
-    // let spi1_cs_test = periphs.gpio_a.pin(PinId::Pin08);
-    // spi1_cs_test.set_mode(stm32u545::gpio::Mode::Output);
-
-    // spi1_cs_test.set();
-    // let tx_buf = static_init!([u8; 4], [0x00, 0x69, 0x42, 0xFF]);
-    // let rx_buf = static_init!([u8; 4], [0x00; 4]);
-
-    // let write_buffer = SubSliceMut::new(tx_buf);
-    // let read_buffer = SubSliceMut::new(rx_buf);
-
-    // spi1_cs_test.clear();
-    // spi1.read_write_bytes(write_buffer, Some(read_buffer));
-    // for _ in 0..80000 {
-    //     unsafe {
-    //         asm!("nop");
-    //     }
-    // }
-    // spi1_cs_test.set();
-
-    // while true {
-    //     spi1_cs_test.clear();
-    //     spi1.write_byte(250);
-    //     spi1_cs_test.set();
-    //     for _ in 0..80000 {
-    //         // The compiler will keep this loop because of the assembly instruction
-    //         unsafe {
-    //             asm!("nop");
-    //         }
-    //     }
-    // }
 
     // Symbols for linker
     extern "C" {

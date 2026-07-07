@@ -351,6 +351,9 @@ register_bitfields![u32,
 pub const GPIO_A_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x52020000 as *const GpioRegisters) };
 
+pub const GPIO_B_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x52020400 as *const GpioRegisters) };
+
 pub const GPIO_C_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x52020800 as *const GpioRegisters) };
 

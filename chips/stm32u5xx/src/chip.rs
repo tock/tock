@@ -35,6 +35,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub gpio_a: gpio::Port<'a>,
+    pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
 }
 
@@ -58,6 +59,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             exti,
             dma1,
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
+            gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
         }
     }
@@ -66,6 +68,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // Power and Wires
         self.rcc.enable_dma1();
         self.rcc.enable_gpioa();
+        self.rcc.enable_gpiob();
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_spi1();

@@ -424,8 +424,6 @@ pub struct Spi<'a> {
     dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<Option<ChannelId>>,
     dma_channel_rx: Cell<Option<ChannelId>>,
-    // tx_dma_peripheral: Cell<Option<DmaPeripheral>>,
-    // rx_dma_peripheral: Cell<Option<DmaPeripheral>>,
     tx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     rx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     dma_len: Cell<usize>,
@@ -442,8 +440,6 @@ impl<'a> Spi<'a> {
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
             dma_channel_rx: Cell::new(None),
-            // tx_dma_peripheral: Cell::new(None),
-            // rx_dma_peripheral: Cell::new(None),
             tx_dma_buf: MapCell::empty(),
             rx_dma_buf: MapCell::empty(),
             dma_len: Cell::new(0),
@@ -454,62 +450,11 @@ impl<'a> Spi<'a> {
     }
 
     /// associates a DMA controller and channels with the SPI driver.
-    pub fn set_dma(
-        spi: &'static Self,
-        dma: &'a Dma,
-        // tx_peripheral: DmaPeripheral,
-        tx_channel: ChannelId,
-        // rx_peripheral: DmaPeripheral,
-        rx_channel: ChannelId,
-    ) {
+    pub fn set_dma(spi: &'static Self, dma: &'a Dma, tx_channel: ChannelId, rx_channel: ChannelId) {
         spi.dma.set(dma);
-        // spi.tx_dma_peripheral.set(Some(tx_peripheral));
         spi.dma_channel_tx.set(Some(tx_channel));
-        // spi.rx_dma_peripheral.set(Some(rx_peripheral));
         spi.dma_channel_rx.set(Some(rx_channel));
-        // dma.set_client(tx_channel, spi);
-        // dma.set_client(rx_channel, spi);
     }
-
-    // pub fn handle_dma_interrupt(&self, is_tx: bool) {
-    //     if is_tx {
-    //         self.dma.map(|dma| {
-    //             if let Some(ch) = self.dma_channel_tx.get() {
-    //                 dma.clear_interrupt(ch);
-    //             }
-    //         });
-    //         self.registers.cr3.modify(CR3::DMAT::CLEAR);
-    //         self.tx_deferred.set(false);
-    //         if let Some(dma_slice) = self.tx_dma_buf.take() {
-    //             let fence = unsafe { CortexMDmaFence::new() };
-    //             let mut subslice = unsafe { dma_slice.take(fence) };
-    //             subslice.reset();
-    //             let buf = subslice.take();
-    //             let len = self.tx_len.get();
-    //             self.tx_client.map(move |client| {
-    //                 client.transmitted_buffer(buf, len, Ok(()));
-    //             });
-    //         }
-    //     } else {
-    //         self.dma.map(|dma| {
-    //             if let Some(ch) = self.dma_channel_rx.get() {
-    //                 dma.clear_interrupt(ch);
-    //             }
-    //         });
-    //         self.registers.cr3.modify(CR3::DMAR::CLEAR);
-    //         self.rx_deferred.set(false);
-    //         if let Some(dma_slice) = self.rx_dma_buf.take() {
-    //             let fence = unsafe { CortexMDmaFence::new() };
-    //             let mut subslice = unsafe { dma_slice.take(fence) };
-    //             subslice.reset();
-    //             let buf = subslice.take();
-    //             let len = self.rx_len.get();
-    //             self.rx_client.map(move |client| {
-    //                 client.received_buffer(buf, len, Ok(()), uart::Error::None);
-    //             });
-    //         }
-    //     }
-    // }
 
     pub fn handle_interrupt(&self) {
         // Used only during debugging. Since we use DMA, we do not enable SPI
@@ -520,17 +465,9 @@ impl<'a> Spi<'a> {
         self.registers.cfg1.modify(CFG1::TXDMAEN::SET);
     }
 
-    // fn disable_tx(&self) {
-    //     self.registers.cfg1.modify(CFG1::TXDMAEN::CLEAR);
-    // }
-
     fn enable_rx(&self) {
         self.registers.cfg1.modify(CFG1::RXDMAEN::SET);
     }
-
-    // fn disable_rx(&self) {
-    //     self.registers.cfg1.modify(CFG1::RXDMAEN::CLEAR);
-    // }
 }
 
 impl<'a> spi::SpiMaster<'a> for Spi<'a> {
@@ -823,22 +760,6 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         Ok(())
     }
 }
-
-// impl crate::dma::DmaClient for Spi<'_> {
-//     fn transfer_done(&self, channel: ChannelId) {
-//         if let Some(tx_ch) = self.dma_channel_tx.get() {
-//             if channel == tx_ch {
-//                 self.handle_dma_interrupt(true);
-//                 return;
-//             }
-//         }
-//         if let Some(rx_ch) = self.dma_channel_rx.get() {
-//             if channel == rx_ch {
-//                 self.handle_dma_interrupt(false);
-//             }
-//         }
-//     }
-// }
 
 impl crate::dma::DmaClient for Spi<'_> {
     fn transfer_done(&self, channel: ChannelId) {
