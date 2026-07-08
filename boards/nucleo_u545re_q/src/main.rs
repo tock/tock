@@ -58,6 +58,7 @@ struct NucleoU545RE {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
+    crc: &'static capsules_extra::crc::CrcDriver<'static, stm32u545::crc::CRC<'static>>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -73,6 +74,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_extra::crc::DRIVER_NUM => f(Some(self.crc)),
             _ => f(None),
         }
     }
@@ -346,6 +348,16 @@ unsafe fn start() -> (
         ),
     )
     .finalize(components::gpio_component_static!(GpioHw));
+    kernel::deferred_call::DeferredCallClient::register(&periphs.crc);
+
+    let crc = components::crc::CrcComponent::new(
+        board_kernel,
+        capsules_extra::crc::DRIVER_NUM,
+        &periphs.crc,
+    )
+    .finalize(components::crc_component_static!(
+        stm32u545::crc::CRC<'static>
+    ));
 
     // Platform and Interrupts
     let platform = static_init!(
@@ -361,6 +373,7 @@ unsafe fn start() -> (
             adc: adc_syscall,
             dac,
             gpio,
+            crc,
         }
     );
 
