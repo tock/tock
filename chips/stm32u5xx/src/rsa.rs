@@ -3,7 +3,7 @@
 // Copyright OxidOS Automotive 2026.
 
 use kernel::hil::public_key_crypto::rsa_math::{Client, ClientMut, RsaCryptoBase};
-use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -154,29 +154,89 @@ register_bitfields! [u32,
 const PKA_BASE: StaticRef<PkaRegisters> =
     unsafe { StaticRef::new(0x50020000 as *const PkaRegisters) };
 
-pub struct Pka {
+// RAM mapping
+// TODO consider moving somewhere else, because these mapping in mode specific
+const EXP_LEN_IDX: usize = (0x400 - RAM_START) / 4;
+const OP_LEN_IDX: usize = (0x408 - RAM_START) / 4;
+const OP_A_IDX: usize = (0xC68 - RAM_START) / 4;
+const EXP_IDX: usize = (0xE78 - RAM_START) / 4;
+const MOD_VALUE_IDX: usize = (0x1088 - RAM_START) / 4;
+const RESULT_IDX: usize = (0x838 - RAM_START) / 4;
+
+pub struct Pka<'a> {
     registers: StaticRef<PkaRegisters>,
+
     client: OptionalCell<&'a dyn Client<'a>>,
+
+    modulus: OptionalCell<&'static [u8]>,
+    exponent: OptionalCell<&'static [u8]>,
+
+    message: TakeCell<'static, [u8]>,
+    result: TakeCell<'static, [u8]>,
 }
 
-impl Pka {
-    pub const fn new() -> Pka {
+impl<'a> Pka<'a> {
+    pub const fn new() -> Pka<'a> {
         Pka {
             registers: PKA_BASE,
+
+            client: OptionalCell::empty(),
+
+            modulus: OptionalCell::empty(),
+            exponent: OptionalCell::empty(),
+
+            message: TakeCell::empty(),
+            result: TakeCell::empty(),
         }
     }
 
     // Helper function to write the data to RAM
     fn write_slice(&self, idx: usize, data: &[u8]) {
-        chunks = data.rchanks(4);
-        for i in 0..chunks.len() {
-            let slice = u32::from_be_bytes(chunk);
-            self.ram[i].set(slice);
+        let chunks = data.rchanks(4);
+        for (i, chunk) in chunks.enumerate() {
+            let mut slice = [0u8; 4];
+            let offset = 4 - chunk.len(); // in case chunk is less then 4 bytes
+
+            slice[offset..].copy_from_slice(chunk);
+
+            let word = u32::from_be_bytes(slice);
+            self.registers.ram[idx + i].set(word);
+        }
+    }
+
+    // Helper function to read data from RAM
+    fn read_slice(&self, idx: usize, buffer: &mut [u8]) {
+        let chunks = buffer.rchanks_mut(4);
+        for (i, chunk) in chunks.enumerate() {
+            let word = self.registers.ram[idx + i].get();
+            let bytes = word.to_be_bytes();
+            let offset = 4 - chunk.len();
+            chunk.copy_from_slice(&bytes[offset..])
+        }
+    }
+
+    pub fn handle_interrupt(&self) {
+        if self.registers.sr.is_set(SR::PROCENDF) {
+            // Prevent interrupt from firing again
+            self.registers.clrfr.write(CLRFR::PROCENDFC::SET);
+
+            // Unpack the cells
+            let modulus = self.modulus.take().unwrap();
+            let exponent = self.exponent.take().unwrap();
+            let message = self.message.take().unwrap();
+            let mut result = self.result.take().unwrap();
+
+            // Read the result
+            self.read_slice(RESULT_IDX, &mut result);
+
+            self.client.map(|client| {
+                client.mod_exponent_done(Ok(true), message, modulus, exponent, result)
+            })
         }
     }
 }
 
-impl<'a> RsaCryptoBase for Pka {
+impl<'a> RsaCryptoBase<'a> for Pka<'a> {
     fn set_client(&'a self, client: &'a dyn Client<'a>) {
         self.client.set(client);
     }
@@ -204,12 +264,29 @@ impl<'a> RsaCryptoBase for Pka {
             &'static mut [u8],
         ),
     > {
-        // Map the RAM regions for normal modular exponentiation
-        const EXP_LEN_IDX: usize = (0x400 - RAM_START) / 4;
-        const OP_LEN_IDX: usize = (0x408 - RAM_START) / 4;
-        const OP_A_IDX: usize = (0xC68 - RAM_START) / 4;
-        const EXP_IDX: usize = (0xE78 - RAM_START) / 4;
-        const MOD_VALUE_IDX: usize = (0x1088 - RAM_START) / 4;
-        const RESULT_IDX: usize = (0x838 - RAM_START) / 4;
+        // Bytes to bits
+        let exp_bits = (exponent.len() * 8) as u32;
+        let op_bits = (modulus.len() * 8) as u32;
+
+        // Write necessary data to RAM
+        self.registers.ram[EXP_LEN_IDX].set(exp_bits);
+        self.registers.ram[OP_LEN_IDX].set(op_bits);
+
+        self.write_slice(EXP_IDX, exponent);
+        self.write_slice(MOD_VALUE_IDX, modulus);
+        self.write_slice(OP_A_IDX, message);
+
+        // Put the values into cells
+        self.message.replace(message);
+        self.modulus.set(modulus);
+        self.exponent.set(exponent);
+        self.result.replace(result);
+
+        // Configure the periferal
+        self.registers.cr.write(
+            CR::MODE::MontgomeryModularExp + CR::PROCENDIE::SET + CR::START::SET + CR::EN::SET,
+        );
+
+        Ok(())
     }
 }
