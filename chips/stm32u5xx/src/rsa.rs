@@ -8,6 +8,7 @@ use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::utilities::StaticRef;
+use kernel::ErrorCode;
 
 const RAM_START: usize = 0x400;
 
@@ -264,6 +265,16 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
             &'static mut [u8],
         ),
     > {
+        // Check if PKA is not busy
+        if self.registers.sr.is_set(SR::BUSY) {
+            Err((ErrorCode::BUSY, message, modulus, exponent, result))
+        }
+
+        // Check if parameters are correct
+        if result.len() < modulus.len() || exponent.is_empty() || message.is_empty() {
+            Err((ErrorCode::SIZE, message, modulus, exponent, result))
+        }
+
         // Bytes to bits
         let exp_bits = (exponent.len() * 8) as u32;
         let op_bits = (modulus.len() * 8) as u32;
