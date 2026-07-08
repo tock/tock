@@ -243,28 +243,34 @@ unsafe fn start() -> (
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper_owned!(
             GpioHw,
-            // CN7
-            0 => periphs.gpio_c.pin(PinId::Pin10),
-            1 => periphs.gpio_c.pin(PinId::Pin11),
-            2 => periphs.gpio_c.pin(PinId::Pin12),
-            3 => periphs.gpio_a.pin(PinId::Pin15),
-            4 => periphs.gpio_a.pin(PinId::Pin00),
-            5 => periphs.gpio_a.pin(PinId::Pin01),
-            6 => periphs.gpio_a.pin(PinId::Pin04),
-            7 => periphs.gpio_c.pin(PinId::Pin02),
-            8 => periphs.gpio_c.pin(PinId::Pin01),
-            9 => periphs.gpio_c.pin(PinId::Pin03),
-            10 => periphs.gpio_c.pin(PinId::Pin00),
-            // CN10
-            11 => periphs.gpio_a.pin(PinId::Pin06),
-            12 => periphs.gpio_a.pin(PinId::Pin07),
-            13 => periphs.gpio_c.pin(PinId::Pin09),
-            14 => periphs.gpio_c.pin(PinId::Pin06),
-            15 => periphs.gpio_c.pin(PinId::Pin07),
-            16 => periphs.gpio_a.pin(PinId::Pin08),
-            17 => periphs.gpio_c.pin(PinId::Pin08),
-            18 => periphs.gpio_a.pin(PinId::Pin02),
-            19 => periphs.gpio_a.pin(PinId::Pin03),
+            // Digital pins
+            0 => periphs.gpio_a.pin(PinId::Pin03), // D0
+            1 => periphs.gpio_a.pin(PinId::Pin02), // D1
+            2 => periphs.gpio_c.pin(PinId::Pin08), // D2
+            // D3-D6 require GPIOB
+            7 => periphs.gpio_a.pin(PinId::Pin08), // D7
+            8 => periphs.gpio_c.pin(PinId::Pin07), // D8
+            9 => periphs.gpio_c.pin(PinId::Pin06), // D9
+            10 => periphs.gpio_c.pin(PinId::Pin09), // D10
+            11 => periphs.gpio_a.pin(PinId::Pin07), // D11
+            12 => periphs.gpio_a.pin(PinId::Pin06), // D12
+            // 13 => D13/PA5 is used by the LD2 LED capsule
+            // D14-D15 require GPIOB
+
+            // Analog pins exposed as GPIO
+            16 => periphs.gpio_a.pin(PinId::Pin00), // A0
+            17 => periphs.gpio_a.pin(PinId::Pin01), // A1
+            18 => periphs.gpio_a.pin(PinId::Pin04), // A2
+            // 19 => A3 requires GPIOB
+            20 => periphs.gpio_c.pin(PinId::Pin01), // A4
+            21 => periphs.gpio_c.pin(PinId::Pin00), // A5
+
+            // ST Morpho-only GPIO pins (no D/A aliases)
+            22 => periphs.gpio_c.pin(PinId::Pin10), // CN7 pin 1
+            23 => periphs.gpio_c.pin(PinId::Pin11), // CN7 pin 2
+            24 => periphs.gpio_c.pin(PinId::Pin12), // CN7 pin 3
+            25 => periphs.gpio_a.pin(PinId::Pin15), // CN7 pin 17
+            26 => periphs.gpio_c.pin(PinId::Pin03), // CN7 pin 37
         ),
     )
     .finalize(components::gpio_component_static!(GpioHw));
