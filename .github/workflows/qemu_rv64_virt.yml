@@ -33,7 +33,7 @@ jobs:
       # that other steps (such as the Rust toolchain) depend on files
       # in this repo.
       - name: Checkout the current repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Install qemu-system-riscv64 (provided by qemu-system-misc) and the
       # RISC-V userspace toolchain. ubuntu-24.04 ships QEMU 8.2.x, which is new
@@ -41,21 +41,20 @@ jobs:
       - name: Update packages and install dependencies
         run: |
           sudo apt update
-          sudo apt-get install -y qemu-system-misc gcc-riscv64-unknown-elf unzip
+          sudo apt-get install -y qemu-system-misc gcc-riscv64-unknown-elf
 
       # Install elf2tab, required to build libtock-c userspace apps.
       - name: Install elf2tab
         run: |
-          cargo install elf2tab@0.12.0
+          cargo install elf2tab@0.13.0
 
       # Check out libtock-c to build a real userspace app.
       - name: Checkout libtock-c
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: tock/libtock-c
-          # Pinned to the branch pending tock/libtock-c#572; switch to a pinned
-          # SHA once #572 merges.
-          ref: dev/riscv-medany
+          # Pinned to the libtock-c commit that added rv64 support (tock/libtock-c#572).
+          ref: 32c7099ffaba54e9f847da8009ef74ade8442314
           path: libtock-c
 
       # Build the qemu_rv64_virt board kernel.
