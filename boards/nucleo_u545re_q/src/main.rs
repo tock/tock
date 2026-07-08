@@ -52,6 +52,8 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    // TODO initialize RSA
+    // rsa: &'static capsules_extra::public_key_crypto::
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
