@@ -163,3 +163,74 @@ impl Transport for Rp2350Transport {
     const SYNC_TIMEOUT_TICKS: u32 = SYNC_TIMEOUT_TICKS;
     const DRAIN_TIMEOUT_TICKS: u32 = DRAIN_TIMEOUT_TICKS;
 }
+
+// ---------------------------------------------------------------------------
+// Layer-1 event dispatch
+// ---------------------------------------------------------------------------
+
+/// Replay a single Layer-1 channel event on core 1.
+///
+/// Called from core 1's main loop for every `LOCKSTEP_CHAN` entry that isn't
+/// a `Sync` (the only entries possible before Layer-2 syscall verification is
+/// wired up in Step B2). Core 0 owns the real UART and never dispatches
+/// these -- it only ever pushes them.
+pub fn dispatch_layer1_event(entry: SyncEntry) {
+    match entry {
+        SyncEntry::UartRxReady { len } => crate::uart::replay_rx_done_for_core1(len),
+        SyncEntry::UartTxDone => crate::uart::replay_tx_done_for_core1(),
+        SyncEntry::Sync { .. } => {
+            unreachable!("lockstep_barrier must not dispatch its own Sync variant")
+        }
+        SyncEntry::SyscallDesc(_) | SyncEntry::UpcallDesc { .. } => {
+            unreachable!("Layer-2 syscall/upcall verification isn't wired up yet (Step B2)")
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Rp2350UartHooks — RP2350-specific UART lockstep hooks
+// ---------------------------------------------------------------------------
+
+/// RP2350-specific UART lockstep hooks.
+///
+/// On core 0: `on_transmitted` pushes `UartTxDone`; `on_received` copies RX
+/// bytes via `transport.bulk_write`, then pushes `UartRxReady`. Both pushes
+/// implicitly kick core 1 (see `Rp2350Transport::try_push`). `on_transmit` is
+/// a no-op (TX payload comparison happens at the `LockstepDriver::command`
+/// syscall gate in Step B2, not here).
+/// On core 1: all hooks are no-ops -- the replay mechanism
+/// (`dispatch_layer1_event`) drives its callbacks instead.
+pub struct Rp2350UartHooks {
+    transport: &'static Rp2350Transport,
+}
+
+impl Rp2350UartHooks {
+    pub const fn new(transport: &'static Rp2350Transport) -> Self {
+        Self { transport }
+    }
+}
+
+impl UartHooks for Rp2350UartHooks {
+    fn on_transmit(&self, _buf: &[u8]) {}
+
+    fn on_transmitted(&self, _buf: &[u8]) {
+        if self.transport.core_id() == 0 {
+            while !self.transport.try_push(SyncEntry::UartTxDone) {
+                core::hint::spin_loop();
+            }
+        }
+    }
+
+    fn on_received(&self, buf: &[u8]) {
+        if self.transport.core_id() == 0 {
+            let copy_len = buf.len().min(UART_RX_REPLAY_MAX);
+            self.transport.bulk_write(BulkTag::UartRx, &buf[..copy_len]);
+            while !self
+                .transport
+                .try_push(SyncEntry::UartRxReady { len: copy_len as u8 })
+            {
+                core::hint::spin_loop();
+            }
+        }
+    }
+}

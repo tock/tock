@@ -20,6 +20,7 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::hil;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::KernelActivity;
@@ -34,7 +35,10 @@ use rp2350::clocks::{
     SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2350::gpio::{GpioFunction, RPGpio, RPGpioPin};
-use rp2350::lockstep::{lockstep_barrier, SyncEntry, RP2350_TRANSPORT};
+use rp2350::lockstep::{
+    dispatch_layer1_event, lockstep_barrier, LockstepUart, Rp2350UartHooks, SyncEntry,
+    Transport as _, DRAIN_TIMEOUT_TICKS, RP2350_TRANSPORT,
+};
 use rp2350::resets::Peripheral;
 use rp2350::timer::RPTimer;
 #[allow(unused)]
@@ -195,16 +199,20 @@ const NUM_PROCS_H1: usize = 1;
 /// Core 1's minimal, peripheral-free platform.
 struct Core1Platform {
     scheduler: &'static components::sched::cooperative::CooperativeComponentType,
+    console: &'static capsules_core::console::Console<'static>,
 }
 
 impl SyscallDriverLookup for Core1Platform {
-    fn with_driver<F, R>(&self, _driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
-        // No drivers registered yet -- Layer-1 UART replay / Layer-2 syscall
-        // verification land in Step B.
-        f(None)
+        match driver_num {
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            // Layer-2 syscall verification (LockstepDriver-gated capsules)
+            // lands in Step B2.
+            _ => f(None),
+        }
     }
 }
 
@@ -257,8 +265,14 @@ pub unsafe extern "C" fn core1_entry() -> ! {
     // load_processes(), see main()), and echo it back. Reusing
     // `lockstep_barrier` for this (rather than hand-rolled channel calls)
     // gives the handshake the same bounded timeout / panic-on-divergence
-    // behavior as every subsequent per-round barrier.
-    lockstep_barrier(&RP2350_TRANSPORT, SyncEntry::Sync { fingerprint: 0 }, |_| {});
+    // behavior as every subsequent per-round barrier. Dispatch is wired to
+    // `dispatch_layer1_event` defensively -- core 0 doesn't push Layer-1
+    // events this early, but there's no reason to assume it can't.
+    lockstep_barrier(
+        &RP2350_TRANSPORT,
+        SyncEntry::Sync { fingerprint: 0 },
+        dispatch_layer1_event,
+    );
 
     // Fresh, independent peripheral handles -- NOT shared with core 0's.
     // `Clocks` caches configured frequencies in `Cell`s, which are neither
@@ -289,7 +303,44 @@ pub unsafe extern "C" fn core1_entry() -> ! {
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS_H1));
 
-    let platform = Core1Platform { scheduler };
+    // Layer-1 lockstep replay: core 1's console sits on top of a software-only
+    // UART (no hardware backing) that's fed by `dispatch_layer1_event` in the
+    // main loop below, rather than a real interrupt. See `Rp2350UartReplay`'s
+    // doc comment.
+    let uart_hooks_h1 = static_init!(Rp2350UartHooks, Rp2350UartHooks::new(&RP2350_TRANSPORT));
+    let lockstep_uart_h1 = static_init!(
+        LockstepUart<'static, rp2350::uart::Rp2350UartReplay, Rp2350UartHooks>,
+        LockstepUart::new(&rp2350::uart::CORE1_UART_REPLAY, uart_hooks_h1)
+    );
+    hil::uart::Receive::set_receive_client(&rp2350::uart::CORE1_UART_REPLAY, lockstep_uart_h1);
+    hil::uart::Transmit::set_transmit_client(&rp2350::uart::CORE1_UART_REPLAY, lockstep_uart_h1);
+
+    let memory_allocation_capability_h1 =
+        create_capability!(capabilities::MemoryAllocationCapability);
+    let tx_buf = static_init!(
+        [u8; capsules_core::console::DEFAULT_BUF_SIZE],
+        [0; capsules_core::console::DEFAULT_BUF_SIZE]
+    );
+    let rx_buf = static_init!(
+        [u8; capsules_core::console::DEFAULT_BUF_SIZE],
+        [0; capsules_core::console::DEFAULT_BUF_SIZE]
+    );
+    let console = static_init!(
+        capsules_core::console::Console<'static>,
+        capsules_core::console::Console::new(
+            lockstep_uart_h1,
+            tx_buf,
+            rx_buf,
+            board_kernel.create_grant(
+                capsules_core::console::DRIVER_NUM,
+                &memory_allocation_capability_h1
+            ),
+        )
+    );
+    hil::uart::Receive::set_receive_client(lockstep_uart_h1, console);
+    hil::uart::Transmit::set_transmit_client(lockstep_uart_h1, console);
+
+    let platform = Core1Platform { scheduler, console };
 
     extern "C" {
         static _sapps: u8;
@@ -323,6 +374,40 @@ pub unsafe extern "C" fn core1_entry() -> ! {
     });
 
     loop {
+        // Phase 1: drain Layer-1 events until core 0's Sync for this round
+        // arrives. Core 0 pushes its round's Layer-1 events (UartRxReady /
+        // UartTxDone) during its own kernel_loop_operation, before pushing
+        // Sync -- draining them here, before Phase 2 runs this round's
+        // kernel_loop_operation, keeps both cores' per-round scheduling
+        // decisions based on the same information (e.g. whether a process is
+        // runnable because its pending UART completion was already
+        // delivered). Running Phase 2 first and only draining afterwards
+        // (via lockstep_barrier's dispatch) would replay events one round
+        // late and risk a spurious fingerprint mismatch.
+        //
+        // Timeout strategy: only start the fault-detection clock after the
+        // first L1 event arrives. During pure idle (app sleeping) core 0
+        // sends nothing -- waiting indefinitely here is correct.
+        let mut post_l1_start: Option<u32> = None;
+        let h0_fp = loop {
+            if let Some(entry) = RP2350_TRANSPORT.try_pop() {
+                match entry {
+                    SyncEntry::Sync { fingerprint } => break fingerprint,
+                    other => {
+                        dispatch_layer1_event(other);
+                        post_l1_start = Some(RP2350_TRANSPORT.now_ticks());
+                    }
+                }
+            }
+            if let Some(l1_start) = post_l1_start {
+                if RP2350_TRANSPORT.now_ticks().wrapping_sub(l1_start) >= DRAIN_TIMEOUT_TICKS {
+                    panic!("lockstep: core 1 sync-wait timeout after L1 event (divergence?)");
+                }
+            }
+            core::hint::spin_loop();
+        };
+
+        // Phase 2: run one non-KernelWork kernel operation.
         let activity = loop {
             let a = board_kernel.kernel_loop_operation(
                 &platform,
@@ -335,20 +420,19 @@ pub unsafe extern "C" fn core1_entry() -> ! {
                 break a;
             }
         };
+        // After a process-running round, drain any TX-done event that
+        // arrived on the channel before the process called transmit_buffer.
+        rp2350::uart::replay_pending_tx_done_for_core1();
 
-        let theirs = lockstep_barrier(
-            &RP2350_TRANSPORT,
-            SyncEntry::Sync { fingerprint: activity.fingerprint() },
-            |_| {},
-        );
-        if let SyncEntry::Sync { fingerprint: h0_fp } = theirs {
-            let h1_fp = activity.fingerprint();
-            if h0_fp != h1_fp {
-                panic!(
-                    "Lockstep divergence (core 1): core 0 {:#x}, core 1 {:#x}",
-                    h0_fp, h1_fp,
-                );
-            }
+        let h1_fp = activity.fingerprint();
+        if h0_fp != h1_fp {
+            panic!(
+                "Lockstep divergence (core 1): core 0 {:#x}, core 1 {:#x}",
+                h0_fp, h1_fp,
+            );
+        }
+        while !RP2350_TRANSPORT.try_push(SyncEntry::Sync { fingerprint: h1_fp }) {
+            core::hint::spin_loop();
         }
     }
 }
@@ -514,7 +598,19 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    // Layer-1 lockstep replay: interpose LockstepUart between the real UART
+    // and the mux so every TX/RX completion forwards to core 1 before
+    // reaching the console/process-console capsules. See `core1_entry`'s
+    // console wiring for the replay side.
+    let uart_hooks = static_init!(Rp2350UartHooks, Rp2350UartHooks::new(&RP2350_TRANSPORT));
+    let lockstep_uart = static_init!(
+        LockstepUart<'static, rp2350::uart::Uart<'static>, Rp2350UartHooks>,
+        LockstepUart::new(&peripherals.uart0, uart_hooks)
+    );
+    hil::uart::Receive::set_receive_client(&peripherals.uart0, lockstep_uart);
+    hil::uart::Transmit::set_transmit_client(&peripherals.uart0, lockstep_uart);
+
+    let uart_mux = components::console::UartMuxComponent::new(lockstep_uart, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.

@@ -470,36 +470,48 @@ impl<'a> Uart<'a> {
 
         if self.registers.uartimsc.is_set(UARTIMSC::RXIM) {
             if self.registers.uartfr.is_set(UARTFR::RXFF) {
-                let byte = self.registers.uartdr.get() as u8;
+                self.receive();
+            }
+        }
+    }
 
-                self.disable_receive_interrupt();
-                if self.rx_status.get() == UARTStateRX::Receiving {
-                    if self.rx_position.get() < self.rx_len.get() {
-                        self.rx_buffer.map(|buf| {
-                            buf[self.rx_position.get()] = byte;
-                            self.rx_position.replace(self.rx_position.get() + 1);
-                        });
+    /// Drain one byte from the (1-deep, FIFO disabled) receive holding
+    /// register and deliver it to the client if reception is complete.
+    ///
+    /// Called from `handle_interrupt()` when `RXFF` indicates a byte is
+    /// waiting, and from `handle_deferred_call()` to drain a byte that was
+    /// already waiting at the moment `receive_buffer()` armed reception (see
+    /// the comment there for why this can't just be called synchronously
+    /// from `receive_buffer()` itself).
+    fn receive(&self) {
+        let byte = self.registers.uartdr.get() as u8;
+
+        self.disable_receive_interrupt();
+        if self.rx_status.get() == UARTStateRX::Receiving {
+            if self.rx_position.get() < self.rx_len.get() {
+                self.rx_buffer.map(|buf| {
+                    buf[self.rx_position.get()] = byte;
+                    self.rx_position.replace(self.rx_position.get() + 1);
+                });
+            }
+            if self.rx_position.get() == self.rx_len.get() {
+                // reception done
+                self.rx_status.replace(UARTStateRX::Idle);
+            } else {
+                self.enable_receive_interrupt();
+            }
+            // notify client if transfer is done
+            if self.rx_status.get() == UARTStateRX::Idle {
+                self.rx_client.map(|client| {
+                    if let Some(buf) = self.rx_buffer.take() {
+                        client.received_buffer(
+                            buf,
+                            self.rx_len.get(),
+                            Ok(()),
+                            hil::uart::Error::None,
+                        );
                     }
-                    if self.rx_position.get() == self.rx_len.get() {
-                        // reception done
-                        self.rx_status.replace(UARTStateRX::Idle);
-                    } else {
-                        self.enable_receive_interrupt();
-                    }
-                    // notify client if transfer is done
-                    if self.rx_status.get() == UARTStateRX::Idle {
-                        self.rx_client.map(|client| {
-                            if let Some(buf) = self.rx_buffer.take() {
-                                client.received_buffer(
-                                    buf,
-                                    self.rx_len.get(),
-                                    Ok(()),
-                                    hil::uart::Error::None,
-                                );
-                            }
-                        });
-                    }
-                }
+                });
             }
         }
     }
@@ -633,6 +645,16 @@ impl DeferredCallClient for Uart<'_> {
                 });
             });
             self.rx_status.set(UARTStateRX::Idle);
+        }
+
+        // Drain a byte that was already waiting in the (1-deep) receive
+        // holding register at the moment receive_buffer() armed reception --
+        // see the comment there for why this is deferred rather than handled
+        // synchronously.
+        if self.rx_status.get() == UARTStateRX::Receiving
+            && !self.registers.uartfr.is_set(UARTFR::RXFE)
+        {
+            self.receive();
         }
     }
 }
@@ -783,6 +805,15 @@ impl<'a> Receive<'a> for Uart<'a> {
                 self.rx_len.set(rx_len);
                 self.rx_status.set(UARTStateRX::Receiving);
                 self.enable_receive_interrupt();
+                // If a byte is already waiting (RXFE clear), schedule a
+                // deferred call to drain it rather than calling receive()
+                // synchronously here: receive_buffer() is typically called
+                // from inside the console capsule's grant closure (command ->
+                // receive_new), so firing received_buffer() synchronously
+                // would re-enter the same grant and panic.
+                if !self.registers.uartfr.is_set(UARTFR::RXFE) {
+                    self.deferred_call.set();
+                }
                 Ok(())
             } else {
                 Err((ErrorCode::SIZE, rx_buffer))
@@ -807,5 +838,156 @@ impl<'a> Receive<'a> for Uart<'a> {
         } else {
             Ok(())
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Core 1 UART replay -- lockstep Layer 1
+// ---------------------------------------------------------------------------
+
+/// Called by core 1's main loop when it pops `SyncEntry::UartRxReady` off
+/// `LOCKSTEP_CHAN`.
+pub fn replay_rx_done_for_core1(len: u8) {
+    if len > 0 {
+        CORE1_UART_REPLAY.replay_rx_done(len);
+    }
+}
+
+/// Called by core 1's main loop when it pops `SyncEntry::UartTxDone` off
+/// `LOCKSTEP_CHAN`.
+pub fn replay_tx_done_for_core1() {
+    CORE1_UART_REPLAY.replay_tx_done();
+}
+
+/// Called from core 1's main loop after each `kernel_loop_operation` to drain
+/// any TX-done event that arrived before the capsule's `transmit_buffer`.
+pub fn replay_pending_tx_done_for_core1() {
+    CORE1_UART_REPLAY.replay_pending_tx_done();
+}
+
+/// Software-only UART with no hardware backing, used for core 1's console
+/// capsule.
+///
+/// Core 0 owns the physical UART. Core 1 receives data via the lockstep
+/// replay path: core 0 copies received bytes into `UART_RX_REPLAY_BUF`,
+/// pushes `SyncEntry::UartRxReady` (which implicitly kicks core 1 via the
+/// real SIO FIFO doorbell), and core 1's main loop dispatches that to
+/// `replay_rx_done_for_core1()`, which delivers the bytes to the waiting app
+/// through this struct.
+pub struct Rp2350UartReplay {
+    rx_client: OptionalCell<&'static dyn ReceiveClient>,
+    tx_client: OptionalCell<&'static dyn TransmitClient>,
+    rx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: TakeCell<'static, [u8]>,
+    tx_len: Cell<usize>,
+    // Set when replay_tx_done() fires before transmit_buffer() is called
+    // (core 0 completes TX before core 1's process has issued the command).
+    // transmit_buffer() checks this flag and fires the callback immediately.
+    tx_done_early: Cell<bool>,
+}
+
+unsafe impl Sync for Rp2350UartReplay {}
+
+impl Rp2350UartReplay {
+    pub const fn new() -> Self {
+        Rp2350UartReplay {
+            rx_client: OptionalCell::empty(),
+            tx_client: OptionalCell::empty(),
+            rx_buffer: TakeCell::empty(),
+            tx_buffer: TakeCell::empty(),
+            tx_len: Cell::new(0),
+            tx_done_early: Cell::new(false),
+        }
+    }
+
+    pub fn replay_rx_done(&self, len: u8) {
+        let rx_buffer = match self.rx_buffer.take() {
+            Some(buf) => buf,
+            None => return,
+        };
+        let len = len as usize;
+        use crate::lockstep::{UART_RX_REPLAY_BUF, UART_RX_REPLAY_MAX};
+        let copy_len = len.min(UART_RX_REPLAY_MAX).min(rx_buffer.len());
+        unsafe {
+            rx_buffer[..copy_len].copy_from_slice(&(&*UART_RX_REPLAY_BUF.0.get())[..copy_len]);
+        }
+        self.rx_client.map(move |client| {
+            client.received_buffer(rx_buffer, copy_len, Ok(()), hil::uart::Error::None)
+        });
+    }
+
+    pub fn replay_tx_done(&self) {
+        let tx_buffer = match self.tx_buffer.take() {
+            Some(buf) => buf,
+            None => {
+                self.tx_done_early.set(true);
+                return;
+            }
+        };
+        self.tx_done_early.set(false);
+        let tx_len = self.tx_len.get();
+        self.tx_client
+            .map(move |client| client.transmitted_buffer(tx_buffer, tx_len, Ok(())));
+    }
+
+    pub fn replay_pending_tx_done(&self) {
+        if self.tx_done_early.get() {
+            self.replay_tx_done();
+        }
+    }
+}
+
+pub static CORE1_UART_REPLAY: Rp2350UartReplay = Rp2350UartReplay::new();
+
+impl Configure for Rp2350UartReplay {
+    fn configure(&self, _params: Parameters) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+}
+
+impl Transmit<'static> for Rp2350UartReplay {
+    fn set_transmit_client(&self, client: &'static dyn TransmitClient) {
+        self.tx_client.set(client);
+    }
+
+    fn transmit_buffer(
+        &self,
+        tx_data: &'static mut [u8],
+        tx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        self.tx_buffer.replace(tx_data);
+        self.tx_len.set(tx_len);
+        Ok(())
+    }
+
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+}
+
+impl Receive<'static> for Rp2350UartReplay {
+    fn set_receive_client(&self, client: &'static dyn ReceiveClient) {
+        self.rx_client.set(client);
+    }
+
+    fn receive_buffer(
+        &self,
+        rx_buffer: &'static mut [u8],
+        _rx_len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        self.rx_buffer.replace(rx_buffer);
+        Ok(())
+    }
+
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn receive_word(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
     }
 }
