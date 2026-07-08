@@ -48,7 +48,8 @@ register_bitfields![u32,
         GPIOJEN OFFSET(9) NUMBITS(1) []
     ],
     pub APB1ENR1 [
-        TIM2EN OFFSET(0) NUMBITS(1) []
+        TIM2EN OFFSET(0) NUMBITS(1) [],
+        TIM3EN OFFSET(1) NUMBITS(1) []
     ],
     pub APB2ENR [
         USART1EN OFFSET(14) NUMBITS(1) []
@@ -97,6 +98,10 @@ impl Rcc {
 
     pub fn enable_tim2(&self) {
         self.registers.apb1enr1.modify(APB1ENR1::TIM2EN::SET);
+    }
+
+    pub fn enable_tim3(&self) {
+        self.registers.apb1enr1.modify(APB1ENR1::TIM3EN::SET);
     }
 
     pub fn enable_syscfg(&self) {

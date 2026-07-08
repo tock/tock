@@ -52,6 +52,7 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    pwm: &'static capsules_extra::pwm::Pwm<'static, 1>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -64,6 +65,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_extra::pwm::DRIVER_NUM => f(Some(self.pwm)),
             _ => f(None),
         }
     }
@@ -233,6 +235,17 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let pwm_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin06));
+
+    let tim3_pwm_pin = static_init!(
+        stm32u545::tim::PwmPin<'static>,
+        stm32u545::tim::PwmPin::new(&periphs.tim3_ch1, pwm_pin)
+    );
+
+    let pwm =
+        components::pwm::PwmDriverComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
+            .finalize(components::pwm_driver_component_helper!(tim3_pwm_pin));
+
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -244,6 +257,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            pwm,
         }
     );
 
