@@ -40,7 +40,13 @@ impl<'a, I: InterruptService> Rp2350<'a, I> {
             interrupt_service,
             sio,
             processor0_interrupt_mask: interrupt_mask!(interrupts::PROC1_IRQ_CTI),
-            processor1_interrupt_mask: interrupt_mask!(interrupts::PROC0_IRQ_CTI),
+            // Mask IRQs handled by cpu 0
+            processor1_interrupt_mask: interrupt_mask!(
+                interrupts::PROC0_IRQ_CTI,
+                interrupts::UART0_IRQ,
+                interrupts::UART1_IRQ,
+                interrupts::TIMER0_IRQ_0
+            ),
         }
     }
 }
