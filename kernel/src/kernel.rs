@@ -815,7 +815,7 @@ impl Kernel {
                 }
                 match yield_type {
                     YieldCall::NoWait { ptr } => {
-                        // If this is a `Yield-WaitFor` AND there are no pending
+                        // If this is a `Yield-NoWait` AND there are no pending
                         // tasks, then return immediately. Otherwise, go into
                         // the yielded state and execute tasks now or when they
                         // arrive.
