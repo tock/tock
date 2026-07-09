@@ -68,7 +68,7 @@ compatible version:
     sudo apt install build-essential libusb-1.0-0-dev libftdi1-dev \
         libtool autoconf automake texinfo pkg-config
     ```
-    **Fedora**
+    **RHEL-based or RPM-based**
     ```bash
     sudo dnf update
     sudo dnf install build-essential libusb1-devel jimtcl libftd-devel \
