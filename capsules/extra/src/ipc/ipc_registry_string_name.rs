@@ -38,10 +38,13 @@ mod upcall {
     pub const COUNT: u8 = 3;
 }
 
+/// Maximum string length, with a value of 20 by default.
+const MAX_STRING_LEN: usize = 20;
+
 /// Per-process metadata
 #[derive(Default)]
 pub struct App {
-    registered_name: [u8; 20],
+    registered_name: [u8; MAX_STRING_LEN],
 }
 
 pub struct IpcRegistryStringName {
@@ -70,70 +73,59 @@ impl IpcRegistryStringName {
         // saving the name
 
         // Save allowed name for discovery
-        self.apps
-            .enter(processid, |app, kerneldata| {
-                kerneldata
-                    .get_readonly_processbuffer(ro_allow::STRING_NAME)
-                    .map_or(Err(ErrorCode::INVAL), |allow_name| {
-                        allow_name
-                            .enter(|buf| {
-                                if buf.len() != 20 {
-                                    // Error if allowed name is not exactly 20 bytes
-                                    Err(ErrorCode::SIZE)
-                                } else {
-                                    let n = core::cmp::min(buf.len(), app.registered_name.len());
-                                    buf[0..n].copy_to_slice(&mut app.registered_name[0..n]);
+        self.apps.enter(processid, |app, kerneldata| {
+            kerneldata
+                .get_readonly_processbuffer(ro_allow::STRING_NAME)
+                .and_then(|allow_name| {
+                    allow_name.enter(|buf| {
+                        if buf.len() != MAX_STRING_LEN {
+                            // Error if allowed name is not exactly MAX_STRING_LEN bytes
+                            Err(ErrorCode::SIZE)
+                        } else {
+                            let n = core::cmp::min(buf.len(), app.registered_name.len());
+                            buf[0..n].copy_to_slice(&mut app.registered_name[0..n]);
 
-                                    // Schedule registration complete callback
-                                    let _ = kerneldata
-                                        .schedule_upcall(upcall::REGISTRATION_COMPLETE, (1, 0, 0));
-                                    Ok(())
-                                }
-                            })
-                            .unwrap_or_else(|err| err.into())
+                            // Schedule registration complete callback
+                            let _ = kerneldata
+                                .schedule_upcall(upcall::REGISTRATION_COMPLETE, (1, 0, 0));
+                            Ok(())
+                        }
                     })
-            })
-            .unwrap_or_else(|err| err.into())
-            .map(|()| {
-                // Notify all other apps of a new registration. Only apps that are subscribed will get the notification.
-                self.apps.each(|otherid, _, kerneldata| {
-                    if otherid != processid {
-                        let _ = kerneldata.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0));
-                    }
-                });
-            })
+                })
+        })???;
+
+        // Notify all other apps of a new registration. Only apps that are subscribed will get the notification.
+        self.apps.each(|otherid, _, kerneldata| {
+            if otherid != processid {
+                let _ = kerneldata.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0));
+            }
+        });
+        Ok(())
     }
 
     fn discover(&self, processid: ProcessId) -> Result<(), ErrorCode> {
         // Get allowed name to compare
-        let mut this_name: [u8; 20] = [0; 20];
-        self.apps
-            .enter(processid, |_, this_kerneldata| {
-                this_kerneldata
-                    .get_readonly_processbuffer(ro_allow::STRING_NAME)
-                    .map_or_else(
-                        |err| err.into(),
-                        |allow_name| {
-                            allow_name
-                                .enter(|buf| {
-                                    if buf.len() != 20 {
-                                        // Error if allowed name is not exactly 20 bytes
-                                        Err(ErrorCode::SIZE)
-                                    } else {
-                                        let n = core::cmp::min(buf.len(), this_name.len());
-                                        buf[0..n].copy_to_slice(&mut this_name[0..n]);
-                                        Ok(())
-                                    }
-                                })
-                                .unwrap_or_else(|err| err.into())
-                        },
-                    )
-            })
-            .unwrap_or_else(|err| err.into())?;
+        let mut this_name: [u8; MAX_STRING_LEN] = [0; MAX_STRING_LEN];
+        self.apps.enter(processid, |_, kerneldata| {
+            kerneldata
+                .get_readonly_processbuffer(ro_allow::STRING_NAME)
+                .and_then(|allow_name| {
+                    allow_name.enter(|buf| {
+                        if buf.len() != MAX_STRING_LEN {
+                            // Error if allowed name is not exactly MAX_STRING_LEN bytes
+                            Err(ErrorCode::SIZE)
+                        } else {
+                            let n = core::cmp::min(buf.len(), this_name.len());
+                            buf[0..n].copy_to_slice(&mut this_name[0..n]);
+                            Ok(())
+                        }
+                    })
+                })
+        })???;
 
         // Cannot check for empty name, as that is the default value and could
         // match processes that haven't registered
-        if this_name == [0; 20] {
+        if this_name == [0; MAX_STRING_LEN] {
             return Err(ErrorCode::INVAL);
         }
 
@@ -149,10 +141,10 @@ impl IpcRegistryStringName {
                     // would occur before scheduling the upcall
 
                     // Schedule discovery complete callback
-                    let _ = self.apps.enter(processid, |_, kernel_data| {
-                        kernel_data
-                            .schedule_upcall(upcall::DISCOVERY_COMPLETE, (1, otherid.id(), 0))
-                    });
+                    self.apps.enter(processid, |_, kerneldata| {
+                        let _ = kerneldata
+                            .schedule_upcall(upcall::DISCOVERY_COMPLETE, (1, otherid.id(), 0));
+                    })?;
 
                     // Discovery complete
                     return Ok(());
@@ -161,8 +153,8 @@ impl IpcRegistryStringName {
         }
 
         // No match found, return successfully but upcall that discovery failed
-        let _ = self.apps.enter(processid, |_, kernel_data| {
-            kernel_data.schedule_upcall(upcall::DISCOVERY_COMPLETE, (0, 0, 0))
+        let _ = self.apps.enter(processid, |_, kerneldata| {
+            kerneldata.schedule_upcall(upcall::DISCOVERY_COMPLETE, (0, 0, 0))
         });
         Ok(())
     }
@@ -171,9 +163,9 @@ impl IpcRegistryStringName {
 impl SyscallDriver for IpcRegistryStringName {
     /// Registration and discovery of IPC services
     ///
-    /// Matches based on "names": length 20 arrays of u8. Typically UTF-8
-    /// strings (without null-termination), but no explicit requirement of
-    /// format.
+    /// Matches based on "names": length MAX_STRING_LEN arrays of u8.
+    /// Typically UTF-8 strings (without null-termination), but no explicit
+    /// requirement of format.
     ///
     /// ### `command_num`
     ///

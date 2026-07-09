@@ -97,55 +97,52 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
         }
 
         // Save registration state
-        self.apps
-            .enter(processid, |app, kerneldata| {
-                app.is_registered = true;
+        self.apps.enter(processid, |app, kerneldata| {
+            app.is_registered = true;
 
-                // Schedule registration complete callback
-                let _ = kerneldata.schedule_upcall(upcall::REGISTRATION_COMPLETE, (1, 0, 0));
-                Ok(())
-            })
-            .unwrap_or_else(|err| err.into())
-            .map(|()| {
-                // Notify all other apps of a new registration. Only apps that are subscribed will get the notification.
-                self.apps.each(|otherid, _, kerneldata| {
-                    if otherid != processid {
-                        let _ = kerneldata.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0));
-                    }
-                });
-            })
+            // Schedule registration complete callback
+            let _ = kerneldata.schedule_upcall(upcall::REGISTRATION_COMPLETE, (1, 0, 0));
+        })?;
+
+        // Notify all other apps of a new registration. Only apps that are subscribed will get the notification.
+        self.apps.each(|otherid, _, kerneldata| {
+            if otherid != processid {
+                let _ = kerneldata.schedule_upcall(upcall::NEW_REGISTRATION, (0, 0, 0));
+            }
+        });
+
+        Ok(())
     }
 
     fn compare_names(&self, clientid: ProcessId, serverid: ProcessId) -> bool {
         // Compare a server package name and client allowed buffer
         // If any errors occur, returns false
         self.apps
-            .enter(clientid, |_, this_kerneldata| {
-                this_kerneldata
+            .enter(clientid, |_, kerneldata| {
+                kerneldata
                     .get_readonly_processbuffer(ro_allow::NAME)
                     .map(|allow_name| {
-                        allow_name
-                            .enter(|buf| {
-                                self.kernel.process_map_or_external(
-                                    false,
-                                    serverid,
-                                    |server| {
-                                        let package_name = server.get_process_name().as_bytes();
+                        allow_name.enter(|buf| {
+                            self.kernel.process_map_or_external(
+                                false,
+                                serverid,
+                                |server| {
+                                    let package_name = server.get_process_name().as_bytes();
 
-                                        // Compare TBF header package name with user-provided name, byte-by-byte
-                                        package_name.len() == buf.len()
-                                            && package_name
-                                                .iter()
-                                                .zip(buf.iter())
-                                                .all(|(c1, c2)| *c1 == c2.get())
-                                    },
-                                    &self.capability,
-                                )
-                            })
-                            .unwrap_or(false)
+                                    // Compare TBF header package name with user-provided name, byte-by-byte
+                                    package_name.len() == buf.len()
+                                        && package_name
+                                            .iter()
+                                            .zip(buf.iter())
+                                            .all(|(c1, c2)| *c1 == c2.get())
+                                },
+                                &self.capability,
+                            )
+                        })
                     })
-                    .unwrap_or(false)
             })
+            .flatten()
+            .flatten()
             .unwrap_or(false)
     }
 
@@ -166,20 +163,22 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
                         // would occur before scheduling the upcall
 
                         // Schedule discovery complete callback
-                        let _ = self.apps.enter(processid, |_, kernel_data| {
-                            kernel_data
-                                .schedule_upcall(upcall::DISCOVERY_COMPLETE, (1, otherid.id(), 0))
-                        });
+                        self.apps.enter(processid, |_, kerneldata| {
+                            let _ = kerneldata
+                                .schedule_upcall(upcall::DISCOVERY_COMPLETE, (1, otherid.id(), 0));
+                        })?;
+
+                        // There won't be another match, so return early
                         return Ok(());
                     }
                 }
             }
         }
 
-        // No match found, return successfully but upcall that discovery failed
-        let _ = self.apps.enter(processid, |_, kernel_data| {
-            kernel_data.schedule_upcall(upcall::DISCOVERY_COMPLETE, (0, 0, 0))
-        });
+        // No match found, return successfully but upcall that discovery failed instead
+        self.apps.enter(processid, |_, kerneldata| {
+            let _ = kerneldata.schedule_upcall(upcall::DISCOVERY_COMPLETE, (0, 0, 0));
+        })?;
         Ok(())
     }
 }
