@@ -85,7 +85,7 @@ compatible version:
     make -j$(nproc)
     sudo make install
     ```
-    **Fedora**
+    **RHEL-based or RPM-based**
     ```bash
     git clone https://github.com/openocd-org/openocd.git
     cd openocd
