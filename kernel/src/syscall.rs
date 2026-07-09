@@ -119,7 +119,7 @@ impl TryFrom<u8> for SyscallClass {
 /// Enumeration of the yield system calls based on the Yield identifier
 /// values specified in the Tock ABI.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum YieldCall {
+pub enum YieldVariant {
     NoWait {
         ptr: *mut u8,
     },
@@ -130,12 +130,12 @@ pub enum YieldCall {
     },
 }
 
-impl core::fmt::Display for YieldCall {
+impl core::fmt::Display for YieldVariant {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let name = match self {
-            YieldCall::NoWait { ptr: _ } => "NoWait",
-            YieldCall::Wait => "Wait",
-            YieldCall::WaitFor {
+            YieldVariant::NoWait { ptr: _ } => "NoWait",
+            YieldVariant::Wait => "Wait",
+            YieldVariant::WaitFor {
                 driver_number: _,
                 subdriver_number: _,
             } => "WaitFor",
@@ -152,7 +152,7 @@ pub enum Syscall {
     /// system call class.
     Yield {
         /// The yield variant.
-        yield_type: YieldCall,
+        yield_type: YieldVariant,
     },
 
     /// Structure representing an invocation of the Subscribe system call class.
@@ -254,15 +254,15 @@ impl Syscall {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => match r0 {
                 0 => Some(Syscall::Yield {
-                    yield_type: YieldCall::NoWait {
+                    yield_type: YieldVariant::NoWait {
                         ptr: r1.as_capability_ptr().as_ptr::<u8>().cast_mut(),
                     },
                 }),
                 1 => Some(Syscall::Yield {
-                    yield_type: YieldCall::Wait,
+                    yield_type: YieldVariant::Wait,
                 }),
                 2 => Some(Syscall::Yield {
-                    yield_type: YieldCall::WaitFor {
+                    yield_type: YieldVariant::WaitFor {
                         driver_number: r1.as_usize(),
                         subdriver_number: r2.as_usize(),
                     },

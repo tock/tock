@@ -31,7 +31,7 @@ use crate::process::{self, ProcessId, Task};
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
-use crate::syscall::{Syscall, YieldCall};
+use crate::syscall::{Syscall, YieldVariant};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
 use crate::utilities::cells::NumericCellExt;
@@ -814,7 +814,7 @@ impl Kernel {
                     debug!("[{:?}] yield. which: {}", process.processid(), yield_type);
                 }
                 match yield_type {
-                    YieldCall::NoWait { ptr } => {
+                    YieldVariant::NoWait { ptr } => {
                         // If this is a `Yield-NoWait` AND there are no pending
                         // tasks, then return immediately. Otherwise, go into
                         // the yielded state and execute tasks now or when they
@@ -838,11 +838,11 @@ impl Kernel {
                         }
                     }
 
-                    YieldCall::Wait => {
+                    YieldVariant::Wait => {
                         process.set_yielded_state();
                     }
 
-                    YieldCall::WaitFor {
+                    YieldVariant::WaitFor {
                         driver_number,
                         subdriver_number,
                     } => {
