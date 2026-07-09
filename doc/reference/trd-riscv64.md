@@ -87,6 +87,7 @@ the lowest 32-bits of the register with the upper 32-bits being zero.
 | `POINTER`                    | `void *`    | A type capable of holding a pointer to a valid memory location.                                                |
 | `POINTER_OR_ZERO`            | `void *`    | A type capable of holding a pointer to a valid memory location OR the value `0`.                               |
 | `C_FUNCTION_POINTER_OR_ZERO` |             | A type capable of holding a pointer to an executable function, OR the value `0`.                               |
+| `ADDRESS`                    | `uintptr_t` | A native machine word sized memory address.                                                                    |
 
 
 3.3 Return Values
@@ -112,6 +113,7 @@ following register encoding:
 | Success with upcall pointer and opaque parameter | 134  | `C_FUNCTION_POINTER_OR_ZERO` - Upcall Pointer | `OPAQUE`                                      |                             | Only for subscribe |
 | Success with pointer and length                  | 135  | `POINTER_OR_ZERO` - Buffer Pointer            | `SIZE` - Length                               |                             | Only for allow     |
 | Success with pointer                             | 136  | `POINTER_OR_ZERO` - Memop Pointer             |                                               |                             | Only for memop     |
+| Success with address                             | 137  | `ADDRESS` - Memop Address                     |                                               |                             | Only for memop     |
 
 3.4 Upcalls
 ====================================================================
@@ -261,7 +263,7 @@ Memop operations:
 | 3               | Get address immediately after process RAM allocation    |           | Success with pointer |         |
 | 4               | Get process flash start address                         |           | Success with pointer |         |
 | 5               | Get address immediately after process flash region      |           | Success with pointer |         |
-| 6               | Get lowest address (end) of the grant region            |           | Success with pointer |         |
+| 6               | Get lowest address (end) of the grant region            |           | Success with address |         |
 | 7               | Get number of writeable flash regions in process header |           | Success with u32     |         |
 | 8               | Get start address of a writeable flash region           | `u32`     | Success with pointer | Failure |
 | 9               | Get end address of a writeable flash region             | `u32`     | Success with pointer | Failure |
