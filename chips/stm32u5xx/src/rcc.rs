@@ -11,27 +11,46 @@ register_structs! {
     pub RccRegisters {
         /// Control register
         (0x000 => cr: ReadWrite<u32>),
-        (0x004 => _reserved0: [u32; 33]),
+
+        (0x004 => _reserved0: [u32; 24]),
+
+        /// AHB2 periferal reset register 1
+        (0x064 => ahb2rstr1: ReadWrite<u32, AHB2RSTR1::Register>),
+
+        (0x068 => _reserved1: [u32; 8]),
+
         /// AHB1 peripheral clock enable register
         (0x088 => ahb1enr: ReadWrite<u32, AHB1ENR::Register>),
+
         /// AHB2 peripheral clock enable register 1
         (0x08C => ahb2enr1: ReadWrite<u32, AHB2ENR1::Register>),
-        (0x090 => _reserved1: [u32; 3]),
+
+        (0x090 => _reserved2: [u32; 3]),
+
         /// APB1 peripheral clock enable register 1
         (0x09C => apb1enr1: ReadWrite<u32, APB1ENR1::Register>),
-        (0x0A0 => _reserved2: [u32; 1]),
+
+        (0x0A0 => _reserved3: [u32; 1]),
+
         /// APB2 peripheral clock enable register
         (0x0A4 => apb2enr: ReadWrite<u32, APB2ENR::Register>),
+
         /// APB3 peripheral clock enable register
         (0x0A8 => apb3enr: ReadWrite<u32, APB3ENR::Register>),
-        (0x0AC => _reserved3: [u32; 13]),
+
+        (0x0AC => _reserved4: [u32; 13]),
+
         /// Peripherals independent clock configuration register 1
         (0x0E0 => ccipr1: ReadWrite<u32, CCIPR1::Register>),
+
         (0x0E4 => @END),
     }
 }
 
 register_bitfields![u32,
+    pub AHB2RSTR1 [
+        PKARST OFFSET(19) NUMBITS(1) []
+    ],
     pub AHB1ENR [
         GPDMA1EN OFFSET(0) NUMBITS(1) []
     ],
@@ -45,7 +64,9 @@ register_bitfields![u32,
         GPIOGEN OFFSET(6) NUMBITS(1) [],
         GPIOHEN OFFSET(7) NUMBITS(1) [],
         GPIOIEN OFFSET(8) NUMBITS(1) [],
-        GPIOJEN OFFSET(9) NUMBITS(1) []
+        GPIOJEN OFFSET(9) NUMBITS(1) [],
+
+        PKAEN OFFSET(19) NUMBITS(1) []
     ],
     pub APB1ENR1 [
         TIM2EN OFFSET(0) NUMBITS(1) []
@@ -105,5 +126,10 @@ impl Rcc {
 
     pub fn set_usart1_source_pclk(&self) {
         self.registers.ccipr1.modify(CCIPR1::USART1SEL::PCLK);
+    }
+
+    pub fn enable_pka(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::PKAEN::SET);
+        self.registers.ahb2rstr1.modify(AHB2RSTR1::PKARST::CLEAR);
     }
 }

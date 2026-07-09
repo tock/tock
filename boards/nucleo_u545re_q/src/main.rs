@@ -10,6 +10,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::public_key_crypto::rsa_math::RsaCryptoBase;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -52,8 +53,6 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
-    // TODO initialize RSA
-    // rsa: &'static capsules_extra::public_key_crypto::
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -162,6 +161,8 @@ unsafe fn start() -> (
 
     // Initialize wiring (DMA, clocks)
     periphs.init();
+
+    // let pka = &periphs.pka;
 
     // Board specific wiring
     periphs.tim2.start();
@@ -285,6 +286,18 @@ unsafe fn start() -> (
         &capsules_system::process_policies::PanicFaultPolicy {},
         &create_capability!(capabilities::ProcessManagementCapability),
     );
+
+    // Test RSA
+    // TODO remove before PR
+    periphs.rcc.enable_pka();
+    cortexm33::nvic::Nvic::new(stm32u545::nvic::PKA_IRQ).enable();
+    let msg = static_init!([u8; 4], [0, 0, 0, 2]);
+    let exp = static_init!([u8; 4], [0, 0, 0, 3]);
+    let md = static_init!([u8; 4], [0, 0, 0, 5]);
+    let res = static_init!([u8; 4], [0; 4]);
+    let status = periphs.pka.mod_exponent(msg, md, exp, res);
+
+    kernel::debug!("Pka status: {:?}", status);
 
     (board_kernel, platform, chip)
 }

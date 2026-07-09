@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use kernel::hil::public_key_crypto::rsa_math::{Client, ClientMut, RsaCryptoBase};
+use kernel::hil::public_key_crypto::rsa_math::{Client, RsaCryptoBase};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -23,8 +24,10 @@ register_structs! {
         // PKA clear flag register
         (0x08 => clrfr: WriteOnly<u32, CLRFR::Register>),
 
+        (0x0C => _reserved0),
+
         // PKA RAM
-        (RAM_START => ram: [ReadWrite<u32>, 5336 / 4])
+        (0x400 => ram: [ReadWrite<u32>; (0x14D8 - 0x400) / 4]),
 
         (0x14D8 => @END),
     }
@@ -193,7 +196,7 @@ impl<'a> Pka<'a> {
 
     // Helper function to write the data to RAM
     fn write_slice(&self, idx: usize, data: &[u8]) {
-        let chunks = data.rchanks(4);
+        let chunks = data.rchunks(4);
         for (i, chunk) in chunks.enumerate() {
             let mut slice = [0u8; 4];
             let offset = 4 - chunk.len(); // in case chunk is less then 4 bytes
@@ -207,7 +210,7 @@ impl<'a> Pka<'a> {
 
     // Helper function to read data from RAM
     fn read_slice(&self, idx: usize, buffer: &mut [u8]) {
-        let chunks = buffer.rchanks_mut(4);
+        let chunks = buffer.rchunks_mut(4);
         for (i, chunk) in chunks.enumerate() {
             let word = self.registers.ram[idx + i].get();
             let bytes = word.to_be_bytes();
@@ -230,9 +233,12 @@ impl<'a> Pka<'a> {
             // Read the result
             self.read_slice(RESULT_IDX, &mut result);
 
+            // TODO remove before PR
+            kernel::debug!("RSA RESULT: {:02x?}", &result[0..4]);
+
             self.client.map(|client| {
                 client.mod_exponent_done(Ok(true), message, modulus, exponent, result)
-            })
+            });
         }
     }
 }
@@ -267,13 +273,16 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
     > {
         // Check if PKA is not busy
         if self.registers.sr.is_set(SR::BUSY) {
-            Err((ErrorCode::BUSY, message, modulus, exponent, result))
+            return Err((ErrorCode::BUSY, message, modulus, exponent, result));
         }
 
         // Check if parameters are correct
         if result.len() < modulus.len() || exponent.is_empty() || message.is_empty() {
-            Err((ErrorCode::SIZE, message, modulus, exponent, result))
+            return Err((ErrorCode::SIZE, message, modulus, exponent, result));
         }
+
+        // Enable the peripheral
+        self.registers.cr.write(CR::EN::SET);
 
         // Bytes to bits
         let exp_bits = (exponent.len() * 8) as u32;
@@ -297,6 +306,16 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         self.registers.cr.write(
             CR::MODE::MontgomeryModularExp + CR::PROCENDIE::SET + CR::START::SET + CR::EN::SET,
         );
+
+        // TODO remove
+        kernel::debug!("CR: {:#010x}", self.registers.cr.get());
+        for _ in 0..100000 {
+            let sr = self.registers.sr.get();
+            if !self.registers.sr.is_set(SR::BUSY) {
+                kernel::debug!("Pka stopped, SR: {:#010x}", sr);
+                break;
+            }
+        }
 
         Ok(())
     }
