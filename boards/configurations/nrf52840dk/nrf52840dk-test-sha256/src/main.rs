@@ -31,7 +31,7 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules_extra::sha_driver::DRIVER_NUM => f(Some(self.sha_driver)),
+            capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha_driver)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -88,7 +88,7 @@ pub unsafe fn main() {
 
     let sha_driver = components::sha::ShaDriverComponent::new(
         board_kernel,
-        capsules_extra::sha_driver::DRIVER_NUM,
+        capsules_extra::sha256_driver::DRIVER_NUM,
         sha,
     )
     .finalize(components::sha_driver_component_static!(

@@ -142,7 +142,7 @@ These provide common and better abstractions for userspace.
 - **[Read Only State](src/read_only_state.rs)**: Read-only state sharing.
 - **[Screen](src/screen/screen.rs)**: Displays and screens.
 - **[Screen Shared](src/screen/screen_shared.rs)**: App-specific screen windows.
-- **[SHA](src/sha_driver.rs)**: SHA hashes.
+- **[SHA](src/sha256_driver.rs)**: SHA256 hashes.
 - **[Sound Pressure](src/sound_pressure.rs)**: Query sound pressure levels.
 - **[Temperature](src/temperature.rs)**: Query temperature sensors.
 - **[Text Screen](src/text_screen.rs)**: Text-based displays.

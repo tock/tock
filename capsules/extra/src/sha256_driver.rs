@@ -3,6 +3,8 @@
 // Copyright Tock Contributors 2022.
 
 //! SHA Userspace Driver
+//!
+//! Currently only supports SHA256.
 
 use capsules_core::driver;
 use kernel::errorcode::into_statuscode;

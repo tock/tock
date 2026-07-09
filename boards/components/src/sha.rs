@@ -22,7 +22,7 @@
 //!    ));
 //! ```
 
-use capsules_extra::sha_driver::ShaDriver;
+use capsules_extra::sha256_driver::ShaDriver;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -34,7 +34,7 @@ use kernel::hil::digest;
 macro_rules! sha_driver_component_static {
     ($A:ty, $L:expr$(,)?) => {{
         let sha_driver =
-            kernel::static_buf!(capsules_extra::sha_driver::ShaDriver<'static, $A, $L>);
+            kernel::static_buf!(capsules_extra::sha256_driver::ShaDriver<'static, $A, $L>);
 
         let data_buffer = kernel::static_buf!([u8; 64]);
         let dest_buffer = kernel::static_buf!([u8; $L]);

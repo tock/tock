@@ -96,7 +96,7 @@ pub mod seven_segment;
 pub mod sg90;
 pub mod sh1106;
 pub mod sha256;
-pub mod sha_driver;
+pub mod sha256_driver;
 pub mod sht3x;
 pub mod sht4x;
 pub mod si7021;
