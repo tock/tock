@@ -36,8 +36,9 @@ use rp2350::clocks::{
 };
 use rp2350::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2350::lockstep::{
-    dispatch_layer1_event, lockstep_barrier, LockstepUart, Rp2350UartHooks, SyncEntry,
-    Transport as _, DRAIN_TIMEOUT_TICKS, RP2350_TRANSPORT,
+    dispatch_layer1_event, lockstep_barrier, DriverUpcallRules, LockstepDriver, LockstepUart,
+    Rp2350UartHooks, Rp2350UpcallVerifier, SyncEntry, Transport as _, UpcallMode, UpcallRule,
+    DRAIN_TIMEOUT_TICKS, RP2350_TRANSPORT,
 };
 use rp2350::resets::Peripheral;
 use rp2350::timer::RPTimer;
@@ -75,6 +76,33 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
+// ---------------------------------------------------------------------------
+// Layer-2 upcall-verifier registry (compare-mode for console upcalls)
+// ---------------------------------------------------------------------------
+//
+// Mirrors qemu_rv32_virt_lib's CONSOLE_UPCALL_RULES/UPCALL_REGISTRY exactly --
+// console driver_num/subscribe_num semantics are capsule-level, not
+// chip-specific. `Rp2350UpcallVerifier::on_upcall` doesn't yet act on these
+// (see its doc comment), but the registry itself is live and shared by both
+// cores' verifiers.
+static CONSOLE_UPCALL_RULES: [UpcallRule; 2] = [
+    UpcallRule {
+        subscribe_num: 1, // subscribe_num 1 = WRITE_DONE in capsules_core::console
+        mode: UpcallMode::Compare,
+        mask: (true, false, false), // r0 = bytes written; r1/r2 unused
+    },
+    UpcallRule {
+        subscribe_num: 2, // subscribe_num 2 = READ_DONE
+        mode: UpcallMode::Compare,
+        mask: (true, false, false), // r0 = bytes read; r1/r2 unused
+    },
+];
+
+static UPCALL_REGISTRY: [DriverUpcallRules; 1] = [DriverUpcallRules {
+    driver_num: capsules_core::console::DRIVER_NUM,
+    rules: &CONSOLE_UPCALL_RULES,
+}];
+
 type ChipHw = Rp2350<'static, Rp2350DefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
@@ -87,7 +115,11 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 /// Supported drivers by the platform
 pub struct RaspberryPiPico2 {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    console: &'static capsules_core::console::Console<'static>,
+    lockstep_console: &'static LockstepDriver<
+        'static,
+        rp2350::lockstep::Rp2350Transport,
+        capsules_core::console::Console<'static>,
+    >,
     scheduler: &'static SchedulerInUse,
     systick: cortexm33::systick::SysTick,
     alarm: &'static capsules_core::alarm::AlarmDriver<
@@ -104,7 +136,7 @@ impl SyscallDriverLookup for RaspberryPiPico2 {
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.lockstep_console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
@@ -199,7 +231,11 @@ const NUM_PROCS_H1: usize = 1;
 /// Core 1's minimal, peripheral-free platform.
 struct Core1Platform {
     scheduler: &'static components::sched::cooperative::CooperativeComponentType,
-    console: &'static capsules_core::console::Console<'static>,
+    lockstep_console: &'static LockstepDriver<
+        'static,
+        rp2350::lockstep::Rp2350Transport,
+        capsules_core::console::Console<'static>,
+    >,
 }
 
 impl SyscallDriverLookup for Core1Platform {
@@ -208,9 +244,7 @@ impl SyscallDriverLookup for Core1Platform {
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            // Layer-2 syscall verification (LockstepDriver-gated capsules)
-            // lands in Step B2.
+            capsules_core::console::DRIVER_NUM => f(Some(self.lockstep_console)),
             _ => f(None),
         }
     }
@@ -340,7 +374,21 @@ pub unsafe extern "C" fn core1_entry() -> ! {
     hil::uart::Receive::set_receive_client(lockstep_uart_h1, console);
     hil::uart::Transmit::set_transmit_client(lockstep_uart_h1, console);
 
-    let platform = Core1Platform { scheduler, console };
+    // Layer-2: gate every console Command syscall behind a cross-core
+    // descriptor exchange. `core_id()` returns 1 at runtime here, so
+    // `LockstepDriver::command` branches to the shadow path.
+    let lockstep_console = static_init!(
+        LockstepDriver<'static, rp2350::lockstep::Rp2350Transport, capsules_core::console::Console<'static>>,
+        LockstepDriver::new(&RP2350_TRANSPORT, console, capsules_core::console::DRIVER_NUM)
+    );
+
+    let upcall_verifier_h1 = static_init!(
+        Rp2350UpcallVerifier,
+        Rp2350UpcallVerifier::new(&UPCALL_REGISTRY)
+    );
+    board_kernel.register_upcall_verifier(upcall_verifier_h1);
+
+    let platform = Core1Platform { scheduler, lockstep_console };
 
     extern "C" {
         static _sapps: u8;
@@ -621,6 +669,21 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
 
+    // Layer-2: gate every console Command syscall behind a cross-core
+    // descriptor exchange. `core_id()` returns 0 at runtime here, so
+    // `LockstepDriver::command` branches to the leader path (push, kick,
+    // block until core 1 echoes the descriptor back, before emitting).
+    let lockstep_console = static_init!(
+        LockstepDriver<'static, rp2350::lockstep::Rp2350Transport, capsules_core::console::Console<'static>>,
+        LockstepDriver::new(&RP2350_TRANSPORT, console, capsules_core::console::DRIVER_NUM)
+    );
+
+    let upcall_verifier = static_init!(
+        Rp2350UpcallVerifier,
+        Rp2350UpcallVerifier::new(&UPCALL_REGISTRY)
+    );
+    board_kernel.register_upcall_verifier(upcall_verifier);
+
     let gpio = GpioComponent::new(
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
@@ -702,7 +765,7 @@ pub unsafe fn main() {
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        console,
+        lockstep_console,
         alarm,
         gpio,
         led,

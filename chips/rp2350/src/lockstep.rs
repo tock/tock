@@ -234,3 +234,49 @@ impl UartHooks for Rp2350UartHooks {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Rp2350UpcallVerifier — Layer-2 upcall verification (stub; TODO stage 3)
+// ---------------------------------------------------------------------------
+
+/// Lockstep upcall verifier for the RP2350 dual-core configuration.
+///
+/// Mirrors `QemuUpcallVerifier`: the registry/rule lookup is live, but the
+/// actual cross-core exchange of masked upcall arguments (via
+/// `lockstep_barrier` and `SyncEntry::UpcallDesc`) is not wired up yet --
+/// same deferred scope as the QEMU port's own "stage3" TODO.
+pub struct Rp2350UpcallVerifier {
+    core_id: u8,
+    registry: &'static [DriverUpcallRules],
+}
+
+impl Rp2350UpcallVerifier {
+    pub fn new(registry: &'static [DriverUpcallRules]) -> Self {
+        Self { core_id: RP2350_TRANSPORT.core_id(), registry }
+    }
+}
+
+impl kernel::platform::UpcallVerifier for Rp2350UpcallVerifier {
+    fn on_upcall(
+        &self,
+        id: kernel::upcall::UpcallId,
+        r0: usize,
+        r1: usize,
+        r2: usize,
+    ) -> kernel::platform::UpcallAction {
+        let rule = self
+            .registry
+            .iter()
+            .find(|d| d.driver_num == id.driver_num)
+            .and_then(|d| d.rules.iter().find(|u| u.subscribe_num == id.subscribe_num));
+
+        let rule = match rule {
+            Some(r) => r,
+            None => return kernel::platform::UpcallAction::Proceed,
+        };
+
+        // TODO(lockstep-stage3): cross-core channel exchange via lockstep_barrier.
+        let _ = (rule, r0, r1, r2, self.core_id);
+        kernel::platform::UpcallAction::Proceed
+    }
+}
