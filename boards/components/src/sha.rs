@@ -45,13 +45,13 @@ macro_rules! sha_driver_component_static {
 
 pub type ShaDriverComponentType<A, const L: usize> = ShaDriver<'static, A, L>;
 
-pub struct ShaDriverComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
+pub struct ShaDriverComponent<A: 'static + digest::DigestDataHash<'static, L>, const L: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     sha: &'static A,
 }
 
-impl<A: 'static + digest::Digest<'static, L>, const L: usize> ShaDriverComponent<A, L> {
+impl<A: 'static + digest::DigestDataHash<'static, L>, const L: usize> ShaDriverComponent<A, L> {
     pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, sha: &'static A) -> Self {
         Self {
             board_kernel,
@@ -61,8 +61,10 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> ShaDriverComponent
     }
 }
 
-impl<A: kernel::hil::digest::Sha256 + 'static + digest::Digest<'static, L>, const L: usize>
-    Component for ShaDriverComponent<A, L>
+impl<
+        A: kernel::hil::digest::Sha256 + 'static + digest::DigestDataHash<'static, L>,
+        const L: usize,
+    > Component for ShaDriverComponent<A, L>
 {
     type StaticInput = (
         &'static mut MaybeUninit<ShaDriver<'static, A, L>>,
