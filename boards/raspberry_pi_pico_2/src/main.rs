@@ -318,6 +318,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -329,6 +330,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -370,6 +372,7 @@ pub unsafe fn main() {
             28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 

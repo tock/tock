@@ -65,9 +65,9 @@ pub struct AnalogComparatorComponent<
 }
 
 impl<
-        AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > AnalogComparatorComponent<AC, CAP>
+    AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> AnalogComparatorComponent<AC, CAP>
 {
     pub fn new(
         comp: &'static AC,
@@ -87,9 +87,9 @@ impl<
 }
 
 impl<
-        AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for AnalogComparatorComponent<AC, CAP>
+    AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for AnalogComparatorComponent<AC, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<AnalogComparator<'static, AC>>;
     type Output = &'static AnalogComparator<'static, AC>;

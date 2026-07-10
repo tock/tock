@@ -230,10 +230,10 @@ pub struct ScreenSharedComponent<
 }
 
 impl<
-        const SCREEN_BUF_LEN: usize,
-        S: hil::screen::Screen<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > ScreenSharedComponent<SCREEN_BUF_LEN, S, CAP>
+    const SCREEN_BUF_LEN: usize,
+    S: hil::screen::Screen<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> ScreenSharedComponent<SCREEN_BUF_LEN, S, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -253,10 +253,10 @@ impl<
 }
 
 impl<
-        const SCREEN_BUF_LEN: usize,
-        S: hil::screen::Screen<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for ScreenSharedComponent<SCREEN_BUF_LEN, S, CAP>
+    const SCREEN_BUF_LEN: usize,
+    S: hil::screen::Screen<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for ScreenSharedComponent<SCREEN_BUF_LEN, S, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<[u8; SCREEN_BUF_LEN]>,

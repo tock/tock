@@ -288,6 +288,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(stm32wle5jc::tim2::Tim2));
 
@@ -298,6 +299,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -344,6 +346,7 @@ pub unsafe fn main() {
         lora_spi_mux,
         chip_select,
         LORA_SPI_DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::spi_syscall_component_static!(
         stm32wle5jc::spi::Spi<'static>
@@ -379,6 +382,7 @@ pub unsafe fn main() {
             1 => lora_busy_pin,
             2 => lora_interrupt_pin,
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(
         stm32wle5jc::subghz_radio::SubGhzRadioVirtualGpio
@@ -402,6 +406,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::i2c_master::DRIVER_NUM,
         &base_peripherals.i2c2,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::i2c_master_driver_component_static!(
         stm32wle5jc::i2c::I2C

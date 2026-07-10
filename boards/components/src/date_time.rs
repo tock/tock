@@ -63,9 +63,9 @@ impl<D: 'static + date_time::DateTime<'static>, CAP: MemoryAllocationCapability 
 }
 
 impl<
-        D: 'static + date_time::DateTime<'static> + kernel::deferred_call::DeferredCallClient,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for DateTimeComponent<D, CAP>
+    D: 'static + date_time::DateTime<'static> + kernel::deferred_call::DeferredCallClient,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for DateTimeComponent<D, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<DateTimeCapsule<'static, D>>;
 

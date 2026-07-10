@@ -340,6 +340,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -385,6 +386,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -442,6 +444,7 @@ pub unsafe fn start() -> (
             // 28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             // 29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
@@ -480,6 +483,7 @@ pub unsafe fn start() -> (
         capsules_extra::lsm6dsoxtr::ACCELEROMETER_BASE_ADDRESS,
         board_kernel,
         capsules_extra::lsm6dsoxtr::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::lsm6ds_i2c_component_static!(
         rp2040::i2c::I2c<'static, 'static>
@@ -488,6 +492,7 @@ pub unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ninedof_component_static!(lsm6dsoxtr));
 
@@ -495,6 +500,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         temp_sensor,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(
         TemperatureRp2040Sensor
@@ -538,14 +544,17 @@ pub unsafe fn start() -> (
     let adc_channel_3 = components::adc::AdcComponent::new(adc_mux, Channel::Channel3)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                adc_channel_0,
-                adc_channel_1,
-                adc_channel_2,
-                adc_channel_3,
-            ));
+    let adc_syscall = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        adc_channel_0,
+        adc_channel_1,
+        adc_channel_2,
+        adc_channel_3,
+    ));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());

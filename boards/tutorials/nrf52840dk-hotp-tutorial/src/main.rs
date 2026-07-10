@@ -123,6 +123,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
         hmac_sha256_sw,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::hmac_component_static!(HmacSha256Software, 32));
 
@@ -178,6 +179,7 @@ pub unsafe fn main() {
         capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         None,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::screen_component_static!(1032));
 
@@ -207,6 +209,7 @@ pub unsafe fn main() {
         0x1915, // Nordic Semiconductor
         0x503a,
         strings,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::keyboard_hid_component_static!(UsbHw));
 
@@ -265,6 +268,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        create_capability!(capabilities::ProcessManagementCapability),
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840dk_lib::ChipHw,

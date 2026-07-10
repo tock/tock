@@ -207,6 +207,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(Tcpwm0));
 
@@ -218,6 +219,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -306,6 +308,7 @@ pub unsafe fn start() -> (
             91 => peripherals.gpio.get_pin(gpio::PsocPin::P9_1), // Header J5.25
             93 => peripherals.gpio.get_pin(gpio::PsocPin::P9_3), // Header J24.3
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(gpio::GpioPin));
 
@@ -327,6 +330,7 @@ pub unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             ),
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(gpio::GpioPin));
 

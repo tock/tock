@@ -334,9 +334,9 @@ impl<S: 'static + spi::SpiSlave<'static>, CAP: MemoryAllocationCapability + 'sta
 }
 
 impl<
-        S: 'static + spi::SpiSlave<'static> + kernel::hil::spi::SpiSlaveDevice<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for SpiPeripheralComponent<S, CAP>
+    S: 'static + spi::SpiSlave<'static> + kernel::hil::spi::SpiSlaveDevice<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for SpiPeripheralComponent<S, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<SpiPeripheral<'static, S>>;
     type Output = &'static SpiPeripheral<'static, S>;

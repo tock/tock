@@ -50,10 +50,10 @@ pub struct Mlx90614SMBusComponent<
 }
 
 impl<
-        I: 'static + i2c::I2CMaster<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-        S: 'static + i2c::SMBusMaster<'static>,
-    > Mlx90614SMBusComponent<I, CAP, S>
+    I: 'static + i2c::I2CMaster<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+    S: 'static + i2c::SMBusMaster<'static>,
+> Mlx90614SMBusComponent<I, CAP, S>
 {
     pub fn new(
         i2c: &'static MuxI2C<'static, I, S>,
@@ -73,10 +73,10 @@ impl<
 }
 
 impl<
-        I: 'static + i2c::I2CMaster<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-        S: 'static + i2c::SMBusMaster<'static>,
-    > Component for Mlx90614SMBusComponent<I, CAP, S>
+    I: 'static + i2c::I2CMaster<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+    S: 'static + i2c::SMBusMaster<'static>,
+> Component for Mlx90614SMBusComponent<I, CAP, S>
 {
     type StaticInput = (
         &'static mut MaybeUninit<SMBusDevice<'static, I, S>>,

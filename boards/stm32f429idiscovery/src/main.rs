@@ -368,6 +368,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -404,6 +405,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(stm32f429zi::gpio::Pin));
 
@@ -418,6 +420,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(stm32f429zi::tim2::Tim2));
 
@@ -523,6 +526,7 @@ unsafe fn start() -> (
             // 79 gpio_ports.pins::PIN[2][2].as_ref().unwrap(), //A7
             // 80 gpio_ports.pins::PIN[5][4].as_ref().unwrap()  //A8
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(stm32f429zi::gpio::Pin));
 
@@ -544,6 +548,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         temp_sensor,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(
         TemperatureSTMSensor
@@ -573,16 +578,19 @@ unsafe fn start() -> (
         components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel8)
             .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
-    let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                adc_channel_0,
-                adc_channel_1,
-                adc_channel_2,
-                adc_channel_3,
-                adc_channel_4,
-                adc_channel_5
-            ));
+    let adc_syscall = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        adc_channel_0,
+        adc_channel_1,
+        adc_channel_2,
+        adc_channel_3,
+        adc_channel_4,
+        adc_channel_5
+    ));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());

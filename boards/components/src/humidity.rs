@@ -36,10 +36,8 @@ pub struct HumidityComponent<
     mem_cap: CAP,
 }
 
-impl<
-        T: 'static + hil::sensors::HumidityDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > HumidityComponent<T, CAP>
+impl<T: 'static + hil::sensors::HumidityDriver<'static>, CAP: MemoryAllocationCapability + 'static>
+    HumidityComponent<T, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -56,10 +54,8 @@ impl<
     }
 }
 
-impl<
-        T: 'static + hil::sensors::HumidityDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for HumidityComponent<T, CAP>
+impl<T: 'static + hil::sensors::HumidityDriver<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for HumidityComponent<T, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<HumiditySensor<'static, T>>;
     type Output = &'static HumiditySensor<'static, T>;

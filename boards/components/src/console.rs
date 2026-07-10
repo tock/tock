@@ -136,11 +136,8 @@ pub struct ConsoleComponent<
     mem_cap: CAP,
 }
 
-impl<
-        const RX_BUF_LEN: usize,
-        const TX_BUF_LEN: usize,
-        CAP: MemoryAllocationCapability + 'static,
-    > ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN, CAP>
+impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize, CAP: MemoryAllocationCapability + 'static>
+    ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -157,11 +154,8 @@ impl<
     }
 }
 
-impl<
-        const RX_BUF_LEN: usize,
-        const TX_BUF_LEN: usize,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN, CAP>
+impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize, CAP: MemoryAllocationCapability + 'static>
+    Component for ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<[u8; TX_BUF_LEN]>,

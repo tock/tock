@@ -100,11 +100,11 @@ pub struct UDPDriverComponent<
 }
 
 impl<
-        A: Alarm<'static>,
-        C: UdpDriverCapability + 'static,
-        MEM: MemoryAllocationCapability + 'static,
-        NET: NetworkCapabilityCreationCapability + 'static,
-    > UDPDriverComponent<A, C, MEM, NET>
+    A: Alarm<'static>,
+    C: UdpDriverCapability + 'static,
+    MEM: MemoryAllocationCapability + 'static,
+    NET: NetworkCapabilityCreationCapability + 'static,
+> UDPDriverComponent<A, C, MEM, NET>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -135,11 +135,11 @@ impl<
 }
 
 impl<
-        A: Alarm<'static>,
-        C: UdpDriverCapability + 'static,
-        MEM: MemoryAllocationCapability + 'static,
-        NET: NetworkCapabilityCreationCapability + 'static,
-    > Component for UDPDriverComponent<A, C, MEM, NET>
+    A: Alarm<'static>,
+    C: UdpDriverCapability + 'static,
+    MEM: MemoryAllocationCapability + 'static,
+    NET: NetworkCapabilityCreationCapability + 'static,
+> Component for UDPDriverComponent<A, C, MEM, NET>
 {
     type StaticInput = (
         &'static mut MaybeUninit<

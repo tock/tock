@@ -65,10 +65,10 @@ impl<C: Chip, D: ProcessStandardDebug, CAP: ApplicationStorageCapability>
 }
 
 impl<
-        C: Chip + 'static,
-        D: ProcessStandardDebug + 'static,
-        CAP: ApplicationStorageCapability + 'static,
-    > Component for StoragePermissionsIndividualComponent<C, D, CAP>
+    C: Chip + 'static,
+    D: ProcessStandardDebug + 'static,
+    CAP: ApplicationStorageCapability + 'static,
+> Component for StoragePermissionsIndividualComponent<C, D, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<
         capsules_system::storage_permissions::individual::IndividualStoragePermissions<C, D, CAP>,

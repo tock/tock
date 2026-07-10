@@ -248,6 +248,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -275,6 +276,7 @@ unsafe fn setup() -> (
             0 => &peripherals.gpio_port[2],  // D2
             1 => &peripherals.gpio_port[8],  // D8
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
 
@@ -288,6 +290,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
     ALARM = Some(mux_alarm);
@@ -355,6 +358,7 @@ unsafe fn setup() -> (
             &peripherals.gpio_port[13], // A13
         ),
         capsules_core::spi_controller::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::spi_syscall_component_static!(
         apollo3::iom::Iom<'static>
@@ -374,6 +378,7 @@ unsafe fn setup() -> (
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &peripherals.ble,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ble_component_static!(
         apollo3::stimer::STimer,

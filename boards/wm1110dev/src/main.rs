@@ -290,6 +290,7 @@ pub unsafe fn start() -> (
             6 => &nrf52840_peripherals.gpio_port[GPIO_D6],
             7 => &nrf52840_peripherals.gpio_port[GPIO_D7],
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(Nrf52840GpioHw));
 
@@ -316,6 +317,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
 
@@ -339,6 +341,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -380,6 +383,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         sht4x,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(SHT4xSensor));
 
@@ -387,6 +391,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         sht4x,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::humidity_component_static!(SHT4xSensor));
 
@@ -405,6 +410,7 @@ pub unsafe fn start() -> (
             &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
         ),
         LORA_SPI_DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::spi_syscall_component_static!(SpiHw));
 
@@ -433,6 +439,7 @@ pub unsafe fn start() -> (
             42 => &nrf52840_peripherals.gpio_port[RADIO_RESET_PIN],
             43 => &nrf52840_peripherals.gpio_port[RADIO_BUSY_PIN],
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(Nrf52840GpioHw));
 
@@ -471,6 +478,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
@@ -486,6 +494,7 @@ pub unsafe fn start() -> (
         4096 * 4, // Length of userspace accessible region (16 pages)
         0,        // No kernel access
         0,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::nonvolatile_storage_component_static!(
         nrf52840::nvmc::Nvmc

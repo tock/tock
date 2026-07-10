@@ -32,18 +32,18 @@ mod litex_generated_constants;
 // short name.
 use litex_generated_constants as socc;
 
-// Structure for dynamic interrupt mapping, depending on the SoC
-// configuration
-//
-// This struct is deliberately kept in the board crate. Because of
-// the configurable nature of LiteX, it does not make sense to define
-// a default interrupt mapping, as the interrupt numbers are
-// generated sequentially for all softcores.
 kernel::declare_capability!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
     kernel::capabilities::ProcessStartCapability
 );
 
+/// Structure for dynamic interrupt mapping, depending on the SoC
+/// configuration
+///
+/// This struct is deliberately kept in the board crate. Because of
+/// the configurable nature of LiteX, it does not make sense to define
+/// a default interrupt mapping, as the interrupt numbers are
+/// generated sequentially for all softcores.
 struct LiteXArtyInterruptablePeripherals {
     uart0: &'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>,
     timer0: &'static litex_vexriscv::timer::LiteXTimer<
@@ -469,6 +469,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -488,6 +489,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::low_level_debug_component_static!());
 

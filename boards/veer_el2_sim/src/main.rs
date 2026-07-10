@@ -211,6 +211,7 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.

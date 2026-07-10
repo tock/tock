@@ -51,11 +51,11 @@ pub struct ProcessLoaderSequentialComponent<
 }
 
 impl<
-        C: Chip,
-        D: ProcessStandardDebug,
-        CAP: ProcessManagementCapability + 'static,
-        const NUM_PROCS: usize,
-    > ProcessLoaderSequentialComponent<C, D, CAP, NUM_PROCS>
+    C: Chip,
+    D: ProcessStandardDebug,
+    CAP: ProcessManagementCapability + 'static,
+    const NUM_PROCS: usize,
+> ProcessLoaderSequentialComponent<C, D, CAP, NUM_PROCS>
 {
     pub fn new(
         checker: &'static kernel::process::ProcessCheckerMachine,
@@ -83,11 +83,11 @@ impl<
 }
 
 impl<
-        C: Chip,
-        D: ProcessStandardDebug,
-        CAP: ProcessManagementCapability + 'static,
-        const NUM_PROCS: usize,
-    > Component for ProcessLoaderSequentialComponent<C, D, CAP, NUM_PROCS>
+    C: Chip,
+    D: ProcessStandardDebug,
+    CAP: ProcessManagementCapability + 'static,
+    const NUM_PROCS: usize,
+> Component for ProcessLoaderSequentialComponent<C, D, CAP, NUM_PROCS>
 {
     type StaticInput = (
         &'static mut MaybeUninit<kernel::process::SequentialProcessLoaderMachine<'static, C, D>>,

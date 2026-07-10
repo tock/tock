@@ -34,10 +34,8 @@ pub struct PressureComponent<
     mem_cap: CAP,
 }
 
-impl<
-        T: 'static + hil::sensors::PressureDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > PressureComponent<T, CAP>
+impl<T: 'static + hil::sensors::PressureDriver<'static>, CAP: MemoryAllocationCapability + 'static>
+    PressureComponent<T, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -54,10 +52,8 @@ impl<
     }
 }
 
-impl<
-        T: 'static + hil::sensors::PressureDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for PressureComponent<T, CAP>
+impl<T: 'static + hil::sensors::PressureDriver<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for PressureComponent<T, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<PressureSensor<'static, T>>;
     type Output = &'static PressureSensor<'static, T>;

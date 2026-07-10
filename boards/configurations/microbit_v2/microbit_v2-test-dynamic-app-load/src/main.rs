@@ -287,6 +287,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
         &nrf52833_peripherals.ieee802154_radio,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ieee802154_raw_component_static!(
         nrf52833::ieee802154_radio::Radio,
@@ -333,6 +334,7 @@ unsafe fn start() -> (
             9 => &nrf52833_peripherals.gpio_port[GPIO_P9],
             16 => &nrf52833_peripherals.gpio_port[GPIO_P16],
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(nrf52833::gpio::GPIOPin));
 
@@ -360,6 +362,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             ), // Touch Logo
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(
         nrf52833::gpio::GPIOPin
@@ -378,6 +381,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
 
@@ -453,9 +457,12 @@ unsafe fn start() -> (
                 nrf52833::pwm::Pwm
             ));
 
-    let pwm =
-        components::pwm::PwmDriverComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
-            .finalize(components::pwm_driver_component_helper!(virtual_pwm_driver));
+    let pwm = components::pwm::PwmDriverComponent::new(
+        board_kernel,
+        capsules_extra::pwm::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::pwm_driver_component_helper!(virtual_pwm_driver));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -477,6 +484,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -496,6 +504,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::rng_component_static!(nrf52833::trng::Trng));
 
@@ -521,6 +530,7 @@ unsafe fn start() -> (
         None,
         board_kernel,
         capsules_extra::lsm303agr::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::lsm303agr_component_static!(
         nrf52833::i2c::TWI<'static>
@@ -541,6 +551,7 @@ unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ninedof_component_static!(lsm303agr));
 
@@ -550,6 +561,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(
         nrf52833::temperature::Temp
@@ -564,28 +576,31 @@ unsafe fn start() -> (
         .finalize(components::adc_mux_component_static!(nrf52833::adc::Adc));
 
     // Comment out the following to use P0, P1 and P2 as GPIO
-    let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                // ADC Ring 0 (P0)
-                components::adc::AdcComponent::new(
-                    adc_mux,
-                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0)
-                )
-                .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
-                // ADC Ring 1 (P1)
-                components::adc::AdcComponent::new(
-                    adc_mux,
-                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1)
-                )
-                .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
-                // ADC Ring 2 (P2)
-                components::adc::AdcComponent::new(
-                    adc_mux,
-                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2)
-                )
-                .finalize(components::adc_component_static!(nrf52833::adc::Adc))
-            ));
+    let adc_syscall = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        // ADC Ring 0 (P0)
+        components::adc::AdcComponent::new(
+            adc_mux,
+            nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0)
+        )
+        .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
+        // ADC Ring 1 (P1)
+        components::adc::AdcComponent::new(
+            adc_mux,
+            nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1)
+        )
+        .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
+        // ADC Ring 2 (P2)
+        components::adc::AdcComponent::new(
+            adc_mux,
+            nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2)
+        )
+        .finalize(components::adc_component_static!(nrf52833::adc::Adc))
+    ));
 
     // Microphone
 
@@ -615,6 +630,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::sound_pressure::DRIVER_NUM,
         adc_microphone,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::sound_pressure_component_static!());
 
@@ -636,6 +652,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::app_flash_driver::DRIVER_NUM,
         virtual_app_flash,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::app_flash_component_static!(
         capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52833::nvmc::Nvmc>,
@@ -651,6 +668,7 @@ unsafe fn start() -> (
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ble_component_static!(
         nrf52833::rtc::Rtc,
@@ -832,6 +850,7 @@ unsafe fn start() -> (
         storage_permissions_policy,
         app_flash_slice,
         app_memory_slice,
+        create_capability!(capabilities::ProcessManagementCapability),
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>,
@@ -861,6 +880,7 @@ unsafe fn start() -> (
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_binary_storage,
         dynamic_binary_storage,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,

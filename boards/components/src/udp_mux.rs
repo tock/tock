@@ -171,11 +171,11 @@ pub struct UDPMuxComponent<
 }
 
 impl<
-        A: Alarm<'static> + 'static,
-        M: MacDevice<'static>,
-        NET: NetworkCapabilityCreationCapability + 'static,
-        TABLE: CreatePortTableCapability + 'static,
-    > UDPMuxComponent<A, M, NET, TABLE>
+    A: Alarm<'static> + 'static,
+    M: MacDevice<'static>,
+    NET: NetworkCapabilityCreationCapability + 'static,
+    TABLE: CreatePortTableCapability + 'static,
+> UDPMuxComponent<A, M, NET, TABLE>
 {
     pub fn new(
         mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, M>,
@@ -203,11 +203,11 @@ impl<
 }
 
 impl<
-        A: Alarm<'static> + 'static,
-        M: MacDevice<'static>,
-        NET: NetworkCapabilityCreationCapability + 'static,
-        TABLE: CreatePortTableCapability + 'static,
-    > Component for UDPMuxComponent<A, M, NET, TABLE>
+    A: Alarm<'static> + 'static,
+    M: MacDevice<'static>,
+    NET: NetworkCapabilityCreationCapability + 'static,
+    TABLE: CreatePortTableCapability + 'static,
+> Component for UDPMuxComponent<A, M, NET, TABLE>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,

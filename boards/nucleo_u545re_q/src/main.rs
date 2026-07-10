@@ -225,6 +225,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -259,6 +260,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         alarm_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
 
@@ -279,6 +281,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullDown
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
@@ -289,9 +292,12 @@ unsafe fn start() -> (
         stm32u545::tim::PwmPin::new(&periphs.tim3, pwm_pin),
     );
 
-    let pwm =
-        components::pwm::PwmDriverComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
-            .finalize(components::pwm_driver_component_helper!(tim3_pwm_pin));
+    let pwm = components::pwm::PwmDriverComponent::new(
+        board_kernel,
+        capsules_extra::pwm::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::pwm_driver_component_helper!(tim3_pwm_pin));
     let adc_mux = components::adc::AdcMuxComponent::new(&periphs.adc1)
         .finalize(components::adc_mux_component_static!(stm32u545::adc::Adc));
 
@@ -316,16 +322,19 @@ unsafe fn start() -> (
             .finalize(components::adc_component_static!(stm32u545::adc::Adc));
 
     // Applications will see 6 ADC channels available, with index 0-5 corresponding directly to Arduino pins A0-A5
-    let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                adc1_channel_5,
-                adc1_channel_6,
-                adc1_channel_9,
-                adc1_channel_15,
-                adc1_channel_2,
-                adc1_channel_1,
-            ));
+    let adc_syscall = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        adc1_channel_5,
+        adc1_channel_6,
+        adc1_channel_9,
+        adc1_channel_15,
+        adc1_channel_2,
+        adc1_channel_1,
+    ));
     let dac = components::dac::DacComponent::new(&periphs.dac)
         .finalize(components::dac_component_static!());
     let gpio = components::gpio::GpioComponent::new(
@@ -362,6 +371,7 @@ unsafe fn start() -> (
             25 => periphs.gpio_a.pin(PinId::Pin15), // CN7 pin 17
             26 => periphs.gpio_c.pin(PinId::Pin03), // CN7 pin 37
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(GpioHw));
 

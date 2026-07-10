@@ -34,9 +34,9 @@ pub struct ProcessInfoComponent<
 }
 
 impl<
-        C: ProcessManagementCapability + ProcessStartCapability,
-        CAP: MemoryAllocationCapability + 'static,
-    > ProcessInfoComponent<C, CAP>
+    C: ProcessManagementCapability + ProcessStartCapability,
+    CAP: MemoryAllocationCapability + 'static,
+> ProcessInfoComponent<C, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -54,9 +54,9 @@ impl<
 }
 
 impl<
-        C: ProcessManagementCapability + ProcessStartCapability + 'static,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for ProcessInfoComponent<C, CAP>
+    C: ProcessManagementCapability + ProcessStartCapability + 'static,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for ProcessInfoComponent<C, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<ProcessInfo<C>>;
     type Output = &'static process_info_driver::ProcessInfo<C>;

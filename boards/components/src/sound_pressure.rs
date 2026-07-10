@@ -36,10 +36,8 @@ pub struct SoundPressureComponent<
     mem_cap: CAP,
 }
 
-impl<
-        S: 'static + hil::sensors::SoundPressure<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > SoundPressureComponent<S, CAP>
+impl<S: 'static + hil::sensors::SoundPressure<'static>, CAP: MemoryAllocationCapability + 'static>
+    SoundPressureComponent<S, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -56,10 +54,8 @@ impl<
     }
 }
 
-impl<
-        S: 'static + hil::sensors::SoundPressure<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for SoundPressureComponent<S, CAP>
+impl<S: 'static + hil::sensors::SoundPressure<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for SoundPressureComponent<S, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<SoundPressureSensor<'static>>;
     type Output = &'static SoundPressureSensor<'static>;

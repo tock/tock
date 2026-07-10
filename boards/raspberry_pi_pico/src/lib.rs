@@ -324,6 +324,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -370,6 +371,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -425,6 +427,7 @@ pub unsafe fn setup(
             // 28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             // 29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
@@ -454,6 +457,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_extra::date_time::DRIVER_NUM,
         &peripherals.rtc,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::date_time_component_static!(
         rp2040::rtc::Rtc<'static>
@@ -463,6 +467,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         temp_sensor,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(
         TemperatureRp2040Sensor
@@ -480,14 +485,17 @@ pub unsafe fn setup(
     let adc_channel_3 = components::adc::AdcComponent::new(adc_mux, adc::Channel::Channel3)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                adc_channel_0,
-                adc_channel_1,
-                adc_channel_2,
-                adc_channel_3,
-            ));
+    let adc = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        adc_channel_0,
+        adc_channel_1,
+        adc_channel_2,
+        adc_channel_3,
+    ));
 
     // PROCESS CONSOLE
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()

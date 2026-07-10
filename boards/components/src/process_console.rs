@@ -97,10 +97,10 @@ pub struct ProcessConsoleComponent<
 }
 
 impl<
-        const COMMAND_HISTORY_LEN: usize,
-        A: 'static + Alarm<'static>,
-        C: ProcessManagementCapability + ProcessStartCapability + 'static,
-    > ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C>
+    const COMMAND_HISTORY_LEN: usize,
+    A: 'static + Alarm<'static>,
+    C: ProcessManagementCapability + ProcessStartCapability + 'static,
+> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -136,10 +136,10 @@ extern "C" {
 }
 
 impl<
-        const COMMAND_HISTORY_LEN: usize,
-        A: 'static + Alarm<'static>,
-        C: ProcessManagementCapability + ProcessStartCapability + 'static,
-    > Component for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C>
+    const COMMAND_HISTORY_LEN: usize,
+    A: 'static + Alarm<'static>,
+    C: ProcessManagementCapability + ProcessStartCapability + 'static,
+> Component for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,

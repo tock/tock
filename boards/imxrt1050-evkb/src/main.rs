@@ -337,6 +337,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         lpuart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -368,6 +369,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullDown
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(imxrt10xx::gpio::Pin));
 
@@ -381,6 +383,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(imxrt10xx::gpt::Gpt1));
 
@@ -394,6 +397,7 @@ unsafe fn start() -> (
             // The User Led
             0 => peripherals.ports.pin(imxrt10xx::gpio::PinId::AdB0_09)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(
         imxrt10xx::gpio::Pin<'static>
@@ -471,6 +475,7 @@ unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ninedof_component_static!(fxos8700));
 

@@ -40,10 +40,8 @@ pub struct MoistureComponent<
     mem_cap: CAP,
 }
 
-impl<
-        T: 'static + hil::sensors::MoistureDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > MoistureComponent<T, CAP>
+impl<T: 'static + hil::sensors::MoistureDriver<'static>, CAP: MemoryAllocationCapability + 'static>
+    MoistureComponent<T, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -60,10 +58,8 @@ impl<
     }
 }
 
-impl<
-        T: 'static + hil::sensors::MoistureDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for MoistureComponent<T, CAP>
+impl<T: 'static + hil::sensors::MoistureDriver<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for MoistureComponent<T, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<MoistureSensor<'static, T>>;
     type Output = &'static MoistureSensor<'static, T>;

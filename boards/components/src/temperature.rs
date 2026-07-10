@@ -37,9 +37,9 @@ pub struct TemperatureComponent<
 }
 
 impl<
-        T: 'static + hil::sensors::TemperatureDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > TemperatureComponent<T, CAP>
+    T: 'static + hil::sensors::TemperatureDriver<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> TemperatureComponent<T, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -57,9 +57,9 @@ impl<
 }
 
 impl<
-        T: 'static + hil::sensors::TemperatureDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for TemperatureComponent<T, CAP>
+    T: 'static + hil::sensors::TemperatureDriver<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for TemperatureComponent<T, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<TemperatureSensor<'static, T>>;
     type Output = &'static TemperatureSensor<'static, T>;

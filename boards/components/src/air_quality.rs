@@ -35,9 +35,9 @@ pub struct AirQualityComponent<
 }
 
 impl<
-        T: 'static + hil::sensors::AirQualityDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > AirQualityComponent<T, CAP>
+    T: 'static + hil::sensors::AirQualityDriver<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> AirQualityComponent<T, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -55,9 +55,9 @@ impl<
 }
 
 impl<
-        T: 'static + hil::sensors::AirQualityDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for AirQualityComponent<T, CAP>
+    T: 'static + hil::sensors::AirQualityDriver<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for AirQualityComponent<T, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<AirQualitySensor<'static>>;
     type Output = &'static AirQualitySensor<'static>;

@@ -40,10 +40,8 @@ pub struct RainFallComponent<
     mem_cap: CAP,
 }
 
-impl<
-        T: 'static + hil::sensors::RainFallDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > RainFallComponent<T, CAP>
+impl<T: 'static + hil::sensors::RainFallDriver<'static>, CAP: MemoryAllocationCapability + 'static>
+    RainFallComponent<T, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -60,10 +58,8 @@ impl<
     }
 }
 
-impl<
-        T: 'static + hil::sensors::RainFallDriver<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for RainFallComponent<T, CAP>
+impl<T: 'static + hil::sensors::RainFallDriver<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for RainFallComponent<T, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<RainFallSensor<'static, T>>;
     type Output = &'static RainFallSensor<'static, T>;

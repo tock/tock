@@ -404,9 +404,13 @@ unsafe fn start() -> (
         .finalize(components::alarm_mux_component_static!(sam4l::ast::Ast));
     peripherals.ast.configure(mux_alarm);
 
-    let alarm =
-        AlarmDriverComponent::new(board_kernel, capsules_core::alarm::DRIVER_NUM, mux_alarm)
-            .finalize(components::alarm_component_static!(sam4l::ast::Ast));
+    let alarm = AlarmDriverComponent::new(
+        board_kernel,
+        capsules_core::alarm::DRIVER_NUM,
+        mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::alarm_component_static!(sam4l::ast::Ast));
 
     let pconsole = ProcessConsoleComponent::new(
         board_kernel,
@@ -429,6 +433,7 @@ unsafe fn start() -> (
         200,
         5,
         5,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_ordered_component_static!(
         sam4l::ast::Ast
@@ -446,6 +451,7 @@ unsafe fn start() -> (
         capsules_extra::nrf51822_serialization::DRIVER_NUM,
         &peripherals.usart2,
         &peripherals.pb[07],
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::nrf51822_component_static!());
 
@@ -464,6 +470,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::ambient_light::DRIVER_NUM,
         isl29035,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ambient_light_component_static!());
 
@@ -474,12 +481,14 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         si7021,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(SI7021Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         si7021,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::humidity_component_static!(SI7021Sensor));
 
@@ -491,6 +500,7 @@ unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ninedof_component_static!(fxos8700));
 
@@ -504,6 +514,7 @@ unsafe fn start() -> (
         mux_spi,
         sam4l::spi::Peripheral::Peripheral2,
         capsules_core::spi_controller::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::spi_syscall_component_static!(
         sam4l::spi::SpiHw<'static>
@@ -540,6 +551,7 @@ unsafe fn start() -> (
         adc_channels,
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::adc_dedicated_component_static!(sam4l::adc::Adc));
 
@@ -556,6 +568,7 @@ unsafe fn start() -> (
             5 => &peripherals.pc[26],
             6 => &peripherals.pa[20]
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(sam4l::gpio::GPIOPin));
 
@@ -575,6 +588,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(sam4l::gpio::GPIOPin));
 
@@ -582,6 +596,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::crc::DRIVER_NUM,
         &peripherals.crccu,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
@@ -596,6 +611,7 @@ unsafe fn start() -> (
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::analog_comparator_component_static!(
         sam4l::acifc::Acifc
@@ -604,6 +620,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::rng_component_static!(sam4l::trng::Trng));
 
@@ -632,6 +649,7 @@ unsafe fn start() -> (
         PAN_ID,
         serial_num_bottom_16,
         DEFAULT_EXT_SRC_MAC,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ieee802154_component_static!(
         capsules_extra::rf233::RF233<
@@ -645,6 +663,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::usb::usb_user::DRIVER_NUM,
         &peripherals.usbc,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::usb_component_static!(sam4l::usbc::Usbc));
 
@@ -664,6 +683,7 @@ unsafe fn start() -> (
         0x20000, // Length of userspace accessible region
         core::ptr::addr_of!(_sstorage) as usize, //start address of kernel region
         core::ptr::addr_of!(_estorage) as usize - core::ptr::addr_of!(_sstorage) as usize, // length of kernel region
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::nonvolatile_storage_component_static!(
         sam4l::flashcalw::FLASHCALW
@@ -693,6 +713,8 @@ unsafe fn start() -> (
         //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
+        create_capability!(capabilities::NetworkCapabilityCreationCapability),
+        create_capability!(capabilities::CreatePortTableCapability),
     )
     .finalize(components::udp_mux_component_static!(
         sam4l::ast::Ast,
@@ -709,6 +731,8 @@ unsafe fn start() -> (
         udp_port_table,
         local_ip_ifaces,
         UdpDriverCap,
+        create_capability!(capabilities::MemoryAllocationCapability),
+        create_capability!(capabilities::NetworkCapabilityCreationCapability),
     )
     .finalize(components::udp_driver_component_static!(
         sam4l::ast::Ast,
@@ -786,6 +810,7 @@ unsafe fn start() -> (
         storage_permissions_policy,
         app_flash,
         app_memory,
+        create_capability!(capabilities::ProcessManagementCapability),
     )
     .finalize(components::process_loader_sequential_component_static!(
         sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,

@@ -455,6 +455,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -537,9 +538,10 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(
-        stm32f303xc::gpio::Pin<'static>
+        stm32f303xc::gpio::Pin<'static>,
     ));
 
     // ALARM
@@ -553,6 +555,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(stm32f303xc::tim2::Tim2));
 
@@ -655,9 +658,10 @@ unsafe fn start() -> (
             85 => gpio_ports.get_pin(stm32f303xc::gpio::PinId::PA09).unwrap(),
             86 => gpio_ports.get_pin(stm32f303xc::gpio::PinId::PC09).unwrap()
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(
-        stm32f303xc::gpio::Pin<'static>
+        stm32f303xc::gpio::Pin<'static>,
     ));
 
     // L3GD20 sensor
@@ -669,6 +673,7 @@ unsafe fn start() -> (
         gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
         board_kernel,
         capsules_extra::l3gd20::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::l3gd20_component_static!(
         // spi type
@@ -682,6 +687,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         l3gd20,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(L3GD20Sensor));
 
@@ -696,6 +702,7 @@ unsafe fn start() -> (
         None,
         board_kernel,
         capsules_extra::lsm303dlhc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::lsm303dlhc_component_static!(
         stm32f303xc::i2c::I2C
@@ -716,6 +723,7 @@ unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ninedof_component_static!(l3gd20, lsm303dlhc));
 
@@ -762,14 +770,17 @@ unsafe fn start() -> (
         components::adc::AdcComponent::new(adc_mux, stm32f303xc::adc::Channel::Channel5)
             .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
-    let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                adc_channel_2,
-                adc_channel_3,
-                adc_channel_4,
-                adc_channel_5,
-            ));
+    let adc_syscall = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        adc_channel_2,
+        adc_channel_3,
+        adc_channel_4,
+        adc_channel_5,
+    ));
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
@@ -787,6 +798,7 @@ unsafe fn start() -> (
         0x8000,     // Length of userspace accesible region (16 pages)
         core::ptr::addr_of!(_sstorage) as usize,
         core::ptr::addr_of!(_estorage) as usize - core::ptr::addr_of!(_sstorage) as usize,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::nonvolatile_storage_component_static!(
         stm32f303xc::flash::Flash

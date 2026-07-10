@@ -52,10 +52,10 @@ pub struct Nrf51822Component<
 }
 
 impl<
-        U: 'static + hil::uart::UartAdvanced<'static>,
-        G: 'static + hil::gpio::Pin,
-        CAP: MemoryAllocationCapability + 'static,
-    > Nrf51822Component<U, G, CAP>
+    U: 'static + hil::uart::UartAdvanced<'static>,
+    G: 'static + hil::gpio::Pin,
+    CAP: MemoryAllocationCapability + 'static,
+> Nrf51822Component<U, G, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -75,10 +75,10 @@ impl<
 }
 
 impl<
-        U: 'static + hil::uart::UartAdvanced<'static>,
-        G: 'static + hil::gpio::Pin,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for Nrf51822Component<U, G, CAP>
+    U: 'static + hil::uart::UartAdvanced<'static>,
+    G: 'static + hil::gpio::Pin,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for Nrf51822Component<U, G, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<Nrf51822Serialization<'static>>,

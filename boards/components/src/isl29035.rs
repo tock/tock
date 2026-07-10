@@ -124,10 +124,8 @@ pub struct AmbientLightComponent<
     mem_cap: CAP,
 }
 
-impl<
-        L: 'static + hil::sensors::AmbientLight<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > AmbientLightComponent<L, CAP>
+impl<L: 'static + hil::sensors::AmbientLight<'static>, CAP: MemoryAllocationCapability + 'static>
+    AmbientLightComponent<L, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -144,10 +142,8 @@ impl<
     }
 }
 
-impl<
-        L: 'static + hil::sensors::AmbientLight<'static>,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for AmbientLightComponent<L, CAP>
+impl<L: 'static + hil::sensors::AmbientLight<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for AmbientLightComponent<L, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<AmbientLight<'static>>;
     type Output = &'static AmbientLight<'static>;

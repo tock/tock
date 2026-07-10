@@ -65,10 +65,10 @@ impl<C: Chip, D: ProcessStandardDebug, CAP: ApplicationStorageCapability>
 }
 
 impl<
-        C: Chip + 'static,
-        D: ProcessStandardDebug + 'static,
-        CAP: ApplicationStorageCapability + 'static,
-    > Component for StoragePermissionsTbfHeaderComponent<C, D, CAP>
+    C: Chip + 'static,
+    D: ProcessStandardDebug + 'static,
+    CAP: ApplicationStorageCapability + 'static,
+> Component for StoragePermissionsTbfHeaderComponent<C, D, CAP>
 {
     type StaticInput = &'static mut MaybeUninit<
         capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<C, D, CAP>,

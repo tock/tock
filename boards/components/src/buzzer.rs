@@ -72,10 +72,10 @@ pub struct BuzzerComponent<
 }
 
 impl<
-        A: 'static + hil::time::Alarm<'static>,
-        P: 'static + hil::pwm::Pwm,
-        CAP: MemoryAllocationCapability + 'static,
-    > BuzzerComponent<A, P, CAP>
+    A: 'static + hil::time::Alarm<'static>,
+    P: 'static + hil::pwm::Pwm,
+    CAP: MemoryAllocationCapability + 'static,
+> BuzzerComponent<A, P, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -95,10 +95,10 @@ impl<
 }
 
 impl<
-        A: 'static + hil::time::Alarm<'static>,
-        P: 'static + hil::pwm::Pwm,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for BuzzerComponent<A, P, CAP>
+    A: 'static + hil::time::Alarm<'static>,
+    P: 'static + hil::pwm::Pwm,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for BuzzerComponent<A, P, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,

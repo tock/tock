@@ -165,9 +165,9 @@ pub struct AdcDedicatedComponent<
 }
 
 impl<
-        A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
-        CAP: MemoryAllocationCapability + 'static,
-    > AdcDedicatedComponent<A, CAP>
+    A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
+    CAP: MemoryAllocationCapability + 'static,
+> AdcDedicatedComponent<A, CAP>
 {
     pub fn new(
         adc: &'static A,
@@ -187,9 +187,9 @@ impl<
 }
 
 impl<
-        A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
-        CAP: MemoryAllocationCapability + 'static,
-    > Component for AdcDedicatedComponent<A, CAP>
+    A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for AdcDedicatedComponent<A, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<AdcDedicated<'static, A>>,

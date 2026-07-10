@@ -311,6 +311,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -343,6 +344,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(stm32f401cc::gpio::Pin));
 
@@ -357,6 +359,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(stm32f401cc::tim2::Tim2));
 
@@ -401,6 +404,7 @@ unsafe fn start() -> (
             45 => gpio_ports.pins[1][8].as_ref().unwrap(), // B8
             46 => gpio_ports.pins[1][9].as_ref().unwrap(), // B9
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(stm32f401cc::gpio::Pin));
 
@@ -432,16 +436,19 @@ unsafe fn start() -> (
         components::adc::AdcComponent::new(adc_mux, stm32f401cc::adc::Channel::Channel8)
             .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
-    let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                adc_channel_0,
-                adc_channel_1,
-                adc_channel_2,
-                adc_channel_3,
-                adc_channel_4,
-                adc_channel_5
-            ));
+    let adc_syscall = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        adc_channel_0,
+        adc_channel_1,
+        adc_channel_2,
+        adc_channel_3,
+        adc_channel_4,
+        adc_channel_5
+    ));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
