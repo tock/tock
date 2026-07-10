@@ -28,8 +28,9 @@ pub fn only_once_check_used(used: &core::sync::atomic::AtomicUsize) {
 ///
 /// Panics if the same object is created twice.
 ///
-/// On targets without atomic pointer-sized operations, this macro always panics
-/// because there is no safe way to guarantee single use.
+/// This only exists for targets with atomic pointer-sized operations.
+/// Therefore, it can only be used in chip and board crates that can guarantee
+/// the atomic support exists.
 ///
 /// ```ignore
 ///
@@ -50,17 +51,5 @@ macro_rules! only_once {
     ($N:ident $(,)?) => {{
         static $N: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
         $crate::utilities::singleton::only_once_check_used(&$N);
-    }};
-}
-
-/// Helper macro to ensure an object is only created once.
-///
-/// This is not supported on platforms without atomic
-/// support and will just panic.
-#[cfg(not(target_has_atomic = "ptr"))]
-#[macro_export]
-macro_rules! only_once {
-    ($N:ident $(,)?) => {{
-        panic!("Error! only_once!() is not supported on targets without atomic operations.");
     }};
 }
