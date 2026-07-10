@@ -307,14 +307,26 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
             CR::MODE::MontgomeryModularExp + CR::PROCENDIE::SET + CR::START::SET + CR::EN::SET,
         );
 
+        // for _ in 0..100000 {}
+
         // TODO remove
-        kernel::debug!("CR: {:#010x}", self.registers.cr.get());
-        for _ in 0..100000 {
-            let sr = self.registers.sr.get();
-            if !self.registers.sr.is_set(SR::BUSY) {
-                kernel::debug!("Pka stopped, SR: {:#010x}", sr);
-                break;
-            }
+        kernel::debug!("CR::OPERRIE {:#b}", self.registers.cr.read(CR::OPERRIE));
+        kernel::debug!("CR::ADDERIE {:#b}", self.registers.cr.read(CR::ADDERRIE));
+        kernel::debug!("CR::RAMERRIE {:#b}", self.registers.cr.read(CR::RAMERRIE));
+        kernel::debug!("CR::PROCENDIE {:#b}", self.registers.cr.read(CR::PROCENDIE));
+        kernel::debug!("CR::MODE {:#b}", self.registers.cr.read(CR::MODE));
+        kernel::debug!("CR::START {:#b}", self.registers.cr.read(CR::START));
+        kernel::debug!("CR::EN {:#b}", self.registers.cr.read(CR::EN));
+
+        kernel::debug!("\nSR::OPERRF {:#b}", self.registers.sr.read(SR::OPERRF));
+        kernel::debug!("SR::ADDERRF {:#b}", self.registers.sr.read(SR::ADDRERRF));
+        kernel::debug!("SR::RAMERRF {:#b}", self.registers.sr.read(SR::RAMERRF));
+        kernel::debug!("SR::PROCENDF {:#b}", self.registers.sr.read(SR::PROCENDF));
+        kernel::debug!("SR::BUSY {:#b}", self.registers.sr.read(SR::BUSY));
+        kernel::debug!("SR::INITOK {:#b}\n", self.registers.sr.read(SR::INITOK));
+
+        for i in 0..self.registers.ram.len() {
+            kernel::debug!("RAM [{i}]: {:#b}", self.registers.ram[i].get());
         }
 
         Ok(())
