@@ -10,8 +10,9 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::{
     cells::{OptionalCell, TakeCell},
     registers::{
+        ReadOnly, ReadWrite, WriteOnly,
         interfaces::{ReadWriteable, Readable, Writeable},
-        register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+        register_bitfields, register_structs,
     },
 };
 

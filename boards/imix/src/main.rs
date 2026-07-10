@@ -35,8 +35,8 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
 //use kernel::hil::time::Alarm;
-use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
+use kernel::hil::led::LedHigh;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_buf, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
@@ -283,14 +283,14 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
     peripherals.pc[06].configure(Some(A)); // SCK         --  SPI CLK
     peripherals.pc[07].configure(Some(B)); // RTS2 (BLE)  -- USART2_RTS
     peripherals.pc[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
-                                           //peripherals.pc[09].configure(None); //... NRF GPIO    -- GPIO
-                                           //peripherals.pc[10].configure(None); //... USER LED    -- GPIO
+    //peripherals.pc[09].configure(None); //... NRF GPIO    -- GPIO
+    //peripherals.pc[10].configure(None); //... USER LED    -- GPIO
     peripherals.pc[09].configure(Some(E)); // ACAN1       -- ACIFC comparator
     peripherals.pc[10].configure(Some(E)); // ACAP1       -- ACIFC comparator
     peripherals.pc[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
     peripherals.pc[12].configure(Some(B)); // TX2 (BLE)   -- USART2_TX
-                                           //peripherals.pc[13].configure(None); //... ACC_INT1    -- GPIO
-                                           //peripherals.pc[14].configure(None); //... ACC_INT2    -- GPIO
+    //peripherals.pc[13].configure(None); //... ACC_INT1    -- GPIO
+    //peripherals.pc[14].configure(None); //... ACC_INT2    -- GPIO
     peripherals.pc[13].configure(Some(E)); //... ACBN1    -- ACIFC comparator
     peripherals.pc[14].configure(Some(E)); //... ACBP1    -- ACIFC comparator
     peripherals.pc[16].configure(None); //... SENSE_PWR   --  GPIO pin

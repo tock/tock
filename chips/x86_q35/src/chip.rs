@@ -13,7 +13,7 @@ use x86::{Boundary, InterruptPoller};
 
 use crate::pic::PIC1_OFFSET;
 use crate::pit::{Pit, RELOAD_1KHZ};
-use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
+use crate::serial::{COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE, SerialPort, SerialPortComponent};
 use crate::vga_uart_driver::VgaText;
 
 /// Interrupt constants for legacy PC peripherals

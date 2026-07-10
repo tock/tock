@@ -5,9 +5,9 @@
 //! Cortex-M SysTick Timer
 
 use core::cell::Cell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{FieldValue, ReadOnly, ReadWrite, register_bitfields};
 
 use core::num::NonZeroU32;
 

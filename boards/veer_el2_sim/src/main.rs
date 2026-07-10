@@ -20,8 +20,8 @@ use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 use veer_el2::chip::VeeRDefaultPeripherals;
 
-use veer_el2::machine_timer::Clint;
 use veer_el2::machine_timer::CLINT_BASE;
+use veer_el2::machine_timer::Clint;
 
 pub mod io;
 

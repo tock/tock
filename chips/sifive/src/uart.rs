@@ -5,16 +5,16 @@
 //! UART driver.
 
 use core::cell::Cell;
-use kernel::utilities::registers::FieldValue;
 use kernel::ErrorCode;
+use kernel::utilities::registers::FieldValue;
 
 use crate::gpio;
 use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 

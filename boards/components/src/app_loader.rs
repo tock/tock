@@ -60,9 +60,9 @@ pub struct AppLoaderComponent<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > AppLoaderComponent<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> AppLoaderComponent<S, L>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -80,9 +80,9 @@ impl<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > Component for AppLoaderComponent<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> Component for AppLoaderComponent<S, L>
 {
     type StaticInput = (
         &'static mut MaybeUninit<AppLoader<S, L>>,

@@ -6,17 +6,17 @@
 
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configuration, Configure, FloatingState};
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, FieldValue, LocalRegisterCopy};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{FieldValue, LocalRegisterCopy, register_bitfields};
 
 use crate::registers::pinmux_regs::{
-    PinmuxRegisters, DIO_PAD_ATTR_REGWEN, MIO_OUTSEL_REGWEN, MIO_PAD_ATTR_REGWEN,
-    MIO_PERIPH_INSEL_REGWEN,
+    DIO_PAD_ATTR_REGWEN, MIO_OUTSEL_REGWEN, MIO_PAD_ATTR_REGWEN, MIO_PERIPH_INSEL_REGWEN,
+    PinmuxRegisters,
 };
 use crate::registers::top_earlgrey::{
-    DirectPads, MuxedPads, PinmuxInsel, PinmuxOutsel, PinmuxPeripheralIn, PINMUX_AON_BASE_ADDR,
-    PINMUX_MIO_PERIPH_INSEL_IDX_OFFSET,
+    DirectPads, MuxedPads, PINMUX_AON_BASE_ADDR, PINMUX_MIO_PERIPH_INSEL_IDX_OFFSET, PinmuxInsel,
+    PinmuxOutsel, PinmuxPeripheralIn,
 };
 
 pub const PINMUX_BASE: StaticRef<PinmuxRegisters> =

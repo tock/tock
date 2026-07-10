@@ -35,11 +35,11 @@
 //! ```
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 /// Recommended buffer length.
 pub const BUF_LEN: usize = 3;

@@ -4,10 +4,10 @@
 
 use core::cell::Cell;
 use core::ptr::write_volatile;
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 pub struct SemihostUart<'a> {
     deferred_call: DeferredCall,

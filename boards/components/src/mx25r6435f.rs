@@ -76,10 +76,10 @@ pub struct Mx25r6435fComponent<
 }
 
 impl<
-        S: 'static + hil::spi::SpiMaster<'static>,
-        P: 'static + hil::gpio::Pin,
-        A: 'static + hil::time::Alarm<'static>,
-    > Mx25r6435fComponent<S, P, A>
+    S: 'static + hil::spi::SpiMaster<'static>,
+    P: 'static + hil::gpio::Pin,
+    A: 'static + hil::time::Alarm<'static>,
+> Mx25r6435fComponent<S, P, A>
 {
     pub fn new<CS: kernel::hil::spi::cs::IntoChipSelect<S::ChipSelect, hil::spi::cs::ActiveLow>>(
         write_protect_pin: Option<&'static P>,
@@ -99,10 +99,10 @@ impl<
 }
 
 impl<
-        S: 'static + hil::spi::SpiMaster<'static>,
-        P: 'static + hil::gpio::Pin,
-        A: 'static + hil::time::Alarm<'static>,
-    > Component for Mx25r6435fComponent<S, P, A>
+    S: 'static + hil::spi::SpiMaster<'static>,
+    P: 'static + hil::gpio::Pin,
+    A: 'static + hil::time::Alarm<'static>,
+> Component for Mx25r6435fComponent<S, P, A>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,

@@ -21,11 +21,11 @@ use super::descriptors::ReportDescriptor;
 use super::descriptors::TransferDirection;
 use super::usbc_client_ctrl::ClientCtrl;
 
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::ErrorCode;
 
 /// Use 1 Interrupt transfer IN/OUT endpoint
 const ENDPOINT_NUM: usize = 1;

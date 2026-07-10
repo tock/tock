@@ -7,10 +7,10 @@
 use core::cell::Cell;
 use core::cmp;
 
+use kernel::ErrorCode;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time, Timer};
 use kernel::utilities::cells::{NumericCellExt, OptionalCell};
-use kernel::ErrorCode;
 
 use crate::virtualizers::virtual_alarm::VirtualMuxAlarm;
 

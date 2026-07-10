@@ -52,11 +52,11 @@
 
 use core::cmp;
 
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::buzzer::BuzzerClient;
 use kernel::hil::time::Frequency;
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 /// Standard max buzz time.
 pub const DEFAULT_MAX_BUZZ_TIME_MS: usize = 5000;

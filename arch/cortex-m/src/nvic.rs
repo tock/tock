@@ -14,9 +14,9 @@
 //! without a home, so we include it in the NVIC files as it's conceptually here.
 //! <https://developer.arm.com/docs/ddi0337/latest/nested-vectored-interrupt-controller/nvic-programmers-model/interrupt-controller-type-register-ictr>
 
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 /// Generates the (u128, u128) tuple used for the NVIC's mask functions
 /// `next_pending_with_mask` and `next_pending_with_mask`.

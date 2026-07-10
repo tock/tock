@@ -3,12 +3,12 @@
 // Copyright OxidOS Automotive 2026.
 
 use core::cell::Cell;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, Field, ReadOnly, ReadWrite,
+    Field, ReadOnly, ReadWrite, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 /// Base address for USART1 in Secure Alias mode.
 const USART1_BASE_ADDR: u32 = 0x50013800;

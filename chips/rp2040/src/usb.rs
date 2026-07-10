@@ -11,10 +11,10 @@ use crate::gpio::RPGpioPin;
 use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 macro_rules! internal_err {
     [ $( $arg:expr ),+ ] => {

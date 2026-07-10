@@ -6,7 +6,7 @@
 
 use crate::pinmux::{SelectInput, SelectOutput};
 use crate::registers::top_earlgrey::{
-    MuxedPads, PinmuxInsel, PinmuxOutsel, PinmuxPeripheralIn, NUM_MIO_PADS,
+    MuxedPads, NUM_MIO_PADS, PinmuxInsel, PinmuxOutsel, PinmuxPeripheralIn,
 };
 
 /// Number of input selector entry (Last input + 1)

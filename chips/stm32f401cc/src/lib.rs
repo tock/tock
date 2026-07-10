@@ -4,7 +4,7 @@
 
 #![no_std]
 
-use cortexm4f::{unhandled_interrupt, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, unhandled_interrupt};
 
 pub use stm32f4xx::{
     adc, chip, clocks, dbg, dma, exti, flash, gpio, nvic, rcc, spi, syscfg, tim2, usart,

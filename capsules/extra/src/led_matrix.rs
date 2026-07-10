@@ -76,8 +76,8 @@
 
 use core::cell::Cell;
 
-use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
+use kernel::utilities::cells::TakeCell;
 
 use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::led::Led;
