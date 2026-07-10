@@ -47,17 +47,17 @@ macro_rules! aes_mux_component_static {
 pub type AesMuxComponentType<A> =
     capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, A>;
 
-pub struct AesMuxComponent<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> {
+pub struct AesMuxComponent<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> {
     aes: &'static A,
 }
 
-impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesMuxComponent<A> {
+impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> AesMuxComponent<A> {
     pub fn new(aes: &'static A) -> Self {
         Self { aes }
     }
 }
 
-impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
+impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> Component
     for AesMuxComponent<A>
 {
     type StaticInput = &'static mut MaybeUninit<
@@ -70,7 +70,7 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
             .write(capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM::new(self.aes));
 
         DeferredCallClient::register(aes_mux);
-        hil::symmetric_encryption::AES128::set_client(self.aes, aes_mux);
+        hil::symmetric_encryption::AES::set_client(self.aes, aes_mux);
 
         aes_mux
     }

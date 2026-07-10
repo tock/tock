@@ -17,7 +17,6 @@ use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::FloatingState;
 use kernel::hil::i2c::{I2CMaster, I2CSlave};
 use kernel::hil::led::LedLow;
-use kernel::hil::symmetric_encryption::AES;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
