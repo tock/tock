@@ -401,6 +401,15 @@ pub trait Timer<'a>: Time {
 // they can never be constructed, it forces them to be used purely as
 // type-markers which are guaranteed to be elided at runtime.
 
+/// 600MHz `Frequency`
+#[derive(Debug)]
+pub enum Freq600MHz {}
+impl Frequency for Freq600MHz {
+    fn frequency() -> u32 {
+        600_000_000
+    }
+}
+
 /// 100MHz `Frequency`
 #[derive(Debug)]
 pub enum Freq100MHz {}
