@@ -289,6 +289,8 @@ unsafe fn start() -> (
 
     // Test RSA
     // TODO remove before PR
+    periphs.rcc.enable_hsi48();
+    periphs.rcc.enable_rng();
     periphs.rcc.enable_pka();
     cortexm33::nvic::Nvic::new(stm32u545::nvic::PKA_IRQ).enable();
     for _ in 0..670 {}

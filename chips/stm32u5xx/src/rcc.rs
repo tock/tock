@@ -10,7 +10,7 @@ use kernel::utilities::StaticRef;
 register_structs! {
     pub RccRegisters {
         /// Control register
-        (0x000 => cr: ReadWrite<u32>),
+        (0x000 => cr: ReadWrite<u32, CR::Register>),
 
         (0x004 => _reserved0: [u32; 24]),
 
@@ -48,6 +48,10 @@ register_structs! {
 }
 
 register_bitfields![u32,
+    CR [
+        HSI48ON OFFSET(12) NUMBITS(1) []
+    ],
+
     pub AHB2RSTR1 [
         PKARST OFFSET(19) NUMBITS(1) []
     ],
@@ -66,7 +70,8 @@ register_bitfields![u32,
         GPIOIEN OFFSET(8) NUMBITS(1) [],
         GPIOJEN OFFSET(9) NUMBITS(1) [],
 
-        PKAEN OFFSET(19) NUMBITS(1) []
+        PKAEN OFFSET(19) NUMBITS(1) [],
+        RNGEN OFFSET(18) NUMBITS(1) []
     ],
     pub APB1ENR1 [
         TIM2EN OFFSET(0) NUMBITS(1) []
@@ -100,6 +105,10 @@ impl Rcc {
         Rcc { registers: base }
     }
 
+    pub fn enable_hsi48(&self) {
+        self.registers.cr.modify(CR::HSI48ON::SET);
+    }
+
     pub fn enable_dma1(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPDMA1EN::SET);
     }
@@ -131,5 +140,13 @@ impl Rcc {
     pub fn enable_pka(&self) {
         self.registers.ahb2rstr1.modify(AHB2RSTR1::PKARST::CLEAR);
         self.registers.ahb2enr1.modify(AHB2ENR1::PKAEN::SET);
+    }
+
+    pub fn enable_rng(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::RNGEN::SET);
+
+        // TODO temporary hack, move to proper place
+        let rng = crate::rng::Rng::new();
+        rng.enable();
     }
 }
