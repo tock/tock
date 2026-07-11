@@ -41,7 +41,19 @@ jobs:
       - name: Update packages and install dependencies
         run: |
           sudo apt update
-          sudo apt-get install -y qemu-system-misc gcc-riscv64-unknown-elf
+          sudo apt-get install -y qemu-system-misc
+
+      # libtock-c drops all rv64 targets when the rv64 compiler is older than
+      # GCC 15 (see libtock-c Configuration.mk). ubuntu-24.04's apt
+      # gcc-riscv64-unknown-elf is 13.2, so install the same GCC-15 xPack
+      # toolchain that libtock-c's own CI uses for rv64.
+      - name: Install RISC-V toolchain (GCC 15, xPack)
+        run: |
+          npm install --location=global xpm@latest
+          xpm install --global @xpack-dev-tools/riscv-none-elf-gcc@latest
+          RISCV_DIR="$(find "$HOME/.local/xPacks/@xpack-dev-tools/riscv-none-elf-gcc" -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)"
+          echo "$RISCV_DIR/.content/bin" >> "$GITHUB_PATH"
+          "$RISCV_DIR/.content/bin/riscv-none-elf-gcc" --version
 
       # Install elf2tab, required to build libtock-c userspace apps.
       - name: Install elf2tab
