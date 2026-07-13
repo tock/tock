@@ -41,6 +41,14 @@ pub unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
 
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+///   - This writes to `r1`, a caller-saved register.
+/// - This does not fall-through, it branches in both branches.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler() {
