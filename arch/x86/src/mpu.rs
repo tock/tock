@@ -5,12 +5,12 @@
 // todo: this module needs some polish
 
 use crate::registers::bits32::paging::{
-    PAddr, PDEntry, PTEntry, PTFlags, PD, PDFLAGS, PT, PTFLAGS,
+    PAddr, PD, PDEntry, PDFLAGS, PT, PTEntry, PTFLAGS, PTFlags,
 };
 use crate::registers::controlregs::{self, CR0, CR4};
 use crate::registers::tlb;
 use core::{cmp, fmt, mem};
-use kernel::platform::mpu::{Permissions, Region, MPU};
+use kernel::platform::mpu::{MPU, Permissions, Region};
 use kernel::utilities::cells::MapCell;
 use tock_registers::LocalRegisterCopy;
 

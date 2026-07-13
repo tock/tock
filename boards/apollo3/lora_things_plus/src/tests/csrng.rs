@@ -4,8 +4,8 @@
 
 //! Test that the RNG works
 
-use crate::tests::run_kernel_op;
 use crate::ATECC508A;
+use crate::tests::run_kernel_op;
 use capsules_core::test::rng::TestEntropy32;
 use kernel::debug;
 use kernel::hil::entropy::Entropy32;

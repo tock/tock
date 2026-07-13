@@ -15,7 +15,13 @@ pub enum RiscvThreadIdProvider {}
 // return the thread ID. On single-core platforms the thread ID only depends on
 // whether execution is in an interrupt service routine or not, which is what
 // this implementation checks for.
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+//
+// The assembly (read `mhartid`, load the `_trap_handler_active` symbol address,
+// read a `usize`) is XLEN-agnostic, so the same code serves both rv32 and rv64.
+#[cfg(all(
+    any(target_arch = "riscv32", target_arch = "riscv64"),
+    target_os = "none"
+))]
 unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
     /// Return the current thread ID, computed using the `mhartid` (hardware thread
     /// ID), and a flag indicating whether the current hart is currently in a trap
@@ -79,8 +85,11 @@ unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
     }
 }
 
-// Mock implementation for non-rv32 target builds
-#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+// Mock implementation for non-RISC-V (host / doc) target builds
+#[cfg(not(all(
+    any(target_arch = "riscv32", target_arch = "riscv64"),
+    target_os = "none"
+)))]
 unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
     fn running_thread_id() -> usize {
         unimplemented!()

@@ -10,6 +10,7 @@ use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::usb::cdc::CdcAcm;
 use enum_primitive::cast::FromPrimitive;
+use kernel::Kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
@@ -19,9 +20,9 @@ use kernel::hil::gpio::FloatingState;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::usb::Client;
 use kernel::platform::SyscallDriverLookup;
+use kernel::platform::chip::Chip;
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::Kernel;
 use kernel::{create_capability, static_init};
 use rp2040::adc;
 use rp2040::adc::Adc;
@@ -238,7 +239,7 @@ pub unsafe fn setup(
     &'static Rp2040<'static, Rp2040DefaultPeripherals<'static>>,
 ) {
     // Loads relocations and clears BSS
-    rp2040::init();
+    ChipHw::init();
 
     // Bind global variables to this thread.
     let _ = PANIC_RESOURCES

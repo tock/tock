@@ -39,7 +39,7 @@ macro_rules! analog_comparator_component_helper {
         static_init!(
             [&'static $Channel; NUM_CHANNELS],
             [
-                $($P,)*
+                $(static_init!($Channel, $P),)*
             ]
         )
     };};
@@ -51,6 +51,8 @@ macro_rules! analog_comparator_component_static {
         kernel::static_buf!(capsules_extra::analog_comparator::AnalogComparator<'static, $AC>)
     };};
 }
+
+pub type AnalogComparatorComponentType<AC> = AnalogComparator<'static, AC>;
 
 pub struct AnalogComparatorComponent<
     AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,

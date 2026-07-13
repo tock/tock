@@ -8,10 +8,10 @@ use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::hil;
 use kernel::hil::gpio;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
 
 #[repr(C)]
 struct Register {

@@ -12,11 +12,12 @@ use capsules_core::virtualizers::virtual_uart::MuxUart;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::static_init;
+use nrf52_components::{UartChannel, UartPins};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -149,7 +150,7 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     // Apply errata fixes and enable interrupts.
-    nrf52840::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

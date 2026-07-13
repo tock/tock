@@ -4,7 +4,7 @@
 
 #![no_std]
 
-use cortexm4f::{unhandled_interrupt, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, unhandled_interrupt};
 
 pub use stm32f4xx::{
     adc, chip, clocks, dbg, dma, exti, flash, gpio, nvic, rcc, spi, syscfg, tim2, usart,
@@ -104,7 +104,3 @@ pub static IRQS: [unsafe extern "C" fn(); 85] = [
     unhandled_interrupt,    // (83)
     CortexM4F::GENERIC_ISR, // SPI4 (84)
 ];
-
-pub unsafe fn init() {
-    stm32f4xx::init();
-}

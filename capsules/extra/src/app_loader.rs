@@ -138,9 +138,9 @@ pub struct AppLoader<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > AppLoader<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> AppLoader<S, L>
 {
     pub fn new(
         grant: Grant<
@@ -236,9 +236,9 @@ impl<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L>
 {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self, result: Result<(), ErrorCode>) {
@@ -299,9 +299,9 @@ impl<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L>
 {
     /// Let the requesting app know we are done loading the new process
     ///
@@ -346,15 +346,15 @@ impl<
 
 /// Provide an interface for userland.
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > SyscallDriver for AppLoader<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> SyscallDriver for AppLoader<S, L>
 {
     /// Command interface.
     ///
     /// The driver returns ErrorCode::BUSY if:
-    ///    - The kernel has already dedicated this driver to another process.
-    ///    - The kernel is busy executing another command for this process.
+    /// - The kernel has already dedicated this driver to another process.
+    /// - The kernel is busy executing another command for this process.
     ///
     /// Currently, this capsule is not virtualized and can only be used by one
     /// application at a time.
@@ -366,30 +366,32 @@ impl<
     /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Request kernel to setup for loading app.
     ///  - Returns appsize if the kernel has available space
-    ///  - Returns ErrorCode::FAIL if the kernel is unable to allocate space for the new app
+    ///  - Returns ErrorCode::FAIL if the kernel is unable to allocate space for
+    ///    the new app
     /// - `2`: Request kernel to write app data to the nonvolatile_storage
     ///  - Returns Ok(()) when write is successful
     ///  - Returns ErrorCode::INVAL when the app is violating bounds
     ///  - Returns ErrorCode::FAIL when the write fails
     /// - `3`: Signal to the kernel that the writing is done.
     ///  - Returns Ok(()) if the kernel successfully verified it and
-    ///  set the stage for `load()`.
+    ///    set the stage for `load()`.
     ///  - Returns ErrorCode::FAIL if:
-    ///  a. The kernel needs to write a leading padding app but is unable to.
-    ///  b. The command is called during setup or load phases.
+    ///    a. The kernel needs to write a leading padding app but is unable to.
+    ///    b. The command is called during setup or load phases.
     /// - `4`: Request kernel to load app.
     ///  - Returns Ok(()) when the process is successfully loaded
     ///  - Returns ErrorCode::FAIL if:
-    ///  a. The kernel is unable to create a process object for the application
+    ///    a. The kernel is unable to create a process object for the application
     /// - `5`: Request kernel to abort setup/write operation.
     ///  - Returns Ok(()) when the operation is cancelled successfully
-    ///  - Returns ErrorCode::BUSY when the abort fails
-    ///  (due to padding app being unable to be written, so try again)
+    ///  - Returns ErrorCode::BUSY when the abort fails(due to padding app being
+    ///    unable to be written, so try again)
     ///  - Returns ErrorCode::FAIL if the driver is not dedicated to this process
     ///
-    /// The driver returns ErrorCode::INVAL if any operation is called before the
-    /// preceeding operation was invoked. For example, `write()` cannot be called before
-    /// `setup()`, and `load()` cannot be called before `write()` (for this implementation).
+    /// The driver returns ErrorCode::INVAL if any operation is called before
+    /// the preceding operation was invoked. For example, `write()` cannot be
+    /// called before `setup()`, and `load()` cannot be called before `write()`
+    /// (for this implementation).
     fn command(
         &self,
         command_num: usize,
@@ -452,15 +454,14 @@ impl<
                 match res {
                     Ok(()) => CommandReturn::success(),
                     Err(e) => {
-                        let command_result = if let Some(buffer) = self.buffer.take() {
+                        if let Some(buffer) = self.buffer.take() {
                             self.buffer.replace(buffer);
                             self.new_app_length.set(0);
                             self.current_process.take();
                             CommandReturn::failure(e)
                         } else {
                             CommandReturn::failure(ErrorCode::RESERVE)
-                        };
-                        command_result
+                        }
                     }
                 }
             }

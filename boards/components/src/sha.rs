@@ -61,10 +61,8 @@ impl<A: 'static + digest::DigestDataHash<'static, L>, const L: usize> ShaDriverC
     }
 }
 
-impl<
-        A: kernel::hil::digest::Sha256 + 'static + digest::DigestDataHash<'static, L>,
-        const L: usize,
-    > Component for ShaDriverComponent<A, L>
+impl<A: kernel::hil::digest::Sha256 + 'static + digest::DigestDataHash<'static, L>, const L: usize>
+    Component for ShaDriverComponent<A, L>
 {
     type StaticInput = (
         &'static mut MaybeUninit<ShaDriver<'static, A, L>>,

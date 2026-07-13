@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Top-level chip definition for the nRF52 microcontroller.
+
 use core::fmt::Write;
-use cortexm4f::{nvic, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, nvic};
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::StaticRef;
 
@@ -132,6 +134,22 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
     type ThreadIdProvider = cortexm4f::thread_id::CortexMThreadIdProvider;
 
+    fn init() {
+        // # Safety
+        //
+        // We are setting up the nRF52 chip, so these memory locations are valid
+        // on the nRF52 and this is OK to call.
+        unsafe {
+            crate::crt1::fix_errata();
+        }
+        crate::crt1::initialize_vector_table();
+
+        // # Safety
+        //
+        // Need to enable interrupts.
+        nvic::enable_all();
+    }
+
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
     }
@@ -154,7 +172,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { nvic::has_pending() }
+        nvic::has_pending()
     }
 
     fn sleep(&self) {

@@ -10,7 +10,7 @@ use crate::gpio::RPGpio;
 use crate::pio::{Pio, SMNumber, StateMachineConfiguration};
 
 use kernel::utilities::cells::TakeCell;
-use kernel::{hil, ErrorCode};
+use kernel::{ErrorCode, hil};
 
 pub struct PioPwm<'a> {
     clocks: &'a clocks::Clocks,

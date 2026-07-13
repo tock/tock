@@ -15,9 +15,9 @@ use kernel::debug::PanicResources;
 use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::utilities::StaticRef;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 

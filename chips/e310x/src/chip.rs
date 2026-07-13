@@ -10,8 +10,8 @@ use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr;
-use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
+use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
+use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 
 use crate::plic::PLIC;
 use kernel::hil::time::Freq32KHz;
@@ -116,6 +116,8 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I>
     type MPU = PMPUserMPU<4, SimplePMP<8>>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
+
+    fn init() {}
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp

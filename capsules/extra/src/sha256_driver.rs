@@ -162,11 +162,7 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
             let ready_app = self.apps.iter().find_map(|appiter| {
                 let possible_process = appiter.processid();
                 let ready = appiter.enter(|app, _| app.operation.is_some());
-                if ready {
-                    Some(possible_process)
-                } else {
-                    None
-                }
+                if ready { Some(possible_process) } else { None }
             });
 
             if let Some(ready_app) = ready_app {

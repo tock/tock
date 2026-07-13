@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-//! Module for interacting with legacy 8259 PIC
+//! Module for interacting with legacy 8259 Programmable Interrupt Controller (PIC)
 //!
 //! This implementation is based on guidance from the following sources:
 //!
 //! * <https://wiki.osdev.org/8259_PIC>
 //! * <https://github.com/rust-osdev/pic8259>
 
-use x86::registers::io;
 use x86::IDT_RESERVED_EXCEPTIONS;
+use x86::registers::io;
 
 /// PIC initialization command
 const PIC_CMD_INIT: u8 = 0x10;

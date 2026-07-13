@@ -1,5 +1,6 @@
 {
     "files.insertFinalNewline": true,
+    "debug.onTaskErrors": "abort", // when build tasks fails, debugging is stopped
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "editor.formatOnSave": true,
     "rust-analyzer.server.extraEnv": {

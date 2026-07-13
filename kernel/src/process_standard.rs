@@ -20,6 +20,7 @@ use crate::collections::ring_buffer::RingBuffer;
 use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
+use crate::init_uninit_struct;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
@@ -448,6 +449,8 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     ///     ╒════════ ← memory_start + memory_len
     ///  ╔═ │ Grant Pointers
     ///  ║  │ ──────
+    ///  ║  │ Upcall Queue
+    ///  ║  │ ──────
     ///     │ Process Control Block
     ///  D  │ ──────
     ///  Y  │ Grant Regions
@@ -532,7 +535,11 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     fault_policy: &'a dyn ProcessFaultPolicy,
 
     /// Storage permissions for this process.
-    storage_permissions: StoragePermissions,
+    ///
+    /// This is stored in a `Cell` because we need to create the
+    /// [`ProcessStandard`] first to then later determine the storage
+    /// permissions.
+    storage_permissions: Cell<StoragePermissions>,
 
     /// Configuration data for the MPU
     mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
@@ -853,7 +860,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn get_storage_permissions(&self) -> StoragePermissions {
-        self.storage_permissions
+        self.storage_permissions.get()
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
@@ -1592,8 +1599,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         ProcessSizes {
             grant_pointers: mem::size_of::<GrantPointerEntry>()
                 * self.kernel.get_grant_count_and_finalize(),
-            upcall_list: Self::CALLBACKS_OFFSET,
-            process_control_block: Self::PROCESS_STRUCT_OFFSET,
+            upcall_list: Self::CALLBACKS_SIZE,
+            process_control_block: Self::PROCESS_STRUCT_SIZE,
         }
     }
 
@@ -1700,12 +1707,38 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 }
 
 impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C, D> {
-    // Memory offset for upcall ring buffer (10 element length).
-    const CALLBACK_LEN: usize = 10;
-    const CALLBACKS_OFFSET: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
+    /// Alignment requirement for each `GrantPointerEntry` in the grant pointers
+    /// slice.
+    const GRANT_POINTERS_ALIGNMENT: usize = mem::align_of::<GrantPointerEntry>();
 
-    // Memory offset to make room for this process's metadata.
-    const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C, D>>();
+    /// Number of upcalls stored in the upcall ring buffer (10 element length).
+    const CALLBACK_LEN: usize = 10;
+    /// Size of the upcall storage buffer.
+    ///
+    /// As of June 2026, we cannot do
+    ///
+    /// ```ignore
+    /// const CALLBACKS_SIZE usize = mem::size_of::<MaybeUninit<[Task; Self::CALLBACK_LEN]>>();
+    /// ```
+    ///
+    /// because of the error:
+    ///
+    /// ```ignore
+    /// error: generic `Self` types are currently not permitted in anonymous constants
+    ///     --> kernel/src/process_standard.rs:1712:70
+    ///      |
+    /// 1712 |     const CALLBACKS_SIZE: usize = mem::size_of::<MaybeUninit<[Task; Self::CALLBACK_LEN]>>();
+    ///      |                                                                      ^^^^
+    ///      |
+    /// ```
+    const CALLBACKS_SIZE: usize = mem::size_of::<Task>() * Self::CALLBACK_LEN;
+    /// Alignment requirement of the upcall storage buffer.
+    const CALLBACKS_ALIGNMENT: usize = mem::align_of::<Task>();
+
+    // Memory offset to make room for this process's control block.
+    const PROCESS_STRUCT_SIZE: usize = mem::size_of::<ProcessStandard<C, D>>();
+    /// Alignment requirement for `ProcessStandard`.
+    const PROCESS_STRUCT_ALIGNMENT: usize = mem::align_of::<ProcessStandard<C, D>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
     pub(crate) unsafe fn create(
@@ -1754,25 +1787,26 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // just for kernel and grant state. We need to make sure we allocate
         // enough memory just for that.
 
-        // Make room for grant pointers.
+        // Calculate how many bytes we need for grant pointers.
         let grant_ptr_size = mem::size_of::<GrantPointerEntry>();
         let grant_ptrs_num = kernel.get_grant_count_and_finalize();
-        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+        let grant_ptrs_size = grant_ptrs_num * grant_ptr_size;
 
         // Initial size of the kernel-owned part of process memory can be
         // calculated directly based on the initial size of all kernel-owned
         // data structures.
         //
-        // We require our kernel memory break (located at the end of the
-        // MPU-returned allocated memory region) to be word-aligned. However, we
-        // don't have any explicit alignment constraints from the MPU. To ensure
-        // that the below kernel-owned data structures still fit into the
-        // kernel-owned memory even with padding for alignment, add an extra
-        // `sizeof(usize)` bytes.
-        let initial_kernel_memory_size = grant_ptrs_offset
-            + Self::CALLBACKS_OFFSET
-            + Self::PROCESS_STRUCT_OFFSET
-            + core::mem::size_of::<usize>();
+        // Add the alignment size of each data structure to handle the case
+        // where the memory region starts at the worst possible address and we
+        // need to add padding. Note: the maximum shift will only ever be one
+        // less than the alignment size, but to avoid unusual addresses we just
+        // use the full alignment.
+        let initial_kernel_memory_size = grant_ptrs_size
+            + Self::GRANT_POINTERS_ALIGNMENT
+            + Self::CALLBACKS_SIZE
+            + Self::CALLBACKS_ALIGNMENT
+            + Self::PROCESS_STRUCT_SIZE
+            + Self::PROCESS_STRUCT_ALIGNMENT;
 
         // By default we start with the initial size of process-accessible
         // memory set to 0. This maximizes the flexibility that processes have
@@ -1936,44 +1970,45 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // kernel, as follows:
         //
         //
-        //  +-----------------------------------------------------------------
-        //  | remaining_memory
-        //  +----------------------------------------------------+------------
-        //  v                                                    v
-        //  +----------------------------------------------------+
-        //  | allocated_padded_memory                            |
-        //  +--+-------------------------------------------------+
-        //     v                                                 v
-        //     +-------------------------------------------------+
-        //     | allocated_memory                                |
-        //     +-------------------------------------------------+
-        //     v                                                 v
-        //     +-----------------------+-------------------------+
-        //     | app_accessible_memory | allocated_kernel_memory |
-        //     +-----------------------+-------------------+-----+
-        //                                                 v
-        //                               kernel memory break
-        //                                                  \---+/
-        //                                                      v
-        //                                        optional padding
+        //  ┌───────────────────────────────────────────────────────────────────────────────────────
+        //  │ remaining_memory
+        //  └───────────────────────────────────────────────────────────────────────────────────────
+        //  ┆                                                                        ┆
+        //  ┌────────────────────────────────────────────────────────────────────────┬──────────────
+        //  │ allocated_padded_memory                                                │ unused_memory
+        //  └────────────────────────────────────────────────────────────────────────┴──────────────
+        //      ┆                                                                    ┆
+        //      ┌────────────────────────────────────────────────────────────────────┐
+        //  ┆←─→│ allocated_memory                                                   │
+        //    ↑ └────────────────────────────────────────────────────────────────────┘
+        //    └┄┄┄app_memory_start_offset                                            ┆
+        //      ┌─────────────────────────┬──────────────────────────────────────────┐
+        //      │ app_accessible_memory   │ allocated_kernel_memory                  │
+        //      └─────────────────────────┴──────────────────────────────────────────┘
+        //      ┆←min_process_memory_size→┆←────→┆←────initial_kernel_memory_size───→┆
+        //                                ↑  ↑   ┆                                   ┆
+        //              initial_app_brk┄┄┄┘  ┆   ┆ ┌┄┄┄kernel_memory_break           ┆
+        //           initially unallocated┄┄┄┘   ┆ ↓                                 ┆
+        //                                       ┆ ┌───────┬──────────┬──────────────┐
+        //                                       ┆↔│process│upcall_buf│grant_pointers│
+        //                                       ┆ └───────┴──────────┴──────────────┘
+        //                                        ↑       ↑          ↑              ↑
+        //             possible alignment padding┄┴┄┄┄┄┄┄┄┴┄┄┄┄┄┄┄┄┄┄┴┄┄┄┄┄┄┄┄┄┄┄┄┄┄┘
         //
         //
         // First split the `remaining_memory` into two slices:
         //
-        // - `allocated_padded_memory`: the allocated memory region, containing
+        // 1. `allocated_padded_memory`: the allocated memory region, containing:
         //
-        //   1. optional padding at the start of the memory region of
-        //      `app_memory_start_offset` bytes,
+        //    1. optional padding at the start of the memory region of
+        //       `app_memory_start_offset` bytes,
+        //    2. the app accessible memory region of `min_process_memory_size`,
+        //    3. optional unallocated memory, and
+        //    4. kernel-reserved memory, growing downward starting at the end of
+        //       `allocated_memory`.
         //
-        //   2. the app accessible memory region of `min_process_memory_size`,
-        //
-        //   3. optional unallocated memory, and
-        //
-        //   4. kernel-reserved memory, growing downward starting at
-        //      `app_memory_padding`.
-        //
-        // - `unused_memory`: the rest of the `remaining_memory`, not assigned
-        //   to this app.
+        // 2. `unused_memory`: the rest of the `remaining_memory`, not assigned
+        //    to this app.
         //
         // # Safety
         //
@@ -2051,53 +2086,42 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //
         // `kernel_memory_break` is set to the end of kernel-accessible memory
         // and grows downward.
-        //
-        // We require the `kernel_memory_break` to be aligned to a
-        // word-boundary, as we rely on this during offset calculations to
-        // kernel-accessed structs (e.g. the grant pointer table) below. As it
-        // moves downward in the address space, we can't use the `align_offset`
-        // convenience functions.
-        //
-        // Calling `wrapping_sub` is safe here, as we've factored in an optional
-        // padding of at most `sizeof(usize)` bytes in the calculation of
-        // `initial_kernel_memory_size` above.
-        //
-        // # Safety
-        //
-        // By using the slice `allocated_kernel_memory` and getting a pointer to
-        // the byte after the slice, we are ensured that the memory between the
-        // start of the allocation and the new pointer (at the end of the slice)
-        // is valid because of the existing slice.
-        let mut kernel_memory_break: *mut u8 = unsafe {
-            allocated_kernel_memory
-                .cast::<u8>()
-                .add(allocated_kernel_memory.len())
-        };
+        let mut kernel_memory_break: *mut u8 = allocated_kernel_memory
+            .cast::<u8>()
+            .wrapping_add(allocated_kernel_memory.len());
 
-        kernel_memory_break = kernel_memory_break
-            .wrapping_sub(kernel_memory_break as usize % core::mem::size_of::<usize>());
+        ////////////////////////
+        // Grant Region Pointers
+        ////////////////////////
 
         // Now that we know we have the space we can setup the grant pointers.
         //
-        // # Safety
-        //
-        // We ensured that the `allocated_kernel_memory` was large enough to
-        // contain all grant pointers, and so we know that `kernel_memory_break`
-        // will be within the valid allocated.
-        kernel_memory_break = unsafe { kernel_memory_break.offset(-(grant_ptrs_offset as isize)) };
+        // First, move `kernel_memory_break` up to make room for the grant pointers.
+        kernel_memory_break = kernel_memory_break.wrapping_sub(grant_ptrs_size);
+        // Next, use the extra alignment padding we factored in to the total
+        // calculation of `initial_kernel_memory_size` to ensure that
+        // `kernel_memory_break` is aligned to a `GrantPointerEntry`.
+        kernel_memory_break = kernel_memory_break
+            .wrapping_sub(kernel_memory_break as usize % Self::GRANT_POINTERS_ALIGNMENT);
 
-        // Set all grant pointers to null.
+        // Create the `GrantPointerEntry`s in the kernel region, then initialize
+        // them.
+        //
+        // Where we calculated the updated kernel_memory_break is where the
+        // `GrantPointerEntry`s start.
+        let grant_pointers_memory_location: *mut MaybeUninit<GrantPointerEntry> =
+            kernel_memory_break.cast();
+        // Get a reference to the slice of `GrantPointerEntry`s.
         //
         // # Safety
         //
-        // This is safe, `kernel_memory_break` is aligned to a word-boundary,
-        // and `grant_ptrs_offset` is a multiple of the word size.
-        #[allow(clippy::cast_ptr_alignment)]
-        let grant_pointers: *mut MaybeUninit<GrantPointerEntry> = kernel_memory_break.cast();
-        let grant_pointers: &mut [MaybeUninit<GrantPointerEntry>] =
-            unsafe { slice::from_raw_parts_mut(grant_pointers, grant_ptrs_num) };
+        // This is safe, as `grant_pointers_memory_location` is aligned to a
+        // `GrantPointerEntry`, and we ensured there is space for
+        // `grant_ptrs_num` of `GrantPointerEntry`s allocated.
+        let grant_pointers_uninit: &mut [MaybeUninit<GrantPointerEntry>] =
+            unsafe { slice::from_raw_parts_mut(grant_pointers_memory_location, grant_ptrs_num) };
         // Set all grant pointers to null.
-        for grant_entry in grant_pointers.iter_mut() {
+        for grant_entry in grant_pointers_uninit.iter_mut() {
             grant_entry.write(GrantPointerEntry {
                 driver_num: 0,
                 grant_ptr: core::ptr::null_mut(),
@@ -2106,106 +2130,139 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // # Safety
         //
         // All values in this slice have been properly initialized.
-        let grant_pointers = unsafe { maybe_uninit_slice_assume_init_mut(grant_pointers) };
+        let grant_pointers = unsafe { maybe_uninit_slice_assume_init_mut(grant_pointers_uninit) };
+
+        ////////////////////////
+        // Upcall Queue
+        ////////////////////////
 
         // Now that we know we have the space we can setup the memory for the
         // upcalls.
         //
-        // # Safety
-        //
-        // When we created `allocated_kernel_memory` we ensured it was large
-        // enough to include room for the upcall array, so we know
-        // `kernel_memory_break` will be in the allocated memory.
-        kernel_memory_break =
-            unsafe { kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize)) };
+        // Move our `kernel_memory_break` up the size of the callback slice.
+        kernel_memory_break = kernel_memory_break.wrapping_sub(Self::CALLBACKS_SIZE);
+        // Use the space we allocated for alignment in case the pointer is not aligned.
+        kernel_memory_break = kernel_memory_break
+            .wrapping_sub(kernel_memory_break as usize % Self::CALLBACKS_ALIGNMENT);
 
+        // Set up ring buffer for upcalls to the process. The memory is uninitialized here,
+        // so we cast to MaybeUninit<Task> which accurately represents that state.
+        let upcall_buf: *mut core::mem::MaybeUninit<Task> = kernel_memory_break.cast();
+
+        // Get a reference `&mut [Task; Self:CALLBACK_LEN]`
+        //
         // # Safety
         //
-        // This is safe today, as MPU constraints ensure that `memory_start`
-        // will always be aligned on at least a word boundary, and that
-        // memory_size will be aligned on at least a word boundary, and
-        // `grant_ptrs_offset` is a multiple of the word size. Thus,
-        // `kernel_memory_break` must be word aligned. While this is unlikely to
-        // change, it should be more proactively enforced.
-        //
-        // TODO: https://github.com/tock/tock/issues/1739
-        #[allow(clippy::cast_ptr_alignment)]
-        // Set up ring buffer for upcalls to the process.
-        let upcall_buf: *mut Task = kernel_memory_break.cast();
+        // This needs to be aligned and have allocated space for
+        // `Self::CALLBACK_LEN` instances of `Task`. We ensured there is enough
+        // space when we allocated `allocated_kernel_memory` and we moved
+        // kernel_memory_break up to fit the callbacks. We ensured this is
+        // aligned by moving `kernel_memory_break` up if needed, and we
+        // accounted for that potential increase in size when we allocated
+        // `allocated_kernel_memory`.
         let upcall_buf = unsafe { slice::from_raw_parts_mut(upcall_buf, Self::CALLBACK_LEN) };
+        // Actually setup the ring buffer.
         let tasks = RingBuffer::new(upcall_buf);
+
+        ////////////////////////
+        // ProcessStandard
+        ////////////////////////
 
         // Last thing in the kernel region of process RAM is the process struct.
         //
+        // Move `kernel_memory_break` to make room for the `ProcessStandard` struct.
+        kernel_memory_break = kernel_memory_break.wrapping_sub(Self::PROCESS_STRUCT_SIZE);
+        // Use the space we allocated for alignment in case the pointer is not aligned.
+        kernel_memory_break = kernel_memory_break
+            .wrapping_sub(kernel_memory_break as usize % Self::PROCESS_STRUCT_ALIGNMENT);
+
+        // Create a pointer to where the `ProcessStandard` struct will go in the
+        // app grant region.
+        let process_struct_memory_location: *mut MaybeUninit<ProcessStandard<'static, C, D>> =
+            kernel_memory_break.cast();
+        // Get a reference to the uninitialized `ProcessStandard` object.
+        //
+        // Note, this requires every field be explicitly initialized, as we are
+        // just transforming a pointer into a structure. Because the
+        // `ProcessStandard` is not initialized we mark it with `MaybeUninit`.
+        //
         // # Safety
         //
-        // When we created `allocated_kernel_memory` we ensured it was large
-        // enough to include room for the process struct, so we know
-        // `kernel_memory_break` will be in the allocated memory.
-        kernel_memory_break =
-            unsafe { kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize)) };
-        let process_struct_memory_location: *mut u8 = kernel_memory_break;
+        // This must have sufficient allocated space and proper alignment. When
+        // we sized `allocated_kernel_memory` we ensured there was room for the
+        // entire `ProcessStandard` struct. We also allocated space for
+        // potential alignment issues, and ensured `kernel_memory_break` was
+        // properly aligned for `ProcessStandard`.
+        let process_uninit: &mut MaybeUninit<ProcessStandard<C, D>> =
+            unsafe { &mut *process_struct_memory_location };
 
-        // Create the Process struct in the app grant region.
-        // Note that this requires every field be explicitly initialized, as
-        // we are just transforming a pointer into a structure.
+        // Initialize ALL fields of `ProcessStandard`.
         //
         // # Safety
         //
-        // This is not safe. `process` is not initialized.
-        //
-        // To fix this, we must use `MaybeUninit`.
-        let process_struct_memory_location: *mut ProcessStandard<'static, C, D> =
-            process_struct_memory_location.cast();
-        let process: &mut ProcessStandard<C, D> = unsafe { &mut *process_struct_memory_location };
+        // These need to be valid and aligned writes. When we create the `MaybeUnint`
+        // ProcessStandard struct we ensure there is valid memory for the object and
+        // that it is aligned.
+        unsafe {
+            init_uninit_struct!(process_uninit => ProcessStandard<C, D> {
+                process_id: Cell::new(ProcessId::new(
+                    kernel,
+                    kernel.create_process_identifier(),
+                    index,
+                )),
+                app_id: app_id,
+                kernel: kernel,
+                chip: chip,
+                allow_high_water_mark: Cell::new(initial_allow_high_water_mark),
+                memory_start: allocated_memory_start,
+                memory_len: allocated_memory_len,
+                header: pb.header,
+                kernel_memory_break: Cell::new(kernel_memory_break),
+                app_break: Cell::new(initial_app_brk),
+                grant_pointers: MapCell::new(grant_pointers),
 
-        // Ask the kernel for a unique identifier for this process that is being
-        // created.
-        let unique_identifier = kernel.create_process_identifier();
+                credential: pb.credential.get(),
+                footers: pb.footers,
+                flash: pb.flash,
+
+                stored_state: MapCell::new(Default::default()),
+                state: Cell::new(State::Yielded),
+                fault_policy: fault_policy,
+                restart_count: Cell::new(0),
+                completion_code: OptionalCell::empty(),
+
+                storage_permissions: Cell::new(StoragePermissions::new_null()),
+
+                mpu_config: MapCell::new(mpu_config),
+                mpu_regions: [
+                    Cell::new(None),
+                    Cell::new(None),
+                    Cell::new(None),
+                    Cell::new(None),
+                    Cell::new(None),
+                    Cell::new(None),
+                ],
+                tasks: MapCell::new(tasks),
+                is_yield_wait_for_ready: Cell::new(false),
+
+                debug: D::default(),
+            });
+        }
+
+        // Convert the originally uninitialized `ProcessStandard` to a proper
+        // `ProcessStandard` struct reference.
+        //
+        // # Safety
+        //
+        // All fields in `ProcessStandard` must be initialized. We guaranteed
+        // this by using the `init_uninit_struct!()` macro, which causes a
+        // compiler error if there is a missing field.
+        let process = unsafe { process_uninit.assume_init_mut() };
 
         // Save copies of these in case the app was compiled for fixed addresses
         // for later debugging.
-        let fixed_address_flash = pb.header.get_fixed_address_flash();
-        let fixed_address_ram = pb.header.get_fixed_address_ram();
-
-        process
-            .process_id
-            .set(ProcessId::new(kernel, unique_identifier, index));
-        process.app_id = app_id;
-        process.kernel = kernel;
-        process.chip = chip;
-        process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
-        process.memory_start = allocated_memory_start;
-        process.memory_len = allocated_memory_len;
-        process.header = pb.header;
-        process.kernel_memory_break = Cell::new(kernel_memory_break);
-        process.app_break = Cell::new(initial_app_brk);
-        process.grant_pointers = MapCell::new(grant_pointers);
-
-        process.credential = pb.credential.get();
-        process.footers = pb.footers;
-        process.flash = pb.flash;
-
-        process.stored_state = MapCell::new(Default::default());
-        // Mark this process as approved and leave it to the kernel to start it.
-        process.state = Cell::new(State::Yielded);
-        process.fault_policy = fault_policy;
-        process.restart_count = Cell::new(0);
-        process.completion_code = OptionalCell::empty();
-
-        process.mpu_config = MapCell::new(mpu_config);
-        process.mpu_regions = [
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-        ];
-        process.tasks = MapCell::new(tasks);
-        process.is_yield_wait_for_ready = Cell::new(false);
-
-        process.debug = D::default();
+        let fixed_address_flash = process.header.get_fixed_address_flash();
+        let fixed_address_ram = process.header.get_fixed_address_ram();
         if let Some(fix_addr_flash) = fixed_address_flash {
             process.debug.set_fixed_address_flash(fix_addr_flash);
         }
@@ -2288,7 +2345,9 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // Set storage permissions. Put this at the end so that `process` is
         // completely formed before using it to determine the storage
         // permissions.
-        process.storage_permissions = storage_permissions_policy.get_permissions(process);
+        process
+            .storage_permissions
+            .set(storage_permissions_policy.get_permissions(process));
 
         // Return the process object and a remaining memory for processes slice.
         Ok((Some(process), unused_memory))
@@ -2355,12 +2414,16 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             .initial_process_app_brk_size();
 
         // Recalculate initial_kernel_memory_size as was done in create()
-        let grant_ptr_size = mem::size_of::<(usize, *mut u8)>();
+        let grant_ptr_size = mem::size_of::<GrantPointerEntry>();
         let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
-        let grant_ptrs_offset = grant_ptrs_num * grant_ptr_size;
+        let grant_ptrs_size = grant_ptrs_num * grant_ptr_size;
 
-        let initial_kernel_memory_size =
-            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
+        let initial_kernel_memory_size = grant_ptrs_size
+            + Self::GRANT_POINTERS_ALIGNMENT
+            + Self::CALLBACKS_SIZE
+            + Self::CALLBACKS_ALIGNMENT
+            + Self::PROCESS_STRUCT_SIZE
+            + Self::PROCESS_STRUCT_ALIGNMENT;
 
         let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
             self.mem_start(),

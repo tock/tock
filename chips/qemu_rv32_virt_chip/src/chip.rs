@@ -13,7 +13,7 @@ use kernel::platform::chip::{Chip, InterruptService};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
-use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
+use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;
@@ -115,6 +115,8 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
     type MPU = QemuRv32VirtPMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
+
+    fn init() {}
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp

@@ -89,6 +89,7 @@ but the approximate definitions:
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
 | [WeAct F401CCU6 Core Board](weact_f401ccu6/README.md)             | ARM Cortex-M4    | STM32F401CCU6  | openocd    | custom                      | No            |
+| [ST Nucleo U545RE-Q (skeleton)](nucleo_u545re_q/README.md)        | ARM Cortex-M33   | STM32U545RE-Q  | openocd    | custom                      | No            |
 | [SparkFun RedBoard Red-V](redboard_redv/README.md)                | RISC-V           | FE310-G002     | openocd    | tockloader                  | Yes (5.1)     |
 | [SiFive HiFive1 Rev B](hifive1/README.md)                         | RISC-V           | FE310-G002     | openocd    | tockloader                  | Yes (5.1)     |
 | [BBC HiFive Inventor](hifive_inventor/README.md)                  | RISC-V           | FE310-G003     | tockloader | tockloader                  | No            |
@@ -100,6 +101,7 @@ but the approximate definitions:
 | [CY8CPROTO-062-4343W](cy8cproto_62_4343_w/README.md)              | ARM Cortex-M0+   | PSoC62         | openocd    | custom                      | No            |
 | [Raspberry Pi Pico 2](raspberry_pi_pico_2/README.md)              | ARM Cortex-M33   | RP2350         | openocd    | openocd                     | No            |
 | [LPCXpresso55S69 Development Board](lpc55s69-evk/README.md)       | ARM Cortex-M33   | LPC55S6x       | probe-rs   | probe-rs                    | No            |
+| [PSOC™ Control C3M5 Evaluation Kit](psc3m5_evk/README.md)         | ARM Cortex-M33   | PSC3M5         | openocd    | probe-rs                    | No            |
 
 
 ### Other

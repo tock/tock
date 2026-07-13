@@ -6,15 +6,15 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, Aliased, Field, InMemoryRegister, ReadOnly, ReadWrite,
+    Aliased, Field, InMemoryRegister, ReadOnly, ReadWrite, register_bitfields,
 };
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 pub const UART0_BASE: StaticRef<Uart16550Registers> =
     unsafe { StaticRef::new(0x1000_0000 as *const Uart16550Registers) };

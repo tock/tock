@@ -40,7 +40,7 @@
 //! aes_ccm_test passed: (current_test=2, encrypting=false, tag_is_valid=true)
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_extra::test::aes_ccm::Test;
-use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128CCM};
 use kernel::static_init;
 use sam4l::aes::Aes;
 

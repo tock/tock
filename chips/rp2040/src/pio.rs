@@ -13,11 +13,11 @@
 
 use core::cell::Cell;
 
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::{debug, ErrorCode};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use kernel::{ErrorCode, debug};
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
@@ -1678,8 +1678,8 @@ mod examples {
     use kernel::hil::gpio::Configure;
 
     use super::{
-        debug, Pio, RPGpio, RPGpioPin, Readable, SMNumber, SMx_EXECCTRL, SMx_INSTR, SMx_PINCTRL,
-        StateMachineConfiguration, DBG_PADOUT, FDEBUG,
+        DBG_PADOUT, FDEBUG, Pio, RPGpio, RPGpioPin, Readable, SMNumber, SMx_EXECCTRL, SMx_INSTR,
+        SMx_PINCTRL, StateMachineConfiguration, debug,
     };
 
     impl RPGpio {

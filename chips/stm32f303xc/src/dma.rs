@@ -3,8 +3,8 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 use crate::rcc;
 

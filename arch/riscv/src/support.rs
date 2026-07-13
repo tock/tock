@@ -4,7 +4,7 @@
 
 //! Core low-level operations.
 
-use crate::csr::{mstatus::mstatus, CSR};
+use crate::csr::{CSR, mstatus::mstatus};
 
 #[cfg(any(doc, target_arch = "riscv32", target_arch = "riscv64"))]
 #[inline(always)]

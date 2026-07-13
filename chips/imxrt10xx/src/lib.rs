@@ -23,7 +23,7 @@ pub mod iomuxc_snvs;
 pub mod lpi2c;
 pub mod lpuart;
 
-use cortexm7::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM7, CortexMVariant};
+use cortexm7::{CortexM7, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -55,6 +55,17 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt,       // PendSV
     CortexM7::SYSTICK_HANDLER, // SysTick
 ];
+
+pub(crate) fn initialize_vector_table() {
+    // # Safety
+    //
+    // The vector table must setup function pointers for the thumb core
+    // correctly. Because `BASE_VECTORS` is the correct data type this is
+    // safe.
+    unsafe {
+        cortexm7::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
+    }
+}
 
 // imxrt 1050 has total of 160 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
@@ -222,16 +233,3 @@ pub static IRQS: [unsafe extern "C" fn(); 160] = [
     CortexM7::GENERIC_ISR, // Reserved (158)
     CortexM7::GENERIC_ISR, // Reserved (159)
 ];
-
-pub unsafe fn init() {
-    cortexm7::nvic::disable_all();
-    cortexm7::nvic::clear_all_pending();
-
-    // Set the vector table offset, which requires casting from a BASE_VECTORS to a *const ()
-    // pointer.
-    let vector_table: *const [unsafe extern "C" fn(); 16] = core::ptr::addr_of!(BASE_VECTORS);
-    let vector_table: *const () = vector_table.cast();
-    cortexm7::scb::set_vector_table_offset(vector_table);
-
-    cortexm7::nvic::enable_all();
-}

@@ -9,8 +9,8 @@ use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use rv32i::csr::{mcause, mie::mie, CSR};
-use rv32i::pmp::{kernel_protection::KernelProtectionPMP, PMPUserMPU};
+use rv32i::csr::{CSR, mcause, mie::mie};
+use rv32i::pmp::{PMPUserMPU, kernel_protection::KernelProtectionPMP};
 use rv32i::syscall::SysCall;
 
 use crate::interrupt_controller::VexRiscvInterruptController;
@@ -63,6 +63,8 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
     type MPU = PMPUserMPU<4, KernelProtectionPMP<16>>;
     type UserspaceKernelBoundary = SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
+
+    fn init() {}
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp_mpu

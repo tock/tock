@@ -11,15 +11,15 @@
 //! * Date: March 10 2018
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::uart;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::dma_slice::DmaSubSliceMut;
 use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 use nrf5x::gpio::Pin;
 use nrf5x::pinmux;
 
@@ -204,7 +204,7 @@ impl UarteRegistersManager {
         let tx_dma_slice = DmaSubSliceMut::new_static(buf, fence);
 
         // Provide the DmaSlice buffer to the hardware DMA engine.
-        self.registers.txd_ptr.set(tx_dma_slice.as_mut_ptr() as u32);
+        self.registers.txd_ptr.set(tx_dma_slice.ptr_addr() as u32);
 
         // Specify the length to transmit.
         self.registers
@@ -272,7 +272,7 @@ impl UarteRegistersManager {
         let rx_dma_slice = DmaSubSliceMut::new_static(buf, fence);
 
         // Provide the DmaSlice buffer to the hardware DMA engine.
-        self.registers.rxd_ptr.set(rx_dma_slice.as_mut_ptr() as u32);
+        self.registers.rxd_ptr.set(rx_dma_slice.ptr_addr() as u32);
 
         // Specify the length to transmit.
         self.registers

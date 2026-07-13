@@ -9,7 +9,7 @@ use core::ptr;
 
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 use pci_x86::cap::{Cap, VendorCap};
 use pci_x86::{Command, Device};

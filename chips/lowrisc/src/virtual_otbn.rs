@@ -7,9 +7,9 @@
 
 use crate::otbn::{Client, Otbn};
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::collections::list::{ListLink, ListNode};
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 pub struct VirtualMuxAccel<'a> {
     mux: &'a MuxAccel<'a>,

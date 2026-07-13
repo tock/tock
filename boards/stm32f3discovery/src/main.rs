@@ -22,6 +22,7 @@ use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -372,7 +373,7 @@ unsafe fn start() -> (
     STM32F3Discovery,
     &'static stm32f303xc::chip::Stm32f3xx<'static, Stm32f3xxDefaultPeripherals<'static>>,
 ) {
-    stm32f303xc::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

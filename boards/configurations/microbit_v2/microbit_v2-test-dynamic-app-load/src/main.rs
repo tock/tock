@@ -10,12 +10,11 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of;
-
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
@@ -233,7 +232,7 @@ unsafe fn start() -> (
     MicroBit,
     &'static nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>,
 ) {
-    nrf52833::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -271,11 +270,14 @@ unsafe fn start() -> (
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
+    // Get FICR instance to read chip properties.
+    let ficr = nrf52833::ficr::Ficr::new();
+
     //--------------------------------------------------------------------------
     // RAW 802.15.4
     //--------------------------------------------------------------------------
 
-    let device_id = (*addr_of!(nrf52833::ficr::FICR_INSTANCE)).id();
+    let device_id = ficr.id();
 
     let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
         .finalize(components::eui64_component_static!());

@@ -158,7 +158,9 @@ impl<F: DmaFence> SplitVirtqueueClient<'static> for VirtIOInput<'_, F> {
                     .expect("No status buffer")
                     .virtqueue_buffer
             else {
-                panic!("VirtIO input returned either DeviceWritable buffer or Immutable sub slice for status queue")
+                panic!(
+                    "VirtIO input returned either DeviceWritable buffer or Immutable sub slice for status queue"
+                )
             };
 
             self.status_buffer.replace(status_sub_slice_mut.take());

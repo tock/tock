@@ -6,13 +6,13 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::digest::DigestData;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::leasable_buffer::SubSliceMutImmut;
-use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum State {

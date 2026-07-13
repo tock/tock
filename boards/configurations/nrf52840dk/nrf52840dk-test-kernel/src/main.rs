@@ -13,14 +13,15 @@ use core::cell::Cell;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::cells::NumericCellExt;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
+use nrf52_components::{UartChannel, UartPins};
 use nrf52840::chip::Nrf52DefaultPeripherals;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{UartChannel, UartPins};
 
 mod test;
 
@@ -164,7 +165,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     // Apply errata fixes and enable interrupts.
-    nrf52840::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

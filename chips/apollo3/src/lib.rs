@@ -21,7 +21,7 @@ pub mod pwrctrl;
 pub mod stimer;
 pub mod uart;
 
-use cortexm4f::{initialize_ram_jump_to_main, scb, unhandled_interrupt, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, initialize_ram_jump_to_main, scb, unhandled_interrupt};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -78,33 +78,16 @@ pub static PATCH: [unsafe extern "C" fn(); 16] = [unhandled_interrupt; 16];
 // `main()` otherwise we end up with a clobbered stack.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[inline(always)]
-pub unsafe fn init() {
+pub unsafe fn actually_disable_fpu() {
     use core::arch::asm;
-    let cache_ctrl = crate::cachectrl::CacheCtrl::new();
-    cache_ctrl.enable_cache();
-
-    // Explicitly tell the core where Tock's vector table is located. If Tock is the
-    // only thing on the chip then this is effectively a no-op. If, however, there is
-    // a bootloader present then we want to ensure that the vector table is set
-    // correctly for Tock. The bootloader _may_ set this for us, but it may not
-    // so that any errors early in the Tock boot process trap back to the bootloader.
-    // To be safe we unconditionally set the vector table.
-    scb::set_vector_table_offset(BASE_VECTORS.as_ptr() as *const ());
-
-    // Disable the FPU (it might be enalbed by a prior stage)
-    scb::disable_fpca();
 
     // This ensures the FPU is actually disabled
     asm!("svc 0xff", out("r0") _, out("r1") _, out("r2") _, out("r3") _, out("r12") _);
-
-    cortexm4f::nvic::disable_all();
-    cortexm4f::nvic::clear_all_pending();
-    cortexm4f::nvic::enable_all();
 }
 
 // Mock implementation for tests
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe fn init() {
+pub unsafe fn actually_disable_fpu() {
     // Prevent unused code warning.
     scb::disable_fpca();
 
