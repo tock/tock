@@ -144,9 +144,5 @@ impl Rcc {
 
     pub fn enable_rng(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::RNGEN::SET);
-
-        // TODO temporary hack, move to proper place
-        let rng = crate::rng::Rng::new();
-        rng.enable();
     }
 }
