@@ -20,12 +20,19 @@ pub mod systick;
 pub mod thread_id;
 
 // These constants are defined in the linker script.
+//
+// # Safety
+//
+// All symbols must have the correct signatures. These symbols are values in the
+// program and we conservatively treat them as single bytes. In practice we do
+// not care or use the value of any of these static `u8`s. We are only
+// interested in the address of these static `u8`s.
 unsafe extern "C" {
-    static _szero: *const u32;
-    static _ezero: *const u32;
-    static _etext: *const u32;
-    static _srelocate: *const u32;
-    static _erelocate: *const u32;
+    static _szero: u8;
+    static _ezero: u8;
+    static _etext: u8;
+    static _srelocate: u8;
+    static _erelocate: u8;
 }
 
 /// Trait to encapsulate differences in between Cortex-M variants

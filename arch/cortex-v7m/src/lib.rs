@@ -7,6 +7,13 @@
 #![no_std]
 
 // These constants are defined in the linker script.
+//
+// # Safety
+//
+// All symbols must have the correct signatures. These symbols are values in the
+// program and we conservatively treat them as single bytes. In practice we do
+// not care or use the value of any of these static `u8`s. We are only
+// interested in the address of these static `u8`s.
 unsafe extern "C" {
     static _estack: u8;
     static _sstack: u8;
