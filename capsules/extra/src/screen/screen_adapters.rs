@@ -6,10 +6,10 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 /// Convert an ARGB8888 formatted screen to a Mono8BitPage formatted screen of
 /// the same resolution.

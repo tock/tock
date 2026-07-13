@@ -112,7 +112,7 @@ fn baud_rate_reset_bootloader_enter() {
 }
 
 type HS3003Sensor = components::hs3003::Hs3003ComponentType<
-    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<HS3003Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<HS3003Sensor>;
@@ -128,57 +128,48 @@ type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type BleHw = nrf52840::ble_radio::Radio<'static>;
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type GpioHw = nrf52::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedLow<'static, nrf52::gpio::GPIOPin<'static>>;
+type I2cHw = nrf52840::i2c::TWI<'static>;
+type Lps22hbSensor = capsules_extra::lps22hb::Lps22hb<
+    'static,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
+>;
+
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 3>;
+type ConsoleDriver = components::console::ConsoleComponentType;
+type ProximityDriver = components::proximity::ProximityComponentType;
+type AdcDriver = components::adc::AdcVirtualComponentType;
+type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+type PressureDriver = capsules_extra::pressure::PressureSensor<'static, Lps22hbSensor>;
+type UdpDriver = components::udp_driver::UDPDriverComponentType;
+
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        nrf52::ble_radio::Radio<'static>,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
+    ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
-    console: &'static capsules_core::console::Console<'static>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-        components::process_console::Capability,
-    >,
-    proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
-    pressure: &'static capsules_extra::pressure::PressureSensor<
-        'static,
-        capsules_extra::lps22hb::Lps22hb<
-            'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<
-                'static,
-                nrf52840::i2c::TWI<'static>,
-            >,
-        >,
-    >,
+    console: &'static ConsoleDriver,
+    pconsole: &'static ProcessConsoleDriver,
+    proximity: &'static ProximityDriver,
+    pressure: &'static PressureDriver,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        LedLow<'static, nrf52::gpio::GPIOPin<'static>>,
-        3,
-    >,
-    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
+    adc: &'static AdcDriver,
     rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
-    udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
+    alarm: &'static AlarmDriver,
+    udp_driver: &'static UdpDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
@@ -524,7 +515,7 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
-        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
+        .finalize(components::i2c_mux_component_static!(I2cHw));
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN),
@@ -538,7 +529,7 @@ pub unsafe fn start() -> (
         0x39,
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
-    .finalize(components::apds9960_component_static!(nrf52840::i2c::TWI));
+    .finalize(components::apds9960_component_static!(I2cHw));
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
@@ -547,7 +538,7 @@ pub unsafe fn start() -> (
     .finalize(components::proximity_component_static!());
 
     let lps22hb = components::lps22hb::Lps22hbComponent::new(sensors_i2c_bus, 0x5C)
-        .finalize(components::lps22hb_component_static!(nrf52840::i2c::TWI));
+        .finalize(components::lps22hb_component_static!(I2cHw));
     let pressure = components::pressure::PressureComponent::new(
         board_kernel,
         capsules_extra::pressure::DRIVER_NUM,
@@ -556,12 +547,12 @@ pub unsafe fn start() -> (
     .finalize(components::pressure_component_static!(
         capsules_extra::lps22hb::Lps22hb<
             'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
         >
     ));
 
     let hs3003 = components::hs3003::Hs3003Component::new(sensors_i2c_bus, 0x44)
-        .finalize(components::hs3003_component_static!(nrf52840::i2c::TWI));
+        .finalize(components::hs3003_component_static!(I2cHw));
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -585,10 +576,7 @@ pub unsafe fn start() -> (
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(components::ble_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::ble_radio::Radio
-    ));
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
     use capsules_extra::net::ieee802154::MacAddress;
 
@@ -641,7 +629,7 @@ pub unsafe fn start() -> (
         mux_alarm,
     )
     .finalize(components::udp_mux_component_static!(
-        nrf52840::rtc::Rtc,
+        AlarmHw,
         Ieee802154MacDevice
     ));
 
@@ -654,7 +642,7 @@ pub unsafe fn start() -> (
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(AlarmHw));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

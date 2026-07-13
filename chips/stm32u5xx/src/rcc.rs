@@ -3,9 +3,9 @@
 // Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
 
-use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 register_structs! {
     pub RccRegisters {

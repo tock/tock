@@ -3,11 +3,11 @@
 // Copyright Tock Contributors 2022.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::utilities::{cells::OptionalCell, StaticRef};
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
+use kernel::utilities::{StaticRef, cells::OptionalCell};
 
 register_structs! {
     /// Control and data interface to SAR ADC

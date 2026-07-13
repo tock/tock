@@ -159,8 +159,8 @@
 
 use crate::chip_specific::ChipSpecs as ChipSpecsTrait;
 use crate::clocks::hse::Hse;
-use crate::clocks::hsi::Hsi;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
+use crate::clocks::hsi::Hsi;
 use crate::clocks::pll::Pll;
 use crate::flash::Flash;
 use crate::rcc::AHBPrescaler;
@@ -171,9 +171,9 @@ use crate::rcc::PllSource;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 /// Main struct for configuring on-board clocks.
 pub struct Clocks<'a, ChipSpecs> {
@@ -641,8 +641,8 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
 /// execution.
 pub mod tests {
     use super::{
-        debug, AHBPrescaler, APBPrescaler, ChipSpecsTrait, Clocks, ErrorCode, MCO1Divider,
-        MCO1Source, PllSource, SysClockSource, HSI_FREQUENCY_MHZ,
+        AHBPrescaler, APBPrescaler, ChipSpecsTrait, Clocks, ErrorCode, HSI_FREQUENCY_MHZ,
+        MCO1Divider, MCO1Source, PllSource, SysClockSource, debug,
     };
 
     const LOW_FREQUENCY: usize = 25;

@@ -5,7 +5,7 @@
 //! Top-level chip definition for the nRF52 microcontroller.
 
 use core::fmt::Write;
-use cortexm4f::{nvic, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, nvic};
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::StaticRef;
 

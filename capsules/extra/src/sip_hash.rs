@@ -28,13 +28,13 @@
 
 use core::cell::Cell;
 use core::{cmp, mem};
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::hasher::{Client, Hasher, SipHash};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::leasable_buffer::SubSliceMutImmut;
-use kernel::ErrorCode;
 
 pub struct SipHasher24<'a> {
     client: OptionalCell<&'a dyn Client<8>>,
@@ -126,9 +126,7 @@ impl SipHasher24<'_> {
 }
 
 macro_rules! compress {
-    ($state:expr) => {{
-        compress!($state.v0, $state.v1, $state.v2, $state.v3)
-    }};
+    ($state:expr) => {{ compress!($state.v0, $state.v1, $state.v2, $state.v3) }};
     ($v0:expr, $v1:expr, $v2:expr, $v3:expr) => {{
         $v0 = $v0.wrapping_add($v1);
         $v1 = $v1.rotate_left(13);

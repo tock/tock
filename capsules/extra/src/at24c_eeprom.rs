@@ -47,7 +47,7 @@ use core::cmp;
 
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::{hil, ErrorCode};
+use kernel::{ErrorCode, hil};
 
 const PAGE_SIZE: usize = 32;
 

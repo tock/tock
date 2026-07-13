@@ -61,19 +61,37 @@ If your system's OpenOCD is too old, follow these steps to compile a
 compatible version:
 
 1.  **Install dependencies**:
+
+    **Debian-based distros**
     ```bash
     sudo apt update
     sudo apt install build-essential libusb-1.0-0-dev libftdi1-dev \
         libtool autoconf automake texinfo pkg-config
     ```
-
+    **RHEL-based or RPM-based**
+    ```bash
+    sudo dnf update
+    sudo dnf install build-essential libusb1-devel jimtcl libftd-devel \
+        libtool autoconf automake texinfo pkgconf
 2.  **Clone and build**:
+
+    **Debian-based distro**
     ```bash
     git clone https://github.com/openocd-org/openocd.git
     cd openocd
     git submodule update --init --recursive
     ./bootstrap
     ./configure --enable-stlink
+    make -j$(nproc)
+    sudo make install
+    ```
+    **RHEL-based or RPM-based**
+    ```bash
+    git clone https://github.com/openocd-org/openocd.git
+    cd openocd
+    git submodule update --init --recursive
+    ./bootstrap
+    ./configure --enable-stlink --enable internal jimtcl
     make -j$(nproc)
     sudo make install
     ```

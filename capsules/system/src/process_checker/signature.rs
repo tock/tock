@@ -5,13 +5,13 @@
 //! Signature credential checker for checking process credentials.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::process_checker::CheckResult;
 use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
-use kernel::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
@@ -43,13 +43,13 @@ pub struct AppCheckerSignature<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
-            + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + hil::public_key_crypto::keys::SelectKey<'a>,
+    H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     pub fn new(
         hasher: &'a H,
@@ -104,13 +104,13 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
-            + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > hil::digest::ClientData<HASH_LEN> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + hil::public_key_crypto::keys::SelectKey<'a>,
+    H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> hil::digest::ClientData<HASH_LEN> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSliceMut<'static, u8>) {}
 
@@ -142,13 +142,13 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
-            + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > hil::public_key_crypto::keys::SelectKeyClient
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + hil::public_key_crypto::keys::SelectKey<'a>,
+    H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> hil::public_key_crypto::keys::SelectKeyClient
     for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn get_key_count_done(&self, count: usize) {
@@ -187,13 +187,13 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
-            + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > hil::digest::ClientHash<HASH_LEN> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + hil::public_key_crypto::keys::SelectKey<'a>,
+    H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> hil::digest::ClientHash<HASH_LEN> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; HASH_LEN]) {
         // Save the hash buffer in all cases. If there was an error then we just
@@ -226,14 +226,13 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
-            + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > hil::digest::ClientVerify<HASH_LEN>
-    for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + hil::public_key_crypto::keys::SelectKey<'a>,
+    H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> hil::digest::ClientVerify<HASH_LEN> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn verification_done(
         &self,
@@ -246,13 +245,13 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
-            + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > hil::public_key_crypto::signature::ClientVerify<HASH_LEN, SIGNATURE_LEN>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + hil::public_key_crypto::keys::SelectKey<'a>,
+    H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> hil::public_key_crypto::signature::ClientVerify<HASH_LEN, SIGNATURE_LEN>
     for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn verification_done(
@@ -311,13 +310,13 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
-            + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
-        const HASH_LEN: usize,
-        const SIGNATURE_LEN: usize,
-    > AppCredentialsPolicy<'static> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+        + hil::public_key_crypto::keys::SelectKey<'a>,
+    H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> AppCredentialsPolicy<'static> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn require_credentials(&self) -> bool {
         true

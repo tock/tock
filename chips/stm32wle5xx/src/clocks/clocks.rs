@@ -13,8 +13,8 @@
 
 use crate::chip_specific::ChipSpecs as ChipSpecsTrait;
 use crate::clocks::hse::Hse;
-use crate::clocks::hsi::Hsi;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
+use crate::clocks::hsi::Hsi;
 use crate::clocks::msi::Msi;
 use crate::clocks::pll::Pll;
 

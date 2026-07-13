@@ -4,9 +4,9 @@
 
 //! Watchdog Timer (WDT)
 
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 const WATCHDOG_BASE: StaticRef<WdtRegisters> =
     unsafe { StaticRef::new(0x4000_4800u32 as *const WdtRegisters) };

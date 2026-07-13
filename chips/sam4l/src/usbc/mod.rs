@@ -9,7 +9,7 @@ pub mod debug;
 #[allow(unused_imports)]
 use self::debug::{HexBuf, UdintFlags, UeconFlags, UestaFlags};
 use crate::pm;
-use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
+use crate::pm::{Clock, HSBClock, PBBClock, disable_clock, enable_clock};
 use crate::scif;
 use core::cell::Cell;
 use core::ptr;
@@ -17,13 +17,13 @@ use core::slice;
 use kernel::debug as debugln;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite,
-    WriteOnly,
+    FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
+    register_bitfields,
 };
-use kernel::utilities::StaticRef;
 
 // The following macros provide some diagnostics and panics(!)
 // while this module is experimental and should eventually be removed or

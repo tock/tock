@@ -4,12 +4,12 @@
 
 //! VirtIO memory mapped device driver
 
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
+    InMemoryRegister, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
 };
-use kernel::utilities::StaticRef;
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::super::queues::Virtqueue;

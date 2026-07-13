@@ -30,7 +30,6 @@
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use capsules_system::debug_writer::uart_debug_writer::UartDebugWriter;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::capabilities::SetDebugWriterCapability;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
@@ -151,9 +150,6 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability>
     }
 }
 
-pub struct Capability;
-unsafe impl capabilities::ProcessManagementCapability for Capability {}
-
 impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> Component
     for DebugWriterComponent<BUF_SIZE_BYTES, C>
 {
@@ -170,10 +166,7 @@ impl<const BUF_SIZE_BYTES: usize, C: SetDebugWriterCapability> Component
 
         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
-        // SAFETY: MaybeUninit<u8> has the same size and alignment as u8.
-        let internal_buf: &mut [core::mem::MaybeUninit<u8>] = unsafe {
-            core::slice::from_raw_parts_mut(internal_buf.as_mut_ptr().cast(), internal_buf.len())
-        };
+        let internal_buf = kernel::utilities::slice_uninit::mut_slice_as_maybeuninit(internal_buf);
 
         // Create virtual device for kernel debug.
         let debugger_uart = s.0.write(UartDevice::new(self.uart_mux, false));
@@ -200,10 +193,10 @@ pub struct DebugWriterNoMuxComponent<
 }
 
 impl<
-        U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
-        const BUF_SIZE_BYTES: usize,
-        C: SetDebugWriterCapability,
-    > DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES, C>
+    U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
+    const BUF_SIZE_BYTES: usize,
+    C: SetDebugWriterCapability,
+> DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES, C>
 {
     pub fn new(uart: &'static U, capability: C) -> Self {
         Self {
@@ -215,10 +208,10 @@ impl<
 }
 
 impl<
-        U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
-        const BUF_SIZE_BYTES: usize,
-        C: SetDebugWriterCapability,
-    > Component for DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES, C>
+    U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
+    const BUF_SIZE_BYTES: usize,
+    C: SetDebugWriterCapability,
+> Component for DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES, C>
 {
     type StaticInput = (
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
@@ -231,10 +224,7 @@ impl<
         let buf = s.1.write([0; BUF_SIZE_BYTES]);
         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
-        // SAFETY: MaybeUninit<u8> has the same size and alignment as u8.
-        let internal_buf: &mut [core::mem::MaybeUninit<u8>] = unsafe {
-            core::slice::from_raw_parts_mut(internal_buf.as_mut_ptr().cast(), internal_buf.len())
-        };
+        let internal_buf = kernel::utilities::slice_uninit::mut_slice_as_maybeuninit(internal_buf);
 
         // Create virtual device for kernel debug.
         let ring_buffer = s.0.write(RingBuffer::new(internal_buf));

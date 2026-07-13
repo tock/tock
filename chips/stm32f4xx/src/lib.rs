@@ -33,7 +33,7 @@ pub mod usart;
 // Clocks
 pub mod clocks;
 
-use cortexm4f::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work

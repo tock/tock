@@ -26,10 +26,10 @@ use kernel::{capabilities, create_capability, static_init};
 
 #[allow(unused)]
 use psoc62xa::{
+    BASE_VECTORS,
     chip::{PsoC62xaDefaultPeripherals, Psoc62xa},
     gpio::GpioPin,
     tcpwm::Tcpwm0,
-    BASE_VECTORS,
 };
 
 // State for loading and holding applications.

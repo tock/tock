@@ -32,10 +32,10 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 /// Handle keeping a list of active users of flash hardware and serialize their
 /// requests.

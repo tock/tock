@@ -12,9 +12,9 @@
 //! - Date: November 27, 2017
 
 use core::fmt;
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::{register_bitfields, ReadOnly};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::Readable;
+use kernel::utilities::registers::{ReadOnly, register_bitfields};
 
 const FICR_BASE: StaticRef<FicrRegisters> =
     unsafe { StaticRef::new(0x10000000 as *const FicrRegisters) };

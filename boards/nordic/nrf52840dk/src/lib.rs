@@ -84,9 +84,9 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::cells::MapCell;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
+use nrf52_components::{UartChannel, UartPins};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -826,15 +826,11 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
-    let analog_comparator_channel = static_init!(
-        nrf52840::acomp::Channel,
-        nrf52840::acomp::Channel::new(nrf52840::acomp::ChannelNumber::AC0)
-    );
     let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
-            analog_comparator_channel
+            nrf52840::acomp::Channel::new(nrf52840::acomp::ChannelNumber::AC0),
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,

@@ -14,6 +14,7 @@
 //! is running. The only way for a process to longer be the highest priority is
 //! for an interrupt to occur, which will cause the process to stop running.
 
+use kernel::Kernel;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::deferred_call::DeferredCall;
 use kernel::platform::chip::Chip;
@@ -21,7 +22,6 @@ use kernel::process::ProcessId;
 use kernel::process::StoppedExecutingReason;
 use kernel::scheduler::{Scheduler, SchedulingDecision};
 use kernel::utilities::cells::OptionalCell;
-use kernel::Kernel;
 
 /// Priority scheduler based on the order of processes in the `PROCESSES` array.
 pub struct PrioritySched<CAP: ProcessManagementCapability> {

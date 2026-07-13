@@ -34,12 +34,12 @@
 
 use kernel::collections::list::{List, ListLink, ListNode};
 
+use kernel::ErrorCode;
 use kernel::hil::kv;
 use kernel::hil::kv::KVPermissions;
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Operation {
