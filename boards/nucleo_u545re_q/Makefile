@@ -43,7 +43,6 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(PROBE_RS) download --chip $(CHIP) --allow-erase-all $<.clean
 	$(PROBE_RS) reset --chip $(CHIP)
 
-
 .PHONY: program
 program:
 	# Note: tockloader does not natively wrap probe-rs yet.
