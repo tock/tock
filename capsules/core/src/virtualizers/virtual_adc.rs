@@ -88,14 +88,13 @@ pub struct AdcDevice<'a, A: hil::adc::Adc<'a>> {
 
 impl<'a, A: hil::adc::Adc<'a>> AdcDevice<'a, A> {
     pub const fn new(mux: &'a MuxAdc<'a, A>, channel: A::Channel) -> AdcDevice<'a, A> {
-        let adc_user = AdcDevice {
+        AdcDevice {
             mux,
             channel,
             operation: OptionalCell::empty(),
             next: ListLink::empty(),
             client: OptionalCell::empty(),
-        };
-        adc_user
+        }
     }
 
     pub fn add_to_mux(&'a self) {
