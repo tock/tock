@@ -374,7 +374,6 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xx::new(periphs)
     );
 
-    // 1. Import
     // Symbols for linker
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -406,6 +405,7 @@ unsafe fn start() -> (
         &capsules_system::process_policies::PanicFaultPolicy {},
         &create_capability!(capabilities::ProcessManagementCapability),
     );
+
     (board_kernel, platform, chip)
 }
 
