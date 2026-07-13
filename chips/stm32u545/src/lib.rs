@@ -8,9 +8,6 @@ use stm32u5xx::entropy::{RNG_CR_CONFIG_U545, RNG_HTCR_CONFIG_U545, RNG_NSCR_CONF
 pub use stm32u5xx::{chip, dma, entropy, exti, gpio, nvic, rcc, rsa, tim, usart};
 
 use cortexm33::{CortexM33, CortexMVariant};
-// specified in the documentation (NIST compliant RNG configuration table in AN4230 available from www.st.com.)
-// that values for the CR, HTCR and NSCR should be 0x00F11F00, 0x76B3 and 0x24C2 respectivly. CR config
-// is that value, 0x00F11F00, plus the CONDRST bit
 
 pub type Trng<'a> =
     stm32u5xx::entropy::Trng<'a, RNG_CR_CONFIG_U545, RNG_HTCR_CONFIG_U545, RNG_NSCR_CONFIG_U545>;
