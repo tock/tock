@@ -43,13 +43,9 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(PROBE_RS) download --chip $(CHIP) --allow-erase-all $<.clean
 	$(PROBE_RS) reset --chip $(CHIP)
 
-.PHONY: flash-probe-rs
-flash-probe-rs: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-		$(Q)probe-rs download --chip STM32U545RETx --allow-erase-all $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-		$(Q)probe-rs reset --chip STM32U545RETx
 
 .PHONY: program
 program:
-	# Note: tockloader does not natively wrap probe-rs yet. 
+	# Note: tockloader does not natively wrap probe-rs yet.
 	# The --openocd flag was removed; tockloader will use its default method (usually serial/jlink).
 	tockloader install --board nucleo_u545re_q $(APP)
