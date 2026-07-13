@@ -7,10 +7,12 @@ use crate::dma::{ChannelId, Dma};
 use crate::exti;
 use crate::gpio;
 use crate::nvic::{
-    EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ,
-    GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
-    GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ,
-    GPDMA1_CH15_IRQ, TIM2_IRQ, USART1_IRQ,
+    EXTI0_IRQ, EXTI1_IRQ, EXTI2_IRQ, EXTI3_IRQ, EXTI4_IRQ, EXTI5_IRQ, EXTI6_IRQ, EXTI7_IRQ,
+    EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ, EXTI14_IRQ, EXTI15_IRQ,
+    GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ,
+    GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ, GPDMA1_CH10_IRQ,
+    GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, TIM2_IRQ,
+    USART1_IRQ,
 };
 use crate::rcc;
 use crate::tim;
@@ -85,9 +87,69 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
                 self.usart1.handle_interrupt();
                 true
             }
+            EXTI0_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line00);
+                true
+            }
+            EXTI1_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line01);
+                true
+            }
+            EXTI2_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line02);
+                true
+            }
+            EXTI3_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line03);
+                true
+            }
+            EXTI4_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line04);
+                true
+            }
+            EXTI5_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line05);
+                true
+            }
+            EXTI6_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line06);
+                true
+            }
+            EXTI7_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line07);
+                true
+            }
+            EXTI8_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line08);
+                true
+            }
+            EXTI9_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line09);
+                true
+            }
+            EXTI10_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line10);
+                true
+            }
+            EXTI11_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line11);
+                true
+            }
+            EXTI12_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line12);
+                true
+            }
             EXTI13_IRQ => {
                 // EXTI13 (Button)
                 self.exti.handle_interrupt(crate::exti::LineId::Line13);
+                true
+            }
+            EXTI14_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line14);
+                true
+            }
+            EXTI15_IRQ => {
+                self.exti.handle_interrupt(crate::exti::LineId::Line15);
                 true
             }
             // Route all 16 GPDMA1 Channels to the DMA manager
