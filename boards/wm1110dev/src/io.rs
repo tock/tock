@@ -19,7 +19,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_red_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_14);
     let led = &mut led::LedHigh::new(led_red_pin);
 
-    debug::panic::<_, nrf52840::uart::Uarte, _, _>(
+    debug::panic::<_, nrf52840::uart::Uarte, _, _, _>(
         &mut [led],
         nrf52840::uart::UartPanicWriterConfig {
             params: uart::Parameters {
@@ -37,5 +37,6 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         pi,
         &cortexm4::support::nop,
         crate::PANIC_RESOURCES.get(),
+        &kernel::create_capability!(kernel::capabilities::PanicCapability),
     )
 }

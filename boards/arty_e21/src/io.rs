@@ -39,7 +39,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let led_red = &mut led::LedHigh::new(led_red_pin);
 
-    debug::panic::<_, sifive::uart::Uart, _, _>(
+    debug::panic::<_, sifive::uart::Uart, _, _, _>(
         &mut [led_red],
         sifive::uart::UartPanicWriterConfig {
             registers: arty_e21_chip::uart::UART0_BASE,
@@ -55,5 +55,6 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         pi,
         &rv32i::support::nop,
         crate::PANIC_RESOURCES.get(),
+        &kernel::create_capability!(kernel::capabilities::PanicCapability),
     )
 }

@@ -22,19 +22,20 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
         crate::RTT_BUFFER.get().and_then(MapCell::take).map_or_else(
             || debug::panic_blink_forever(&mut [led]),
             |rtt| {
-                debug::panic::<_, segger::rtt::SeggerRttMemory, _, _>(
+                debug::panic::<_, segger::rtt::SeggerRttMemory, _, _, _>(
                     &mut [led],
                     rtt,
                     pi,
                     &cortexm4::support::nop,
                     crate::PANIC_RESOURCES.get(),
+                    &kernel::create_capability!(kernel::capabilities::PanicCapability),
                 )
             },
         )
     } else {
         // Use the nRF52 UART for panic output.
 
-        debug::panic::<_, nrf52840::uart::Uarte, _, _>(
+        debug::panic::<_, nrf52840::uart::Uarte, _, _, _>(
             &mut [led],
             nrf52840::uart::UartPanicWriterConfig {
                 params: uart::Parameters {
@@ -52,6 +53,7 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
             pi,
             &cortexm4::support::nop,
             crate::PANIC_RESOURCES.get(),
+            &kernel::create_capability!(kernel::capabilities::PanicCapability),
         )
     }
 }
