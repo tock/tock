@@ -11,6 +11,10 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+pub const RNG_CR_CONFIG_U545: u32 = 0x40F11F00;
+pub const RNG_HTCR_CONFIG_U545: u32 = 0x76B3;
+pub const RNG_NSCR_CONFIG_U545: u32 = 0x24C2;
+
 register_structs! {
     /// Random number generator
     pub RngRegisters {
