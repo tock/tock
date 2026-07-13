@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
 
+use crate::dac;
 use crate::dma::{ChannelId, Dma};
 use crate::exti;
 use crate::gpio;
@@ -34,11 +35,17 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub dma1: &'a Dma,
     pub gpio_a: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
+    pub dac: dac::Dac,
 }
 
 fn enable_tim2_clock() {
     let rcc = rcc::Rcc::new(rcc::RCC_BASE);
     rcc.enable_tim2();
+}
+
+fn enable_dac1_clock() {
+    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
+    rcc.enable_dac1();
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
@@ -51,6 +58,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             dma1,
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
+            dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
         }
     }
 
@@ -62,6 +70,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
         self.rcc.set_usart1_source_pclk();
+        self.rcc.enable_dac1();
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();

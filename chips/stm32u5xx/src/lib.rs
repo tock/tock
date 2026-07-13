@@ -5,6 +5,7 @@
 #![no_std]
 
 pub mod chip;
+pub mod dac;
 pub mod dma;
 pub mod exti;
 pub mod gpio;

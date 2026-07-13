@@ -55,6 +55,7 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
 }
 
@@ -68,6 +69,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
@@ -127,6 +129,12 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
     let btn = periphs.gpio_c.pin(PinId::Pin13);
     btn.make_input();
     btn.set_floating_state(kernel::hil::gpio::FloatingState::PullDown);
+
+    //DAC pin (PA4) A2 on the board
+    periphs
+        .gpio_a
+        .pin(PinId::Pin04)
+        .set_mode(stm32u545::gpio::Mode::Analog);
 }
 
 #[inline(never)]
@@ -238,6 +246,8 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let dac = components::dac::DacComponent::new(&periphs.dac)
+        .finalize(components::dac_component_static!());
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
@@ -286,6 +296,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            dac,
             gpio,
         }
     );
