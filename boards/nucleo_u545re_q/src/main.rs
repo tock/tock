@@ -9,7 +9,6 @@
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -186,17 +185,11 @@ unsafe fn start() -> (
         stm32u545::dma::Dma,
         stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
     );
-    let usart1 = static_init!(
-        stm32u545::usart::Usart<'static>,
-        stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
-    );
-
-    usart1.register();
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(exti, dma1)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -211,7 +204,7 @@ unsafe fn start() -> (
         .finalize(components::process_array_component_static!(NUM_PROCS));
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    let uart_mux = components::console::UartMuxComponent::new(periphs.usart1, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&periphs.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
 
     let alarm_mux = components::alarm::AlarmMuxComponent::new(&periphs.tim2).finalize(
