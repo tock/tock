@@ -307,10 +307,8 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
             CR::MODE::MontgomeryModularExp + CR::PROCENDIE::SET + CR::START::SET + CR::EN::SET,
         );
 
-        // for _ in 0..100000 {}
-
         // TODO remove
-        kernel::debug!("CR::OPERRIE {:#b}", self.registers.cr.read(CR::OPERRIE));
+        kernel::debug!("\nCR::OPERRIE {:#b}", self.registers.cr.read(CR::OPERRIE));
         kernel::debug!("CR::ADDERIE {:#b}", self.registers.cr.read(CR::ADDERRIE));
         kernel::debug!("CR::RAMERRIE {:#b}", self.registers.cr.read(CR::RAMERRIE));
         kernel::debug!("CR::PROCENDIE {:#b}", self.registers.cr.read(CR::PROCENDIE));
@@ -324,10 +322,6 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         kernel::debug!("SR::PROCENDF {:#b}", self.registers.sr.read(SR::PROCENDF));
         kernel::debug!("SR::BUSY {:#b}", self.registers.sr.read(SR::BUSY));
         kernel::debug!("SR::INITOK {:#b}\n", self.registers.sr.read(SR::INITOK));
-
-        for i in 0..self.registers.ram.len() {
-            kernel::debug!("RAM [{i}]: {:#b}", self.registers.ram[i].get());
-        }
 
         Ok(())
     }

@@ -10,7 +10,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::entropy::Entropy32;
 use kernel::hil::public_key_crypto::rsa_math::RsaCryptoBase;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -292,12 +291,10 @@ unsafe fn start() -> (
         &capsules_system::process_policies::PanicFaultPolicy {},
         &create_capability!(capabilities::ProcessManagementCapability),
     );
-    use capsules_extra::test::rng::RngEntropy32Test;
 
     // Test RSA
     // TODO remove before PR
-    periphs.rcc.enable_hsi48();
-    periphs.rcc.enable_rng();
+    periphs.rcc.enable_trng();
     periphs.rcc.enable_pka();
     cortexm33::nvic::Nvic::new(stm32u545::nvic::PKA_IRQ).enable();
     for _ in 0..670 {}
