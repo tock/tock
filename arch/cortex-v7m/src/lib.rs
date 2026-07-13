@@ -121,7 +121,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     // `SYSCALL_FIRED` which is stored in the syscall file.
     // `UserspaceKernelBoundary` will use this variable to decide why the app
     // stopped executing.
-    ldr r0, =SYSCALL_FIRED            // r0 = &SYSCALL_FIRED
+    ldr r0, ={syscall_fired}          // r0 = &SYSCALL_FIRED
     mov r1, #1                        // r1 = 1
     str r1, [r0]                      // *SYSCALL_FIRED = 1
 
@@ -147,7 +147,8 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
 
     // Return to the kernel.
     bx lr
-        "
+        ",
+        syscall_fired = sym cortexm::syscall::SYSCALL_FIRED,
     );
 }
 
@@ -588,7 +589,7 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     bne {kernel_hard_fault_handler} // branch to kernel hard fault handler
     // Otherwise, the hard fault occurred in userspace. In this case, read
     // the relevant SCB registers:
-    ldr r0, =SCB_REGISTERS    // Global variable address
+    ldr r0, ={scb_registers}  // Global variable address
     ldr r1, =0xE000ED14       // SCB CCR register address
     ldr r2, [r1, #0]          // CCR
     str r2, [r0, #0]
@@ -601,7 +602,7 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     ldr r2, [r1, #36]         // BFAR
     str r2, [r0, #16]
 
-    ldr r0, =APP_HARD_FAULT  // Global variable address
+    ldr r0, ={app_hard_fault}// Global variable address
     mov r1, #1               // r1 = 1
     str r1, [r0, #0]         // APP_HARD_FAULT = 1
 
@@ -621,6 +622,8 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         ",
         estack = sym _estack,
         kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
+        app_hard_fault = sym cortexm::syscall::APP_HARD_FAULT,
+        scb_registers = sym cortexm::syscall::SCB_REGISTERS,
     );
 }
 

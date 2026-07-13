@@ -171,7 +171,6 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 /// - This does not fall-through, it branches at the end.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     use core::arch::naked_asm;
     naked_asm!(

@@ -269,7 +269,7 @@ unsafe extern "C" fn svc_handler() {
     // CONTROL writes must be followed by ISB
     // https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers
     isb
-    ldr r0, =SYSCALL_FIRED
+    ldr r0, ={syscall_fired}
     movs r1, #1
     str r1, [r0, #0]
     ldr r1, 200f
@@ -280,7 +280,8 @@ unsafe extern "C" fn svc_handler() {
     .word 0xFFFFFFF9
 300: // EXC_RETURN_PSP
     .word 0xFFFFFFFD
-        "
+        ",
+        syscall_fired = sym cortexm::syscall::SYSCALL_FIRED,
     );
 }
 
@@ -340,7 +341,7 @@ unsafe extern "C" fn hard_fault_handler() {
 400: // _hardfault_app
     // Otherwise, store that a hardfault occurred in an app, store some CPU
     // state and finally return to the kernel stack:
-    ldr r0, =APP_HARD_FAULT
+    ldr r0, ={app_hard_fault}
     movs r1, #1 // Fault
     str r1, [r0, #0]
 
@@ -355,7 +356,7 @@ unsafe extern "C" fn hard_fault_handler() {
     // ARMv6-M however has no _privileged_ mode.
 
     // Read the SCB registers.
-    ldr r0, =SCB_REGISTERS
+    ldr r0, ={scb_registers}
     ldr r1, =0xE000ED14
     ldr r2, [r1, #0] // CCR
     str r2, [r0, #0]
@@ -385,6 +386,8 @@ unsafe extern "C" fn hard_fault_handler() {
     .word 0xFFFFFFF9
         ",
         kernel_hard_fault_handler = sym hard_fault_handler_kernel,
+        app_hard_fault = sym cortexm::syscall::APP_HARD_FAULT,
+        scb_registers = sym cortexm::syscall::SCB_REGISTERS,
     );
 }
 

@@ -23,7 +23,6 @@ use crate::CortexMVariant;
 ///
 /// Because this is a global `static mut` variable, we can only access it from
 /// inline assembly.
-#[unsafe(no_mangle)]
 #[used]
 pub static mut SYSCALL_FIRED: UnsafeCell<usize> = UnsafeCell::new(0);
 
@@ -36,7 +35,6 @@ pub static mut SYSCALL_FIRED: UnsafeCell<usize> = UnsafeCell::new(0);
 ///
 /// Because this is a global `static mut` variable, we can only access it from
 /// inline assembly.
-#[unsafe(no_mangle)]
 #[used]
 pub static mut APP_HARD_FAULT: UnsafeCell<usize> = UnsafeCell::new(0);
 
@@ -48,7 +46,6 @@ pub static mut APP_HARD_FAULT: UnsafeCell<usize> = UnsafeCell::new(0);
 ///
 /// Because this is a global `static mut` variable, we can only access it from
 /// inline assembly.
-#[unsafe(no_mangle)]
 #[used]
 pub static mut SCB_REGISTERS: UnsafeCell<[u32; 5]> = UnsafeCell::new([0; 5]);
 
@@ -70,11 +67,12 @@ pub fn get_global_app_hard_fault() -> usize {
     unsafe {
         core::arch::asm!(
             "
-    ldr  r0, =APP_HARD_FAULT          // r0 = &APP_HARD_FAULT
+    ldr  r0, ={app_hard_fault}        // r0 = &APP_HARD_FAULT
     movs r1, #0                       // r1 = 0
     ldr  r2, [r0]                     // r2 = *APP_HARD_FAULT
     str  r1, [r0]                     // *APP_HARD_FAULT = 0
             ",
+            app_hard_fault = sym APP_HARD_FAULT,
             out("r0") _,
             out("r1") _,
             out("r2") app_fault,
@@ -102,11 +100,12 @@ pub fn get_global_syscall_fired() -> usize {
     unsafe {
         core::arch::asm!(
             "
-    ldr  r0, =SYSCALL_FIRED           // r0 = &SYSCALL_FIRED
+    ldr  r0, ={syscall_fired}         // r0 = &SYSCALL_FIRED
     movs r1, #0                       // r1 = 0
     ldr  r2, [r0]                     // r2 = *SYSCALL_FIRED
     str  r1, [r0]                     // *SYSCALL_FIRED = 0
             ",
+            syscall_fired = sym SYSCALL_FIRED,
             out("r0") _,
             out("r1") _,
             out("r2") syscall_fired,
@@ -131,20 +130,11 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     let mmfar: u32;
     let bfar: u32;
 
-    // Need this for compatibility with armv6.
+    // Retrieve the stored SCB register values using assembly.
     //
     // Using the normal `ldr  r0, =SCB_REGISTERS` gives
     // "error: out of range pc-relative fixup value". So, instead, we pass in a
     // pointer based on the symbol.
-    //
-    // # Safety
-    //
-    // `SCB_REGISTERS` is the name of an allocated array of five `u32`s.
-    unsafe extern "C" {
-        static SCB_REGISTERS: [u32; 5];
-    }
-
-    // Retrieve the stored SCB register values using assembly.
     //
     // # Safety
     //
@@ -162,7 +152,7 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     ldr r4, [{addr}, #12]             // r4 = mmfar = SCB_REGISTERS[3]
     ldr r5, [{addr}, #16]             // r5 = bfar = SCB_REGISTERS[4]
             ",
-            addr = in(reg) core::ptr::from_ref::<[u32; 5]>(&SCB_REGISTERS),
+            addr = in(reg) core::ptr::addr_of!(SCB_REGISTERS),
             out("r1") _ccr,
             out("r2") cfsr,
             out("r3") hfsr,

@@ -59,7 +59,7 @@ pub unsafe extern "C" fn svc_handler() {
     bx r1
 
 300: // to_kernel
-    ldr r0, =SYSCALL_FIRED
+    ldr r0, ={syscall_fired}
     movs r1, #1
     str r1, [r0, #0]
     // Set thread mode to privileged as we switch back to the kernel.
@@ -73,7 +73,8 @@ pub unsafe extern "C" fn svc_handler() {
     .word 0xFFFFFFF9
 200: // EXC_RETURN_PSP
     .word 0xFFFFFFFD
-        "
+        ",
+        syscall_fired = sym cortexm::syscall::SYSCALL_FIRED,
     );
 }
 
