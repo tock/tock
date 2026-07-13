@@ -11,6 +11,9 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+// specified in the documentation (NIST compliant RNG configuration table in AN4230 available from www.st.com.)
+// that values for the CR, HTCR and NSCR should be 0x00F11F00, 0x76B3 and 0x24C2 respectivly. CR config
+// is that value, 0x00F11F00, plus the CONDRST bit
 pub const RNG_CR_CONFIG_U545: u32 = 0x40F11F00;
 pub const RNG_HTCR_CONFIG_U545: u32 = 0x76B3;
 pub const RNG_NSCR_CONFIG_U545: u32 = 0x24C2;
