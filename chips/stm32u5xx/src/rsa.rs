@@ -298,6 +298,8 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         // Bytes to bits
         let exp_bits = (exponent.len() * 8) as u32;
         let op_bits = (modulus.len() * 8) as u32;
+        kernel::debug!("Exp bits: {}", exp_bits);
+        kernel::debug!("Op bits: {}", op_bits);
 
         // Write necessary data to RAM
         self.registers.ram[EXP_LEN_IDX].set(exp_bits);

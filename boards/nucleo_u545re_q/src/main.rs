@@ -296,9 +296,9 @@ unsafe fn start() -> (
     // TODO remove before PR
     periphs.rcc.enable_pka();
     cortexm33::nvic::Nvic::new(stm32u545::nvic::PKA_IRQ).enable();
-    let msg = static_init!([u8; 4], [0, 0, 0, 2]);
-    let exp = static_init!([u8; 4], [0, 0, 0, 3]);
-    let md = static_init!([u8; 4], [0, 0, 0, 5]);
+    let msg = static_init!([u8; 4], [0, 0, 0, 0x2,]);
+    let exp = static_init!([u8; 4], [0, 0, 0, 0x3,]);
+    let md = static_init!([u8; 4], [0, 0, 0, 0x5,]);
     let res = static_init!([u8; 4], [0; 4]);
     let status = periphs.pka.mod_exponent(msg, md, exp, res);
 
