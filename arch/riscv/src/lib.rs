@@ -63,6 +63,25 @@ extern "C" {
 ///    any Rust code runs. See <https://github.com/tock/tock/issues/2222> for more
 ///    information.
 /// 3. Finally it calls `main()`, the main entry point for Tock boards.
+///
+/// # Safety
+///
+/// ## `naked`
+///
+/// - INPUTS: This does not use the existing value of any registers.
+/// - OUTPUTS: This DOES write two callee-saved registers and DOES NOT restore
+///   their values: `sp` and `fp` (`s0`). However, this function is the first code
+///   that runs, and needs to set the initial stack and frame pointers.
+///   Technically, this violates the `naked_asm!()` requirements. Otherwise,
+///   this does not write any callee-saved registers, and only uses caller-saved
+///   registers.
+/// - This does not fall-through, as it branches at the end.
+///
+/// ## `no_mangle`
+///
+/// We use `initialize_ram_jump_to_main` as a symbol in the linker file. This is
+/// the only user of the name `initialize_ram_jump_to_main` and no other symbol
+/// may use the same name.
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[link_section = ".riscv.start"]
 #[unsafe(naked)]
