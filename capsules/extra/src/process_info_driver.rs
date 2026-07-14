@@ -220,6 +220,7 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
                                                         process::State::Stopped(_) => 3,
                                                         process::State::Faulted => 4,
                                                         process::State::Terminated => 5,
+                                                        process::State::Faulting(_) => 6,
                                                     };
 
                                                 let _ = chunk.copy_from_slice_or_err(
@@ -254,7 +255,9 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
 
                                 3 => {
                                     // FAULT
-                                    process.set_fault_state();
+                                    process.set_faulting_state(
+                                        kernel::process::FaultReason::ForcedRestart,
+                                    );
                                 }
 
                                 4 => {
