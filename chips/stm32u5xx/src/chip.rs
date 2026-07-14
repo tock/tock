@@ -9,12 +9,12 @@ use crate::nvic::{
     EXTI13_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
     GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
     GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
-    PKA_IRQ, RNG_IRQ, TIM2_IRQ, USART1_IRQ,
+    PKA_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::rcc;
 use crate::tim;
 use crate::usart;
-use crate::{entropy, exti, rsa};
+use crate::{exti, rsa};
 
 use core::fmt::Write;
 use kernel::platform::chip::Chip;

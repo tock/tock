@@ -48,7 +48,7 @@ register_bitfields! [u32,
         PROCENDIE OFFSET(17) NUMBITS(1) [],
 
         // PKA operation code
-        MODE OFFSET(13) NUMBITS(6) [
+        MODE OFFSET(8) NUMBITS(6) [
             // Montogomery parameter computation then modular exponentioantion
             MontgomeryModularExp = 0b000000,
 
@@ -220,6 +220,14 @@ impl<'a> Pka<'a> {
     }
 
     pub fn handle_interrupt(&self) {
+        kernel::debug!("\nInterrupt fired!");
+        kernel::debug!("\nSR::OPERRF {:#b}", self.registers.sr.read(SR::OPERRF));
+        kernel::debug!("SR::ADDERRF {:#b}", self.registers.sr.read(SR::ADDRERRF));
+        kernel::debug!("SR::RAMERRF {:#b}", self.registers.sr.read(SR::RAMERRF));
+        kernel::debug!("SR::PROCENDF {:#b}", self.registers.sr.read(SR::PROCENDF));
+        kernel::debug!("SR::BUSY {:#b}", self.registers.sr.read(SR::BUSY));
+        kernel::debug!("SR::INITOK {:#b}\n", self.registers.sr.read(SR::INITOK));
+
         if self.registers.sr.is_set(SR::PROCENDF) {
             // Prevent interrupt from firing again
             self.registers.clrfr.write(CLRFR::PROCENDFC::SET);
@@ -307,8 +315,16 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
 
         // Configure the periferal
         self.registers.cr.modify(
-            CR::MODE::MontgomeryModularExp + CR::PROCENDIE::SET + CR::START::SET + CR::EN::SET,
+            CR::MODE::MontgomeryModularExp
+                + CR::PROCENDIE::SET
+                + CR::ADDERRIE::SET
+                + CR::RAMERRIE::SET
+                + CR::OPERRIE::SET
+                + CR::EN::SET,
         );
+
+        // Start the math
+        self.registers.cr.modify(CR::START::SET);
 
         // TODO remove
         kernel::debug!("\nCR::OPERRIE {:#b}", self.registers.cr.read(CR::OPERRIE));
