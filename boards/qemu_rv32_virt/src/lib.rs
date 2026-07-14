@@ -814,6 +814,7 @@ pub unsafe fn start() -> (
             &qemu_rv32_virt_chip::lockstep::QEMU_TRANSPORT,
             console,
             capsules_core::console::DRIVER_NUM,
+            qemu_rv32_virt_chip::lockstep::dispatch_layer1_event,
         ),
     );
 
@@ -1216,6 +1217,7 @@ pub unsafe fn start_secondary() -> (
             &qemu_rv32_virt_chip::lockstep::QEMU_TRANSPORT,
             console,
             capsules_core::console::DRIVER_NUM,
+            qemu_rv32_virt_chip::lockstep::dispatch_layer1_event,
         ),
     );
 

@@ -125,9 +125,9 @@ impl Transport for Rp2350Transport {
         while SIO::new().fifo_try_pop().is_some() {}
 
         if self.core_id() == 0 {
-            LOCKSTEP_CHAN.b_recv()
-        } else {
             LOCKSTEP_CHAN.a_recv()
+        } else {
+            LOCKSTEP_CHAN.b_recv()
         }
     }
 
@@ -178,11 +178,9 @@ pub fn dispatch_layer1_event(entry: SyncEntry) {
     match entry {
         SyncEntry::UartRxReady { len } => crate::uart::replay_rx_done_for_core1(len),
         SyncEntry::UartTxDone => crate::uart::replay_tx_done_for_core1(),
-        SyncEntry::Sync { .. } => {
-            unreachable!("lockstep_barrier must not dispatch its own Sync variant")
-        }
-        SyncEntry::SyscallDesc(_) | SyncEntry::UpcallDesc { .. } => {
-            unreachable!("Layer-2 syscall/upcall verification isn't wired up yet (Step B2)")
+        SyncEntry::SyscallDesc(desc) => store_pending_syscall(desc),
+        SyncEntry::Sync { .. } | SyncEntry::UpcallDesc { .. } => {
+            unreachable!("lockstep_barrier descriptors must not be dispatched as Layer-1 events")
         }
     }
 }

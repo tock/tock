@@ -23,7 +23,6 @@ use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::KernelActivity;
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init, Kernel};
@@ -38,7 +37,7 @@ use rp2350::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2350::lockstep::{
     dispatch_layer1_event, lockstep_barrier, DriverUpcallRules, LockstepDriver, LockstepUart,
     Rp2350UartHooks, Rp2350UpcallVerifier, SyncEntry, Transport as _, UpcallMode, UpcallRule,
-    DRAIN_TIMEOUT_TICKS, RP2350_TRANSPORT,
+    RP2350_TRANSPORT,
 };
 use rp2350::resets::Peripheral;
 use rp2350::timer::RPTimer;
@@ -110,7 +109,15 @@ type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new();
 
-type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
+// Cooperative on both cores, not this board's original RoundRobin: matches
+// qemu_rv32_virt's hart 0/1 (both Cooperative), which deliberately use the
+// same scheduler on both sides so fine-grained Layer-2 syscall lockstep sees
+// identical scheduling decisions -- preemption timing included -- round for
+// round. A RoundRobin/SysTick core racing against a Cooperative peer (or a
+// mismatched pair of the two) can land a process's syscalls on different
+// rounds than its peer, which is what caused "shadow ... has no matching
+// leader descriptor" panics during lockstep bring-up.
+type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 
 /// Supported drivers by the platform
 pub struct RaspberryPiPico2 {
@@ -121,7 +128,6 @@ pub struct RaspberryPiPico2 {
         capsules_core::console::Console<'static>,
     >,
     scheduler: &'static SchedulerInUse,
-    systick: cortexm33::systick::SysTick,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rp2350::timer::RPTimer<'static>>,
@@ -151,7 +157,7 @@ impl KernelResources<Rp2350<'static, Rp2350DefaultPeripherals<'static>>> for Ras
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = SchedulerInUse;
-    type SchedulerTimer = cortexm33::systick::SysTick;
+    type SchedulerTimer = ();
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -168,7 +174,7 @@ impl KernelResources<Rp2350<'static, Rp2350DefaultPeripherals<'static>>> for Ras
         self.scheduler
     }
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.systick
+        &()
     }
     fn watchdog(&self) -> &Self::WatchDog {
         &()
@@ -228,6 +234,19 @@ core::arch::global_asm!(
 /// peripheral-light test app (e.g. yield-test) on both cores.
 const NUM_PROCS_H1: usize = 1;
 
+// SCRATCH DIAGNOSTIC (fail-stop verification): plain shared atomics, safe to
+// write from core 1 without touching the UART directly (raw io::WRITER
+// writes from core 1 race with core 0's own interrupt-driven UART use --
+// confirmed by an earlier attempt that produced visibly interleaved output).
+// Core 0 reports these periodically via its own, already-safe kernel::debug!
+// path in its main loop below.
+static CORE1_STAGE: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+static CORE1_ROUND: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+/// Count of UartTxDone/UartRxReady/SyscallDesc Layer-1/2 events dispatched
+/// on core 1 so far. Also readable from the panic handler (io.rs), which
+/// reliably flushes even when triggered from core 1 (see the comment above).
+static CORE1_L1_EVENT_COUNT: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+
 /// Core 1's minimal, peripheral-free platform.
 struct Core1Platform {
     scheduler: &'static components::sched::cooperative::CooperativeComponentType,
@@ -254,11 +273,17 @@ impl KernelResources<Rp2350<'static, Rp2350DefaultPeripherals<'static>>> for Cor
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    // Must match core 0's scheduler exactly. Fine-grained Layer-2 syscall
+    // lockstep needs both cores to make identical scheduling decisions --
+    // preemption timing included -- round for round; a mismatch here (this
+    // used to be Cooperative on core 1 vs. core 0's original RoundRobin) is
+    // what caused "shadow ... has no matching leader descriptor" panics.
+    // Both cores now use Cooperative (matching qemu_rv32_virt's hart 0/1,
+    // which deliberately use the same scheduler for the same reason) rather
+    // than giving core 1 a RoundRobin+SysTick pairing, since Cooperative
+    // needs no `SchedulerTimer` at all -- simpler than keeping two SysTick
+    // instances in sync.
     type Scheduler = components::sched::cooperative::CooperativeComponentType;
-    // `()` implements `SchedulerTimer` as a no-op. Combined with a
-    // Cooperative scheduler (no preemption), core 1 never needs to arm a
-    // TIMER0 alarm channel, avoiding contention with core 0's alarm0 use --
-    // TIMER0's alarm registers are shared chip-wide, not banked per-core.
     type SchedulerTimer = ();
     type WatchDog = ();
     type ContextSwitchCallback = ();
@@ -295,6 +320,9 @@ impl KernelResources<Rp2350<'static, Rp2350DefaultPeripherals<'static>>> for Cor
 pub unsafe extern "C" fn core1_entry() -> ! {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
+    // SCRATCH DIAGNOSTIC: prove core 1 reaches this point at all.
+    CORE1_STAGE.store(1, core::sync::atomic::Ordering::Relaxed);
+
     // Boot handshake: wait for core 0's one-time init Sync (pushed after
     // load_processes(), see main()), and echo it back. Reusing
     // `lockstep_barrier` for this (rather than hand-rolled channel calls)
@@ -307,6 +335,9 @@ pub unsafe extern "C" fn core1_entry() -> ! {
         SyncEntry::Sync { fingerprint: 0 },
         dispatch_layer1_event,
     );
+
+    // SCRATCH DIAGNOSTIC
+    CORE1_STAGE.store(2, core::sync::atomic::Ordering::Relaxed);
 
     // Fresh, independent peripheral handles -- NOT shared with core 0's.
     // `Clocks` caches configured frequencies in `Cell`s, which are neither
@@ -379,7 +410,12 @@ pub unsafe extern "C" fn core1_entry() -> ! {
     // `LockstepDriver::command` branches to the shadow path.
     let lockstep_console = static_init!(
         LockstepDriver<'static, rp2350::lockstep::Rp2350Transport, capsules_core::console::Console<'static>>,
-        LockstepDriver::new(&RP2350_TRANSPORT, console, capsules_core::console::DRIVER_NUM)
+        LockstepDriver::new(
+            &RP2350_TRANSPORT,
+            console,
+            capsules_core::console::DRIVER_NUM,
+            dispatch_layer1_event,
+        )
     );
 
     let upcall_verifier_h1 = static_init!(
@@ -421,67 +457,48 @@ pub unsafe extern "C" fn core1_entry() -> ! {
         // fingerprints against a divergence.
     });
 
-    loop {
-        // Phase 1: drain Layer-1 events until core 0's Sync for this round
-        // arrives. Core 0 pushes its round's Layer-1 events (UartRxReady /
-        // UartTxDone) during its own kernel_loop_operation, before pushing
-        // Sync -- draining them here, before Phase 2 runs this round's
-        // kernel_loop_operation, keeps both cores' per-round scheduling
-        // decisions based on the same information (e.g. whether a process is
-        // runnable because its pending UART completion was already
-        // delivered). Running Phase 2 first and only draining afterwards
-        // (via lockstep_barrier's dispatch) would replay events one round
-        // late and risk a spurious fingerprint mismatch.
-        //
-        // Timeout strategy: only start the fault-detection clock after the
-        // first L1 event arrives. During pure idle (app sleeping) core 0
-        // sends nothing -- waiting indefinitely here is correct.
-        let mut post_l1_start: Option<u32> = None;
-        let h0_fp = loop {
-            if let Some(entry) = RP2350_TRANSPORT.try_pop() {
-                match entry {
-                    SyncEntry::Sync { fingerprint } => break fingerprint,
-                    other => {
-                        dispatch_layer1_event(other);
-                        post_l1_start = Some(RP2350_TRANSPORT.now_ticks());
-                    }
-                }
-            }
-            if let Some(l1_start) = post_l1_start {
-                if RP2350_TRANSPORT.now_ticks().wrapping_sub(l1_start) >= DRAIN_TIMEOUT_TICKS {
-                    panic!("lockstep: core 1 sync-wait timeout after L1 event (divergence?)");
-                }
-            }
-            core::hint::spin_loop();
-        };
+    // SCRATCH DIAGNOSTIC
+    CORE1_STAGE.store(3, core::sync::atomic::Ordering::Relaxed);
 
-        // Phase 2: run one non-KernelWork kernel operation.
-        let activity = loop {
-            let a = board_kernel.kernel_loop_operation(
-                &platform,
-                chip,
-                None::<&kernel::ipc::IPC<{ NUM_PROCS_H1 as u8 }>>,
-                true, // no_sleep: core 1 has no interrupt-driven wake configured
-                &main_loop_capability,
-            );
-            if !matches!(a, KernelActivity::KernelWork) {
-                break a;
-            }
-        };
-        // After a process-running round, drain any TX-done event that
-        // arrived on the channel before the process called transmit_buffer.
+    let mut round: u32 = 0;
+
+    // No outer per-round Sync barrier: core 0 often needs extra rounds of
+    // real kernel work (interrupt servicing) that core 1, immune to those
+    // peripherals, never experiences, so forcing a round-for-round
+    // rendezvous here was fighting the two cores' natural pace instead of
+    // verifying anything meaningful. The only cross-core synchronization
+    // left is: (1) Layer 1's opportunistic, non-blocking event drain below,
+    // and (2) Layer 2's per-syscall gate in `LockstepDriver::command`
+    // (`libraries/lockstep/src/lib.rs`), which is where real divergence
+    // detection now lives -- it spin-waits (bounded, fail-stop on timeout)
+    // for the leader's descriptor rather than assuming "not here yet" means
+    // "never coming."
+    loop {
+        round += 1;
+        CORE1_ROUND.store(round, core::sync::atomic::Ordering::Relaxed);
+
+        // Opportunistically drain and dispatch whatever's already on the
+        // channel -- non-blocking, no rendezvous. UartRxReady/UartTxDone
+        // replay immediately; SyscallDesc queues via store_pending_syscall
+        // for LockstepDriver::command's shadow branch to pick up when this
+        // core's own process reaches the matching syscall.
+        while let Some(entry) = RP2350_TRANSPORT.try_pop() {
+            dispatch_layer1_event(entry);
+            CORE1_L1_EVENT_COUNT.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        }
+
+        let _ = board_kernel.kernel_loop_operation(
+            &platform,
+            chip,
+            None::<&kernel::ipc::IPC<{ NUM_PROCS_H1 as u8 }>>,
+            true, // no_sleep: core 1 has no interrupt-driven wake configured
+            &main_loop_capability,
+        );
+        // Drain any TX-done event that arrived on the channel before the
+        // process called transmit_buffer.
         rp2350::uart::replay_pending_tx_done_for_core1();
 
-        let h1_fp = activity.fingerprint();
-        if h0_fp != h1_fp {
-            panic!(
-                "Lockstep divergence (core 1): core 0 {:#x}, core 1 {:#x}",
-                h0_fp, h1_fp,
-            );
-        }
-        while !RP2350_TRANSPORT.try_push(SyncEntry::Sync { fingerprint: h1_fp }) {
-            core::hint::spin_loop();
-        }
+        core::hint::spin_loop();
     }
 }
 
@@ -675,7 +692,12 @@ pub unsafe fn main() {
     // block until core 1 echoes the descriptor back, before emitting).
     let lockstep_console = static_init!(
         LockstepDriver<'static, rp2350::lockstep::Rp2350Transport, capsules_core::console::Console<'static>>,
-        LockstepDriver::new(&RP2350_TRANSPORT, console, capsules_core::console::DRIVER_NUM)
+        LockstepDriver::new(
+            &RP2350_TRANSPORT,
+            console,
+            capsules_core::console::DRIVER_NUM,
+            dispatch_layer1_event,
+        )
     );
 
     let upcall_verifier = static_init!(
@@ -756,8 +778,8 @@ pub unsafe fn main() {
     .finalize(components::process_console_component_static!(RPTimer));
     let _ = process_console.start();
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
-        .finalize(components::round_robin_component_static!(NUM_PROCS));
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let raspberry_pi_pico = RaspberryPiPico2 {
         ipc: kernel::ipc::IPC::new(
@@ -770,7 +792,6 @@ pub unsafe fn main() {
         gpio,
         led,
         scheduler,
-        systick: cortexm33::systick::SysTick::new_with_calibration(125_000_000),
     };
 
     kernel::debug!("Initialization complete. Enter main loop");
@@ -822,8 +843,18 @@ pub unsafe fn main() {
 
     kernel::debug!("Entering main loop.");
 
+    // No outer per-round Sync barrier on this side either -- see the
+    // matching comment in `core1_entry`. Real divergence detection now lives
+    // entirely in Layer 2's per-syscall gate (`LockstepDriver::command`).
+    //
+    // SCRATCH DIAGNOSTIC (fail-stop verification, remove once stable):
+    // report core 1's progress (written to CORE1_STAGE/CORE1_ROUND via plain
+    // atomics) periodically, from core 0's own already-safe kernel::debug!
+    // path.
+    let mut round0: u32 = 0;
+
     loop {
-        let activity = board_kernel.kernel_loop_operation(
+        let _ = board_kernel.kernel_loop_operation(
             &raspberry_pi_pico,
             chip,
             Some(&raspberry_pi_pico.ipc),
@@ -831,26 +862,14 @@ pub unsafe fn main() {
             &main_loop_capability,
         );
 
-        // Batch all kernel work before syncing so core 1 has a chance to
-        // drain the full set of channel events and reach the same scheduler
-        // decision.
-        if matches!(activity, KernelActivity::KernelWork) {
-            continue;
-        }
-
-        let theirs = lockstep_barrier(
-            &RP2350_TRANSPORT,
-            SyncEntry::Sync { fingerprint: activity.fingerprint() },
-            |_| {},
-        );
-        if let SyncEntry::Sync { fingerprint: h1_fp } = theirs {
-            let h0_fp = activity.fingerprint();
-            if h1_fp != h0_fp {
-                panic!(
-                    "Lockstep divergence: core 0 {:#x}, core 1 {:#x}",
-                    h0_fp, h1_fp,
-                );
-            }
+        round0 += 1;
+        if round0 <= 5 || round0 % 200 == 0 {
+            kernel::debug!(
+                "[core0] round0={} core1_stage={} core1_round={}",
+                round0,
+                CORE1_STAGE.load(core::sync::atomic::Ordering::Relaxed),
+                CORE1_ROUND.load(core::sync::atomic::Ordering::Relaxed),
+            );
         }
     }
 }

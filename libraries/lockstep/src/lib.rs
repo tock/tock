@@ -311,9 +311,11 @@ pub(crate) fn take_pending_syscall() -> Option<SyscallDesc> {
 ///   until the shadow echoes the same descriptor back as confirmation. Only
 ///   then calls `inner.command()` — this is the **before-emit gate**.
 /// - **Shadow (core 1)**: pops the descriptor buffered by
-///   [`store_pending_syscall`] during Phase 1, compares scalar args and
-///   payload fingerprint (panicking on mismatch), echoes the descriptor back,
-///   then calls `inner.command()`.
+///   [`store_pending_syscall`] (from the board's own background drain, if it
+///   already arrived) or, if the leader hasn't reached this syscall yet,
+///   spin-waits for it directly -- see [`Self::command`] -- compares scalar
+///   args and payload fingerprint (panicking on mismatch), echoes the
+///   descriptor back, then calls `inner.command()`.
 ///
 /// Set `payload_allow_num` (via board wiring) to fingerprint the app's
 /// RO-allow buffer before each gated command. For the console driver, slot 1
@@ -322,13 +324,19 @@ pub struct LockstepDriver<'a, T: Transport, D: kernel::syscall::SyscallDriver + 
     transport: &'a T,
     inner: &'a D,
     driver_num: usize,
+    /// Dispatches a non-`SyscallDesc` channel entry (`UartRxReady`/
+    /// `UartTxDone`) encountered while the shadow spin-waits for a matching
+    /// leader descriptor in [`Self::command`]. Board-supplied (e.g.
+    /// `dispatch_layer1_event`) since the shared crate has no access to the
+    /// platform's HIL replay hooks. Unused on the leader path.
+    dispatch: fn(SyncEntry),
 }
 
 impl<'a, T: Transport, D: kernel::syscall::SyscallDriver + kernel::syscall::LockstepPayload>
     LockstepDriver<'a, T, D>
 {
-    pub fn new(transport: &'a T, inner: &'a D, driver_num: usize) -> Self {
-        Self { transport, inner, driver_num }
+    pub fn new(transport: &'a T, inner: &'a D, driver_num: usize, dispatch: fn(SyncEntry)) -> Self {
+        Self { transport, inner, driver_num, dispatch }
     }
 }
 
@@ -352,6 +360,19 @@ impl<T: Transport, D: kernel::syscall::SyscallDriver + kernel::syscall::Lockstep
         };
 
         if self.transport.core_id() == 0 {
+            // SCRATCH DIAGNOSTIC (fail-stop / gate-round debugging): safe to
+            // print unconditionally -- kernel::debug!() is thread-bound to
+            // whichever core registered the debug writer (core 0 only on
+            // both qemu_rv32_virt and rp2350), so this silently no-ops if
+            // ever reached from the shadow core.
+            kernel::debug!(
+                "[leader gate] driver={} sub={} a0={:#x} a1={:#x} fp={:#010x}",
+                desc.driver_num,
+                desc.sub,
+                desc.arg0,
+                desc.arg1,
+                desc.payload_fp,
+            );
             // Leader path: push descriptor, kick shadow, then block until
             // the shadow echoes the same descriptor back (before-emit gate).
             while !self.transport.try_push(SyncEntry::SyscallDesc(desc)) {
@@ -406,39 +427,61 @@ impl<T: Transport, D: kernel::syscall::SyscallDriver + kernel::syscall::Lockstep
                 core::hint::spin_loop();
             }
         } else {
-            // Shadow path: pop the leader's descriptor (stored during Phase-1
-            // drain), compare, echo it back as confirmation, then dispatch.
-            match take_pending_syscall() {
-                Some(SyscallDesc {
-                    driver_num: d,
-                    sub: s,
-                    arg0: a0,
-                    arg1: a1,
-                    payload_fp: fp,
-                }) => {
-                    if d != self.driver_num as u32
-                        || s != cmd as u8
-                        || a0 != arg0 as u32
-                        || a1 != arg1 as u32
-                        || fp != payload_fp
-                    {
-                        panic!(
-                            "Lockstep Layer-2: syscall mismatch driver {}: \
-                             leader=(d={d},sub={s},a0={a0:#x},a1={a1:#x},fp={fp:#010x}) \
-                             shadow=(sub={cmd},a0={arg0:#x},a1={arg1:#x},fp={payload_fp:#010x})",
-                            self.driver_num,
-                        );
-                    }
-                    // Echo our descriptor back as confirmation. The leader is
-                    // spin-polling try_pop, so no kick needed.
-                    while !self.transport.try_push(SyncEntry::SyscallDesc(desc)) {
-                        core::hint::spin_loop();
+            // Shadow path: the leader may not have reached this syscall yet
+            // -- e.g. core 0 owns real peripherals and can be interrupt-
+            // preempted before it gets here, while core 1 (immune to those
+            // peripherals) runs straight through. Rather than treating "not
+            // queued yet" as instant divergence, spin-wait for it: first
+            // check the queue the board's background drain already fills via
+            // `store_pending_syscall`, then fall back to polling the
+            // transport directly (that background drain can't run while
+            // we're nested here), dispatching any Layer-1 events that arrive
+            // in the meantime so the replica HIL doesn't fall behind.
+            let start = self.transport.now_ticks();
+            let leader_desc = loop {
+                if let Some(d) = take_pending_syscall() {
+                    break d;
+                }
+                if let Some(entry) = self.transport.try_pop() {
+                    match entry {
+                        SyncEntry::SyscallDesc(d) => break d,
+                        other => (self.dispatch)(other),
                     }
                 }
-                None => panic!(
-                    "Lockstep Layer-2: shadow driver {} sub {cmd} has no matching leader descriptor",
+                if self.transport.now_ticks().wrapping_sub(start) >= T::SYNC_TIMEOUT_TICKS {
+                    panic!(
+                        "Lockstep Layer-2: shadow driver {} sub {cmd} timed out waiting \
+                         for leader descriptor (leader diverged or hung?)",
+                        self.driver_num,
+                    );
+                }
+                self.transport.on_spin();
+                core::hint::spin_loop();
+            };
+            let SyscallDesc {
+                driver_num: d,
+                sub: s,
+                arg0: a0,
+                arg1: a1,
+                payload_fp: fp,
+            } = leader_desc;
+            if d != self.driver_num as u32
+                || s != cmd as u8
+                || a0 != arg0 as u32
+                || a1 != arg1 as u32
+                || fp != payload_fp
+            {
+                panic!(
+                    "Lockstep Layer-2: syscall mismatch driver {}: \
+                     leader=(d={d},sub={s},a0={a0:#x},a1={a1:#x},fp={fp:#010x}) \
+                     shadow=(sub={cmd},a0={arg0:#x},a1={arg1:#x},fp={payload_fp:#010x})",
                     self.driver_num,
-                ),
+                );
+            }
+            // Echo our descriptor back as confirmation. The leader is
+            // spin-polling try_pop, so no kick needed.
+            while !self.transport.try_push(SyncEntry::SyscallDesc(desc)) {
+                core::hint::spin_loop();
             }
         }
         self.inner.command(cmd, arg0, arg1, processid)

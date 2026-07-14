@@ -94,6 +94,21 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = &mut LedHigh::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
 
+    // SCRATCH DIAGNOSTIC (fail-stop / gate-round debugging): print core 1's
+    // round-loop state before the standard panic dump. Reliable to print
+    // here even from core 1 -- whichever core panics first is, by
+    // definition, the one still actively driving execution; its peer is
+    // blocked spin-waiting for a reply that will never come, so there's no
+    // concurrent UART writer to race against (see the interleaving bug this
+    // avoided in an earlier attempt at raw core-1 UART writes).
+    let _ = write!(
+        writer,
+        "\r\n[panic diag] core1_stage={} core1_round={} core1_l1_events={}\r\n",
+        crate::CORE1_STAGE.load(core::sync::atomic::Ordering::Relaxed),
+        crate::CORE1_ROUND.load(core::sync::atomic::Ordering::Relaxed),
+        crate::CORE1_L1_EVENT_COUNT.load(core::sync::atomic::Ordering::Relaxed),
+    );
+
     debug::panic_old(
         &mut [led],
         writer,
