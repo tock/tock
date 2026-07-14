@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
 
-use crate::adc::{Adc, SamplingTime as AdcSamplingTime};
+use crate::adc::{self, SamplingTime as AdcSamplingTime};
 use crate::dma::{ChannelId, Dma};
 use crate::exti;
 use crate::gpio;
@@ -13,7 +13,7 @@ use crate::nvic::{
     GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ,
     GPDMA1_CH9_IRQ, TIM2_IRQ, USART1_IRQ,
 };
-use crate::pwr::Pwr;
+use crate::pwr;
 use crate::rcc;
 use crate::tim;
 use crate::usart;
@@ -34,8 +34,8 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub usart1: &'a usart::Usart<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
-    pub pwr: &'a Pwr,
-    pub adc1: &'a Adc<'a>,
+    pub pwr: pwr::Pwr,
+    pub adc1: adc::Adc<'a>,
     pub gpio_a: gpio::Port<'a>,
     pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
@@ -47,21 +47,15 @@ fn enable_tim2_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(
-        usart1: &'a usart::Usart<'a>,
-        exti: &'a exti::Exti<'a>,
-        dma1: &'a Dma,
-        pwr: &'a Pwr,
-        adc1: &'a Adc<'a>,
-    ) -> Self {
+    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
             usart1,
             exti,
             dma1,
-            pwr,
-            adc1,
+            pwr: pwr::Pwr::new(),
+            adc1: adc::Adc::new(),
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),

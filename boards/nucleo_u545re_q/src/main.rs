@@ -183,15 +183,13 @@ unsafe fn start() -> (
         stm32u545::usart::Usart<'static>,
         stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
     );
-    let pwr = static_init!(stm32u545::pwr::Pwr, stm32u545::pwr::Pwr::new());
-    let adc1 = static_init!(stm32u545::adc::Adc, stm32u545::adc::Adc::new());
 
     usart1.register();
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, pwr, adc1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -269,7 +267,7 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
-    let adc_mux = components::adc::AdcMuxComponent::new(periphs.adc1)
+    let adc_mux = components::adc::AdcMuxComponent::new(&periphs.adc1)
         .finalize(components::adc_mux_component_static!(stm32u545::adc::Adc));
 
     // Register the ADC channels in the same order as Arduino pins A0-A5
