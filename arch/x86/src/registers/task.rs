@@ -20,9 +20,13 @@ use core::arch::asm;
 pub unsafe fn tr() -> segmentation::SegmentSelector {
     let segment: u16;
     unsafe {
-        asm!("str {0:x}",
+        asm!(
+            "
+    str {0:x}
+            ",
             out(reg) segment,
-            options(att_syntax, nostack, nomem, preserves_flags));
+            options(att_syntax, nostack, nomem, preserves_flags)
+        );
     }
     segmentation::SegmentSelector::from_raw(segment)
 }
@@ -33,9 +37,13 @@ pub unsafe fn tr() -> segmentation::SegmentSelector {
 #[cfg(target_arch = "x86")]
 pub unsafe fn load_tr(sel: segmentation::SegmentSelector) {
     unsafe {
-        asm!("ltr {0:x}",
+        asm!(
+            "
+    ltr {0:x}
+            ",
             in(reg) sel.bits(),
-            options(att_syntax, nostack, nomem, preserves_flags));
+            options(att_syntax, nostack, nomem, preserves_flags)
+        );
     }
 }
 

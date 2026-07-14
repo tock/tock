@@ -47,6 +47,6 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     hlt
     jmp     3b
 
-"
+        "
     );
 }

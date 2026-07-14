@@ -96,6 +96,11 @@ pub unsafe fn halt() {
     use core::arch::asm;
 
     unsafe {
-        asm!("hlt", options(att_syntax, nomem, nostack)); // check if preserves_flags
+        asm!(
+            "
+    hlt
+            ",
+            options(att_syntax, nomem, nostack) // check if preserves_flags
+        );
     }
 }

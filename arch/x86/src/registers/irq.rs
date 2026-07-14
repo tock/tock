@@ -291,7 +291,11 @@ pub static EXCEPTIONS: [InterruptDescription; 32] = [
 #[cfg(target_arch = "x86")]
 pub unsafe fn enable() {
     unsafe {
-        asm!("sti");
+        asm!(
+            "
+    sti
+            "
+        );
     }
 }
 
@@ -302,7 +306,11 @@ pub unsafe fn enable() {
 #[cfg(target_arch = "x86")]
 pub unsafe fn disable() {
     unsafe {
-        asm!("cli");
+        asm!(
+            "
+    cli
+            "
+        );
     }
 }
 

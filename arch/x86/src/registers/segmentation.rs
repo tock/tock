@@ -444,7 +444,13 @@ impl DescriptorBuilder {
 #[cfg(target_arch = "x86")]
 pub unsafe fn load_ss(sel: SegmentSelector) {
     unsafe {
-        asm!("movw {0:x}, %ss", in(reg) sel.bits(), options(att_syntax));
+        asm!(
+            "
+    movw {0:x}, %ss
+            ",
+            in(reg) sel.bits(),
+            options(att_syntax)
+        );
     }
 }
 
@@ -454,7 +460,13 @@ pub unsafe fn load_ss(sel: SegmentSelector) {
 #[cfg(target_arch = "x86")]
 pub unsafe fn load_ds(sel: SegmentSelector) {
     unsafe {
-        asm!("movw {0:x}, %ds", in(reg) sel.bits(), options(att_syntax));
+        asm!(
+            "
+    movw {0:x}, %ds
+            ",
+            in(reg) sel.bits(),
+            options(att_syntax)
+        );
     }
 }
 
@@ -464,7 +476,13 @@ pub unsafe fn load_ds(sel: SegmentSelector) {
 #[cfg(target_arch = "x86")]
 pub unsafe fn load_es(sel: SegmentSelector) {
     unsafe {
-        asm!("movw {0:x}, %es", in(reg) sel.bits(), options(att_syntax));
+        asm!(
+            "
+    movw {0:x}, %es
+            ",
+            in(reg) sel.bits(),
+            options(att_syntax)
+        );
     }
 }
 
@@ -474,7 +492,13 @@ pub unsafe fn load_es(sel: SegmentSelector) {
 #[cfg(target_arch = "x86")]
 pub unsafe fn load_fs(sel: SegmentSelector) {
     unsafe {
-        asm!("movw {0:x}, %fs", in(reg) sel.bits(), options(att_syntax));
+        asm!(
+            "
+    movw {0:x}, %fs
+            ",
+            in(reg) sel.bits(),
+            options(att_syntax)
+        );
     }
 }
 
@@ -491,10 +515,16 @@ pub unsafe fn load_gs(sel: SegmentSelector) {
 #[cfg(target_arch = "x86")]
 pub unsafe fn load_cs(sel: SegmentSelector) {
     unsafe {
-        asm!("pushl {0}; \
-            pushl $1f; \
-            lretl; \
-            1:", in(reg) sel.bits() as u32, options(att_syntax));
+        asm!(
+            "
+    pushl {0}
+    pushl $1f
+    lretl
+1:
+            ",
+            in(reg) sel.bits() as u32,
+            options(att_syntax)
+        );
     }
 }
 

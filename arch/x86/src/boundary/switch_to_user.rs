@@ -92,6 +92,7 @@ pub extern "C" fn switch_to_user() {
     # Now restore EAX from the stack
     pop     eax
 
-    iretd"
+    iretd
+        "
     );
 }

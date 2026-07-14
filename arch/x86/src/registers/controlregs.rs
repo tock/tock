@@ -60,7 +60,13 @@ pub type Cr4 = LocalRegisterCopy<u32, CR4::Register>;
 pub unsafe fn cr0() -> Cr0 {
     let ret: u32;
     unsafe {
-        asm!("mov %cr0, {0}", out(reg) ret, options(att_syntax));
+        asm!(
+            "
+    mov %cr0, {0}
+            ",
+            out(reg) ret,
+            options(att_syntax)
+        );
     }
     LocalRegisterCopy::new(ret)
 }
@@ -72,7 +78,13 @@ pub unsafe fn cr0() -> Cr0 {
 #[cfg(target_arch = "x86")]
 pub unsafe fn cr0_write(val: Cr0) {
     unsafe {
-        asm!("mov {0}, %cr0", in(reg) val.get(), options(att_syntax));
+        asm!(
+            "
+    mov {0}, %cr0
+            ",
+            in(reg) val.get(),
+            options(att_syntax)
+        );
     }
 }
 
@@ -84,7 +96,13 @@ pub unsafe fn cr0_write(val: Cr0) {
 pub unsafe fn cr4() -> Cr4 {
     let ret: u32;
     unsafe {
-        asm!("mov %cr4, {0}", out(reg) ret, options(att_syntax));
+        asm!(
+            "
+    mov %cr4, {0}
+            ",
+            out(reg) ret,
+            options(att_syntax)
+        );
     }
     LocalRegisterCopy::new(ret)
 }
@@ -107,7 +125,13 @@ pub unsafe fn cr4() -> Cr4 {
 #[cfg(target_arch = "x86")]
 pub unsafe fn cr4_write(val: Cr4) {
     unsafe {
-        asm!("mov {0}, %cr4", in(reg) val.get(), options(att_syntax));
+        asm!(
+            "
+    mov {0}, %cr4
+            ",
+            in(reg) val.get(),
+            options(att_syntax)
+        );
     }
 }
 
@@ -119,7 +143,13 @@ pub unsafe fn cr4_write(val: Cr4) {
 pub unsafe fn cr3() -> u64 {
     let ret: usize;
     unsafe {
-        asm!("mov %cr3, {0}", out(reg) ret, options(att_syntax));
+        asm!(
+            "
+    mov %cr3, {0}
+            ",
+            out(reg) ret,
+            options(att_syntax)
+        );
     }
     ret as u64
 }
@@ -131,7 +161,13 @@ pub unsafe fn cr3() -> u64 {
 #[cfg(target_arch = "x86")]
 pub unsafe fn cr3_write(val: u64) {
     unsafe {
-        asm!("mov {0}, %cr3", in(reg) val as usize, options(att_syntax));
+        asm!(
+            "
+    mov {0}, %cr3
+            ",
+            in(reg) val as usize,
+            options(att_syntax)
+        );
     }
 }
 

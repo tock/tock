@@ -54,7 +54,12 @@ where
 #[inline(always)]
 pub fn nop() {
     unsafe {
-        asm!("nop", options(nomem, nostack, preserves_flags));
+        asm!(
+            "
+    nop
+            ",
+            options(nomem, nostack, preserves_flags)
+        );
     }
 }
 

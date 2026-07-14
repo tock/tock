@@ -78,7 +78,14 @@ impl EFlags {
 pub unsafe fn read() -> EFlags {
     let r: u32;
     unsafe {
-        asm!("pushfl; popl {0}", out(reg) r, options(att_syntax));
+        asm!(
+            "
+    pushfl
+    popl {0}
+            ",
+            out(reg) r,
+            options(att_syntax)
+        );
     }
     EFlags(LocalRegisterCopy::new(r))
 }
@@ -87,7 +94,14 @@ pub unsafe fn read() -> EFlags {
 #[inline(always)]
 pub unsafe fn set(val: EFlags) {
     unsafe {
-        asm!("pushl {0}; popfl", in(reg) val.0.get(), options(att_syntax));
+        asm!(
+            "
+    pushl {0}
+    popfl
+            ",
+            in(reg) val.0.get(),
+            options(att_syntax)
+        );
     }
 }
 
