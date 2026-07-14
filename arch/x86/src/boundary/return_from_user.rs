@@ -40,62 +40,62 @@ use core::arch::naked_asm;
 pub extern "C" fn return_from_user() {
     naked_asm!(
         "
-        mov     ecx, dword ptr [esp+76]       # UserContext
+    mov     ecx, dword ptr [esp+76]       # UserContext
 
-        # First switch back to the kernel's data segment. Once this is done, we are safe to start
-        # storing things in UserContext.
-        mov     eax, ds
-        mov     edx, [esp+52]
-        mov     ds, edx
-        mov     dword ptr [ecx+48], eax
+    # First switch back to the kernel's data segment. Once this is done, we are safe to start
+    # storing things in UserContext.
+    mov     eax, ds
+    mov     edx, [esp+52]
+    mov     ds, edx
+    mov     dword ptr [ecx+48], eax
 
-        # Store the remaining general purpose registers
-        mov     dword ptr [ecx+4], ebx
-        mov     dword ptr [ecx+16], esi
-        mov     dword ptr [ecx+20], edi
-        mov     dword ptr [ecx+24], ebp
+    # Store the remaining general purpose registers
+    mov     dword ptr [ecx+4], ebx
+    mov     dword ptr [ecx+16], esi
+    mov     dword ptr [ecx+20], edi
+    mov     dword ptr [ecx+24], ebp
 
-        # Store segment selectors
-        mov     eax, es
-        mov     dword ptr [ecx+52], eax
-        mov     eax, fs
-        mov     dword ptr [ecx+56], eax
-        mov     eax, gs
-        mov     dword ptr [ecx+60], eax
+    # Store segment selectors
+    mov     eax, es
+    mov     dword ptr [ecx+52], eax
+    mov     eax, fs
+    mov     dword ptr [ecx+56], eax
+    mov     eax, gs
+    mov     dword ptr [ecx+60], eax
 
-        mov     edx, dword ptr [esp+80]       # Load error code pointer
+    mov     edx, dword ptr [esp+80]       # Load error code pointer
 
-        # Then unwind the stack
-        pop     dword ptr [ecx+12]             # EDX
-        pop     dword ptr [ecx+8]              # ECX
-        pop     dword ptr [ecx]                # EAX
-        pop     eax                            # Interrupt number (returned in EAX)
-        pop     dword ptr [edx]                # Error code
-        pop     dword ptr [ecx+32]             # EIP
-        pop     dword ptr [ecx+40]             # CS
-        pop     dword ptr [ecx+36]             # EFLAGS
-        pop     dword ptr [ecx+28]             # ESP
-        pop     dword ptr [ecx+44]             # SS
+    # Then unwind the stack
+    pop     dword ptr [ecx+12]             # EDX
+    pop     dword ptr [ecx+8]              # ECX
+    pop     dword ptr [ecx]                # EAX
+    pop     eax                            # Interrupt number (returned in EAX)
+    pop     dword ptr [edx]                # Error code
+    pop     dword ptr [ecx+32]             # EIP
+    pop     dword ptr [ecx+40]             # CS
+    pop     dword ptr [ecx+36]             # EFLAGS
+    pop     dword ptr [ecx+28]             # ESP
+    pop     dword ptr [ecx+44]             # SS
 
-        # Manually pop 16-bit segment registers. Using a real pop instruction seems to have
-        # inconsistent behavior (some of the registers move the stack by 2 bytes, others by 4).
-        mov     gs, [esp]
-        add     esp, 4
-        mov     fs, [esp]
-        add     esp, 4
-        mov     es, [esp]
-        add     esp, 4
-        # Already restored DS above, so we only need to increment ESP
-        add     esp, 4
+    # Manually pop 16-bit segment registers. Using a real pop instruction seems to have
+    # inconsistent behavior (some of the registers move the stack by 2 bytes, others by 4).
+    mov     gs, [esp]
+    add     esp, 4
+    mov     fs, [esp]
+    add     esp, 4
+    mov     es, [esp]
+    add     esp, 4
+    # Already restored DS above, so we only need to increment ESP
+    add     esp, 4
 
-        # Restore remaining kernel-mode CPU state
-        pop     ebx
-        pop     ebp
-        pop     esi
-        pop     edi
+    # Restore remaining kernel-mode CPU state
+    pop     ebx
+    pop     ebp
+    pop     esi
+    pop     edi
 
-        # Return to whoever called switch_to_user
-        ret
-"
+    # Return to whoever called switch_to_user
+    ret
+        "
     );
 }
