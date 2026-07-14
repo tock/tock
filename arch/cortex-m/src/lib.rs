@@ -165,12 +165,21 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 ///
 /// # Safety
 ///
+/// ## `naked`
+///
 /// - INPUTS: This does not use the existing value of any registers.
 /// - OUTPUTS: This does not write any callee-saved registers, and only uses
 ///   caller-saved registers.
 /// - This does not fall-through, it branches at the end.
+///
+/// ## `no_mangle`
+///
+/// We use `initialize_ram_jump_to_main` as a symbol in the linker file. This is
+/// the only user of the name `initialize_ram_jump_to_main` and no other symbol
+/// may use the same name.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     use core::arch::naked_asm;
     naked_asm!(
