@@ -138,13 +138,14 @@ impl<const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32>
     /// (NIST compliant RNG configuration table in AN4230 available from www.st.com.)
     pub fn init(&'static self) {
         self.registers.cr.set(CR_CFG);
-        self.registers.cr.modify(CR::RNGEN::SET);
         self.registers.htcr.modify(HTCR::HTCFG.val(HTCR_CFG));
         self.registers.nscr.modify(NSCR::NSCFG.val(NSCR_CFG));
+
+        self.registers.cr.modify(CR::CONDRST::CLEAR);
+        self.registers.cr.modify(CR::RNGEN::SET);
+
         self.registers.cr.modify(CR::CONFIGLOCK::SET);
-        self.registers
-            .cr
-            .modify(CR::CONDRST::CLEAR + CR::RNGEN::SET);
+
         self.register();
     }
 

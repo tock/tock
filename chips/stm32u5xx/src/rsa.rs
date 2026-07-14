@@ -4,7 +4,7 @@
 
 use kernel::hil::public_key_crypto::rsa_math::{Client, RsaCryptoBase};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
@@ -156,7 +156,7 @@ register_bitfields! [u32,
 ];
 
 const PKA_BASE: StaticRef<PkaRegisters> =
-    unsafe { StaticRef::new(0x50020000 as *const PkaRegisters) };
+    unsafe { StaticRef::new(0x520C2000 as *const PkaRegisters) };
 
 // RAM mapping
 // TODO consider moving somewhere else, because these mapping in mode specific
@@ -282,7 +282,10 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         }
 
         // Enable the peripheral
-        self.registers.cr.write(CR::EN::SET);
+        self.registers.cr.modify(CR::EN::SET);
+
+        // Wait for initialization
+        while !self.registers.sr.is_set(SR::INITOK) {}
 
         // Bytes to bits
         let exp_bits = (exponent.len() * 8) as u32;
@@ -303,7 +306,7 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         self.result.replace(result);
 
         // Configure the periferal
-        self.registers.cr.write(
+        self.registers.cr.modify(
             CR::MODE::MontgomeryModularExp + CR::PROCENDIE::SET + CR::START::SET + CR::EN::SET,
         );
 
