@@ -7,13 +7,14 @@ use crate::dac;
 use crate::dma::{ChannelId, Dma};
 use crate::exti;
 use crate::gpio;
+use crate::i2c;
 use crate::nvic::{
     EXTI0_IRQ, EXTI1_IRQ, EXTI2_IRQ, EXTI3_IRQ, EXTI4_IRQ, EXTI5_IRQ, EXTI6_IRQ, EXTI7_IRQ,
     EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ, EXTI14_IRQ, EXTI15_IRQ,
     GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ,
     GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ, GPDMA1_CH10_IRQ,
-    GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, TIM2_IRQ,
-    USART1_IRQ,
+    GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ,
+    I2C1_ER_IRQ, I2C1_EV_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::rcc;
 use crate::tim;
@@ -33,9 +34,11 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub tim2: tim::Tim2<'a>,
     pub usart1: &'a usart::Usart<'a>,
+    pub i2c1: i2c::I2c<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub gpio_a: gpio::Port<'a>,
+    pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
     pub dac: dac::Dac,
 }
@@ -56,9 +59,11 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
             usart1,
+            i2c1: i2c::I2c::new(i2c::I2C1_BASE),
             exti,
             dma1,
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
+            gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
         }
@@ -68,17 +73,31 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // Power and Wires
         self.rcc.enable_dma1();
         self.rcc.enable_gpioa();
+        self.rcc.enable_gpiob();
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
+        self.rcc.enable_i2c1();
         self.rcc.set_usart1_source_pclk();
+        self.rcc.set_i2c1_source_pclk();
+
+        self.i2c1.enable();
+
         self.rcc.enable_dac1();
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();
 
+        // Link DMA to I2C1
+        let i2c1_channel_tx = self.dma1.request_channel();
+        let i2c1_channel_rx = self.dma1.request_channel();
+
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+        }
+
+        if let (Some(tx), Some(rx)) = (i2c1_channel_tx, i2c1_channel_rx) {
+            i2c::I2c::set_dma(&self.i2c1, self.dma1, tx, rx);
         }
     }
 }
@@ -94,6 +113,14 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             USART1_IRQ => {
                 // USART1
                 self.usart1.handle_interrupt();
+                true
+            }
+            I2C1_EV_IRQ => {
+                self.i2c1.handle_interrupt();
+                true
+            }
+            I2C1_ER_IRQ => {
+                self.i2c1.handle_error();
                 true
             }
             EXTI0_IRQ => {

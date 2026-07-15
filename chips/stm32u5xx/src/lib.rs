@@ -9,6 +9,7 @@ pub mod dac;
 pub mod dma;
 pub mod exti;
 pub mod gpio;
+pub mod i2c;
 pub mod nvic;
 pub mod rcc;
 pub mod tim;
