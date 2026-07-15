@@ -6,13 +6,13 @@
 #![no_std]
 #![no_main]
 
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{capabilities, debug};
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
@@ -202,18 +202,6 @@ unsafe fn start() -> (
     );
     let rtc = static_init!(stm32u545::rtc::Rtc<'static>, stm32u545::rtc::Rtc::new(rcc));
     rtc.register();
-
-    // Turn on the RTC clock and unlock the backup domain.
-    // We handle errors here such that a failure doesn't halt the kernel.
-    if let Err(e) = rtc.initialize_clock() {
-        debug!("{:?}", e)
-    }
-
-    // Set up the RTC mode. (configure prescalers, 24h format, default date/time)
-    // This requires the previous step, the clock and bckup domain to have been sucessfully initialized.
-    if let Err(e) = rtc.init_mode() {
-        debug!("{:?}", e)
-    }
 
     // Load Peripherals Bundle
     let periphs = static_init!(

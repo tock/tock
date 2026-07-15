@@ -22,6 +22,7 @@ use crate::usart;
 use crate::{dac, exti};
 
 use core::fmt::Write;
+use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -105,6 +106,17 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         let usart1_channel_rx = self.dma1.request_channel();
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+        }
+
+        // Turn on the RTC clock and unlock the backup domain.
+        // We handle errors here such that a failure doesn't halt the kernel.
+        if let Err(e) = self.rtc.initialize_clock() {
+            debug!("{:?}", e)
+        }
+        // Set up the RTC mode. (configure prescalers, 24h format, default date/time)
+        // This requires the previous step, the clock and bckup domain to have been sucessfully initialized.
+        if let Err(e) = self.rtc.init_mode() {
+            debug!("{:?}", e)
         }
     }
 }
