@@ -108,33 +108,33 @@
 //! an application must do the following:
 //!
 //! 1. **`allow_*` argument and return data buffers.**
-//! The userspace service application and registry move data between each other through buffers in the userspace service application's memory space.
-//! The userspace service application should `allow_readwrite()` its argument buffers
-//! and `allow_readonly()` its return data buffer(s).
+//!    The userspace service application and registry move data between each other through buffers in the userspace service application's memory space.
+//!    The userspace service application should `allow_readwrite()` its argument buffers
+//!    and `allow_readonly()` its return data buffer(s).
 //!
 //! 2. **Register at startup.**
-//! A userspace service announces its availability through the registration `command` syscall to the registry,
-//! command no. `0x10`,
-//! providing its role ID as the first and only argument.
-//! In the event that the userspace service application crashes,
-//! it must re-register with the registry.
+//!    A userspace service announces its availability through the registration `command` syscall to the registry,
+//!    command no. `0x10`,
+//!    providing its role ID as the first and only argument.
+//!    In the event that the userspace service application crashes,
+//!    it must re-register with the registry.
 //!
-//! 2. **`subscribe()` to incoming operations.**
-//! Essentially,
-//! a userspace service is an application that issues a syscall in response to an upcall.
-//! The registry capsule defines a single upcall,
-//! and its arguments differentiate the intent of the upcall from others.
-//! The userspace service application should `subscribe()` to subscription no. 0 to receive the upcalls.
+//! 3. **`subscribe()` to incoming operations.**
+//!    Essentially,
+//!    a userspace service is an application that issues a syscall in response to an upcall.
+//!    The registry capsule defines a single upcall,
+//!    and its arguments differentiate the intent of the upcall from others.
+//!    The userspace service application should `subscribe()` to subscription no. 0 to receive the upcalls.
 //!
 //! 3. **Respond to upcalls with a `command()`.**
-//! The userspace service application must issue a `command` in return for each upcall it receives from the registry.
-//! The `command` indicates either
-//! success (command no. `0x20`)
-//! or failure (command no. `0x21`).
-//! The two arguments of the success `command` can carry return data.
-//! If the userspace service application is returning additional data through its buffer(s),
-//! it should `allow_readonly()` the buffer(s) prior to issuing the return success `command`.
-//! The failure `command` should return an error code as its first argument.
+//!    The userspace service application must issue a `command` in return for each upcall it receives from the registry.
+//!    The `command` indicates either
+//!    success (command no. `0x20`)
+//!    or failure (command no. `0x21`).
+//!    The two arguments of the success `command` can carry return data.
+//!    If the userspace service application is returning additional data through its buffer(s),
+//!    it should `allow_readonly()` the buffer(s) prior to issuing the return success `command`.
+//!    The failure `command` should return an error code as its first argument.
 
 pub mod data;
 pub mod grant;

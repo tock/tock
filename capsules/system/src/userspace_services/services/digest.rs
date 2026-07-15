@@ -6,8 +6,8 @@
 
 use kernel::errorcode::ErrorCode;
 use kernel::hil::digest::{
-    self, Client, ClientData, ClientDataHash, ClientHash, ClientVerify, Digest, DigestData, DigestDataHash, DigestHash,
-    DigestVerify,
+    self, Client, ClientData, ClientDataHash, ClientHash, ClientVerify, Digest, DigestData,
+    DigestDataHash, DigestHash, DigestVerify,
 };
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
