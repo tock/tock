@@ -149,7 +149,7 @@ impl Rcc {
     pub fn set_i2c1_source_pclk(&self) {
         self.registers.ccipr1.modify(CCIPR1::I2C1SEL::PCLK);
     }
-  
+
     pub fn enable_dac1(&self) {
         self.registers.ahb3enr.modify(AHB3ENR::DAC1EN::SET);
     }

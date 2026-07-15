@@ -8,14 +8,15 @@ use core::fmt::{self};
 use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
 use kernel::utilities::{
+    StaticRef,
     cells::{MapCell, OptionalCell, TakeCell},
     dma_slice::DmaSubSliceMut,
     leasable_buffer::SubSliceMut,
     registers::{
+        ReadOnly, ReadWrite,
         interfaces::{ReadWriteable, Readable, Writeable},
-        register_bitfields, register_structs, ReadOnly, ReadWrite,
+        register_bitfields, register_structs,
     },
-    StaticRef,
 };
 
 register_structs! {

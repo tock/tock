@@ -13,8 +13,8 @@ use crate::nvic::{
     EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ, EXTI14_IRQ, EXTI15_IRQ,
     GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ,
     GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ, GPDMA1_CH10_IRQ,
-    GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, TIM2_IRQ, I2C1_ER_IRQ, I2C1_EV_IRQ,
-    USART1_IRQ,
+    GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ,
+    I2C1_ER_IRQ, I2C1_EV_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::rcc;
 use crate::tim;
@@ -54,11 +54,7 @@ fn enable_dac1_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(
-        usart1: &'a usart::Usart<'a>,
-        exti: &'a exti::Exti<'a>,
-        dma1: &'a Dma,
-    ) -> Self {
+    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
@@ -125,6 +121,8 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             I2C1_ER_IRQ => {
                 self.i2c1.handle_error();
+                true
+            }
             EXTI0_IRQ => {
                 self.exti.handle_interrupt(crate::exti::LineId::Line00);
                 true
