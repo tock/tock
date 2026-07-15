@@ -7,7 +7,7 @@
 
 ## 🌍 Translations
 
-[English](README.md) | [Türkçe](README.tr.md)
+[English](README.md) | [Türkçe](README.tr.md) | [Azero](README.az.md)
 
 Tock is an embedded operating system designed for running multiple concurrent,
 mutually distrustful applications on Cortex-M and RISC-V based embedded
