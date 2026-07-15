@@ -16,7 +16,7 @@ pub mod swt;
 pub mod xrdc;
 
 use cortexm7::unhandled_interrupt;
-use cortexm7::{CortexM7, CortexMVariant};
+use cortexm7::{initialize_ram_jump_to_main, CortexM7, CortexMVariant};
 
 // S32G3 reset handler for vector-fetch boot.
 //
@@ -62,10 +62,8 @@ pub unsafe extern "C" fn nxp_s32g3_boot_entry() {
 
     /* 3. Zero the ECC-protected L2 SRAM stack window (_sstack .. _estack)
      *    with word stores before moving MSP into it. */
-    movw r0, #:lower16:_sstack
-    movt r0, #:upper16:_sstack
-    movw r1, #:lower16:_estack
-    movt r1, #:upper16:_estack
+    ldr  r0, ={sstack}
+    ldr  r1, ={estack}
     movs r2, #0
 1:
     cmp  r0, r1
@@ -81,8 +79,12 @@ pub unsafe extern "C" fn nxp_s32g3_boot_entry() {
      *    PRIMASK must be clear before Rust main()/kernel_loop. */
     cpsie i
     /* 6. Hand off to Tock's RAM init (zeroes .bss, copies .data, calls main). */
-    b    initialize_ram_jump_to_main
+    ldr  r2, ={init}
+    bx   r2
     "#,
+        sstack = sym _sstack,
+        estack = sym _estack,
+        init = sym initialize_ram_jump_to_main,
     );
 }
 
@@ -91,6 +93,7 @@ pub unsafe extern "C" fn nxp_s32g3_boot_entry() {
 pub unsafe extern "C" fn nxp_s32g3_boot_entry() {}
 
 extern "C" {
+    fn _sstack();
     fn _estack();
 }
 #[cfg_attr(
