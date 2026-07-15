@@ -15,11 +15,13 @@ From the Tock repository root, build the normal kernel with:
 make -C boards/nxp_s32g3_sail
 ```
 
-The Cargo release binary is `target/thumbv7em-none-eabihf/release/nxp_s32g3_sail.bin`. 
-It is linked and loaded at `0x34200000`.
-The linker reserves `0x34220000..0x3429ffff` for TBF applications. 
-Writable sections start in L2 SRAM at `0x34000000` shared bw kernel and app.
-L2 SRAM is `0x34000000..0x341fffff`. 
+The Cargo release binary is `target/thumbv7em-none-eabihf/release/nxp_s32g3_sail.bin`.
+It is linked for and must be loaded at `0x34200000`. Platform tooling must
+perform the Cortex-M vector fetch from that address: word 0 supplies the
+initial stack pointer and word 1 supplies the Thumb reset entry.
+The linker reserves `0x34220000..0x3429ffff` for TBF applications.
+Writable sections start in L2 SRAM at `0x34000000` shared between kernel and app.
+L2 SRAM is `0x34000000..0x341fffff`.
 DTCM is deliberately unused: 56 KiB cannot hold the writable image without specializing Tock's default layout.
 
 A raw kernel/application image can be constructed as follows:
@@ -36,8 +38,10 @@ cmp -s -n "$(wc -c < "$KERNEL_BIN")" "$KERNEL_BIN" "$COMBINED_BIN" \
 The normal kernel BIN excludes the `.apps` section; its 128 KiB kernel interval
 places the appended TBF at `0x34220000`. This verifies image construction only.
 
-With secure boot disabled, your can flash the binary directly to NOR.
-The secure boot signing path is documented by NXP and out of scope for the upstream tock support.
+The Tock repository does not currently provide a programmer, loader, signing
+flow, or `make flash` target for this hardware. The image-construction command
+above verifies the raw artifact only; deployment requires platform tooling
+outside this repository.
 
 ## UART topology and manual receive procedure
 
