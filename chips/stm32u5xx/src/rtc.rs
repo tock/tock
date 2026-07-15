@@ -508,6 +508,7 @@ enum DeferredCallTask {
 
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
+    rcc: &'a rcc::Rcc,
     client: OptionalCell<&'a dyn date_time::DateTimeClient>,
     time: Cell<DateTimeValues>,
 
@@ -529,46 +530,11 @@ impl DeferredCallClient for Rtc<'_> {
     }
 }
 
-fn init_rtc_clock() -> Result<(), ErrorCode> {
-    // Initialize the RTC clock source and enables peripheral access.
-    // Why this specific sequence:
-    // 1. Enable the PWR clock: The Power controller manages access to the backup domain
-    // 2. We need to disable the Backup Domain's Write Protection since the write
-    //    protection resets to default state every time we boot up the board. We
-    //    want no write protection on the Backup Domain so we can access the RTC config
-    //    registers and time registers.
-    // 3. Enable the APB3 bus clock so our code can send commands to the RTC registers
-    // 4. Turn on the LSI Oscillator, which is a slow internal clock we use for low power consumption.
-    //    In ultra low power mode the HSE/HSI are disabled. We use LSI to keep track of time regardless
-    //    if the board is in stand-by, lower power mode or not.
-    // 5. After the LSI Oscillator stabilizes we select it as the RTC clock source. There can be
-    //    a situation where the oscillator doesn't stabilize, in that case my approach is to not hang the kernel
-    //    and just timeout.
-    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
-    let pwr = PWR_BASE;
-    rcc.enable_ahb3_pwrclk();
-    pwr.pwr_dbpr.modify(PWR_DBPR::DBP::SET);
-    rcc.enable_apb3_bus_clk();
-
-    // Enable LSI oscillator.
-    rcc.enable_lsi();
-    // Magic number large enough to prevent kernel hanging if the oscillator fails to stabilize
-    let mut cycle_counter = 100000;
-    while !rcc.is_lsi_ready() && cycle_counter > 0 {
-        cycle_counter -= 1;
-    }
-    if cycle_counter <= 0 {
-        return Err(ErrorCode::FAIL);
-    }
-    rcc.select_rtc_source_lsi();
-    rcc.enable_rtc();
-    Ok(())
-}
-
 impl<'a> Rtc<'a> {
-    pub fn new() -> Rtc<'a> {
+    pub fn new(rcc: &'a rcc::Rcc) -> Rtc<'a> {
         Rtc {
             registers: RTC_BASE,
+            rcc,
             client: OptionalCell::empty(),
             time: Cell::new(DateTimeValues {
                 year: 0,
@@ -584,7 +550,38 @@ impl<'a> Rtc<'a> {
         }
     }
     pub fn initialize_clock(&self) -> Result<(), ErrorCode> {
-        init_rtc_clock()
+        // Initialize the RTC clock source and enables peripheral access.
+        // Why this specific sequence:
+        // 1. Enable the PWR clock: The Power controller manages access to the backup domain
+        // 2. We need to disable the Backup Domain's Write Protection since the write
+        //    protection resets to default state every time we boot up the board. We
+        //    want no write protection on the Backup Domain so we can access the RTC config
+        //    registers and time registers.
+        // 3. Enable the APB3 bus clock so our code can send commands to the RTC registers
+        // 4. Turn on the LSI Oscillator, which is a slow internal clock we use for low power consumption.
+        //    In ultra low power mode the HSE/HSI are disabled. We use LSI to keep track of time regardless
+        //    if the board is in stand-by, lower power mode or not.
+        // 5. After the LSI Oscillator stabilizes we select it as the RTC clock source. There can be
+        //    a situation where the oscillator doesn't stabilize, in that case my approach is to not hang the kernel
+        //    and just timeout.
+        let pwr = PWR_BASE;
+        self.rcc.enable_ahb3_pwrclk();
+        pwr.pwr_dbpr.modify(PWR_DBPR::DBP::SET);
+        self.rcc.enable_apb3_bus_clk();
+
+        // Enable LSI oscillator.
+        self.rcc.enable_lsi();
+        // Magic number large enough to prevent kernel hanging if the oscillator fails to stabilize
+        let mut cycle_counter = 100000;
+        while !self.rcc.is_lsi_ready() && cycle_counter > 0 {
+            cycle_counter -= 1;
+        }
+        if cycle_counter <= 0 {
+            return Err(ErrorCode::FAIL);
+        }
+        self.rcc.select_rtc_source_lsi();
+        self.rcc.enable_rtc();
+        Ok(())
     }
     #[inline(never)]
     // This function is marked as #[inline(never)] in order to aid with the debugging process when

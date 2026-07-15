@@ -195,7 +195,12 @@ unsafe fn start() -> (
     );
 
     usart1.register();
-    let rtc = static_init!(stm32u545::rtc::Rtc<'static>, stm32u545::rtc::Rtc::new());
+
+    let rcc = static_init!(
+        stm32u545::rcc::Rcc,
+        stm32u545::rcc::Rcc::new(stm32u545::rcc::RCC_BASE)
+    );
+    let rtc = static_init!(stm32u545::rtc::Rtc<'static>, stm32u545::rtc::Rtc::new(rcc));
     rtc.register();
 
     // Turn on the RTC clock and unlock the backup domain.
