@@ -15,7 +15,7 @@ use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability};
-use pio_gspi_component::{pio_gpsi_component_static, PioGspiComponent};
+use pio_gspi_component::{PioGspiComponent, pio_gpsi_component_static};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::gpio::{RPGpio, RPGpioPin};
 use rp2040::pio_gspi::PioGSpi;

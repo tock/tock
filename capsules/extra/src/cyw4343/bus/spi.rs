@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-use super::common;
 use super::State as BusState;
+use super::common;
 use super::{CYW4343xBus, CYW4343xBusClient, Function, RegLen, Type};
 use crate::cyw4343::constants;
 use crate::cyw4343::macros::{backplane_window_bits, reset_and_restore_bufs};
@@ -13,7 +13,7 @@ use kernel::hil::time::ConvertTicks;
 use kernel::hil::{gpio, time};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::register_bitfields;
-use kernel::{utilities::cells::OptionalCell, ErrorCode};
+use kernel::{ErrorCode, utilities::cells::OptionalCell};
 use task::GspiTask;
 
 /// Max packet size is max payload size + 1 command/status word
@@ -643,9 +643,9 @@ impl<'a, S: SpiMasterDevice<'a>, A: kernel::hil::time::Alarm<'a>> gpio::Client
 
 mod init {
     use crate::cyw4343::{bus, constants};
+    use bus::RegLen::Word;
     use bus::common;
     use bus::spi::{bus_init, wakeup};
-    use bus::RegLen::Word;
 
     macro_rules! copy_from_arr {
         (task => $curr:expr, $to:expr, $from:expr) => {
@@ -722,9 +722,9 @@ mod init {
 mod bus_init {
     use super::task::GspiTask;
     use crate::cyw4343::{bus, constants};
-    use bus::common::{eq, mask};
     use bus::Function::{Backplane as Bp, Bus};
     use bus::RegLen::{Byte, Word};
+    use bus::common::{eq, mask};
 
     pub(super) static OPS: [GspiTask; 12] = [
         // First test
@@ -784,9 +784,9 @@ mod bus_init {
 mod wakeup {
     use super::task::GspiTask;
     use crate::cyw4343::{bus, constants};
-    use bus::common::mask;
     use bus::Function::{Backplane as Bp, Bus};
     use bus::RegLen::{Byte, HalfWord, Word};
+    use bus::common::mask;
 
     pub(super) static OPS: [GspiTask; 10] = [
         GspiTask::WaitMs(30),
@@ -834,7 +834,7 @@ mod wakeup {
 mod task {
     use super::{cmd16, cmd32};
     use crate::cyw4343::{bus, constants};
-    use bus::{common, Function, RegLen, Type};
+    use bus::{Function, RegLen, Type, common};
 
     type Cmd = u32;
     type Addr = u32;

@@ -66,11 +66,11 @@ use core::cell::Cell;
 use core::mem::size_of;
 use core::unreachable;
 
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 /// Globally declare entry ID type.
 type EntryID = usize;

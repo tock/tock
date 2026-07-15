@@ -33,7 +33,7 @@ pub mod usart;
 // Clocks
 pub mod clocks;
 
-use cortexm4f::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -65,9 +65,3 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt,        // PendSV
     CortexM4F::SYSTICK_HANDLER, // SysTick
 ];
-
-pub unsafe fn init() {
-    cortexm4f::nvic::disable_all();
-    cortexm4f::nvic::clear_all_pending();
-    cortexm4f::nvic::enable_all();
-}

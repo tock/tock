@@ -10,9 +10,9 @@ use crate::virtualizers::virtual_rng::VirtualRngMasterDevice;
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::rng::{Client, Continue, Rng};
-use kernel::ErrorCode;
 
 const NUM_REQUESTS: usize = 2;
 

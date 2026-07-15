@@ -12,6 +12,7 @@
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 
+use kernel::ErrorCode;
 use kernel::hil::digest::Sha256;
 use kernel::hil::digest::{Client, ClientData, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientDataHash, ClientDataVerify, DigestDataHash, DigestDataVerify};
@@ -20,7 +21,6 @@ use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::leasable_buffer::SubSliceMutImmut;
-use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum State {

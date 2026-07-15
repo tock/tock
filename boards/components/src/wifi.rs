@@ -8,9 +8,7 @@ use kernel::{capabilities, component::Component, create_capability};
 
 #[macro_export]
 macro_rules! wifi_component_static {
-    ($D:ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::wifi::WifiDriver<'static, $D>)
-    }};
+    ($D:ty $(,)?) => {{ kernel::static_buf!(capsules_extra::wifi::WifiDriver<'static, $D>) }};
 }
 
 pub struct WifiComponent<D: 'static + wifi::Device<'static>> {

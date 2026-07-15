@@ -35,12 +35,12 @@
 //! - 6: Change the process state. `data1` is the process ID, and `data2` is the
 //!   new state.(1=start, 2=stop, 3=fault, 4=terminate, 5=boot).
 
+use kernel::Kernel;
 use kernel::capabilities::{ProcessManagementCapability, ProcessStartCapability};
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::process;
 use kernel::processbuffer::WriteableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::Kernel;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.

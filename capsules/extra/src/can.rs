@@ -51,14 +51,14 @@
 
 use core::mem::size_of;
 
+use kernel::ErrorCode;
+use kernel::ProcessId;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::can;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::streaming_process_slice::StreamingProcessSlice;
-use kernel::ErrorCode;
-use kernel::ProcessId;
 
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Can as usize;

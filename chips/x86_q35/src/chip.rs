@@ -13,7 +13,7 @@ use x86::{Boundary, InterruptPoller};
 
 use crate::pic::PIC1_OFFSET;
 use crate::pit::{Pit, RELOAD_1KHZ};
-use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
+use crate::serial::{COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE, SerialPort, SerialPortComponent};
 use crate::vga_uart_driver::VgaText;
 
 /// Interrupt constants for legacy PC peripherals
@@ -123,6 +123,18 @@ impl<I2: InterruptService, const PR: u16> Pc<'static, PcDefaultPeripherals<PR>, 
 
 impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<'a, I1, I2, PR> {
     type ThreadIdProvider = x86::thread_id::X86ThreadIdProvider;
+
+    fn init() {
+        // TODO: Correctly implement the x86 init API.
+        //
+        // As of June 2026 we are not currently using this init() because the
+        // safety requirements cannot be properly handled. The current safety
+        // requirements require assurance init is only called once, which we
+        // can't enforce.
+        //
+        // As the safety of the x86 crate is better understood, we expect
+        // the requirement to be easier to satisfy.
+    }
 
     type MPU = PagingMPU<'a>;
     fn mpu(&self) -> &Self::MPU {

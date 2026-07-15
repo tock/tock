@@ -4,12 +4,12 @@
 
 //! Power management
 
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 const POWER_BASE: StaticRef<PowerRegisters> =
     unsafe { StaticRef::new(0x40000000 as *const PowerRegisters) };

@@ -13,10 +13,10 @@ use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::debug;
 use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
 #[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;

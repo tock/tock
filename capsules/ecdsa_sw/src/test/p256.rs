@@ -11,11 +11,11 @@
 
 use crate::p256_signer::EcdsaP256SignatureSigner;
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient, CapsuleTestError};
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::public_key_crypto::signature;
 use kernel::hil::public_key_crypto::signature::SignatureSign;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 pub struct TestEcdsaP256Sign {
     ecdsa: &'static EcdsaP256SignatureSigner<'static>,

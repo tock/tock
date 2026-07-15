@@ -7,9 +7,9 @@
 //! as the standard encode/decode functionality required for serializing
 //! the struct for transmission.
 
+use crate::net::stream::SResult;
 use crate::net::stream::decode_u16;
 use crate::net::stream::encode_u16;
-use crate::net::stream::SResult;
 
 // Note: All UDP Header fields are stored in network byte order
 

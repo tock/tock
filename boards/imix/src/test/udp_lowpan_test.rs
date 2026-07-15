@@ -133,13 +133,13 @@ use capsules_extra::net::udp::udp_send::MuxUdpSender;
 use capsules_extra::test::udp::MockUdp;
 use core::cell::Cell;
 use core::ptr::addr_of_mut;
+use kernel::ErrorCode;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::debug;
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::static_init;
-use kernel::ErrorCode;
 
 pub const TEST_DELAY_MS: u32 = 2000;
 pub const TEST_LOOP: bool = false;
@@ -480,7 +480,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
             0x0e, 0x00,
         ]); // differs in last byte from ip_addr1
-            // Any
+        // Any
         let any_addr = AddrRange::Any;
         for ip_addr in [ip_addr1, ip_addr2, ip_addr3].iter() {
             assert!(any_addr.is_addr_valid(*ip_addr))

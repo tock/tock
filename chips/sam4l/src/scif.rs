@@ -12,11 +12,11 @@
 //! - Date: Aug 2, 2015
 
 use crate::bscif;
+use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
 };
-use kernel::utilities::StaticRef;
 
 pub enum Register {
     IER = 0x00,

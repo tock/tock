@@ -21,6 +21,7 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
 use core::ptr::addr_of_mut;
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
@@ -28,7 +29,6 @@ use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::static_init;
 use kernel::storage_volume;
 use kernel::utilities::cells::{NumericCellExt, TakeCell};
-use kernel::ErrorCode;
 use sam4l::ast::Ast;
 use sam4l::flashcalw;
 

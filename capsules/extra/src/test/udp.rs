@@ -16,11 +16,11 @@ use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 pub const DST_ADDR: IPAddr = IPAddr([
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,

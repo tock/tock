@@ -4,11 +4,12 @@
 
 //! Radio driver, Bluetooth Low Energy, NRF52
 //!
-//! The generic radio configuration i.e., not specific to Bluetooth are functions and similar which
-//! do not start with `ble`. Moreover, Bluetooth Low Energy specific radio configuration
-//! starts with `ble`
+//! The generic radio configuration i.e., not specific to Bluetooth are
+//! functions and similar which do not start with `ble`. Moreover, Bluetooth
+//! Low Energy specific radio configuration starts with `ble`
 //!
-//! For more readability the Bluetooth specific configuration may be moved to separate trait
+//! For more readability the Bluetooth specific configuration may be moved to
+//! separate trait
 //!
 //! ### Author
 //! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
@@ -26,10 +27,10 @@
 //! * Base and prefix forms together the access address
 //!
 //! * S0, an optional parameter that is configured to indicate how many bytes of
-//! the payload is the PDU Type. Configured as 1 byte!
+//!   the payload is the PDU Type. Configured as 1 byte!
 //!
-//! * Length, an optional parameter that is configured to indicate how many bits of the
-//! payload is the length field. Configured as 8 bits!
+//! * Length, an optional parameter that is configured to indicate how many bits
+//!   of the payload is the length field. Configured as 8 bits!
 //!
 //! * S1, Not used
 //!
@@ -40,14 +41,14 @@
 use core::cell::Cell;
 use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
+use kernel::ErrorCode;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 use nrf5x::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =

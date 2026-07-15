@@ -21,6 +21,7 @@ use kernel::debug::PanicResources;
 use kernel::hil::gpio;
 use kernel::hil::led::LedLow;
 use kernel::hil::screen::ScreenRotation;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -398,7 +399,7 @@ unsafe fn start() -> (
     STM32F412GDiscovery,
     &'static stm32f412g::chip::Stm32f4xx<'static, Stm32f412gDefaultPeripherals<'static>>,
 ) {
-    stm32f412g::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

@@ -95,28 +95,6 @@ pub enum SyscallClass {
     UserspaceReadableAllow = 7,
 }
 
-/// Enumeration of the yield system calls based on the Yield identifier
-/// values specified in the Tock ABI.
-#[derive(Copy, Clone, Debug)]
-pub enum YieldCall {
-    NoWait = 0,
-    Wait = 1,
-    WaitFor = 2,
-}
-
-impl TryFrom<usize> for YieldCall {
-    type Error = usize;
-
-    fn try_from(yield_variant: usize) -> Result<YieldCall, usize> {
-        match yield_variant {
-            0 => Ok(YieldCall::NoWait),
-            1 => Ok(YieldCall::Wait),
-            2 => Ok(YieldCall::WaitFor),
-            i => Err(i),
-        }
-    }
-}
-
 // Required as long as no solution to
 // https://github.com/rust-lang/rfcs/issues/2783 is integrated into
 // the standard library.
@@ -138,16 +116,43 @@ impl TryFrom<u8> for SyscallClass {
     }
 }
 
+/// Enumeration of the yield system calls based on the Yield identifier
+/// values specified in the Tock ABI.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum YieldVariant {
+    NoWait {
+        ptr: *mut u8,
+    },
+    Wait,
+    WaitFor {
+        driver_number: usize,
+        subdriver_number: usize,
+    },
+}
+
+impl core::fmt::Display for YieldVariant {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let name = match self {
+            YieldVariant::NoWait { ptr: _ } => "NoWait",
+            YieldVariant::Wait => "Wait",
+            YieldVariant::WaitFor {
+                driver_number: _,
+                subdriver_number: _,
+            } => "WaitFor",
+        };
+
+        write!(f, "{}", name)
+    }
+}
+
 /// Decoded system calls as defined in TRD104.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Syscall {
     /// Structure representing an invocation of the [`SyscallClass::Yield`]
-    /// system call class. `which` is the Yield identifier value and `address`
-    /// is the no wait field.
+    /// system call class.
     Yield {
-        which: usize,
-        param_a: usize,
-        param_b: usize,
+        /// The yield variant.
+        yield_type: YieldVariant,
     },
 
     /// Structure representing an invocation of the Subscribe system call class.
@@ -231,69 +236,6 @@ pub enum Syscall {
 }
 
 impl Syscall {
-    /// Helper function for converting raw values passed back from an
-    /// application into a `Syscall` type in Tock, representing an typed version
-    /// of a system call invocation. The method returns None if the values do
-    /// not specify a valid system call.
-    ///
-    /// Different architectures have different ABIs for a process and the kernel
-    /// to exchange data. The 32-bit ABI for CortexM and RISCV microcontrollers
-    /// is specified in TRD104.
-    pub fn from_register_arguments(
-        syscall_number: u8,
-        r0: usize,
-        r1: MachineRegister,
-        r2: MachineRegister,
-        r3: MachineRegister,
-    ) -> Option<Syscall> {
-        match SyscallClass::try_from(syscall_number) {
-            Ok(SyscallClass::Yield) => Some(Syscall::Yield {
-                which: r0,
-                param_a: r1.as_usize(),
-                param_b: r2.as_usize(),
-            }),
-            Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
-                driver_number: r0,
-                subdriver_number: r1.as_usize(),
-                upcall_ptr: r2.as_capability_ptr(),
-                appdata: r3,
-            }),
-            Ok(SyscallClass::Command) => Some(Syscall::Command {
-                driver_number: r0,
-                subdriver_number: r1.as_usize(),
-                arg0: r2.as_usize(),
-                arg1: r3.as_usize(),
-            }),
-            Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
-                driver_number: r0,
-                subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
-                allow_size: r3.as_usize(),
-            }),
-            Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
-                driver_number: r0,
-                subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
-                allow_size: r3.as_usize(),
-            }),
-            Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
-                driver_number: r0,
-                subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr(),
-                allow_size: r3.as_usize(),
-            }),
-            Ok(SyscallClass::Memop) => Some(Syscall::Memop {
-                operand: r0,
-                arg0: r1.as_usize(),
-            }),
-            Ok(SyscallClass::Exit) => Some(Syscall::Exit {
-                which: r0,
-                completion_code: r1.as_usize(),
-            }),
-            Err(_) => None,
-        }
-    }
-
     /// Get the `driver_number` for the syscall classes that use driver numbers.
     pub fn driver_number(&self) -> Option<usize> {
         match *self {

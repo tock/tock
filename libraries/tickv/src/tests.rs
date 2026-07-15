@@ -4,7 +4,7 @@
 
 use crate::error_codes::ErrorCode;
 use crate::flash_controller::FlashController;
-use crate::tickv::{TicKV, HASH_OFFSET, LEN_OFFSET, MAIN_KEY, VERSION, VERSION_OFFSET};
+use crate::tickv::{HASH_OFFSET, LEN_OFFSET, MAIN_KEY, TicKV, VERSION, VERSION_OFFSET};
 use core::hash::{Hash, Hasher};
 use std::cell::Cell;
 use std::cell::RefCell;

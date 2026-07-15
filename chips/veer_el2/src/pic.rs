@@ -6,12 +6,12 @@
 /* Currently no peripheral that would generate interupts is defined in the reference
 testbench for VeeR EL2, so the Pic is not expected to handle any interrupts. */
 
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, LocalRegisterCopy, ReadWrite,
+    LocalRegisterCopy, ReadWrite, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 use riscv_csr::csr::ReadWriteRiscvCsr;
 
 register_structs! {

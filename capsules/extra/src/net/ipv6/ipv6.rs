@@ -71,15 +71,15 @@
 // (as required by 6LoWPAN) difficult.
 
 use crate::net::icmpv6::ICMP6Header;
-use crate::net::ipv6::ip_utils::{compute_icmp_checksum, compute_udp_checksum, ip6_nh, IPAddr};
+use crate::net::ipv6::ip_utils::{IPAddr, compute_icmp_checksum, compute_udp_checksum, ip6_nh};
 use crate::net::stream::SResult;
-use crate::net::stream::{decode_bytes, decode_u16, decode_u8};
-use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
+use crate::net::stream::{decode_bytes, decode_u8, decode_u16};
+use crate::net::stream::{encode_bytes, encode_u8, encode_u16};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::UDPHeader;
 
-use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 
 pub const UDP_HDR_LEN: usize = 8;
 pub const ICMP_HDR_LEN: usize = 8;

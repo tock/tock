@@ -29,11 +29,11 @@ use kernel::syscall::SyscallDriver;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
-use virtio::devices::virtio_rng::VirtIORng;
 use virtio::devices::VirtIODeviceType;
+use virtio::devices::virtio_rng::VirtIORng;
 use virtio_pci_x86::VirtIOPCIDevice;
 use x86::dma_fence::X86DmaFence;
-use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
+use x86::registers::bits32::paging::{PD, PDEntry, PT, PTEntry};
 use x86::registers::irq;
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
 use x86_q35::{Pc, PcDefaultPeripherals};
@@ -382,10 +382,10 @@ unsafe extern "cdecl" fn main() {
     // driver and expose it to userspace though the RngDriver
     let virtio_rng: Option<&'static VirtIORng<X86DmaFence>> = if let Some(rng_dev) = virtio_rng_dev
     {
+        use virtio::queues::Virtqueue;
         use virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
-        use virtio::queues::Virtqueue;
         use virtio::transports::VirtIOTransport;
 
         // Initialize PCI transport driver

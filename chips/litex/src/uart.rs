@@ -8,15 +8,15 @@
 //! [`litex/soc/cores/uart.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/uart.py).
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{
-    register_bitfields, LiteXSoCRegisterConfiguration, Read, ReadRegWrapper, Write, WriteRegWrapper,
+    LiteXSoCRegisterConfiguration, Read, ReadRegWrapper, Write, WriteRegWrapper, register_bitfields,
 };
 
 const EVENT_MANAGER_INDEX_TX: usize = 0;

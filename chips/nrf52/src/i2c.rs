@@ -8,12 +8,12 @@
 //! and the I2C slave (`TWIS`).
 
 use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use nrf5x::pinmux::Pinmux;
 
 /// Uninitialized `TWI` instances.

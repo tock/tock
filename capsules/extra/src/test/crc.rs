@@ -4,11 +4,11 @@
 
 //! Test the CRC hardware.
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 pub struct TestCrc<'a, C: 'a> {
     crc: &'a C,

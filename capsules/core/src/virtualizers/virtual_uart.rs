@@ -48,11 +48,11 @@
 use core::cell::Cell;
 use core::cmp;
 
+use kernel::ErrorCode;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 pub const RX_BUF_LEN: usize = 64;
 

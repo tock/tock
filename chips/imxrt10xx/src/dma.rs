@@ -31,13 +31,12 @@
 //!   information on channel priorities, and how the DMA controller use priorities for scheduling.
 
 use kernel::utilities::{
+    StaticRef,
     cells::OptionalCell,
     registers::{
-        self,
+        self, ReadOnly, ReadWrite, WriteOnly,
         interfaces::{ReadWriteable, Readable, Writeable},
-        ReadOnly, ReadWrite, WriteOnly,
     },
-    StaticRef,
 };
 
 use core::cell::Cell;

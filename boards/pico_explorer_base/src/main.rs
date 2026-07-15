@@ -20,6 +20,7 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
@@ -256,7 +257,7 @@ pub unsafe fn start() -> (
     &'static rp2040::chip::Rp2040<'static, Rp2040DefaultPeripherals<'static>>,
 ) {
     // Loads relocations and clears BSS
-    rp2040::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state_unsafe::<

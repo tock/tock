@@ -20,10 +20,10 @@
 //! operation hasn't finished yet.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 /// How many pixels of padding on the left and right side of the graphic.
 const LEFT_RIGTH_PADDING: usize = 2;
@@ -115,12 +115,12 @@ pub struct ScreenOnLed<
 }
 
 impl<
-        'a,
-        S: hil::screen::Screen<'a>,
-        const NUM_LEDS: usize,
-        const SCREEN_WIDTH: usize,
-        const SCREEN_HEIGHT: usize,
-    > ScreenOnLed<'a, S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT>
+    'a,
+    S: hil::screen::Screen<'a>,
+    const NUM_LEDS: usize,
+    const SCREEN_WIDTH: usize,
+    const SCREEN_HEIGHT: usize,
+> ScreenOnLed<'a, S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT>
 {
     pub const fn new(screen: &'a S, buffer: &'static mut [u8]) -> Self {
         Self {
@@ -370,12 +370,12 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::screen::Screen<'a>,
-        const NUM_LEDS: usize,
-        const SCREEN_WIDTH: usize,
-        const SCREEN_HEIGHT: usize,
-    > LedIndexed for ScreenOnLed<'a, S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT>
+    'a,
+    S: hil::screen::Screen<'a>,
+    const NUM_LEDS: usize,
+    const SCREEN_WIDTH: usize,
+    const SCREEN_HEIGHT: usize,
+> LedIndexed for ScreenOnLed<'a, S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT>
 {
     fn init(&self, _index: usize) {}
 
@@ -407,12 +407,12 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::screen::Screen<'a>,
-        const NUM_LEDS: usize,
-        const SCREEN_WIDTH: usize,
-        const SCREEN_HEIGHT: usize,
-    > hil::screen::ScreenClient for ScreenOnLed<'a, S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT>
+    'a,
+    S: hil::screen::Screen<'a>,
+    const NUM_LEDS: usize,
+    const SCREEN_WIDTH: usize,
+    const SCREEN_HEIGHT: usize,
+> hil::screen::ScreenClient for ScreenOnLed<'a, S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT>
 {
     fn command_complete(&self, _r: Result<(), ErrorCode>) {}
 

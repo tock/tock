@@ -301,7 +301,21 @@ pub unsafe fn panic_begin(nop: &dyn Fn()) {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
-    let _ = writer.write_fmt(format_args!("\r\n{}\r\n", panic_info));
+    // Expand `PanicInfo` manually rather than using its `Display`
+    // implementation. The `Display` implementation inserts bare LFs
+    // between the location line and the message body, rather than a
+    // CRLF.
+    if let Some(location) = panic_info.location() {
+        let _ = writer.write_fmt(format_args!(
+            "\r\npanicked at {}:{}:{}:\r\n{}\r\n",
+            location.file(),
+            location.line(),
+            location.column(),
+            panic_info.message(),
+        ));
+    } else {
+        let _ = writer.write_fmt(format_args!("\r\n{}\r\n", panic_info.message()));
+    }
 
     // Print version of the kernel
     if crate::KERNEL_PRERELEASE_VERSION != 0 {

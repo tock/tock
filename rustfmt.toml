@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2022.
 
-# Tock uses rustfmt's default configuration for formatting style.
+# Tock uses rustfmt's 2024 configuration for formatting style.
+style_edition = "2024"
 
 # Configure rustfmt to error when it cannot format a file. This helps avoid
 # issues where rust code is silently not formatted because rustfmt encounters

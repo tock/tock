@@ -4,9 +4,9 @@
 
 //! Power Reset Clock Interrupt controller driver.
 
-use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 const CLKGEN_BASE: StaticRef<ClkGenRegisters> =
     unsafe { StaticRef::new(0x4000_4000 as *const ClkGenRegisters) };

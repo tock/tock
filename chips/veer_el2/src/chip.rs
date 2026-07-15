@@ -9,10 +9,10 @@ use crate::machine_timer::Clint;
 use core::fmt::Write;
 use core::ptr::addr_of;
 use kernel::platform::chip::{Chip, InterruptService};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::StaticRef;
-use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
+use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 use rv32i::syscall::SysCall;
 
 use crate::pic::Pic;
@@ -93,6 +93,8 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
     type MPU = PMPUserMPU<4, SimplePMP<8>>;
     type UserspaceKernelBoundary = SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
+
+    fn init() {}
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp

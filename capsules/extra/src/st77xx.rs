@@ -36,6 +36,7 @@
 
 use crate::bus::{self, Bus, BusAddr8, DataWidth};
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
     self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
@@ -43,7 +44,6 @@ use kernel::hil::screen::{
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 24;
 

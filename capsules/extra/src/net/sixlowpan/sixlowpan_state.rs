@@ -236,18 +236,18 @@ use crate::net::frag_utils::Bitmap;
 use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 use crate::net::ipv6::IP6Packet;
 use crate::net::sixlowpan::sixlowpan_compression;
-use crate::net::sixlowpan::sixlowpan_compression::{is_lowpan, ContextStore};
+use crate::net::sixlowpan::sixlowpan_compression::{ContextStore, is_lowpan};
 use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
 
 use core::cell::Cell;
 use core::cmp::min;
 
+use kernel::ErrorCode;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::{Frequency, Ticks};
 use kernel::utilities::cells::{MapCell, TakeCell};
-use kernel::ErrorCode;
 
 // Reassembly timeout in seconds
 const FRAG_TIMEOUT: u32 = 60;
@@ -875,12 +875,12 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// * `ctx_store` - Stores IPv6 address nextwork context mappings
     ///
     /// * `tx_buf` - A buffer used for storing individual fragments of a packet
-    /// in transmission. This buffer must be at least the length of an 802.15.4
-    /// frame.
+    ///   in transmission. This buffer must be at least the length of an
+    ///   802.15.4 frame.
     ///
     /// * `clock` - A implementation of `Alarm` used for tracking the timing of
-    /// frame arrival. The clock should be continue running during sleep and
-    /// have an accuracy of at least 60 seconds.
+    ///   frame arrival. The clock should be continue running during sleep and
+    ///   have an accuracy of at least 60 seconds.
     pub fn new(ctx_store: C, clock: &'a A) -> Sixlowpan<'a, A, C> {
         Sixlowpan {
             ctx_store,

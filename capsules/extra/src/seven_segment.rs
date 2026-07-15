@@ -150,12 +150,12 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
+use kernel::ProcessId;
 use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::TakeCell;
-use kernel::ErrorCode;
-use kernel::ProcessId;
 
 /// Syscall driver number.
 use capsules_core::driver;

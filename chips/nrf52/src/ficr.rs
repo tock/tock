@@ -12,9 +12,9 @@
 //! - Date: November 27, 2017
 
 use core::fmt;
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::{register_bitfields, ReadOnly};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::Readable;
+use kernel::utilities::registers::{ReadOnly, register_bitfields};
 
 const FICR_BASE: StaticRef<FicrRegisters> =
     unsafe { StaticRef::new(0x10000000 as *const FicrRegisters) };
@@ -322,7 +322,7 @@ pub struct Ficr {
 }
 
 impl Ficr {
-    pub(crate) const fn new() -> Ficr {
+    pub const fn new() -> Ficr {
         Ficr {
             registers: FICR_BASE,
         }
@@ -496,6 +496,3 @@ impl fmt::Display for Ficr {
         )
     }
 }
-
-/// Static instance for the board. Only one (read-only) set of factory registers.
-pub static mut FICR_INSTANCE: Ficr = Ficr::new();

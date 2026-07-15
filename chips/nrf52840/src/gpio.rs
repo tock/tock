@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::utilities::StaticRef;
-pub use nrf52::gpio::{GPIOPin, Pin, Port, GPIO_BASE_ADDRESS, GPIO_SIZE};
+pub use nrf52::gpio::{GPIO_BASE_ADDRESS, GPIO_SIZE, GPIOPin, Pin, Port};
 pub use nrf52::gpio::{GpioRegisters, GpioteRegisters};
 
 pub const NUM_PINS: usize = 48;

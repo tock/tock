@@ -14,12 +14,12 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::hil::gpio;
 use kernel::hil::sensors::{self, Distance, DistanceClient};
 use kernel::hil::time::Alarm;
 use kernel::hil::time::{AlarmClient, ConvertTicks};
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 /// Maximum duration for the echo pulse to be measured in milliseconds.
 // As specified in the datasheet:

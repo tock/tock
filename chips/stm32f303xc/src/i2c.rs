@@ -7,10 +7,10 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
 use crate::rcc;
 

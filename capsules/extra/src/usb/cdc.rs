@@ -18,6 +18,7 @@ use super::descriptors::InterfaceDescriptor;
 use super::descriptors::TransferDirection;
 use super::usbc_client_ctrl::ClientCtrl;
 
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
@@ -26,7 +27,6 @@ use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::cells::VolatileCell;
-use kernel::ErrorCode;
 
 /// Identifying number for the endpoint when transferring data from us to the
 /// host.

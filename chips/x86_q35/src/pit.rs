@@ -19,11 +19,11 @@
 
 use core::cell::Cell;
 
-use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks, Ticks32, Time};
 use kernel::ErrorCode;
+use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks, Ticks32, Time};
 use tock_cells::numeric_cell_ext::NumericCellExt;
 use tock_cells::optional_cell::OptionalCell;
-use tock_registers::{register_bitfields, LocalRegisterCopy};
+use tock_registers::{LocalRegisterCopy, register_bitfields};
 use x86::registers::io;
 
 /// Frequency of the PIT's internal oscillator

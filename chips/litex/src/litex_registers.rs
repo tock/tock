@@ -547,12 +547,8 @@ pub struct ReadWriteRegWrapper<
     N: RegisterLongName,
     R: BaseReadableRegister<T> + BaseWriteableRegister<T>,
 >(&'a R, PhantomData<T>, PhantomData<N>);
-impl<
-        'a,
-        T: UIntLike,
-        N: RegisterLongName,
-        R: BaseReadableRegister<T> + BaseWriteableRegister<T>,
-    > ReadWriteRegWrapper<'a, T, N, R>
+impl<'a, T: UIntLike, N: RegisterLongName, R: BaseReadableRegister<T> + BaseWriteableRegister<T>>
+    ReadWriteRegWrapper<'a, T, N, R>
 {
     #[inline]
     pub fn wrap(reg: &'a R) -> Self {

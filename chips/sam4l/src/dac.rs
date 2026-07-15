@@ -11,11 +11,11 @@
 
 use crate::pm::{self, Clock, PBAClock};
 use core::cell::Cell;
-use kernel::hil;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+use kernel::hil;
+use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 
 #[repr(C)]
 pub struct DacRegisters {

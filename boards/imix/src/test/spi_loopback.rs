@@ -18,11 +18,11 @@ use capsules_core::virtualizers::virtual_spi::MuxSpiMaster;
 use components::spi::SpiComponent;
 use core::cell::Cell;
 use core::ptr::addr_of_mut;
+use kernel::ErrorCode;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::spi::{self, SpiMasterDevice};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 #[allow(unused_variables, dead_code)]
 pub struct SpiLoopback {

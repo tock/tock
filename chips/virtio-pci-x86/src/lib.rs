@@ -11,4 +11,4 @@
 //! in section 4.1 of the Virtio specification.
 
 mod pci;
-pub use self::pci::{VirtIOPCIDevice, DEVICE_ID_BASE, VENDOR_ID};
+pub use self::pci::{DEVICE_ID_BASE, VENDOR_ID, VirtIOPCIDevice};

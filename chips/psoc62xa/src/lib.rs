@@ -7,7 +7,7 @@
 // and requires a deeper recursion limit than the default to fully expand.
 #![recursion_limit = "512"]
 
-use cortexm0p::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM0P, CortexMVariant};
+use cortexm0p::{CortexM0P, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -39,6 +39,17 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     unhandled_interrupt,        // PendSV
     CortexM0P::SYSTICK_HANDLER, // SysTick
 ];
+
+pub(crate) fn initialize_vector_table() {
+    // # Safety
+    //
+    // The vector table must setup function pointers for the thumb core
+    // correctly. Because `BASE_VECTORS` is the correct data type this is
+    // safe.
+    unsafe {
+        cortexm0p::scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
+    }
+}
 
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),

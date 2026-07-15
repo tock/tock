@@ -5,10 +5,10 @@
 //! Power Reset Clock Interrupt controller driver.
 
 use core::cell::Cell;
+use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadWrite, register_bitfields};
 use rv32i::csr;
 
 #[repr(C)]

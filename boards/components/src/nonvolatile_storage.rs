@@ -63,10 +63,8 @@ pub struct NonvolatileStorageComponent<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-    > NonvolatileStorageComponent<F>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+> NonvolatileStorageComponent<F>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -90,10 +88,8 @@ impl<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-    > Component for NonvolatileStorageComponent<F>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+> Component for NonvolatileStorageComponent<F>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,

@@ -7,11 +7,11 @@ use crate::resets;
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::LocalRegisterCopy;
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::LocalRegisterCopy;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 // NOTE:
 //
@@ -347,13 +347,9 @@ impl<'a> I2c<'a, '_> {
         self.registers.ic_con.modify(IC_CON::SPEED::FAST);
         self.registers.ic_fs_scl_hcnt.set(hcnt);
         self.registers.ic_fs_scl_lcnt.set(lcnt);
-        self.registers.ic_fs_spklen.set({
-            if lcnt < 16 {
-                1
-            } else {
-                lcnt / 16
-            }
-        });
+        self.registers
+            .ic_fs_spklen
+            .set(if lcnt < 16 { 1 } else { lcnt / 16 });
         self.registers
             .ic_sda_hold
             .modify(IC_SDA_HOLD::IC_SDA_TX_HOLD.val(sda_tx_hold_count));

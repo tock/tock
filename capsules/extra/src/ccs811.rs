@@ -13,11 +13,11 @@
 //!
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AirQualityClient, AirQualityDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 const STATUS: u8 = 0x00;
 const MEAS_MODE: u8 = 0x01;

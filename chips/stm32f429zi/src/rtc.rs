@@ -16,16 +16,16 @@
 //!
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::date_time;
 use kernel::hil::date_time::{DateTimeClient, DateTimeValues, DayOfWeek, Month};
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
-use stm32f4xx::clocks::{phclk, Stm32f4Clocks};
+use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use stm32f4xx::clocks::{Stm32f4Clocks, phclk};
 
 /// Register block to control RTC
 #[repr(C)]

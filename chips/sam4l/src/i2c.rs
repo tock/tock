@@ -18,13 +18,13 @@ use crate::pm;
 use core::cell::Cell;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
 };
-use kernel::utilities::StaticRef;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet

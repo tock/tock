@@ -25,6 +25,8 @@ macro_rules! proximity_component_static {
     };};
 }
 
+pub type ProximityComponentType = capsules_extra::proximity::ProximitySensor<'static>;
+
 pub struct ProximityComponent<P: hil::sensors::ProximityDriver<'static> + 'static> {
     sensor: &'static P,
     board_kernel: &'static kernel::Kernel,

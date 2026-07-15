@@ -100,10 +100,10 @@ pub struct TicKVComponent<
 }
 
 impl<
-        F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
-        H: Hasher<'static, 8>,
-        const PAGE_SIZE: usize,
-    > TicKVComponent<F, H, PAGE_SIZE>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+    H: Hasher<'static, 8>,
+    const PAGE_SIZE: usize,
+> TicKVComponent<F, H, PAGE_SIZE>
 {
     pub fn new(
         hasher: &'static H,
@@ -125,10 +125,10 @@ impl<
 }
 
 impl<
-        F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
-        H: 'static + Hasher<'static, 8>,
-        const PAGE_SIZE: usize,
-    > Component for TicKVComponent<F, H, PAGE_SIZE>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, MuxFlash<'static, F>>,
+    H: 'static + Hasher<'static, 8>,
+    const PAGE_SIZE: usize,
+> Component for TicKVComponent<F, H, PAGE_SIZE>
 {
     type StaticInput = (
         &'static mut MaybeUninit<FlashUser<'static, F>>,
@@ -173,12 +173,12 @@ pub struct TicKVDedicatedFlashComponent<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, TicKVSystem<'static, F, H, PAGE_SIZE>>,
-        H: Hasher<'static, 8>,
-        const PAGE_SIZE: usize,
-    > TicKVDedicatedFlashComponent<F, H, PAGE_SIZE>
+    F: 'static
+        + hil::flash::Flash
+        + hil::flash::HasClient<'static, TicKVSystem<'static, F, H, PAGE_SIZE>>,
+    H: Hasher<'static, 8>,
+    const PAGE_SIZE: usize,
+> TicKVDedicatedFlashComponent<F, H, PAGE_SIZE>
 {
     pub fn new(
         hasher: &'static H,
@@ -198,12 +198,12 @@ impl<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, TicKVSystem<'static, F, H, PAGE_SIZE>>,
-        H: 'static + Hasher<'static, 8>,
-        const PAGE_SIZE: usize,
-    > Component for TicKVDedicatedFlashComponent<F, H, PAGE_SIZE>
+    F: 'static
+        + hil::flash::Flash
+        + hil::flash::HasClient<'static, TicKVSystem<'static, F, H, PAGE_SIZE>>,
+    H: 'static + Hasher<'static, 8>,
+    const PAGE_SIZE: usize,
+> Component for TicKVDedicatedFlashComponent<F, H, PAGE_SIZE>
 {
     type StaticInput = (
         &'static mut MaybeUninit<TicKVSystem<'static, F, H, PAGE_SIZE>>,

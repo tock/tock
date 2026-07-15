@@ -13,10 +13,10 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::entropy;
 use kernel::hil::rng;
-use kernel::ErrorCode;
 
 const ELEMENTS: usize = 8;
 

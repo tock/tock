@@ -4,12 +4,12 @@
 
 //! PWM driver for nRF52.
 
+use kernel::ErrorCode;
 use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
 #[repr(C)]
 struct PwmRegisters {

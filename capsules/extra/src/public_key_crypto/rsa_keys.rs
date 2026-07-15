@@ -5,12 +5,12 @@
 //! Helper library for RSA public and private keys
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::public_key_crypto::keys::{
     PubKey, PubKeyMut, PubPrivKey, PubPrivKeyMut, RsaKey, RsaKeyMut, RsaPrivKey, RsaPrivKeyMut,
 };
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::mut_imut_buffer::MutImutBuffer;
-use kernel::ErrorCode;
 
 // Copy OpenSSL and use e as 65537
 const PUBLIC_EXPONENT: u32 = 65537;

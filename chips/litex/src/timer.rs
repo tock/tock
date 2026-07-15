@@ -9,16 +9,16 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
+use kernel::ErrorCode;
 use kernel::hil::time::{
     Alarm, AlarmClient, Frequency, Ticks, Ticks32, Ticks64, Time, Timer, TimerClient,
 };
-use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::cells::OptionalCell;
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{
-    register_bitfields, LiteXSoCRegisterConfiguration, Read, ReadRegWrapper, Write, WriteRegWrapper,
+    LiteXSoCRegisterConfiguration, Read, ReadRegWrapper, Write, WriteRegWrapper, register_bitfields,
 };
 
 const EVENT_MANAGER_INDEX: usize = 0;

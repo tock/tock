@@ -6,11 +6,11 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::ErrorCode;
 
 pub const PAGE_SIZE: usize = 8 * 1024;
 pub const FLASH_INSTANCE_SIZE: usize = 512 * 1024;
@@ -26,7 +26,10 @@ enum FlashInstance {
     MAIN0 = 0,
     MAIN1 = 1,
 }
-
+/// A flash page aligned for use with the Apollo3 ROM flash programming API.
+///
+/// `flash_program_main` requires its source buffer to be word-aligned.
+#[repr(C, align(4))]
 pub struct Apollo3Page(pub [u8; PAGE_SIZE]);
 
 impl Default for Apollo3Page {

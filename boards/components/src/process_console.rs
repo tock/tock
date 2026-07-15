@@ -65,6 +65,13 @@ macro_rules! process_console_component_static {
     };};
 }
 
+pub type ProcessConsoleComponentType<A> = process_console::ProcessConsole<
+    'static,
+    { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+    VirtualMuxAlarm<'static, A>,
+    Capability,
+>;
+
 pub struct ProcessConsoleComponent<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
     uart_mux: &'static MuxUart<'static>,

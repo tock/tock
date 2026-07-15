@@ -5,9 +5,9 @@
 //! DCDC Converter
 
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{self, ReadWrite};
-use kernel::utilities::StaticRef;
 
 use crate::ccm;
 

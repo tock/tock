@@ -33,13 +33,13 @@
 //! ```
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::time::{Ticks, Time};
 use kernel::platform::ContextSwitchCallback;
 use kernel::process::{self, ProcessId};
 use kernel::processbuffer::{UserspaceReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::ErrorCode;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = capsules_core::driver::NUM::ReadOnlyState as usize;

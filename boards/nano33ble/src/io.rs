@@ -6,11 +6,11 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::ptr::{addr_of, addr_of_mut};
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart::{self};
 use kernel::utilities::io_write::IoWrite;
-use kernel::ErrorCode;
 use nrf52840::gpio::Pin;
 
 use kernel::hil::uart::Transmit;

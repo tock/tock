@@ -927,11 +927,10 @@ impl<'a> TbfHeader<'a> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
                 Some(storage_permissions_tlv_slice) => {
-                    let write_id = core::num::NonZeroU32::new(u32::from_le_bytes(
+                    // write_id
+                    core::num::NonZeroU32::new(u32::from_le_bytes(
                         storage_permissions_tlv_slice.get(0..4)?.try_into().ok()?,
-                    ));
-
-                    write_id
+                    ))
                 }
                 _ => None,
             },

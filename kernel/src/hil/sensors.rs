@@ -17,7 +17,7 @@ pub trait TemperatureClient {
     /// Called when a temperature reading has completed.
     ///
     /// - `value`: the most recently read temperature in hundredths of degrees
-    /// centigrade (centiCelsius), or Err on failure.
+    ///   centigrade (centiCelsius), or Err on failure.
     fn callback(&self, value: Result<i32, ErrorCode>);
 }
 
@@ -53,8 +53,8 @@ pub trait MoistureDriver<'a> {
 pub trait MoistureClient {
     /// Called when a moisture reading has completed.
     ///
-    /// - `value`: the most recently read moisture in hundredths of
-    /// percent, or Err on failure.
+    /// - `value`: the most recently read moisture in hundredths of percent, or
+    ///   Err on failure.
     ///
     /// This function might return the following errors:
     /// - `BUSY`: Indicates that the hardware is busy with an existing operation
@@ -129,15 +129,23 @@ pub trait AirQualityClient {
 /// A basic interface for a proximity sensor
 pub trait ProximityDriver<'a> {
     fn set_client(&self, client: &'a dyn ProximityClient);
+
     /// Callback issued after sensor reads proximity value
     fn read_proximity(&self) -> Result<(), ErrorCode>;
-    /// Callback issued after sensor reads proximity value greater than 'high_threshold' or less than 'low_threshold'
+
+    /// Callback issued after sensor reads proximity value greater
+    /// than 'high_threshold' or less than 'low_threshold'
     ///
-    /// To elaborate, the callback is not issued by the driver until (prox_reading >= high_threshold || prox_reading <= low_threshold).
-    /// When (prox_reading >= high_threshold || prox_reading <= low_threshold) is read by the sensor, an I2C interrupt is generated and sent to the kernel
-    /// which prompts the driver to collect the proximity reading from the sensor and perform the callback.
-    /// Any apps issuing this command will have to wait for the proximity reading to fall within the aforementioned ranges in order to received a callback.
-    /// Threshold: A value of range [0 , 255] which represents at what proximity reading ranges an interrupt will occur.
+    /// To elaborate, the callback is not issued by the driver until
+    /// (prox_reading >= high_threshold || prox_reading <= low_threshold).
+    /// When (prox_reading >= high_threshold || prox_reading <= low_threshold)
+    /// is read by the sensor, an I2C interrupt is generated and sent to the
+    /// kernel which prompts the driver to collect the proximity reading from
+    /// the sensor and perform the callback. Any apps issuing this command will
+    /// have to wait for the proximity reading to fall within the
+    /// aforementioned ranges in order to received a callback. Threshold: A
+    /// value of range [0 , 255] which represents at what proximity reading
+    /// ranges an interrupt will occur.
     fn read_proximity_on_interrupt(
         &self,
         low_threshold: u8,
@@ -148,8 +156,9 @@ pub trait ProximityDriver<'a> {
 pub trait ProximityClient {
     /// Called when a proximity reading has completed.
     ///
-    /// - `value`: the most recently read proximity value which ranges [0 , 255]...
-    /// where 255 -> object is closest readable distance, 0 -> object is farthest readable distance.
+    /// - `value`: the most recently read proximity value which ranges
+    ///   [0 , 255]... where 255 -> object is closest readable distance, 0 ->
+    ///   object is farthest readable distance.
     fn callback(&self, value: u8);
 }
 

@@ -917,8 +917,8 @@ pub enum Error {
     AlreadyInUse,
 }
 
-impl From<Error> for Result<(), ErrorCode> {
-    fn from(err: Error) -> Result<(), ErrorCode> {
+impl<T> From<Error> for Result<T, ErrorCode> {
+    fn from(err: Error) -> Result<T, ErrorCode> {
         match err {
             Error::OutOfMemory => Err(ErrorCode::NOMEM),
             Error::AddressOutOfBounds => Err(ErrorCode::INVAL),

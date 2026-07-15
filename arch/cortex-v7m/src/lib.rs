@@ -460,9 +460,9 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     ite   ne               // check if the result of that bitwise AND was not 0
     movne r1, #1           // BFSR & 0b00110000 != 0; r1 = 1
     moveq r1, #0           // BFSR & 0b00110000 == 0; r1 = 0
-    and r5, r2, r1         // bitwise and r1 and r2, store in r5
-    cmp  r5, #1            //  update condition codes to reflect if r1 == 1 && r2 == 1
-    itt  eq                // if r5==1 run the next 2 instructions, else skip to branch
+    and r3, r2, r1         // bitwise and r1 and r2, store in r3
+    cmp  r3, #1            //  update condition codes to reflect if r1 == 1 && r2 == 1
+    itt  eq                // if r3==1 run the next 2 instructions, else skip to branch
     // if true, The hardware couldn't use the stack, so we have no saved data and
     // we cannot use the kernel stack as is. We just want to report that
     // the kernel's stack overflowed, since that is essential for
@@ -472,8 +472,8 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     // kernel's original stack. This should in theory leave the bottom
     // of the stack where the problem occurred untouched should one want
     // to further debug.
-    ldreq  r4, ={estack} // load _estack into r4
-    moveq  sp, r4        // Set the stack pointer to _estack
+    ldreq  r3, ={estack} // load _estack into r3
+    moveq  sp, r3        // Set the stack pointer to _estack
     // finally, if the fault occurred in privileged mode (r2 == 1), branch
     // to non-naked handler.
     cmp r2, #0

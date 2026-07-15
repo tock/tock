@@ -5,18 +5,18 @@
 use crate::clocks;
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 use kernel::hil;
-use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::spi::SpiMasterClient;
+use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 const SPI_READ_IN_PROGRESS: u8 = 0b001;
 const SPI_WRITE_IN_PROGRESS: u8 = 0b010;

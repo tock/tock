@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Handle interrupts for nRF52840-specific peripherals
+
 use kernel::hil::time::Alarm;
 use nrf52::chip::Nrf52DefaultPeripherals;
 
@@ -21,9 +23,10 @@ pub struct Nrf52840DefaultPeripherals<'a> {
 impl Nrf52840DefaultPeripherals<'_> {
     pub unsafe fn new(
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
+        aes_ecb_buf: &'static mut [u8; 48],
     ) -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(),
+            nrf52: Nrf52DefaultPeripherals::new(aes_ecb_buf),
             ieee802154_radio: crate::ieee802154_radio::Radio::new(ieee802154_radio_ack_buf),
             usbd: crate::usbd::Usbd::new(),
             gpio_port: crate::gpio::nrf52840_gpio_create(),

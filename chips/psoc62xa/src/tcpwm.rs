@@ -6,12 +6,13 @@ use kernel::hil::{
     self,
     time::{self, Alarm, Ticks, Time},
 };
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{
+    ReadOnly, ReadWrite,
     interfaces::{ReadWriteable, Readable},
-    register_bitfields, register_structs, ReadOnly, ReadWrite,
+    register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 register_structs! {
     Tcpwm0Registers {

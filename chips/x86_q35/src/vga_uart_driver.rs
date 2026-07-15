@@ -16,10 +16,10 @@
 
 use crate::vga::Vga;
 use core::{cell::Cell, cmp};
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{Configure, Parameters, Receive, ReceiveClient, Transmit, TransmitClient};
 use kernel::utilities::cells::TakeCell;
-use kernel::ErrorCode;
 use tock_cells::optional_cell::OptionalCell;
 
 /// UART-compatible wrapper around the VGA text writer.

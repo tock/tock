@@ -27,15 +27,15 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
-use crate::net::thread::thread_utils::{mac_from_ipv6, MULTICAST_IPV6};
+use crate::net::thread::thread_utils::{MULTICAST_IPV6, mac_from_ipv6};
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::time::{self, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 /// Client trait for receiving transmission completiong events.
 ///

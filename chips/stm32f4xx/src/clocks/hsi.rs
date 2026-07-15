@@ -8,8 +8,8 @@
 //!
 //! # Usage
 //!
-//! For the purposes of brevity, any error checking has been removed. In real applications, always
-//! check the return values of the [Hsi] methods.
+//! For the purposes of brevity, any error checking has been removed. In real
+//! applications, always check the return values of the [Hsi] methods.
 //!
 //! First, get a reference to the [Hsi] struct:
 //! ```rust,ignore
@@ -46,8 +46,8 @@
 
 use crate::rcc::Rcc;
 
-use kernel::debug;
 use kernel::ErrorCode;
+use kernel::debug;
 
 /// HSI frequency in MHz
 pub const HSI_FREQUENCY_MHZ: usize = 16;
@@ -75,8 +75,8 @@ impl<'a> Hsi<'a> {
     ///
     /// # Errors
     ///
-    /// + [Err]\([ErrorCode::BUSY]\): if enabling the HSI clock took too long. Recall this method to
-    /// ensure the HSI clock is running.
+    /// + [Err]\([ErrorCode::BUSY]\): if enabling the HSI clock took too long.
+    ///   Recall this method to ensure the HSI clock is running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         self.rcc.enable_hsi_clock();
 
@@ -94,8 +94,8 @@ impl<'a> Hsi<'a> {
     /// # Errors
     ///
     /// + [Err]\([ErrorCode::FAIL]\): if the HSI clock is configured as the system clock.
-    /// + [Err]\([ErrorCode::BUSY]\): disabling the HSI clock took to long. Retry to ensure it is
-    /// not running.
+    /// + [Err]\([ErrorCode::BUSY]\): disabling the HSI clock took to long.
+    ///   Retry to ensure it is not running.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         if self.rcc.is_hsi_clock_system_clock() {
             return Err(ErrorCode::FAIL);
@@ -167,7 +167,7 @@ impl<'a> Hsi<'a> {
 ///
 /// **NOTE:** All these tests assume default boot configuration.
 pub mod tests {
-    use super::{debug, ErrorCode, Hsi, HSI_FREQUENCY_MHZ};
+    use super::{ErrorCode, HSI_FREQUENCY_MHZ, Hsi, debug};
 
     /// Run the entire test suite.
     pub fn run(hsi: &Hsi) {

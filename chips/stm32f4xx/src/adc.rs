@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::clocks::{phclk, Stm32f4Clocks};
+use crate::clocks::{Stm32f4Clocks, phclk};
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 #[repr(C)]
 struct AdcRegisters {

@@ -31,7 +31,7 @@
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 
-use capsules_core::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
+use capsules_core::spi_controller::{DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH, Spi};
 use capsules_core::spi_peripheral::SpiPeripheral;
 use capsules_core::virtualizers::virtual_spi;
 use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -112,6 +112,8 @@ macro_rules! spi_peripheral_component_static {
 pub struct SpiMuxComponent<S: 'static + spi::SpiMaster<'static>> {
     spi: &'static S,
 }
+
+pub type SpiSyscallComponentType<S> = Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
 pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster<'static>> {
     board_kernel: &'static kernel::Kernel,
@@ -253,10 +255,10 @@ impl<S: 'static + spi::SpiSlave<'static>> Component for SpiSyscallPComponent<S> 
 }
 
 impl<
-        S: 'static + spi::SpiMaster<'static>,
-        CS: spi::cs::IntoChipSelect<S::ChipSelect, AP>,
-        AP: spi::cs::ChipSelectActivePolarity,
-    > SpiComponent<S, CS, AP>
+    S: 'static + spi::SpiMaster<'static>,
+    CS: spi::cs::IntoChipSelect<S::ChipSelect, AP>,
+    AP: spi::cs::ChipSelectActivePolarity,
+> SpiComponent<S, CS, AP>
 {
     pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: CS) -> Self {
         SpiComponent {
@@ -268,10 +270,10 @@ impl<
 }
 
 impl<
-        S: 'static + spi::SpiMaster<'static>,
-        CS: spi::cs::IntoChipSelect<S::ChipSelect, AP>,
-        AP: spi::cs::ChipSelectActivePolarity,
-    > Component for SpiComponent<S, CS, AP>
+    S: 'static + spi::SpiMaster<'static>,
+    CS: spi::cs::IntoChipSelect<S::ChipSelect, AP>,
+    AP: spi::cs::ChipSelectActivePolarity,
+> Component for SpiComponent<S, CS, AP>
 {
     type StaticInput = &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>;
     type Output = &'static VirtualSpiMasterDevice<'static, S>;

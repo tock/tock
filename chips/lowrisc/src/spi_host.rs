@@ -5,17 +5,17 @@
 //! Serial Peripheral Interface (SPI) Host Driver
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpiHostStatus {

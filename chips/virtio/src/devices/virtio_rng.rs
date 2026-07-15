@@ -4,12 +4,12 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::rng::{Client as RngClient, Continue as RngCont, Rng};
 use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::super::queues::split_queue::{

@@ -24,6 +24,7 @@
 //! setting up the device.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::public_key_crypto::keys;
@@ -31,7 +32,6 @@ use kernel::hil::public_key_crypto::signature::{ClientVerify, SignatureVerify};
 use kernel::hil::{digest, entropy, entropy::Entropy32};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut, SubSliceMutImmut};
-use kernel::ErrorCode;
 
 /* Protocol + Cryptographic defines */
 const RESPONSE_COUNT_SIZE: usize = 1;

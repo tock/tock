@@ -5,12 +5,12 @@
 use core::cell::Cell;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 use crate::{ccm, dma};
 

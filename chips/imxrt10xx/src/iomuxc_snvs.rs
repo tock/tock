@@ -3,9 +3,9 @@
 // Copyright Tock Contributors 2022.
 
 use crate::iomuxc::{DriveStrength, MuxMode, OpenDrainEn, PullKeepEn, PullUpDown, Sion, Speed};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
 /// IOMUX SNVS Controller Module
 #[repr(C)]

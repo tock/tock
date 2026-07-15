@@ -4,8 +4,8 @@
 
 //! (enhanced) Universal Serial Communication Interface (USCI)
 
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 pub const USCI_A0_BASE: StaticRef<UsciARegisters> =
     unsafe { StaticRef::new(0x4000_1000 as *const UsciARegisters) };

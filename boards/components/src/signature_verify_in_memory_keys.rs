@@ -55,14 +55,14 @@ pub struct SignatureVerifyInMemoryKeysComponent<
 }
 
 impl<
-        S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + kernel::hil::public_key_crypto::keys::SetKeyBySlice<'static, KL>
-            + 'static,
-        const NUM_KEYS: usize,
-        const KL: usize,
-        const HL: usize,
-        const SL: usize,
-    > SignatureVerifyInMemoryKeysComponent<S, NUM_KEYS, KL, HL, SL>
+    S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        + kernel::hil::public_key_crypto::keys::SetKeyBySlice<'static, KL>
+        + 'static,
+    const NUM_KEYS: usize,
+    const KL: usize,
+    const HL: usize,
+    const SL: usize,
+> SignatureVerifyInMemoryKeysComponent<S, NUM_KEYS, KL, HL, SL>
 {
     pub fn new(verifier: &'static S, keys: &'static mut [&'static mut [u8; KL]]) -> Self {
         Self { verifier, keys }
@@ -70,14 +70,14 @@ impl<
 }
 
 impl<
-        S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + kernel::hil::public_key_crypto::keys::SetKeyBySlice<'static, KL>
-            + 'static,
-        const NUM_KEYS: usize,
-        const KL: usize,
-        const HL: usize,
-        const SL: usize,
-    > Component for SignatureVerifyInMemoryKeysComponent<S, NUM_KEYS, KL, HL, SL>
+    S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        + kernel::hil::public_key_crypto::keys::SetKeyBySlice<'static, KL>
+        + 'static,
+    const NUM_KEYS: usize,
+    const KL: usize,
+    const HL: usize,
+    const SL: usize,
+> Component for SignatureVerifyInMemoryKeysComponent<S, NUM_KEYS, KL, HL, SL>
 {
     type StaticInput = &'static mut MaybeUninit<
         capsules_extra::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeys<

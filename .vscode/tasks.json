@@ -1,0 +1,16 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build.psc3m5_evk",
+            // edit "tock.app" in ~/.config/Code/User/settings.json
+            "command": "APP=${config:tock.app} DEBUG=1 make -C ${workspaceRoot}/boards/psc3m5_evk build-with-app",
+            "type": "shell",
+            "args": [],
+            "presentation": {
+                "reveal": "silent" // only show on errors
+            },
+            "group": "build"
+        },
+    ]
+}

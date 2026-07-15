@@ -9,7 +9,7 @@ use core::{cmp, fmt};
 
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
+use kernel::utilities::registers::{LocalRegisterCopy, register_bitfields};
 
 use crate::csr;
 
@@ -327,7 +327,7 @@ pub mod misc_pmp_test {
     fn test_napot_region_spec_from_pmpaddr_csr() {
         use super::NAPOTRegionSpec;
 
-        // Unfortunatly, we can't run these unit tests for different platforms,
+        // Unfortunately, we can't run these unit tests for different platforms,
         // with arbitrary bit-widths (at least when using `usize` in the
         // `TORRegionSpec` internally.
         //
@@ -419,7 +419,7 @@ pub mod misc_pmp_test {
     #[test]
     fn test_tor_region_spec_from_pmpaddr_csrs() {
         use super::TORRegionSpec;
-        // Unfortunatly, we can't run these unit tests for different platforms,
+        // Unfortunately, we can't run these unit tests for different platforms,
         // with arbitrary bit-widths (at least when using `usize` in the
         // `TORRegionSpec` internally.
         //
@@ -577,7 +577,7 @@ pub mod misc_pmp_test {
 ///
 /// This function is unsafe, as it relies on the PMP CSRs to be accessible, and
 /// the hardware to feature `PHYSICAL_ENTRIES` PMP CSR entries. If these
-/// conditions are not met, calling this function can result in undefinied
+/// conditions are not met, calling this function can result in undefined
 /// behavior (e.g., cause a system trap).
 pub unsafe fn format_pmp_entries<const PHYSICAL_ENTRIES: usize>(
     f: &mut fmt::Formatter<'_>,
@@ -654,11 +654,7 @@ pub unsafe fn format_pmp_entries<const PHYSICAL_ENTRIES: usize>(
 
         // Ternary operator shortcut function, to avoid bulky formatting...
         fn t<T>(cond: bool, a: T, b: T) -> T {
-            if cond {
-                a
-            } else {
-                b
-            }
+            if cond { a } else { b }
         }
 
         write!(
@@ -763,11 +759,11 @@ pub trait TORUserPMP<const MAX_REGIONS: usize> {
     ///   configured either as a TOR region (`A = 0b01`), or disabled (all bits
     ///   set to `0`).
     ///
-    /// - second value (`*const u8`): the region's start addres. As a PMP TOR
+    /// - second value (`*const u8`): the region's start address. As a PMP TOR
     ///   region has a 4-byte address granularity, this address is rounded down
     ///   to the next 4-byte boundary.
     ///
-    /// - third value (`*const u8`): the region's end addres. As a PMP TOR
+    /// - third value (`*const u8`): the region's end address. As a PMP TOR
     ///   region has a 4-byte address granularity, this address is rounded down
     ///   to the next 4-byte boundary.
     ///
@@ -795,7 +791,7 @@ pub trait TORUserPMP<const MAX_REGIONS: usize> {
     /// Disable the user-mode memory protection.
     ///
     /// Disables the memory protection for user-mode. If enabling the user-mode
-    /// memory protetion made user-mode accessible regions inaccessible to
+    /// memory protection made user-mode accessible regions inaccessible to
     /// machine-mode, this method should make these regions accessible again.
     ///
     /// For PMP implementations where configured regions are only enforced in
@@ -825,11 +821,7 @@ impl<const MAX_REGIONS: usize> fmt::Display for PMPUserMPUConfig<MAX_REGIONS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Ternary operator shortcut function, to avoid bulky formatting...
         fn t<T>(cond: bool, a: T, b: T) -> T {
-            if cond {
-                a
-            } else {
-                b
-            }
+            if cond { a } else { b }
         }
 
         write!(
@@ -844,10 +836,10 @@ impl<const MAX_REGIONS: usize> fmt::Display for PMPUserMPUConfig<MAX_REGIONS> {
             let pmpcfg = tor_user_pmpcfg.get_reg();
             write!(
                 f,
-                "     #{:02}: start={:#010X}, end={:#010X}, cfg={:#04X} ({}) (-{}{}{})\r\n",
+                "     #{:02}: start={:p}, end={:p}, cfg={:#04X} ({}) (-{}{}{})\r\n",
                 i,
-                *start as usize,
-                *end as usize,
+                *start,
+                *end,
                 pmpcfg.get(),
                 t(pmpcfg.is_set(pmpcfg_octet::a), "TOR", "OFF"),
                 t(pmpcfg.is_set(pmpcfg_octet::r), "r", "-"),
@@ -995,7 +987,7 @@ unsafe impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
             // that performed this check before adjusting the requested region
             // size to meet PMP region layout constraints (4 byte alignment for
             // start and end address). Existing applications whose end-address
-            // is aligned on a less than 4-byte bondary would thus be given
+            // is aligned on a less than 4-byte boundary would thus be given
             // access to additional memory which should be inaccessible.
             // Unfortunately, we can't fix this without breaking existing
             // applications. Thus, we perform the same insecure hack here, and
@@ -1237,7 +1229,7 @@ pub mod tor_user_pmp_test {
     #[test]
     fn test_mpu_region_no_overlap() {
         use crate::pmp::PMPUserMPU;
-        use kernel::platform::mpu::{Permissions, MPU};
+        use kernel::platform::mpu::{MPU, Permissions};
 
         let mpu: PMPUserMPU<8, MockTORUserPMP> = PMPUserMPU::new(MockTORUserPMP);
         let mut config = mpu
@@ -1309,27 +1301,29 @@ pub mod tor_user_pmp_test {
 
         // Now, try to allocate another region that spans over both memory
         // regions. This should fail.
-        assert!(mpu
-            .allocate_region(
+        assert!(
+            mpu.allocate_region(
                 0x40000000 as *const u8,
                 0xc0000000,
                 0xc0000000,
                 Permissions::ReadOnly,
                 &mut config,
             )
-            .is_none());
+            .is_none()
+        );
 
         // Try to allocate a region that spans over parts of both memory
         // regions. This should fail.
-        assert!(mpu
-            .allocate_region(
+        assert!(
+            mpu.allocate_region(
                 0x48000000 as *const u8,
                 0x80000000,
                 0x80000000,
                 Permissions::ReadOnly,
                 &mut config,
             )
-            .is_none());
+            .is_none()
+        );
 
         // --> Overlap tests involving a single region (region_0)
         //
@@ -1374,9 +1368,10 @@ pub mod tor_user_pmp_test {
 
         // Make sure that the allocation requests fail with `region_0` defined:
         for (memory_start, memory_size, length, perms) in overlap_region_0_tests.iter() {
-            assert!(mpu
-                .allocate_region(*memory_start, *memory_size, *length, *perms, &mut config,)
-                .is_none());
+            assert!(
+                mpu.allocate_region(*memory_start, *memory_size, *length, *perms, &mut config,)
+                    .is_none()
+            );
         }
 
         // Now, remove `region_0` and re-run the tests. Every test-case should
@@ -1432,20 +1427,21 @@ pub mod tor_user_pmp_test {
         // that we managed to reach an invalid intermediate state:
         mpu.remove_memory_region(region_2, &mut config)
             .expect("Failed to remove valid MPU region allocation");
-        assert!(mpu
-            .allocate_region(
+        assert!(
+            mpu.allocate_region(
                 0xd0000000 as *const u8,
                 0x10000000,
                 0x10000000,
                 Permissions::ReadWriteOnly,
                 &mut config,
             )
-            .is_none());
+            .is_none()
+        );
     }
 }
 
 pub mod simple {
-    use super::{pmpcfg_octet, TORUserPMP, TORUserPMPCFG};
+    use super::{TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
     use crate::csr;
     use core::fmt;
     use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
@@ -1458,12 +1454,12 @@ pub mod simple {
     /// expected to be set to the number of available entries.
     ///
     /// [`SimplePMP`] implements [`TORUserPMP`] to expose all of its regions as
-    /// "top of range" (TOR) regions (each taking up two physical PMP entires)
+    /// "top of range" (TOR) regions (each taking up two physical PMP entries)
     /// for use as a user-mode memory protection mechanism.
     ///
     /// Notably, [`SimplePMP`] implements `TORUserPMP<MPU_REGIONS>` over a
     /// generic `MPU_REGIONS` where `MPU_REGIONS <= (AVAILABLE_ENTRIES / 2)`. As
-    /// PMP re-configuration can have a significiant runtime overhead, users are
+    /// PMP re-configuration can have a significant runtime overhead, users are
     /// free to specify a small `MPU_REGIONS` const-generic parameter to reduce
     /// the runtime overhead induced through PMP configuration, at the cost of
     /// having less PMP regions available to use for userspace memory
@@ -1637,7 +1633,7 @@ pub mod simple {
 }
 
 pub mod kernel_protection {
-    use super::{pmpcfg_octet, NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG};
+    use super::{NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
     use crate::csr;
     use core::fmt;
     use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
@@ -2014,7 +2010,7 @@ pub mod kernel_protection {
 }
 
 pub mod kernel_protection_mml_epmp {
-    use super::{pmpcfg_octet, NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG};
+    use super::{NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
     use crate::csr;
     use core::cell::Cell;
     use core::fmt;
@@ -2278,7 +2274,7 @@ pub mod kernel_protection_mml_epmp {
         for KernelProtectionMMLEPMP<AVAILABLE_ENTRIES, MPU_REGIONS>
     {
         // Ensure that the MPU_REGIONS (starting at entry, and occupying two
-        // entries per region) don't overflow the available entires, excluding
+        // entries per region) don't overflow the available entries, excluding
         // the 7 entries used for implementing the kernel memory protection:
         const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 5) / 2));
 
@@ -2527,11 +2523,11 @@ pub mod kernel_protection_mml_epmp {
 
                 write!(
                     f,
-                    "  [{:02}]: {}={:#010X}, end={:#010X}, cfg={:#04X} ({}  ) ({}{}{}{})\r\n",
+                    "  [{:02}]: {}={:p}, end={:p}, cfg={:#04X} ({}  ) ({}{}{}{})\r\n",
                     (i + Self::TOR_REGIONS_OFFSET) * 2 + 1,
                     start_pmpaddr_label,
-                    startaddr_pmpaddr,
-                    endaddr,
+                    startaddr_pmpaddr as *const (),
+                    endaddr as *const (),
                     shadowed_pmpcfg.get().get(),
                     mode,
                     if shadowed_pmpcfg.get().get_reg().is_set(pmpcfg_octet::l) {

@@ -225,9 +225,9 @@ pub use crate::async_ops::AsyncTicKV;
 pub use crate::error_codes::ErrorCode;
 #[doc(inline)]
 pub use crate::flash_controller::FlashController;
+pub use crate::tickv::MAIN_KEY;
 #[doc(inline)]
 pub use crate::tickv::TicKV;
-pub use crate::tickv::MAIN_KEY;
 
 // This is used to run the tests on a host
 #[cfg(test)]

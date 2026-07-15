@@ -94,6 +94,97 @@ macro_rules! stack_size {
     }
 }
 
+/// Initialize all fields of a `MaybeUninit<T>` struct.
+///
+/// Use this macro to guarantee that all fields in `T` are initialized.
+///
+/// Instead of the normal code, which would look like this:
+///
+/// ```rust,ignore
+/// let process_uninit: &mut MaybeUninit<ProcessStandard<C, D>> =
+///     unsafe { &mut *process_struct_memory_location };
+///
+/// let process_uptr = process_uninit.as_mut_ptr();
+///
+/// unsafe {
+///     (&raw mut (*process_uptr).kernel).write(kernel);
+///     (&raw mut (*process_uptr).chip).write(chip);
+///     ...
+/// }
+/// ```
+///
+/// which has the limitation that if not every field is set, then this code is
+/// unsafe. With this macro, the code looks like this:
+///
+/// ```rust,ignore
+/// let process_uninit: &mut MaybeUninit<ProcessStandard<C, D>> =
+///     unsafe { &mut *process_struct_memory_location };
+///
+/// unsafe {
+///     init_uninit_struct!(process_uninit => ProcessStandard<C, D> {
+///         kernel: kernel,
+///         chip: chip,
+///         ...
+///     )};
+/// }
+/// ```
+///
+/// If not every field is set then there will be a compiler error.
+///
+/// # Implementation
+///
+/// This macro creates a fake implementation of the struct `T` and then
+/// populates all of the provided fields. This allows the normal Rust compiler
+/// to check that all fields are actually set.
+///
+/// The generated code looks something like this:
+///
+/// ```rust,ignore
+/// #[allow(unreachable_code)]
+/// if false {
+///     let _: ProcessStandard<C, D> = ProcessStandard {
+///         kernel: ::core::panicking::panic("not yet implemented"),
+///         chip: ::core::panicking::panic("not yet implemented"),
+///         ...
+///     };
+/// }
+/// ```
+///
+/// Using `todo!()` avoids any issues with the borrow checker. However, using
+/// `todo!()` causes the `diverging_sub_expression` clippy lint to trigger.
+/// Since we are doing this intentionally, we manually ignore the
+/// `diverging_sub_expression` lint.
+///
+/// # Safety
+///
+/// The struct to be initialized needs to be correctly allocated and all fields
+/// need to be correctly aligned.
+#[macro_export]
+macro_rules! init_uninit_struct {
+    (@field $field:ident : $value:expr) => {
+        $value
+    };
+
+    (@field $field:ident) => {
+        $field
+    };
+
+    ( $s: expr => $t: ident < $($gen:tt),* > { $( $field:ident : $value:expr ),* $(,)? } ) => {
+        #[allow(unreachable_code)]
+        #[allow(clippy::diverging_sub_expression)]
+        if false {
+            let _: $t<$($gen),*> = $t {
+                $( $field: todo!() ),*
+            };
+        }
+
+        let s = $s.as_mut_ptr();
+        $(
+            (&raw mut (*s).$field).write(init_uninit_struct!(@field $field : $value));
+        )*
+    };
+}
+
 /// Compute a POSIX-style CRC32 checksum of a slice.
 ///
 /// Online calculator: <https://crccalc.com/>

@@ -14,6 +14,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::gpio::Pin;
@@ -22,7 +23,6 @@ use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 /// 4-bit frame buffer bytes.
 ///

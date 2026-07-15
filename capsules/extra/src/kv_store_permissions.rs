@@ -27,11 +27,11 @@
 //! ```
 
 use core::mem;
+use kernel::ErrorCode;
 use kernel::hil::kv;
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Operation {

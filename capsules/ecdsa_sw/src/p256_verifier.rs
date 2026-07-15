@@ -8,10 +8,10 @@ use p256::ecdsa;
 use p256::ecdsa::signature::hazmat::PrehashVerifier;
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::public_key_crypto::keys::SetKeyBySliceClient;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 enum State {
     Verifying,
@@ -117,10 +117,10 @@ impl kernel::deferred_call::DeferredCallClient for EcdsaP256SignatureVerifier<'_
             match s {
                 State::Verifying => {
                     self.client.map(|client| {
-                        if let Some(h) = self.hash_storage.take() {
-                            if let Some(s) = self.signature_storage.take() {
-                                client.verification_done(Ok(self.verified.get()), h, s);
-                            }
+                        if let Some(h) = self.hash_storage.take()
+                            && let Some(s) = self.signature_storage.take()
+                        {
+                            client.verification_done(Ok(self.verified.get()), h, s);
                         }
                     });
                 }

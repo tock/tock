@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025 SRL.
 
-use kernel::utilities::registers::{
-    interfaces::{ReadWriteable, Readable, Writeable},
-    register_bitfields, register_structs, ReadWrite,
-};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{
+    ReadWrite,
+    interfaces::{ReadWriteable, Readable, Writeable},
+    register_bitfields, register_structs,
+};
 
 register_structs! {
     PeriRegisters {

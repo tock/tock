@@ -16,13 +16,13 @@
 use core::cell::Cell;
 use core::cmp;
 
+use kernel::ErrorCode;
 use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::dma_slice::{DmaSubSliceMut, DmaSubSliceMutImmut};
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, InMemoryRegister};
-use kernel::ErrorCode;
+use kernel::utilities::registers::{InMemoryRegister, register_bitfields};
 
 use super::super::queues::{Virtqueue, VirtqueueAddresses};
 use super::super::transports::VirtIOTransport;
@@ -350,6 +350,11 @@ enum VirtqueueDmaBuffer<'b> {
 }
 
 impl<'b> VirtqueueDmaBuffer<'b> {
+    /// Create a DMA-safe buffer from a `VirtqueueBuffer`.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure they do not drop the created `VirtqueueDmaBuffer`.
     unsafe fn from_virtqueue_buffer(
         virtqueue_buffer: VirtqueueBuffer<'b>,
         fence: impl DmaFence,
@@ -362,7 +367,14 @@ impl<'b> VirtqueueDmaBuffer<'b> {
                 ))
             }
             VirtqueueBuffer::DeviceWriteable(sub_slice_mut) => {
-                VirtqueueDmaBuffer::DeviceWriteable(DmaSubSliceMut::new(sub_slice_mut, fence))
+                // Wrap the queue buffer in a DmaSlice.
+                //
+                // # Safety
+                //
+                // Because our buffer isn't static, we must ensure to never drop the
+                // buffer. The function-level safety requirements ensure this.
+                let dma_slice = unsafe { DmaSubSliceMut::new(sub_slice_mut, fence) };
+                VirtqueueDmaBuffer::DeviceWriteable(dma_slice)
             }
         }
     }
@@ -643,7 +655,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize, F: DmaFence> SplitVirtqueue<'a, 'b, MA
         let mut i = 0;
         let mut previous_descriptor: Option<usize> = None;
         let mut head = None;
-        let queuebuf_iter = buffer_chain.iter_mut().peekable();
+        let queuebuf_iter = buffer_chain.iter_mut();
         for queuebuf in queuebuf_iter.take_while(|queuebuf| queuebuf.is_some()) {
             // Take the queuebuf out of the caller array
             let taken_queuebuf = queuebuf.take().expect("queuebuf is None");

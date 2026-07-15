@@ -3,13 +3,13 @@
 // Copyright OxidOS Automotive 2025.
 
 use cortexm33::support::with_interrupts_disabled;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 use crate::interrupts::TIMER0_IRQ_0;
 
@@ -208,9 +208,7 @@ impl<'a> RPTimer<'a> {
         // Even though clearing the INTE::ALARM_0 bit should be enough to disable
         // the interrupt firing, it seems that RP2040 requires manual NVIC
         // disabling of the interrupt.
-        unsafe {
-            cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).disable();
-        }
+        cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).disable();
     }
 
     pub fn handle_interrupt(&self) {

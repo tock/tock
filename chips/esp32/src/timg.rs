@@ -6,13 +6,13 @@
 
 use core::marker::PhantomData;
 
+use kernel::ErrorCode;
 use kernel::hil::time::{self, Alarm, Counter, Ticks, Ticks64, Time};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::register_bitfields;
-use kernel::utilities::registers::{register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, register_structs};
 
 pub const TIMG0_BASE: StaticRef<TimgRegisters> =
     unsafe { StaticRef::new(0x6001_F000 as *const TimgRegisters) };
@@ -206,10 +206,6 @@ impl<F: time::Frequency, const C3: bool> time::Time for TimG<'_, F, C3> {
 }
 
 impl<'a, F: time::Frequency, const C3: bool> Counter<'a> for TimG<'a, F, C3> {
-    fn set_overflow_client(&self, _client: &'a dyn time::OverflowClient) {
-        // We have no way to know when this happens
-    }
-
     fn start(&self) -> Result<(), ErrorCode> {
         self.registers.t0config.write(CONFIG::EN::SET);
 

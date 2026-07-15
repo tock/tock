@@ -107,6 +107,16 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     type UserspaceKernelBoundary = cortexm7::syscall::SysCall;
     type ThreadIdProvider = cortexm7::thread_id::CortexMThreadIdProvider;
 
+    fn init() {
+        cortexm7::nvic::disable_all();
+        cortexm7::nvic::clear_all_pending();
+
+        // Set the vector table offset.
+        crate::initialize_vector_table();
+
+        cortexm7::nvic::enable_all();
+    }
+
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm7::nvic::next_pending() {
@@ -120,7 +130,7 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm7::nvic::has_pending() }
+        cortexm7::nvic::has_pending()
     }
 
     fn mpu(&self) -> &cortexm7::mpu::MPU {

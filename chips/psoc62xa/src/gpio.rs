@@ -3,12 +3,13 @@
 // Copyright OxidOS Automotive 2025 SRL.
 
 use kernel::hil::gpio::{Configuration, Configure, Input, Interrupt, Output};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{
+    ReadOnly, ReadWrite,
     interfaces::{ReadWriteable, Readable},
-    register_bitfields, register_structs, ReadOnly, ReadWrite,
+    register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 #[repr(C)]
 struct GpioPort {

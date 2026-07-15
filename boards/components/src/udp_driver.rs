@@ -68,6 +68,8 @@ macro_rules! udp_driver_component_static {
     };};
 }
 
+pub type UDPDriverComponentType = capsules_extra::net::udp::UDPDriver<'static>;
+
 pub struct UDPDriverComponent<A: Alarm<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

@@ -8,15 +8,15 @@
 //! Low-level CAN driver for STM32F4XX chips
 //!
 
-use crate::clocks::{phclk, Stm32f4Clocks};
+use crate::clocks::{Stm32f4Clocks, phclk};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::can::{self, StandardBitTiming};
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 pub const BRP_MIN_STM32: u32 = 0;
 pub const BRP_MAX_STM32: u32 = 1023;

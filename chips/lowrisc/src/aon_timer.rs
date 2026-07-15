@@ -5,9 +5,9 @@
 //! AON/Watchdog Timer Driver
 
 use kernel::platform;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
 // Based on the latest commit of OpenTitan supported by tock:
 // Refer: https://github.com/lowRISC/opentitan/blob/217a0168ba118503c166a9587819e3811eeb0c0c/hw/ip/aon_timer/rtl/aon_timer_reg_pkg.sv#L136

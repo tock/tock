@@ -12,13 +12,13 @@ use core::cmp;
 
 use crate::sha256::Sha256Software;
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::digest;
 use kernel::hil::digest::{Digest, DigestData, DigestVerify};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 pub struct TestSha256 {
     sha: &'static Sha256Software<'static>,

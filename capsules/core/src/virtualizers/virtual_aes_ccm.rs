@@ -82,15 +82,15 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::debug;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
+    AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE, AES128CBC, AES128Ctr, AES128ECB, CCM_NONCE_LENGTH,
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 use crate::stream::SResult;
 use crate::stream::{encode_bytes, encode_u16};

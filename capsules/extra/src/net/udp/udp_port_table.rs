@@ -40,9 +40,9 @@ use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapabilit
 
 use core::fmt;
 
+use kernel::ErrorCode;
 use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 // Sets the maximum number of UDP ports that can be bound by capsules. Reducing this number
 // can save a small amount of memory, and slightly reduces the overhead of iterating through the

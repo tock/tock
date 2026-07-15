@@ -13,7 +13,7 @@ use kernel::platform::mpu;
 use kernel::utilities::registers::FieldValue;
 use rv32i::csr;
 use rv32i::pmp::{
-    format_pmp_entries, pmpcfg_octet, NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG,
+    NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG, format_pmp_entries, pmpcfg_octet,
 };
 
 // ---------- EarlGrey ePMP implementation named constants ---------------------

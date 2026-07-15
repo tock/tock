@@ -10,8 +10,8 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil;
-use kernel::utilities::cells::MapCell;
 use kernel::utilities::StaticRef;
+use kernel::utilities::cells::MapCell;
 
 use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};
@@ -345,11 +345,7 @@ impl<R: LiteXSoCRegisterConfiguration> hil::gpio::Input for LiteXGPIOPin<'_, '_,
         // different. Thus check the pin state and either return the
         // current input or output state, depending on output_enable.
         let (output_enable, output, input) = self.controller.read_gpio(self.index);
-        if output_enable {
-            output
-        } else {
-            input
-        }
+        if output_enable { output } else { input }
     }
 }
 

@@ -5,9 +5,9 @@
 //! Cortex-M SysTick Timer
 
 use core::cell::Cell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{FieldValue, ReadOnly, ReadWrite, register_bitfields};
 
 use core::num::NonZeroU32;
 
@@ -76,7 +76,7 @@ impl SysTick {
     ///
     /// Use this constructor if the core implementation has a pre-calibration
     /// value in hardware.
-    pub unsafe fn new() -> SysTick {
+    pub fn new() -> SysTick {
         SysTick {
             hertz: Cell::new(0),
             external_clock: false,
@@ -91,7 +91,7 @@ impl SysTick {
     /// * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU
     ///   speed.
-    pub unsafe fn new_with_calibration(clock_speed: u32) -> SysTick {
+    pub fn new_with_calibration(clock_speed: u32) -> SysTick {
         let res = SysTick::new();
         res.hertz.set(clock_speed);
         res
@@ -107,7 +107,7 @@ impl SysTick {
     /// * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU
     ///   speed.
-    pub unsafe fn new_with_calibration_and_external_clock(clock_speed: u32) -> SysTick {
+    pub fn new_with_calibration_and_external_clock(clock_speed: u32) -> SysTick {
         let mut res = SysTick::new();
         res.hertz.set(clock_speed);
         res.external_clock = true;

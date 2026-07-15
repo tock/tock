@@ -112,8 +112,8 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
             AccelClientState::Activating => {
                 debug!("Sensor Activated ({:?})", status);
                 buffer[0] = 0x01_u8; // X-MSB register
-                                     // Reading 6 bytes will increment the register pointer through
-                                     // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
+                // Reading 6 bytes will increment the register pointer through
+                // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
                 dev.write_read(0x1e, buffer, 1, 6).unwrap();
                 self.state.set(AccelClientState::ReadingAccelData);
             }
@@ -135,8 +135,8 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
                 );
 
                 buffer[0] = 0x01_u8; // X-MSB register
-                                     // Reading 6 bytes will increment the register pointer through
-                                     // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
+                // Reading 6 bytes will increment the register pointer through
+                // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
                 dev.write_read(0x1e, buffer, 1, 6).unwrap();
                 self.state.set(AccelClientState::ReadingAccelData);
             }

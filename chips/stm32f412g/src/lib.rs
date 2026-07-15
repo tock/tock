@@ -124,7 +124,3 @@ pub static IRQS: [unsafe extern "C" fn(); 97] = [
     CortexM4F::GENERIC_ISR, // I2CFMP1 event (95)
     CortexM4F::GENERIC_ISR, // I2CFMP1 error (96)
 ];
-
-pub unsafe fn init() {
-    stm32f4xx::init();
-}

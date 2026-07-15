@@ -6,6 +6,7 @@
 //! to decide whether an application can be loaded. See
 //| the [AppID TRD](../../doc/reference/trd-appid.md).
 
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::digest::{ClientData, ClientHash, ClientVerify};
 use kernel::hil::digest::{DigestDataVerify, Sha256};
@@ -16,7 +17,6 @@ use kernel::process_checker::{AppUniqueness, Compress};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
-use kernel::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
@@ -151,11 +151,19 @@ impl ClientData<32_usize> for AppCheckerSha256 {
 
     fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
         match result {
-            Err(e) => panic!("Internal error during application binary checking. SHA256 engine threw error in adding data: {:?}", e),
+            Err(e) => panic!(
+                "Internal error during application binary checking. SHA256 engine threw error in adding data: {:?}",
+                e
+            ),
             Ok(()) => {
                 self.binary.set(data.take());
                 let hash: &'static mut [u8; 32_usize] = self.hash.take().unwrap();
-                if let Err((e, _)) = self.hasher.verify(hash) { panic!("Failed invoke hash verification in process credential checking: {:?}", e) }
+                if let Err((e, _)) = self.hasher.verify(hash) {
+                    panic!(
+                        "Failed invoke hash verification in process credential checking: {:?}",
+                        e
+                    )
+                }
             }
         }
     }

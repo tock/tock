@@ -19,10 +19,10 @@
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
 use kernel::hil::gpio;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
 register_structs! {
     pub GpioRegisters {

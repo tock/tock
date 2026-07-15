@@ -8,11 +8,11 @@ use crate::pm;
 use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
 #[repr(C)]

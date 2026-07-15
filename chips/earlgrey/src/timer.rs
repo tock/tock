@@ -7,12 +7,12 @@
 use crate::chip_config::EarlGreyConfig;
 use crate::registers::top_earlgrey::RV_TIMER_BASE_ADDR;
 use core::marker::PhantomData;
+use kernel::ErrorCode;
 use kernel::hil::time::{self, Ticks64};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use rv32i::machine_timer::MachineTimer;
 
 /// 10KHz `Frequency`
@@ -57,7 +57,6 @@ register_bitfields![u32,
 pub struct RvTimer<'a, CFG: EarlGreyConfig> {
     registers: StaticRef<TimerRegisters>,
     alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
-    overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
     mtimer: MachineTimer<'a>,
     _cfg: PhantomData<CFG>,
 }
@@ -67,7 +66,6 @@ impl<CFG: EarlGreyConfig> RvTimer<'_, CFG> {
         Self {
             registers: TIMER_BASE,
             alarm_client: OptionalCell::empty(),
-            overflow_client: OptionalCell::empty(),
             mtimer: MachineTimer::new(
                 &TIMER_BASE.compare_low,
                 &TIMER_BASE.compare_high,
@@ -111,10 +109,6 @@ impl<CFG: EarlGreyConfig> time::Time for RvTimer<'_, CFG> {
 }
 
 impl<'a, CFG: EarlGreyConfig> time::Counter<'a> for RvTimer<'a, CFG> {
-    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
-        self.overflow_client.set(client);
-    }
-
     fn start(&self) -> Result<(), ErrorCode> {
         Ok(())
     }

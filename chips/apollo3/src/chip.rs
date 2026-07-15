@@ -97,6 +97,35 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
     type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
     type ThreadIdProvider = cortexm4f::thread_id::CortexMThreadIdProvider;
 
+    fn init() {
+        let cache_ctrl = crate::cachectrl::CacheCtrl::new();
+        cache_ctrl.enable_cache();
+
+        // Explicitly tell the core where Tock's vector table is located. If Tock is the
+        // only thing on the chip then this is effectively a no-op. If, however, there is
+        // a bootloader present then we want to ensure that the vector table is set
+        // correctly for Tock. The bootloader _may_ set this for us, but it may not
+        // so that any errors early in the Tock boot process trap back to the bootloader.
+        // To be safe we unconditionally set the vector table.
+        unsafe {
+            crate::scb::set_vector_table_offset(crate::BASE_VECTORS.as_ptr().cast::<()>());
+        }
+
+        // Disable the FPU (it might be enabled by a prior stage)
+        unsafe {
+            crate::scb::disable_fpca();
+        }
+
+        // This ensures the FPU is actually disabled
+        unsafe {
+            crate::actually_disable_fpu();
+        }
+
+        cortexm4f::nvic::disable_all();
+        cortexm4f::nvic::clear_all_pending();
+        cortexm4f::nvic::enable_all();
+    }
+
     fn service_pending_interrupts(&self) {
         unsafe {
             while let Some(interrupt) = cortexm4f::nvic::next_pending() {
@@ -112,7 +141,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4f::nvic::has_pending() }
+        cortexm4f::nvic::has_pending()
     }
 
     fn mpu(&self) -> &cortexm4f::mpu::MPU {

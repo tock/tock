@@ -14,6 +14,7 @@ use crate::debug::PanicResources;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
@@ -34,11 +35,10 @@ type ChipHw = arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'s
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-type Chip = arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>;
 type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
-static PANIC_RESOURCES: SingleThreadValue<PanicResources<Chip, ProcessPrinter>> =
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
     SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
@@ -131,13 +131,15 @@ unsafe fn start() -> (
     ArtyE21,
     &'static arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>,
 ) {
+    ChipHw::init();
+
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
     let _ = PANIC_RESOURCES
-        .bind_to_thread::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
             PanicResources::new(),
         );
 
@@ -146,12 +148,11 @@ unsafe fn start() -> (
 
     let chip = static_init!(
         arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>,
-        arty_e21_chip::chip::ArtyExx::new(&peripherals.machinetimer, peripherals)
+        arty_e21_chip::chip::ArtyExx::new(peripherals)
     );
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
-    chip.initialize();
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
 

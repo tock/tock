@@ -5,9 +5,9 @@
 use crate::usci::{self, UsciBRegisters};
 use core::cell::Cell;
 use kernel::hil::i2c::{self, Error};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::StaticRef;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Speed {

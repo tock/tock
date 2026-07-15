@@ -107,6 +107,8 @@ impl<A: 'static + adc::Adc<'static>> Component for AdcComponent<A> {
     }
 }
 
+pub type AdcVirtualComponentType = capsules_core::adc::AdcVirtualized<'static>;
+
 pub struct AdcVirtualComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

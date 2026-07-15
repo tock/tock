@@ -42,10 +42,10 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::NumericCellExt;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 /// This module is either waiting to do something, or handling a read/write.
 #[derive(Clone, Copy, Debug, PartialEq)]

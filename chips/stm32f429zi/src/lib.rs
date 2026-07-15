@@ -122,7 +122,3 @@ pub static IRQS: [unsafe extern "C" fn(); 91] = [
     CortexM4F::GENERIC_ISR, // LCD-TFT (89)
     CortexM4F::GENERIC_ISR, // DMA2D(90)
 ];
-
-pub unsafe fn init() {
-    stm32f4xx::init();
-}

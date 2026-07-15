@@ -36,6 +36,8 @@ macro_rules! ninedof_component_static {
     };};
 }
 
+pub type NineDofComponentType = capsules_extra::ninedof::NineDof<'static>;
+
 pub struct NineDofComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

@@ -566,11 +566,11 @@ mod test {
     use core::cell::Cell;
     use core::marker::PhantomData;
 
+    use kernel::ErrorCode;
     use kernel::hil::time::{
         Alarm, AlarmClient, Freq10MHz, Frequency, Ticks, Ticks24, Ticks32, Ticks64, Time,
     };
     use kernel::utilities::cells::OptionalCell;
-    use kernel::ErrorCode;
 
     use super::{AlarmDriver, Expiration};
 
@@ -793,11 +793,7 @@ mod test {
             exp_list[*id].set(true);
 
             // Stop iterating on id == 3
-            if *id == 3 {
-                Some("stopped")
-            } else {
-                None
-            }
+            if *id == 3 { Some("stopped") } else { None }
         };
 
         let (expired, id, expired_ret) =

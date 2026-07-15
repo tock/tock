@@ -21,10 +21,11 @@ use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedHigh;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{Kernel, capabilities, create_capability, static_init};
 
 use rp2350::chip::{Rp2350, Rp2350DefaultPeripherals};
 use rp2350::clocks::{
@@ -36,7 +37,7 @@ use rp2350::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2350::resets::Peripheral;
 use rp2350::timer::RPTimer;
 #[allow(unused)]
-use rp2350::{xosc, BASE_VECTORS};
+use rp2350::{BASE_VECTORS, xosc};
 
 mod io;
 
@@ -246,7 +247,7 @@ unsafe fn get_peripherals() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    rp2350::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

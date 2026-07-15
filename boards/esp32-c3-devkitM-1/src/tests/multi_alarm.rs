@@ -15,8 +15,8 @@
 //! that alarms whose expiration was in the past due to the
 //! latency of software work correctly.
 
-use crate::tests::run_kernel_op;
 use crate::ALARM;
+use crate::tests::run_kernel_op;
 use capsules_core::test::random_alarm::TestRandomAlarm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use esp32_c3::timg::TimG;

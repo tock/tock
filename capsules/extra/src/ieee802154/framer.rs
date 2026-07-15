@@ -82,16 +82,16 @@ use crate::net::ieee802154::{
     FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
 };
 use crate::net::stream::SResult;
-use crate::net::stream::{encode_bytes, encode_u32, encode_u8};
+use crate::net::stream::{encode_bytes, encode_u8, encode_u32};
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::hil::radio::{self, LQI_SIZE};
-use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
+use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 use kernel::processbuffer::ReadableProcessSlice;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 /// Wraps a static mutable byte slice along with header information
 /// for a payload.

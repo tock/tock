@@ -10,7 +10,7 @@ use kernel::utilities::registers::interfaces::Readable;
 
 use crate::clint;
 use crate::interrupts;
-use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
+use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 
 pub type ArtyExxClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
@@ -18,7 +18,6 @@ pub struct ArtyExx<'a, I: InterruptService + 'a> {
     pmp: PMPUserMPU<2, SimplePMP<4>>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
-    machinetimer: &'a ArtyExxClint<'a>,
     interrupt_service: &'a I,
 }
 
@@ -39,6 +38,12 @@ impl ArtyExxDefaultPeripherals<'_> {
 
     // Resolves any circular dependencies and sets up deferred calls
     pub fn init(&'static self) {
+        // By default the machine timer is enabled and will trigger interrupts. To
+        // prevent that we can make the compare register very large to effectively
+        // stop the interrupt from triggering, and then the machine timer can be
+        // used later as needed.
+        self.machinetimer.disable_machine_timer();
+
         kernel::deferred_call::DeferredCallClient::register(&self.uart0);
     }
 }
@@ -74,7 +79,7 @@ impl InterruptService for ArtyExxDefaultPeripherals<'_> {
 }
 
 impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
-    pub unsafe fn new(machinetimer: &'a ArtyExxClint<'a>, interrupt_service: &'a I) -> Self {
+    pub unsafe fn new(interrupt_service: &'a I) -> Self {
         // Make a bit-vector of all interrupt locations that we actually intend
         // to use on this chip.
         // 0001 1111 1111 1111 1111 0000 0000 1000 0000
@@ -84,7 +89,6 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
             pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
-            machinetimer,
             interrupt_service,
         }
     }
@@ -92,61 +96,18 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
     pub fn enable_all_interrupts(&self) {
         self.clic.enable_all();
     }
-
-    /// By default the machine timer is enabled and will trigger interrupts. To
-    /// prevent that we can make the compare register very large to effectively
-    /// stop the interrupt from triggering, and then the machine timer can be
-    /// used later as needed.
-    pub unsafe fn disable_machine_timer(&self) {
-        self.machinetimer.disable_machine_timer();
-    }
-
-    /// Setup the function that should run when a trap happens.
-    ///
-    /// This needs to be chip specific because how the CLIC works is configured
-    /// when the trap handler address is specified in mtvec, and that is only
-    /// valid for platforms with a CLIC.
-    #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
-    pub unsafe fn configure_trap_handler(&self) {
-        use core::arch::asm;
-        asm!(
-            "
-    // The csrw instruction writes a Control and Status Register (CSR)
-    // with a new value.
-    //
-    // CSR 0x305 (mtvec, 'Machine trap-handler base address.') sets the
-    // address of the trap handler. We do not care about its old value,
-    // so we don't bother reading it. We want to enable direct CLIC mode
-    // so we set the second lowest bit.
-    lui  t0, %hi({start_trap})
-    addi t0, t0, %lo({start_trap})
-    ori  t0, t0, 0x02 // Set CLIC direct mode
-    csrw 0x305, t0    // Write the mtvec CSR.
-            ",
-            start_trap = sym rv32i::_start_trap,
-            out("t0") _,
-        );
-    }
-
-    // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
-    pub unsafe fn configure_trap_handler(&self) {
-        unimplemented!()
-    }
-
-    /// Generic helper initialize function to setup all of the chip specific
-    /// operations. Different boards can call the functions that `initialize()`
-    /// calls directly if it needs to use a custom setup operation.
-    pub unsafe fn initialize(&self) {
-        self.disable_machine_timer();
-        self.configure_trap_handler();
-    }
 }
 
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, I> {
     type MPU = PMPUserMPU<2, SimplePMP<4>>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
+
+    fn init() {
+        unsafe {
+            configure_trap_handler();
+        }
+    }
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
@@ -190,6 +151,39 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
     unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
         rv32i::print_riscv_state(write);
     }
+}
+
+// Setup the function that should run when a trap happens.
+//
+// This needs to be chip specific because how the CLIC works is configured
+// when the trap handler address is specified in mtvec, and that is only
+// valid for platforms with a CLIC.
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+pub unsafe fn configure_trap_handler() {
+    use core::arch::asm;
+    asm!(
+        "
+    // The csrw instruction writes a Control and Status Register (CSR)
+    // with a new value.
+    //
+    // CSR 0x305 (mtvec, 'Machine trap-handler base address.') sets the
+    // address of the trap handler. We do not care about its old value,
+    // so we don't bother reading it. We want to enable direct CLIC mode
+    // so we set the second lowest bit.
+    lui  t0, %hi({start_trap})
+    addi t0, t0, %lo({start_trap})
+    ori  t0, t0, 0x02 // Set CLIC direct mode
+    csrw 0x305, t0    // Write the mtvec CSR.
+            ",
+        start_trap = sym rv32i::_start_trap,
+        out("t0") _,
+    );
+}
+
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+pub unsafe fn configure_trap_handler() {
+    unimplemented!()
 }
 
 /// Trap handler for board/chip specific code.

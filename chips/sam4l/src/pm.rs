@@ -12,11 +12,11 @@ use crate::scif;
 use core::cell::Cell;
 use core::sync::atomic::Ordering;
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly,
+    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
 };
-use kernel::utilities::StaticRef;
 
 /// §10.7 PM::UserInterface from SAM4L Datasheet.
 #[repr(C)]

@@ -25,6 +25,8 @@ macro_rules! sound_pressure_component_static {
     };};
 }
 
+pub type SoundPressureComponentType = capsules_extra::sound_pressure::SoundPressureSensor<'static>;
+
 pub struct SoundPressureComponent<S: 'static + hil::sensors::SoundPressure<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

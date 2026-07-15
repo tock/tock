@@ -274,7 +274,7 @@ impl<'a, I: i2c::I2CDevice> TSL2561<'a, I> {
         // time. 16X, 402mS is nominal. Scale if integration time is NOT 402 msec.
         // let mut ch_scale = CHSCALE_TINT0 as usize; // 13.7ms
         let mut ch_scale = CHSCALE_TINT1 as usize; // 101ms
-                                                   // let mut ch_scale: usize = 1 << CH_SCALE; // Default
+        // let mut ch_scale: usize = 1 << CH_SCALE; // Default
 
         // Scale if gain is NOT 16X
         ch_scale <<= 4; // scale 1X to 16X

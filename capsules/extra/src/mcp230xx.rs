@@ -70,11 +70,11 @@
 //! `mcp230xx` object is created.
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::gpio_async;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 // Buffer to use for I2C messages
 pub const BUFFER_LENGTH: usize = 7;
@@ -313,7 +313,7 @@ impl<'a, I: hil::i2c::I2CDevice> MCP230xx<'a, I> {
             // The next register is the IoCon (configuration) register, which
             // we also want to set.
             buffer[i] = 0b00000010; // Make MCP230xx interrupt pin active high.
-                                    // TODO verify errors
+            // TODO verify errors
             let _ = self.i2c.write(buffer, i + 1);
             self.state.set(State::EnableInterruptSettings(pin_number));
 

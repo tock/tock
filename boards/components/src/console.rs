@@ -124,6 +124,8 @@ macro_rules! console_component_static {
     };
 }
 
+pub type ConsoleComponentType = console::Console<'static>;
+
 pub struct ConsoleComponent<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

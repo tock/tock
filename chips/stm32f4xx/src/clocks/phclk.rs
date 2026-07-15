@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Peripheral clock driver for the STM32F4xx family.
+
 use crate::clocks::Stm32f4Clocks;
 use crate::rcc::{APBPrescaler, Rcc, RtcClockSource};
 use kernel::platform::chip::ClockInterface;

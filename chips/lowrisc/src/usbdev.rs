@@ -10,12 +10,12 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
+    LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 pub const N_ENDPOINTS: usize = 12;
 pub const N_BUFFERS: usize = 32;

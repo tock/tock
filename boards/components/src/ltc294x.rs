@@ -15,8 +15,8 @@
 //! ```
 
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules_extra::ltc294x::LTC294XDriver;
 use capsules_extra::ltc294x::LTC294X;
+use capsules_extra::ltc294x::LTC294XDriver;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;

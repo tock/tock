@@ -24,16 +24,12 @@ use lowrisc::virtual_otbn::{MuxAccel, VirtualMuxAccel};
 
 #[macro_export]
 macro_rules! otbn_mux_component_static {
-    () => {{
-        kernel::static_buf!(lowrisc::virtual_otbn::MuxAccel<'static>)
-    }};
+    () => {{ kernel::static_buf!(lowrisc::virtual_otbn::MuxAccel<'static>) }};
 }
 
 #[macro_export]
 macro_rules! otbn_component_static {
-    () => {{
-        kernel::static_buf!(lowrisc::virtual_otbn::VirtualMuxAccel<'static>)
-    }};
+    () => {{ kernel::static_buf!(lowrisc::virtual_otbn::VirtualMuxAccel<'static>) }};
 }
 
 pub struct AccelMuxComponent {

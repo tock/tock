@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Fixed constants for the nRF5x family
+
 // PCNF0
 pub const RADIO_PCNF0_LFLEN_POS: u32 = 0;
 pub const RADIO_PCNF0_S0LEN_POS: u32 = 8;

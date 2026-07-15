@@ -7,11 +7,11 @@
 use crate::dma::{self, DmaChannel, DmaChannelClient};
 use crate::gpio::RPGpioPin;
 use crate::pio::{Pio, PioSmClient, SMNumber, StateMachineConfiguration};
+use kernel::ErrorCode;
 use kernel::hil::gpio::{self, Output as _};
 use kernel::hil::spi::{self, SpiMasterDevice};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 /// The PIO program
 const PROG: [u16; 11] = [

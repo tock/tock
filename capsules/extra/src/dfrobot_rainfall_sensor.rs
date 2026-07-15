@@ -9,11 +9,11 @@
 //!
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{RainFallClient, RainFallDriver};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 4;
 

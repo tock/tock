@@ -35,15 +35,15 @@
 
 use core::cell::Cell;
 use core::{cmp, ptr};
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::cs::ChipSelectPolar;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell, VolatileCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 use nrf5x::pinmux::Pinmux;
 
 const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {

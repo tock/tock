@@ -19,9 +19,9 @@
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
 use crate::gpio::LPCPin;
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 register_structs! {
     /// I/O pin configuration (IOCON)

@@ -37,10 +37,10 @@
 //!   └───────────────────────────────────────┘
 //! ```
 
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
 
 pub struct SignatureVerifyInMemoryKeys<
     'a,
@@ -62,14 +62,14 @@ pub struct SignatureVerifyInMemoryKeys<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
-        const NUM_KEYS: usize,
-        const KL: usize,
-        const HL: usize,
-        const SL: usize,
-    > SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
+        + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
+    const NUM_KEYS: usize,
+    const KL: usize,
+    const HL: usize,
+    const SL: usize,
+> SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
     pub fn new(verifier: &'a S) -> Self {
         Self {
@@ -89,14 +89,14 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
-        const NUM_KEYS: usize,
-        const KL: usize,
-        const HL: usize,
-        const SL: usize,
-    > hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
+        + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
+    const NUM_KEYS: usize,
+    const KL: usize,
+    const HL: usize,
+    const SL: usize,
+> hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
     for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
     fn set_verify_client(
@@ -123,14 +123,14 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
-        const NUM_KEYS: usize,
-        const KL: usize,
-        const HL: usize,
-        const SL: usize,
-    > hil::public_key_crypto::keys::SelectKey<'a>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
+        + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
+    const NUM_KEYS: usize,
+    const KL: usize,
+    const HL: usize,
+    const SL: usize,
+> hil::public_key_crypto::keys::SelectKey<'a>
     for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
     fn get_key_count(&self) -> Result<(), ErrorCode> {
@@ -169,14 +169,14 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
-        const NUM_KEYS: usize,
-        const KL: usize,
-        const HL: usize,
-        const SL: usize,
-    > hil::public_key_crypto::keys::SetKeyBySliceClient<KL>
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
+        + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
+    const NUM_KEYS: usize,
+    const KL: usize,
+    const HL: usize,
+    const SL: usize,
+> hil::public_key_crypto::keys::SetKeyBySliceClient<KL>
     for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
     fn set_key_done(&self, key: &'static mut [u8; KL], error: Result<(), ErrorCode>) {
@@ -193,14 +193,14 @@ impl<
 }
 
 impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
-        const NUM_KEYS: usize,
-        const KL: usize,
-        const HL: usize,
-        const SL: usize,
-    > kernel::deferred_call::DeferredCallClient
+    'a,
+    S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
+        + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
+    const NUM_KEYS: usize,
+    const KL: usize,
+    const HL: usize,
+    const SL: usize,
+> kernel::deferred_call::DeferredCallClient
     for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
     fn handle_deferred_call(&self) {

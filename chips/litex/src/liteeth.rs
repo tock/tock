@@ -11,11 +11,11 @@ use crate::event_manager::LiteXEventManager;
 use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};
 use core::cell::Cell;
 use core::slice;
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
-use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 
 // Both events have the same index since they are located on different event
 // manager instances

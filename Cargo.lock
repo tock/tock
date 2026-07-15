@@ -927,6 +927,7 @@ dependencies = [
  "ecdsa-sw",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock-tbf",
@@ -944,6 +945,7 @@ dependencies = [
  "cortexm4",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock_build_scripts",
@@ -960,9 +962,25 @@ dependencies = [
  "cortexm4",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock_build_scripts",
+]
+
+[[package]]
+name = "nrf52840dk-test-base"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "nrf52840",
+ "nrf52_components",
+ "segger",
 ]
 
 [[package]]
@@ -992,6 +1010,7 @@ dependencies = [
  "cortexm4",
  "kernel",
  "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock_build_scripts",
@@ -1009,6 +1028,23 @@ dependencies = [
  "ecdsa-sw",
  "kernel",
  "nrf52840",
+ "nrf52_components",
+ "segger",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "nrf52840dk-test-sha256"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "nrf52840",
+ "nrf52840dk-test-base",
  "nrf52_components",
  "segger",
  "tock_build_scripts",
@@ -1064,6 +1100,15 @@ version = "0.2.3-dev"
 dependencies = [
  "enum_primitive",
  "kernel",
+ "nrf5x-unsafe",
+]
+
+[[package]]
+name = "nrf5x-unsafe"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm4f",
+ "kernel",
 ]
 
 [[package]]
@@ -1091,6 +1136,20 @@ dependencies = [
  "cortexm4",
  "kernel",
  "stm32f446re",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "nucleo_u545re_q"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "stm32u545",
  "tock_build_scripts",
 ]
 
@@ -1180,6 +1239,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "psc3"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "enum_primitive",
+ "kernel",
+]
+
+[[package]]
+name = "psc3m5_evk"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm33",
+ "kernel",
+ "psc3",
+ "tock_build_scripts",
 ]
 
 [[package]]
@@ -1580,6 +1662,23 @@ version = "0.2.3-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
+ "kernel",
+]
+
+[[package]]
+name = "stm32u545"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "stm32u5xx",
+]
+
+[[package]]
+name = "stm32u5xx"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
  "kernel",
 ]
 

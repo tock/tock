@@ -5,11 +5,11 @@
 //! Platform Level Interrupt Control peripheral driver.
 
 use crate::registers::top_earlgrey::RV_PLIC_BASE_ADDR;
-use kernel::utilities::cells::VolatileCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::LocalRegisterCopy;
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::LocalRegisterCopy;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
     unsafe { StaticRef::new(RV_PLIC_BASE_ADDR as *const PlicRegisters) };
@@ -113,11 +113,7 @@ impl Plic {
     /// to grab the highest priority pending interrupt.
     pub fn next_pending(&self) -> Option<u32> {
         let claim = self.registers.claim.get();
-        if claim == 0 {
-            None
-        } else {
-            Some(claim)
-        }
+        if claim == 0 { None } else { Some(claim) }
     }
 
     /// Save the current interrupt to be handled later

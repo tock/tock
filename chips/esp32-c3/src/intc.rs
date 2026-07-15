@@ -5,12 +5,12 @@
 //! Platform Level Interrupt Control peripheral driver.
 
 use crate::interrupts;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, LocalRegisterCopy, ReadWrite,
+    LocalRegisterCopy, ReadWrite, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 register_structs! {
     pub IntcRegisters {

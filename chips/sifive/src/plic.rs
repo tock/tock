@@ -4,11 +4,11 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
-use kernel::utilities::cells::VolatileCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::LocalRegisterCopy;
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::LocalRegisterCopy;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 /// Place the register map definition in a private module to disallow direct access to it's
 /// fields from the Plic struct implementation, which should only use a getter/setter with
@@ -125,8 +125,8 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
 
     /// Clear all pending interrupts. The [`PLIC specification`] section 7:
     /// > A successful claim will also atomically clear the corresponding pending bit on the interrupt source..
-    /// Note that this function will only clear the enabled interrupt sources, as only those can be claimed.
-    /// [`PLIC specification`]: <https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc>
+    /// > Note that this function will only clear the enabled interrupt sources, as only those can be claimed.
+    /// > [`PLIC specification`]: <https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc>
     pub fn clear_all_pending(&self) {
         let claim = self.registers.get_claim_reg();
         loop {
@@ -205,11 +205,7 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
     /// to grab the highest priority pending interrupt.
     pub fn next_pending(&self) -> Option<u32> {
         let claim = self.registers.get_claim_reg().get();
-        if claim == 0 {
-            None
-        } else {
-            Some(claim)
-        }
+        if claim == 0 { None } else { Some(claim) }
     }
 
     /// Save the current interrupt to be handled later

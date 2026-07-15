@@ -12,13 +12,13 @@ use core::fmt;
 use core::num::NonZeroUsize;
 
 use kernel::platform::mpu;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, FieldValue, ReadOnly, ReadWrite,
+    FieldValue, ReadOnly, ReadWrite, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 /// Smallest allowable MPU region across all CortexM cores
 /// Individual cores may have bigger min sizes, but never lower than 32

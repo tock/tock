@@ -5,11 +5,11 @@
 //! RSA Implemented on top of the OTBN
 
 use crate::virtual_otbn::VirtualMuxAccel;
+use kernel::ErrorCode;
 use kernel::hil::public_key_crypto::rsa_math::{Client, ClientMut, RsaCryptoBase};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::mut_imut_buffer::MutImutBuffer;
-use kernel::ErrorCode;
 
 pub struct AppAddresses {
     pub imem_start: usize,

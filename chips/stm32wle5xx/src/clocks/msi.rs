@@ -42,7 +42,7 @@ impl<'a> Msi<'a> {
     /// # Errors
     ///
     /// + [Err]\([ErrorCode::BUSY]\): if enabling the MSI clock took too long. Recall this method to
-    /// ensure the MSI clock is running.
+    ///   ensure the MSI clock is running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         self.rcc.enable_msi_clock();
 
@@ -61,7 +61,7 @@ impl<'a> Msi<'a> {
     ///
     /// + [Err]\([ErrorCode::FAIL]\): if the MSI clock is configured as the system clock.
     /// + [Err]\([ErrorCode::BUSY]\): disabling the MSI clock took to long. Retry to ensure it is
-    /// not running.
+    ///   not running.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         if self.rcc.is_msi_clock_system_clock() {
             return Err(ErrorCode::FAIL);

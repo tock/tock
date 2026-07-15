@@ -6,9 +6,9 @@
 //! This is a partial implementation focusing on exposing the functionality
 //! required for Sub-GHz radio operation.
 
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
 const PWR: StaticRef<PwrRegisters> = unsafe { StaticRef::new(0x5800_0400 as *const _) };
 

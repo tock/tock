@@ -16,6 +16,7 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, static_init};
@@ -125,7 +126,7 @@ unsafe fn start() -> (
     Lpc55s69evk,
     &'static Lpc55s69<'static, Lpc55s69DefaultPeripheral<'static>>,
 ) {
-    lpc55s6x::init();
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<

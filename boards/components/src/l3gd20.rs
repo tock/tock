@@ -56,9 +56,9 @@ pub struct L3gd20Component<
 }
 
 impl<
-        S: 'static + spi::SpiMaster<'static>,
-        CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
-    > L3gd20Component<S, CS>
+    S: 'static + spi::SpiMaster<'static>,
+    CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
+> L3gd20Component<S, CS>
 {
     pub fn new(
         spi_mux: &'static MuxSpiMaster<'static, S>,
@@ -76,9 +76,9 @@ impl<
 }
 
 impl<
-        S: 'static + spi::SpiMaster<'static>,
-        CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
-    > Component for L3gd20Component<S, CS>
+    S: 'static + spi::SpiMaster<'static>,
+    CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
+> Component for L3gd20Component<S, CS>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,

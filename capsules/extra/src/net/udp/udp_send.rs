@@ -27,21 +27,21 @@
 //! packets on its own, as it can only pass a single packet to the
 //! MuxUdpSender queue at a time.
 
+use crate::net::ipv6::TransportHeader;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
-use crate::net::ipv6::TransportHeader;
 use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
-use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use crate::net::udp::UDPHeader;
+use crate::net::udp::udp_port_table::UdpPortBindingTx;
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::capabilities::UdpDriverCapability;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::debug;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
     sender_list: List<'a, UDPSendStruct<'a, T>>,
@@ -102,8 +102,8 @@ impl<'a, T: IP6Sender<'a>> IP6SendClient for MuxUdpSender<'a, T> {
     fn send_done(&self, result: Result<(), ErrorCode>) {
         let last_sender = self.sender_list.pop_head();
         let next_sender_option = self.sender_list.head(); // must check here, because udp driver
-                                                          // could queue addl. sends in response to
-                                                          // send_done.
+        // could queue addl. sends in response to
+        // send_done.
         last_sender.map(|last_sender| {
             last_sender
                 .client

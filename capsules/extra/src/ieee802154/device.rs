@@ -69,8 +69,8 @@ pub trait MacDevice<'a> {
     /// - `src_pan`: The source PAN ID
     /// - `src_addr`: The source MAC address
     /// - `security_needed`: Whether or not this frame should be secured. This
-    /// needs to be specified beforehand so that the auxiliary security header
-    /// can be pre-inserted.
+    ///   needs to be specified beforehand so that the auxiliary security
+    ///   header can be pre-inserted.
     ///
     /// Returns either a Frame that is ready to have payload appended to it, or
     /// the mutable buffer if the frame cannot be prepared for any reason
@@ -99,10 +99,10 @@ pub trait TxClient {
     /// the transmission was successful.
     ///
     /// - `spi_buf`: The buffer used to contain the transmitted frame is
-    /// returned to the client here.
+    ///   returned to the client here.
     /// - `acked`: Whether the transmission was acknowledged.
     /// - `result`: This is `Ok(())` if the frame was transmitted,
-    /// otherwise an error occurred in the transmission pipeline.
+    ///   otherwise an error occurred in the transmission pipeline.
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>);
 }
 
@@ -119,14 +119,14 @@ pub trait RxClient {
     /// exposed to the client.
     ///
     /// - `buf`: The entire buffer containing the frame, including extra bytes
-    /// in front used for the physical layer.
+    ///   in front used for the physical layer.
     /// - `header`: A fully-parsed representation of the MAC header, with the
-    /// caveat that the auxiliary security header is still included if the frame
-    /// was previously secured.
+    ///   caveat that the auxiliary security header is still included if the
+    ///   frame was previously secured.
     /// - `lqi`: The link quality indicator of the received frame.
-    /// - `data_offset`: Offset of the data payload relative to
-    /// `buf`, so that the payload of the frame is contained in
-    /// `buf[data_offset..data_offset + data_len]`.
+    /// - `data_offset`: Offset of the data payload relative to `buf`, so that
+    ///   the payload of the frame is contained in
+    ///   `buf[data_offset..data_offset + data_len]`.
     /// - `data_len`: Length of the data payload
     fn receive<'a>(
         &self,

@@ -28,13 +28,13 @@
 //! ```
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil::bus8080::{self, Bus8080, BusAddr8080};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMasterClient, SpiMasterDevice};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 // Buses, such as I2C or SPI, are generally serial and transmit data byte by byte,
 // without taking endianness into account. The receiving device—in this case,

@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use crate::RSA_HARDWARE;
+use crate::tests::run_kernel_op;
 use capsules_extra::public_key_crypto::rsa_keys::RSA2048Keys;
 use core::cell::Cell;
 use kernel::hil::public_key_crypto::keys::{PubKey, PubPrivKey, RsaKey, RsaPrivKey};
 use kernel::hil::public_key_crypto::rsa_math::{Client, RsaCryptoBase};
 use kernel::static_init;
-use kernel::{debug, ErrorCode};
+use kernel::{ErrorCode, debug};
 
 static mut SOURCE: [u8; 64] = [0x23; 64];
 static mut DEST: [u8; 256] = [0x56; 256];
