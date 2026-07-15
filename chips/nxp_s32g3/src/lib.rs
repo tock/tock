@@ -31,18 +31,14 @@ use cortexm7::{CortexM7, CortexMVariant};
 // the image (= ram_start), satisfying the boot ROM contract.
 // The reset handler masks IRQs while it enables the FPU, zeros the L2 SRAM
 // stack window, sets MSP, and restores PRIMASK before Tock RAM initialization.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-core::arch::global_asm!(
-    r#"
-    .section .text, "ax"
-    .syntax unified
-    .cpu cortex-m7
-    .thumb
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nxp_s32g3_boot_entry() {
+    use core::arch::naked_asm;
 
-    .global nxp_s32g3_boot_entry
-    .type nxp_s32g3_boot_entry, %function
-    .thumb_func
-nxp_s32g3_boot_entry:
+    naked_asm!(
+        r#"
     /* 0. Mask IRQs. `cpsid i` protects the uninitialized ECC L2 SRAM stack
      *    window: an exception frame pushed before zeroing `_sstack .. _estack`
      *    could raise an imprecise BusFault. Reset entry has no caller; r4–r7
@@ -77,24 +73,26 @@ nxp_s32g3_boot_entry:
     str  r2, [r0], #4
     b    1b
 2:
-    /* 4. Set MSP.  The HW vector-fetch already loaded _estack into MSP from
+    /* 4. Set MSP. The HW vector-fetch already loaded _estack into MSP from
      *    BASE_VECTORS[0]; this write is a safety no-op that matches the
      *    production reset handler pattern. */
     mov  sp, r1
-    /* 5. Re-enable IRQs after zeroing the L2 SRAM stack (step 3) and setting
-     *    MSP (step 4). PRIMASK must be clear before Rust main()/kernel_loop. */
+    /* 5. Re-enable IRQs after zeroing the L2 SRAM stack and setting MSP.
+     *    PRIMASK must be clear before Rust main()/kernel_loop. */
     cpsie i
     /* 6. Hand off to Tock's RAM init (zeroes .bss, copies .data, calls main). */
     b    initialize_ram_jump_to_main
-    .size nxp_s32g3_boot_entry, . - nxp_s32g3_boot_entry
-"#,
-);
+    "#,
+    );
+}
+
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nxp_s32g3_boot_entry() {}
 
 extern "C" {
     fn _estack();
-    fn nxp_s32g3_boot_entry();
 }
-
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
     link_section = ".vectors"
