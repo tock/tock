@@ -24,6 +24,7 @@
 //! ));
 //! ```
 
+use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -31,10 +32,10 @@ use kernel::create_capability;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
-    AES128, AES128CBC, AES128CCM, AES128Ctr, AES128ECB, AES128GCM,
+    AES, AES128, AESCBC, AESCCM, AESCtr, AESECB, AESGCM, AESKeySize,
 };
 
-const CRYPT_SIZE: usize = 7 * hil::symmetric_encryption::AES128_BLOCK_SIZE;
+const CRYPT_SIZE: usize = 7 * hil::symmetric_encryption::AES_BLOCK_SIZE;
 
 #[macro_export]
 macro_rules! aes_mux_component_static {
@@ -46,17 +47,17 @@ macro_rules! aes_mux_component_static {
 pub type AesMuxComponentType<A> =
     capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, A>;
 
-pub struct AesMuxComponent<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> {
+pub struct AesMuxComponent<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> {
     aes: &'static A,
 }
 
-impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesMuxComponent<A> {
+impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> AesMuxComponent<A> {
     pub fn new(aes: &'static A) -> Self {
         Self { aes }
     }
 }
 
-impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
+impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> Component
     for AesMuxComponent<A>
 {
     type StaticInput = &'static mut MaybeUninit<
@@ -69,7 +70,7 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
             .write(capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM::new(self.aes));
 
         DeferredCallClient::register(aes_mux);
-        hil::symmetric_encryption::AES128::set_client(self.aes, aes_mux);
+        hil::symmetric_encryption::AES::set_client(self.aes, aes_mux);
 
         aes_mux
     }
@@ -78,7 +79,7 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
 #[macro_export]
 macro_rules! aes_virtual_component_static {
     ($A:ty $(,)?) => {{
-        const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+        const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES_BLOCK_SIZE;
         let virtual_aes = kernel::static_buf!(
             capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, $A>
         );
@@ -90,22 +91,23 @@ macro_rules! aes_virtual_component_static {
 
 #[macro_export]
 macro_rules! aes_driver_component_static {
-    ($A:ty $(,)?) => {{
-        const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
-        let aes_src_buffer = kernel::static_buf!([u8; 16]);
+    ($A:ty, $K:ty $(,)?) => {{
+        const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES_BLOCK_SIZE;
+        let aes_src_buffer = kernel::static_buf!([u8; 32]);
         let aes_dst_buffer = kernel::static_buf!([u8; CRYPT_SIZE]);
-        let aes_driver =
-            kernel::static_buf!(capsules_extra::symmetric_encryption::aes::AesDriver<'static, $A>);
+        let aes_driver = kernel::static_buf!(
+            capsules_extra::symmetric_encryption::aes::AesDriver<'static, $A, $K>
+        );
 
         (aes_driver, aes_src_buffer, aes_dst_buffer)
     };};
 }
 
-pub struct AesVirtualComponent<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> {
+pub struct AesVirtualComponent<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> {
     aes_mux: &'static capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, A>,
 }
 
-impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesVirtualComponent<A> {
+impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> AesVirtualComponent<A> {
     pub fn new(
         aes_mux: &'static capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, A>,
     ) -> Self {
@@ -113,7 +115,7 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> AesVirtua
     }
 }
 
-impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
+impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> Component
     for AesVirtualComponent<A>
 {
     type StaticInput = (
@@ -139,42 +141,49 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
     }
 }
 
-pub struct AesDriverComponent<A: AES128<'static> + AES128CCM<'static> + 'static> {
+pub struct AesDriverComponent<K: AESKeySize, A: AES<'static, K> + AESCCM<'static, K> + 'static> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     aes: &'static A,
+
+    _phantom: PhantomData<K>,
 }
 
-impl<A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static>>
-    AesDriverComponent<A>
+impl<K: AESKeySize, A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K>>
+    AesDriverComponent<K, A>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         aes: &'static A,
-    ) -> AesDriverComponent<A> {
+    ) -> AesDriverComponent<K, A> {
         AesDriverComponent {
             board_kernel,
             driver_num,
             aes,
+
+            _phantom: PhantomData::<K>,
         }
     }
 }
 
 impl<
-    A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static> + AES128GCM<'static>,
-> Component for AesDriverComponent<A>
+    K: AESKeySize + 'static,
+    A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K> + AESGCM<'static, K>,
+> Component for AesDriverComponent<K, A>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<capsules_extra::symmetric_encryption::aes::AesDriver<'static, A>>,
-        &'static mut MaybeUninit<[u8; 16]>,
+        &'static mut MaybeUninit<
+            capsules_extra::symmetric_encryption::aes::AesDriver<'static, A, K>,
+        >,
+        &'static mut MaybeUninit<[u8; 32]>,
         &'static mut MaybeUninit<[u8; CRYPT_SIZE]>,
     );
-    type Output = &'static capsules_extra::symmetric_encryption::aes::AesDriver<'static, A>;
+    type Output = &'static capsules_extra::symmetric_encryption::aes::AesDriver<'static, A, K>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let aes_src_buf = static_buffer.1.write([0; 16]);
+        let aes_src_buf = static_buffer.1.write([0; 32]);
         let aes_dst_buf = static_buffer.2.write([0; CRYPT_SIZE]);
 
         let aes_driver =
@@ -187,8 +196,8 @@ impl<
                     self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 ));
 
-        hil::symmetric_encryption::AES128CCM::set_client(self.aes, aes_driver);
-        hil::symmetric_encryption::AES128::set_client(self.aes, aes_driver);
+        hil::symmetric_encryption::AESCCM::set_client(self.aes, aes_driver);
+        hil::symmetric_encryption::AES::set_client(self.aes, aes_driver);
 
         aes_driver
     }

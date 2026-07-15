@@ -7,7 +7,7 @@ use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::ProcessId;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128Ctr, Client};
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AES128, AESCtr, Client};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -44,7 +44,7 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-pub struct EncryptionOracleDriver<'a, A: AES128<'a> + AES128Ctr> {
+pub struct EncryptionOracleDriver<'a, A: AES<'a, AES128> + AESCtr> {
     aes: &'a A,
     process_grants: Grant<
         ProcessState,
@@ -59,7 +59,7 @@ pub struct EncryptionOracleDriver<'a, A: AES128<'a> + AES128Ctr> {
     crypt_len: Cell<usize>,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr> EncryptionOracleDriver<'a, A> {
     /// Create a new instance of our encryption oracle userspace driver:
     pub fn new(
         aes: &'a A,
@@ -153,7 +153,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
 
                     // Set the AES engine mode to AES128 CTR (counter) mode, and
                     // make this a decryption operation:
-                    self.aes.set_mode_aes128ctr(true)?;
+                    self.aes.set_mode_aesctr(true)?;
 
                     self.aes.set_key(KEY)?;
 
@@ -174,7 +174,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
                                 // Copy the data into the static buffer
                                 iv[..copy_len].copy_to_slice(&mut static_buf[..copy_len]);
 
-                                AES128::set_iv(self.aes, &static_buf[..copy_len])
+                                AES::set_iv(self.aes, &static_buf[..copy_len])
                             })
                         })??;
                 }
@@ -200,15 +200,15 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
                     source_processbuffer[..data_len].copy_to_slice(&mut source_buffer[..data_len]);
 
                     // However, our AES engine requires us to pass it at least
-                    // `AES128_BLOCK_SIZE` data, and have our data length be a
-                    // multiple of the `AES128_BLOCK_SIZE`. We assume that our
+                    // `AES_BLOCK_SIZE` data, and have our data length be a
+                    // multiple of the `AES_BLOCK_SIZE`. We assume that our
                     // `source_buffer` holds at least a full AES128 block. Then,
                     // we can round up or down to a multiple of the
-                    // `AES128_BLOCK_SIZE` as required:
-                    let crypt_len = if data_len < AES128_BLOCK_SIZE {
-                        AES128_BLOCK_SIZE
+                    // `AES_BLOCK_SIZE` as required:
+                    let crypt_len = if data_len < AES_BLOCK_SIZE {
+                        AES_BLOCK_SIZE
                     } else {
-                        data_len - (data_len % AES128_BLOCK_SIZE)
+                        data_len - (data_len % AES_BLOCK_SIZE)
                     };
 
                     // Save `crypt_len`, so we know how much data to copy back
@@ -220,7 +220,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
 
                     // Now, run the operation:
                     if let Some((e, source, dest)) =
-                        AES128::crypt(self.aes, Some(source_buffer), dest_buffer, 0, crypt_len)
+                        AES::crypt(self.aes, Some(source_buffer), dest_buffer, 0, crypt_len)
                     {
                         // An error occurred, clear the currently active process
                         // and replace the buffers. Reset the current process'
@@ -261,7 +261,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr> SyscallDriver for EncryptionOracleDriver<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr> SyscallDriver for EncryptionOracleDriver<'a, A> {
     fn command(
         &self,
         command_num: usize,
@@ -298,7 +298,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> SyscallDriver for EncryptionOracleDriver<'a,
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr> Client<'a> for EncryptionOracleDriver<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr> Client<'a> for EncryptionOracleDriver<'a, A> {
     fn crypt_done(&'a self, mut source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
         unimplemented!()
     }

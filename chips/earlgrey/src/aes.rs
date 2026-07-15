@@ -12,7 +12,7 @@ use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::symmetric_encryption;
-use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
+use kernel::hil::symmetric_encryption::{AES_BLOCK_SIZE, AES128, AES128_KEY_SIZE};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -200,7 +200,7 @@ impl<'a> Aes<'a> {
     }
 
     fn read_block(&self, blocknum: usize) -> Result<(), ErrorCode> {
-        let blocknum = blocknum * AES128_BLOCK_SIZE;
+        let blocknum = blocknum * AES_BLOCK_SIZE;
 
         self.dest.map_or(Err(ErrorCode::NOMEM), |dest| {
             for i in 0..4 {
@@ -271,8 +271,8 @@ impl<'a> Aes<'a> {
         stop_index: usize,
         mut write_block: usize,
     ) -> Result<(), ErrorCode> {
-        let start_block = start_index / AES128_BLOCK_SIZE;
-        let end_block = stop_index / AES128_BLOCK_SIZE;
+        let start_block = start_index / AES_BLOCK_SIZE;
+        let end_block = stop_index / AES_BLOCK_SIZE;
 
         for i in start_block..end_block {
             self.wait_for_input_ready()?;
@@ -280,14 +280,14 @@ impl<'a> Aes<'a> {
 
             self.wait_for_output_valid()?;
             self.read_block(i)?;
-            write_block += AES128_BLOCK_SIZE;
+            write_block += AES_BLOCK_SIZE;
         }
 
         Ok(())
     }
 }
 
-impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
+impl<'a> hil::symmetric_encryption::AES<'a, AES128> for Aes<'a> {
     fn enable(&self) {
         self.registers.trigger.write(
             TRIGGER::KEY_IV_DATA_IN_CLEAR::SET
@@ -311,11 +311,11 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
         self.wait_on_idle_ready()?;
 
-        if iv.len() != AES128_BLOCK_SIZE {
+        if iv.len() != AES_BLOCK_SIZE {
             return Err(ErrorCode::INVAL);
         }
 
-        for i in 0..(AES128_BLOCK_SIZE / 4) {
+        for i in 0..(AES_BLOCK_SIZE / 4) {
             let mut k = iv[i * 4 + 0] as u32;
             k |= (iv[i * 4 + 1] as u32) << 8;
             k |= (iv[i * 4 + 2] as u32) << 16;
@@ -403,7 +403,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
                 if s > MAX_LENGTH {
                     return Some((Err(ErrorCode::INVAL), source, dest));
                 }
-                if s % AES128_BLOCK_SIZE != 0 {
+                if s % AES_BLOCK_SIZE != 0 {
                     return Some((Err(ErrorCode::INVAL), source, dest));
                 }
             }
@@ -436,8 +436,8 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128Ctr for Aes<'_> {
-    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl kernel::hil::symmetric_encryption::AESCtr for Aes<'_> {
+    fn set_mode_aesctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.wait_on_idle_ready()?;
         self.mode.set(Mode::AES128CTR);
 
@@ -459,8 +459,8 @@ impl kernel::hil::symmetric_encryption::AES128Ctr for Aes<'_> {
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
-    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl kernel::hil::symmetric_encryption::AESECB for Aes<'_> {
+    fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.wait_on_idle_ready()?;
         self.mode.set(Mode::AES128ECB);
 
@@ -482,8 +482,8 @@ impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128CBC for Aes<'_> {
-    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl kernel::hil::symmetric_encryption::AESCBC for Aes<'_> {
+    fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.wait_on_idle_ready()?;
         self.mode.set(Mode::AES128CBC);
 
