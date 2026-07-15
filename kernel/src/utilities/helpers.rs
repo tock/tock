@@ -94,6 +94,82 @@ macro_rules! stack_size {
     }
 }
 
+/// Create a slice from memory defined by start and end linker symbols.
+///
+/// This is designed to help get a slice for the region of flash used to store
+/// TBFs. The actual addresses of the region are determined by the linker and
+/// the linker script, and this macro encapsulates safely using linker symbols
+/// to create a Rust slice representing that memory region.
+///
+/// This macro ensures that the slice is only a `u8` slice, which ensures that
+/// every element in the slice is a valid `u8` (as a `u8` is always valid for
+/// any series of bits).
+///
+/// # Usage
+///
+/// ```rust
+/// // Get a slice over the region of flash containing TBFs.
+/// //
+/// // The `_sapps` and `_eapps` symbols are defined by the linker.
+/// //
+/// // SAFETY: The linker script ensures the symbols are valid and
+/// // refer to a memory region entirely used to store TBFs. `_sapps` starts
+/// // after the kernel text region and therefore is not null. We never
+/// // create a mutable reference to the same memory region.
+/// let app_flash = kernel::symbol_defined_slice!(_sapps, _eapps);
+/// ```
+///
+/// # Safety
+///
+/// - `$sym_start` and `$sym_end` must be linker-defined symbols with valid
+///   addresses.
+/// - `$sym_start` must not be at address 0 (null).
+/// - `$sym_start` must refer to a contiguous region of memory that is at least
+///   `addr!($sym_end) - addr!($sym_start)` bytes long and is within a single
+///   allocation.
+/// - The memory referenced by the returned slice must not be mutated.
+#[macro_export]
+macro_rules! symbol_defined_slice {
+    ($sym_start:ident, $sym_end:ident $(,)?) => {{
+        // Ensure this requires `unsafe`.
+        #[allow(unsafe_code)]
+
+        // SAFETY: The user of this macro must ensure these are both valid
+        // symbols defined by the linker.
+        unsafe extern "C" {
+            static $sym_start: u8;
+            static $sym_end: [u8; 0];
+        }
+
+        // Create a raw pointer at the address of the linker symbol.
+        let start = &raw const $sym_start;
+        // Get the raw pointer address as a usize to calculate the region
+        // length.
+        let start_address = start as usize;
+        // Get the address of the end by using a raw pointer to a zero-sized
+        // slice and then converting the pointer to a usize.
+        let end_address = &raw const $sym_end as usize;
+
+        // Compute the length. Handle the case if `$sym_start` is after
+        // `$sym_end`.
+        let length = end_address.saturating_sub(start_address);
+
+        // Create the slice from the region defined by the linker symbols.
+        //
+        // SAFETY: This meets the safety requirements because:
+        // - `start is non-null and valid for reads of `length` bytes because of
+        //   the macro-level requirement. `start` is aligned because we use
+        //   `u8`s.
+        // - There are `length` bytes of initialized values because `u8`s are
+        //   valid for any bits and the macro-level requirement ensures the
+        //   provided symbols represent a valid region of memory.
+        // - The memory is not mutated because of the macro-level requirement.
+        // - This does not exceed `isize::MAX` or wrap around because of the
+        //   `saturating_sub()` to calculate the length.
+        unsafe { core::slice::from_raw_parts(start, length) }
+    }};
+}
+
 /// Initialize all fields of a `MaybeUninit<T>` struct.
 ///
 /// Use this macro to guarantee that all fields in `T` are initialized.
