@@ -43,18 +43,12 @@ core::arch::global_asm!(
     .type nxp_s32g3_boot_entry, %function
     .thumb_func
 nxp_s32g3_boot_entry:
-    /* 0. Mask IRQs and clear scratch regs. `cpsid i` protects the uninitialized
-     *    ECC L2 SRAM stack window: an exception frame pushed before zeroing
-     *    `_sstack .. _estack` could raise an imprecise BusFault. */
+    /* 0. Mask IRQs. `cpsid i` protects the uninitialized ECC L2 SRAM stack
+     *    window: an exception frame pushed before zeroing `_sstack .. _estack`
+     *    could raise an imprecise BusFault. Reset entry has no caller; r4–r7
+     *    are callee-saved under AAPCS, and this handler has no full register-
+     *    scrubbing policy. */
     cpsid i
-    movs r0, #0
-    movs r1, #0
-    movs r2, #0
-    movs r3, #0
-    movs r4, #0
-    movs r5, #0
-    movs r6, #0
-    movs r7, #0
 
     /* 1. Enable FPU: CP10 + CP11 full access in CPACR (0xE000ED88).
      *    bits[23:20] = 0b1111 => mask 0x00F00000.
