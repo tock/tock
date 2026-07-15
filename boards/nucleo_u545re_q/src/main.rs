@@ -55,6 +55,7 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
 }
@@ -69,6 +70,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
@@ -130,10 +132,35 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
     btn.make_input();
     btn.set_floating_state(kernel::hil::gpio::FloatingState::PullDown);
 
+    // Arduino A0 (PA_0 = ADC1_IN5 - Channel5)
+    periphs
+        .gpio_a
+        .pin(PinId::Pin00)
+        .set_mode(stm32u545::gpio::Mode::Analog);
+    // Arduino A1 (PA_1 = ADC1_IN6 - Channel6)
+    periphs
+        .gpio_a
+        .pin(PinId::Pin01)
+        .set_mode(stm32u545::gpio::Mode::Analog);
     //DAC pin (PA4) A2 on the board
     periphs
         .gpio_a
         .pin(PinId::Pin04)
+        .set_mode(stm32u545::gpio::Mode::Analog);
+    // Arduino A3 (PB_0 = ADC1_IN15 - Channel15)
+    periphs
+        .gpio_b
+        .pin(PinId::Pin00)
+        .set_mode(stm32u545::gpio::Mode::Analog);
+    // Arduino A4 (PC_1 = ADC1_IN2 - Channel2)
+    periphs
+        .gpio_c
+        .pin(PinId::Pin01)
+        .set_mode(stm32u545::gpio::Mode::Analog);
+    // Arduino A5 (PC_0 = ADC1_IN1 - Channel1)
+    periphs
+        .gpio_c
+        .pin(PinId::Pin00)
         .set_mode(stm32u545::gpio::Mode::Analog);
 }
 
@@ -163,6 +190,7 @@ unsafe fn start() -> (
         stm32u545::usart::Usart<'static>,
         stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
     );
+
     usart1.register();
 
     // Load Peripherals Bundle
@@ -246,6 +274,40 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let adc_mux = components::adc::AdcMuxComponent::new(&periphs.adc1)
+        .finalize(components::adc_mux_component_static!(stm32u545::adc::Adc));
+
+    // Register the ADC channels in the same order as Arduino pins A0-A5
+    let adc1_channel_5 =
+        components::adc::AdcComponent::new(adc_mux, stm32u545::adc::Channel::Channel5)
+            .finalize(components::adc_component_static!(stm32u545::adc::Adc));
+    let adc1_channel_6 =
+        components::adc::AdcComponent::new(adc_mux, stm32u545::adc::Channel::Channel6)
+            .finalize(components::adc_component_static!(stm32u545::adc::Adc));
+    let adc1_channel_9 =
+        components::adc::AdcComponent::new(adc_mux, stm32u545::adc::Channel::Channel9)
+            .finalize(components::adc_component_static!(stm32u545::adc::Adc));
+    let adc1_channel_15 =
+        components::adc::AdcComponent::new(adc_mux, stm32u545::adc::Channel::Channel15)
+            .finalize(components::adc_component_static!(stm32u545::adc::Adc));
+    let adc1_channel_2 =
+        components::adc::AdcComponent::new(adc_mux, stm32u545::adc::Channel::Channel2)
+            .finalize(components::adc_component_static!(stm32u545::adc::Adc));
+    let adc1_channel_1 =
+        components::adc::AdcComponent::new(adc_mux, stm32u545::adc::Channel::Channel1)
+            .finalize(components::adc_component_static!(stm32u545::adc::Adc));
+
+    // Applications will see 6 ADC channels available, with index 0-5 corresponding directly to Arduino pins A0-A5
+    let adc_syscall =
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
+            .finalize(components::adc_syscall_component_helper!(
+                adc1_channel_5,
+                adc1_channel_6,
+                adc1_channel_9,
+                adc1_channel_15,
+                adc1_channel_2,
+                adc1_channel_1,
+            ));
     let dac = components::dac::DacComponent::new(&periphs.dac)
         .finalize(components::dac_component_static!());
     let gpio = components::gpio::GpioComponent::new(
@@ -296,6 +358,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            adc: adc_syscall,
             dac,
             gpio,
         }
