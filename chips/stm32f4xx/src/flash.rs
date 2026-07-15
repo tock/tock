@@ -37,11 +37,11 @@ use crate::chip_specific::flash::FlashChipSpecific as FlashChipSpecificTrait;
 use crate::chip_specific::flash::FlashLatency16;
 use crate::chip_specific::flash::RegisterToFlashLatency;
 
-use kernel::debug;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+use kernel::debug;
+use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
 use core::marker::PhantomData;
 
@@ -269,7 +269,7 @@ impl<FlashChipSpecific: FlashChipSpecificTrait> Flash<FlashChipSpecific> {
 /// In case of any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide
 /// the output of the test execution.
 pub mod tests {
-    use super::{debug, Flash, FlashChipSpecificTrait, FlashLatency16};
+    use super::{Flash, FlashChipSpecificTrait, FlashLatency16, debug};
     use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 
     const AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ: usize = 25;
@@ -380,7 +380,9 @@ pub mod tests {
             );
         }
 
-        debug!("Finished testing number of wait cycles based on the system clock frequency. Everything is alright!");
+        debug!(
+            "Finished testing number of wait cycles based on the system clock frequency. Everything is alright!"
+        );
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("");
     }

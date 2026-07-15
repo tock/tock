@@ -4,15 +4,15 @@
 
 //! True random number generator
 
-use crate::clocks::{phclk, Stm32f4Clocks};
+use crate::clocks::{Stm32f4Clocks, phclk};
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::entropy::Continue;
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 #[repr(C)]
 pub struct RngRegisters {

@@ -21,7 +21,7 @@ use enum_primitive::cast::FromPrimitive;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::{hil, ErrorCode};
+use kernel::{ErrorCode, hil};
 
 /// Current state of the CYW43x device driver
 #[derive(Clone, Copy, Debug, Default)]

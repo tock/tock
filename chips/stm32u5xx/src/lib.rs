@@ -6,6 +6,7 @@
 
 pub mod adc;
 pub mod chip;
+pub mod dac;
 pub mod dma;
 pub mod exti;
 pub mod gpio;
@@ -15,7 +16,7 @@ pub mod rcc;
 pub mod tim;
 pub mod usart;
 
-use cortexm33::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM33, CortexMVariant};
+use cortexm33::{CortexM33, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
 extern "C" {
     // _estack is the initial stack pointer (defined in the linker script).

@@ -1,6 +1,7 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
 [![tock-ci](https://github.com/tock/tock/actions/workflows/ci.yml/badge.svg)][tock-ci]
+[![matrix](https://img.shields.io/badge/matrix-tockos-informational)][matrix]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 [![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
 
@@ -39,10 +40,13 @@ project, and getting help.
   - [Contributing Guide](.github/CONTRIBUTING.md)
   - [Code Review Guidelines](doc/CodeReview.md)
 - Getting Help
+  - [Matrix Channel][matrix]
   - [Slack Channel][slack]
   - [Email List](https://lists.tockos.org)
   - [Tock Blog](https://www.tockos.org/blog/)
   - [@talkingtock](https://twitter.com/talkingtock)
+
+[matrix]: https://matrix.to/#/#tock:tockos.org
 
 [slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
 

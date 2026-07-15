@@ -5,12 +5,14 @@
 //! Test the AES CCM implementation on top of AES hardware.
 
 use core::cell::Cell;
-use kernel::debug;
-use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM, AES128_KEY_SIZE, CCM_NONCE_LENGTH};
-use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
+use kernel::debug;
+use kernel::hil::symmetric_encryption::{
+    AES128, AES128_KEY_SIZE, AESCCM, CCM_NONCE_LENGTH, CCMClient,
+};
+use kernel::utilities::cells::TakeCell;
 
-pub struct Test<'a, A: AES128CCM<'a>> {
+pub struct Test<'a, A: AESCCM<'a, AES128>> {
     aes_ccm: &'a A,
 
     buf: TakeCell<'static, [u8]>,
@@ -28,7 +30,7 @@ pub struct Test<'a, A: AES128CCM<'a>> {
     ); 3],
 }
 
-impl<'a, A: AES128CCM<'a>> Test<'a, A> {
+impl<'a, A: AESCCM<'a, AES128>> Test<'a, A> {
     pub fn new(aes_ccm: &'a A, buf: &'static mut [u8]) -> Test<'a, A> {
         Test {
             aes_ccm,
@@ -119,7 +121,6 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
             self.tests[self.current_test.get()];
         let (a_off, m_off, m_len) = (0, a_data.len(), m_data.len());
         let encrypting = self.encrypting.get();
-
         let buf = match self.buf.take() {
             None => panic!("aes_ccm_test failed: buffer is not present in check_test."),
             Some(buf) => buf,
@@ -142,12 +143,14 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
                     tag_is_valid
                 );
             } else {
-                debug!("aes_ccm_test failed: a_matches={}, c_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
-                       a_matches,
-                       c_matches,
-                       self.current_test.get(),
-                       self.encrypting.get(),
-                       tag_is_valid);
+                debug!(
+                    "aes_ccm_test failed: a_matches={}, c_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
+                    a_matches,
+                    c_matches,
+                    self.current_test.get(),
+                    self.encrypting.get(),
+                    tag_is_valid
+                );
                 for (a, b) in buf[m_off..m_off + m_len + mic_len]
                     .iter()
                     .zip(c_data.iter())
@@ -173,12 +176,14 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
                     tag_is_valid
                 );
             } else {
-                panic!("aes_ccm_test failed: a_matches={}, m_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
-                       a_matches,
-                       m_matches,
-                       self.current_test.get(),
-                       self.encrypting.get(),
-                       tag_is_valid);
+                panic!(
+                    "aes_ccm_test failed: a_matches={}, m_matches={}, (current_test={}, encrypting={}, tag_is_valid={}",
+                    a_matches,
+                    m_matches,
+                    self.current_test.get(),
+                    self.encrypting.get(),
+                    tag_is_valid
+                );
             }
         }
 
@@ -186,7 +191,7 @@ impl<'a, A: AES128CCM<'a>> Test<'a, A> {
     }
 }
 
-impl<'a, A: AES128CCM<'a>> CCMClient for Test<'a, A> {
+impl<'a, A: AESCCM<'a, AES128>> CCMClient for Test<'a, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.buf.replace(buf);
         if res != Ok(()) {

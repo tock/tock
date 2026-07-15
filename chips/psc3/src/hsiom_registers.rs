@@ -5,7 +5,7 @@
 //! HSIOM (High-Speed IO Matrix) registers and bitfields.
 //! In seperate file to avoid too large files.
 
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 #[repr(C)]
 pub struct HsiomPort {

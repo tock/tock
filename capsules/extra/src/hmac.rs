@@ -89,13 +89,10 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, DIGEST_LEN>, const DIGEST_LEN: u
 }
 
 impl<
-        'a,
-        H: digest::Digest<'a, DIGEST_LEN>
-            + digest::HmacSha256
-            + digest::HmacSha384
-            + digest::HmacSha512,
-        const DIGEST_LEN: usize,
-    > HmacDriver<'a, H, DIGEST_LEN>
+    'a,
+    H: digest::Digest<'a, DIGEST_LEN> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+    const DIGEST_LEN: usize,
+> HmacDriver<'a, H, DIGEST_LEN>
 {
     pub fn new(
         hmac: &'a H,
@@ -249,13 +246,10 @@ impl<
 }
 
 impl<
-        'a,
-        H: digest::Digest<'a, DIGEST_LEN>
-            + digest::HmacSha256
-            + digest::HmacSha384
-            + digest::HmacSha512,
-        const DIGEST_LEN: usize,
-    > digest::ClientData<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
+    'a,
+    H: digest::Digest<'a, DIGEST_LEN> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+    const DIGEST_LEN: usize,
+> digest::ClientData<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
@@ -387,13 +381,10 @@ impl<
 }
 
 impl<
-        'a,
-        H: digest::Digest<'a, DIGEST_LEN>
-            + digest::HmacSha256
-            + digest::HmacSha384
-            + digest::HmacSha512,
-        const DIGEST_LEN: usize,
-    > digest::ClientHash<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
+    'a,
+    H: digest::Digest<'a, DIGEST_LEN> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+    const DIGEST_LEN: usize,
+> digest::ClientHash<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
 {
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; DIGEST_LEN]) {
         self.processid.map(|id| {
@@ -441,13 +432,10 @@ impl<
 }
 
 impl<
-        'a,
-        H: digest::Digest<'a, DIGEST_LEN>
-            + digest::HmacSha256
-            + digest::HmacSha384
-            + digest::HmacSha512,
-        const DIGEST_LEN: usize,
-    > digest::ClientVerify<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
+    'a,
+    H: digest::Digest<'a, DIGEST_LEN> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+    const DIGEST_LEN: usize,
+> digest::ClientVerify<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
 {
     fn verification_done(
         &self,
@@ -494,13 +482,10 @@ impl<
 /// - `2`: Allow a buffer for storing the digest. The kernel will fill this with
 ///   the HMAC digest before calling the `hash_done` callback.
 impl<
-        'a,
-        H: digest::Digest<'a, DIGEST_LEN>
-            + digest::HmacSha256
-            + digest::HmacSha384
-            + digest::HmacSha512,
-        const DIGEST_LEN: usize,
-    > SyscallDriver for HmacDriver<'a, H, DIGEST_LEN>
+    'a,
+    H: digest::Digest<'a, DIGEST_LEN> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+    const DIGEST_LEN: usize,
+> SyscallDriver for HmacDriver<'a, H, DIGEST_LEN>
 {
     // Subscribe to HmacDriver events.
     //

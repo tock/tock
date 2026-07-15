@@ -9,11 +9,11 @@
 
 use crate::sip_hash::SipHasher24;
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient, CapsuleTestError};
+use kernel::ErrorCode;
 use kernel::hil::hasher::{Client, Hasher};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
-use kernel::ErrorCode;
 
 pub struct TestSipHash24 {
     hasher: &'static SipHasher24<'static>,

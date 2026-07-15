@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::{register_bitfields, ReadOnly};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::Readable;
+use kernel::utilities::registers::{ReadOnly, register_bitfields};
 
 struct Uid64Registers {
     uid_high: ReadOnly<u32, UIDHIGH::Register>,

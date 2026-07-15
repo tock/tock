@@ -37,9 +37,9 @@
 //! * Francine Mäkelä
 //! * Date: May 04, 2018
 
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{register_bitfields, FieldValue, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{FieldValue, ReadWrite, register_bitfields};
 
 const PPI_BASE: StaticRef<PpiRegisters> =
     unsafe { StaticRef::new(0x4001F000 as *const PpiRegisters) };

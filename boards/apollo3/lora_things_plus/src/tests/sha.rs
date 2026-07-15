@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::tests::run_kernel_op;
 use crate::ATECC508A;
+use crate::tests::run_kernel_op;
 use core::cell::Cell;
 use kernel::hil::digest::{self, DigestData, DigestHash};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::{debug, ErrorCode};
+use kernel::{ErrorCode, debug};
 
 struct ShaTestCallback {
     add_mut_data_done: Cell<bool>,

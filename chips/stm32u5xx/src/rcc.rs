@@ -3,9 +3,9 @@
 // Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
 
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 register_structs! {
     pub RccRegisters {
@@ -22,7 +22,7 @@ register_structs! {
         (0x098 => _reserved2: [u32; 1]),
         /// APB1 peripheral clock enable register 1
         (0x09C => apb1enr1: ReadWrite<u32, APB1ENR1::Register>),
-        (0x0A0 => _reserved3: [u32; 1]),
+        (0x0A0 => _reserved3: [u32; 1]), //this would be APB1ENR2, but unused for now
         /// APB2 peripheral clock enable register
         (0x0A4 => apb2enr: ReadWrite<u32, APB2ENR::Register>),
         /// APB3 peripheral clock enable register
@@ -30,7 +30,7 @@ register_structs! {
         (0x0AC => _reserved4: [u32; 13]),
         /// Peripherals independent clock configuration register 1
         (0x0E0 => ccipr1: ReadWrite<u32, CCIPR1::Register>),
-        (0x0E4 => _reserved5: [u32; 1]),
+        (0x0E4 => ccipr2: ReadWrite<u32, CCIPR1::Register>),
         /// Peripherals independent clock configuration register 3
         (0x0E8 => ccipr3: ReadWrite<u32, CCIPR3::Register>),
         (0x0EC => @END),
@@ -60,6 +60,7 @@ register_bitfields![u32,
     ],
     pub AHB3ENR [
         PWREN OFFSET(2) NUMBITS(1) [],
+        DAC1EN OFFSET(6) NUMBITS(1) [],
     ],
     pub APB1ENR1 [
         TIM2EN OFFSET(0) NUMBITS(1) []
@@ -78,7 +79,7 @@ register_bitfields![u32,
             LSE = 3
         ]
     ],
-    CCIPR3 [
+    pub CCIPR3 [
         ADCDACSEL OFFSET(12) NUMBITS(3) [
             HCLK = 0,
             SYSCLK = 1,
@@ -87,6 +88,10 @@ register_bitfields![u32,
             HSI16 = 4,
             MSIK = 5
         ],
+        DAC1SEL OFFSET(15) NUMBITS(1) [
+            LSE = 0,
+            LSI = 1
+        ]
     ],
 ];
 
@@ -148,5 +153,9 @@ impl Rcc {
 
     pub fn set_adcdacsel_source_hsi16(&self) {
         self.registers.ccipr3.modify(CCIPR3::ADCDACSEL::HSI16);
+    }
+
+    pub fn enable_dac1(&self) {
+        self.registers.ahb3enr.modify(AHB3ENR::DAC1EN::SET);
     }
 }

@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use crate::net::ieee802154::MacAddress;
-use crate::net::ipv6::ip_utils::{compute_udp_checksum, ip6_nh, IPAddr};
+use crate::net::ipv6::ip_utils::{IPAddr, compute_udp_checksum, ip6_nh};
 use crate::net::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::udp::UDPHeader;
 use crate::net::util;
@@ -141,11 +141,7 @@ impl ContextStore for Context {
     }
 
     fn get_context_from_id(&self, ctx_id: u8) -> Option<Context> {
-        if ctx_id == 0 {
-            Some(*self)
-        } else {
-            None
-        }
+        if ctx_id == 0 { Some(*self) } else { None }
     }
 
     fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context> {

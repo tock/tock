@@ -9,7 +9,7 @@ use core::cell::Cell;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE,
+    AES, AES_BLOCK_SIZE, AES128, AES128_KEY_SIZE, AESCBC, AESCtr, AESECB,
 };
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -58,10 +58,10 @@ pub struct TestAes128Ecb<'a, A: 'a> {
     client: OptionalCell<&'static dyn CapsuleTestClient>,
 }
 
-const DATA_OFFSET: usize = AES128_BLOCK_SIZE;
-const DATA_LEN: usize = 4 * AES128_BLOCK_SIZE;
+const DATA_OFFSET: usize = AES_BLOCK_SIZE;
+const DATA_LEN: usize = 4 * AES_BLOCK_SIZE;
 
-impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESECB> TestAes128Ecb<'a, A> {
     pub fn new(
         aes: &'a A,
         key: &'a mut [u8],
@@ -87,7 +87,7 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
     pub fn run(&self) {
         self.aes.enable();
 
-        self.aes.set_mode_aes128ecb(self.encrypting.get()).unwrap();
+        self.aes.set_mode_aesecb(self.encrypting.get()).unwrap();
 
         // Copy key into key buffer and configure it in the hardware
         self.key.map(|key| {
@@ -154,13 +154,13 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128ECB> CapsuleTest for TestAes128Ecb<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESECB> CapsuleTest for TestAes128Ecb<'a, A> {
     fn set_client(&self, client: &'static dyn CapsuleTestClient) {
         self.client.set(client);
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr> TestAes128Ctr<'a, A> {
     pub fn new(
         aes: &'a A,
         key: &'a mut [u8],
@@ -188,7 +188,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
     pub fn run(&self) {
         self.aes.enable();
 
-        self.aes.set_mode_aes128ctr(self.encrypting.get()).unwrap();
+        self.aes.set_mode_aesctr(self.encrypting.get()).unwrap();
 
         // Copy key into key buffer and configure it in the hardware
         self.key.map(|key| {
@@ -265,7 +265,9 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for TestAes128Ctr<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr> hil::symmetric_encryption::Client<'a>
+    for TestAes128Ctr<'a, A>
+{
     fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
         if self.use_source.get() {
             // Take back the source buffer
@@ -326,13 +328,13 @@ impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for Te
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr> CapsuleTest for TestAes128Ctr<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr> CapsuleTest for TestAes128Ctr<'a, A> {
     fn set_client(&self, client: &'static dyn CapsuleTestClient) {
         self.client.set(client);
     }
 }
 
-impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCBC> TestAes128Cbc<'a, A> {
     pub fn new(
         aes: &'a A,
         key: &'a mut [u8],
@@ -360,7 +362,7 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
     pub fn run(&self) {
         self.aes.enable();
 
-        self.aes.set_mode_aes128cbc(self.encrypting.get()).unwrap();
+        self.aes.set_mode_aescbc(self.encrypting.get()).unwrap();
 
         // Copy key into key buffer and configure it in the hardware
         self.key.map(|key| {
@@ -438,7 +440,9 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for TestAes128Cbc<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCBC> hil::symmetric_encryption::Client<'a>
+    for TestAes128Cbc<'a, A>
+{
     fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
         if self.use_source.get() {
             // Take back the source buffer
@@ -497,13 +501,15 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for Te
     }
 }
 
-impl<'a, A: AES128<'a> + AES128CBC> CapsuleTest for TestAes128Cbc<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCBC> CapsuleTest for TestAes128Cbc<'a, A> {
     fn set_client(&self, client: &'static dyn CapsuleTestClient) {
         self.client.set(client);
     }
 }
 
-impl<'a, A: AES128<'a> + AES128ECB> hil::symmetric_encryption::Client<'a> for TestAes128Ecb<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESECB> hil::symmetric_encryption::Client<'a>
+    for TestAes128Ecb<'a, A>
+{
     fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
         if self.use_source.get() {
             // Take back the source buffer
@@ -569,19 +575,19 @@ const KEY: [u8; AES128_KEY_SIZE] = [
 ];
 
 #[rustfmt::skip]
-const IV_CTR: [u8; AES128_BLOCK_SIZE] = [
+const IV_CTR: [u8; AES_BLOCK_SIZE] = [
     0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7,
     0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff
 ];
 
 #[rustfmt::skip]
-const IV_CBC: [u8; AES128_BLOCK_SIZE] = [
+const IV_CBC: [u8; AES_BLOCK_SIZE] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
     0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
 ];
 
 #[rustfmt::skip]
-const PTXT: [u8; 4 * AES128_BLOCK_SIZE] = [
+const PTXT: [u8; 4 * AES_BLOCK_SIZE] = [
     0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96,
     0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a,
     0xae, 0x2d, 0x8a, 0x57, 0x1e, 0x03, 0xac, 0x9c,
@@ -593,7 +599,7 @@ const PTXT: [u8; 4 * AES128_BLOCK_SIZE] = [
 ];
 
 #[rustfmt::skip]
-const CTXT_CTR: [u8; 4 * AES128_BLOCK_SIZE] = [
+const CTXT_CTR: [u8; 4 * AES_BLOCK_SIZE] = [
     0x87, 0x4d, 0x61, 0x91, 0xb6, 0x20, 0xe3, 0x26,
     0x1b, 0xef, 0x68, 0x64, 0x99, 0x0d, 0xb6, 0xce,
     0x98, 0x06, 0xf6, 0x6b, 0x79, 0x70, 0xfd, 0xff,
@@ -605,7 +611,7 @@ const CTXT_CTR: [u8; 4 * AES128_BLOCK_SIZE] = [
 ];
 
 #[rustfmt::skip]
-const CTXT_CBC: [u8; 4 * AES128_BLOCK_SIZE] = [
+const CTXT_CBC: [u8; 4 * AES_BLOCK_SIZE] = [
     0x76, 0x49, 0xab, 0xac, 0x81, 0x19, 0xb2, 0x46,
     0xce, 0xe9, 0x8e, 0x9b, 0x12, 0xe9, 0x19, 0x7d,
     0x50, 0x86, 0xcb, 0x9b, 0x50, 0x72, 0x19, 0xee,
@@ -617,7 +623,7 @@ const CTXT_CBC: [u8; 4 * AES128_BLOCK_SIZE] = [
 ];
 
 #[rustfmt::skip]
-const CTXT_ECB: [u8; 4 * AES128_BLOCK_SIZE] = [
+const CTXT_ECB: [u8; 4 * AES_BLOCK_SIZE] = [
     0x3a, 0xd7, 0x7b, 0xb4, 0x0d, 0x7a, 0x36, 0x60,
     0xa8, 0x9e, 0xca, 0xf3, 0x24, 0x66, 0xef, 0x97,
     0xf5, 0xd3, 0xd5, 0x85, 0x03, 0xb9, 0x69, 0x9d,

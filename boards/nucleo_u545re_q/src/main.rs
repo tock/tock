@@ -26,9 +26,12 @@ extern "C" {
 
 const NUM_PROCS: usize = 4;
 
+type GpioHw = stm32u545::gpio::Pin<'static>;
 type ChipHw =
     stm32u545::chip::Stm32u5xx<'static, stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
+
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new();
@@ -53,6 +56,8 @@ struct NucleoU545RE {
         >,
     >,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    dac: &'static capsules_extra::dac::Dac<'static>,
+    gpio: &'static GpioDriver,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -66,6 +71,8 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }
@@ -135,7 +142,7 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
         .gpio_a
         .pin(PinId::Pin01)
         .set_mode(stm32u545::gpio::Mode::Analog);
-    // Arduino A2 (PA_4 = ADC1_IN9 - Channel9)
+    //DAC pin (PA4) A2 on the board
     periphs
         .gpio_a
         .pin(PinId::Pin04)
@@ -301,6 +308,44 @@ unsafe fn start() -> (
                 adc1_channel_2,
                 adc1_channel_1,
             ));
+    let dac = components::dac::DacComponent::new(&periphs.dac)
+        .finalize(components::dac_component_static!());
+    let gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        capsules_core::gpio::DRIVER_NUM,
+        components::gpio_component_helper_owned!(
+            GpioHw,
+            // Digital pins
+            0 => periphs.gpio_a.pin(PinId::Pin03), // D0
+            1 => periphs.gpio_a.pin(PinId::Pin02), // D1
+            2 => periphs.gpio_c.pin(PinId::Pin08), // D2
+            // D3-D6 require GPIOB
+            7 => periphs.gpio_a.pin(PinId::Pin08), // D7
+            8 => periphs.gpio_c.pin(PinId::Pin07), // D8
+            9 => periphs.gpio_c.pin(PinId::Pin06), // D9
+            10 => periphs.gpio_c.pin(PinId::Pin09), // D10
+            11 => periphs.gpio_a.pin(PinId::Pin07), // D11
+            12 => periphs.gpio_a.pin(PinId::Pin06), // D12
+            // 13 => D13/PA5 is used by the LD2 LED capsule
+            // D14-D15 require GPIOB
+
+            // Analog pins exposed as GPIO
+            16 => periphs.gpio_a.pin(PinId::Pin00), // A0
+            17 => periphs.gpio_a.pin(PinId::Pin01), // A1
+            18 => periphs.gpio_a.pin(PinId::Pin04), // A2
+            // 19 => A3 requires GPIOB
+            20 => periphs.gpio_c.pin(PinId::Pin01), // A4
+            21 => periphs.gpio_c.pin(PinId::Pin00), // A5
+
+            // ST Morpho-only GPIO pins (no D/A aliases)
+            22 => periphs.gpio_c.pin(PinId::Pin10), // CN7 pin 1
+            23 => periphs.gpio_c.pin(PinId::Pin11), // CN7 pin 2
+            24 => periphs.gpio_c.pin(PinId::Pin12), // CN7 pin 3
+            25 => periphs.gpio_a.pin(PinId::Pin15), // CN7 pin 17
+            26 => periphs.gpio_c.pin(PinId::Pin03), // CN7 pin 37
+        ),
+    )
+    .finalize(components::gpio_component_static!(GpioHw));
 
     // Platform and Interrupts
     let platform = static_init!(
@@ -314,6 +359,8 @@ unsafe fn start() -> (
             button,
             alarm,
             adc: adc_syscall,
+            dac,
+            gpio,
         }
     );
 

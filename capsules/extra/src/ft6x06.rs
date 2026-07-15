@@ -27,11 +27,11 @@
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
+use kernel::ErrorCode;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::hil::touch::{self, GestureEvent, TouchEvent, TouchStatus};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 pub static NO_TOUCH: TouchEvent = TouchEvent {
     id: 0,

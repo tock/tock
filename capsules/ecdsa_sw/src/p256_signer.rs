@@ -7,10 +7,10 @@
 use p256::ecdsa;
 use p256::ecdsa::signature::hazmat::PrehashSigner;
 
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::public_key_crypto::keys::SetKeyBySliceClient;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 enum State {
     Signing,
@@ -113,10 +113,10 @@ impl kernel::deferred_call::DeferredCallClient for EcdsaP256SignatureSigner<'_> 
             match s {
                 State::Signing => {
                     self.client.map(|client| {
-                        if let Some(h) = self.hash_storage.take() {
-                            if let Some(s) = self.signature_storage.take() {
-                                client.signing_done(Ok(()), h, s);
-                            }
+                        if let Some(h) = self.hash_storage.take()
+                            && let Some(s) = self.signature_storage.take()
+                        {
+                            client.signing_done(Ok(()), h, s);
                         }
                     });
                 }
