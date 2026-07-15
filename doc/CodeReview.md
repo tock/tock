@@ -23,6 +23,7 @@ merges pull requests for the main Tock repository.
       - [`ci-all`](#ci-all)
 - [Comments and Review Criteria](#comments-and-review-criteria)
   * [General Review Principles](#general-review-principles)
+  * [`unsafe` Code](#unsafe-code)
   * [Review Guide by Repository Subsystem](#review-guide-by-repository-subsystem)
     + [Core Kernel (`/kernel` crate) Not Including HILs](#core-kernel-kernel-crate-not-including-hils)
     + [HILs](#hils)
@@ -301,6 +302,201 @@ review principles that will be used when evaluating pull requests.
 - Uses of `#inline` directives should explain in an adjacent comment why they
   are needed.
 
+### `unsafe` Code
+
+All `unsafe` usage MUST be accompanied by Safety comments. These comments
+discuss exactly why the `unsafe` code is necessary and what checks are needed
+and completed to ensure the use of `unsafe` does not trigger undefined
+behavior.
+
+The core of these comments are invariants which `unsafe` code expects to be
+upheld.
+
+ - Invariants should be succinct and specific.
+ - Invariants should be minimal in scope.
+ - Invariants must be numbered such that they can be easily referenced.
+ - Invariants that assume a Rust concept should write the concept in all
+   capitals to indicate that this is more than a simple noun.
+    - E.g., Rust has a specific [set of criteria][rust-valid-ptr] for what it
+      means for a raw pointer to be "valid". In lieu of enumerating individual
+      invariants to assert that a raw pointer is NonNull, Dereferenceable,
+      Aligned, Initialized, and Live, a Safety invariant can simply assert
+      "the pointer is VALID".
+
+***RFC: Are there any differences if Safety concerns between plain fn
+declaration and the declaration of a method within a trait?***
+
+There are several fundamental types of `unsafe` code, each with their own
+template for Safety comments:
+
+#### Declaration of `unsafe` Functions, Associated Functions, and Methods
+
+On function and method declarations, the primary purpose of the `unsafe`
+keyword is to indicate that there are invariants the **caller** of the
+function is obligated to uphold. Safety documentation may also include
+information that restricts what the **callee** is permitted to do with
+arguments.
+
+ - The Safety comment for a function MUST express all of the invariants a
+   caller is assumed to uphold.
+ - If appropriate, the Safety comment for a function SHOULD also express, in a
+   separate list, all of the invariants that the function will uphold.
+
+`unsafe fn`s must use the following template for a Safety comment:
+
+    /// High-level summary of function behavior.
+    ///
+    /// [optional]: Additional non-safety documentation.
+    ///
+    /// # Safety
+    ///
+    /// [optional]: Summary of caller expectations.
+    ///
+    /// Caller Invariants:
+    ///   1. <requirement 1>
+    ///   2. <requirement 2> ...
+    ///
+    /// [Callee Invariants]:
+    ///   1. <requirement 1>
+    ///   2. <requirement 2> ...
+
+Here is an example of a Safety comment for a method declaration:
+
+    /// Set the return value the process will see after a syscall.
+    ///
+    /// This should only be called after a process has called a syscall.
+    ///
+    /// The process to set the return value for is specified by the `state`
+    /// value. The `return_value` is the value that should be passed to the
+    /// process so that when it resumes executing it knows the return value of
+    /// the syscall it called.
+    ///
+    /// # Safety
+    ///
+    /// [`accessible_memory_start`, `app_brk`) define a range of valid,
+    /// readable, and writeable memory that belongs to this process. This
+    /// function has exclusive access to this memory range during operation.
+    ///
+    /// Caller Invariants:
+    ///   1. `accessible_memory_start` is a VALID pointer to process memory.
+    ///   2. `app_brk - 1` is a VALID pointer to process memory.
+    ///   3. `app_brk` > `accessible_memory_start`.
+    ///   4. `accessible_memory_start` is aligned to the native word type.
+    ///   5. No Rust references exist to [`accessible_memory_start`, `app_brk`).
+    /// Callee Invariants:
+    ///   1. All unsafe memory operations will occur within the bounds
+    ///      [`accessible_memory_start, `app_brk`).
+    unsafe fn set_syscall_return_value(
+        &self,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut Self::StoredState,
+        return_value: SyscallReturn,
+    ) -> Result<(), ()>;
+
+
+#### Implementation of `unsafe` Functions, Associated Functions, and Methods
+
+The implementation of functions and methods should be treated as any other
+code block, as documented next. Since the 2024 Edition of Rust, the body of an
+`unsafe fn` is no longer itself `unsafe`, thus explicit `unsafe` blocks are
+required within the implementation.
+
+***RFC: Should method impl's just also not have a comment? My rationale was
+(1) the link is nice to have (though probably also unnecessary since one could
+just click on the trait), and (2) helps keep an invariant that all `unsafe`
+has a Safety comment***
+
+For a method being `impl`'d, the Safety comment should be a minimal pointer,
+with valid rustdoc crosslink syntax, to the declaration, e.g.:
+
+    impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> {
+        /// # Safety
+        ///
+        /// [Trait Safety](kernel::syscall::UserspaceKernelBoundary::set_syscall_return_value)
+        unsafe fn set_syscall_return_value(
+
+If appropriate, this Safety comment may include additional information
+regarding how this specific implementation adheres to the callee requirements,
+however, it MUST NOT introduce any new caller requirements.
+
+For a plain function, the definition and implementation site are the same, so
+there is already a Safety comment.
+
+#### `unsafe` Code Blocks
+
+Rust requires that whenever an implementation performs an `unsafe` operation
+it be encapsulated in an `unsafe` code block. Generally, `unsafe` code blocks
+should be minimal and restricted to one operation.
+
+We do not enforce strictly one operation per block (i.e., [clippy's
+multiple_unsafe_ops_per_block][clippy-mult-unsafe]) and permit grouping of
+operations where the _reasoning_ around all of the grouped `unsafe` operations
+are the same. When multiple operations are grouped in one block, the Safety
+comment must explicitly note this, and explain how each operation's invariants
+are upheld.
+
+Each `unsafe` code block must have its own Safety comment that adheres to the
+following template:
+
+    // [optional]: Any generic code comments unrelated to Safety concerns.
+    //
+    // SAFETY: This block contains N unsafe operation(s) [repeated M times].
+    //
+    // [if N > 1]: GROUPING: Justification for grouping.
+    //
+    // [optional]: Summary of safety related concerns.
+    //
+    // XXX invariants are satisfied as follows:
+    //   1. <requirement 1> is assured because ...
+    //   2. <requirement 2> is assured because ...
+
+The following is an example of a common-case Safety comment:
+
+    // We are now ready to run user code, go ahead and do that.
+    //
+    // SAFETY: This block contains one unsafe operation.
+    //
+    // `switch_to_user` invariants are satisfied as follows:
+    //   1. The first argument, `state.psp`, must hold a valid pointer to
+    //      userspace memory; this invariant is always held for an object
+    //      of the type `CortexMStoredState`.
+    //   2. The second argument, `state.regs`, must point to memory laid out
+    //      as `&mut [u32; 8]` for assembly access; this invariant is always
+    //      held for an object of the type `CortexMStoredState`.
+    let new_stack_pointer =
+        unsafe { A::switch_to_user(state.psp as *const usize, &mut state.regs) };
+
+The following is an example of a grouped Safety comment, note the explicit
+justification for grouping and explanation of how each operation's invariants
+are upheld:
+
+    // SAFETY: This block contains two unsafe operations repeated six times.
+    //
+    // GROUPING: These operations are grouped as they all operate on a
+    // contiguous region of memory with the same safety requirements derived
+    // from the same caller assertion.
+    //
+    // The caller asserted that `new_stack_pointer` is VALID and points to the
+    // beginning of an array of 8 contiguous words of memory we have exclusive
+    // access to.
+    //
+    // For each `add`, invariants are satisfied as follows:
+    //   1. The base pointer is VALID per caller assertion.
+    //   2. Each offset is within the bounds asserted by the caller as VALID.
+    // For each `ptr::read`, invariants are satisfied as follows:
+    //   1. The pointer is VALID per the above.
+    let (r0, r1, r2, r3, yield_pc, psr) = unsafe {
+        (
+            ptr::read(new_stack_pointer.add(0)),
+            ptr::read(new_stack_pointer.add(1)),
+            ptr::read(new_stack_pointer.add(2)),
+            ptr::read(new_stack_pointer.add(3)),
+            ptr::read(new_stack_pointer.add(6)),
+            ptr::read(new_stack_pointer.add(7)),
+        )
+    };
+
 ### Review Guide by Repository Subsystem
 
 In addition to general code review practices, certain review principles are only
@@ -322,11 +518,6 @@ included in the source file directly (often with a `//` comment). This leaves a
 clear trace of how key design decisions in Tock were decided and why certain
 aspects may not use the most intuitive design. This helps avoid re-hashing
 discussions and assist new users with understanding the kernel.
-
-All `unsafe` usage MUST be accompanied by a comment starting with `### Safety`
-that discusses exactly why the unsafe code is necessary and what checks are
-needed and completed to ensure the use of `unsafe` does not trigger undefined
-behavior.
 
 All new exports from the core kernel crate must be carefully examined. Certain
 functionality is only safe within the core kernel. As essentially every crate in
@@ -495,3 +686,8 @@ of the component.
 
 Other repositories under [tock/](https://github.com/tock) are either
 experimental or archived.
+
+
+
+[rust-valid-ptr]: https://doc.rust-lang.org/std/ptr/index.html
+[clippy-mult-unsafe]: https://rust-lang.github.io/rust-clippy/master/index.html#multiple_unsafe_ops_per_block
