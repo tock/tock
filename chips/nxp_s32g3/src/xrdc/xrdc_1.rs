@@ -67,7 +67,7 @@ use kernel::utilities::StaticRef;
 use super::{
     allocate_unmapped_exact_mrgd, invalidate_mda, invalidate_mrgd, invalidate_pdac_window,
     max_mrc_idx, nmrgd_for_mrc, pdac_register_for_slot, program_mda_bus, program_mda_core,
-    program_mrgd, program_pdac, register_barrier, search_and_patch_mrgd, Access, BusInitiator,
+    program_mrgd, program_pdac, xrdc_sync, search_and_patch_mrgd, Access, BusInitiator,
     Domain, MdaRaw, MrcRange, MrgdPatchOutcome, MrgdRaw, MrgdTarget, PdacRaw, PrivAttr, SecureAttr,
     XrdcPatchError, XrdcRegisters, CR,
 };
@@ -461,8 +461,9 @@ impl Xrdc1 {
         }
 
         // 2. Disable evaluation while we rewrite the policy.
+        xrdc_sync();
         regs.cr.modify(CR::GVLD::Disabled);
-        register_barrier();
+        xrdc_sync();
 
         // 3. Deny-by-default: zero every entry's VLD before programming, but
         //    only within XRDC_1's documented register window. Touching the
@@ -471,7 +472,7 @@ impl Xrdc1 {
         invalidate_mda(&regs.mda[..MDA_INSTANCE_COUNT]);
         invalidate_pdac_window(&regs.pdac_0_31);
         invalidate_mrgd(&regs.mrgd[..MRC_COUNT * MRGD_PER_MRC]);
-        register_barrier();
+        xrdc_sync();
 
         // 4a. Program MDA entries.
         for entry in cfg.masters {
@@ -509,14 +510,15 @@ impl Xrdc1 {
         }
 
         // 5. Atomically enable XRDC evaluation with the new policy.
-        register_barrier();
+        xrdc_sync();
         regs.cr.modify(CR::GVLD::Enabled);
-        register_barrier();
+        xrdc_sync();
 
         // 6. Lock the control register so no further mutation is possible
         // until reset. (Per-entry LK1/LK2 were set above in their program_*
         // calls.)
         regs.cr.modify(CR::LK1::Locked);
+        xrdc_sync();
     }
     /// Additive patch for XRDC_1. Mirrors [`super::xrdc_0::Xrdc0::patch`]
     /// but bounds register access to XRDC_1's documented MDAC/MRC/PAC counts.
@@ -553,12 +555,13 @@ impl Xrdc1 {
         let regs: &XrdcRegisters = &self.registers;
         if !regs.cr.is_set(CR::LK1) {
             regs.cr.modify(CR::LK1::Locked);
+            xrdc_sync();
         }
     }
     /// Runtime search-and-patch for a single MRGD descriptor.
     ///
     /// Searches XRDC_1's MRC window for an existing descriptor (according to
-    /// `target`) and ORs in the ACP bits from `entry`.  If no match is found,
+    /// `target`) and replaces the driver-owned ACP bits from `entry`. If no match is found,
     /// allocates the first unused slot in the target MRC.
     ///
     /// This is an imperative escape hatch for cases where a prior boot stage

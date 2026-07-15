@@ -27,9 +27,7 @@ pub mod xrdc_1;
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 use core::sync::atomic::{compiler_fence, Ordering};
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-use cortexm::dma_fence::CortexMDmaFence;
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-use kernel::platform::dma_fence::DmaFence;
+use core::arch::asm;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -868,16 +866,20 @@ impl MdaRaw {
 // apply-time helpers shared between XRDC instances
 // =============================================================================
 
-/// Publish prior XRDC MMIO writes before a VLD or GVLD write.
+/// Synchronize XRDC policy publication with the hardware and compiler.
 ///
-/// `CortexMDmaFence::release()` emits the architecture `dmb` instruction on
-/// Cortex-M targets. Host tests retain a compiler fence because the architecture
-/// implementation intentionally rejects execution on a non-Cortex-M host.
-pub(crate) fn register_barrier() {
+/// NXP's AUTOSAR RTD `Xrdc_Memory_Config_Descriptor`,
+/// `Xrdc_Peripheral_Access_Config`, `Xrdc_Domain_Init`, and
+/// `Xrdc_Ip_Init_Privileged` in `Xrdc_Ip.c` bracket descriptor, MDA, and
+/// `CR[GVLD]` publication with `DSB; ISB`. The host implementation preserves
+/// source ordering for register-backed unit tests only; it provides no hardware
+/// synchronization guarantee.
+pub(crate) fn xrdc_sync() {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe {
-        let mut empty: [u8; 0] = [];
-        CortexMDmaFence::new().release(&mut empty);
+        // Deliberately omit `nomem`: MMIO accesses must not move across this
+        // driver-specific synchronization point.
+        asm!("dsb sy", "isb", options(nostack, preserves_flags));
     }
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     compiler_fence(Ordering::SeqCst);
@@ -941,23 +943,26 @@ pub(crate) fn invalidate_mrgd(mrgds: &[XrdcMemoryRegionDescriptorRegisters]) {
 /// Program one PDAC entry. Performs the W2-style "clear VLD → write policy →
 /// re-assert VLD" dance documented in RM §15.7.3.17 LK2/VLD interaction.
 pub(crate) fn program_pdac(pdac: &XrdcPdacRegisters, raw: PdacRaw, lock: bool) {
+    xrdc_sync();
     pdac.w1.modify(PDAC_W1::VLD::Invalid);
-    register_barrier();
+    xrdc_sync();
     // SE/SNUM stay zero (no hardware semaphore in v1).
     pdac.w0.set(raw.w0);
-    register_barrier();
+    xrdc_sync();
     let mut w1 = raw.w1_acp | (1u32 << 31); // VLD = Valid
     if lock {
         // LK2 = 11b — locked until reset.
         w1 |= 0b11u32 << 29;
     }
     pdac.w1.set(w1);
+    xrdc_sync();
 }
 
 /// Program one MRGD descriptor. Mirrors the PDAC dance for W3.
 pub(crate) fn program_mrgd(mrgd: &XrdcMemoryRegionDescriptorRegisters, raw: MrgdRaw, lock: bool) {
+    xrdc_sync();
     mrgd.w3.modify(MRGD_W3::VLD::Invalid);
-    register_barrier();
+    xrdc_sync();
     // `MrgdRaw::region` already pre-shifts `srtaddr_field` / `endaddr_field`
     // into their final MRGD_W{0,1} register-word position (RM §15.7.3.18:
     // SRTADDR/ENDADDR sit at bit 1, carrying address bits 35:5). Writing
@@ -966,25 +971,28 @@ pub(crate) fn program_mrgd(mrgd: &XrdcMemoryRegionDescriptorRegisters, raw: Mrgd
     mrgd.w0.set(raw.srtaddr_field);
     mrgd.w1.set(raw.endaddr_field);
     mrgd.w2.set(raw.acp_lo);
-    register_barrier();
+    xrdc_sync();
     let mut w3 = raw.acp_hi | (1u32 << 31); // VLD = Valid
     if lock {
         w3 |= 0b11u32 << 29;
     }
     mrgd.w3.set(w3);
+    xrdc_sync();
 }
 
 /// Program one MDA word for a core initiator (DFMT0). Core MDACs have up to
 /// 8 words; in v1 we only ever use word 0 and zero-validate the rest in the
 /// pre-apply invalidation pass.
 pub(crate) fn program_mda_core(slot: &XrdcMdaRegisters, raw: MdaRaw, lock: bool) {
+    xrdc_sync();
     slot.word[0].modify(MDA::VLD::Invalid);
-    register_barrier();
+    xrdc_sync();
     let mut w = raw.word | (1u32 << 31); // VLD = Valid
     if lock {
         w |= 1u32 << 30; // LK1 = Locked
     }
     slot.word[0].set(w);
+    xrdc_sync();
 }
 /// Program one MDA word for a bus initiator (DFMT1).
 pub(crate) fn program_mda_bus(slot: &XrdcMdaRegisters, raw: MdaRaw, lock: bool) {
@@ -997,13 +1005,15 @@ pub(crate) fn patch_pdac(pdac: &XrdcPdacRegisters, raw: PdacRaw) -> Result<(), X
     if w1 & LK2_MASK != 0 {
         return Err(XrdcPatchError::LockedDescriptor);
     }
+    xrdc_sync();
     pdac.w1.set(w1 & !(1u32 << 31));
-    register_barrier();
+    xrdc_sync();
     let w0 = pdac.w0.get();
     pdac.w0.set((w0 & !ACP_LO_MASK) | (raw.w0 & ACP_LO_MASK));
-    register_barrier();
+    xrdc_sync();
     pdac.w1
         .set((w1 & !ACP_HI_MASK) | (raw.w1_acp & ACP_HI_MASK) | (1u32 << 31));
+    xrdc_sync();
     Ok(())
 }
 
@@ -1023,9 +1033,11 @@ pub(crate) fn patch_mda(slot: &XrdcMdaRegisters, raw: MdaRaw) -> Result<(), Xrdc
         0xFu32 << MDA_DID_SHIFT
     };
     let new = (current & !mask) | raw.word;
+    xrdc_sync();
     slot.word[0].set(new & !(1u32 << 31));
-    register_barrier();
+    xrdc_sync();
     slot.word[0].set(new | (1u32 << 31));
+    xrdc_sync();
     Ok(())
 }
 /// Additively patch one static MRGD descriptor.
@@ -1059,21 +1071,26 @@ pub(crate) fn patch_mrgd(
         if w3 & LK2_MASK != 0 {
             return Err(XrdcPatchError::LockedDescriptor);
         }
+        xrdc_sync();
         mrgd.w3.set(w3 & !(1u32 << 31));
-        register_barrier();
+        xrdc_sync();
         let w2 = mrgd.w2.get();
         mrgd.w2
             .set((w2 & !ACP_LO_MASK) | (raw.acp_lo & ACP_LO_MASK));
+        xrdc_sync();
         mrgd.w3
             .set((w3 & !(1u32 << 31) & !ACP_HI_MASK) | (raw.acp_hi & ACP_HI_MASK) | (1u32 << 31));
+        xrdc_sync();
         Ok(())
     } else if let Some(i) = first_unused {
         let mrgd = &mrgds[i];
+        xrdc_sync();
         mrgd.w0.set(raw.srtaddr_field);
         mrgd.w1.set(raw.endaddr_field);
         mrgd.w2.set(raw.acp_lo);
-        register_barrier();
+        xrdc_sync();
         mrgd.w3.set(raw.acp_hi | (1u32 << 31));
+        xrdc_sync();
         Ok(())
     } else {
         Err(XrdcPatchError::NoFreeDescriptor)
@@ -1125,23 +1142,28 @@ pub(crate) fn search_and_patch_mrgd(
         if w3 & LK2_MASK != 0 {
             return Err(XrdcPatchError::LockedDescriptor);
         }
+        xrdc_sync();
         mrgd.w3.set(w3 & !(1u32 << 31));
-        register_barrier();
+        xrdc_sync();
         let w2 = mrgd.w2.get();
         mrgd.w2
             .set((w2 & !ACP_LO_MASK) | (raw.acp_lo & ACP_LO_MASK));
+        xrdc_sync();
         mrgd.w3
             .set((w3 & !(1u32 << 31) & !ACP_HI_MASK) | (raw.acp_hi & ACP_HI_MASK) | (1u32 << 31));
+        xrdc_sync();
         Ok(MrgdPatchOutcome::PatchedExisting { slot: i })
     } else if matches!(target, MrgdTarget::ContainsAddress(_)) {
         Err(XrdcPatchError::MissingTarget)
     } else if let Some(i) = first_unused {
         let mrgd = &mrgds[i];
+        xrdc_sync();
         mrgd.w0.set(raw.srtaddr_field);
         mrgd.w1.set(raw.endaddr_field);
         mrgd.w2.set(raw.acp_lo);
-        register_barrier();
+        xrdc_sync();
         mrgd.w3.set(raw.acp_hi | (1u32 << 31));
+        xrdc_sync();
         Ok(MrgdPatchOutcome::AllocatedNew { slot: i })
     } else {
         Err(XrdcPatchError::NoFreeDescriptor)
@@ -1185,11 +1207,13 @@ pub(crate) fn allocate_unmapped_exact_mrgd(
         return Err(XrdcPatchError::NoFreeDescriptor);
     };
     let mrgd = &mrgds[i];
+    xrdc_sync();
     mrgd.w0.set(raw.srtaddr_field);
     mrgd.w1.set(raw.endaddr_field);
     mrgd.w2.set(raw.acp_lo);
-    register_barrier();
+    xrdc_sync();
     mrgd.w3.set(raw.acp_hi | (1u32 << 31));
+    xrdc_sync();
     Ok(MrgdPatchOutcome::AllocatedNew { slot: i })
 }
 

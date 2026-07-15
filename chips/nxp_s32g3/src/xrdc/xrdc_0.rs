@@ -36,7 +36,7 @@ use kernel::utilities::StaticRef;
 use super::{
     invalidate_mda, invalidate_mrgd, invalidate_pdac_window, max_mrc_idx, nmrgd_for_mrc,
     pdac_register_for_slot, program_mda_bus, program_mda_core, program_mrgd, program_pdac,
-    register_barrier, search_and_patch_mrgd, Access, BusInitiator, Domain, MdaRaw, MrcRange,
+    xrdc_sync, search_and_patch_mrgd, Access, BusInitiator, Domain, MdaRaw, MrcRange,
     MrgdPatchOutcome, MrgdRaw, MrgdTarget, PdacRaw, PrivAttr, SecureAttr, XrdcPatchError,
     XrdcRegisters, CR,
 };
@@ -579,8 +579,9 @@ impl Xrdc0 {
         }
 
         // 2. Disable evaluation while we rewrite the policy.
+        xrdc_sync();
         regs.cr.modify(CR::GVLD::Disabled);
-        register_barrier();
+        xrdc_sync();
 
         // 3. Deny-by-default: zero every entry's VLD before programming.
         invalidate_mda(&regs.mda);
@@ -590,7 +591,7 @@ impl Xrdc0 {
         invalidate_pdac_window(&regs.pdac_384_408);
         invalidate_pdac_window(&regs.pdac_512_542);
         invalidate_mrgd(&regs.mrgd);
-        register_barrier();
+        xrdc_sync();
 
         // 4a. Program MDA entries.
         for entry in cfg.masters {
@@ -628,14 +629,15 @@ impl Xrdc0 {
         }
 
         // 5. Atomically enable XRDC evaluation with the new policy.
-        register_barrier();
+        xrdc_sync();
         regs.cr.modify(CR::GVLD::Enabled);
-        register_barrier();
+        xrdc_sync();
 
         // 6. Lock the control register so no further mutation is possible
         // until reset. (Per-entry LK1/LK2 were set above in their program_*
         // calls.)
         regs.cr.modify(CR::LK1::Locked);
+        xrdc_sync();
     }
     /// Additive patch: program only the entries listed in `cfg` without
     /// Additive patch: program only the entries listed in `cfg` without
@@ -647,12 +649,12 @@ impl Xrdc0 {
     /// 1. If `CR[LK1]` is already set → panic.
     /// 2. Does **not** touch `CR[GVLD]` — evaluation stays enabled globally.
     /// 3. Does **not** invalidate any entry.
-    /// 4. For each PDAC: reads existing W0/W1, ORs in ACP bits, cycles VLD.
+    /// 4. For each PDAC: reads existing W0/W1, replaces driver-owned ACP bits, cycles VLD.
     /// 5. For each MDA: reads existing word, clears only the fields managed
     ///    by the driver (DID for core; DFMT/DID/DIDB/SA/PA for bus),
     ///    writes new values, sets VLD.
     /// 6. For each MRGD: searches the target MRC for an existing descriptor
-    ///    with matching address range; if found, ORs in ACP bits. Otherwise
+    ///    with matching address range; if found, replaces driver-owned ACP bits. Otherwise
     ///    allocates in the first unused slot.
     /// 7. Does **not** set per-entry LK1/LK2.
     pub fn patch(&self, cfg: &Config<'_>) -> Result<(), XrdcPatchError> {
@@ -687,12 +689,13 @@ impl Xrdc0 {
         let regs: &XrdcRegisters = &self.registers;
         if !regs.cr.is_set(CR::LK1) {
             regs.cr.modify(CR::LK1::Locked);
+            xrdc_sync();
         }
     }
     /// Runtime search-and-patch for a single MRGD descriptor.
     ///
     /// Searches XRDC_0's MRC window for an existing descriptor (according to
-    /// `target`) and ORs in the ACP bits from `entry`.  If no match is found,
+    /// `target`) and replaces the driver-owned ACP bits from `entry`. If no match is found,
     /// allocates the first unused slot in the target MRC.
     ///
     /// This is an imperative escape hatch for cases where a prior boot stage
