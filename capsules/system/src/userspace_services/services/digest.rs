@@ -6,7 +6,7 @@
 
 use kernel::errorcode::ErrorCode;
 use kernel::hil::digest::{
-    self, Client, ClientData, ClientHash, ClientVerify, Digest, DigestData, DigestHash,
+    self, Client, ClientData, ClientDataHash, ClientHash, ClientVerify, Digest, DigestData, DigestDataHash, DigestHash,
     DigestVerify,
 };
 use kernel::utilities::cells::OptionalCell;
@@ -262,6 +262,13 @@ impl<'a: 'static, const L: usize> DigestVerify<'a, L> for ServiceInterface<L> {
                 Err((ErrorCode::NODEVICE, expected_digest_buffer))
             }
         }
+    }
+}
+
+impl<'a: 'static, const L: usize> DigestDataHash<'a, L> for ServiceInterface<L> {
+    fn set_client(&'a self, client: &'a dyn ClientDataHash<L>) {
+        self.data_client.set(client);
+        self.hash_client.set(client);
     }
 }
 
