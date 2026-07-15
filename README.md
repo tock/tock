@@ -5,6 +5,10 @@
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 [![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
 
+## 🌍 Translations
+
+[English](README.md) | [Türkçe](README.tr.md)
+
 Tock is an embedded operating system designed for running multiple concurrent,
 mutually distrustful applications on Cortex-M and RISC-V based embedded
 platforms. Tock's design centers around protection, both from potentially
