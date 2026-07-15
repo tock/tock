@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use capsules_extra::test::aes::TestAes128Ctr;
-use kernel::hil::symmetric_encryption::{AES, AES128_KEY_SIZE, AES_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
 use nrf52832::aes::AesECB;
 

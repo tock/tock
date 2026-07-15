@@ -30,7 +30,7 @@ use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
-use kernel::hil::symmetric_encryption::{AES, AES128, AES_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AES128};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;

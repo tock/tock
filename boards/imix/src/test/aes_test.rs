@@ -27,7 +27,7 @@
 
 use capsules_extra::test::aes::TestAes128Cbc;
 use capsules_extra::test::aes::TestAes128Ctr;
-use kernel::hil::symmetric_encryption::{AES, AES128_KEY_SIZE, AES_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
 use sam4l::aes::Aes;
 

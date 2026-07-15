@@ -13,7 +13,7 @@ use capsules_extra::test::aes_ccm;
 use capsules_extra::test::aes_gcm;
 use earlgrey::aes::Aes;
 use kernel::debug;
-use kernel::hil::symmetric_encryption::{AES128_KEY_SIZE, AES_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
 
 /// The only 'test_case' for aes_test as directly invoked by the test runner,

@@ -29,7 +29,7 @@ use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use capsules_extra::test::aes::TestAes128Cbc;
 use capsules_extra::test::aes::TestAes128Ctr;
 use capsules_extra::test::aes::TestAes128Ecb;
-use kernel::hil::symmetric_encryption::{AES, AES128_KEY_SIZE, AES_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
 use nrf52840::aes::AesECB;
 

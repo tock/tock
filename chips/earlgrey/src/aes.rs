@@ -13,6 +13,7 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES_BLOCK_SIZE, AES128, AES128_KEY_SIZE};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
