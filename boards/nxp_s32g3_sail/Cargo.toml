@@ -21,7 +21,7 @@ test-harness = ["nxp_s32g3/test-harness"]
 [dependencies]
 components = { path = "../components" }
 cortexm7 = { path = "../../arch/cortex-m7" }
-kernel = { path = "../../kernel", features = ["debug_load_processes"] }
+kernel = { path = "../../kernel" }
 nxp_s32g3 = { path = "../../chips/nxp_s32g3" }
 capsules-system = { path = "../../capsules/system" }
 capsules-core = { path = "../../capsules/core" }
