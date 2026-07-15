@@ -64,6 +64,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
         self.rcc.enable_trng();
+        self.rcc.enable_pka();
         self.rcc.set_usart1_source_pclk();
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();

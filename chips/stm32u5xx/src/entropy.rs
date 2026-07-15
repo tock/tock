@@ -142,6 +142,7 @@ impl<const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32>
         self.registers.nscr.modify(NSCR::NSCFG.val(NSCR_CFG));
 
         self.registers.cr.modify(CR::CONDRST::CLEAR);
+
         self.registers.cr.modify(CR::RNGEN::SET);
 
         self.registers.cr.modify(CR::CONFIGLOCK::SET);

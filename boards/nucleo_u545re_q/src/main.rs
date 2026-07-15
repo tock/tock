@@ -162,7 +162,6 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
     );
-    trng.init();
 
     // Initialize wiring (DMA, clocks)
     periphs.init();
@@ -292,9 +291,10 @@ unsafe fn start() -> (
         &create_capability!(capabilities::ProcessManagementCapability),
     );
 
+    trng.init();
+
     // Test RSA
     // TODO remove before PR
-    periphs.rcc.enable_pka();
     cortexm33::nvic::Nvic::new(stm32u545::nvic::PKA_IRQ).enable();
     let msg = static_init!([u8; 4], [0, 0, 0, 0x2,]);
     let exp = static_init!([u8; 4], [0, 0, 0, 0x3,]);

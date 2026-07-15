@@ -221,6 +221,7 @@ impl<'a> Pka<'a> {
 
     pub fn handle_interrupt(&self) {
         kernel::debug!("\nInterrupt fired!");
+
         kernel::debug!("\nSR::OPERRF {:#b}", self.registers.sr.read(SR::OPERRF));
         kernel::debug!("SR::ADDERRF {:#b}", self.registers.sr.read(SR::ADDRERRF));
         kernel::debug!("SR::RAMERRF {:#b}", self.registers.sr.read(SR::RAMERRF));
@@ -249,6 +250,18 @@ impl<'a> Pka<'a> {
             });
         }
     }
+}
+
+// Helper function to compute the number of bits in the number
+fn get_bitlen(data: &[u8]) -> u32 {
+    for (i, &byte) in data.iter().enumerate() {
+        if byte != 0 {
+            let bits = 8 - byte.leading_zeros();
+            let remained = (data.len() - 1 - i) as u32;
+            return bits + remained * 8;
+        }
+    }
+    0
 }
 
 impl<'a> RsaCryptoBase<'a> for Pka<'a> {
@@ -295,15 +308,19 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         // Wait for initialization
         while !self.registers.sr.is_set(SR::INITOK) {}
 
-        // Bytes to bits
-        let exp_bits = (exponent.len() * 8) as u32;
-        let op_bits = (modulus.len() * 8) as u32;
+        self.clear_data();
+
+        // Compute lengths
+        let exp_bits = get_bitlen(exponent);
+        let op_bits = get_bitlen(modulus);
         kernel::debug!("Exp bits: {}", exp_bits);
         kernel::debug!("Op bits: {}", op_bits);
 
         // Write necessary data to RAM
         self.registers.ram[EXP_LEN_IDX].set(exp_bits);
+        self.registers.ram[EXP_LEN_IDX + 1].set(0);
         self.registers.ram[OP_LEN_IDX].set(op_bits);
+        self.registers.ram[OP_LEN_IDX + 1].set(0);
 
         self.write_slice(EXP_IDX, exponent);
         self.write_slice(MOD_VALUE_IDX, modulus);
