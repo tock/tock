@@ -235,22 +235,21 @@ impl<'a> Pka<'a> {
         }
 
         // Successful operation
-        let success: bool;
-        if self.registers.sr.is_set(SR::PROCENDF) {
+        let success = if self.registers.sr.is_set(SR::PROCENDF) {
             self.registers.clrfr.write(CLRFR::PROCENDFC::SET);
-            success = true;
+            true
         } else {
-            success = false;
-        }
+            false
+        };
 
         // Unpack the cells
         let modulus = self.modulus.take().unwrap();
         let exponent = self.exponent.take().unwrap();
         let message = self.message.take().unwrap();
-        let mut result = self.result.take().unwrap();
+        let result = self.result.take().unwrap();
 
         if success {
-            self.read_slice(RESULT_IDX, &mut result);
+            self.read_slice(RESULT_IDX, result);
 
             self.client.map(|client| {
                 client.mod_exponent_done(Ok(true), message, modulus, exponent, result)
