@@ -10,7 +10,10 @@
 //! uses buffer mode (not FIFO) with interrupt-driven TX/RX.
 
 use core::cell::Cell;
+use core::fmt;
 
+use kernel::platform::chip::PanicWriter;
+use kernel::utilities::io_write::IoWrite;
 use kernel::{
     deferred_call::{DeferredCall, DeferredCallClient},
     hil::uart::{self, Configure, Parity, Receive, StopBits, Transmit, Width},
@@ -753,6 +756,42 @@ pub fn transmit_lf0_sync(bytes: &[u8]) -> usize {
         .iter()
         .take_while(|&&byte| putc_lf0_poll(byte))
         .count()
+}
+
+/// Synchronous LF0 writer used only by the panic path.
+///
+/// This zero-sized writer uses the fixed LF0 MMIO block through the bounded
+/// polling primitive. It does not depend on interrupts, deferred calls,
+/// callbacks, or scheduler progress, and it never reconfigures LF0.
+struct LinFlexDPanicWriter;
+
+impl IoWrite for LinFlexDPanicWriter {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        transmit_lf0_sync(buf)
+    }
+}
+
+impl fmt::Write for LinFlexDPanicWriter {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if self.write(s.as_bytes()) == s.len() {
+            Ok(())
+        } else {
+            Err(fmt::Error)
+        }
+    }
+}
+
+impl PanicWriter for LinFlexD<'_> {
+    type Config = ();
+
+    /// # Safety
+    ///
+    /// The returned writer is for panic handling only. LF0 must already be
+    /// configured by board startup; this constructor performs no setup and
+    /// relies only on fixed LF0 MMIO and bounded polling.
+    unsafe fn create_panic_writer(_config: ()) -> impl IoWrite + fmt::Write {
+        LinFlexDPanicWriter
+    }
 }
 
 // ---------------------------------------------------------------------------
