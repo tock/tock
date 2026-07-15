@@ -20,7 +20,7 @@
 
 use capsules_core::rng;
 use capsules_core::test::rng::TestRng;
-use kernel::hil::entropy::{Entropy32, Entropy8};
+use kernel::hil::entropy::{Entropy8, Entropy32};
 use kernel::hil::rng::Rng;
 use kernel::static_init;
 use sam4l::trng::Trng;

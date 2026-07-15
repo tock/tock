@@ -41,7 +41,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::radio::{self, MAX_BUF_SIZE};
-use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
+use kernel::hil::symmetric_encryption::{self, AES128, AES128CBC, AES128CCM, AES128Ctr, AES128ECB};
 
 // This buffer is used as an intermediate buffer for AES CCM encryption. An
 // upper bound on the required size is `3 * BLOCK_SIZE + radio::MAX_BUF_SIZE`.
@@ -183,9 +183,9 @@ pub struct Ieee802154Component<
 }
 
 impl<
-        R: 'static + kernel::hil::radio::Radio<'static>,
-        A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
-    > Ieee802154Component<R, A>
+    R: 'static + kernel::hil::radio::Radio<'static>,
+    A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
+> Ieee802154Component<R, A>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -209,9 +209,9 @@ impl<
 }
 
 impl<
-        R: 'static + kernel::hil::radio::Radio<'static>,
-        A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
-    > Component for Ieee802154Component<R, A>
+    R: 'static + kernel::hil::radio::Radio<'static>,
+    A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
+> Component for Ieee802154Component<R, A>
 {
     type StaticInput = (
         &'static mut MaybeUninit<

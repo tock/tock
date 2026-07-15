@@ -24,11 +24,6 @@
 //! ### Payload
 //! Data to be encrypted or decrypted it is XOR:ed with the generated keystream
 //!
-//! ### Things to highlight that can be improved:
-//!
-//! * ECB_DATA must be a static mut \[u8\] and can't be located in the struct
-//! * PAYLOAD size is restricted to 128 bytes
-//!
 //! Authors
 //! --------
 //! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
@@ -36,94 +31,17 @@
 //! * Date: April 21, 2017
 
 use core::cell::Cell;
-use core::ptr::addr_of;
-use kernel::hil::symmetric_encryption;
-use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::cells::TakeCell;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+use kernel::hil::symmetric_encryption;
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+pub use nrf5x_unsafe::aes::AesEcbRegisters;
+pub use nrf5x_unsafe::aes::AesEcbRegistersManager;
 
-// DMA buffer that the aes chip will mutate during encryption
-// Byte 0-15   - Key
-// Byte 16-32  - Payload
-// Byte 33-47  - Ciphertext
-static mut ECB_DATA: [u8; 48] = [0; 48];
-
-#[allow(dead_code)]
 const KEY_START: usize = 0;
-#[allow(dead_code)]
-const KEY_END: usize = 15;
 const PLAINTEXT_START: usize = 16;
 const PLAINTEXT_END: usize = 32;
-#[allow(dead_code)]
-const CIPHERTEXT_START: usize = 33;
-#[allow(dead_code)]
-const CIPHERTEXT_END: usize = 47;
-
-const AESECB_BASE: StaticRef<AesEcbRegisters> =
-    unsafe { StaticRef::new(0x4000E000 as *const AesEcbRegisters) };
-
-#[repr(C)]
-struct AesEcbRegisters {
-    /// Start ECB block encrypt
-    /// - Address 0x000 - 0x004
-    task_startecb: WriteOnly<u32, Task::Register>,
-    /// Abort a possible executing ECB operation
-    /// - Address: 0x004 - 0x008
-    task_stopecb: WriteOnly<u32, Task::Register>,
-    /// Reserved
-    _reserved1: [u32; 62],
-    /// ECB block encrypt complete
-    /// - Address: 0x100 - 0x104
-    event_endecb: ReadWrite<u32, Event::Register>,
-    /// ECB block encrypt aborted because of a STOPECB task or due to an error
-    /// - Address: 0x104 - 0x108
-    event_errorecb: ReadWrite<u32, Event::Register>,
-    /// Reserved
-    _reserved2: [u32; 127],
-    /// Enable interrupt
-    /// - Address: 0x304 - 0x308
-    intenset: ReadWrite<u32, Intenset::Register>,
-    /// Disable interrupt
-    /// - Address: 0x308 - 0x30c
-    intenclr: ReadWrite<u32, Intenclr::Register>,
-    /// Reserved
-    _reserved3: [u32; 126],
-    /// ECB block encrypt memory pointers
-    /// - Address: 0x504 - 0x508
-    ecbdataptr: ReadWrite<u32, EcbDataPointer::Register>,
-}
-
-register_bitfields! [u32,
-    /// Start task
-    Task [
-        ENABLE OFFSET(0) NUMBITS(1)
-    ],
-
-    /// Read event
-    Event [
-        READY OFFSET(0) NUMBITS(1)
-    ],
-
-    /// Enabled interrupt
-    Intenset [
-        ENDECB OFFSET(0) NUMBITS(1),
-        ERRORECB OFFSET(1) NUMBITS(1)
-    ],
-
-    /// Disable interrupt
-    Intenclr [
-        ENDECB OFFSET(0) NUMBITS(1),
-        ERRORECB OFFSET(1) NUMBITS(1)
-    ],
-
-    /// ECB block encrypt memory pointers
-    EcbDataPointer [
-        POINTER OFFSET(0) NUMBITS(32)
-    ]
-];
 
 #[derive(Copy, Clone, Debug)]
 enum AESMode {
@@ -133,311 +51,241 @@ enum AESMode {
 }
 
 pub struct AesECB<'a> {
-    registers: StaticRef<AesEcbRegisters>,
+    registers: AesEcbRegistersManager,
     mode: Cell<AESMode>,
+    /// DMA buffer for the ECB engine. Needed because we need to set the key and
+    /// payload in specific bytes, and then read the ciphertext from the same
+    /// buffer.
+    ///
+    /// - Byte 0-15   - Key
+    /// - Byte 16-32  - Payload
+    /// - Byte 33-47  - Ciphertext
+    ecb_data: MapCell<&'static mut [u8]>,
+    /// Input plaintext or ciphertext. SubSliceMut window advances one block at
+    /// a time as encryption proceeds. Empty when using in-place (dest-only) mode.
+    input: MapCell<SubSliceMut<'static, u8>>,
+    /// Output buffer, pre-sliced to the requested start..stop range. Window
+    /// advances one block at a time as encryption proceeds.
+    output: MapCell<SubSliceMut<'static, u8>>,
     client: OptionalCell<&'a dyn kernel::hil::symmetric_encryption::Client<'a>>,
-    /// Input either plaintext or ciphertext to be encrypted or decrypted.
-    input: TakeCell<'static, [u8]>,
-    output: TakeCell<'static, [u8]>,
-    current_idx: Cell<usize>,
-    start_idx: Cell<usize>,
-    end_idx: Cell<usize>,
 }
 
-impl<'a> AesECB<'a> {
-    pub const fn new() -> AesECB<'a> {
-        AesECB {
-            registers: AESECB_BASE,
+impl AesECB<'_> {
+    pub fn new(registers: AesEcbRegistersManager, ecb_data: &'static mut [u8; 48]) -> Self {
+        Self {
+            registers,
             mode: Cell::new(AESMode::CTR),
+            ecb_data: MapCell::new(ecb_data),
+            input: MapCell::empty(),
+            output: MapCell::empty(),
             client: OptionalCell::empty(),
-            input: TakeCell::empty(),
-            output: TakeCell::empty(),
-            current_idx: Cell::new(0),
-            start_idx: Cell::new(0),
-            end_idx: Cell::new(0),
         }
     }
 
-    fn set_dma(&self) {
-        self.registers.ecbdataptr.set(addr_of!(ECB_DATA) as u32);
+    /// Returns the number of bytes remaining in the current operation.
+    fn remaining_len(&self) -> usize {
+        self.input
+            .map_or(self.output.map_or(0, |o| o.len()), |i| i.len())
     }
 
-    /// Verify that the provided start and stop indices work with the given
-    /// buffers.
-    fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {
-        stop_index.checked_sub(start_index).is_some_and(|sublen| {
-            sublen % symmetric_encryption::AES128_BLOCK_SIZE == 0 && {
-                self.input.map_or_else(
-                    || {
-                        // The destination buffer is also the input
-                        if self.output.map_or(false, |dest| stop_index <= dest.len()) {
-                            self.current_idx.set(0);
-                            self.start_idx.set(start_index);
-                            self.end_idx.set(stop_index);
-                            true
-                        } else {
-                            false
-                        }
-                    },
-                    |source| {
-                        if sublen == source.len()
-                            && self.output.map_or(false, |dest| stop_index <= dest.len())
-                        {
-                            // We will start writing to the AES from the
-                            // beginning of `source`, and end at its end
-                            self.current_idx.set(0);
+    fn copy_plaintext(&self) {
+        fn copy_to_ecb(
+            ecb: &MapCell<&'static mut [u8]>,
+            buf: &MapCell<SubSliceMut<'static, u8>>,
+            len: usize,
+        ) {
+            ecb.map(|ecb| {
+                buf.map(|buf| {
+                    ecb[PLAINTEXT_START..PLAINTEXT_START + len].copy_from_slice(&buf[0..len]);
+                });
+            });
+        }
 
-                            // We will start reading from the AES into `dest` at
-                            // `start_index`, and continue until `stop_index`
-                            self.start_idx.set(start_index);
-                            self.end_idx.set(stop_index);
-                            true
-                        } else {
-                            false
-                        }
-                    },
-                )
+        fn xor_to_ecb(
+            ecb: &MapCell<&'static mut [u8]>,
+            buf: &MapCell<SubSliceMut<'static, u8>>,
+            len: usize,
+        ) {
+            ecb.map(|ecb| {
+                buf.map(|buf| {
+                    for i in 0..len {
+                        ecb[PLAINTEXT_START + i] ^= buf[i];
+                    }
+                });
+            });
+        }
+
+        let take = core::cmp::min(
+            symmetric_encryption::AES128_BLOCK_SIZE,
+            self.remaining_len(),
+        );
+
+        match self.mode.get() {
+            AESMode::ECB => {
+                // Copy the current plaintext block into the ECB data buffer.
+                if self.input.is_some() {
+                    copy_to_ecb(&self.ecb_data, &self.input, take);
+                } else {
+                    copy_to_ecb(&self.ecb_data, &self.output, take);
+                }
             }
-        })
+
+            AESMode::CBC => {
+                // XOR the existing ECB plaintext slot (IV or previous ciphertext)
+                // with the current plaintext block.
+                if self.input.is_some() {
+                    xor_to_ecb(&self.ecb_data, &self.input, take);
+                } else {
+                    xor_to_ecb(&self.ecb_data, &self.output, take);
+                }
+            }
+
+            AESMode::CTR => {
+                // The counter is already in the ECB plaintext slot; no copy needed.
+            }
+        }
+    }
+
+    /// Start a single ECB encryption block via DMA, preparing the ECB data
+    /// buffer with the current plaintext block if needed.
+    fn do_crypt(&self) {
+        self.copy_plaintext();
+
+        if let Some(ecb_data) = self.ecb_data.take() {
+            let _ = self.registers.start_ecb_dma(ecb_data);
+        }
+
+        self.enable_interrupts();
     }
 
     // FIXME: should this be performed in constant time i.e. skip the break part
     // and always loop 16 times?
     fn update_ctr(&self) {
-        for i in (PLAINTEXT_START..PLAINTEXT_END).rev() {
-            unsafe {
-                ECB_DATA[i] += 1;
-                if ECB_DATA[i] != 0 {
+        self.ecb_data.map(|buf| {
+            for i in (PLAINTEXT_START..PLAINTEXT_END).rev() {
+                buf[i] = buf[i].wrapping_add(1);
+                if buf[i] != 0 {
                     break;
                 }
             }
-        }
-    }
-
-    /// Get the relevant positions of our input data whether we are using a
-    /// source buffer or overwriting the destination buffer.
-    fn get_start_end_take(&self) -> (usize, usize, usize) {
-        let current_idx = self.current_idx.get();
-
-        // Location in the appropriate source buffer we are currently working
-        // on.
-        let start = current_idx + self.input.map_or(self.start_idx.get(), |_| 0);
-        // Last index in the appropriate source buffer we need to work on.
-        let end = self.end_idx.get() - self.input.map_or(0, |_| self.start_idx.get());
-
-        // Get the number of bytes that were used in the keystream/block.
-        let take = match end.checked_sub(start) {
-            Some(v) if v > symmetric_encryption::AES128_BLOCK_SIZE => {
-                symmetric_encryption::AES128_BLOCK_SIZE
-            }
-            Some(v) => v,
-            None => 0,
-        };
-
-        (start, end, take)
-    }
-
-    fn copy_plaintext(&self) {
-        let (start, _end, take) = self.get_start_end_take();
-
-        // Copy the plaintext either from the source if it exists or from the
-        // destination buffer.
-        if take > 0 {
-            match self.mode.get() {
-                AESMode::ECB => {
-                    self.input.map_or_else(
-                        || {
-                            self.output.map(|output| {
-                                for i in 0..take {
-                                    // Copy into static mut DMA buffer
-                                    unsafe {
-                                        ECB_DATA[i + PLAINTEXT_START] = output[i + start];
-                                    }
-                                }
-                            });
-                        },
-                        |input| {
-                            for i in 0..take {
-                                // Copy into static mut DMA buffer
-                                unsafe {
-                                    ECB_DATA[i + PLAINTEXT_START] = input[i + start];
-                                }
-                            }
-                        },
-                    );
-                }
-
-                AESMode::CBC => {
-                    self.input.map_or_else(
-                        || {
-                            self.output.map(|output| {
-                                for i in 0..take {
-                                    let ecb_idx = i + PLAINTEXT_START;
-
-                                    // Copy into static mut DMA buffer
-                                    unsafe {
-                                        ECB_DATA[ecb_idx] ^= output[i + start];
-                                    }
-                                }
-                            });
-                        },
-                        |input| {
-                            for i in 0..take {
-                                let ecb_idx = i + PLAINTEXT_START;
-                                // Copy into static mut DMA buffer
-                                unsafe {
-                                    ECB_DATA[ecb_idx] ^= input[i + start];
-                                }
-                            }
-                        },
-                    );
-                }
-
-                AESMode::CTR => {
-                    // no copying plaintext in ctr mode
-                }
-            }
-        }
-    }
-
-    fn crypt(&self) {
-        match self.mode.get() {
-            AESMode::CTR => {}
-            AESMode::ECB => {
-                // Need to copy the plaintext to the ECB buffer.
-                self.copy_plaintext();
-            }
-            AESMode::CBC => {
-                self.copy_plaintext();
-            }
-        }
-
-        self.registers.event_endecb.write(Event::READY::CLEAR);
-        self.registers.task_startecb.set(1);
-
-        self.enable_interrupts();
+        });
     }
 
     /// AesEcb Interrupt handler
     pub fn handle_interrupt(&self) {
-        // disable interrupts
         self.disable_interrupts();
 
-        if self.registers.event_endecb.get() == 1 {
-            let (start, end, take) = self.get_start_end_take();
-            let start_idx = self.start_idx.get();
-            let current_idx = self.current_idx.get();
+        if self
+            .registers
+            .registers
+            .event_endecb
+            .is_set(nrf5x_unsafe::aes::Event::READY)
+        {
+            // Recover the ECB data buffer from the DMA manager.
+            if let Some(ecb_data) = self.registers.finish_ecb_dma() {
+                self.ecb_data.replace(ecb_data);
+            }
 
-            match self.mode.get() {
-                AESMode::CTR => {
-                    // Fill in the ciphertext in the output buffer.
-                    if take > 0 {
-                        self.input.map_or_else(
-                            || {
-                                // No input buffer, so source data comes from
-                                // output buffer.
+            let take = core::cmp::min(
+                symmetric_encryption::AES128_BLOCK_SIZE,
+                self.remaining_len(),
+            );
+
+            if take > 0 {
+                match self.mode.get() {
+                    AESMode::ECB => {
+                        // Copy ciphertext from the ECB output slot to the output buffer.
+                        self.ecb_data.map(|ecb| {
+                            self.output.map(|output| {
+                                output[0..take]
+                                    .copy_from_slice(&ecb[PLAINTEXT_END..PLAINTEXT_END + take]);
+                            });
+                        });
+                    }
+
+                    AESMode::CBC => {
+                        // Copy ciphertext to output and save it in the ECB plaintext
+                        // slot for CBC chaining on the next block.
+                        self.ecb_data.map(|ecb| {
+                            self.output.map(|output| {
+                                for i in 0..take {
+                                    let byte = ecb[PLAINTEXT_END + i];
+                                    output[i] = byte;
+                                    ecb[PLAINTEXT_START + i] = byte;
+                                }
+                            });
+                        });
+                    }
+
+                    AESMode::CTR => {
+                        // XOR keystream output with plaintext to produce ciphertext.
+                        if self.input.is_some() {
+                            self.ecb_data.map(|ecb| {
+                                self.input.map(|input| {
+                                    self.output.map(|output| {
+                                        for i in 0..take {
+                                            output[i] = input[i] ^ ecb[PLAINTEXT_END + i];
+                                        }
+                                    });
+                                });
+                            });
+                        } else {
+                            self.ecb_data.map(|ecb| {
                                 self.output.map(|output| {
                                     for i in 0..take {
-                                        let in_byte = output[start + i];
-                                        let keystream_byte = unsafe { ECB_DATA[i + PLAINTEXT_END] };
-
-                                        output[start + i] = keystream_byte ^ in_byte;
+                                        output[i] ^= ecb[PLAINTEXT_END + i];
                                     }
                                 });
-                            },
-                            |input| {
-                                self.output.map(|output| {
-                                    let start_idx = self.start_idx.get();
-
-                                    for i in 0..take {
-                                        let in_byte = input[start + i];
-                                        let keystream_byte = unsafe { ECB_DATA[i + PLAINTEXT_END] };
-
-                                        output[start_idx + current_idx + i] =
-                                            keystream_byte ^ in_byte;
-                                    }
-                                });
-                            },
-                        );
-
+                            });
+                        }
                         self.update_ctr();
                     }
                 }
 
-                AESMode::ECB => {
-                    // Copy ciphertext to output.
-                    if take > 0 {
-                        self.output.map(|output| {
-                            for i in 0..take {
-                                // We write to the buffer starting at the
-                                // originally provided start index, plus our
-                                // offset at current_idx.
-                                let dest_idx = start_idx + current_idx + i;
-                                // Copy out of static mut DMA buffer
-                                unsafe {
-                                    output[dest_idx] = ECB_DATA[i + PLAINTEXT_END];
-                                }
-                            }
-                        });
-                    }
-                }
-                AESMode::CBC => {
-                    // Copy ciphertext to both output AND the ECB payload to use
-                    // on the next iteration.
-                    if take > 0 {
-                        self.output.map(|output| {
-                            for i in 0..take {
-                                // We write to the buffer starting at the
-                                // originally provided start index, plus our
-                                // offset at current_idx.
-                                let dest_idx = start_idx + current_idx + i;
-                                // Copy out of static mut DMA buffer
-                                unsafe {
-                                    output[dest_idx] = ECB_DATA[i + PLAINTEXT_END];
-                                    ECB_DATA[i + PLAINTEXT_START] = ECB_DATA[i + PLAINTEXT_END];
-                                }
-                            }
-                        });
-                    }
-                }
+                // Advance both SubSliceMut windows past the block just processed.
+                self.output.map(|buf| {
+                    buf.slice(take..);
+                });
+                self.input.map(|buf| {
+                    buf.slice(take..);
+                });
             }
 
-            // Advance through the buffer.
-            self.current_idx.set(current_idx + take);
-
-            // Check if we are done or if we need to crypt another block.
-            if start + take < end {
-                // More to do.
-                self.crypt();
+            if self.remaining_len() > 0 {
+                self.do_crypt();
             } else {
-                self.output.take().map(|output| {
-                    self.client
-                        .map(move |client| client.crypt_done(self.input.take(), output));
-                });
+                // Recover the original buffers (SubSliceMut::take returns the
+                // full underlying &'static mut [u8] regardless of the current
+                // window position) and notify the client.
+                let input_buf = self.input.take().map(|s| s.take());
+                if let Some(output_sub) = self.output.take() {
+                    let output = output_sub.take();
+                    self.client.map(move |client| {
+                        client.crypt_done(input_buf, output);
+                    });
+                }
             }
         }
     }
 
     fn enable_interrupts(&self) {
-        self.registers
-            .intenset
-            .write(Intenset::ENDECB::SET + Intenset::ERRORECB::SET);
+        self.registers.registers.intenset.write(
+            nrf5x_unsafe::aes::Intenset::ENDECB::SET + nrf5x_unsafe::aes::Intenset::ERRORECB::SET,
+        );
     }
 
     fn disable_interrupts(&self) {
-        self.registers
-            .intenclr
-            .write(Intenclr::ENDECB::SET + Intenclr::ERRORECB::SET);
+        self.registers.registers.intenclr.write(
+            nrf5x_unsafe::aes::Intenclr::ENDECB::SET + nrf5x_unsafe::aes::Intenclr::ERRORECB::SET,
+        );
     }
 }
 
 impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
-    fn enable(&self) {
-        self.set_dma();
-    }
+    fn enable(&self) {}
 
     fn disable(&self) {
-        self.registers.task_stopecb.write(Task::ENABLE::CLEAR);
+        self.registers.finish_ecb_dma();
         self.disable_interrupts();
     }
 
@@ -449,11 +297,10 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         if key.len() != symmetric_encryption::AES128_KEY_SIZE {
             Err(ErrorCode::INVAL)
         } else {
-            for (i, c) in key.iter().enumerate() {
-                unsafe {
-                    ECB_DATA[i] = *c;
-                }
-            }
+            self.ecb_data.map(|buf| {
+                buf[KEY_START..KEY_START + symmetric_encryption::AES128_KEY_SIZE]
+                    .copy_from_slice(key);
+            });
             Ok(())
         }
     }
@@ -462,11 +309,9 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         if iv.len() != symmetric_encryption::AES128_BLOCK_SIZE {
             Err(ErrorCode::INVAL)
         } else {
-            for (i, c) in iv.iter().enumerate() {
-                unsafe {
-                    ECB_DATA[i + PLAINTEXT_START] = *c;
-                }
-            }
+            self.ecb_data.map(|buf| {
+                buf[PLAINTEXT_START..PLAINTEXT_END].copy_from_slice(iv);
+            });
             Ok(())
         }
     }
@@ -485,18 +330,32 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         Option<&'static mut [u8]>,
         &'static mut [u8],
     )> {
-        self.input.put(source);
-        self.output.replace(dest);
-        if self.try_set_indices(start_index, stop_index) {
-            self.crypt();
-            None
-        } else {
-            Some((
-                Err(ErrorCode::INVAL),
-                self.input.take(),
-                self.output.take().unwrap(),
-            ))
+        // Validate indices and buffer sizes before consuming any buffers.
+        let len = match stop_index.checked_sub(start_index) {
+            Some(l) if l.is_multiple_of(symmetric_encryption::AES128_BLOCK_SIZE) => l,
+            _ => return Some((Err(ErrorCode::INVAL), source, dest)),
+        };
+
+        if stop_index > dest.len() {
+            return Some((Err(ErrorCode::INVAL), source, dest));
         }
+
+        if let Some(ref src) = source {
+            if src.len() != len {
+                return Some((Err(ErrorCode::INVAL), source, dest));
+            }
+        }
+
+        if let Some(src) = source {
+            self.input.replace(SubSliceMut::new(src));
+        }
+
+        let mut output_slice = SubSliceMut::new(dest);
+        output_slice.slice(start_index..stop_index);
+        self.output.replace(output_slice);
+
+        self.do_crypt();
+        None
     }
 }
 

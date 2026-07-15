@@ -73,7 +73,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 /// requests are queued. Does not support continuous or high-speed sampling.
 pub struct AdcVirtualized<'a> {
     drivers: &'a [&'a dyn hil::adc::AdcChannel<'a>],
-    apps: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<AppSys, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
     current_process: OptionalCell<ProcessId>,
 }
 
@@ -92,7 +92,7 @@ pub struct AdcDedicated<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> {
     mode: Cell<AdcMode>,
 
     // App state
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
+    apps: Grant<App, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<2>>,
     processid: OptionalCell<ProcessId>,
     channel: Cell<usize>,
 
@@ -166,7 +166,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
     /// - `adc_buf2` - second buffer used when continuously sampling ADC
     pub fn new(
         adc: &'a A,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
+        grant: Grant<App, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<2>>,
         channels: &'a [<A as hil::adc::Adc<'a>>::Channel],
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
@@ -366,7 +366,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                     app.app_buf_offset.set(0);
                     self.channel.set(channel);
                     // start a continuous sample
-                    let res = self.adc_buf1.take().map_or(Err(ErrorCode::BUSY), |buf1| {
+                    self.adc_buf1.take().map_or(Err(ErrorCode::BUSY), |buf1| {
                         self.adc_buf2
                             .take()
                             .map_or(Err(ErrorCode::BUSY), move |buf2| {
@@ -401,8 +401,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                                         |()| Ok(()),
                                     )
                             })
-                    });
-                    res
+                    })
                 })
                 .map_err(|err| {
                     if err == kernel::process::Error::NoSuchApp
@@ -639,7 +638,7 @@ impl<'a> AdcVirtualized<'a> {
     /// - `drivers` - Virtual ADC drivers to provide application access to
     pub fn new(
         drivers: &'a [&'a dyn hil::adc::AdcChannel<'a>],
-        grant: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<AppSys, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AdcVirtualized<'a> {
         AdcVirtualized {
             drivers,
@@ -750,8 +749,20 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::Client
                 self.apps
                     .enter(id, |_app, upcalls| {
                         calledback = true;
+                        // TODO(Tock 3.0): Upcall index 0 passes a pointer via an upcall for
+                        // buffered sampling. We cannot support this on 64-bit. This upcall
+                        // is deprecated and should be removed. For backwards compatibility
+                        // we include it, but expect users to use upcall index 1.
                         let _ = upcalls.schedule_upcall(
                             0,
+                            (
+                                AdcMode::SingleSample as usize,
+                                self.channel.get(),
+                                sample as usize,
+                            ),
+                        );
+                        let _ = upcalls.schedule_upcall(
+                            1,
                             (
                                 AdcMode::SingleSample as usize,
                                 self.channel.get(),
@@ -775,8 +786,20 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::Client
                 self.apps
                     .enter(id, |_app, upcalls| {
                         calledback = true;
+                        // TODO(Tock 3.0): Upcall index 0 passes a pointer via an upcall for
+                        // buffered sampling. We cannot support this on 64-bit. This upcall
+                        // is deprecated and should be removed. For backwards compatibility
+                        // we include it, but expect users to use upcall index 1.
                         let _ = upcalls.schedule_upcall(
                             0,
+                            (
+                                AdcMode::ContinuousSample as usize,
+                                self.channel.get(),
+                                sample as usize,
+                            ),
+                        );
+                        let _ = upcalls.schedule_upcall(
+                            1,
                             (
                                 AdcMode::ContinuousSample as usize,
                                 self.channel.get(),
@@ -1044,19 +1067,24 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedC
                             .set(app.app_buf_offset.get() + length * 2);
 
                         // let in_use_buf;
-                        let (buf_ptr, buf_len) = if use0 {
-                            (app_buf0.ptr(), app_buf0.len())
+                        let (buf_ptr, buf_len, buf_idx) = if use0 {
+                            (app_buf0.ptr(), app_buf0.len(), 0)
                         } else {
-                            (app_buf1.ptr(), app_buf1.len())
+                            (app_buf1.ptr(), app_buf1.len(), 1)
                         };
                         // if the app_buffer is filled, perform callback
                         if perform_callback {
                             // actually schedule the callback
                             let len_chan = ((buf_len / 2) << 8) | (self.channel.get() & 0xFF);
+                            // TODO(Tock 3.0): This passes a pointer via an upcall. We cannot
+                            // support this on 64-bit. This upcall should be removed.
                             let _ = kernel_data.schedule_upcall(
                                 0,
                                 (self.mode.get() as usize, len_chan, buf_ptr as usize),
                             );
+                            // Replacement:
+                            let _ = kernel_data
+                                .schedule_upcall(1, (self.mode.get() as usize, len_chan, buf_idx));
 
                             // if the mode is SingleBuffer, the operation is
                             // complete. Clean up state
@@ -1325,8 +1353,16 @@ impl hil::adc::Client for AdcVirtualized<'_> {
             let _ = self.apps.enter(processid, |app, upcalls| {
                 app.pending_command = false;
                 let channel = app.channel;
+                // TODO(Tock 3.0): Upcall index 0 passes a pointer via an upcall for
+                // buffered sampling. We cannot support this on 64-bit. This upcall
+                // is deprecated and should be removed. For backwards compatibility
+                // we include it, but expect users to use upcall index 1.
                 let _ = upcalls.schedule_upcall(
                     0,
+                    (AdcMode::SingleSample as usize, channel, sample as usize),
+                );
+                let _ = upcalls.schedule_upcall(
+                    1,
                     (AdcMode::SingleSample as usize, channel, sample as usize),
                 );
             });

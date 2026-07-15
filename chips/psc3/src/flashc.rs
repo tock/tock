@@ -4,9 +4,9 @@
 
 //! Flash Controller (FLASHC) interface
 
-use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 register_structs! {
     /// FLASHC

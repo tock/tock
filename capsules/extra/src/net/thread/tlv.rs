@@ -63,8 +63,8 @@
 //      if either of the dataset tlvs are sent?
 
 use crate::net::stream::SResult;
-use crate::net::stream::{decode_bytes_be, decode_u16, decode_u32, decode_u8};
-use crate::net::stream::{encode_bytes, encode_bytes_be, encode_u16, encode_u32, encode_u8};
+use crate::net::stream::{decode_bytes_be, decode_u8, decode_u16, decode_u32};
+use crate::net::stream::{encode_bytes, encode_bytes_be, encode_u8, encode_u16, encode_u32};
 use core::mem;
 
 const TL_WIDTH: usize = 2; // Type and length fields of TLV are each one byte.

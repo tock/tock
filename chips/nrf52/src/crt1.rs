@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use cortexm4f::{initialize_ram_jump_to_main, scb, unhandled_interrupt, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, initialize_ram_jump_to_main, scb, unhandled_interrupt};
 
 /*
  * Adapted from crt1.c which was relicensed by the original author from

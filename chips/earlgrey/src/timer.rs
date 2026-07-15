@@ -7,12 +7,12 @@
 use crate::chip_config::EarlGreyConfig;
 use crate::registers::top_earlgrey::RV_TIMER_BASE_ADDR;
 use core::marker::PhantomData;
+use kernel::ErrorCode;
 use kernel::hil::time::{self, Ticks64};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use rv32i::machine_timer::MachineTimer;
 
 /// 10KHz `Frequency`

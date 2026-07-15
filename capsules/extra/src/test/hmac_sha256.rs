@@ -8,6 +8,7 @@
 use crate::hmac_sha256::HmacSha256Software;
 use crate::sha256::Sha256Software;
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient, CapsuleTestError};
+use kernel::ErrorCode;
 use kernel::hil::digest;
 use kernel::hil::digest::HmacSha256;
 use kernel::hil::digest::{DigestData, DigestHash};
@@ -15,7 +16,6 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::ErrorCode;
 
 pub struct TestHmacSha256 {
     hmac: &'static HmacSha256Software<'static, Sha256Software<'static>>,

@@ -32,7 +32,7 @@ use capsules_extra::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules_extra::net::network_capabilities::{
     AddrRange, NetworkCapability, PortRange, UdpVisibilityCapability,
 };
-use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
+use kernel::hil::symmetric_encryption::{self, AES128, AES128CBC, AES128CCM, AES128Ctr, AES128ECB};
 
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_extra::net::thread::thread_utils::THREAD_PORT_NUMBER;
@@ -115,10 +115,8 @@ pub struct ThreadNetworkComponent<
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<
-        A: Alarm<'static> + 'static,
-        B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static,
-    > ThreadNetworkComponent<A, B>
+impl<A: Alarm<'static> + 'static, B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static>
+    ThreadNetworkComponent<A, B>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -146,10 +144,8 @@ impl<
     }
 }
 
-impl<
-        A: Alarm<'static> + 'static,
-        B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static,
-    > Component for ThreadNetworkComponent<A, B>
+impl<A: Alarm<'static> + 'static, B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static>
+    Component for ThreadNetworkComponent<A, B>
 {
     type StaticInput = (
         &'static mut MaybeUninit<

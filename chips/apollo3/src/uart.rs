@@ -9,11 +9,11 @@ use kernel::ErrorCode;
 
 use kernel::hil;
 use kernel::hil::uart;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x4001_C000 as *const UartRegisters) };

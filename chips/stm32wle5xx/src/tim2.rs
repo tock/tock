@@ -3,15 +3,15 @@
 // Copyright Tock Contributors 2025.
 
 use cortexm4::support::with_interrupts_disabled;
+use kernel::ErrorCode;
 use kernel::hil::time::{Alarm, AlarmClient, Counter, Freq16KHz, Ticks, Ticks32, Time};
 use kernel::platform::chip::ClockInterface;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
-use crate::clocks::{phclk, Stm32wle5xxClocks};
+use crate::clocks::{Stm32wle5xxClocks, phclk};
 use crate::nvic;
 
 /// General purpose timers

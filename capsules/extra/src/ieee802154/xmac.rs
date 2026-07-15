@@ -85,11 +85,11 @@
 use crate::ieee802154::mac::Mac;
 use crate::net::ieee802154::{FrameType, FrameVersion, Header, MacAddress, PanID};
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::radio;
 use kernel::hil::rng::{self, Rng};
 use kernel::hil::time::{self, Alarm, ConvertTicks, Ticks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 // Time the radio will remain awake listening for packets before sleeping.
 // Observing the RF233, receive callbacks for preambles are generated only after

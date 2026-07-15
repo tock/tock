@@ -4,8 +4,8 @@
 
 use core::cell::Cell;
 use core::mem::size_of;
-use kernel::hil;
 use kernel::ErrorCode;
+use kernel::hil;
 pub struct Sg90<'a, P: hil::pwm::PwmPin> {
     /// The underlying PWM generator to change the angle.
     pwm_pin: &'a P,

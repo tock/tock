@@ -25,7 +25,7 @@ use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{Kernel, capabilities, create_capability, static_init};
 
 use rp2350::chip::{Rp2350, Rp2350DefaultPeripherals};
 use rp2350::clocks::{
@@ -37,7 +37,7 @@ use rp2350::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2350::resets::Peripheral;
 use rp2350::timer::RPTimer;
 #[allow(unused)]
-use rp2350::{xosc, BASE_VECTORS};
+use rp2350::{BASE_VECTORS, xosc};
 
 mod io;
 

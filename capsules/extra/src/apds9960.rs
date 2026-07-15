@@ -44,10 +44,10 @@
 //! ```
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 // I2C Buffer of 16 bytes
 pub const BUF_LEN: usize = 16;

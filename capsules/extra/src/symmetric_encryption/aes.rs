@@ -12,8 +12,8 @@ use core::cell::Cell;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::symmetric_encryption::{
-    AES128Ctr, CCMClient, Client, GCMClient, AES128, AES128CBC, AES128CCM, AES128ECB, AES128GCM,
-    AES128_BLOCK_SIZE,
+    AES128, AES128_BLOCK_SIZE, AES128CBC, AES128CCM, AES128Ctr, AES128ECB, AES128GCM, CCMClient,
+    Client, GCMClient,
 };
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -55,13 +55,8 @@ pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static> + AES128GCM<'static>
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > AesDriver<'static, A>
+    A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static> + AES128GCM<'static>,
+> AesDriver<'static, A>
 {
     pub fn new(
         aes: &'static A,
@@ -392,13 +387,8 @@ impl<
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > Client<'static> for AesDriver<'static, A>
+    A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static> + AES128GCM<'static>,
+> Client<'static> for AesDriver<'static, A>
 {
     fn crypt_done(&self, source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
         if let Some(source_buf) = source {
@@ -547,13 +537,8 @@ impl<
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > CCMClient for AesDriver<'static, A>
+    A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static> + AES128GCM<'static>,
+> CCMClient for AesDriver<'static, A>
 {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.dest_buffer.replace(buf);
@@ -623,13 +608,8 @@ impl<
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > GCMClient for AesDriver<'static, A>
+    A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static> + AES128GCM<'static>,
+> GCMClient for AesDriver<'static, A>
 {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.dest_buffer.replace(buf);
@@ -699,13 +679,8 @@ impl<
 }
 
 impl<
-        A: AES128<'static>
-            + AES128Ctr
-            + AES128CBC
-            + AES128ECB
-            + AES128CCM<'static>
-            + AES128GCM<'static>,
-    > SyscallDriver for AesDriver<'static, A>
+    A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'static> + AES128GCM<'static>,
+> SyscallDriver for AesDriver<'static, A>
 {
     fn command(
         &self,

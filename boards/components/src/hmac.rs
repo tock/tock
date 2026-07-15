@@ -59,13 +59,13 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacComponent<A, L
 }
 
 impl<
-        A: kernel::hil::digest::HmacSha256
-            + digest::HmacSha384
-            + digest::HmacSha512
-            + 'static
-            + digest::Digest<'static, L>,
-        const L: usize,
-    > Component for HmacComponent<A, L>
+    A: kernel::hil::digest::HmacSha256
+        + digest::HmacSha384
+        + digest::HmacSha512
+        + 'static
+        + digest::Digest<'static, L>,
+    const L: usize,
+> Component for HmacComponent<A, L>
 {
     type StaticInput = (
         &'static mut MaybeUninit<HmacDriver<'static, A, L>>,
@@ -124,11 +124,8 @@ impl<S: digest::Sha256 + digest::DigestDataHash<'static, 32> + digest::Digest<'s
 }
 
 impl<
-        S: digest::Sha256
-            + digest::DigestDataHash<'static, 32>
-            + digest::Digest<'static, 32>
-            + 'static,
-    > Component for HmacSha256SoftwareComponent<S>
+    S: digest::Sha256 + digest::DigestDataHash<'static, 32> + digest::Digest<'static, 32> + 'static,
+> Component for HmacSha256SoftwareComponent<S>
 {
     type StaticInput = (
         &'static mut MaybeUninit<capsules_extra::hmac_sha256::HmacSha256Software<'static, S>>,

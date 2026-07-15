@@ -7,7 +7,7 @@ use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 use kernel::utilities::io_write::IoWrite;
 
-use nrf52840::uart::{Uarte, UARTE0_BASE};
+use nrf52840::uart::{UARTE0_BASE, Uarte};
 
 struct Writer {
     initialized: bool,
