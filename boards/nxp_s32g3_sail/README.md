@@ -1,8 +1,11 @@
 NXP S32G3 SAIL Tock board
 =========================
 
-This board runs Tock on Main SoC S32G3 M7_0. It is a bring-up target for a
-safety-island kernel, not a complete platform definition.
+This target name uses SAIL to mean “Safety Island”; it is not the name of a
+publicly discoverable NXP board product. It is a bring-up target for the Main
+SoC S32G3 M7_0 with current support focused on the safety-island kernel.
+Future capsules and board support are welcome when backed by hardware evidence
+and normal Tock review.
 
 ## Build, image layout, and deployment
 
