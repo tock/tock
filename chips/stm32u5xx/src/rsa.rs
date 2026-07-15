@@ -158,8 +158,7 @@ register_bitfields! [u32,
 const PKA_BASE: StaticRef<PkaRegisters> =
     unsafe { StaticRef::new(0x520C2000 as *const PkaRegisters) };
 
-// RAM mapping
-// TODO consider moving somewhere else, because these mapping in mode specific
+// RAM mapping for mongomery modular exponentiation mode
 const EXP_LEN_IDX: usize = (0x400 - RAM_START) / 4;
 const OP_LEN_IDX: usize = (0x408 - RAM_START) / 4;
 const OP_A_IDX: usize = (0xC68 - RAM_START) / 4;
@@ -220,15 +219,6 @@ impl<'a> Pka<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        kernel::debug!("\nInterrupt fired!");
-
-        kernel::debug!("\nSR::OPERRF {:#b}", self.registers.sr.read(SR::OPERRF));
-        kernel::debug!("SR::ADDERRF {:#b}", self.registers.sr.read(SR::ADDRERRF));
-        kernel::debug!("SR::RAMERRF {:#b}", self.registers.sr.read(SR::RAMERRF));
-        kernel::debug!("SR::PROCENDF {:#b}", self.registers.sr.read(SR::PROCENDF));
-        kernel::debug!("SR::BUSY {:#b}", self.registers.sr.read(SR::BUSY));
-        kernel::debug!("SR::INITOK {:#b}\n", self.registers.sr.read(SR::INITOK));
-
         // Operand error
         if self.registers.sr.is_set(SR::OPERRF) {
             self.registers.clrfr.write(CLRFR::OPERRFC::SET);
@@ -260,10 +250,7 @@ impl<'a> Pka<'a> {
         let mut result = self.result.take().unwrap();
 
         if success {
-            // Read the result
             self.read_slice(RESULT_IDX, &mut result);
-            // TODO remove before PR
-            kernel::debug!("RSA RESULT: {:02x?}", &result[0..4]);
 
             self.client.map(|client| {
                 client.mod_exponent_done(Ok(true), message, modulus, exponent, result)
@@ -329,8 +316,6 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         // Compute lengths
         let exp_bits = get_bitlen(exponent);
         let op_bits = get_bitlen(modulus);
-        kernel::debug!("Exp bits: {}", exp_bits);
-        kernel::debug!("Op bits: {}", op_bits);
 
         // Check for 0
         if exp_bits == 0 || op_bits == 0 {
@@ -373,22 +358,6 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
 
         // Start the math
         self.registers.cr.modify(CR::START::SET);
-
-        // TODO remove
-        kernel::debug!("\nCR::OPERRIE {:#b}", self.registers.cr.read(CR::OPERRIE));
-        kernel::debug!("CR::ADDERIE {:#b}", self.registers.cr.read(CR::ADDERRIE));
-        kernel::debug!("CR::RAMERRIE {:#b}", self.registers.cr.read(CR::RAMERRIE));
-        kernel::debug!("CR::PROCENDIE {:#b}", self.registers.cr.read(CR::PROCENDIE));
-        kernel::debug!("CR::MODE {:#b}", self.registers.cr.read(CR::MODE));
-        kernel::debug!("CR::START {:#b}", self.registers.cr.read(CR::START));
-        kernel::debug!("CR::EN {:#b}", self.registers.cr.read(CR::EN));
-
-        kernel::debug!("\nSR::OPERRF {:#b}", self.registers.sr.read(SR::OPERRF));
-        kernel::debug!("SR::ADDERRF {:#b}", self.registers.sr.read(SR::ADDRERRF));
-        kernel::debug!("SR::RAMERRF {:#b}", self.registers.sr.read(SR::RAMERRF));
-        kernel::debug!("SR::PROCENDF {:#b}", self.registers.sr.read(SR::PROCENDF));
-        kernel::debug!("SR::BUSY {:#b}", self.registers.sr.read(SR::BUSY));
-        kernel::debug!("SR::INITOK {:#b}\n", self.registers.sr.read(SR::INITOK));
 
         Ok(())
     }

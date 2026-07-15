@@ -14,3 +14,4 @@ Currently supported peripherals:
 - GPDMA (Global Programmable DMA)
 - TIM2 (Timer)
 - TRNG (True Random Number Generator)
+- PKA (Public Key Accelerator)

@@ -9,8 +9,7 @@
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::public_key_crypto::rsa_math::RsaCryptoBase;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -292,17 +291,6 @@ unsafe fn start() -> (
     );
 
     trng.init();
-
-    // Test RSA
-    // TODO remove before PR
-    cortexm33::nvic::Nvic::new(stm32u545::nvic::PKA_IRQ).enable();
-    let msg = static_init!([u8; 4], [0, 0, 0, 0x2,]);
-    let exp = static_init!([u8; 4], [0, 0, 0, 0x3,]);
-    let md = static_init!([u8; 4], [0, 0, 0, 0x5,]);
-    let res = static_init!([u8; 4], [0; 4]);
-    let status = periphs.pka.mod_exponent(msg, md, exp, res);
-
-    kernel::debug!("Pka status: {:?}", status);
 
     (board_kernel, platform, chip)
 }
