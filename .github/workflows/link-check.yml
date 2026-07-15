@@ -1,0 +1,47 @@
+name: Link Checker
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '**.md'
+  pull_request:
+    paths:
+      - '**.md'
+  schedule:
+    # Her Pazartesi 09:00 UTC'de çalışır
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  link-check:
+    name: Check links in Markdown files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: |
+            --verbose
+            --no-progress
+            --exclude-loopback
+            --exclude 'mailto:.*'
+            --exclude 'https://camo.githubusercontent.com'
+            --exclude 'https://join.slack.com'
+            '**/*.md'
+          fail: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create issue on failure
+        if: failure() && github.event_name == 'schedule'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "Broken links found in documentation"
+          content-filepath: ./lychee/out.md
+          labels: documentation, broken-link
