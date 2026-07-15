@@ -10,6 +10,7 @@
 //! `kernel` crate as all `arch` crates already depend on it.
 
 use crate::ErrorCode;
+use crate::process::FunctionCall;
 use crate::syscall::SyscallReturn;
 use crate::syscall::YieldVariant;
 use crate::syscall::{Syscall, SyscallClass};
@@ -319,5 +320,45 @@ pub fn encode_syscall_return_trd104(
             *a1 = data1 as u32;
             *a2 = data2 as u32;
         }
+    }
+}
+
+/// Encode the upcall arguments into 4 registers compatible with TRD104.
+pub fn encode_upcall_trd104(
+    upcall: &FunctionCall,
+    a0: &mut u32,
+    a1: &mut u32,
+    a2: &mut u32,
+    a3: &mut u32,
+) {
+    *a0 = upcall.argument0 as u32;
+    *a1 = upcall.argument1 as u32;
+    *a2 = upcall.argument2 as u32;
+    *a3 = upcall.argument3.as_usize() as u32;
+}
+
+/// Encode the upcall arguments into 4 registers compatible with TRD104.
+///
+/// Use pointer writes.
+///
+/// # Safety
+///
+/// All pointers `a0`, `a1`, `a2`, `a3` must point to valid, aligned, and
+/// writable memory locations.
+pub unsafe fn encode_upcall_trd104_ptr(
+    upcall: &FunctionCall,
+    a0: *mut u32,
+    a1: *mut u32,
+    a2: *mut u32,
+    a3: *mut u32,
+) {
+    // # Safety
+    //
+    // All safety invariants must be upheld by the function caller.
+    unsafe {
+        core::ptr::write(a0, upcall.argument0 as u32);
+        core::ptr::write(a1, upcall.argument1 as u32);
+        core::ptr::write(a2, upcall.argument2 as u32);
+        core::ptr::write(a3, upcall.argument3.as_usize() as u32);
     }
 }
