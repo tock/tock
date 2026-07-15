@@ -200,17 +200,18 @@ unsafe fn start() -> (
         stm32u545::rcc::Rcc,
         stm32u545::rcc::Rcc::new(stm32u545::rcc::RCC_BASE)
     );
-    let rtc = static_init!(stm32u545::rtc::Rtc<'static>, stm32u545::rtc::Rtc::new(rcc));
-    rtc.register();
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, rtc)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, rcc)
     );
 
     // Initialize wiring (DMA, clocks)
     periphs.init();
+
+    // Register the RTC to the deferred call client
+    periphs.rtc.register();
 
     // Board specific wiring
     periphs.tim2.start();
@@ -267,7 +268,7 @@ unsafe fn start() -> (
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,
         capsules_extra::date_time::DRIVER_NUM,
-        rtc,
+        &periphs.rtc,
     )
     .finalize(components::date_time_component_static!(
         stm32u545::rtc::Rtc<'static>
