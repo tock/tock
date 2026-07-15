@@ -8,7 +8,6 @@
 //! immediate deferred aborts, writes one LF0 polling result line, then halts.
 
 use core::cell::Cell;
-use core::ptr::addr_of_mut;
 
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use kernel::hil::uart::{self, Receive, Transmit};
@@ -29,8 +28,6 @@ const RESULT_FAIL_R: &str = "S32G3_UART_TEST result=FAIL tx=PASS tx_abort=PASS r
 const RESULT_FAIL_ALL: &str = "S32G3_UART_TEST result=FAIL tx=FAIL tx_abort=FAIL rx_abort=FAIL\r\n";
 const PANIC_RESOURCES_BOUND: &str =
     "S32G3_S12 panic_resources chip=bound processes=bound printer=bound\r\n";
-static mut TX_OVERLAP: [u8; TX_LEN] = [0; TX_LEN];
-static mut RX_OVERLAP: [u8; RX_LEN] = [0; RX_LEN];
 
 #[derive(Clone, Copy, PartialEq)]
 enum Phase {
@@ -145,6 +142,8 @@ struct UartTestSuite {
     result: Cell<SuiteResult>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
+    tx_overlap: TakeCell<'static, [u8]>,
+    rx_overlap: TakeCell<'static, [u8]>,
 }
 
 impl UartTestSuite {
@@ -155,7 +154,45 @@ impl UartTestSuite {
             result: Cell::new(SuiteResult::new()),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
+            tx_overlap: TakeCell::empty(),
+            rx_overlap: TakeCell::empty(),
         }
+    }
+    fn run_tx_abort(&self) {
+        self.uart.map(|uart| {
+            self.tx_buf.take().map(|buf| {
+                for byte in buf.iter_mut() {
+                    *byte = 0xAA;
+                }
+                match uart.transmit_buffer(buf, TX_LEN) {
+                    Ok(()) => {
+                        let mut result = self.result.get();
+                        result.tx_abort_preconditions_ok = uart.transmit_abort() == Err(ErrorCode::BUSY);
+                        if result.tx_abort_preconditions_ok {
+                            self.tx_overlap.take().map(|overlap| {
+                                match uart.transmit_buffer(overlap, TX_LEN) {
+                                    Err((ErrorCode::BUSY, overlap)) => {
+                                        self.tx_overlap.replace(overlap);
+                                    }
+                                    Err((_error, overlap)) => {
+                                        self.tx_overlap.replace(overlap);
+                                        result.tx_abort_preconditions_ok = false;
+                                    }
+                                    Ok(()) => {
+                                        result.tx_abort_preconditions_ok = false;
+                                    }
+                                }
+                            });
+                        }
+                        self.result.set(result);
+                    }
+                    Err((_error, buf)) => {
+                        self.tx_buf.replace(buf);
+                        self.fail_current();
+                    }
+                }
+            });
+        });
     }
 
     fn start_phase(&self) {
@@ -188,54 +225,36 @@ impl UartTestSuite {
         });
     }
 
-    fn run_tx_abort(&self) {
-        self.uart.map(|uart| {
-            self.tx_buf.take().map(|buf| {
-                for byte in buf.iter_mut() {
-                    *byte = 0xAA;
-                }
-                match uart.transmit_buffer(buf, TX_LEN) {
-                    Ok(()) => unsafe {
-                        (&mut *addr_of_mut!(TX_OVERLAP)).fill(0x55);
-                        let mut result = self.result.get();
-                        result.tx_abort_preconditions_ok = uart.transmit_abort()
-                            == Err(ErrorCode::BUSY)
-                            && matches!(
-                                uart.transmit_buffer(&mut *addr_of_mut!(TX_OVERLAP), TX_LEN),
-                                Err((ErrorCode::BUSY, _))
-                            );
-                        self.result.set(result);
-                    },
-                    Err((_error, buf)) => {
-                        self.tx_buf.replace(buf);
-                        self.fail_current();
-                    }
-                }
-            });
-        });
-    }
 
     fn run_rx_abort(&self) {
         self.uart.map(|uart| {
-            self.rx_buf
-                .take()
-                .map(|buf| match uart.receive_buffer(buf, RX_LEN) {
-                    Ok(()) => unsafe {
-                        (&mut *addr_of_mut!(RX_OVERLAP)).fill(0);
-                        let mut result = self.result.get();
-                        result.rx_abort_preconditions_ok = uart.receive_abort()
-                            == Err(ErrorCode::BUSY)
-                            && matches!(
-                                uart.receive_buffer(&mut *addr_of_mut!(RX_OVERLAP), RX_LEN),
-                                Err((ErrorCode::BUSY, _))
-                            );
-                        self.result.set(result);
-                    },
-                    Err((_error, buf)) => {
-                        self.rx_buf.replace(buf);
-                        self.fail_current();
+            self.rx_buf.take().map(|buf| match uart.receive_buffer(buf, RX_LEN) {
+                Ok(()) => {
+                    let mut result = self.result.get();
+                    result.rx_abort_preconditions_ok = uart.receive_abort() == Err(ErrorCode::BUSY);
+                    if result.rx_abort_preconditions_ok {
+                        self.rx_overlap.take().map(|overlap| {
+                            match uart.receive_buffer(overlap, RX_LEN) {
+                                Err((ErrorCode::BUSY, overlap)) => {
+                                    self.rx_overlap.replace(overlap);
+                                }
+                                Err((_error, overlap)) => {
+                                    self.rx_overlap.replace(overlap);
+                                    result.rx_abort_preconditions_ok = false;
+                                }
+                                Ok(()) => {
+                                    result.rx_abort_preconditions_ok = false;
+                                }
+                            }
+                        });
                     }
-                });
+                    self.result.set(result);
+                }
+                Err((_error, buf)) => {
+                    self.rx_buf.replace(buf);
+                    self.fail_current();
+                }
+            });
         });
     }
 
@@ -312,13 +331,17 @@ impl uart::ReceiveClient for UartTestSuite {
 /// Must be called exactly once during board startup, after the board's linflex modules
 /// have been initialized.
 pub unsafe fn run(lf1: &'static LinFlexD<'static>, client: &'static dyn CapsuleTestClient) {
-    static mut TX_BUF: [u8; TX_LEN] = [0; TX_LEN];
-    static mut RX_BUF: [u8; RX_LEN] = [0; RX_LEN];
+    let tx_buf = static_init!([u8; TX_LEN], [0; TX_LEN]);
+    let rx_buf = static_init!([u8; RX_LEN], [0; RX_LEN]);
+    let tx_overlap = static_init!([u8; TX_LEN], [0; TX_LEN]);
+    let rx_overlap = static_init!([u8; RX_LEN], [0; RX_LEN]);
 
     let suite = static_init!(UartTestSuite, UartTestSuite::new(client));
     suite.uart.set(lf1);
-    suite.tx_buf.replace(&mut *addr_of_mut!(TX_BUF));
-    suite.rx_buf.replace(&mut *addr_of_mut!(RX_BUF));
+    suite.tx_buf.replace(tx_buf);
+    suite.rx_buf.replace(rx_buf);
+    suite.tx_overlap.replace(tx_overlap);
+    suite.rx_overlap.replace(rx_overlap);
     lf1.set_transmit_client(suite);
     lf1.set_receive_client(suite);
     suite.start_phase();
