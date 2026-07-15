@@ -229,24 +229,48 @@ impl<'a> Pka<'a> {
         kernel::debug!("SR::BUSY {:#b}", self.registers.sr.read(SR::BUSY));
         kernel::debug!("SR::INITOK {:#b}\n", self.registers.sr.read(SR::INITOK));
 
+        // Operand error
+        if self.registers.sr.is_set(SR::OPERRF) {
+            self.registers.clrfr.write(CLRFR::OPERRFC::SET);
+        }
+
+        // Address error
+        if self.registers.sr.is_set(SR::ADDRERRF) {
+            self.registers.clrfr.write(CLRFR::ADDERRFC::SET);
+        }
+
+        // RAM error
+        if self.registers.sr.is_set(SR::RAMERRF) {
+            self.registers.clrfr.write(CLRFR::RAMERRFC::SET);
+        }
+
+        // Successful operation
+        let success: bool;
         if self.registers.sr.is_set(SR::PROCENDF) {
-            // Prevent interrupt from firing again
             self.registers.clrfr.write(CLRFR::PROCENDFC::SET);
+            success = true;
+        } else {
+            success = false;
+        }
 
-            // Unpack the cells
-            let modulus = self.modulus.take().unwrap();
-            let exponent = self.exponent.take().unwrap();
-            let message = self.message.take().unwrap();
-            let mut result = self.result.take().unwrap();
+        // Unpack the cells
+        let modulus = self.modulus.take().unwrap();
+        let exponent = self.exponent.take().unwrap();
+        let message = self.message.take().unwrap();
+        let mut result = self.result.take().unwrap();
 
+        if success {
             // Read the result
             self.read_slice(RESULT_IDX, &mut result);
-
             // TODO remove before PR
             kernel::debug!("RSA RESULT: {:02x?}", &result[0..4]);
 
             self.client.map(|client| {
                 client.mod_exponent_done(Ok(true), message, modulus, exponent, result)
+            });
+        } else {
+            self.client.map(|client| {
+                client.mod_exponent_done(Err(ErrorCode::FAIL), message, modulus, exponent, result);
             });
         }
     }
@@ -302,6 +326,17 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
             return Err((ErrorCode::SIZE, message, modulus, exponent, result));
         }
 
+        // Compute lengths
+        let exp_bits = get_bitlen(exponent);
+        let op_bits = get_bitlen(modulus);
+        kernel::debug!("Exp bits: {}", exp_bits);
+        kernel::debug!("Op bits: {}", op_bits);
+
+        // Check for 0
+        if exp_bits == 0 || op_bits == 0 {
+            return Err((ErrorCode::INVAL, message, modulus, exponent, result));
+        }
+
         // Enable the peripheral
         self.registers.cr.modify(CR::EN::SET);
 
@@ -309,12 +344,6 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         while !self.registers.sr.is_set(SR::INITOK) {}
 
         self.clear_data();
-
-        // Compute lengths
-        let exp_bits = get_bitlen(exponent);
-        let op_bits = get_bitlen(modulus);
-        kernel::debug!("Exp bits: {}", exp_bits);
-        kernel::debug!("Op bits: {}", op_bits);
 
         // Write necessary data to RAM
         self.registers.ram[EXP_LEN_IDX].set(exp_bits);
