@@ -409,25 +409,17 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
             // areas when using `rect.width` or `rect.height` as a divisor:
             0
         } else if current_draw_offset.0 == 0 {
-            // Okay, we can start drawing the full rectangle. We want to try
-            // drawing any full rows, if there are any left, and if not the
-            // last partial row:
+            // We're at the start of a row. If the client buffer holds less than
+            // a full row, copy just those pixels as a partial trailing row.
+            // Otherwise, copy as many full rows as fit in the buffer (leaving
+            // any remainder to a subsequent iteration, which will then hit the
+            // partial-row branch above):
             assert!(current_draw_offset.1 <= draw_rect.height || remaining_pixels == 0);
-            if current_draw_offset.1 >= draw_rect.height {
-                // Just one row left to draw, and we start from `x ==
-                // 0`. This means we can just copy however much more data
-                // the client buffer holds. We've previously checked that
-                // the client buffer fully fits into the draw area, but
-                // re-check that assertion here:
-                assert!(draw_rect.width as usize >= write_buffer_remaining_pixels);
+            if write_buffer_remaining_pixels < draw_rect.width as usize {
                 write_buffer_remaining_pixels
             } else {
-                // There is more than one row left to copy, and we start
-                // from `x == 0`. If the client buffer lines up with the end
-                // of a row, we can copy them as a single
-                // rectangle. Otherwise, we need two copies:
-                write_buffer_remaining_pixels / (draw_rect.width as usize)
-                    * (draw_rect.width as usize)
+                (write_buffer_remaining_pixels / draw_rect.width as usize)
+                    * draw_rect.width as usize
             }
         } else {
             // Our current draw offset is not zero. This means we must copy
