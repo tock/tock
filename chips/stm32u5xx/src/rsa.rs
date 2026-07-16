@@ -15,18 +15,20 @@ const RAM_START: usize = 0x400;
 
 register_structs! {
     PkaRegisters {
-        // PKA control register
+        /// PKA control register
         (0x00 => cr: ReadWrite<u32, CR::Register>),
 
-        // PKA status register
+        /// PKA status register
         (0x04 => sr: ReadOnly<u32, SR::Register>),
 
-        // PKA clear flag register
+        /// PKA clear flag register
         (0x08 => clrfr: WriteOnly<u32, CLRFR::Register>),
 
         (0x0C => _reserved0),
 
-        // PKA RAM
+        /// PKA RAM
+        /// 0x14D8-0x400 is 0x10D8 bytes, which is 4312 bytes in decimal. Since u32 takes exactly 4 bytes (32 / 8) we divide the number by 4 to obtain the indexes
+        /// Two 32-bit slices would correspond to one 64-bit "word" as defined in datasheet
         (0x400 => ram: [ReadWrite<u32>; (0x14D8 - 0x400) / 4]),
 
         (0x14D8 => @END),
@@ -35,122 +37,122 @@ register_structs! {
 
 register_bitfields! [u32,
     CR [
-        // Operation error interrupt enable
+        /// Operation error interrupt enable
         OPERRIE OFFSET(21) NUMBITS(1) [],
 
-        // Address error interrupt enable
+        /// Address error interrupt enable
         ADDERRIE OFFSET(20) NUMBITS(1) [],
 
-        // RAM error interrupt enable
+        /// RAM error interrupt enable
         RAMERRIE OFFSET(19) NUMBITS(1) [],
 
-        // End of operation interrupt enable
+        /// End of operation interrupt enable
         PROCENDIE OFFSET(17) NUMBITS(1) [],
 
-        // PKA operation code
+        /// PKA operation code
         MODE OFFSET(8) NUMBITS(6) [
-            // Montogomery parameter computation then modular exponentioantion
+            /// Montogomery parameter computation then modular exponentioantion
             MontgomeryModularExp = 0b000000,
 
-            // Montgomery parameter computation only
+            /// Montgomery parameter computation only
             MontgomeryOnly = 0b000001,
 
-            // Modular exponentiation only (Montgomery parameter must be loaded first)
+            /// Modular exponentiation only (Montgomery parameter must be loaded first)
             ModularExpOnly = 0b000010,
 
-            // Modular exponentiation (protected, used when manipulating secrets)
+            /// Modular exponentiation (protected, used when manipulating secrets)
             ModularExp = 0b000011,
 
-            // Montgomery parameter computation then ECC scalar multiplication (protected)
+            /// Montgomery parameter computation then ECC scalar multiplication (protected)
             MontgomeryECC = 0b100000,
 
-            // ECDSA sign (protected)
+            /// ECDSA sign (protected)
             ECDSASign = 0b100100,
 
-            // ECDSA verification
+            /// ECDSA verification
             ECDSAVerfication = 0b100110,
 
-            // Point on elliptic curve Fp check
+            /// Point on elliptic curve Fp check
             FpCheck = 0b101000,
 
-            // RSA CRT exponentiation
+            /// RSA CRT exponentiation
             RSACRTExp = 0b000111,
 
-            // Modular inversion
+            /// Modular inversion
             ModularInversion = 0b001000,
 
-            // Arithmetic addition
+            /// Arithmetic addition
             ArithmeticAddition = 0b001001,
 
-            // Arithmetic substraction
+            /// Arithmetic substraction
             ArithmeticSubstraction = 0b001010,
 
-            // Arithmetic multiplication
+            /// Arithmetic multiplication
             ArithmeticMultiplication = 0b001011,
 
-            // Arithmetic comparison
+            /// Arithmetic comparison
             ArithmeticComparison = 0b001100,
 
-            // Modular reduction
+            /// Modular reduction
             ModularReduction = 0b001101,
 
-            // Modular addition
+            /// Modular addition
             ModularAddition = 0b001110,
 
-            // Modular substraction
+            /// Modular substraction
             ModularSubstraction = 0b001111,
 
-            // Montgomery multiplication
+            /// Montgomery multiplication
             MontgomeryMultiplication = 0b010000,
 
-            // ECC complete addition
+            /// ECC complete addition
             ECCCompleteAddition = 0b100011,
 
-            // ECC double base ladder
+            /// ECC double base ladder
             ECCDoubleBaseLadder = 0b100111,
 
-            // ECC projective to affine
+            /// ECC projective to affine
             ECCProjectiveToAffine = 0b101111,
         ],
 
-        // Start the operation
+        /// Start the operation
         START OFFSET(1) NUMBITS(1) [],
 
-        // PKA enable
+        /// PKA enable
         EN OFFSET(0) NUMBITS(1) [],
     ],
 
     SR [
-        // Operation error flag
+        /// Operation error flag
         OPERRF OFFSET(21) NUMBITS(1) [],
 
-        // Address error flag
+        /// Address error flag
         ADDRERRF OFFSET(20) NUMBITS(1) [],
 
-        // PKA RAM Error flag
+        /// PKA RAM Error flag
         RAMERRF OFFSET(19) NUMBITS(1) [],
 
-        // PKA end of operation flag
+        /// PKA end of operation flag
         PROCENDF OFFSET(17) NUMBITS(1) [],
 
-        // Busy flag
+        /// Busy flag
         BUSY OFFSET(16) NUMBITS(1) [],
 
-        // PKA initialization OK
+        /// PKA initialization OK
         INITOK OFFSET(0) NUMBITS(1) [],
     ],
 
     CLRFR [
-        // Clear oferation error flag
+        /// Clear oferation error flag
         OPERRFC OFFSET(21) NUMBITS(1) [],
 
-        // Clear address error flag
+        /// Clear address error flag
         ADDERRFC OFFSET(20) NUMBITS(1) [],
 
-        // Clear PKA RAM error flag
+        /// Clear PKA RAM error flag
         RAMERRFC OFFSET(19) NUMBITS(1) [],
 
-        // Clear PKA end of op flag
+        /// Clear PKA end of op flag
         PROCENDFC OFFSET(17) NUMBITS(1) [],
     ]
 ];
@@ -159,6 +161,7 @@ const PKA_BASE: StaticRef<PkaRegisters> =
     unsafe { StaticRef::new(0x520C2000 as *const PkaRegisters) };
 
 // RAM mapping for mongomery modular exponentiation mode
+// We need to compute the offset from the RAM start, and divide by 4 to obtain its index in the RAM array
 const EXP_LEN_IDX: usize = (0x400 - RAM_START) / 4;
 const OP_LEN_IDX: usize = (0x408 - RAM_START) / 4;
 const OP_A_IDX: usize = (0xC68 - RAM_START) / 4;
@@ -193,31 +196,34 @@ impl<'a> Pka<'a> {
         }
     }
 
-    // Helper function to write the data to RAM
+    /// Helper function to write the data to RAM
     fn write_slice(&self, idx: usize, data: &[u8]) {
+        // Four u8 slices correspond to one u32
         let chunks = data.rchunks(4);
+
         for (i, chunk) in chunks.enumerate() {
             let mut slice = [0u8; 4];
             let offset = 4 - chunk.len(); // in case chunk is less then 4 bytes
 
             slice[offset..].copy_from_slice(chunk);
 
-            let word = u32::from_be_bytes(slice);
-            self.registers.ram[idx + i].set(word);
+            let semi_word = u32::from_be_bytes(slice);
+            self.registers.ram[idx + i].set(semi_word);
         }
     }
 
-    // Helper function to read data from RAM
+    /// Helper function to read data from RAM
     fn read_slice(&self, idx: usize, buffer: &mut [u8]) {
         let chunks = buffer.rchunks_mut(4);
         for (i, chunk) in chunks.enumerate() {
-            let word = self.registers.ram[idx + i].get();
-            let bytes = word.to_be_bytes();
+            let semi_word = self.registers.ram[idx + i].get();
+            let bytes = semi_word.to_be_bytes();
             let offset = 4 - chunk.len();
             chunk.copy_from_slice(&bytes[offset..])
         }
     }
 
+    /// Handler for interrupts fired by PKA
     pub fn handle_interrupt(&self) {
         // Operand error
         if self.registers.sr.is_set(SR::OPERRF) {
@@ -249,6 +255,7 @@ impl<'a> Pka<'a> {
         let result = self.result.take().unwrap();
 
         if success {
+            // Only read the result if operation was successful
             self.read_slice(RESULT_IDX, result);
 
             self.client.map(|client| {
@@ -262,7 +269,7 @@ impl<'a> Pka<'a> {
     }
 }
 
-// Helper function to compute the number of bits in the number
+/// Helper function to compute the number of bits in the number
 fn get_bitlen(data: &[u8]) -> u32 {
     for (i, &byte) in data.iter().enumerate() {
         if byte != 0 {
@@ -330,6 +337,7 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         self.clear_data();
 
         // Write necessary data to RAM
+        // Since 1 word is 64 bits, and length are u32, we need to wipe next index to form a word
         self.registers.ram[EXP_LEN_IDX].set(exp_bits);
         self.registers.ram[EXP_LEN_IDX + 1].set(0);
         self.registers.ram[OP_LEN_IDX].set(op_bits);
@@ -345,7 +353,7 @@ impl<'a> RsaCryptoBase<'a> for Pka<'a> {
         self.exponent.set(exponent);
         self.result.replace(result);
 
-        // Configure the periferal
+        // Configure the peripheral
         self.registers.cr.modify(
             CR::MODE::MontgomeryModularExp
                 + CR::PROCENDIE::SET
