@@ -6,6 +6,8 @@
 // Referance Document:
 // RM0456 Reference Manual: https://www.st.com/resource/en/reference_manual/rm0456-stm32u5-series-armbased-32bit-mcus-stmicroelectronics.pdf
 
+use crate::pwr;
+
 use super::rcc;
 use core::cell::Cell;
 use kernel::ErrorCode;
@@ -476,29 +478,10 @@ RTC_ALRBBINR[
 ],
 ];
 
-register_structs! {
-pub PwrRegisters {
-    (0x00 => _padding),
-    /// PWR disable backup domain register
-    (0x28 => pwr_dbpr: ReadWrite<u32, PWR_DBPR::Register>),
-    (0x2C => @END),
-}
-}
-register_bitfields![u32,
-    PWR_DBPR [
-        /// Disable backup domain write protection
-        DBP OFFSET(0) NUMBITS(1) []
-    ],
-];
-
 // Real Time Clock
 // RM0456, Table 6. Memoy map and peripheral register boundary addresses - Page 145
 const RTC_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x46007800 as *const RtcRegisters) };
-// Power Control
-// RM0456, Table 6. Memoy map and peripheral register boundary addresses - Page 145
-const PWR_BASE: StaticRef<PwrRegisters> =
-    unsafe { StaticRef::new(0x46020800 as *const PwrRegisters) };
 
 #[derive(Clone, Copy)]
 enum DeferredCallTask {
@@ -564,9 +547,9 @@ impl<'a> Rtc<'a> {
         // 5. After the LSI Oscillator stabilizes we select it as the RTC clock source. There can be
         //    a situation where the oscillator doesn't stabilize, in that case my approach is to not hang the kernel
         //    and just timeout.
-        let pwr = PWR_BASE;
+        let pwr = pwr::Pwr::new();
         self.rcc.enable_ahb3_pwrclk();
-        pwr.pwr_dbpr.modify(PWR_DBPR::DBP::SET);
+        pwr.disable_backup_domain();
         self.rcc.enable_apb3_bus_clk();
 
         // Enable LSI oscillator.
