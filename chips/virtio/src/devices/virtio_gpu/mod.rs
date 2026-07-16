@@ -580,7 +580,9 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
 
         // We always draw left -> right, top -> bottom, so we can simply set the
         // current `x` and `y` coordinates to the bottom-right most coordinates
-        // we've just drawn (while wrapping and carrying the one):
+        // we've just drawn (while wrapping and carrying the one). `y` is the
+        // last row we drew (relative to `draw_rect`); the wrap below advances
+        // it to the next row when we've finished the row's rightmost column.
         current_draw_offset.0 = drawn_area
             .x
             .checked_add(drawn_area.width)
@@ -589,7 +591,8 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
         current_draw_offset.1 = drawn_area
             .y
             .checked_add(drawn_area.height)
-            .and_then(|drawn_y1| drawn_y1.checked_sub(draw_rect.y))
+            .and_then(|drawn_y1| drawn_y1.checked_sub(1))
+            .and_then(|last_row| last_row.checked_sub(draw_rect.y))
             .unwrap();
 
         // Wrap to the next line when we've finished writing the column of our
