@@ -239,7 +239,7 @@ unsafe fn start() -> (
 
     let tim3_pwm_pin = static_init!(
         stm32u545::tim::PwmPin<'static>,
-        stm32u545::tim::PwmPin::new(&periphs.tim3_ch1, pwm_pin)
+        stm32u545::tim::PwmPin::new(&periphs.tim3, pwm_pin),
     );
 
     let pwm =

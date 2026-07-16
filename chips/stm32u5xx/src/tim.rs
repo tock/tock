@@ -563,14 +563,6 @@ impl ClockSource {
     }
 }
 
-#[derive(Copy, Clone)]
-pub enum Channel {
-    Channel1,
-    Channel2,
-    Channel3,
-    Channel4,
-}
-
 pub const TIM3_BASE: StaticRef<TimRegisters> =
     unsafe { StaticRef::new(0x50000400 as *const TimRegisters) };
 
@@ -581,7 +573,6 @@ pub struct Pwm<'a> {
     timer_clock: ClockSource,
     // Function to enable the clock for the timer
     enable_clock: fn(),
-    channel: Channel,
     // Needed so the struct can carry 'a lifetime because of type Pin = Pin<'a>
     _phantom: core::marker::PhantomData<&'a ()>,
 }
@@ -590,14 +581,12 @@ impl<'a> Pwm<'a> {
     pub const fn new(
         base: StaticRef<TimRegisters>,
         enable_clock: fn(),
-        channel: Channel,
         timer_clock: ClockSource,
     ) -> Pwm<'a> {
         Pwm {
             registers: base,
             timer_clock,
             enable_clock,
-            channel,
             _phantom: core::marker::PhantomData,
         }
     }
@@ -648,36 +637,13 @@ impl<'a> Pwm<'a> {
         // Set frequency and prescaler
         self.registers.psc.write(PSC::PSC.val(prescaler as u32));
         self.registers.arr.write(ARR::ARR_L.val(arr_value as u32));
-        match self.channel {
-            Channel::Channel1 => {
-                self.registers
-                    .ccmr1_output
-                    .modify(CCMR1_Output::OC1M::PwmMode1 + CCMR1_Output::OC1PE::SET);
-                self.registers.ccr1.write(CCR1::CCR1_L.val(ccr_val as u32));
-                self.registers.ccer.modify(CCER::CC1E::SET);
-            }
-            Channel::Channel2 => {
-                self.registers
-                    .ccmr1_output
-                    .modify(CCMR1_Output::OC2M::PwmMode1 + CCMR1_Output::OC2PE::SET);
-                self.registers.ccr2.write(CCR2::CCR2_L.val(ccr_val as u32));
-                self.registers.ccer.modify(CCER::CC2E::SET);
-            }
-            Channel::Channel3 => {
-                self.registers
-                    .ccmr2_output
-                    .modify(CCMR2_Output::OC3M::PwmMode1 + CCMR2_Output::OC3PE::SET);
-                self.registers.ccr3.write(CCR3::CCR3_L.val(ccr_val as u32));
-                self.registers.ccer.modify(CCER::CC3E::SET);
-            }
-            Channel::Channel4 => {
-                self.registers
-                    .ccmr2_output
-                    .modify(CCMR2_Output::OC4M::PwmMode1 + CCMR2_Output::OC4PE::SET);
-                self.registers.ccr4.write(CCR4::CCR4_L.val(ccr_val as u32));
-                self.registers.ccer.modify(CCER::CC4E::SET);
-            }
-        }
+
+        self.registers
+            .ccmr1_output
+            .modify(CCMR1_Output::OC1M::PwmMode1 + CCMR1_Output::OC1PE::SET);
+        self.registers.ccr1.write(CCR1::CCR1_L.val(ccr_val as u32));
+        self.registers.ccer.modify(CCER::CC1E::SET);
+
         // Force an update event to load the prescaler and ARR
         self.registers.egr.write(EGR::UG::SET);
         // Start counter
@@ -689,12 +655,7 @@ impl<'a> Pwm<'a> {
     fn stop_pwm(&self, pin: &Pin) -> Result<(), ErrorCode> {
         //Stop the counter and disable the output compare channel, then set the pin to analog mode instead of keeping it claimed by TIM3
         self.registers.cr1.modify(CR1::CEN::CLEAR);
-        match self.channel {
-            Channel::Channel1 => self.registers.ccer.modify(CCER::CC1E::CLEAR),
-            Channel::Channel2 => self.registers.ccer.modify(CCER::CC2E::CLEAR),
-            Channel::Channel3 => self.registers.ccer.modify(CCER::CC3E::CLEAR),
-            Channel::Channel4 => self.registers.ccer.modify(CCER::CC4E::CLEAR),
-        }
+        self.registers.ccer.modify(CCER::CC1E::CLEAR);
         pin.set_mode(Mode::Analog);
 
         Ok(())
