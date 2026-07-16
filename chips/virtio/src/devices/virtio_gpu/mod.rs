@@ -412,14 +412,23 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
             // We're at the start of a row. If the client buffer holds less than
             // a full row, copy just those pixels as a partial trailing row.
             // Otherwise, copy as many full rows as fit in the buffer (leaving
-            // any remainder to a subsequent iteration, which will then hit the
-            // partial-row branch above):
+            // any remainder to a subsequent iteration).
+            //
+            // However, batching multiple rows into a single
+            // `TRANSFER_TO_HOST_2D` is only safe when `draw_rect.width` matches
+            // the resource's width: the device reads row `h` of the transfer
+            // rectangle from backing offset `t2d.offset + h * (resource_width *
+            // bpp)`, but our backing is a compact `draw_rect.width * bpp`
+            // per-row buffer. When the widths don't match, cap to a single row
+            // so the strided read collapses to a single contiguous copy:
             assert!(current_draw_offset.1 <= draw_rect.height || remaining_pixels == 0);
             if write_buffer_remaining_pixels < draw_rect.width as usize {
                 write_buffer_remaining_pixels
-            } else {
+            } else if draw_rect.width == self.width {
                 (write_buffer_remaining_pixels / draw_rect.width as usize)
                     * draw_rect.width as usize
+            } else {
+                draw_rect.width as usize
             }
         } else {
             // Our current draw offset is not zero. This means we must copy
