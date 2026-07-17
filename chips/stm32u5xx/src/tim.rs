@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
+use kernel::ErrorCode;
 use kernel::hil::time::Time;
 use kernel::hil::time::{self, Ticks, Ticks32};
 use kernel::hil::{self};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
 use crate::gpio::{Mode, Pin};
 
