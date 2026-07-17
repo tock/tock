@@ -15,7 +15,7 @@ use crate::ticks::Ticks;
 use crate::timer::RPTimer;
 use crate::uart::Uart;
 use crate::xosc::Xosc;
-use cortexm33::{interrupt_mask, CortexM33, CortexMVariant};
+use cortexm33::{CortexM33, CortexMVariant, interrupt_mask};
 
 #[repr(u8)]
 pub enum Processor {

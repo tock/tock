@@ -4,11 +4,12 @@
 
 //! Peripheral interconnect interface
 
-use kernel::utilities::registers::{
-    interfaces::{Readable, Writeable},
-    register_bitfields, register_structs, ReadWrite,
-};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{
+    ReadWrite,
+    interfaces::{Readable, Writeable},
+    register_bitfields, register_structs,
+};
 
 register_structs! {
     /// Peripheral interconnect

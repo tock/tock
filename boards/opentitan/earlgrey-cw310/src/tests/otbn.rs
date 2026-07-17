@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
+use crate::tests::run_kernel_op;
 use core::cell::Cell;
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
-use kernel::{debug, ErrorCode};
+use kernel::{ErrorCode, debug};
 use lowrisc::otbn::Client;
 
 static MODULUS: [u8; 256] = [

@@ -12,7 +12,7 @@ pub mod chip_specs;
 pub mod interrupt_service;
 pub mod stm32f446re_nvic;
 
-use cortexm4f::{unhandled_interrupt, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, unhandled_interrupt};
 
 // STM32F446xx has total of 97 interrupts
 // Extracted from `CMSIS/Device/ST/STM32F4xx/Include/stm32f446xx.h`

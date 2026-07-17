@@ -97,35 +97,36 @@ type NonvolatileDriver = components::nonvolatile_storage::NonvolatileStorageComp
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type AlarmHw = nrf52840::rtc::Rtc<'static>;
+type GpioHw = nrf52::gpio::GPIOPin<'static>;
+type Nrf52840GpioHw = nrf52840::gpio::GPIOPin<'static>;
+type LedHw = kernel::hil::led::LedHigh<'static, nrf52::gpio::GPIOPin<'static>>;
+type SpiHw = nrf52840::spi::SPIM<'static>;
+
+type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
+type LedDriver = components::led::LedsComponentType<LedHw, 2>;
+type Lr1110GpioDriver = components::gpio::GpioComponentType<Nrf52840GpioHw>;
+type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
+type ConsoleDriver = components::console::ConsoleComponentType;
+
 /// Supported drivers by the platform
 pub struct Platform {
-    console: &'static capsules_core::console::Console<'static>,
-    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        LedHigh<'static, nrf52::gpio::GPIOPin<'static>>,
-        2,
-    >,
+    console: &'static ConsoleDriver,
+    gpio: &'static GpioDriver,
+    led: &'static LedDriver,
     rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     nonvolatile_storage: &'static NonvolatileDriver,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52::rtc::Rtc<'static>,
-        >,
-    >,
+    alarm: &'static AlarmDriver,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
-    lr1110_gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
-    lr1110_spi: &'static capsules_core::spi_controller::Spi<
-        'static,
-        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-            'static,
-            nrf52840::spi::SPIM<'static>,
-        >,
-    >,
+    lr1110_gpio: &'static Lr1110GpioDriver,
+    lr1110_spi: &'static SpiControllerDriver,
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
 }
@@ -214,11 +215,12 @@ pub unsafe fn start() -> (
         [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
+    let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
 
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
     );
 
     // set up circular peripheral dependencies
@@ -280,7 +282,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            Nrf52840GpioHw,
             2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
             3 => &nrf52840_peripherals.gpio_port[GPIO_D3],
             4 => &nrf52840_peripherals.gpio_port[GPIO_D4],
@@ -289,14 +291,14 @@ pub unsafe fn start() -> (
             7 => &nrf52840_peripherals.gpio_port[GPIO_D7],
         ),
     )
-    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(Nrf52840GpioHw));
 
     //--------------------------------------------------------------------------
     // LEDs
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedHigh<'static, nrf52840::gpio::GPIOPin>,
+        LedHigh<'static, Nrf52840GpioHw>,
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_GREEN_PIN]),
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
     ));
@@ -393,7 +395,7 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
-        .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+        .finalize(components::spi_mux_component_static!(SpiHw));
 
     // Create the SPI system call capsule for accessing the LoRa radio.
     let lr1110_spi = components::spi::SpiSyscallComponent::new(
@@ -404,9 +406,7 @@ pub unsafe fn start() -> (
         ),
         LORA_SPI_DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_static!(
-        nrf52840::spi::SPIM
-    ));
+    .finalize(components::spi_syscall_component_static!(SpiHw));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(SPI_MOSI_PIN),
@@ -428,13 +428,13 @@ pub unsafe fn start() -> (
         board_kernel,
         LORA_GPIO_DRIVER_NUM,
         components::gpio_component_helper!(
-            nrf52840::gpio::GPIOPin,
+            Nrf52840GpioHw,
             40 => &nrf52840_peripherals.gpio_port[LR_DIO9],
             42 => &nrf52840_peripherals.gpio_port[RADIO_RESET_PIN],
             43 => &nrf52840_peripherals.gpio_port[RADIO_BUSY_PIN],
         ),
     )
-    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(Nrf52840GpioHw));
 
     //--------------------------------------------------------------------------
     // Process Console
@@ -453,9 +453,7 @@ pub unsafe fn start() -> (
         process_printer,
         Some(cortexm4::support::reset),
     )
-    .finalize(components::process_console_component_static!(
-        nrf52840::rtc::Rtc
-    ));
+    .finalize(components::process_console_component_static!(AlarmHw));
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBERS

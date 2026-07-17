@@ -157,29 +157,21 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // Encode the system call return value into registers,
         // available for when the process resumes
 
-        // We need to use a bunch of split_at_mut's to have multiple
-        // mutable borrows into the same slice at the same time.
-        //
-        // Since the compiler knows the size of this slice, and these
-        // calls will be optimized out, we use one to get to the first
-        // register (A0)
-        let (_, r) = state.regs.split_at_mut(R_A0);
-
-        // This comes with the assumption that the respective
-        // registers are stored at monotonically increasing indices
-        // in the register slice
-        let (a0slice, r) = r.split_at_mut(R_A1 - R_A0);
-        let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
-        let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
+        // We know these indexes are valid and disjoint, the error
+        // case will never actually happen.
+        let [a0, a1, a2, a3] = state
+            .regs
+            .get_disjoint_mut([R_A0, R_A1, R_A2, R_A3])
+            .or(Err(()))?;
 
         kernel::utilities::arch_helpers::encode_syscall_return_trd104(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
-            &mut a0slice[0],
-            &mut a1slice[0],
-            &mut a2slice[0],
-            &mut a3slice[0],
+            a0,
+            a1,
+            a2,
+            a3,
         );
 
         // We do not use process memory, so this cannot fail.
@@ -195,10 +187,29 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) -> Result<(), ()> {
         // Set the register state for the application when it starts
         // executing. These are the argument registers.
-        state.regs[R_A0] = callback.argument0 as u32;
-        state.regs[R_A1] = callback.argument1 as u32;
-        state.regs[R_A2] = callback.argument2 as u32;
-        state.regs[R_A3] = callback.argument3.as_usize() as u32;
+
+        // We need to use a bunch of split_at_mut's to have multiple
+        // mutable borrows into the same slice at the same time.
+        //
+        // Since the compiler knows the size of this slice, and these
+        // calls will be optimized out, we use one to get to the first
+        // register (A0)
+        let (_, r) = state.regs.split_at_mut(R_A0);
+
+        // This comes with the assumption that the respective
+        // registers are stored at monotonically increasing indices
+        // in the register slice
+        let (a0slice, r) = r.split_at_mut(R_A1 - R_A0);
+        let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
+        let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
+
+        kernel::utilities::arch_helpers::encode_upcall_trd104(
+            &callback,
+            &mut a0slice[0],
+            &mut a1slice[0],
+            &mut a2slice[0],
+            &mut a3slice[0],
+        );
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -654,13 +665,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         // instruction. The hardware does not do this for us.
                         state.pc = state.pc.wrapping_add(4);
 
-                        let syscall = kernel::syscall::Syscall::from_register_arguments(
-                            state.regs[R_A4] as u8,
-                            state.regs[R_A0] as usize,
-                            (state.regs[R_A1] as usize).into(),
-                            (state.regs[R_A2] as usize).into(),
-                            (state.regs[R_A3] as usize).into(),
-                        );
+                        let syscall =
+                            kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
+                                state.regs[R_A4] as u8,
+                                state.regs[R_A0] as usize,
+                                (state.regs[R_A1] as usize).into(),
+                                (state.regs[R_A2] as usize).into(),
+                                (state.regs[R_A3] as usize).into(),
+                            );
 
                         match syscall {
                             Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
@@ -687,25 +699,25 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     ) {
         let _ = writer.write_fmt(format_args!(
             "\
-             \r\n R0 : {:#010X}    R16: {:#010X}\
-             \r\n R1 : {:#010X}    R17: {:#010X}\
-             \r\n R2 : {:#010X}    R18: {:#010X}\
-             \r\n R3 : {:#010X}    R19: {:#010X}\
-             \r\n R4 : {:#010X}    R20: {:#010X}\
-             \r\n R5 : {:#010X}    R21: {:#010X}\
-             \r\n R6 : {:#010X}    R22: {:#010X}\
-             \r\n R7 : {:#010X}    R23: {:#010X}\
-             \r\n R8 : {:#010X}    R24: {:#010X}\
-             \r\n R9 : {:#010X}    R25: {:#010X}\
-             \r\n R10: {:#010X}    R26: {:#010X}\
-             \r\n R11: {:#010X}    R27: {:#010X}\
-             \r\n R12: {:#010X}    R28: {:#010X}\
-             \r\n R13: {:#010X}    R29: {:#010X}\
-             \r\n R14: {:#010X}    R30: {:#010X}\
-             \r\n R15: {:#010X}    R31: {:#010X}\
-             \r\n PC : {:#010X}\
+             \r\n R0 : {:#0width$X}    R16: {:#0width$X}\
+             \r\n R1 : {:#0width$X}    R17: {:#0width$X}\
+             \r\n R2 : {:#0width$X}    R18: {:#0width$X}\
+             \r\n R3 : {:#0width$X}    R19: {:#0width$X}\
+             \r\n R4 : {:#0width$X}    R20: {:#0width$X}\
+             \r\n R5 : {:#0width$X}    R21: {:#0width$X}\
+             \r\n R6 : {:#0width$X}    R22: {:#0width$X}\
+             \r\n R7 : {:#0width$X}    R23: {:#0width$X}\
+             \r\n R8 : {:#0width$X}    R24: {:#0width$X}\
+             \r\n R9 : {:#0width$X}    R25: {:#0width$X}\
+             \r\n R10: {:#0width$X}    R26: {:#0width$X}\
+             \r\n R11: {:#0width$X}    R27: {:#0width$X}\
+             \r\n R12: {:#0width$X}    R28: {:#0width$X}\
+             \r\n R13: {:#0width$X}    R29: {:#0width$X}\
+             \r\n R14: {:#0width$X}    R30: {:#0width$X}\
+             \r\n R15: {:#0width$X}    R31: {:#0width$X}\
+             \r\n PC : {:#0width$X}\
              \r\n\
-             \r\n mcause: {:#010X} (",
+             \r\n mcause: {:#0width$X} (",
             0,
             state.regs[15],
             state.regs[0],
@@ -740,13 +752,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             state.regs[30],
             state.pc,
             state.mcause,
+            width = (crate::XLEN / 4) + 2,
         ));
         crate::print_mcause(mcause::Trap::from(state.mcause as usize), writer);
         let _ = writer.write_fmt(format_args!(
             ")\
-             \r\n mtval:  {:#010X}\
+             \r\n mtval:  {:#0width$X}\
              \r\n\r\n",
             state.mtval,
+            width = (crate::XLEN / 4) + 2,
         ));
     }
 

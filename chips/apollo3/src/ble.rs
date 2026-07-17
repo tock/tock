@@ -7,16 +7,16 @@
 use core::cell::Cell;
 use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
+use kernel::ErrorCode;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 const BLE_BASE: StaticRef<BleRegisters> =
     unsafe { StaticRef::new(0x5000_C000 as *const BleRegisters) };

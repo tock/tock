@@ -15,11 +15,11 @@ use crate::chip_specific::clock_constants;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
-use crate::rcc::{PLLPDivider, PLLQDivider, PllSource};
 use crate::rcc::{DEFAULT_PLLM_VALUE, DEFAULT_PLLN_VALUE, DEFAULT_PLLP_VALUE, DEFAULT_PLLQ_VALUE};
+use crate::rcc::{PLLPDivider, PLLQDivider, PllSource};
 
-use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
+use kernel::utilities::cells::OptionalCell;
 
 use core::cell::Cell;
 use core::marker::PhantomData;

@@ -7,12 +7,12 @@
 use core::marker::PhantomData;
 use core::num::NonZeroU32;
 
+use kernel::ErrorCode;
 use kernel::hil::time::{self, Alarm, ConvertTicks, Frequency, Ticks, Ticks64, Time};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, register_structs};
 use rv32i::machine_timer::MachineTimer;
 
 register_structs! {

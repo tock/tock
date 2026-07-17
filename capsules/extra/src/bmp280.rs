@@ -11,12 +11,12 @@
 //! Not implemented: pressure
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::i2c;
 use kernel::hil::time::{Alarm, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 pub static BASE_ADDR: u8 = 0x76;
 
@@ -81,7 +81,7 @@ impl CalibrationData {
         let dig_t1 = self.dig_t1 as i32; // same, 16-bits
         let dig_t2 = self.dig_t2 as i32; // same, 16-bits
         let dig_t3 = self.dig_t3 as i32; // same, 16-bits
-                                         // From the datasheet
+        // From the datasheet
         let var1 = (((temp >> 3) - (dig_t1 << 1)) * dig_t2) >> 11;
         let a = (temp >> 4) - dig_t1;
         let var2 = (((a * a) >> 12) * dig_t3) >> 14;

@@ -138,9 +138,9 @@ pub struct AppLoader<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > AppLoader<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> AppLoader<S, L>
 {
     pub fn new(
         grant: Grant<
@@ -236,9 +236,9 @@ impl<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L>
 {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self, result: Result<(), ErrorCode>) {
@@ -299,9 +299,9 @@ impl<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L>
 {
     /// Let the requesting app know we are done loading the new process
     ///
@@ -346,9 +346,9 @@ impl<
 
 /// Provide an interface for userland.
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    > SyscallDriver for AppLoader<S, L>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> SyscallDriver for AppLoader<S, L>
 {
     /// Command interface.
     ///
@@ -454,15 +454,14 @@ impl<
                 match res {
                     Ok(()) => CommandReturn::success(),
                     Err(e) => {
-                        let command_result = if let Some(buffer) = self.buffer.take() {
+                        if let Some(buffer) = self.buffer.take() {
                             self.buffer.replace(buffer);
                             self.new_app_length.set(0);
                             self.current_process.take();
                             CommandReturn::failure(e)
                         } else {
                             CommandReturn::failure(ErrorCode::RESERVE)
-                        };
-                        command_result
+                        }
                     }
                 }
             }

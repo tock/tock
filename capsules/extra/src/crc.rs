@@ -150,7 +150,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
     }
 
     fn do_next_input(&self, data: &ReadableProcessSlice, len: usize) -> usize {
-        let count = self.crc_buffer.take().map_or(0, |kbuffer| {
+        self.crc_buffer.take().map_or(0, |kbuffer| {
             let copy_len = cmp::min(len, kbuffer.len());
             for i in 0..copy_len {
                 kbuffer[i] = data[i].get();
@@ -169,8 +169,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
             } else {
                 0
             }
-        });
-        count
+        })
     }
 
     // Start a new request. Return Ok(()) if one started, Err(FAIL) if not.

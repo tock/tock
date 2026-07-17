@@ -10,7 +10,7 @@ pub use stm32wle5xx::{
 
 pub mod chip_specs;
 pub mod interrupt_service;
-use cortexm4::{unhandled_interrupt, CortexM4, CortexMVariant};
+use cortexm4::{CortexM4, CortexMVariant, unhandled_interrupt};
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // `used` ensures that the symbol is kept until the final binary. However, as of

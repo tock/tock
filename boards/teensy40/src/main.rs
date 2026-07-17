@@ -16,9 +16,9 @@
 mod fcb;
 mod io;
 
+use imxrt10xx as imxrt1060;
 use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
-use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;

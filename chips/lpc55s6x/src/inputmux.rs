@@ -18,9 +18,9 @@
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
 use enum_primitive::{cast::FromPrimitive, enum_from_primitive};
-use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
 register_structs! {
     /// Input multiplexing (INPUT MUX)

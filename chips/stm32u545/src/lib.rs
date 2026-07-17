@@ -5,7 +5,7 @@
 #![no_std]
 
 use stm32u5xx::entropy::{RNG_CR_CONFIG_U545, RNG_HTCR_CONFIG_U545, RNG_NSCR_CONFIG_U545};
-pub use stm32u5xx::{chip, dma, entropy, exti, gpio, nvic, rcc, rsa, tim, usart};
+pub use stm32u5xx::{adc, chip, dma, entropy, exti, gpio, nvic, rcc, rsa, tim, usart};
 
 use cortexm33::{CortexM33, CortexMVariant};
 

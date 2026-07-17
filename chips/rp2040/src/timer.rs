@@ -3,15 +3,15 @@
 // Copyright Tock Contributors 2022.
 
 use cortexm0p::support::with_interrupts_disabled;
+use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 use crate::interrupts::TIMER_IRQ_0;
 
