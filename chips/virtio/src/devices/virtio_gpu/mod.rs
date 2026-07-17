@@ -1016,7 +1016,7 @@ impl<'a, F: DmaFence> Screen<'a> for VirtIOGPU<'a, '_, F> {
 
     fn set_brightness(&self, _brightness: u16) -> Result<(), ErrorCode> {
         // nop, not supported
-        Ok(())
+        Err(ErrorCode::NOSUPPORT)
     }
 
     fn set_power(&self, enabled: bool) -> Result<(), ErrorCode> {
