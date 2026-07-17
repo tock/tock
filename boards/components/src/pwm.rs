@@ -92,6 +92,9 @@ impl<P: 'static + pwm::Pwm> Component for PwmPinUserComponent<P> {
     }
 }
 
+pub type PwmDriverComponentType<const NUM_PINS: usize> =
+    capsules_extra::pwm::Pwm<'static, NUM_PINS>;
+
 pub struct PwmDriverComponent<const NUM_PINS: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

@@ -8,11 +8,11 @@ use crate::gpio_registers as regs;
 pub use crate::hsiom_registers::HsiomFunction;
 use crate::hsiom_registers::HsiomRegisters;
 use kernel::hil::gpio::{Configuration, Configure, Input, Interrupt, Output};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::interfaces::Readable;
 use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::StaticRef;
 
 const GPIO_BASE: StaticRef<regs::GpioRegisters> =
     unsafe { StaticRef::new(0x42410000 as *const regs::GpioRegisters) };

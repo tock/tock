@@ -145,6 +145,11 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSlice<'a, T> {
         self.slice.as_ptr()
     }
 
+    /// Returns the address of the slice to pass to DMA hardware, without exposing provenance.
+    pub fn ptr_addr(&self) -> usize {
+        self.as_ptr().addr()
+    }
+
     /// Returns the length of the slice.
     pub fn len(&self) -> usize {
         self.slice.len()
@@ -256,6 +261,11 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMut<'a, T
         self.slice_ptr.as_ptr().cast()
     }
 
+    /// Returns the address of the slice to pass to DMA hardware, without exposing provenance.
+    pub fn ptr_addr(&self) -> usize {
+        self.as_mut_ptr().addr()
+    }
+
     /// Returns the length of the slice.
     pub fn len(&self) -> usize {
         self.slice_ptr.len()
@@ -347,6 +357,11 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
         }
     }
 
+    /// Returns the address of the slice to pass to DMA hardware, without exposing provenance.
+    pub fn ptr_addr(&self) -> usize {
+        self.as_ptr().addr()
+    }
+
     /// Returns the length of the wrapped slice reference.
     pub fn len(&self) -> usize {
         match self {
@@ -436,6 +451,11 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSlice<'a, T
     /// portion of the wrapped `SubSlice`.
     pub fn as_ptr(&self) -> *const T {
         self.sub_slice.as_ptr()
+    }
+
+    /// Returns the address of the slice to pass to DMA hardware, without exposing provenance.
+    pub fn ptr_addr(&self) -> usize {
+        self.as_ptr().addr()
     }
 
     /// Returns the length of the currently accessible range of the wrapped
@@ -573,6 +593,11 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMut<'a
         )
     }
 
+    /// Returns the address of the slice to pass to DMA hardware, without exposing provenance.
+    pub fn ptr_addr(&self) -> usize {
+        self.as_mut_ptr().addr()
+    }
+
     /// Returns the length of the active range of the wrapped [`SubSliceMut`].
     pub fn len(&self) -> usize {
         core::cmp::min(
@@ -688,6 +713,11 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImm
                 dma_sub_slice_mut.as_mut_ptr().cast_const()
             }
         }
+    }
+
+    /// Returns the address of the slice to pass to DMA hardware, without exposing provenance.
+    pub fn ptr_addr(&self) -> usize {
+        self.as_ptr().addr()
     }
 
     /// Returns the length of the currently accessible range of the wrapped

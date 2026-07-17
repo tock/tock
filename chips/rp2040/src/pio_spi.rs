@@ -10,13 +10,13 @@ use crate::clocks::{self};
 use crate::pio::{Pio, PioRxClient, PioTxClient, SMNumber, StateMachineConfiguration};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::spi::cs::{ChipSelectPolar, Polarity};
 use kernel::hil::spi::SpiMasterClient;
+use kernel::hil::spi::cs::{ChipSelectPolar, Polarity};
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
-use kernel::{hil, ErrorCode};
+use kernel::{ErrorCode, hil};
 
 // Since auto push / pull is set to 8 for the purposes of writing in bytes
 // rather than words, values read in have to be bitshifted by 24

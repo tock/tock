@@ -6,7 +6,7 @@
 name = "tock-cells"
 version = "0.1.0"
 authors = ["Tock Project Developers <devel@lists.tockos.org>"]
-edition = "2021"
+edition = "2024"
 
 
 [lints]

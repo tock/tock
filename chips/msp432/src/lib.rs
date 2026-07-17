@@ -4,7 +4,7 @@
 
 #![no_std]
 
-use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
+use cortexm4::{CortexM4, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
 pub mod adc;
 pub mod chip;

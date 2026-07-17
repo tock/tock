@@ -18,7 +18,7 @@
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules_extra::dfrobot_rainfall_sensor::{DFRobotRainFall, BUFFER_SIZE};
+use capsules_extra::dfrobot_rainfall_sensor::{BUFFER_SIZE, DFRobotRainFall};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;

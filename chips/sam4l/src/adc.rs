@@ -25,13 +25,13 @@ use crate::pm::{self, Clock, PBAClock};
 use crate::scif;
 use core::cell::Cell;
 use core::{cmp, mem, slice};
+use kernel::ErrorCode;
 use kernel::hil;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 
 /// Representation of an ADC channel on the SAM4L.
 #[derive(PartialEq)]

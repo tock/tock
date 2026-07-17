@@ -65,8 +65,8 @@ mod key_value {
 }
 
 mod protections_and_controller {
-    use crate::tests::run_kernel_op;
     use crate::PERIPHERALS;
+    use crate::tests::run_kernel_op;
     use core::cell::Cell;
     use kernel::debug;
     use kernel::hil;
@@ -352,14 +352,16 @@ mod protections_and_controller {
                 Err(ErrorCode::NOSUPPORT)
             );
             // Set Perms
-            assert!(flash_ctl
-                .mp_set_region_perms(
-                    base_page_addr,
-                    base_page_addr.saturating_add(valid_num_pages * PAGE_SIZE),
-                    valid_region,
-                    &cfg_set
-                )
-                .is_ok());
+            assert!(
+                flash_ctl
+                    .mp_set_region_perms(
+                        base_page_addr,
+                        base_page_addr.saturating_add(valid_num_pages * PAGE_SIZE),
+                        valid_region,
+                        &cfg_set
+                    )
+                    .is_ok()
+            );
             // Check Perms
             assert_eq!(
                 flash_ctl.mp_read_region_perms(valid_region).unwrap(),
@@ -412,14 +414,16 @@ mod protections_and_controller {
                 he_en: true,
             };
             // Set Perms
-            assert!(flash_ctl
-                .mp_set_region_perms(
-                    base_page_addr,
-                    base_page_addr.saturating_add(num_pages * PAGE_SIZE),
-                    region,
-                    &cfg_set
-                )
-                .is_ok());
+            assert!(
+                flash_ctl
+                    .mp_set_region_perms(
+                        base_page_addr,
+                        base_page_addr.saturating_add(num_pages * PAGE_SIZE),
+                        region,
+                        &cfg_set
+                    )
+                    .is_ok()
+            );
             // Check Perms
             assert_eq!(flash_ctl.mp_read_region_perms(region).unwrap(), cfg_set);
             // Lock Config - Expect Fail

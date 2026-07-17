@@ -48,12 +48,12 @@ pub struct ScreenOnLedComponent<
 }
 
 impl<
-        S: hil::screen::Screen<'static>,
-        const NUM_LEDS: usize,
-        const SCREEN_WIDTH: usize,
-        const SCREEN_HEIGHT: usize,
-        const BUFFER_LENGTH: usize,
-    > ScreenOnLedComponent<S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT, BUFFER_LENGTH>
+    S: hil::screen::Screen<'static>,
+    const NUM_LEDS: usize,
+    const SCREEN_WIDTH: usize,
+    const SCREEN_HEIGHT: usize,
+    const BUFFER_LENGTH: usize,
+> ScreenOnLedComponent<S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT, BUFFER_LENGTH>
 {
     pub fn new(screen: &'static S) -> Self {
         Self { screen }
@@ -61,12 +61,12 @@ impl<
 }
 
 impl<
-        S: hil::screen::Screen<'static> + 'static,
-        const NUM_LEDS: usize,
-        const SCREEN_WIDTH: usize,
-        const SCREEN_HEIGHT: usize,
-        const BUFFER_LENGTH: usize,
-    > Component for ScreenOnLedComponent<S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT, BUFFER_LENGTH>
+    S: hil::screen::Screen<'static> + 'static,
+    const NUM_LEDS: usize,
+    const SCREEN_WIDTH: usize,
+    const SCREEN_HEIGHT: usize,
+    const BUFFER_LENGTH: usize,
+> Component for ScreenOnLedComponent<S, NUM_LEDS, SCREEN_WIDTH, SCREEN_HEIGHT, BUFFER_LENGTH>
 {
     type StaticInput = (
         &'static mut MaybeUninit<[u8; BUFFER_LENGTH]>,

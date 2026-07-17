@@ -4,8 +4,8 @@
 
 //! Credential checker wrapper that does not require valid credentials.
 
-use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
 use kernel::ErrorCode;
+use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
 use tock_tbf::types::TbfFooterV2Credentials;
 
 /// Wrapper struct that changes the return value from

@@ -25,7 +25,7 @@ use crate::uart::Uart;
 use crate::usb;
 use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
-use cortexm0p::{interrupt_mask, CortexM0P, CortexMVariant};
+use cortexm0p::{CortexM0P, CortexMVariant, interrupt_mask};
 
 #[repr(u8)]
 pub enum Processor {

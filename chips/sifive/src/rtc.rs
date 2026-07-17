@@ -4,9 +4,9 @@
 
 //! Real Time Clock (RTC) driver.
 
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
 #[repr(C)]
 pub struct RtcRegisters {

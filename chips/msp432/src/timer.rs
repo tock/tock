@@ -5,12 +5,12 @@
 //! Timer (TIMER_Ax)
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::time::{Alarm, AlarmClient, Counter, Frequency, Ticks, Ticks16, Time};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 pub const TIMER_A0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x4000_0000u32 as *const TimerRegisters) };

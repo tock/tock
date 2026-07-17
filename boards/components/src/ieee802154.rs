@@ -41,11 +41,11 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::radio::{self, MAX_BUF_SIZE};
-use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
+use kernel::hil::symmetric_encryption::{self, AES, AES128, AESCBC, AESCCM, AESCtr, AESECB};
 
 // This buffer is used as an intermediate buffer for AES CCM encryption. An
 // upper bound on the required size is `3 * BLOCK_SIZE + radio::MAX_BUF_SIZE`.
-pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
+pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES_BLOCK_SIZE + radio::MAX_BUF_SIZE;
 
 #[macro_export]
 macro_rules! mux_aes128ccm_component_static {
@@ -56,17 +56,17 @@ macro_rules! mux_aes128ccm_component_static {
 
 pub type MuxAes128ccmComponentType<A> = MuxAES128CCM<'static, A>;
 
-pub struct MuxAes128ccmComponent<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> {
+pub struct MuxAes128ccmComponent<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> {
     aes: &'static A,
 }
 
-impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> MuxAes128ccmComponent<A> {
+impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> MuxAes128ccmComponent<A> {
     pub fn new(aes: &'static A) -> Self {
         Self { aes }
     }
 }
 
-impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
+impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> Component
     for MuxAes128ccmComponent<A>
 {
     type StaticInput = &'static mut MaybeUninit<MuxAES128CCM<'static, A>>;
@@ -171,7 +171,7 @@ pub type Ieee802154ComponentMacDeviceType<R, A> = capsules_extra::ieee802154::fr
 
 pub struct Ieee802154Component<
     R: 'static + kernel::hil::radio::Radio<'static>,
-    A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
+    A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -183,9 +183,9 @@ pub struct Ieee802154Component<
 }
 
 impl<
-        R: 'static + kernel::hil::radio::Radio<'static>,
-        A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
-    > Ieee802154Component<R, A>
+    R: 'static + kernel::hil::radio::Radio<'static>,
+    A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB,
+> Ieee802154Component<R, A>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -209,9 +209,9 @@ impl<
 }
 
 impl<
-        R: 'static + kernel::hil::radio::Radio<'static>,
-        A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
-    > Component for Ieee802154Component<R, A>
+    R: 'static + kernel::hil::radio::Radio<'static>,
+    A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB,
+> Component for Ieee802154Component<R, A>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
@@ -313,7 +313,7 @@ impl<
                 aes_ccm,
                 kernel::utilities::leasable_buffer::SubSliceMut::new(radio_rx_crypt_buf),
             ));
-        AES128CCM::set_client(aes_ccm, mac_device);
+        AESCCM::set_client(aes_ccm, mac_device);
         awake_mac.set_transmit_client(mac_device);
         awake_mac.set_receive_client(mac_device);
         awake_mac.set_config_client(mac_device);

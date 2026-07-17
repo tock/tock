@@ -67,6 +67,7 @@ members = [
     "boards/configurations/nrf52840dk/nrf52840dk-test-invs",
     "boards/configurations/nrf52840dk/nrf52840dk-test-kernel",
     "boards/configurations/nrf52840dk/nrf52840dk-test-dynamic-app-load",
+    "boards/configurations/nrf52840dk/nrf52840dk-test-sha256",
     "boards/configurations/microbit_v2/microbit_v2-test-dynamic-app-load",
     "boards/tutorials/nrf52840dk-root-of-trust-tutorial",
     "boards/tutorials/nrf52840dk-dynamic-apps-and-policies",
@@ -98,6 +99,7 @@ members = [
     "chips/nrf52833",
     "chips/nrf52840",
     "chips/nrf5x",
+    "chips/nrf5x-unsafe",
     "chips/pci-x86",
     "chips/x86_q35",
     "chips/qemu_rv32_virt_chip",
@@ -343,7 +345,6 @@ iter_without_into_iter = "allow"
 
 
 semicolon_if_nothing_returned = "allow"
-mut_mut = "allow"
 cast_ptr_alignment = "allow"
 used_underscore_binding = "allow"
 checked_conversions = "allow"

@@ -32,7 +32,7 @@ use capsules_extra::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules_extra::net::network_capabilities::{
     AddrRange, NetworkCapability, PortRange, UdpVisibilityCapability,
 };
-use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
+use kernel::hil::symmetric_encryption::{self, AES, AES128, AESCBC, AESCCM, AESCtr, AESECB};
 
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_extra::net::thread::thread_utils::THREAD_PORT_NUMBER;
@@ -49,7 +49,7 @@ use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 
 const MAX_PAYLOAD_LEN: usize = super::udp_mux::MAX_PAYLOAD_LEN;
-pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
+pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES_BLOCK_SIZE + radio::MAX_BUF_SIZE;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -102,7 +102,7 @@ macro_rules! thread_network_component_static {
 }
 pub struct ThreadNetworkComponent<
     A: Alarm<'static> + 'static,
-    B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static,
+    B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -115,10 +115,8 @@ pub struct ThreadNetworkComponent<
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<
-        A: Alarm<'static> + 'static,
-        B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static,
-    > ThreadNetworkComponent<A, B>
+impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static>
+    ThreadNetworkComponent<A, B>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -146,10 +144,8 @@ impl<
     }
 }
 
-impl<
-        A: Alarm<'static> + 'static,
-        B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static,
-    > Component for ThreadNetworkComponent<A, B>
+impl<A: Alarm<'static> + 'static, B: AES<'static, AES128> + AESCtr + AESCBC + AESECB + 'static>
+    Component for ThreadNetworkComponent<A, B>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
@@ -241,7 +237,7 @@ impl<
         thread_virtual_alarm.set_alarm_client(thread_network_driver);
 
         udp_send.set_client(thread_network_driver);
-        AES128CCM::set_client(aes_ccm, thread_network_driver);
+        AESCCM::set_client(aes_ccm, thread_network_driver);
 
         let udp_driver_rcvr = s.6.write(UDPReceiver::new());
         udp_driver_rcvr.set_client(thread_network_driver);

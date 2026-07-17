@@ -23,7 +23,7 @@ pub mod iomuxc_snvs;
 pub mod lpi2c;
 pub mod lpuart;
 
-use cortexm7::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM7, CortexMVariant};
+use cortexm7::{CortexM7, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work

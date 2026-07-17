@@ -39,7 +39,7 @@ macro_rules! analog_comparator_component_helper {
         static_init!(
             [&'static $Channel; NUM_CHANNELS],
             [
-                $($P,)*
+                $(static_init!($Channel, $P),)*
             ]
         )
     };};
