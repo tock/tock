@@ -326,7 +326,7 @@ impl Kernel {
     /// apps.
     pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
         for process in self.get_process_iter() {
-            process.set_faulting_state(FaultReason::Unknown);
+            process.set_faulting_state(FaultReason::AppError);
         }
     }
 
@@ -589,7 +589,7 @@ impl Kernel {
                                 .is_err()
                             {
                                 // Let process deal with it as appropriate.
-                                process.set_faulting_state(FaultReason::Unknown);
+                                process.set_faulting_state(FaultReason::AppError);
                             }
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
@@ -609,10 +609,12 @@ impl Kernel {
                             continue;
                         }
                         None => {
-                            // Something went wrong when switching to this
-                            // process. Indicate this by putting it in a fault
-                            // state.
-                            process.set_faulting_state(FaultReason::Unknown);
+                            // Attempt to switch to an invalid process; this
+                            // should not happen since process liveness was
+                            // established when we matched `State::Running`.
+                            if process.is_running() {
+                                process.set_faulting_state(FaultReason::KernelError);
+                            }
                         }
                     }
                 }

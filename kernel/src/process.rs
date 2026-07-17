@@ -1021,8 +1021,11 @@ pub enum FaultReason {
     /// Something (e.g. exit syscall, process manager) forced process termination.
     ForcedTerminate,
 
-    /// Catch-all for unknown faults.
-    Unknown,
+    /// While executing, the app had a userspace fault (e.g. DivZero, OOM).
+    AppError,
+
+    /// Some kernel invariant was violated and the process can no longer execute.
+    KernelError,
 }
 
 /// States a process could previously have been in when stopped.

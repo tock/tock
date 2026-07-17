@@ -744,7 +744,11 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn set_faulting_state(&self, reason: FaultReason) {
-        self.state.set(State::Faulting(reason))
+        // Once a process starts faulting, a few things might go wrong before
+        // that is actually handled. We preserve the original fault cause here.
+        if !matches!(self.get_state(), State::Faulting(_)) {
+            self.state.set(State::Faulting(reason));
+        }
     }
 
     fn resolve_faulting_state(&self, reason: FaultReason) {
@@ -753,7 +757,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         let action = match reason {
             FaultReason::ForcedTerminate => FaultAction::Terminate,
             FaultReason::ForcedRestart => FaultAction::Restart,
-            FaultReason::Unknown => self.fault_policy.action(self),
+            FaultReason::AppError | FaultReason::KernelError => self.fault_policy.action(self),
         };
         match action {
             FaultAction::Panic => {
@@ -1472,14 +1476,16 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             Some(Err(())) => {
                 // If we get an `Err`, then the UKB implementation could not set
                 // the return value, likely because the process's stack is no
-                // longer accessible to it. All we can do is fault.
-                self.set_faulting_state(FaultReason::Unknown);
+                // longer accessible to it. In spirit, this is the app
+                // attempting to write to memory it does not own, so we mark it
+                // as an AppError.
+                self.set_faulting_state(FaultReason::AppError);
             }
 
             None => {
                 // We should never be here since `stored_state` should always be
                 // occupied.
-                self.set_faulting_state(FaultReason::Unknown);
+                self.set_faulting_state(FaultReason::KernelError);
             }
         }
     }
@@ -1518,15 +1524,15 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // If we got an Error, then there was likely not enough room on
                 // the stack to allow the process to execute this function given
                 // the details of the particular architecture this is running
-                // on. This process has essentially faulted, so we mark it as
-                // such.
-                self.set_faulting_state(FaultReason::Unknown);
+                // on. In spirit, this is the app attempting to write to memory
+                // it does not own, so we mark it as an AppError.
+                self.set_faulting_state(FaultReason::AppError);
             }
 
             None => {
                 // We should never be here since `stored_state` should always be
                 // occupied.
-                self.set_faulting_state(FaultReason::Unknown);
+                self.set_faulting_state(FaultReason::KernelError);
             }
         }
     }
