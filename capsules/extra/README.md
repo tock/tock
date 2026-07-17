@@ -182,7 +182,7 @@ Other capsules that implement reusable logic.
 - **[Log Storage](src/log.rs)**: Log storage abstraction on flash devices.
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
-- **[Screen Adapters](src/screen/screen_adapters.rs)**: Adapters to convert
+- **[Screen Adapters](src/screen/screen_adapters)**: Adapters to convert
   pixel formats for implementations of the `Screen` HIL, such as
   `ScreenARGB8888ToMono8BitPage`.
 - **[Screen On Led](src/screen/screen_on_led.rs)**: Draw fake LEDs on the screen.
