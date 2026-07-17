@@ -6,10 +6,10 @@ use core::cell::Cell;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::{Client32, Continue, Entropy32};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 // specified in the documentation (NIST compliant RNG configuration table in AN4230 available from www.st.com.)
 // that values for the CR, HTCR and NSCR should be 0x00F11F00, 0x76B3 and 0x24C2 respectivly. CR config

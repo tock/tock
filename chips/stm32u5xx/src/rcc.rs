@@ -12,12 +12,7 @@ register_structs! {
         /// Control register
         (0x000 => cr: ReadWrite<u32, CR::Register>),
 
-        (0x004 => _reserved0: [u32; 24]),
-
-        /// AHB2 periferal reset register 1
-        (0x064 => ahb2rstr1: ReadWrite<u32, AHB2RSTR1::Register>),
-
-        (0x068 => _reserved1: [u32; 8]),
+        (0x004 => _reserved0: [u32; 33]),
 
         /// AHB1 peripheral clock enable register
         (0x088 => ahb1enr: ReadWrite<u32, AHB1ENR::Register>),
@@ -67,7 +62,7 @@ register_bitfields![u32,
         GPIOJEN OFFSET(9) NUMBITS(1) [],
 
         PKAEN OFFSET(19) NUMBITS(1) [],
-        TRNGEN  OFFSET(18) NUMBITS(1) []
+        TRNGEN  OFFSET(18) NUMBITS(1) [],
         ADC12EN OFFSET(10) NUMBITS(1) []
     ],
     pub AHB3ENR [
@@ -118,10 +113,6 @@ pub struct Rcc {
 impl Rcc {
     pub const fn new(base: StaticRef<RccRegisters>) -> Self {
         Self { registers: base }
-    }
-
-    pub fn enable_hsi48(&self) {
-        self.registers.cr.modify(CR::HSI48ON::SET);
     }
 
     pub fn enable_dma1(&self) {
