@@ -269,15 +269,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // memory map to make it easier to keep track:
     //
     // ```
-    //  8*XLEN_BYTES(sp):          <- original stack pointer
-    //  7*XLEN_BYTES(sp):
-    //  6*XLEN_BYTES(sp): x9  / s1
-    //  5*XLEN_BYTES(sp): x8  / s0 / fp
-    //  4*XLEN_BYTES(sp): x4  / tp
-    //  3*XLEN_BYTES(sp): x3  / gp
-    //  2*XLEN_BYTES(sp): x10 / a0 (*state, Per-process StoredState struct)
-    //  1*XLEN_BYTES(sp): custom trap handler address
-    //  0*XLEN_BYTES(sp): scratch space, having s1 written to by the trap handler
+    //  8*(XLEN/8)(sp):   <- original stack pointer
+    //  7*(XLEN/8)(sp):
+    //  6*(XLEN/8)(sp): x9  / s1
+    //  5*(XLEN/8)(sp): x8  / s0 / fp
+    //  4*(XLEN/8)(sp): x4  / tp
+    //  3*(XLEN/8)(sp): x3  / gp
+    //  2*(XLEN/8)(sp): x10 / a0 (*state, Per-process StoredState struct)
+    //  1*(XLEN/8)(sp): custom trap handler address
+    //  0*(XLEN/8)(sp): scratch space, having s1 written to by the trap handler
     //                    <- new stack pointer
     // ```
     //
@@ -298,11 +298,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                                   // app returns to the kernel so we can store its
                                   // registers.
 
-    // Load the address of `_start_app_trap` into `1*XLEN_BYTES(sp)`. We swap our
+    // Load the address of `_start_app_trap` into `1*(XLEN/8)(sp)`. We swap our
     // stack pointer into the mscratch CSR and the trap handler will load
     // and jump to the address at this offset.
     la    t0, 100f                // t0 = _start_app_trap
-    sx    t0, 1*({XLEN}/8)(sp)    // 1*XLEN_BYTES(sp) = t0 = _start_app_trap
+    sx    t0, 1*({XLEN}/8)(sp)    // riscv32: *(stackptr + (1*4)) = t0 (_start_app_trap), riscv64: *(stackptr +  (1*8)) = t0 (_start_app_trap)
 
     // sx x0, 0*({XLEN}/8)(sp)    // Reserved as scratch space for the trap handler
 
@@ -333,11 +333,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     // Execute `_start_app_trap` on a trap by setting the mscratch trap
     // handler address to our current stack pointer. This stack pointer,
-    // at `1*XLEN_BYTES(sp)`, holds the address of `_start_app_trap`.
+    // at `1*(XLEN/8)(sp)`, holds the address of `_start_app_trap`.
     //
     // Upon a trap, the global trap handler (_start_trap) will swap `s0`
     // with the `mscratch` CSR and, if it contains a non-zero address,
-    // jump to the address that is now at `1*XLEN_BYTES(s0)`. This allows us to
+    // jump to the address that is now at `1*(XLEN/8)(s0)`. This allows us to
     // hook a custom trap handler that saves all userspace state:
     csrw  mscratch, sp            // Store `sp` in mscratch CSR. Discard the
                                   // prior value, must have been set to zero.
@@ -417,7 +417,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // pointer. Thus `s0` is now the address of our stack pointer.
     // The global trap handler further clobbered `s1`, which now contains
     // the address of `_start_app_trap`. The app's `s1` is saved at
-    // `0*XLEN_BYTES(s0)`.
+    // `0*(XLEN/*)(s0)`.
     //
     // Thus we can clobber `s1` and load the address of the per-process
     // stored state:
@@ -441,7 +441,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     sx    x6,  5*({XLEN}/8)(sp)   // t1
     sx    x7,  6*({XLEN}/8)(sp)   // t2
     // ------------------------> s0, in mscratch right now
-    // ------------------------> s1, stored at 0*XLEN_BYTES(s0) right now
+    // ------------------------> s1, stored at 0*(XLEN/8)(s0) right now
     sx   x10,  9*({XLEN}/8)(sp)   // a0
     sx   x11, 10*({XLEN}/8)(sp)   // a1
     sx   x12, 11*({XLEN}/8)(sp)   // a2
@@ -513,7 +513,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // the mret instruction, which leaves the trap handler.
     la    s0, 300f                // Load _return_to_kernel into t0.
     csrrw s0, mepc, s0            // s0 = mepc[app pc] = _return_to_kernel
-    sx    s0, 31*({XLEN}/8)(s1)   // state.pc = s0
+    sx    s0, 31*({XLEN}/8)(s1)   // state.pc = s0 (Store app's pc in stored state struct.)
 
     // Save mtval to the stored state struct
     csrr  s0, mtval               // s0 = mtval
@@ -577,7 +577,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // its not one of the register's we've already restored:
     la   s2, _trap_handler_active // s2 = addr(_trap_handler_active)
     csrr t0, mhartid              // t0 = hartid
-    slli t0, t0, ({XLEN_LOG2}-3)  // t0 = t0 * XLEN_BYTES
+    slli t0, t0, ({XLEN_LOG2}-3)  // t0 = t0 * (XLEN/8)
     add  s2, s2, t0               // s2 = addr(_trap_handler_active[hartid])
 
     // Indicate that we are in a trap handler on this hart:
