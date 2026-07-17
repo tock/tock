@@ -17,6 +17,8 @@ use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
+
+use crate::ipc::ipc_identifier::IpcIdentifier;
 pub const DRIVER_NUM: usize = driver::NUM::IpcRegistryStringName as usize;
 
 /// Ids for read-only allow buffers
@@ -42,9 +44,16 @@ mod upcall {
 const MAX_STRING_LEN: usize = 20;
 
 /// Per-process metadata
-#[derive(Default)]
 pub struct App {
     registered_name: [u8; MAX_STRING_LEN],
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            registered_name: [0; MAX_STRING_LEN],
+        }
+    }
 }
 
 pub struct IpcRegistryStringName {
@@ -71,6 +80,8 @@ impl IpcRegistryStringName {
     fn register(&self, processid: ProcessId) -> Result<(), ErrorCode> {
         // If registration validation is desired, that would go here before
         // saving the name
+
+        // TODO: don't we have to check that the name is unique?
 
         // Save allowed name for discovery
         self.apps.enter(processid, |app, kerneldata| {
@@ -142,8 +153,11 @@ impl IpcRegistryStringName {
 
                     // Schedule discovery complete callback
                     self.apps.enter(processid, |_, kerneldata| {
-                        let _ = kerneldata
-                            .schedule_upcall(upcall::DISCOVERY_COMPLETE, (1, otherid.id(), 0));
+                        let ipc_id = IpcIdentifier::new_from_processid(otherid);
+                        let _ = kerneldata.schedule_upcall(
+                            upcall::DISCOVERY_COMPLETE,
+                            (1, ipc_id.lower() as usize, ipc_id.upper() as usize),
+                        );
                     })?;
 
                     // Discovery complete

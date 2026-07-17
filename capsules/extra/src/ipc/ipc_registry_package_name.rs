@@ -21,6 +21,8 @@ use kernel::{ErrorCode, Kernel, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
+
+use crate::ipc::ipc_identifier::IpcIdentifier;
 pub const DRIVER_NUM: usize = driver::NUM::IpcRegistryPackageName as usize;
 
 /// Ids for read-only allow buffers
@@ -164,8 +166,11 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
 
                         // Schedule discovery complete callback
                         self.apps.enter(processid, |_, kerneldata| {
-                            let _ = kerneldata
-                                .schedule_upcall(upcall::DISCOVERY_COMPLETE, (1, otherid.id(), 0));
+                            let ipc_id = IpcIdentifier::new_from_processid(otherid);
+                            let _ = kerneldata.schedule_upcall(
+                                upcall::DISCOVERY_COMPLETE,
+                                (1, ipc_id.lower() as usize, ipc_id.upper() as usize),
+                            );
                         })?;
 
                         // There won't be another match, so return early
