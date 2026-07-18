@@ -16,6 +16,7 @@ use kernel::ProcessId;
 ///
 /// This should be treated as an opaque type, with no consideration of the
 /// internal implementation. The internal implementation is subject to change.
+#[derive(Clone, Copy)]
 pub struct IpcIdentifier {
     process_id_num: u32,
     short_id_num: u32,

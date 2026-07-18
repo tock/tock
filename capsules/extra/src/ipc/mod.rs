@@ -7,3 +7,4 @@
 pub mod ipc_identifier;
 pub mod ipc_registry_package_name;
 pub mod ipc_registry_string_name;
+pub mod ipc_synchronous_mailbox;

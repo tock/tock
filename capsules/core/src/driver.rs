@@ -106,5 +106,6 @@ pub enum NUM {
     // IPC Mechanisms
     IpcRegistryStringName  = 0xA0000,
     IpcRegistryPackageName = 0xA0001,
+    IpcSynchronousMailbox  = 0xA0010,
 }
 }
