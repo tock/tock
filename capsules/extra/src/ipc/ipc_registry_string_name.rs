@@ -97,6 +97,8 @@ impl IpcRegistryStringName {
                             buf[0..n].copy_to_slice(&mut app.registered_name[0..n]);
 
                             // Schedule registration complete callback
+                            // TODO: change all these upcalls to be ErrorCode
+                            // equivalent (0 for success and ErrorCode for failure)
                             let _ = kerneldata
                                 .schedule_upcall(upcall::REGISTRATION_COMPLETE, (1, 0, 0));
                             Ok(())

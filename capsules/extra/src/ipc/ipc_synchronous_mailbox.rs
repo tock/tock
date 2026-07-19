@@ -22,6 +22,7 @@
 //!
 //! TODO add example of how to instantiate
 
+use kernel::debug;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -58,7 +59,8 @@ mod upcall {
 }
 
 /// Per-process metadata
-#[derive(Default)]
+//TODO: remove debug here
+#[derive(Default, Debug)]
 pub struct App {
     client_transaction: Option<IpcIdentifier>,
     server_transaction: Option<IpcIdentifier>,
@@ -112,6 +114,7 @@ impl IpcSynchronousMailbox {
                 // Send request-waiting upcall to destination with client ID
                 self.apps.enter(cntr.processid(), |_, server_kerneldata| {
                     let client_ipc_id = IpcIdentifier::new_from_processid(processid);
+                    debug!("KERNEL: sending upcall to {}", cntr.processid().id());
                     let _ = server_kerneldata.schedule_upcall(
                         upcall::SERVER_REQUEST_WAITING,
                         (
@@ -299,7 +302,8 @@ impl IpcSynchronousMailbox {
 
         // Iterate client apps looking for a transaction in progress with this
         // app as a server destination
-        // TODO: this should really be a round-robin iteration... somehow
+        // TODO: this should really be a round-robin iteration... I have a
+        // design for that
         let mut client: Option<ProcessId> = None;
         for cntr in self.apps.iter() {
             // skip this process
@@ -323,7 +327,7 @@ impl IpcSynchronousMailbox {
             // No app had a request.
             // This isn't really a failure at all. Userspace can ignore it.
             // But importantly, there is no data in the buffer to read.
-            Ok(CommandReturn::failure(ErrorCode::NODEVICE))
+            Ok(CommandReturn::failure_u64(ErrorCode::NODEVICE, 0))
         }
     }
 
@@ -369,7 +373,7 @@ impl IpcSynchronousMailbox {
             // No app had a request.
             // This isn't really a failure at all. Userspace can ignore it.
             // But importantly, there is no data in the buffer to read.
-            Ok(CommandReturn::failure(ErrorCode::NODEVICE))
+            Ok(CommandReturn::failure_u64(ErrorCode::NODEVICE, 0))
         }
     }
 
@@ -423,64 +427,64 @@ impl IpcSynchronousMailbox {
         }
     }
 
-    fn send_response(
-        &self,
-        processid: ProcessId,
-        client_ipc_id: IpcIdentifier,
-    ) -> Result<(), ErrorCode> {
+    fn send_response(&self, processid: ProcessId) -> Result<(), ErrorCode> {
         // Note: a server may only respond to the currently active transaction
         // and may not activate a new transaction until the current one has been
         // responded to
 
-        // Check if a server transaction is in progress with this same client,
+        // Check if a server transaction is in progress and get client,
         // and fail if not
-        self.apps
-            .enter(processid, |app, _| match app.server_transaction {
-                Some(transaction_ipc_id) => {
-                    if transaction_ipc_id == client_ipc_id {
-                        // Transaction active with this client
-                        // Clear the transaction now as we'll be handling it
-                        app.server_transaction = None;
-                        Ok(())
-                    } else {
-                        // Transaction active, but with different client
-                        Err(ErrorCode::ALREADY)
-                    }
+        let mut transaction: Option<IpcIdentifier> = None;
+        self.apps.enter(processid, |app, _| {
+            // Save transaction and clear it
+            transaction = app.server_transaction;
+            app.server_transaction = None;
+        })?;
+
+        if let Some(client_ipc_id) = transaction {
+            debug!(
+                "KERNEL: sending response to client {}",
+                Into::<u64>::into(client_ipc_id)
+            );
+            // Check that client_ipc_id is a valid app
+            let mut client: Option<ProcessId> = None;
+            for cntr in self.apps.iter() {
+                // skip this process, look for matching ipc_id
+                if cntr.processid() != processid
+                    && IpcIdentifier::new_from_processid(cntr.processid()) == client_ipc_id
+                {
+                    // Found the client, need to check if they have a transaction
+                    // with us still
+                    self.apps.enter(cntr.processid(), |client_app, _| {
+                        debug!(
+                            "KERNEL: found client, they have transaction: {:?}",
+                            client_app.client_transaction
+                        );
+                        if let Some(transaction_ipc_id) = client_app.client_transaction
+                            && transaction_ipc_id == IpcIdentifier::new_from_processid(processid)
+                        {
+                            // Target has a transaction with us! Ready to do the copy
+                            client = Some(cntr.processid());
+                        }
+                    })?;
+
+                    // We found the client, so no need to search further
+                    break;
                 }
-                None => Err(ErrorCode::INVAL), // No transaction active
-            })??;
-
-        // Check that destination_id_num is a valid app
-        let mut client: Option<ProcessId> = None;
-        for cntr in self.apps.iter() {
-            // skip this process, look for matching ipc_id
-            if cntr.processid() != processid
-                && IpcIdentifier::new_from_processid(cntr.processid()) == client_ipc_id
-            {
-                // Found the client, need to check if they have a transaction
-                // with us still
-                self.apps.enter(cntr.processid(), |client_app, _| {
-                    if let Some(transaction_ipc_id) = client_app.server_transaction
-                        && transaction_ipc_id == IpcIdentifier::new_from_processid(processid)
-                    {
-                        // Target has a transaction with us! Ready to do the copy
-                        client = Some(cntr.processid());
-                    }
-                })?;
-
-                // We found the client, so no need to search further
-                break;
             }
-        }
 
-        if let Some(client_processid) = client {
-            // Found response target. Attempt the data copy
-            // Also clears client transaction and sends upcall to client if successful
-            self.handle_response_copy(processid, client_processid)
+            if let Some(client_processid) = client {
+                // Found response target. Attempt the data copy
+                // Also clears client transaction and sends upcall to client if successful
+                self.handle_response_copy(processid, client_processid)
+            } else {
+                // Client transaction was gone? Maybe it was canceled.
+                // This isn't really a failure at all. Userspace can ignore it.
+                Err(ErrorCode::NODEVICE)
+            }
         } else {
-            // Client transaction was gone? Maybe it was canceled.
-            // This isn't really a failure at all. Userspace can ignore it.
-            Err(ErrorCode::NODEVICE)
+            // No transaction active
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -512,6 +516,12 @@ impl SyscallDriver for IpcSynchronousMailbox {
         data2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
+        debug!(
+            "KERNEL: Got request {} from {}",
+            command_num,
+            processid.id()
+        );
+
         let ipc_id = IpcIdentifier::new_from_halves(data1 as u32, data2 as u32);
 
         match command_num {
@@ -524,19 +534,21 @@ impl SyscallDriver for IpcSynchronousMailbox {
             2 => self.cancel_request(processid).into(),
 
             // Server
+            // TODO: change these to just use results and do all CommandReturn
+            // work out here. That'll ensure I don't use multiple types accidentally
             3 => match self.get_any_next_request(processid) {
                 Ok(cmd) => cmd,
-                Err(err) => CommandReturn::failure(err),
+                Err(err) => CommandReturn::failure_u64(err, 0),
             },
 
             // Server
             4 => match self.get_specific_next_request(processid, ipc_id) {
                 Ok(cmd) => cmd,
-                Err(err) => CommandReturn::failure(err),
+                Err(err) => CommandReturn::failure_u64(err, 0),
             },
 
             // Server
-            5 => self.send_response(processid, ipc_id).into(),
+            5 => self.send_response(processid).into(),
 
             // Default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
