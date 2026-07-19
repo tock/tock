@@ -8,7 +8,9 @@
 
 use core::fmt::Write;
 
+pub mod isr;
 pub mod mpu_v8m;
+pub mod syscall;
 
 pub mod mpu {
     use crate::mpu_v8m;
@@ -42,10 +44,10 @@ pub use cortexm::unhandled_interrupt;
 pub enum CortexM33 {}
 
 impl cortexm::CortexMVariant for CortexM33 {
-    const GENERIC_ISR: unsafe extern "C" fn() = cortexv7m::generic_isr_arm_v7m;
-    const SYSTICK_HANDLER: unsafe extern "C" fn() = cortexv7m::systick_handler_arm_v7m;
-    const SVC_HANDLER: unsafe extern "C" fn() = cortexv7m::svc_handler_arm_v7m;
-    const HARD_FAULT_HANDLER: unsafe extern "C" fn() = cortexv7m::hard_fault_handler_arm_v7m;
+    const GENERIC_ISR: unsafe extern "C" fn() = isr::generic_isr;
+    const SYSTICK_HANDLER: unsafe extern "C" fn() = isr::systick_handler;
+    const SVC_HANDLER: unsafe extern "C" fn() = isr::svc_handler;
+    const HARD_FAULT_HANDLER: unsafe extern "C" fn() = isr::hard_fault_handler_arm_v7m;
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe fn switch_to_user(
@@ -67,8 +69,4 @@ impl cortexm::CortexMVariant for CortexM33 {
     unsafe fn print_cortexm_state(writer: &mut dyn Write) {
         cortexm::print_cortexm_state(writer)
     }
-}
-
-pub mod syscall {
-    pub type SysCall = cortexm::syscall::SysCall<crate::CortexM33>;
 }

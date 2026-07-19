@@ -15,7 +15,7 @@ use core::ops::Range;
 use core::ptr;
 use kernel::errorcode::ErrorCode;
 
-use crate::CortexMVariant;
+use crate::{CortexM33, CortexMVariant};
 
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
@@ -51,6 +51,17 @@ pub static mut APP_HARD_FAULT: UnsafeCell<usize> = UnsafeCell::new(0);
 #[no_mangle]
 #[used]
 pub static mut SCB_REGISTERS: UnsafeCell<[u32; 5]> = UnsafeCell::new([0; 5]);
+
+/// Tracks whether a process was executing in the secure world when it was
+/// preempted. Set by the interrupt/svc handlers and read/written by
+/// `switch_to_process` to save/restore per-process secure state.
+/// Detected via bit 6 of EXC_RETURN.
+///
+/// Because this is a global `static mut` variable, we can only access it from
+/// inline assembly.
+#[no_mangle]
+#[used]
+pub static mut PROCESS_WAS_SECURE: UnsafeCell<usize> = UnsafeCell::new(0);
 
 /// Get the `APP_HARD_FAULT` flag.
 ///
@@ -170,6 +181,63 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     (_ccr, cfsr, hfsr, mmfar, bfar)
 }
 
+/// Set `PROCESS_WAS_SECURE` flag.
+///
+/// This indicates that the process was in a secure state when pre-empted.
+///
+/// We need to do this in assembly because we cannot have Rust access
+/// the global variable.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub fn set_global_process_was_secure(secure: usize) {
+    // # Safety
+    //
+    // This is safe as long as the static memory is defined, of the correct
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
+    unsafe {
+        core::arch::asm!(
+            "
+    ldr  r1, =PROCESS_WAS_SECURE      // r1 = &PROCESS_WAS_SECURE
+    str  {0}, [r1]                    // *PROCESS_WAS_SECURE = secure
+            ",
+            in(reg) secure,
+            out("r1") _,
+        );
+    }
+}
+
+/// Get the `PROCESS_WAS_SECURE` flag.
+///
+/// This indicates that the process was in a secure state when pre-empted.
+///
+/// We need to do this in assembly because we cannot have Rust access
+/// the global variable.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub fn get_global_process_was_secure() -> usize {
+    let secure: usize;
+
+    // # Safety
+    //
+    // This is safe as long as the static memory is defined, of the correct
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
+    unsafe {
+        core::arch::asm!(
+            "
+    ldr  r0, =PROCESS_WAS_SECURE      // r0 = &PROCESS_WAS_SECURE
+    movs r1, #0                       // r1 = 0
+    ldr  r2, [r0]                     // r2 = *PROCESS_WAS_SECURE
+    str  r1, [r0]                     // *PROCESS_WAS_SECURE = 0
+            ",
+            out("r0") _,
+            out("r1") _,
+            out("r2") secure,
+            // clobbers flags
+        );
+    }
+    secure
+}
+
 /// Dummy
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub fn get_global_app_hard_fault() -> usize {
@@ -188,6 +256,16 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     (0, 0, 0, 0, 0)
 }
 
+/// Dummy
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn get_global_process_was_secure() -> usize {
+    0
+}
+
+/// Dummy
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn set_global_process_was_secure(_secure: usize) {}
+
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
 #[derive(Default)]
@@ -196,15 +274,18 @@ pub struct CortexMStoredState {
     yield_pc: usize,
     psr: usize,
     psp: usize,
+    /// Whether the process was executing in the secure world when it was
+    /// last preempted. Used to restore bit 6 of EXC_RETURN on context switch.
+    secure: usize,
 }
 
 // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
 const SVC_FRAME_SIZE: usize = 32;
 
 /// Values for encoding the stored state buffer in a binary slice.
-const VERSION: usize = 1;
+const VERSION: usize = 2;
 const STORED_STATE_SIZE: usize = size_of::<CortexMStoredState>();
-const TAG: [u8; 4] = *b"ctxm";
+const TAG: [u8; 4] = [b'c', b't', b'x', b'm'];
 const METADATA_LEN: usize = 3;
 
 const VERSION_IDX: usize = 0;
@@ -215,6 +296,7 @@ const PSR_IDX: usize = 4;
 const PSP_IDX: usize = 5;
 const REGS_IDX: usize = 6;
 const REGS_RANGE: Range<usize> = REGS_IDX..REGS_IDX + 8;
+const SECURE_IDX: usize = REGS_IDX + 8;
 
 const USIZE_SZ: usize = size_of::<usize>();
 
@@ -251,6 +333,7 @@ impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
                 yield_pc: usize_from_u8_slice(ss, YIELDPC_IDX)?,
                 psr: usize_from_u8_slice(ss, PSR_IDX)?,
                 psp: usize_from_u8_slice(ss, PSP_IDX)?,
+                secure: usize_from_u8_slice(ss, SECURE_IDX)?,
             };
             for (i, v) in (REGS_RANGE).enumerate() {
                 res.regs[i] = usize_from_u8_slice(ss, v)?;
@@ -265,15 +348,15 @@ impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
 /// Implementation of the
 /// [`UserspaceKernelBoundary`](kernel::syscall::UserspaceKernelBoundary) for
 /// the Cortex-M non-floating point architecture.
-pub struct SysCall<A: CortexMVariant>(PhantomData<A>);
+pub struct SysCall(PhantomData<CortexM33>);
 
-impl<A: CortexMVariant> SysCall<A> {
-    pub const unsafe fn new() -> SysCall<A> {
+impl SysCall {
+    pub const unsafe fn new() -> SysCall {
         SysCall(PhantomData)
     }
 }
 
-impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> {
+impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     type StoredState = CortexMStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
@@ -295,6 +378,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         state.yield_pc = 0;
         state.psr = 0x01000000; // Set the Thumb bit and clear everything else.
         state.psp = app_brk as usize; // Set to top of process-accessible memory.
+        state.secure = 0;
 
         // Make sure there's enough room on the stack for the initial SVC frame.
         if (app_brk as usize - accessible_memory_start as usize) < SVC_FRAME_SIZE {
@@ -413,10 +497,18 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         app_brk: *const u8,
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
-        let new_stack_pointer = A::switch_to_user(state.psp as *const usize, &mut state.regs);
+        // Set PROCESS_WAS_SECURE so the SVC handler can restore the secure
+        // state bit (bit 6 of EXC_RETURN) when switching to the process.
+        set_global_process_was_secure(state.secure);
+
+        let new_stack_pointer =
+            CortexM33::switch_to_user(state.psp as *const usize, &mut state.regs);
 
         // We need to keep track of the current stack pointer.
         state.psp = new_stack_pointer as usize;
+
+        // Read back whether the process was in the secure world when preempted.
+        state.secure = get_global_process_was_secure();
 
         // We need to validate that the stack pointer and the SVC frame are
         // within process accessible memory. Alignment is guaranteed by
@@ -604,8 +696,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             for (i, v) in state.regs.iter().enumerate() {
                 write_usize_to_u8_slice(*v, out, REGS_IDX + i);
             }
-            // + 3 for yield_pc, psr, psp
-            Ok((state.regs.len() + 3 + METADATA_LEN) * USIZE_SZ)
+            write_usize_to_u8_slice(state.secure, out, SECURE_IDX);
+            // + 4 for yield_pc, psr, psp, secure
+            Ok((state.regs.len() + 4 + METADATA_LEN) * USIZE_SZ)
         } else {
             Err(ErrorCode::SIZE)
         }
