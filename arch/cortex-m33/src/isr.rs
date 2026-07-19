@@ -46,6 +46,7 @@ pub unsafe extern "C" fn systick_handler() {
     // ensure we continue executing in the kernel we ensure the SPSEL bit is set
     // to 0 to use the main (kernel) stack.
     bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
+    bfc lr, #6, #1                    // LR = LR & !(0x1<<6)
 
     // This will resume in the switch_to_user function where application state
     // is saved and the scheduler can choose what to do next.
@@ -139,6 +140,7 @@ pub unsafe extern "C" fn svc_handler() {
     // ensure we continue executing in the kernel we ensure the SPSEL bit is set
     // to 0 to use the main (kernel) stack.
     bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
+    // Not clearing secure bit as secure `svc` instruction cannot be handled in non-secure
 
     // Return to the kernel.
     bx lr
@@ -223,6 +225,7 @@ pub unsafe extern "C" fn generic_isr() {
     // ensure we continue executing in the kernel we ensure the SPSEL bit is set
     // to 0 to use the main (kernel) stack.
     bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
+    bfc lr, #6, #1                    // LR = LR & !(0x1<<6)
 
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
