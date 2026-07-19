@@ -19,6 +19,7 @@ pub mod analog_sensor;
 pub mod apds9960;
 pub mod app_flash_driver;
 pub mod app_loader;
+pub mod app_software_watchdog;
 pub mod at24c_eeprom;
 pub mod atecc508a;
 pub mod ble_advertising_driver;
