@@ -42,6 +42,10 @@ pub static BASE_VECTORS_SECURE: [unsafe extern "C" fn(); 16] = [
     CortexM33Secure::SYSTICK_HANDLER, // SysTick
 ];
 
+#[cfg_attr(
+    all(target_arch = "arm", target_os = "none"),
+    link_section = ".vectors"
+)]
 pub static BASE_VECTORS_NON_SECURE: [unsafe extern "C" fn(); 16] = [
     _estack,
     initialize_ram_jump_to_main,

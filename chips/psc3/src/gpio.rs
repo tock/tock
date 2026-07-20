@@ -29,6 +29,12 @@ const PULL_DOWN: u32 = 3;
 const GPIO_HALF: usize = 4;
 const HSIOM_SEC_MASK: u32 = 0x1;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SecurityState {
+    Secure,
+    NonSecure,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum PsocPin {
     // Port 0
@@ -114,7 +120,8 @@ pub struct PsocPins<'a> {
 }
 
 impl<'a> PsocPins<'a> {
-    pub const fn new(use_secure_registers: bool) -> Self {
+    pub const fn new(registers_security: SecurityState) -> Self {
+        let use_secure_registers = registers_security;
         Self {
             pins: [
                 // Port 0: P0.0 to P0.1
@@ -361,6 +368,14 @@ impl<'a> PsocPins<'a> {
         }
     }
 
+    pub fn set_security(&self, state: SecurityState) {
+        for pin_opt in self.pins.iter() {
+            if let Some(pin) = pin_opt {
+                pin.set_security(state);
+            }
+        }
+    }
+
     pub fn get_pin(&self, searched_pin: PsocPin) -> &GpioPin<'a> {
         self.pins[searched_pin as usize].as_ref().unwrap()
     }
@@ -387,7 +402,7 @@ pub enum DriveMode {
 pub struct GpioPin<'a> {
     registers: StaticRef<regs::GpioRegisters>,
     hsiom_registers: StaticRef<HsiomRegisters>,
-    pub is_secure: bool,
+    pub security: SecurityState,
     pin: usize,
     port: usize,
 
@@ -437,20 +452,19 @@ pub struct PreConfig {
 
 impl GpioPin<'_> {
     pub const fn new(id: PsocPin) -> Self {
-        Self::new_with_tz_regs(id, false)
+        Self::new_with_tz_regs(id, SecurityState::NonSecure)
     }
 
-    pub const fn new_with_tz_regs(id: PsocPin, use_secure_registers: bool) -> Self {
-        let (registers, hsiom_registers) = if use_secure_registers {
-            (GPIO_BASE_SEC, HSIOM_BASE_SEC)
-        } else {
-            (GPIO_BASE, HSIOM_BASE)
+    pub const fn new_with_tz_regs(id: PsocPin, registers_security: SecurityState) -> Self {
+        let (registers, hsiom_registers) = match registers_security {
+            SecurityState::Secure => (GPIO_BASE_SEC, HSIOM_BASE_SEC),
+            SecurityState::NonSecure => (GPIO_BASE, HSIOM_BASE),
         };
 
         Self {
             registers,
             hsiom_registers,
-            is_secure: use_secure_registers,
+            security: registers_security,
             pin: (id as usize) % 8,
             port: (id as usize) / 8,
             client: OptionalCell::empty(),
@@ -458,9 +472,9 @@ impl GpioPin<'_> {
     }
 
     pub fn preconfigure(&self, preconfig: &PreConfig) {
-        let prev_non_sec = if self.is_secure {
+        let prev_non_sec = if self.security == SecurityState::Secure {
             let state = self.get_secure_port_nonsecure_pin();
-            self.set_secure_port_nonsecure_pin(false);
+            self.set_secure_port_nonsecure_pin(SecurityState::Secure);
             Some(state)
         } else {
             None
@@ -599,26 +613,33 @@ impl GpioPin<'_> {
         register.set((old_value & !mask) | (function_value & mask));
     }
 
-    fn set_secure_port_nonsecure_pin(&self, nonsecure: bool) {
+    fn set_secure_port_nonsecure_pin(&self, state: SecurityState) {
         let register = &self.hsiom_registers.secure_prts[self.port].secure_prt_nonsecure_mask;
         let pin_shift = self.pin as u32;
         let bit_mask = HSIOM_SEC_MASK << pin_shift;
-        let new_bit = (nonsecure as u32) << pin_shift;
+        let new_bit = match state {
+            SecurityState::Secure => 0,
+            SecurityState::NonSecure => 1,
+        } << pin_shift;
 
         let old_value = register.get();
         register.set((old_value & !bit_mask) | new_bit);
     }
 
-    fn get_secure_port_nonsecure_pin(&self) -> bool {
+    fn get_secure_port_nonsecure_pin(&self) -> SecurityState {
         let register = &self.hsiom_registers.secure_prts[self.port].secure_prt_nonsecure_mask;
         let pin_shift = self.pin as u32;
         let bit_mask = HSIOM_SEC_MASK << pin_shift;
-        (register.get() & bit_mask) != 0
+        if (register.get() & bit_mask) != 0 {
+            SecurityState::NonSecure
+        } else {
+            SecurityState::Secure
+        }
     }
 
-    pub fn set_nonsecure(&self, nonsecure: bool) {
-        if self.is_secure {
-            self.set_secure_port_nonsecure_pin(nonsecure);
+    pub fn set_security(&self, state: SecurityState) {
+        if self.security == SecurityState::Secure {
+            self.set_secure_port_nonsecure_pin(state);
         }
     }
 

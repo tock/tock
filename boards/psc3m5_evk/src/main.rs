@@ -202,9 +202,8 @@ pub unsafe fn start() -> (
         voh_sel: 0,
     };
 
-    let pin_p8_5 = peripherals.gpio.get_pin(gpio::PsocPin::P8_5);
-    pin_p8_5.preconfigure(&GPIO_CONFIG);
-    pin_p8_5.set_nonsecure(false);
+    let debug_led_pin = peripherals.gpio.get_pin(gpio::PsocPin::P8_5);
+    debug_led_pin.preconfigure(&GPIO_CONFIG);
 
     let chip = unsafe {
         static_init!(
@@ -336,7 +335,6 @@ pub unsafe fn start() -> (
 
     let button_pin = peripherals.gpio.get_pin(gpio::PsocPin::P5_0);
     button_pin.preconfigure(&GPIO_CONFIG);
-    pin_p8_5.set_nonsecure(false);
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
