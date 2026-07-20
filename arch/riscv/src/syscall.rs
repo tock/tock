@@ -188,28 +188,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // Set the register state for the application when it starts
         // executing. These are the argument registers.
 
-        // We need to use a bunch of split_at_mut's to have multiple
-        // mutable borrows into the same slice at the same time.
-        //
-        // Since the compiler knows the size of this slice, and these
-        // calls will be optimized out, we use one to get to the first
-        // register (A0)
-        let (_, r) = state.regs.split_at_mut(R_A0);
+        // We know these indexes are valid and disjoint, the error
+        // case will never actually happen.
+        let [a0, a1, a2, a3] = state
+            .regs
+            .get_disjoint_mut([R_A0, R_A1, R_A2, R_A3])
+            .or(Err(()))?;
 
-        // This comes with the assumption that the respective
-        // registers are stored at monotonically increasing indices
-        // in the register slice
-        let (a0slice, r) = r.split_at_mut(R_A1 - R_A0);
-        let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
-        let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
-
-        kernel::utilities::arch_helpers::encode_upcall_trd104(
-            &callback,
-            &mut a0slice[0],
-            &mut a1slice[0],
-            &mut a2slice[0],
-            &mut a3slice[0],
-        );
+        kernel::utilities::arch_helpers::encode_upcall_trd104(&callback, a0, a1, a2, a3);
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
