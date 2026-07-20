@@ -1,6 +1,20 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2024.
+// Copyright Tock Contributors 2026.
+
+//! # Secure state tracking
+//!
+//! 1. Clearing the secure state bit in `EXC_RETURN` is needed because any app can
+//!    switch to the secure world at any time (as only the secure MPU can block access,
+//!    see [ARM documentation](https://developer.arm.com/documentation/ka001216/1-0/)).
+//!    If an exception is triggered while the app is in the secure world, and
+//!    `CONTROL` is changed in a non-secure handler, returning with `bx lr` would
+//!    jump back to the secure world. When the secure world returns to the app,
+//!    `CONTROL` would still be privileged. Clearing the secure bit prevents this.
+//!
+//! 2. Saving the secure state bit before clearing it allows the kernel to
+//!    preempt the secure world, track the app's secure state, and properly
+//!    switch back when execution resumes.
 
 // These constants are defined in the linker script.
 extern "C" {

@@ -7,7 +7,9 @@
 // and requires a deeper recursion limit than the default to fully expand.
 #![recursion_limit = "512"]
 
-use cortexm33::{CortexM33Secure, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
+use cortexm33::{
+    CortexM33Secure, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt,
+};
 
 pub mod chip;
 pub mod clocks;
