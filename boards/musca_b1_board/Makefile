@@ -17,8 +17,20 @@ QEMU_BASE_CMDLINE := \
     -semihosting
 
 MUSCA_ELF := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
+MUSCA_ELF_WITH_APP := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM)-app.elf
 MUSCA_BIN := $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
 QEMU_MUSCA_B1_BIN := musca_b1.bin
+
+.PHONY: build-with-app
+build-with-app: debug # let cargo rebuild
+ifeq ($(APP),)
+	$(info Built kernel without application (old application will still be present))
+	cp $(MUSCA_ELF) $(MUSCA_ELF_WITH_APP)
+else
+	$(info Building kernel with application $(APP))
+	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(MUSCA_ELF) $(MUSCA_ELF_WITH_APP)
+	arm-none-eabi-objcopy --update-section .apps=$(APP) $(MUSCA_ELF_WITH_APP)
+endif
 
 TOCKLOADER ?= $(shell command -v tockloader >/dev/null 2>&1 && echo tockloader || echo uvx tockloader)
 

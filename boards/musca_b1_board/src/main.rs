@@ -214,7 +214,9 @@ pub unsafe fn start() -> (
         systick: cortexm33::systick::SysTick::new_with_calibration(40_096_000),
     };
 
-    kernel::debug!("Initialization complete. Enter main loop");
+    kernel::debug!(
+        "Initialization complete. Enter main loop\nFor arm-qemu sometimes the timer does not work, try restarting or wait a bit longer."
+    );
 
     // These symbols are defined in the linker script.
     extern "C" {
