@@ -15,12 +15,10 @@ use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{Kernel, capabilities, create_capability, static_init};
 
 use musca_b1::chip::{MuscaB1, MuscaB1DefaultPeripherals};
 use musca_b1::timer::CMSDKTimer;
-#[allow(unused)]
-use musca_b1::BASE_VECTORS;
 
 mod io;
 
