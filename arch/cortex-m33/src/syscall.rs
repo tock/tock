@@ -15,7 +15,7 @@ use core::ops::Range;
 use core::ptr;
 use kernel::errorcode::ErrorCode;
 
-use crate::{CortexM33, CortexMVariant};
+use crate::{CortexM33NonSecure, CortexMVariant};
 
 // Note: We do not define `SYSCALL_FIRED`, `APP_HARD_FAULT`, and `SCB_REGISTERS`
 // here because the `cortex-m33` crate depends on the `cortex-m` crate, which
@@ -319,15 +319,15 @@ impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
 /// Implementation of the
 /// [`UserspaceKernelBoundary`](kernel::syscall::UserspaceKernelBoundary) for
 /// the Cortex-M non-floating point architecture.
-pub struct SysCall(PhantomData<CortexM33>);
+pub struct SysCallM33NonSecure(PhantomData<CortexM33NonSecure>);
 
-impl SysCall {
-    pub const unsafe fn new() -> SysCall {
-        SysCall(PhantomData)
+impl SysCallM33NonSecure {
+    pub const unsafe fn new() -> SysCallM33NonSecure {
+        SysCallM33NonSecure(PhantomData)
     }
 }
 
-impl kernel::syscall::UserspaceKernelBoundary for SysCall {
+impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
     type StoredState = CortexMStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
@@ -473,7 +473,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         set_global_process_was_secure(state.secure);
 
         let new_stack_pointer =
-            CortexM33::switch_to_user(state.psp as *const usize, &mut state.regs);
+            CortexM33NonSecure::switch_to_user(state.psp as *const usize, &mut state.regs);
 
         // We need to keep track of the current stack pointer.
         state.psp = new_stack_pointer as usize;
@@ -675,3 +675,5 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         }
     }
 }
+
+pub type SysCallM33Secure = cortexm::syscall::SysCall<crate::CortexM33Secure>;

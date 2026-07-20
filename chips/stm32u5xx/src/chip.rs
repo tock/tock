@@ -31,7 +31,7 @@ use stm32u5xx_unsafe::aes::AES_BASE;
 
 pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
-    userspace_kernel_boundary: cortexm33::syscall::SysCall,
+    userspace_kernel_boundary: cortexm33::syscall::SysCallM33Secure,
     interrupt_service: &'a I,
 }
 
@@ -309,7 +309,7 @@ impl<'a, I: InterruptService + 'a> Stm32u5xx<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm33::mpu::new::<8>(),
-            userspace_kernel_boundary: cortexm33::syscall::SysCall::new(),
+            userspace_kernel_boundary: cortexm33::syscall::SysCallM33Secure::new(),
             interrupt_service,
         }
     }
@@ -317,7 +317,7 @@ impl<'a, I: InterruptService + 'a> Stm32u5xx<'a, I> {
 
 impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     type MPU = cortexm33::mpu::MPU<8>;
-    type UserspaceKernelBoundary = cortexm33::syscall::SysCall;
+    type UserspaceKernelBoundary = cortexm33::syscall::SysCallM33Secure;
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
     fn init() {
@@ -348,7 +348,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
         &self.mpu
     }
 
-    fn userspace_kernel_boundary(&self) -> &cortexm33::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &cortexm33::syscall::SysCallM33Secure {
         &self.userspace_kernel_boundary
     }
 
