@@ -17,7 +17,7 @@ use crate::interrupts;
 use crate::peri_clk;
 use crate::scb;
 use crate::tcpwm;
-use cortexm33::{CortexM33, CortexMVariant};
+use cortexm33::{CortexM33Secure, CortexMVariant};
 
 // Configuration generated in MTB for SWD and Debug UART pins.
 const GPIO_SWDCK_CONFIG: gpio::PreConfig = gpio::PreConfig {
@@ -136,25 +136,25 @@ pub fn configure_gpio_secure_states() {
     }
 }
 
-pub struct Psc3<'a, I: InterruptService + 'a> {
+pub struct Psc3NonSecure<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
-    userspace_kernel_boundary: cortexm33::syscall::SysCall,
+    userspace_kernel_boundary: cortexm33::syscall::SysCallM33NonSecure,
     interrupt_service: &'a I,
 }
 
-impl<'a, I: InterruptService> Psc3<'a, I> {
+impl<'a, I: InterruptService> Psc3NonSecure<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm33::mpu::new(),
-            userspace_kernel_boundary: cortexm33::syscall::SysCall::new(),
+            userspace_kernel_boundary: cortexm33::syscall::SysCallM33NonSecure::new(),
             interrupt_service,
         }
     }
 }
 
-impl<I: InterruptService> Chip for Psc3<'_, I> {
+impl<I: InterruptService> Chip for Psc3NonSecure<'_, I> {
     type MPU = cortexm33::mpu::MPU<8>;
-    type UserspaceKernelBoundary = cortexm33::syscall::SysCall;
+    type UserspaceKernelBoundary = cortexm33::syscall::SysCallM33NonSecure;
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
     fn service_pending_interrupts(&self) {
@@ -203,7 +203,78 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
     }
 
     unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
-        CortexM33::print_cortexm_state(writer);
+        CortexM33Secure::print_cortexm_state(writer);
+    }
+}
+
+pub struct Psc3Secure<'a, I: InterruptService + 'a> {
+    mpu: cortexm33::mpu::MPU<8>,
+    userspace_kernel_boundary: cortexm33::syscall::SysCallM33Secure,
+    interrupt_service: &'a I,
+}
+
+impl<'a, I: InterruptService> Psc3Secure<'a, I> {
+    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+        Self {
+            mpu: cortexm33::mpu::new(),
+            userspace_kernel_boundary: cortexm33::syscall::SysCallM33Secure::new(),
+            interrupt_service,
+        }
+    }
+}
+
+impl<I: InterruptService> Chip for Psc3Secure<'_, I> {
+    type MPU = cortexm33::mpu::MPU<8>;
+    type UserspaceKernelBoundary = cortexm33::syscall::SysCallM33Secure;
+    type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
+
+    fn service_pending_interrupts(&self) {
+        unsafe {
+            while let Some(interrupt) = cortexm33::nvic::next_pending() {
+                if !self.interrupt_service.service_interrupt(interrupt) {
+                    panic!("unhandled interrupt {}", interrupt);
+                }
+                let n = cortexm33::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
+            }
+        }
+    }
+
+    fn init() {
+        icache::sys_init_enable_cache();
+        cortexm33::nvic::disable_all();
+        cortexm33::nvic::clear_all_pending();
+        cortexm33::nvic::enable_all();
+    }
+
+    fn has_pending_interrupts(&self) -> bool {
+        cortexm33::nvic::has_pending()
+    }
+
+    fn mpu(&self) -> &Self::MPU {
+        &self.mpu
+    }
+
+    fn userspace_kernel_boundary(&self) -> &Self::UserspaceKernelBoundary {
+        &self.userspace_kernel_boundary
+    }
+
+    fn sleep(&self) {
+        unsafe {
+            cortexm33::support::wfi();
+        }
+    }
+
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        cortexm33::support::with_interrupts_disabled(f)
+    }
+
+    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
+        CortexM33Secure::print_cortexm_state(writer);
     }
 }
 

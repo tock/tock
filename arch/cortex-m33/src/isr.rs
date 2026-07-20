@@ -8,7 +8,7 @@ extern "C" {
     static _sstack: u8;
 }
 
-/// ARMv7-M systick handler function.
+/// ARMv8-M systick handler function.
 ///
 /// For documentation of this function, please see
 /// `CortexMVariant::SYSTICK_HANDLER`.
@@ -23,7 +23,7 @@ pub unsafe extern "C" fn systick_handler() {
     tst lr, #4                        // Test SPSEL bit (bit 2)
     beq 50f                           // Skip if kernel was running
     ldr r0, =PROCESS_WAS_SECURE       // r0 = &PROCESS_WAS_SECURE
-    ubfx r1, lr, #6, #1              // r1 = (LR >> 6) & 1
+    ubfx r1, lr, #6, #1               // r1 = (LR >> 6) & 1
     str r1, [r0]                      // *PROCESS_WAS_SECURE = r1
 50:
 
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn systick_handler() {
     );
 }
 
-/// Handler of `svc` instructions on ARMv7-M.
+/// Handler of `svc` instructions on ARMv8-M.
 ///
 /// For documentation of this function, please see
 /// `CortexMVariant::SVC_HANDLER`.
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn svc_handler() {
     // Save bit 6 (secure state) of EXC_RETURN to PROCESS_WAS_SECURE.
     // The process may have been executing in the secure world.
     ldr r0, =PROCESS_WAS_SECURE       // r0 = &PROCESS_WAS_SECURE
-    ubfx r1, lr, #6, #1              // r1 = (LR >> 6) & 1
+    ubfx r1, lr, #6, #1               // r1 = (LR >> 6) & 1
     str r1, [r0]                      // *PROCESS_WAS_SECURE = r1
 
     // An application called a syscall. We mark this in the global variable
@@ -148,7 +148,7 @@ pub unsafe extern "C" fn svc_handler() {
     );
 }
 
-/// Generic interrupt handler for ARMv7-M instruction sets.
+/// Generic interrupt handler for ARMv8-M instruction sets.
 ///
 /// For documentation of this function, see `CortexMVariant::GENERIC_ISR`.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn generic_isr() {
     tst lr, #4                        // Test SPSEL bit (bit 2)
     beq 50f                           // Skip if kernel was running
     ldr r0, =PROCESS_WAS_SECURE       // r0 = &PROCESS_WAS_SECURE
-    ubfx r1, lr, #6, #1              // r1 = (LR >> 6) & 1
+    ubfx r1, lr, #6, #1               // r1 = (LR >> 6) & 1
     str r1, [r0]                      // *PROCESS_WAS_SECURE = r1
 50:
 
@@ -241,7 +241,7 @@ pub unsafe extern "C" fn generic_isr() {
 /// For documentation of this function, please see
 /// `CortexMVariant::switch_to_user`.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-pub unsafe fn switch_to_user_arm_v7m(
+pub unsafe fn switch_to_user(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
 ) -> *const usize {
@@ -311,23 +311,20 @@ pub unsafe fn switch_to_user_arm_v7m(
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 /// Continue the hardfault handler for all hard-faults that occurred
 /// during kernel execution. This function must never return.
-unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
-    faulting_stack: *mut u32,
-    stack_overflow: u32,
-) -> ! {
+unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32, stack_overflow: u32) -> ! {
     if stack_overflow != 0 {
         // Panic to show the correct error.
         panic!("kernel stack overflow");
     } else {
         // Show the normal kernel hardfault message.
-        let stacked_r0: u32 = *faulting_stack.offset(0);
-        let stacked_r1: u32 = *faulting_stack.offset(1);
-        let stacked_r2: u32 = *faulting_stack.offset(2);
-        let stacked_r3: u32 = *faulting_stack.offset(3);
-        let stacked_r12: u32 = *faulting_stack.offset(4);
-        let stacked_lr: u32 = *faulting_stack.offset(5);
-        let stacked_pc: u32 = *faulting_stack.offset(6);
-        let stacked_xpsr: u32 = *faulting_stack.offset(7);
+        let stacked_r0: u32 = *faulting_stack.add(0);
+        let stacked_r1: u32 = *faulting_stack.add(1);
+        let stacked_r2: u32 = *faulting_stack.add(2);
+        let stacked_r3: u32 = *faulting_stack.add(3);
+        let stacked_r12: u32 = *faulting_stack.add(4);
+        let stacked_lr: u32 = *faulting_stack.add(5);
+        let stacked_pc: u32 = *faulting_stack.add(6);
+        let stacked_xpsr: u32 = *faulting_stack.add(7);
 
         let mode_str = "Kernel";
 
@@ -459,13 +456,13 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
     }
 }
 
-/// ARMv7-M hardfault handler.
+/// ARMv8-M hardfault handler.
 ///
 /// For documentation of this function, please see
 /// `CortexMVariant::HARD_FAULT_HANDLER_HANDLER`.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
-pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
+pub unsafe extern "C" fn hard_fault_handler() {
     use core::arch::naked_asm;
     // First need to determine if this a kernel fault or a userspace fault, and store
     // the unmodified stack pointer. Place these values in registers, then call
@@ -546,7 +543,7 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     bx lr
         ",
         estack = sym _estack,
-        kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
+        kernel_hard_fault_handler = sym hard_fault_handler_kernel,
     );
 }
 
@@ -580,22 +577,22 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
 ///////////////////////////////////////////////////////////////////
 
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn systick_handler_arm_v7m() {
+pub unsafe extern "C" fn systick_handler() {
     unimplemented!()
 }
 
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn svc_handler_arm_v7m() {
+pub unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
 
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn generic_isr_arm_v7m() {
+pub unsafe extern "C" fn generic_isr() {
     unimplemented!()
 }
 
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn switch_to_user_arm_v7m(
+pub unsafe extern "C" fn switch_to_user(
     _user_stack: *const u8,
     _process_regs: &mut [usize; 8],
 ) -> *const usize {
@@ -603,6 +600,6 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
 }
 
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
+pub unsafe extern "C" fn hard_fault_handler() {
     unimplemented!()
 }

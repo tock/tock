@@ -8,7 +8,10 @@
 // Increase the recursion limit for SRSS Registers
 #![recursion_limit = "512"]
 
-use cortexm33::{CortexM33, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
+use cortexm33::{
+    CortexM33NonSecure, CortexM33Secure, CortexMVariant, initialize_ram_jump_to_main,
+    unhandled_interrupt,
+};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -20,27 +23,49 @@ extern "C" {
     all(target_arch = "arm", target_os = "none"),
     link_section = ".vectors"
 )]
-pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
+pub static BASE_VECTORS_SECURE: [unsafe extern "C" fn(); 16] = [
     _estack,
     initialize_ram_jump_to_main,
-    unhandled_interrupt,           // NMI
-    CortexM33::HARD_FAULT_HANDLER, // Hard Fault
-    unhandled_interrupt,           // MemManage
-    unhandled_interrupt,           // BusFault
-    unhandled_interrupt,           // UsageFault
+    unhandled_interrupt,                 // NMI
+    CortexM33Secure::HARD_FAULT_HANDLER, // Hard Fault
+    unhandled_interrupt,                 // MemManage
+    unhandled_interrupt,                 // BusFault
+    unhandled_interrupt,                 // UsageFault
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
-    CortexM33::SVC_HANDLER, // SVC
-    unhandled_interrupt,    // DebugMon
+    CortexM33Secure::SVC_HANDLER, // SVC
+    unhandled_interrupt,          // DebugMon
     unhandled_interrupt,
-    unhandled_interrupt,        // PendSV
-    CortexM33::SYSTICK_HANDLER, // SysTick
+    unhandled_interrupt,              // PendSV
+    CortexM33Secure::SYSTICK_HANDLER, // SysTick
+];
+
+pub static BASE_VECTORS_NON_SECURE: [unsafe extern "C" fn(); 16] = [
+    _estack,
+    initialize_ram_jump_to_main,
+    unhandled_interrupt,                    // NMI
+    CortexM33NonSecure::HARD_FAULT_HANDLER, // Hard Fault
+    unhandled_interrupt,                    // MemManage
+    unhandled_interrupt,                    // BusFault
+    unhandled_interrupt,                    // UsageFault
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    CortexM33NonSecure::SVC_HANDLER, // SVC
+    unhandled_interrupt,             // DebugMon
+    unhandled_interrupt,
+    unhandled_interrupt,                 // PendSV
+    CortexM33NonSecure::SYSTICK_HANDLER, // SysTick
 ];
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
-pub static IRQS: [unsafe extern "C" fn(); 140] = [CortexM33::GENERIC_ISR; 140];
+pub static IRQS_SECURE: [unsafe extern "C" fn(); 140] = [CortexM33Secure::GENERIC_ISR; 140];
+
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
+pub static IRQS_NON_SECURE: [unsafe extern "C" fn(); 140] = [CortexM33Secure::GENERIC_ISR; 140];
 
 pub mod chip;
 pub mod chip_init;

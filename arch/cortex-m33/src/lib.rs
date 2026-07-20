@@ -41,13 +41,13 @@ pub use cortexm::unhandled_interrupt;
 // Enum with no variants to ensure that this type is not instantiable. It is
 // only used to pass architecture-specific constants and functions via the
 // `CortexMVariant` trait.
-pub enum CortexM33 {}
+pub enum CortexM33Secure {}
 
-impl cortexm::CortexMVariant for CortexM33 {
-    const GENERIC_ISR: unsafe extern "C" fn() = isr::generic_isr;
-    const SYSTICK_HANDLER: unsafe extern "C" fn() = isr::systick_handler;
-    const SVC_HANDLER: unsafe extern "C" fn() = isr::svc_handler;
-    const HARD_FAULT_HANDLER: unsafe extern "C" fn() = isr::hard_fault_handler_arm_v7m;
+impl cortexm::CortexMVariant for CortexM33Secure {
+    const GENERIC_ISR: unsafe extern "C" fn() = cortexv7m::generic_isr_arm_v7m;
+    const SYSTICK_HANDLER: unsafe extern "C" fn() = cortexv7m::systick_handler_arm_v7m;
+    const SVC_HANDLER: unsafe extern "C" fn() = cortexv7m::svc_handler_arm_v7m;
+    const HARD_FAULT_HANDLER: unsafe extern "C" fn() = cortexv7m::hard_fault_handler_arm_v7m;
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe fn switch_to_user(
@@ -55,6 +55,39 @@ impl cortexm::CortexMVariant for CortexM33 {
         process_regs: &mut [usize; 8],
     ) -> *const usize {
         unsafe { cortexv7m::switch_to_user_arm_v7m(user_stack, process_regs) }
+    }
+
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    unsafe fn switch_to_user(
+        _user_stack: *const usize,
+        _process_regs: &mut [usize; 8],
+    ) -> *const usize {
+        unimplemented!()
+    }
+
+    #[inline]
+    unsafe fn print_cortexm_state(writer: &mut dyn Write) {
+        cortexm::print_cortexm_state(writer)
+    }
+}
+
+// Enum with no variants to ensure that this type is not instantiable. It is
+// only used to pass architecture-specific constants and functions via the
+// `CortexMVariant` trait.
+pub enum CortexM33NonSecure {}
+
+impl cortexm::CortexMVariant for CortexM33NonSecure {
+    const GENERIC_ISR: unsafe extern "C" fn() = isr::generic_isr;
+    const SYSTICK_HANDLER: unsafe extern "C" fn() = isr::systick_handler;
+    const SVC_HANDLER: unsafe extern "C" fn() = isr::svc_handler;
+    const HARD_FAULT_HANDLER: unsafe extern "C" fn() = isr::hard_fault_handler;
+
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    unsafe fn switch_to_user(
+        user_stack: *const usize,
+        process_regs: &mut [usize; 8],
+    ) -> *const usize {
+        isr::switch_to_user(user_stack, process_regs)
     }
 
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
