@@ -124,25 +124,12 @@ fn encode_syscall_return_helper(
     a2: &mut usize,
     a3: &mut usize,
 ) {
-    // Convert the `&mut usize` references to `&mut u32`s.
-    //
-    // SAFETY: We are guaranteed to be on a 32-bit platform, and converting a
-    // `&mut usize` to a `&mut u32` will be safe. The pointer will always be
-    // aligned and the values will always be initialized to something.
-    let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
-        let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
-        let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
-        let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
-        let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
-        (a0_u32, a1_u32, a2_u32, a3_u32)
-    };
-
     kernel::utilities::arch_helpers::encode_syscall_return_trd104(
         &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
-        a0_u32,
-        a1_u32,
-        a2_u32,
-        a3_u32,
+        kernel::usize_as_native_mut!(a0),
+        kernel::usize_as_native_mut!(a1),
+        kernel::usize_as_native_mut!(a2),
+        kernel::usize_as_native_mut!(a3),
     );
 }
 
@@ -154,25 +141,12 @@ fn encode_syscall_return_helper(
     a2: &mut usize,
     a3: &mut usize,
 ) {
-    // Convert the `&mut usize` references to `&mut u64`s.
-    //
-    // SAFETY: We are guaranteed to be on a 64-bit platform, and converting a
-    // `&mut usize` to a `&mut u64` will be safe. The pointer will always be
-    // aligned and the values will always be initialized to something.
-    let (a0_u64, a1_u64, a2_u64, a3_u64) = unsafe {
-        let a0_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u64>();
-        let a1_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u64>();
-        let a2_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u64>();
-        let a3_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u64>();
-        (a0_u64, a1_u64, a2_u64, a3_u64)
-    };
-
     kernel::utilities::arch_helpers::encode_syscall_return_trd64bit(
         &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
-        a0_u64,
-        a1_u64,
-        a2_u64,
-        a3_u64,
+        kernel::usize_as_native_mut!(a0),
+        kernel::usize_as_native_mut!(a1),
+        kernel::usize_as_native_mut!(a2),
+        kernel::usize_as_native_mut!(a3),
     );
 }
 
@@ -235,20 +209,13 @@ fn encode_upcall_helper(
     a2: &mut usize,
     a3: &mut usize,
 ) {
-    // Convert the `&mut usize` references to `&mut u32`s.
-    //
-    // SAFETY: We are guaranteed to be on a 32-bit platform, and converting a
-    // `&mut usize` to a `&mut u32` will be safe. The pointer will always be
-    // aligned and the values will always be initialized to something.
-    let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
-        let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
-        let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
-        let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
-        let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
-        (a0_u32, a1_u32, a2_u32, a3_u32)
-    };
-
-    kernel::utilities::arch_helpers::encode_upcall_trd104(upcall, a0_u32, a1_u32, a2_u32, a3_u32);
+    kernel::utilities::arch_helpers::encode_upcall_trd104(
+        upcall,
+        kernel::usize_as_native_mut!(a0),
+        kernel::usize_as_native_mut!(a1),
+        kernel::usize_as_native_mut!(a2),
+        kernel::usize_as_native_mut!(a3),
+    );
 }
 
 #[cfg(target_arch = "riscv64")]
@@ -259,20 +226,13 @@ fn encode_upcall_helper(
     a2: &mut usize,
     a3: &mut usize,
 ) {
-    // Convert the `&mut usize` references to `&mut u64`s.
-    //
-    // SAFETY: We are guaranteed to be on a 64-bit platform, and converting a
-    // `&mut usize` to a `&mut u64` will be safe. The pointer will always be
-    // aligned and the values will always be initialized to something.
-    let (a0_u64, a1_u64, a2_u64, a3_u64) = unsafe {
-        let a0_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u64>();
-        let a1_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u64>();
-        let a2_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u64>();
-        let a3_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u64>();
-        (a0_u64, a1_u64, a2_u64, a3_u64)
-    };
-
-    kernel::utilities::arch_helpers::encode_upcall_trd64bit(upcall, a0_u64, a1_u64, a2_u64, a3_u64);
+    kernel::utilities::arch_helpers::encode_upcall_trd64bit(
+        upcall,
+        kernel::usize_as_native_mut!(a0),
+        kernel::usize_as_native_mut!(a1),
+        kernel::usize_as_native_mut!(a2),
+        kernel::usize_as_native_mut!(a3),
+    );
 }
 
 #[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
