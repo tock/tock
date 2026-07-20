@@ -1,13 +1,19 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2026.
 
 //! Cortex-M System Call Interface
 //!
 //! Implementation of the architecture-specific portions of the kernel-userland
 //! system call interface.
+//!
+//! # Secure state tracking
+//!
+//! Tracking the application's secure state is necessary because an app can
+//! switch to the secure world also from non-privileged software. When the kernel
+//! preempts the application, it tracks whether the app was in the secure world so that it
+//! can correctly restore the secure state upon context switch.
 
-use core::cell::UnsafeCell;
 use core::fmt::Write;
 use core::marker::PhantomData;
 use core::mem::{self, size_of};
@@ -17,6 +23,10 @@ use kernel::errorcode::ErrorCode;
 
 use crate::{CortexM33NonSecure, CortexMVariant};
 
+pub use cortexm::syscall::{
+    get_global_app_hard_fault, get_global_scb_registers, get_global_syscall_fired,
+};
+
 // Note: We do not define `SYSCALL_FIRED`, `APP_HARD_FAULT`, and `SCB_REGISTERS`
 // here because the `cortex-m33` crate depends on the `cortex-m` crate, which
 // already defines them as `#[no_mangle]` globals. Defining them here would cause
@@ -24,7 +34,9 @@ use crate::{CortexM33NonSecure, CortexMVariant};
 // references the symbols provided by `cortex-m`.
 
 /// Tracks whether a process was executing in the secure world when it was
-/// preempted. Set by the interrupt/svc handlers and read/written by
+/// preempted.
+///
+/// Set by the interrupt/svc handlers and read/written by
 /// `switch_to_process` to save/restore per-process secure state.
 /// Detected via bit 6 of EXC_RETURN.
 ///
@@ -32,125 +44,7 @@ use crate::{CortexM33NonSecure, CortexMVariant};
 /// inline assembly.
 #[no_mangle]
 #[used]
-pub static mut PROCESS_WAS_SECURE: UnsafeCell<usize> = UnsafeCell::new(0);
-
-/// Get the `APP_HARD_FAULT` flag.
-///
-/// This indicates that the app triggered the hard fault handler.
-///
-/// We need to do this in assembly because we cannot have Rust access
-/// the global variable.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-pub fn get_global_app_hard_fault() -> usize {
-    let app_fault: usize;
-
-    // # Safety
-    //
-    // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly. We ensure these conditions are met by
-    // creating the variable as an Rust type in an `UnsafeCell`.
-    unsafe {
-        core::arch::asm!(
-            "
-    ldr  r0, =APP_HARD_FAULT          // r0 = &APP_HARD_FAULT
-    movs r1, #0                       // r1 = 0
-    ldr  r2, [r0]                     // r2 = *APP_HARD_FAULT
-    str  r1, [r0]                     // *APP_HARD_FAULT = 0
-            ",
-            out("r0") _,
-            out("r1") _,
-            out("r2") app_fault,
-            // clobbers flags
-        );
-    }
-    app_fault
-}
-
-/// Get the `SYSCALL_FIRED` flag.
-///
-/// This indicates that the app called a syscall.
-///
-/// We need to do this in assembly because we cannot have Rust access
-/// the global variable.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-pub fn get_global_syscall_fired() -> usize {
-    let syscall_fired: usize;
-
-    // # Safety
-    //
-    // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly. We ensure these conditions are met by
-    // creating the variable as an Rust type in an `UnsafeCell`.
-    unsafe {
-        core::arch::asm!(
-            "
-    ldr  r0, =SYSCALL_FIRED           // r0 = &SYSCALL_FIRED
-    movs r1, #0                       // r1 = 0
-    ldr  r2, [r0]                     // r2 = *SYSCALL_FIRED
-    str  r1, [r0]                     // *SYSCALL_FIRED = 0
-            ",
-            out("r0") _,
-            out("r1") _,
-            out("r2") syscall_fired,
-            // clobbers flags
-        )
-    }
-    syscall_fired
-}
-
-/// Get the stored System Control Block register values.
-///
-/// These are recorded during the fault, and then stored in the global
-/// `SCB_REGISTERS` array for use later during debugging.
-///
-/// We need to do this in assembly because we cannot have Rust access
-/// the global variable.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
-    let _ccr: u32;
-    let cfsr: u32;
-    let hfsr: u32;
-    let mmfar: u32;
-    let bfar: u32;
-
-    // Need this for compatibility with armv6.
-    //
-    // Using the normal `ldr  r0, =SCB_REGISTERS` gives
-    // "error: out of range pc-relative fixup value". So, instead, we pass in a
-    // pointer based on the symbol.
-    extern "C" {
-        static SCB_REGISTERS: u32;
-    }
-
-    // Retrieve the stored SCB register values using assembly.
-    //
-    // # Safety
-    //
-    // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly. We ensure these conditions are met by
-    // creating the variable as an Rust type in an `UnsafeCell`.
-    unsafe {
-        core::arch::asm!(
-            "
-    // Load all values of the SCB_REGISTERS array. Avoid ldm because
-    // it is not compatible with armv6.
-    ldr r1, [{addr}, #0]              // r1 = _ccr = SCB_REGISTERS[0]
-    ldr r2, [{addr}, #4]              // r2 = cfsr = SCB_REGISTERS[1]
-    ldr r3, [{addr}, #8]              // r3 = hfsr = SCB_REGISTERS[2]
-    ldr r4, [{addr}, #12]             // r4 = mmfar = SCB_REGISTERS[3]
-    ldr r5, [{addr}, #16]             // r5 = bfar = SCB_REGISTERS[4]
-            ",
-            addr = in(reg) core::ptr::from_ref::<u32>(&SCB_REGISTERS),
-            out("r1") _ccr,
-            out("r2") cfsr,
-            out("r3") hfsr,
-            out("r4") mmfar,
-            out("r5") bfar,
-        );
-    }
-
-    (_ccr, cfsr, hfsr, mmfar, bfar)
-}
+pub static mut PROCESS_WAS_SECURE: usize = 0;
 
 /// Set `PROCESS_WAS_SECURE` flag.
 ///
@@ -163,8 +57,7 @@ pub fn set_global_process_was_secure(secure: usize) {
     // # Safety
     //
     // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly. We ensure these conditions are met by
-    // creating the variable as an Rust type in an `UnsafeCell`.
+    // size, and aligned correctly.
     unsafe {
         core::arch::asm!(
             "
@@ -190,8 +83,7 @@ pub fn get_global_process_was_secure() -> usize {
     // # Safety
     //
     // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly. We ensure these conditions are met by
-    // creating the variable as an Rust type in an `UnsafeCell`.
+    // size, and aligned correctly.
     unsafe {
         core::arch::asm!(
             "
@@ -207,24 +99,6 @@ pub fn get_global_process_was_secure() -> usize {
         );
     }
     secure
-}
-
-/// Dummy
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub fn get_global_app_hard_fault() -> usize {
-    0
-}
-
-/// Dummy
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub fn get_global_syscall_fired() -> usize {
-    0
-}
-
-/// Dummy
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
-    (0, 0, 0, 0, 0)
 }
 
 /// Dummy
@@ -254,9 +128,9 @@ pub struct CortexMStoredState {
 const SVC_FRAME_SIZE: usize = 32;
 
 /// Values for encoding the stored state buffer in a binary slice.
-const VERSION: usize = 2;
+const VERSION: usize = 1;
 const STORED_STATE_SIZE: usize = size_of::<CortexMStoredState>();
-const TAG: [u8; 4] = [b'c', b't', b'x', b'm'];
+const TAG: [u8; 4] = *b"ctxm";
 const METADATA_LEN: usize = 3;
 
 const VERSION_IDX: usize = 0;

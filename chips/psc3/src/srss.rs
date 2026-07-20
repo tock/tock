@@ -151,10 +151,8 @@ const SRSS_0_CLOCK_0_FLL_0_FLL_CONFIG: FllManualConfig = FllManualConfig {
 /// Unlock the watchdog control register by clearing both lock bits.
 pub fn wdt_unlock() {
     // Write 1 to bit to clear it
-    SRSS.wdt_ctl
-        .modify(regs::WDT_CTL::WDT_LOCK::ClearsBit0);
-    SRSS.wdt_ctl
-        .modify(regs::WDT_CTL::WDT_LOCK::ClearsBit1);
+    SRSS.wdt_ctl.modify(regs::WDT_CTL::WDT_LOCK::ClearsBit0);
+    SRSS.wdt_ctl.modify(regs::WDT_CTL::WDT_LOCK::ClearsBit1);
 }
 
 /// Initialize clock paths 1..5 to IHO and path 6 to IMO.
