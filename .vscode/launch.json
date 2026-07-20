@@ -61,7 +61,11 @@
             "type": "cortex-debug",
             "request": "launch",
             "servertype": "qemu",
-            "executable": "target/thumbv8m.main-none-eabi/debug/musca_b1_board-app.elf",
+            "executable": "target/thumbv8m.main-none-eabi/debug/musca_b1_board.elf",
+            "qemuArgs": [
+                "-device",
+                "loader,file=boards/musca_b1_board/musca_b1.bin,addr=0x10000000"
+            ],
             "svdFile": "", // optional .svd file for peripheral register view
             "cwd": "${workspaceFolder}",
             "cpu": "cortex-m33",
