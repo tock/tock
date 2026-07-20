@@ -14,28 +14,30 @@ use kernel::syscall::ContextSwitchReason;
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
+///
+/// On rv32i, this will be all `u32`s. On rv64i, these will be `u64`s.
 #[derive(Default)]
 #[repr(C)]
-pub struct Riscv32iStoredState {
+pub struct RiscvStoredState {
     /// Store all of the app registers.
-    regs: [u32; 31],
+    regs: [usize; 31],
 
     /// This holds the PC value of the app when the exception/syscall/interrupt
     /// occurred. We also use this to set the PC that the app should start
     /// executing at when it is resumed/started.
-    pc: u32,
+    pc: usize,
 
     /// We need to store the mcause CSR between when the trap occurs and after
     /// we exit the trap handler and resume the context switching code.
-    mcause: u32,
+    mcause: usize,
 
     /// We need to store the mtval CSR for the process in case the mcause
     /// indicates a fault. In that case, the mtval contains useful debugging
     /// information.
-    mtval: u32,
+    mtval: usize,
 }
 
-// Named offsets into the stored state registers.  These needs to be kept in
+// Named offsets into the stored state registers. These needs to be kept in
 // sync with the register save logic in _start_trap() as well as the register
 // restore logic in switch_to_process() below.
 const R_RA: usize = 0;
@@ -47,9 +49,14 @@ const R_A3: usize = 12;
 const R_A4: usize = 13;
 
 /// Values for encoding the stored state buffer in a binary slice.
-const VERSION: u32 = 1;
-const STORED_STATE_SIZE: u32 = size_of::<Riscv32iStoredState>() as u32;
+const VERSION: usize = 1;
+const STORED_STATE_SIZE: usize = size_of::<RiscvStoredState>();
+#[cfg(target_arch = "riscv32")]
 const TAG: [u8; 4] = *b"rv5i";
+#[cfg(target_arch = "riscv64")]
+const TAG: [u8; 8] = *b"rv64i___";
+#[cfg(not(any(doc, target_arch = "riscv32", target_arch = "riscv64")))]
+const TAG: [u8; 8] = *b"noopnoop";
 const METADATA_LEN: usize = 3;
 
 const VERSION_IDX: usize = 0;
@@ -61,14 +68,14 @@ const MTVAL_IDX: usize = 5;
 const REGS_IDX: usize = 6;
 const REGS_RANGE: Range<usize> = REGS_IDX..REGS_IDX + 31;
 
-const U32_SZ: usize = size_of::<u32>();
-fn u32_byte_range(index: usize) -> Range<usize> {
-    index * U32_SZ..(index + 1) * U32_SZ
+const USIZE_SZ: usize = size_of::<usize>();
+fn usize_byte_range(index: usize) -> Range<usize> {
+    index * USIZE_SZ..(index + 1) * USIZE_SZ
 }
 
-fn u32_from_u8_slice(slice: &[u8], index: usize) -> Result<u32, ErrorCode> {
-    let range = u32_byte_range(index);
-    Ok(u32::from_le_bytes(
+fn usize_from_u8_slice(slice: &[u8], index: usize) -> Result<usize, ErrorCode> {
+    let range = usize_byte_range(index);
+    Ok(usize::from_le_bytes(
         slice
             .get(range)
             .ok_or(ErrorCode::SIZE)?
@@ -77,33 +84,206 @@ fn u32_from_u8_slice(slice: &[u8], index: usize) -> Result<u32, ErrorCode> {
     ))
 }
 
-fn write_u32_to_u8_slice(val: u32, slice: &mut [u8], index: usize) {
-    let range = u32_byte_range(index);
+fn write_usize_to_u8_slice(val: usize, slice: &mut [u8], index: usize) {
+    let range = usize_byte_range(index);
     slice[range].copy_from_slice(&val.to_le_bytes());
 }
 
-impl core::convert::TryFrom<&[u8]> for Riscv32iStoredState {
+impl core::convert::TryFrom<&[u8]> for RiscvStoredState {
     type Error = ErrorCode;
-    fn try_from(ss: &[u8]) -> Result<Riscv32iStoredState, Self::Error> {
-        if ss.len() == size_of::<Riscv32iStoredState>() + METADATA_LEN * U32_SZ
-            && u32_from_u8_slice(ss, VERSION_IDX)? == VERSION
-            && u32_from_u8_slice(ss, SIZE_IDX)? == STORED_STATE_SIZE
-            && u32_from_u8_slice(ss, TAG_IDX)? == u32::from_le_bytes(TAG)
+    fn try_from(ss: &[u8]) -> Result<RiscvStoredState, Self::Error> {
+        if ss.len() == STORED_STATE_SIZE + METADATA_LEN * USIZE_SZ
+            && usize_from_u8_slice(ss, VERSION_IDX)? == VERSION
+            && usize_from_u8_slice(ss, SIZE_IDX)? == STORED_STATE_SIZE
+            && usize_from_u8_slice(ss, TAG_IDX)? == usize::from_le_bytes(TAG)
         {
-            let mut res = Riscv32iStoredState {
+            let mut res = RiscvStoredState {
                 regs: [0; 31],
-                pc: u32_from_u8_slice(ss, PC_IDX)?,
-                mcause: u32_from_u8_slice(ss, MCAUSE_IDX)?,
-                mtval: u32_from_u8_slice(ss, MTVAL_IDX)?,
+                pc: (usize_from_u8_slice(ss, PC_IDX)?),
+                mcause: usize_from_u8_slice(ss, MCAUSE_IDX)?,
+                mtval: usize_from_u8_slice(ss, MTVAL_IDX)?,
             };
             for (i, v) in (REGS_RANGE).enumerate() {
-                res.regs[i] = u32_from_u8_slice(ss, v)?;
+                res.regs[i] = usize_from_u8_slice(ss, v)?;
             }
             Ok(res)
         } else {
             Err(ErrorCode::FAIL)
         }
     }
+}
+
+/// Helper function for encoding a syscall return into registers.
+///
+/// This is a helper function to wrap the differences between rv32i and rv64i.
+#[cfg(any(doc, target_arch = "riscv32"))]
+fn encode_syscall_return_helper(
+    return_value: kernel::syscall::SyscallReturn,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    // Convert the `&mut usize` references to `&mut u32`s.
+    //
+    // SAFETY: We are guaranteed to be on a 32-bit platform, and converting a
+    // `&mut usize` to a `&mut u32` will be safe. The pointer will always be
+    // aligned and the values will always be initialized to something.
+    let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
+        let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
+        let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
+        let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
+        let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
+        (a0_u32, a1_u32, a2_u32, a3_u32)
+    };
+
+    kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+        &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
+        a0_u32,
+        a1_u32,
+        a2_u32,
+        a3_u32,
+    );
+}
+
+#[cfg(target_arch = "riscv64")]
+fn encode_syscall_return_helper(
+    return_value: kernel::syscall::SyscallReturn,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    // Convert the `&mut usize` references to `&mut u64`s.
+    //
+    // SAFETY: We are guaranteed to be on a 64-bit platform, and converting a
+    // `&mut usize` to a `&mut u64` will be safe. The pointer will always be
+    // aligned and the values will always be initialized to something.
+    let (a0_u64, a1_u64, a2_u64, a3_u64) = unsafe {
+        let a0_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u64>();
+        let a1_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u64>();
+        let a2_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u64>();
+        let a3_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u64>();
+        (a0_u64, a1_u64, a2_u64, a3_u64)
+    };
+
+    kernel::utilities::arch_helpers::encode_syscall_return_trd64bit(
+        &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
+        a0_u64,
+        a1_u64,
+        a2_u64,
+        a3_u64,
+    );
+}
+
+#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
+fn encode_syscall_return_helper(
+    _return_value: kernel::syscall::SyscallReturn,
+    _a0: &mut usize,
+    _a1: &mut usize,
+    _a2: &mut usize,
+    _a3: &mut usize,
+) {
+    unimplemented!()
+}
+
+/// Helper to convert registers to a [`Syscall`](kernel::syscall::Syscall).
+///
+/// The helper wraps both rv32i and rv64i support.
+#[cfg(any(doc, target_arch = "riscv32"))]
+fn syscall_from_register_arguments_helper(
+    syscall_number: usize,
+    r0: usize,
+    r1: usize,
+    r2: usize,
+    r3: usize,
+) -> Option<kernel::syscall::Syscall> {
+    kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
+        syscall_number as u8,
+        r0,
+        r1.into(),
+        r2.into(),
+        r3.into(),
+    )
+}
+
+#[cfg(target_arch = "riscv64")]
+fn syscall_from_register_arguments_helper(
+    syscall_number: usize,
+    r0: usize,
+    r1: usize,
+    r2: usize,
+    r3: usize,
+) -> Option<kernel::syscall::Syscall> {
+    kernel::utilities::arch_helpers::syscall_from_register_arguments_trd64bit(
+        syscall_number as u8,
+        r0,
+        r1.into(),
+        r2.into(),
+        r3.into(),
+    )
+}
+
+/// Helper to put upcall arguments into registers.
+///
+/// The helper wraps both rv32i and rv64i support.
+#[cfg(any(doc, target_arch = "riscv32"))]
+fn encode_upcall_helper(
+    upcall: &kernel::process::FunctionCall,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    // Convert the `&mut usize` references to `&mut u32`s.
+    //
+    // SAFETY: We are guaranteed to be on a 32-bit platform, and converting a
+    // `&mut usize` to a `&mut u32` will be safe. The pointer will always be
+    // aligned and the values will always be initialized to something.
+    let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
+        let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
+        let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
+        let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
+        let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
+        (a0_u32, a1_u32, a2_u32, a3_u32)
+    };
+
+    kernel::utilities::arch_helpers::encode_upcall_trd104(upcall, a0_u32, a1_u32, a2_u32, a3_u32);
+}
+
+#[cfg(target_arch = "riscv64")]
+fn encode_upcall_helper(
+    upcall: &kernel::process::FunctionCall,
+    a0: &mut usize,
+    a1: &mut usize,
+    a2: &mut usize,
+    a3: &mut usize,
+) {
+    // Convert the `&mut usize` references to `&mut u64`s.
+    //
+    // SAFETY: We are guaranteed to be on a 64-bit platform, and converting a
+    // `&mut usize` to a `&mut u64` will be safe. The pointer will always be
+    // aligned and the values will always be initialized to something.
+    let (a0_u64, a1_u64, a2_u64, a3_u64) = unsafe {
+        let a0_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u64>();
+        let a1_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u64>();
+        let a2_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u64>();
+        let a3_u64: &mut u64 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u64>();
+        (a0_u64, a1_u64, a2_u64, a3_u64)
+    };
+
+    kernel::utilities::arch_helpers::encode_upcall_trd64bit(upcall, a0_u64, a1_u64, a2_u64, a3_u64);
+}
+
+#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
+fn encode_upcall_helper(
+    _upcall: &kernel::process::FunctionCall,
+    _a0: &mut usize,
+    _a1: &mut usize,
+    _a2: &mut usize,
+    _a3: &mut usize,
+) {
+    unimplemented!()
 }
 
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
@@ -116,10 +296,10 @@ impl SysCall {
 }
 
 impl kernel::syscall::UserspaceKernelBoundary for SysCall {
-    type StoredState = Riscv32iStoredState;
+    type StoredState = RiscvStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
-        // The RV32I UKB implementation does not use process memory for any
+        // The UKB implementation does not use process memory for any
         // context switch state. Therefore, we do not need any process-accessible
         // memory to start with to successfully context switch to the process the
         // first time.
@@ -140,8 +320,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // The first time the process runs we need to set the initial stack
         // pointer in the sp register.
         //
-        // We do not pre-allocate any stack for RV32I processes.
-        state.regs[R_SP] = accessible_memory_start as u32;
+        // We do not pre-allocate any stack for RISC-V processes.
+        state.regs[R_SP] = accessible_memory_start as usize;
 
         // We do not use memory for UKB, so just return ok.
         Ok(())
@@ -164,15 +344,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             .get_disjoint_mut([R_A0, R_A1, R_A2, R_A3])
             .or(Err(()))?;
 
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
-            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
-                return_value,
-            ),
-            a0,
-            a1,
-            a2,
-            a3,
-        );
+        encode_syscall_return_helper(return_value, a0, a1, a2, a3);
 
         // We do not use process memory, so this cannot fail.
         Ok(())
@@ -182,7 +354,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         _accessible_memory_start: *const u8,
         _app_brk: *const u8,
-        state: &mut Riscv32iStoredState,
+        state: &mut RiscvStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
         // Set the register state for the application when it starts
@@ -195,7 +367,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             .get_disjoint_mut([R_A0, R_A1, R_A2, R_A3])
             .or(Err(()))?;
 
-        kernel::utilities::arch_helpers::encode_upcall_trd104(&callback, a0, a1, a2, a3);
+        encode_upcall_helper(&callback, a0, a1, a2, a3);
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -206,7 +378,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
-        state.pc = callback.pc.addr() as u32;
+        state.pc = callback.pc.addr();
 
         Ok(())
     }
@@ -217,10 +389,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         _accessible_memory_start: *const u8,
         _app_brk: *const u8,
-        _state: &mut Riscv32iStoredState,
+        _state: &mut RiscvStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
-        let _cause = mcause::Trap::from(_state.mcause as usize);
+        let _cause = mcause::Trap::from(_state.mcause);
         let _arg4 = _state.regs[R_A4];
         unimplemented!()
     }
@@ -230,7 +402,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         _accessible_memory_start: *const u8,
         _app_brk: *const u8,
-        state: &mut Riscv32iStoredState,
+        state: &mut RiscvStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
         use core::arch::asm;
         // We need to ensure that the compiler does not reorder
@@ -256,41 +428,42 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // memory map to make it easier to keep track:
     //
     // ```
-    //  8*4(sp):          <- original stack pointer
-    //  7*4(sp):
-    //  6*4(sp): x9  / s1
-    //  5*4(sp): x8  / s0 / fp
-    //  4*4(sp): x4  / tp
-    //  3*4(sp): x3  / gp
-    //  2*4(sp): x10 / a0 (*state, Per-process StoredState struct)
-    //  1*4(sp): custom trap handler address
-    //  0*4(sp): scratch space, having s1 written to by the trap handler
+    //  8*(XLEN/8)(sp):   <- original stack pointer
+    //  7*(XLEN/8)(sp):
+    //  6*(XLEN/8)(sp): x9  / s1
+    //  5*(XLEN/8)(sp): x8  / s0 / fp
+    //  4*(XLEN/8)(sp): x4  / tp
+    //  3*(XLEN/8)(sp): x3  / gp
+    //  2*(XLEN/8)(sp): x10 / a0 (*state, Per-process StoredState struct)
+    //  1*(XLEN/8)(sp): custom trap handler address
+    //  0*(XLEN/8)(sp): scratch space, having s1 written to by the trap handler
     //                    <- new stack pointer
     // ```
-
-    addi sp, sp, -8*4             // Move the stack pointer down to make room.
+    //
+    // Move the stack pointer down to make room.
+    addi sp, sp, -8*({XLEN}/8)    // riscv32: sp = sp - (8*4), riscv64: sp = sp - (8*8)
 
     // Save all registers on the kernel stack which cannot be clobbered
     // by an asm!() block. These are mostly registers which have a
     // designated purpose (e.g. stack pointer) or are used internally
     // by LLVM.
-    sw   x9,  6*4(sp)             // s1 (used internally by LLVM)
-    sw   x8,  5*4(sp)             // fp (can't be clobbered / used as an operand)
-    sw   x4,  4*4(sp)             // tp (can't be clobbered / used as an operand)
-    sw   x3,  3*4(sp)             // gp (can't be clobbered / used as an operand)
+    sx   x9,  6*({XLEN}/8)(sp)    // s1 (used internally by LLVM)
+    sx   x8,  5*({XLEN}/8)(sp)    // fp (can't be clobbered / used as an operand)
+    sx   x4,  4*({XLEN}/8)(sp)    // tp (can't be clobbered / used as an operand)
+    sx   x3,  3*({XLEN}/8)(sp)    // gp (can't be clobbered / used as an operand)
 
-    sw   x10, 2*4(sp)             // Store process state pointer on stack as well.
+    sx   x10, 2*({XLEN}/8)(sp)    // Store process state pointer on stack as well.
                                   // We need to have this available for after the
                                   // app returns to the kernel so we can store its
                                   // registers.
 
-    // Load the address of `_start_app_trap` into `1*4(sp)`. We swap our
+    // Load the address of `_start_app_trap` into `1*(XLEN/8)(sp)`. We swap our
     // stack pointer into the mscratch CSR and the trap handler will load
     // and jump to the address at this offset.
     la    t0, 100f                // t0 = _start_app_trap
-    sw    t0, 1*4(sp)             // 1*4(sp) = t0
+    sx    t0, 1*({XLEN}/8)(sp)    // riscv32: *(stackptr + (1*4)) = t0 (_start_app_trap), riscv64: *(stackptr +  (1*8)) = t0 (_start_app_trap)
 
-    // sw x0, 0*4(sp)             // Reserved as scratch space for the trap handler
+    // sx x0, 0*({XLEN}/8)(sp)    // Reserved as scratch space for the trap handler
 
     // -----> All required registers saved to the stack.
     //        sp holds the updated stack pointer, a0 the per-process state
@@ -319,21 +492,20 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     // Execute `_start_app_trap` on a trap by setting the mscratch trap
     // handler address to our current stack pointer. This stack pointer,
-    // at `1*4(sp)`, holds the address of `_start_app_trap`.
+    // at `1*(XLEN/8)(sp)`, holds the address of `_start_app_trap`.
     //
     // Upon a trap, the global trap handler (_start_trap) will swap `s0`
     // with the `mscratch` CSR and, if it contains a non-zero address,
-    // jump to the address that is now at `1*4(s0)`. This allows us to
+    // jump to the address that is now at `1*(XLEN/8)(s0)`. This allows us to
     // hook a custom trap handler that saves all userspace state:
-    //
     csrw  mscratch, sp            // Store `sp` in mscratch CSR. Discard the
                                   // prior value, must have been set to zero.
 
     // We have to set the mepc CSR with the PC we want the app to start
-    // executing at. This has been saved in Riscv32iStoredState for us
+    // executing at. This has been saved in RiscvStoredState for us
     // (either when the app returned back to the kernel or in the
     // `set_process_function()` function).
-    lw    t0, 31*4(a0)            // Retrieve the PC from Riscv32iStoredState
+    lx    t0, 31*({XLEN}/8)(a0)   // Retrieve the PC from RiscvStoredState
     csrw  mepc, t0                // Set mepc CSR to the app's PC.
 
     // Restore all of the app registers from what we saved. If this is the
@@ -347,38 +519,38 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // allows us to use compressed instructions for all of these loads:
     mv    sp,  a0                 // sp <- a0 (per-process stored state)
 
-    lw    x1,  0*4(sp)            // ra
+    lx    x1,  0*({XLEN}/8)(sp)   // ra
     // ------------------------> sp, do last since we overwrite our pointer
-    lw    x3,  2*4(sp)            // gp
-    lw    x4,  3*4(sp)            // tp
-    lw    x5,  4*4(sp)            // t0
-    lw    x6,  5*4(sp)            // t1
-    lw    x7,  6*4(sp)            // t2
-    lw    x8,  7*4(sp)            // s0,fp
-    lw    x9,  8*4(sp)            // s1
-    lw   x10,  9*4(sp)            // a0
-    lw   x11, 10*4(sp)            // a1
-    lw   x12, 11*4(sp)            // a2
-    lw   x13, 12*4(sp)            // a3
-    lw   x14, 13*4(sp)            // a4
-    lw   x15, 14*4(sp)            // a5
-    lw   x16, 15*4(sp)            // a6
-    lw   x17, 16*4(sp)            // a7
-    lw   x18, 17*4(sp)            // s2
-    lw   x19, 18*4(sp)            // s3
-    lw   x20, 19*4(sp)            // s4
-    lw   x21, 20*4(sp)            // s5
-    lw   x22, 21*4(sp)            // s6
-    lw   x23, 22*4(sp)            // s7
-    lw   x24, 23*4(sp)            // s8
-    lw   x25, 24*4(sp)            // s9
-    lw   x26, 25*4(sp)            // s10
-    lw   x27, 26*4(sp)            // s11
-    lw   x28, 27*4(sp)            // t3
-    lw   x29, 28*4(sp)            // t4
-    lw   x30, 29*4(sp)            // t5
-    lw   x31, 30*4(sp)            // t6
-    lw    x2,  1*4(sp)            // sp, overwriting our pointer
+    lx    x3,  2*({XLEN}/8)(sp)   // gp
+    lx    x4,  3*({XLEN}/8)(sp)   // tp
+    lx    x5,  4*({XLEN}/8)(sp)   // t0
+    lx    x6,  5*({XLEN}/8)(sp)   // t1
+    lx    x7,  6*({XLEN}/8)(sp)   // t2
+    lx    x8,  7*({XLEN}/8)(sp)   // s0,fp
+    lx    x9,  8*({XLEN}/8)(sp)   // s1
+    lx   x10,  9*({XLEN}/8)(sp)   // a0
+    lx   x11, 10*({XLEN}/8)(sp)   // a1
+    lx   x12, 11*({XLEN}/8)(sp)   // a2
+    lx   x13, 12*({XLEN}/8)(sp)   // a3
+    lx   x14, 13*({XLEN}/8)(sp)   // a4
+    lx   x15, 14*({XLEN}/8)(sp)   // a5
+    lx   x16, 15*({XLEN}/8)(sp)   // a6
+    lx   x17, 16*({XLEN}/8)(sp)   // a7
+    lx   x18, 17*({XLEN}/8)(sp)   // s2
+    lx   x19, 18*({XLEN}/8)(sp)   // s3
+    lx   x20, 19*({XLEN}/8)(sp)   // s4
+    lx   x21, 20*({XLEN}/8)(sp)   // s5
+    lx   x22, 21*({XLEN}/8)(sp)   // s6
+    lx   x23, 22*({XLEN}/8)(sp)   // s7
+    lx   x24, 23*({XLEN}/8)(sp)   // s8
+    lx   x25, 24*({XLEN}/8)(sp)   // s9
+    lx   x26, 25*({XLEN}/8)(sp)   // s10
+    lx   x27, 26*({XLEN}/8)(sp)   // s11
+    lx   x28, 27*({XLEN}/8)(sp)   // t3
+    lx   x29, 28*({XLEN}/8)(sp)   // t4
+    lx   x30, 29*({XLEN}/8)(sp)   // t5
+    lx   x31, 30*({XLEN}/8)(sp)   // t6
+    lx    x2,  1*({XLEN}/8)(sp)   // sp, overwriting our pointer
 
     // Call mret to jump to where mepc points, switch to user mode, and
     // start running the app.
@@ -399,74 +571,74 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // we have to be very careful not to overwrite any registers before we
     // have saved them.
     //
-    // The global trap handler has swapped the app's `s0` into the
-    // mscratch CSR, which now contains the address of our stack pointer.
+    // The global trap handler has swapped the app's `s0` with the
+    // mscratch CSR. We previously set the mscratch CSR with our stack
+    // pointer. Thus `s0` is now the address of our stack pointer.
     // The global trap handler further clobbered `s1`, which now contains
     // the address of `_start_app_trap`. The app's `s1` is saved at
-    // `0*4(s0)`.
+    // `0*(XLEN/*)(s0)`.
     //
     // Thus we can clobber `s1` and load the address of the per-process
     // stored state:
-    //
-    lw   s1, 2*4(s0)
+    lx   s1, 2*({XLEN}/8)(s0)     // s1 = &state = Per-process StoredState struct
 
     // With the per-process stored state address in `t1`, save all
     // non-clobbered registers. Save the `sp` first, then do the same
     // switcheroo as above, moving the per-process stored state pointer
     // into `sp`. This allows us to use compressed instructions for all
     // these stores:
-    sw    x2,  1*4(s1)            // Save app's sp
-    mv    sp,  s1                 // sp <- s1 (per-process stored state)
+    sx    x2,  1*({XLEN}/8)(s1)   // Save app's sp
+    mv    sp,  s1                 // sp = s1 (per-process stored state)
 
     // Now, store relative to `sp` (per-process stored state) with
     // compressed instructions:
-    sw    x1,  0*4(sp)            // ra
+    sx    x1,  0*({XLEN}/8)(sp)   // ra
     // ------------------------> sp, saved above
-    sw    x3,  2*4(sp)            // gp
-    sw    x4,  3*4(sp)            // tp
-    sw    x5,  4*4(sp)            // t0
-    sw    x6,  5*4(sp)            // t1
-    sw    x7,  6*4(sp)            // t2
+    sx    x3,  2*({XLEN}/8)(sp)   // gp
+    sx    x4,  3*({XLEN}/8)(sp)   // tp
+    sx    x5,  4*({XLEN}/8)(sp)   // t0
+    sx    x6,  5*({XLEN}/8)(sp)   // t1
+    sx    x7,  6*({XLEN}/8)(sp)   // t2
     // ------------------------> s0, in mscratch right now
-    // ------------------------> s1, stored at 0*4(s0) right now
-    sw   x10,  9*4(sp)            // a0
-    sw   x11, 10*4(sp)            // a1
-    sw   x12, 11*4(sp)            // a2
-    sw   x13, 12*4(sp)            // a3
-    sw   x14, 13*4(sp)            // a4
-    sw   x15, 14*4(sp)            // a5
-    sw   x16, 15*4(sp)            // a6
-    sw   x17, 16*4(sp)            // a7
-    sw   x18, 17*4(sp)            // s2
-    sw   x19, 18*4(sp)            // s3
-    sw   x20, 19*4(sp)            // s4
-    sw   x21, 20*4(sp)            // s5
-    sw   x22, 21*4(sp)            // s6
-    sw   x23, 22*4(sp)            // s7
-    sw   x24, 23*4(sp)            // s8
-    sw   x25, 24*4(sp)            // s9
-    sw   x26, 25*4(sp)            // s10
-    sw   x27, 26*4(sp)            // s11
-    sw   x28, 27*4(sp)            // t3
-    sw   x29, 28*4(sp)            // t4
-    sw   x30, 29*4(sp)            // t5
-    sw   x31, 30*4(sp)            // t6
+    // ------------------------> s1, stored at 0*(XLEN/8)(s0) right now
+    sx   x10,  9*({XLEN}/8)(sp)   // a0
+    sx   x11, 10*({XLEN}/8)(sp)   // a1
+    sx   x12, 11*({XLEN}/8)(sp)   // a2
+    sx   x13, 12*({XLEN}/8)(sp)   // a3
+    sx   x14, 13*({XLEN}/8)(sp)   // a4
+    sx   x15, 14*({XLEN}/8)(sp)   // a5
+    sx   x16, 15*({XLEN}/8)(sp)   // a6
+    sx   x17, 16*({XLEN}/8)(sp)   // a7
+    sx   x18, 17*({XLEN}/8)(sp)   // s2
+    sx   x19, 18*({XLEN}/8)(sp)   // s3
+    sx   x20, 19*({XLEN}/8)(sp)   // s4
+    sx   x21, 20*({XLEN}/8)(sp)   // s5
+    sx   x22, 21*({XLEN}/8)(sp)   // s6
+    sx   x23, 22*({XLEN}/8)(sp)   // s7
+    sx   x24, 23*({XLEN}/8)(sp)   // s8
+    sx   x25, 24*({XLEN}/8)(sp)   // s9
+    sx   x26, 25*({XLEN}/8)(sp)   // s10
+    sx   x27, 26*({XLEN}/8)(sp)   // s11
+    sx   x28, 27*({XLEN}/8)(sp)   // t3
+    sx   x29, 28*({XLEN}/8)(sp)   // t4
+    sx   x30, 29*({XLEN}/8)(sp)   // t5
+    sx   x31, 30*({XLEN}/8)(sp)   // t6
 
     // At this point, we can restore s0 into our stack pointer:
-    mv   sp, s0
+    mv   sp, s0                   // sp = s0
 
     // Now retrieve the original value of s1 and save that as well. We
     // must not clobber s1, our per-process stored state pointer.
-    lw   s0,  0*4(sp)             // s0 = app s1 (from trap handler scratch space)
-    sw   s0,  8*4(s1)             // Save app s1 to per-process state
+    lx   s0,  0*({XLEN}/8)(sp)    // s0 = app s1 (from trap handler scratch space)
+    sx   s0,  8*({XLEN}/8)(s1)    // Save app s1 to per-process state
 
     // Retrieve the original value of s0 from the mscratch CSR, save it.
     //
     // This will also restore the kernel trap handler by writing zero to
     // the CSR. `csrrw` allows us to read and write the CSR in a single
     // instruction:
-    csrrw s0, mscratch, zero      // s0 <- mscratch[app s0] <- zero
-    sw    s0, 7*4(s1)             // Save app s0 to per-process state
+    csrrw s0, mscratch, zero      // s0 = mscratch[app s0] = zero
+    sx    s0, 7*({XLEN}/8)(s1)    // Save app s0 to per-process state
 
     // -------------------------------------------------------------------
     // At this point, the entire app register file is saved. We also
@@ -499,17 +671,17 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // of _return_to_kernel into it, as this will be where we jump on
     // the mret instruction, which leaves the trap handler.
     la    s0, 300f                // Load _return_to_kernel into t0.
-    csrrw s0, mepc, s0            // s0 <- mepc[app pc] <- _return_to_kernel
-    sw    s0, 31*4(s1)            // Store app's pc in stored state struct.
+    csrrw s0, mepc, s0            // s0 = mepc[app pc] = _return_to_kernel
+    sx    s0, 31*({XLEN}/8)(s1)   // state.pc = s0 (Store app's pc in stored state struct.)
 
     // Save mtval to the stored state struct
-    csrr  s0, mtval
-    sw    s0, 33*4(s1)
+    csrr  s0, mtval               // s0 = mtval
+    sx    s0, 33*({XLEN}/8)(s1)   // state.mtval = s0
 
     // Save mcause and leave it loaded into a0, as we call a function
     // with it below:
-    csrr  a0, mcause
-    sw    a0, 32*4(s1)
+    csrr  a0, mcause              // s0 = mcause
+    sx    a0, 32*({XLEN}/8)(s1)   // state.mcause = a0
 
     // Depending on the value of a0, we might be calling into a function
     // while still in the trap handler. The callee may rely on the `gp`,
@@ -521,10 +693,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // _after_ potentially invoking the _disable_interrupt_... function.
     // LLVM relies on it to not be clobbered internally, but it is not
     // part of the RISC-V C ABI, which we need to follow here.
-    //
-    lw    x8, 5*4(sp)             // fp/s0: Restore the frame pointer
-    lw    x4, 4*4(sp)             // tp: Restore the thread pointer
-    lw    x3, 3*4(sp)             // gp: Restore the global pointer
+    lx    x8, 5*({XLEN}/8)(sp)    // fp/s0: Restore the frame pointer
+    lx    x4, 4*({XLEN}/8)(sp)    // tp: Restore the thread pointer
+    lx    x3, 3*({XLEN}/8)(sp)    // gp: Restore the global pointer
 
     // --------------------------------------------------------------------
     // From this point onward, avoid clobbering the following registers:
@@ -565,18 +736,18 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // its not one of the register's we've already restored:
     la   s2, _trap_handler_active // s2 = addr(_trap_handler_active)
     csrr t0, mhartid              // t0 = hartid
-    slli t0, t0, 2                // t0 = t0 * 4
+    slli t0, t0, ({XLEN_LOG2}-3)  // t0 = t0 * (XLEN/8)
     add  s2, s2, t0               // s2 = addr(_trap_handler_active[hartid])
 
     // Indicate that we are in a trap handler on this hart:
-    li   t0, 1
-    sw   t0, 0(s2)
+    li   t0, 1                    // t0 = 1
+    sx   t0, 0*({XLEN}/8)(s2)     // _trap_handler_active[hartid] = 1
 
     jal  ra, _disable_interrupt_trap_rust_from_app
 
     // Indicate that we are no longer going to be in a trap handler on
     // this hart:
-    sw   x0, 0(s2)
+    sx   x0, 0*({XLEN}/8)(s2)     // _trap_handler_active[hartid] = 0
 
 200: // _start_app_trap_continue
 
@@ -605,9 +776,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // `a0` needs to hold the per-process state pointer currently stored
     // in `s1`, and the original value of `s1` is saved on the stack.
     // Restore them:
-    //
     mv    a0, s1                  // a0 = per-process stored state
-    lw    s1, 6*4(sp)             // restore s1 (used by LLVM internally)
+    lx    s1, 6*({XLEN}/8)(sp)    // restore s1 (used by LLVM internally)
 
     // We need thus need to mark all registers as clobbered, except:
     //
@@ -618,13 +788,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     // - x9  (s1)
     // - x10 (a0)
 
-    addi sp, sp, 8*4              // Reset kernel stack pointer
+    // Reset kernel stack pointer
+    addi sp, sp, 8*({XLEN}/8)     // riscv32: sp = sp + (8*4), riscv64: sp = sp + (8*8)
             ",
 
             // We pass the per-process state struct in a register we are allowed
             // to clobber (not s0 or s1), but still fits into 3-bit register
             // arguments of compressed load- & store-instructions.
-            in("x10") core::ptr::from_mut::<Riscv32iStoredState>(state),
+            in("x10") core::ptr::from_mut::<RiscvStoredState>(state),
 
             // Clobber all registers which can be marked as clobbered, except
             // for `a0` / `x10`. By making it retain the value of `&mut state`,
@@ -635,9 +806,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             out("x17") _, out("x18") _, out("x19") _, out("x20") _, out("x21") _,
             out("x22") _, out("x23") _, out("x24") _, out("x25") _, out("x26") _,
             out("x27") _, out("x28") _, out("x29") _, out("x30") _, out("x31") _,
+
+            // Constants for XLEN on rv32 and rv64 chips.
+            XLEN = const crate::XLEN,
+            XLEN_LOG2 = const crate::XLEN_LOG2,
         );
 
-        let ret = match mcause::Trap::from(state.mcause as usize) {
+        let ret = match mcause::Trap::from(state.mcause) {
             mcause::Trap::Interrupt(_intr) => {
                 // An interrupt occurred while the app was running.
                 ContextSwitchReason::Interrupted
@@ -651,14 +826,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         // instruction. The hardware does not do this for us.
                         state.pc = state.pc.wrapping_add(4);
 
-                        let syscall =
-                            kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
-                                state.regs[R_A4] as u8,
-                                state.regs[R_A0] as usize,
-                                (state.regs[R_A1] as usize).into(),
-                                (state.regs[R_A2] as usize).into(),
-                                (state.regs[R_A3] as usize).into(),
-                            );
+                        let syscall = syscall_from_register_arguments_helper(
+                            state.regs[R_A4],
+                            state.regs[R_A0],
+                            state.regs[R_A1],
+                            state.regs[R_A2],
+                            state.regs[R_A3],
+                        );
 
                         match syscall {
                             Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
@@ -680,7 +854,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         &self,
         _accessible_memory_start: *const u8,
         _app_brk: *const u8,
-        state: &Riscv32iStoredState,
+        state: &RiscvStoredState,
         writer: &mut dyn Write,
     ) {
         let _ = writer.write_fmt(format_args!(
@@ -740,7 +914,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             state.mcause,
             width = (crate::XLEN / 4) + 2,
         ));
-        crate::print_mcause(mcause::Trap::from(state.mcause as usize), writer);
+        crate::print_mcause(mcause::Trap::from(state.mcause), writer);
         let _ = writer.write_fmt(format_args!(
             ")\
              \r\n mtval:  {:#0width$X}\
@@ -750,24 +924,20 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         ));
     }
 
-    fn store_context(
-        &self,
-        state: &Riscv32iStoredState,
-        out: &mut [u8],
-    ) -> Result<usize, ErrorCode> {
+    fn store_context(&self, state: &RiscvStoredState, out: &mut [u8]) -> Result<usize, ErrorCode> {
         const U32_SZ: usize = size_of::<usize>();
-        if out.len() >= size_of::<Riscv32iStoredState>() + METADATA_LEN * U32_SZ {
-            write_u32_to_u8_slice(VERSION, out, VERSION_IDX);
-            write_u32_to_u8_slice(STORED_STATE_SIZE, out, SIZE_IDX);
-            write_u32_to_u8_slice(u32::from_le_bytes(TAG), out, TAG_IDX);
-            write_u32_to_u8_slice(state.pc, out, PC_IDX);
-            write_u32_to_u8_slice(state.mcause, out, MCAUSE_IDX);
-            write_u32_to_u8_slice(state.mtval, out, MTVAL_IDX);
+        if out.len() >= STORED_STATE_SIZE + METADATA_LEN * U32_SZ {
+            write_usize_to_u8_slice(VERSION, out, VERSION_IDX);
+            write_usize_to_u8_slice(STORED_STATE_SIZE, out, SIZE_IDX);
+            write_usize_to_u8_slice(usize::from_le_bytes(TAG), out, TAG_IDX);
+            write_usize_to_u8_slice(state.pc, out, PC_IDX);
+            write_usize_to_u8_slice(state.mcause, out, MCAUSE_IDX);
+            write_usize_to_u8_slice(state.mtval, out, MTVAL_IDX);
             for (i, v) in state.regs.iter().enumerate() {
-                write_u32_to_u8_slice(*v, out, REGS_IDX + i);
+                write_usize_to_u8_slice(*v, out, REGS_IDX + i);
             }
             // +3 for pc, mcause, mtval
-            Ok((state.regs.len() + 3 + METADATA_LEN) * U32_SZ)
+            Ok((state.regs.len() + 3 + METADATA_LEN) * USIZE_SZ)
         } else {
             Err(ErrorCode::SIZE)
         }
