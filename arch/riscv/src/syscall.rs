@@ -171,14 +171,28 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             .get_disjoint_mut([R_A0, R_A1, R_A2, R_A3])
             .or(Err(()))?;
 
+        // Convert the `&mut usize` references to `&mut u32`s.
+        //
+        // SAFETY: Whether we are on a 32-bit platform or a 64-bit platform,
+        // converting a `&mut usize` to a `&mut u32` will be safe. The pointer
+        // will always be aligned and the values will always be initialized to
+        // something.
+        let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
+            let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
+            let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
+            let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
+            let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
+            (a0_u32, a1_u32, a2_u32, a3_u32)
+        };
+
         kernel::utilities::arch_helpers::encode_syscall_return_trd104(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
-            unsafe { &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>() },
+            a0_u32,
+            a1_u32,
+            a2_u32,
+            a3_u32,
         );
 
         // We do not use process memory, so this cannot fail.
@@ -202,12 +216,22 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             .get_disjoint_mut([R_A0, R_A1, R_A2, R_A3])
             .or(Err(()))?;
 
+        // Convert the `&mut usize` references to `&mut u32`s.
+        //
+        // SAFETY: Whether we are on a 32-bit platform or a 64-bit platform,
+        // converting a `&mut usize` to a `&mut u32` will be safe. The pointer
+        // will always be aligned and the values will always be initialized to
+        // something.
+        let (a0_u32, a1_u32, a2_u32, a3_u32) = unsafe {
+            let a0_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>();
+            let a1_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>();
+            let a2_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>();
+            let a3_u32: &mut u32 = &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>();
+            (a0_u32, a1_u32, a2_u32, a3_u32)
+        };
+
         kernel::utilities::arch_helpers::encode_upcall_trd104(
-            &callback,
-            unsafe { &mut *core::ptr::from_mut::<usize>(a0).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(a1).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(a2).cast::<u32>() },
-            unsafe { &mut *core::ptr::from_mut::<usize>(a3).cast::<u32>() },
+            &callback, a0_u32, a1_u32, a2_u32, a3_u32,
         );
 
         // We also need to set the return address (ra) register so that the new
