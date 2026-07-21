@@ -210,10 +210,10 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
             app.pending_write = true;
         } else if app.write_len <= debug_space_avail {
             // Space for the full write, make it
-            app.write_position = self.send(app, kernel_data).map_or(0, |len| len);
+            app.write_position = self.send(app, kernel_data).unwrap_or(0);
         } else if self.atomic_size.get() <= debug_space_avail {
             // Space for a partial write, make it
-            app.write_position = self.send(app, kernel_data).map_or(0, |len| len);
+            app.write_position = self.send(app, kernel_data).unwrap_or(0);
         } else {
             // No space even for a partial, minimum size write: enqueue
             app.pending_write = true;
@@ -345,8 +345,7 @@ impl<'a, A: Alarm<'a>> AlarmClient for ConsoleOrdered<'a, A> {
 
                             // Write, or if there isn't space for a minimum write, retry later
                             if minimum_write <= debug_space_avail {
-                                app.write_position +=
-                                    self.send(app, kernel_data).map_or(0, |len| len);
+                                app.write_position += self.send(app, kernel_data).unwrap_or(0);
                             } else {
                                 self.alarm.set_alarm(
                                     self.alarm.now(),
