@@ -1,0 +1,24 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "shakti_c_sim"
+version.workspace = true
+authors.workspace = true
+build = "../build.rs"
+edition.workspace = true
+
+[dependencies]
+rv64i = { path = "../../arch/rv64i" }
+shakti_c = { path = "../../chips/shakti_c" }
+kernel = { path = "../../kernel" }
+components = { path = "../components" }
+capsules-core = { path = "../../capsules/core" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true

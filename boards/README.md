@@ -39,6 +39,7 @@ but the approximate definitions:
 >    under active development to move to Tier 2 support.
 > 1. For a fully virtual platform on QEMU you can use the
 >    [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md) board. This
+| [SHAKTI C-Class Simulation](shakti_c_sim/README.md)              | RISC-V RV64IMAC  | SHAKTI C-Class | custom     | custom                      | No            |
 >    can be quickly started and run on a host computer.
 > 1. For a simulation environment you can use Verilator with
 >    [OpenTitan Earlgrey on CW310](opentitan/earlgrey-cw310/README.md) or
@@ -115,6 +116,7 @@ Virtual hardware platforms that are regularly tested as part of the CI.
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
 | [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md)    | RISC-V RV32IMAC  | QEMU           | custom     | custom                      | Yes (7.2.0)   |
+| [SHAKTI C-Class Simulation](shakti_c_sim/README.md)              | RISC-V RV64IMAC  | SHAKTI C-Class | custom     | custom                      | No            |
 | [QEMU RISC-V 64 bit `virt` platform](qemu_rv64_virt/README.md)    | RISC-V RV64IMAC  | QEMU           | custom     | custom                      | Yes (8.2.7)   |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                | RISC-V RV32IMC   | LiteX+VexRiscV | custom     | tockloader (flash-file)[^1] | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |

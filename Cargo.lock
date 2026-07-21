@@ -1527,6 +1527,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "shakti_c"
+version = "0.2.3-dev"
+dependencies = [
+ "kernel",
+ "rv64i",
+]
+
+[[package]]
+name = "shakti_c_sim"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-system",
+ "components",
+ "kernel",
+ "rv64i",
+ "shakti_c",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "sifive"
 version = "0.2.3-dev"
 dependencies = [
