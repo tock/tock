@@ -44,9 +44,7 @@ use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! spi_mux_component_static {
-    ($S:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_spi::MuxSpiMaster<'static, $S>)
-    };};
+    ($S:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_spi::MuxSpiMaster<'static, $S>) }};
 }
 
 #[macro_export]
@@ -68,7 +66,7 @@ macro_rules! spi_syscall_component_static {
             kernel::static_buf!([u8; capsules_core::spi_controller::DEFAULT_WRITE_BUF_LENGTH]);
 
         (virtual_spi, spi, spi_read_buf, spi_write_buf)
-    };};
+    }};
 }
 
 #[macro_export]
@@ -90,7 +88,7 @@ macro_rules! spi_syscallp_component_static {
             kernel::static_buf!([u8; capsules_core::spi_controller::DEFAULT_WRITE_BUF_LENGTH]);
 
         (spi_slave, spi_peripheral, spi_read_buf, spi_write_buf)
-    };};
+    }};
 }
 
 #[macro_export]
@@ -99,14 +97,12 @@ macro_rules! spi_component_static {
         kernel::static_buf!(
             capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
         )
-    };};
+    }};
 }
 
 #[macro_export]
 macro_rules! spi_peripheral_component_static {
-    ($S:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::spi_peripheral::SpiPeripheral<'static, $S>)
-    };};
+    ($S:ty $(,)?) => {{ kernel::static_buf!(capsules_core::spi_peripheral::SpiPeripheral<'static, $S>) }};
 }
 
 pub struct SpiMuxComponent<S: 'static + spi::SpiMaster<'static>> {

@@ -41,7 +41,7 @@ macro_rules! can_component_static {
         let CAN_RX_BUF = static_buf!([u8; can::STANDARD_CAN_PACKET_SIZE]);
         let can = static_buf!(capsules_extra::can::CanCapsule<'static, $C>);
         (can, CAN_TX_BUF, CAN_RX_BUF)
-    };};
+    }};
 }
 
 pub struct CanComponent<A: 'static + can::Can> {

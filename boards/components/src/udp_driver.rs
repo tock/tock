@@ -65,7 +65,7 @@ macro_rules! udp_driver_component_static {
             kernel::static_buf!(capsules_extra::net::udp::udp_recv::UDPReceiver<'static>);
 
         (udp_send, udp_vis_cap, net_cap, udp_driver, buffer, udp_recv)
-    };};
+    }};
 }
 
 pub type UDPDriverComponentType = capsules_extra::net::udp::UDPDriver<'static>;

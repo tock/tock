@@ -32,7 +32,7 @@ macro_rules! sh1106_component_static {
         );
 
         (buffer, sh1106)
-    };};
+    }};
 }
 
 pub type Sh1106ComponentType<I> = capsules_extra::sh1106::Sh1106<

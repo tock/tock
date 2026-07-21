@@ -92,7 +92,7 @@ macro_rules! led_matrix_component_static {
         );
 
         (alarm, led, buffer)
-    };};
+    }};
 }
 
 #[macro_export]
@@ -113,7 +113,7 @@ macro_rules! led_line_component_static {
                 ),+
             ]
         )
-    };};
+    }};
 }
 
 #[macro_export]
@@ -124,7 +124,7 @@ macro_rules! led_matrix_led {
             LedMatrixLed<'static, $Pin, $A>,
             LedMatrixLed::new($led_matrix, $col, $row)
         )
-    };};
+    }};
 }
 
 #[macro_export]
@@ -141,7 +141,7 @@ macro_rules! led_matrix_leds {
             ),+]
         );
         leds
-    };};
+    }};
 }
 
 pub struct LedMatrixComponent<

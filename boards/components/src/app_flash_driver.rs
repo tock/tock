@@ -34,7 +34,7 @@ macro_rules! app_flash_component_static {
         );
         let app_flash = kernel::static_buf!(capsules_extra::app_flash_driver::AppFlash<'static>);
         (buffer, page_buffer, nv_to_page, app_flash)
-    };};
+    }};
 }
 
 pub type AppFlashComponentType = capsules_extra::app_flash_driver::AppFlash<'static>;

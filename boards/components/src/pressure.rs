@@ -20,9 +20,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! pressure_component_static {
-    ($T:ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::pressure::PressureSensor<'static, $T>)
-    };};
+    ($T:ty $(,)?) => {{ kernel::static_buf!(capsules_extra::pressure::PressureSensor<'static, $T>) }};
 }
 
 pub struct PressureComponent<T: 'static + hil::sensors::PressureDriver<'static>> {

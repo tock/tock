@@ -32,7 +32,7 @@ macro_rules! date_time_component_static {
     ($R:ty $(,)?) => {{
         let rtc = kernel::static_buf!(capsules_extra::date_time::DateTimeCapsule<'static, $R>);
         (rtc)
-    };};
+    }};
 }
 
 pub struct DateTimeComponent<D: 'static + date_time::DateTime<'static>> {

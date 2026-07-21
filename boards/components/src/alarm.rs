@@ -34,9 +34,7 @@ use kernel::hil::time::{self, Alarm};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! alarm_mux_component_static {
-    ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, $A>)
-    };};
+    ($A:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, $A>) }};
 }
 
 // Setup static space for the objects.
@@ -54,7 +52,7 @@ macro_rules! alarm_component_static {
         );
 
         (mux_alarm, alarm_driver)
-    };};
+    }};
 }
 
 pub type AlarmDriverComponentType<A> = capsules_core::alarm::AlarmDriver<

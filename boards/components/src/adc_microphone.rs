@@ -46,7 +46,7 @@ macro_rules! adc_microphone_component_static {
             kernel::static_buf!(capsules_extra::adc_microphone::AdcMicrophone<'static, $P>);
 
         (adc_device, buffer, adc_microphone)
-    };};
+    }};
 }
 
 pub struct AdcMicrophoneComponent<

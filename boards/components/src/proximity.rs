@@ -20,9 +20,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! proximity_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::proximity::ProximitySensor<'static>)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::proximity::ProximitySensor<'static>) }};
 }
 
 pub type ProximityComponentType = capsules_extra::proximity::ProximitySensor<'static>;

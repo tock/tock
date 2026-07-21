@@ -25,7 +25,7 @@ macro_rules! virtual_scheduler_timer_component_static {
         );
 
         (alarm, scheduler_timer)
-    };};
+    }};
 }
 
 pub type VirtualSchedulerTimerComponentType<A> = VirtualSchedulerTimer<VirtualMuxAlarm<'static, A>>;
@@ -67,7 +67,7 @@ macro_rules! virtual_scheduler_timer_no_mux_component_static {
         );
 
         scheduler_timer
-    };};
+    }};
 }
 
 pub type VirtualSchedulerTimerNoMuxComponentType<A> = VirtualSchedulerTimer<A>;

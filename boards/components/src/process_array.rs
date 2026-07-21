@@ -9,9 +9,7 @@ use kernel::component::Component;
 
 #[macro_export]
 macro_rules! process_array_component_static {
-    ($NUM_PROCS:ty $(,)?) => {{
-        kernel::static_buf!(kernel::process::ProcessArray<$NUM_PROCS>)
-    };};
+    ($NUM_PROCS:ty $(,)?) => {{ kernel::static_buf!(kernel::process::ProcessArray<$NUM_PROCS>) }};
 }
 
 pub struct ProcessArrayComponent<const NUM_PROCS: usize> {}

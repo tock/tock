@@ -37,7 +37,7 @@ macro_rules! fm25cl_component_static {
         );
 
         (spi, fm25cl, txbuffer, rxbuffer)
-    };};
+    }};
 }
 
 pub struct Fm25clComponent<

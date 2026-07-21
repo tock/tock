@@ -24,9 +24,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! rainfall_component_static {
-    ($H: ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::rainfall::RainFallSensor<'static, $H>)
-    };};
+    ($H: ty $(,)?) => {{ kernel::static_buf!(capsules_extra::rainfall::RainFallSensor<'static, $H>) }};
 }
 
 pub type RainFallComponentType<H> = capsules_extra::rainfall::RainFallSensor<'static, H>;

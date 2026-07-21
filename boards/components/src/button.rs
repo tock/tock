@@ -74,14 +74,12 @@ macro_rules! button_component_helper {
                 )*
             ]
         )
-    };};
+    }};
 }
 
 #[macro_export]
 macro_rules! button_component_static {
-    ($Pin:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::button::Button<'static, $Pin>)
-    };};
+    ($Pin:ty $(,)?) => {{ kernel::static_buf!(capsules_core::button::Button<'static, $Pin>) }};
 }
 
 pub type ButtonComponentType<IP> = capsules_core::button::Button<'static, IP>;

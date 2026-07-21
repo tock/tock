@@ -53,7 +53,7 @@ macro_rules! sequential_binary_storage_component_static {
         let buffer = kernel::static_buf!([u8; kernel::dynamic_binary_storage::BUF_LEN]);
 
         (page, ntp, pl, buffer)
-    };};
+    }};
 }
 
 pub struct SequentialBinaryStorageComponent<

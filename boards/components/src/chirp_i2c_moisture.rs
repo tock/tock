@@ -42,7 +42,7 @@ macro_rules! chirp_i2c_moisture_component_static {
         );
 
         (i2c_device, i2c_buffer, chirp_i2c_moisture)
-    };};
+    }};
 }
 
 pub type ChirpI2cMoistureComponentType<I> =

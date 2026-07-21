@@ -34,7 +34,7 @@ macro_rules! hs3003_component_static {
         );
 
         (i2c_device, buffer, hs3003)
-    };};
+    }};
 }
 
 pub type Hs3003ComponentType<I> = Hs3003<'static, I>;

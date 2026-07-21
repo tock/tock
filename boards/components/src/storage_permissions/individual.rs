@@ -29,7 +29,7 @@ macro_rules! storage_permissions_individual_component_static {
                 components::storage_permissions::individual::AppStoreCapability
             >
         )
-    };};
+    }};
 }
 
 pub struct AppStoreCapability;

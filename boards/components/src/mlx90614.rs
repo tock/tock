@@ -35,7 +35,7 @@ macro_rules! mlx90614_component_static {
         let mlx90614 = kernel::static_buf!(capsules_extra::mlx90614::Mlx90614SMBus<'static>);
 
         (i2c_device, buffer, mlx90614)
-    };};
+    }};
 }
 
 pub struct Mlx90614SMBusComponent<

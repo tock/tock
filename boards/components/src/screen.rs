@@ -45,7 +45,7 @@ macro_rules! screen_split_mux_component_static {
         kernel::static_buf!(
             capsules_extra::virtualizers::screen::virtual_screen_split::ScreenSplitMux<'static, $S>
         )
-    };};
+    }};
 }
 
 #[macro_export]
@@ -57,7 +57,7 @@ macro_rules! screen_split_user_component_static {
                 $S,
             >
         )
-    };};
+    }};
 }
 
 pub type ScreenSplitMuxComponentType<S> = virtual_screen_split::ScreenSplitMux<'static, S>;
@@ -140,7 +140,7 @@ macro_rules! screen_component_static {
         let screen = kernel::static_buf!(capsules_extra::screen::screen::Screen);
 
         (buffer, screen)
-    };};
+    }};
 }
 
 pub type ScreenComponentType = capsules_extra::screen::screen::Screen<'static>;
@@ -204,7 +204,7 @@ macro_rules! screen_shared_component_static {
         let screen = kernel::static_buf!(capsules_extra::screen::screen_shared::ScreenShared<$S>);
 
         (buffer, screen)
-    };};
+    }};
 }
 
 pub type ScreenSharedComponentType<S> =

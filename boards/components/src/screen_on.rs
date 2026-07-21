@@ -27,7 +27,7 @@ macro_rules! screen_on_led_component_static {
         );
 
         (buffer, screen_on_led)
-    };};
+    }};
 }
 
 pub type ScreenOnLedComponentType<

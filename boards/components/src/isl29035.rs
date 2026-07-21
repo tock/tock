@@ -56,14 +56,12 @@ macro_rules! isl29035_component_static {
         );
 
         (alarm, i2c_device, i2c_buffer, isl29035)
-    };};
+    }};
 }
 
 #[macro_export]
 macro_rules! ambient_light_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::ambient_light::AmbientLight<'static>)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::ambient_light::AmbientLight<'static>) }};
 }
 
 pub struct Isl29035Component<
