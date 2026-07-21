@@ -8,8 +8,8 @@ use core::cell::Cell;
 use core::num::NonZeroUsize;
 use kernel::errorcode::ErrorCode;
 use kernel::hil::uart::{self, Configure, Receive, ReceiveClient, Transmit, TransmitClient};
-use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::StaticRef;
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::{
     cells::{OptionalCell, TakeCell},
     registers::interfaces::{ReadWriteable, Readable, Writeable},

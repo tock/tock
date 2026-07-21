@@ -96,8 +96,8 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
 
 use crate::lsm303xx::{
-    AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
-    CTRL_REG1, CTRL_REG4, RANGE_FACTOR_X_Y, RANGE_FACTOR_Z, SCALE_FACTOR,
+    AccelerometerRegisters, CTRL_REG1, CTRL_REG4, Lsm303AccelDataRate, Lsm303MagnetoDataRate,
+    Lsm303Range, Lsm303Scale, RANGE_FACTOR_X_Y, RANGE_FACTOR_Z, SCALE_FACTOR,
 };
 use capsules_core::driver;
 

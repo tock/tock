@@ -2,14 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Top-level chip definition for the nRF52 microcontroller.
+
 use core::fmt::Write;
-use cortexm4f::{nvic, CortexM4F, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant, nvic};
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::StaticRef;
 
 //
 // Peripheral Registers Instantiations
 //
+
+const AESECB_BASE: StaticRef<crate::aes::AesEcbRegisters> =
+    unsafe { StaticRef::new(0x4000E000 as *const crate::aes::AesEcbRegisters) };
 
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const crate::rtc::RtcRegisters) };
@@ -72,10 +77,21 @@ pub struct Nrf52DefaultPeripherals<'a> {
 }
 
 impl Nrf52DefaultPeripherals<'_> {
-    pub fn new() -> Self {
+    pub fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
+        // # Safety
+        //
+        // This must only get constructed once.
+        //
+        // TODO: As of June 2026, we just assume peripherals are only created
+        // once and this is the only call to the AES manager constructor.
+        // However, once we have a strategy for enforcing the only-once
+        // constraint, we need to update this to use that so we can properly
+        // enforce this safety requirement.
+        let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
+
         Self {
             acomp: crate::acomp::Comparator::new(),
-            ecb: crate::aes::AesECB::new(),
+            ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
             pwr_clk: crate::power::Power::new(),
             ble_radio: crate::ble_radio::Radio::new(),
             trng: crate::trng::Trng::new(RNG_BASE),
@@ -145,9 +161,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         // # Safety
         //
         // Need to enable interrupts.
-        unsafe {
-            nvic::enable_all();
-        }
+        nvic::enable_all();
     }
 
     fn mpu(&self) -> &Self::MPU {
@@ -172,7 +186,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { nvic::has_pending() }
+        nvic::has_pending()
     }
 
     fn sleep(&self) {

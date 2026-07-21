@@ -40,9 +40,9 @@
 //! ```
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules_extra::cyw4343::spi_bus;
 use capsules_extra::cyw4343::CYW4343x;
 use capsules_extra::cyw4343::CYW4343xBus;
+use capsules_extra::cyw4343::spi_bus;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::{gpio, spi, time};
@@ -80,11 +80,8 @@ pub struct CYW4343xComponent<
     clm: &'static [u8],
 }
 
-impl<
-        P: 'static + gpio::Pin,
-        A: 'static + time::Alarm<'static>,
-        B: 'static + CYW4343xBus<'static>,
-    > CYW4343xComponent<P, A, B>
+impl<P: 'static + gpio::Pin, A: 'static + time::Alarm<'static>, B: 'static + CYW4343xBus<'static>>
+    CYW4343xComponent<P, A, B>
 {
     pub fn new(
         pwr: &'static P,
@@ -101,11 +98,8 @@ impl<
     }
 }
 
-impl<
-        P: 'static + gpio::Pin,
-        A: 'static + time::Alarm<'static>,
-        B: 'static + CYW4343xBus<'static>,
-    > Component for CYW4343xComponent<P, A, B>
+impl<P: 'static + gpio::Pin, A: 'static + time::Alarm<'static>, B: 'static + CYW4343xBus<'static>>
+    Component for CYW4343xComponent<P, A, B>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,

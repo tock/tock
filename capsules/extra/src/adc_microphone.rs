@@ -4,12 +4,12 @@
 
 use core::cell::Cell;
 
+use kernel::ErrorCode;
 use kernel::hil::adc;
 use kernel::hil::gpio;
 use kernel::hil::sensors::{SoundPressure, SoundPressureClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::math;
-use kernel::ErrorCode;
 
 #[derive(Copy, Clone, PartialEq)]
 enum State {
@@ -44,7 +44,7 @@ impl<'a, P: gpio::Pin> AdcMicrophone<'a, P> {
     }
 
     fn compute_spl(&self) -> u8 {
-        let max = self.spl_buffer.map_or(0, |buffer| {
+        self.spl_buffer.map_or(0, |buffer| {
             let avg = (buffer.iter().fold(0usize, |a, v| a + *v as usize) / buffer.len()) as u16;
             let max = buffer
                 .iter()
@@ -53,8 +53,7 @@ impl<'a, P: gpio::Pin> AdcMicrophone<'a, P> {
             let mut conv = (max as f32) / (((1 << 15) - 1) as f32) * 9_f32;
             conv = 20f32 * math::log10(conv / 0.00002f32);
             conv as u8
-        });
-        max
+        })
     }
 }
 

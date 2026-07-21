@@ -19,9 +19,9 @@
 //! ```
 
 use crate::ficr;
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 const APPROTECT_BASE: StaticRef<ApprotectRegisters> =
     unsafe { StaticRef::new(0x40000000 as *const ApprotectRegisters) };

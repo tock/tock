@@ -114,25 +114,23 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
     type ThreadIdProvider = cortexm4::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        unsafe {
-            cortexm4::nvic::disable_all();
-            cortexm4::nvic::clear_all_pending();
-            cortexm4::nvic::enable_all();
-        }
+        cortexm4::nvic::disable_all();
+        cortexm4::nvic::clear_all_pending();
+        cortexm4::nvic::enable_all();
     }
 
     fn service_pending_interrupts(&self) {
+        // We have a bit of a hacky solution here to deal with a peculiarity of the
+        // stm32wle5xx's built in subghz radio (SX126x). The subghz radio
+        // feeds directly into nvic which means we cannot configure it to
+        // be rising edge triggered. To clear this interrupt, we must clear
+        // the interrupt source on the internal SX126x radio via a SPI write
+        // over the internal spi bus. This means that we need to mask this interrupt
+        // here to prevent being stuck in the `service_pending_interrupts` loop.
+        // After servicing all other pending interrupts, we then check if the subghz
+        // radio interrupt is asserted (see comments in subghz_radio.rs for details
+        // of handling).
         unsafe {
-            // We have a bit of a hacky solution here to deal with a peculiarity of the
-            // stm32wle5xx's built in subghz radio (SX126x). The subghz radio
-            // feeds directly into nvic which means we cannot configure it to
-            // be rising edge triggered. To clear this interrupt, we must clear
-            // the interrupt source on the internal SX126x radio via a SPI write
-            // over the internal spi bus. This means that we need to mask this interrupt
-            // here to prevent being stuck in the `service_pending_interrupts` loop.
-            // After servicing all other pending interrupts, we then check if the subghz
-            // radio interrupt is asserted (see comments in subghz_radio.rs for details
-            // of handling).
             loop {
                 if let Some(interrupt) =
                     cortexm4::nvic::next_pending_with_mask((0, 1u128 << crate::nvic::RADIO_IRQ))
@@ -163,7 +161,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending_with_mask((0, 1u128 << crate::nvic::RADIO_IRQ)) }
+        cortexm4::nvic::has_pending_with_mask((0, 1u128 << crate::nvic::RADIO_IRQ))
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

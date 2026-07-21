@@ -8,8 +8,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of;
-
 use kernel::component::Component;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability, static_init};
@@ -112,11 +110,14 @@ pub unsafe fn main() {
     let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
         nrf52840dk_lib::start();
 
+    // Get FICR instance to read chip properties.
+    let ficr = nrf52840::ficr::Ficr::new();
+
     //--------------------------------------------------------------------------
     // RAW 802.15.4
     //--------------------------------------------------------------------------
 
-    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
+    let device_id = ficr.id();
 
     let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
         .finalize(components::eui64_component_static!());
@@ -133,7 +134,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // AES Encryption Oracle
     //--------------------------------------------------------------------------
-    const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+    const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES_BLOCK_SIZE;
     let aes_src_buffer = kernel::static_init!([u8; 16], [0; 16]);
     let aes_dst_buffer = kernel::static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
 
@@ -150,7 +151,7 @@ pub unsafe fn main() {
         )
     );
 
-    kernel::hil::symmetric_encryption::AES128::set_client(
+    kernel::hil::symmetric_encryption::AES::set_client(
         &nrf52840_peripherals.nrf52.ecb,
         encryption_oracle,
     );

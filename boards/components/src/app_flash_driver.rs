@@ -37,6 +37,8 @@ macro_rules! app_flash_component_static {
     };};
 }
 
+pub type AppFlashComponentType = capsules_extra::app_flash_driver::AppFlash<'static>;
+
 pub struct AppFlashComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     const BUF_LEN: usize,
@@ -47,11 +49,9 @@ pub struct AppFlashComponent<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-        const BUF_LEN: usize,
-    > AppFlashComponent<F, BUF_LEN>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    const BUF_LEN: usize,
+> AppFlashComponent<F, BUF_LEN>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -67,11 +67,9 @@ impl<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-        const BUF_LEN: usize,
-    > Component for AppFlashComponent<F, BUF_LEN>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    const BUF_LEN: usize,
+> Component for AppFlashComponent<F, BUF_LEN>
 {
     type StaticInput = (
         &'static mut MaybeUninit<[u8; BUF_LEN]>,

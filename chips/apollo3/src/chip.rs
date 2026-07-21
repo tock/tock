@@ -121,11 +121,9 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
             crate::actually_disable_fpu();
         }
 
-        unsafe {
-            cortexm4f::nvic::disable_all();
-            cortexm4f::nvic::clear_all_pending();
-            cortexm4f::nvic::enable_all();
-        }
+        cortexm4f::nvic::disable_all();
+        cortexm4f::nvic::clear_all_pending();
+        cortexm4f::nvic::enable_all();
     }
 
     fn service_pending_interrupts(&self) {
@@ -143,7 +141,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4f::nvic::has_pending() }
+        cortexm4f::nvic::has_pending()
     }
 
     fn mpu(&self) -> &cortexm4f::mpu::MPU {

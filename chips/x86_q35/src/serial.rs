@@ -19,6 +19,7 @@ use core::mem::MaybeUninit;
 
 use x86::registers::io::Port;
 
+use kernel::ErrorCode;
 use kernel::component::Component;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{
@@ -27,10 +28,9 @@ use kernel::hil::uart::{
 };
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::io_write::IoWrite;
-use kernel::ErrorCode;
 use tock_cells::take_cell::TakeCell;
 use tock_registers::{
-    register_bitfields, register_map, FakeRegister, LocalRegisterCopy, NoAccess, Read, Safe, Write,
+    FakeRegister, LocalRegisterCopy, NoAccess, Read, Safe, Write, register_bitfields, register_map,
 };
 
 register_map! {

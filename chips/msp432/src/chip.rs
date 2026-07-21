@@ -110,29 +110,27 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
     type ThreadIdProvider = cortexm4::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        unsafe {
-            cortexm4::nvic::disable_all();
-            cortexm4::nvic::clear_all_pending();
-            cortexm4::nvic::enable_all();
-        }
+        cortexm4::nvic::disable_all();
+        cortexm4::nvic::clear_all_pending();
+        cortexm4::nvic::enable_all();
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm4::nvic::next_pending() {
+        while let Some(interrupt) = cortexm4::nvic::next_pending() {
+            unsafe {
                 if !self.interrupt_service.service_interrupt(interrupt) {
                     panic!("unhandled interrupt {}", interrupt);
                 }
-
-                let n = cortexm4::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
             }
+
+            let n = cortexm4::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() }
+        cortexm4::nvic::has_pending()
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

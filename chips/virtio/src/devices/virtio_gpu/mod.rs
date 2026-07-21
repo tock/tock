@@ -5,12 +5,12 @@
 use core::cell::Cell;
 use core::ops::Range;
 
+use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
 use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
-use kernel::ErrorCode;
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use super::super::queues::split_queue::{
@@ -22,6 +22,7 @@ mod helpers;
 mod messages;
 
 use messages::{
+    Rect, VirtIOGPUReq, VirtIOGPUResp,
     ctrl_header::CtrlHeader,
     resource_attach_backing::{MemEntry, ResourceAttachBackingReq, ResourceAttachBackingResp},
     resource_create_2d::{ResourceCreate2DReq, ResourceCreate2DResp, VideoFormat},
@@ -29,7 +30,6 @@ use messages::{
     resource_flush::{ResourceFlushReq, ResourceFlushResp},
     set_scanout::{SetScanoutReq, SetScanoutResp},
     transfer_to_host_2d::{TransferToHost2DReq, TransferToHost2DResp},
-    Rect, VirtIOGPUReq, VirtIOGPUResp,
 };
 
 /// The total number of bytes occupied by a pixel in memory.
@@ -409,25 +409,26 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
             // areas when using `rect.width` or `rect.height` as a divisor:
             0
         } else if current_draw_offset.0 == 0 {
-            // Okay, we can start drawing the full rectangle. We want to try
-            // drawing any full rows, if there are any left, and if not the
-            // last partial row:
+            // We're at the start of a row. If the client buffer holds less than
+            // a full row, copy just those pixels as a partial trailing row.
+            // Otherwise, copy as many full rows as fit in the buffer (leaving
+            // any remainder to a subsequent iteration).
+            //
+            // However, batching multiple rows into a single
+            // `TRANSFER_TO_HOST_2D` is only safe when `draw_rect.width` matches
+            // the resource's width: the device reads row `h` of the transfer
+            // rectangle from backing offset `t2d.offset + h * (resource_width *
+            // bpp)`, but our backing is a compact `draw_rect.width * bpp`
+            // per-row buffer. When the widths don't match, cap to a single row
+            // so the strided read collapses to a single contiguous copy:
             assert!(current_draw_offset.1 <= draw_rect.height || remaining_pixels == 0);
-            if current_draw_offset.1 >= draw_rect.height {
-                // Just one row left to draw, and we start from `x ==
-                // 0`. This means we can just copy however much more data
-                // the client buffer holds. We've previously checked that
-                // the client buffer fully fits into the draw area, but
-                // re-check that assertion here:
-                assert!(draw_rect.width as usize >= write_buffer_remaining_pixels);
+            if write_buffer_remaining_pixels < draw_rect.width as usize {
                 write_buffer_remaining_pixels
+            } else if draw_rect.width == self.width {
+                (write_buffer_remaining_pixels / draw_rect.width as usize)
+                    * draw_rect.width as usize
             } else {
-                // There is more than one row left to copy, and we start
-                // from `x == 0`. If the client buffer lines up with the end
-                // of a row, we can copy them as a single
-                // rectangle. Otherwise, we need two copies:
-                write_buffer_remaining_pixels / (draw_rect.width as usize)
-                    * (draw_rect.width as usize)
+                draw_rect.width as usize
             }
         } else {
             // Our current draw offset is not zero. This means we must copy
@@ -580,7 +581,9 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
 
         // We always draw left -> right, top -> bottom, so we can simply set the
         // current `x` and `y` coordinates to the bottom-right most coordinates
-        // we've just drawn (while wrapping and carrying the one):
+        // we've just drawn (while wrapping and carrying the one). `y` is the
+        // last row we drew (relative to `draw_rect`); the wrap below advances
+        // it to the next row when we've finished the row's rightmost column.
         current_draw_offset.0 = drawn_area
             .x
             .checked_add(drawn_area.width)
@@ -589,7 +592,8 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
         current_draw_offset.1 = drawn_area
             .y
             .checked_add(drawn_area.height)
-            .and_then(|drawn_y1| drawn_y1.checked_sub(draw_rect.y))
+            .and_then(|drawn_y1| drawn_y1.checked_sub(1))
+            .and_then(|last_row| last_row.checked_sub(draw_rect.y))
             .unwrap();
 
         // Wrap to the next line when we've finished writing the column of our
@@ -1016,7 +1020,7 @@ impl<'a, F: DmaFence> Screen<'a> for VirtIOGPU<'a, '_, F> {
 
     fn set_brightness(&self, _brightness: u16) -> Result<(), ErrorCode> {
         // nop, not supported
-        Ok(())
+        Err(ErrorCode::NOSUPPORT)
     }
 
     fn set_power(&self, enabled: bool) -> Result<(), ErrorCode> {

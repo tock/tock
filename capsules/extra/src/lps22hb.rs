@@ -37,10 +37,10 @@
 //! ```
 
 use core::cell::Cell;
+use kernel::ErrorCode;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{PressureClient, PressureDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::ErrorCode;
 
 use capsules_core::driver;
 /// Syscall driver number.

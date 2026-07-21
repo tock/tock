@@ -9,8 +9,8 @@ use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use rv32i::csr::{mcause, mie::mie, CSR};
-use rv32i::pmp::{kernel_protection::KernelProtectionPMP, PMPUserMPU};
+use rv32i::csr::{CSR, mcause, mie::mie};
+use rv32i::pmp::{PMPUserMPU, kernel_protection::KernelProtectionPMP};
 use rv32i::syscall::SysCall;
 
 use crate::interrupt_controller::VexRiscvInterruptController;

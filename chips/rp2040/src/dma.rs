@@ -3,10 +3,10 @@
 // Copyright OxidOS Automotive 2025.
 
 use crate::pio;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, FieldValue, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{FieldValue, ReadWrite, register_bitfields, register_structs};
 
 register_structs! {
         pub ChannelRegisters {

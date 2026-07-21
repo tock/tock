@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
-use tock_registers::{register_bitfields, LocalRegisterCopy};
+use tock_registers::{LocalRegisterCopy, register_bitfields};
 
-use super::cfg::{self, offset};
 use super::Bdf;
+use super::cfg::{self, offset};
 
 register_bitfields![u16,
     /// PCI Command register bitfields
@@ -272,11 +272,7 @@ impl Device {
         }
 
         let ptr = self.read8(offset::CAP_PTR);
-        if ptr == 0 {
-            None
-        } else {
-            Some(ptr)
-        }
+        if ptr == 0 { None } else { Some(ptr) }
     }
 
     /// Iterate over this device's capabilities list.

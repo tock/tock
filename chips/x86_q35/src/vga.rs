@@ -30,7 +30,7 @@
 use core::{cell::Cell, marker::PhantomData};
 use kernel::utilities::StaticRef;
 use tock_cells::volatile_cell::VolatileCell;
-use tock_registers::{register_map, Address, Bus, BusWrite, RegisterArray, Write};
+use tock_registers::{Address, Bus, BusWrite, RegisterArray, Write, register_map};
 
 /// Write an 8-bit value to an I/O Port.
 /// Read an 8-bit value from an I/O port.
@@ -312,7 +312,7 @@ impl VgaDevice {
 
     /// Only needed for graphics modes (linear framebuffer @ LFB_PHYS_BASE).
     pub fn map_for_mode(mode: VgaMode, page_dir: &mut x86::registers::bits32::paging::PD) {
-        use x86::registers::bits32::paging::{PAddr, PDEntry, PDFlags, PDFLAGS};
+        use x86::registers::bits32::paging::{PAddr, PDEntry, PDFLAGS, PDFlags};
 
         if matches!(
             mode,

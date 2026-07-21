@@ -8,11 +8,11 @@
 // allow wildcard imports as there are too many symbols to import seperately or with alias
 use crate::srss_registers as regs;
 use kernel::utilities::{
-    registers::{
-        interfaces::{ReadWriteable, Readable, Writeable},
-        ReadOnly, ReadWrite,
-    },
     StaticRef,
+    registers::{
+        ReadOnly, ReadWrite,
+        interfaces::{ReadWriteable, Readable, Writeable},
+    },
 };
 
 const SRSS_BASE: StaticRef<regs::SrssRegisters> =

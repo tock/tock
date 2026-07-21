@@ -12,12 +12,12 @@
 //! bindings of kernel apps to ensure correctness when dispatching
 //! received packets to the appropriate client.
 
+use crate::net::ipv6::IP6Header;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6_recv::IP6RecvClient;
-use crate::net::ipv6::IP6Header;
+use crate::net::udp::UDPHeader;
 use crate::net::udp::driver::UDPDriver;
 use crate::net::udp::udp_port_table::{PortQuery, UdpPortBindingRx};
-use crate::net::udp::UDPHeader;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::debug;

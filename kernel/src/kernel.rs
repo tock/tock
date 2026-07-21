@@ -31,7 +31,7 @@ use crate::process::{self, ProcessId, Task};
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
-use crate::syscall::{Syscall, YieldCall};
+use crate::syscall::{Syscall, YieldVariant};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
 use crate::utilities::cells::NumericCellExt;
@@ -765,11 +765,7 @@ impl Kernel {
         // immediately (assuming the process has not already exhausted its
         // timeslice) allowing the process to decide how to handle the error.
         match syscall {
-            Syscall::Yield {
-                which: _,
-                param_a: _,
-                param_b: _,
-            } => {} // Yield is not filterable.
+            Syscall::Yield { yield_type: _ } => {} // Yield is not filterable.
             Syscall::Exit {
                 which: _,
                 completion_code: _,
@@ -813,17 +809,13 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(rval);
             }
-            Syscall::Yield {
-                which,
-                param_a,
-                param_b,
-            } => {
+            Syscall::Yield { yield_type } => {
                 if config::CONFIG.trace_syscalls {
-                    debug!("[{:?}] yield. which: {}", process.processid(), which);
+                    debug!("[{:?}] yield. which: {}", process.processid(), yield_type);
                 }
-                match which.try_into() {
-                    Ok(YieldCall::NoWait) => {
-                        // If this is a `Yield-WaitFor` AND there are no pending
+                match yield_type {
+                    YieldVariant::NoWait { ptr } => {
+                        // If this is a `Yield-NoWait` AND there are no pending
                         // tasks, then return immediately. Otherwise, go into
                         // the yielded state and execute tasks now or when they
                         // arrive.
@@ -838,8 +830,7 @@ impl Kernel {
                         // process's memory exist. We do not have a reference,
                         // so we can safely call `set_byte()`.
                         unsafe {
-                            let address = param_a as *mut u8;
-                            process.set_byte(address, has_tasks as u8);
+                            process.set_byte(ptr, has_tasks as u8);
                         }
 
                         if has_tasks {
@@ -847,23 +838,19 @@ impl Kernel {
                         }
                     }
 
-                    Ok(YieldCall::Wait) => {
+                    YieldVariant::Wait => {
                         process.set_yielded_state();
                     }
 
-                    Ok(YieldCall::WaitFor) => {
+                    YieldVariant::WaitFor {
+                        driver_number,
+                        subdriver_number,
+                    } => {
                         let upcall_id = UpcallId {
-                            driver_num: param_a,
-                            subscribe_num: param_b,
+                            driver_num: driver_number,
+                            subscribe_num: subdriver_number,
                         };
                         process.set_yielded_for_state(upcall_id);
-                    }
-
-                    _ => {
-                        // Only 0, 1, and 2 are valid, so this is not a valid
-                        // yield system call, Yield does not have a return value
-                        // because it can push a function call onto the stack;
-                        // just return control to the process.
                     }
                 }
             }

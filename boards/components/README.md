@@ -29,6 +29,17 @@ the chance for errors. Components also reduce the burden when changes are made
 to capsules, as the change can likely be reflected in the single component and
 not in every board's main.rs file.
 
+### No `unsafe` Code in Components
+
+Tock includes the `#![forbid(unsafe_code)]` directive in the components crate.
+This ensures that components cannot encapsulate any unsafe operations that
+would otherwise be hidden from the main board configuration. All unsafe
+operations (for example providing a capability) must be handled in the
+board's main setup function and then provided to the component. This makes
+any sensitive or potentially unsafe operations visible in the board's main
+function, helping anyone audit what the kernel configuration is actually
+doing.
+
 Adding Components
 -----------------
 

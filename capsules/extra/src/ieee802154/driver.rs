@@ -55,7 +55,7 @@
 
 use crate::ieee802154::{device, framer};
 use crate::net::ieee802154::{Header, KeyId, MacAddress, SecurityLevel};
-use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
+use crate::net::stream::{SResult, decode_bytes, decode_u8, encode_bytes, encode_u8};
 
 use core::cell::Cell;
 

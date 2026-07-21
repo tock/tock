@@ -3,12 +3,13 @@
 // Copyright OxidOS Automotive 2025 SRL.
 // Copyright Infineon Technologies AG 2026.
 
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{
+    ReadOnly, ReadWrite,
     interfaces::{ReadWriteable, Readable},
-    register_bitfields, register_structs, ReadOnly, ReadWrite,
+    register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 use kernel::{
     hil::{
         self,

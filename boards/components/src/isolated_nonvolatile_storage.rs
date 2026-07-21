@@ -74,11 +74,9 @@ pub struct IsolatedNonvolatileStorageComponent<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-        const APP_REGION_SIZE: usize,
-    > IsolatedNonvolatileStorageComponent<F, APP_REGION_SIZE>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    const APP_REGION_SIZE: usize,
+> IsolatedNonvolatileStorageComponent<F, APP_REGION_SIZE>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -98,11 +96,9 @@ impl<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-        const APP_REGION_SIZE: usize,
-    > Component for IsolatedNonvolatileStorageComponent<F, APP_REGION_SIZE>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    const APP_REGION_SIZE: usize,
+> Component for IsolatedNonvolatileStorageComponent<F, APP_REGION_SIZE>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,

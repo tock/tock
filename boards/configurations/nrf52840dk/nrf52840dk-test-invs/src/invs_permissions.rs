@@ -22,11 +22,8 @@ pub struct InvsStoragePermissions<
     _debug: core::marker::PhantomData<D>,
 }
 
-impl<
-        C: Chip,
-        D: kernel::process::ProcessStandardDebug,
-        CAP: ApplicationStorageCapability + Clone,
-    > InvsStoragePermissions<C, D, CAP>
+impl<C: Chip, D: kernel::process::ProcessStandardDebug, CAP: ApplicationStorageCapability + Clone>
+    InvsStoragePermissions<C, D, CAP>
 {
     pub fn new(cap: CAP) -> Self {
         Self {
@@ -38,11 +35,8 @@ impl<
     }
 }
 
-impl<
-        C: Chip,
-        D: kernel::process::ProcessStandardDebug,
-        CAP: ApplicationStorageCapability + Clone,
-    > kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>
+impl<C: Chip, D: kernel::process::ProcessStandardDebug, CAP: ApplicationStorageCapability + Clone>
+    kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>
     for InvsStoragePermissions<C, D, CAP>
 {
     fn get_permissions(

@@ -16,9 +16,9 @@
 mod fcb;
 mod io;
 
+use imxrt10xx as imxrt1060;
 use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
-use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
@@ -136,7 +136,7 @@ mod dma_config {
             .iter()
             .copied()
             // Safety: creating NVIC vector in platform code. Vector is valid.
-            .map(|vector| unsafe { cortexm7::nvic::Nvic::new(vector) })
+            .map(cortexm7::nvic::Nvic::new)
             .for_each(|intr| intr.enable());
     }
 }

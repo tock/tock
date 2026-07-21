@@ -4,12 +4,12 @@
 
 use kernel::hil::gpio;
 use kernel::hil::gpio::Input;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 use crate::exti::{Exti, LineId};
 
@@ -350,6 +350,9 @@ register_bitfields![u32,
 
 pub const GPIO_A_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x52020000 as *const GpioRegisters) };
+
+pub const GPIO_B_BASE: StaticRef<GpioRegisters> =
+    unsafe { StaticRef::new(0x52020400 as *const GpioRegisters) };
 
 pub const GPIO_C_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x52020800 as *const GpioRegisters) };

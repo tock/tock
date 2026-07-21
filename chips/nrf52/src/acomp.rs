@@ -24,14 +24,14 @@
 //! - Single-pin capacitive sensor support
 //! - Event generation on output changes
 
+use kernel::ErrorCode;
 use kernel::hil::analog_comparator;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 /// Only one channel
 #[derive(Copy, Clone, Debug)]

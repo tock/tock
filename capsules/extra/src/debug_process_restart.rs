@@ -31,9 +31,9 @@
 //! sam4l::gpio::PA[16].set_client(debug_process_restart);
 //! ```
 
+use kernel::Kernel;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::gpio;
-use kernel::Kernel;
 
 pub struct DebugProcessRestart<'a, C: ProcessManagementCapability> {
     kernel: &'static Kernel,

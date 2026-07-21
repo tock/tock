@@ -6,7 +6,7 @@ use core::ops::{Index, IndexMut};
 
 use kernel::utilities::StaticRef;
 pub use sifive::gpio::GpioPin;
-use sifive::gpio::{pins, GpioRegisters};
+use sifive::gpio::{GpioRegisters, pins};
 
 pub const GPIO0_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x2000_2000 as *const GpioRegisters) };

@@ -7,11 +7,12 @@
 //! Implementation of the architecture-specific portions of the kernel-userland
 //! system call interface.
 
+use core::cell::UnsafeCell;
 use core::fmt::Write;
 use core::marker::PhantomData;
 use core::mem::{self, size_of};
 use core::ops::Range;
-use core::ptr::{self, addr_of, addr_of_mut, read_volatile, write_volatile};
+use core::ptr;
 use kernel::errorcode::ErrorCode;
 
 use crate::CortexMVariant;
@@ -19,9 +20,12 @@ use crate::CortexMVariant;
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
 /// specific handler.
+///
+/// Because this is a global `static mut` variable, we can only access it from
+/// inline assembly.
 #[no_mangle]
 #[used]
-pub static mut SYSCALL_FIRED: usize = 0;
+pub static mut SYSCALL_FIRED: UnsafeCell<usize> = UnsafeCell::new(0);
 
 /// This is called in the hard fault handler. When set to 1 this means the hard
 /// fault handler was called. Marked `pub` because it is used in the cortex-m*
@@ -29,18 +33,160 @@ pub static mut SYSCALL_FIRED: usize = 0;
 ///
 /// n.b. If the kernel hard faults, it immediately panic's. This flag is only
 /// for handling application hard faults.
+///
+/// Because this is a global `static mut` variable, we can only access it from
+/// inline assembly.
 #[no_mangle]
 #[used]
-pub static mut APP_HARD_FAULT: usize = 0;
+pub static mut APP_HARD_FAULT: UnsafeCell<usize> = UnsafeCell::new(0);
 
 /// This is used in the hardfault handler.
 ///
 /// When an app faults, the hardfault handler stores the value of the
 /// SCB registers in this static array. This makes them available to
 /// be displayed in a diagnostic fault message.
+///
+/// Because this is a global `static mut` variable, we can only access it from
+/// inline assembly.
 #[no_mangle]
 #[used]
-pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
+pub static mut SCB_REGISTERS: UnsafeCell<[u32; 5]> = UnsafeCell::new([0; 5]);
+
+/// Get the `APP_HARD_FAULT` flag.
+///
+/// This indicates that the app triggered the hard fault handler.
+///
+/// We need to do this in assembly because we cannot have Rust access
+/// the global variable.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub fn get_global_app_hard_fault() -> usize {
+    let app_fault: usize;
+
+    // # Safety
+    //
+    // This is safe as long as the static memory is defined, of the correct
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
+    unsafe {
+        core::arch::asm!(
+            "
+    ldr  r0, =APP_HARD_FAULT          // r0 = &APP_HARD_FAULT
+    movs r1, #0                       // r1 = 0
+    ldr  r2, [r0]                     // r2 = *APP_HARD_FAULT
+    str  r1, [r0]                     // *APP_HARD_FAULT = 0
+            ",
+            out("r0") _,
+            out("r1") _,
+            out("r2") app_fault,
+            // clobbers flags
+        );
+    }
+    app_fault
+}
+
+/// Get the `SYSCALL_FIRED` flag.
+///
+/// This indicates that the app called a syscall.
+///
+/// We need to do this in assembly because we cannot have Rust access
+/// the global variable.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub fn get_global_syscall_fired() -> usize {
+    let syscall_fired: usize;
+
+    // # Safety
+    //
+    // This is safe as long as the static memory is defined, of the correct
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
+    unsafe {
+        core::arch::asm!(
+            "
+    ldr  r0, =SYSCALL_FIRED           // r0 = &SYSCALL_FIRED
+    movs r1, #0                       // r1 = 0
+    ldr  r2, [r0]                     // r2 = *SYSCALL_FIRED
+    str  r1, [r0]                     // *SYSCALL_FIRED = 0
+            ",
+            out("r0") _,
+            out("r1") _,
+            out("r2") syscall_fired,
+            // clobbers flags
+        )
+    }
+    syscall_fired
+}
+
+/// Get the stored System Control Block register values.
+///
+/// These are recorded during the fault, and then stored in the global
+/// `SCB_REGISTERS` array for use later during debugging.
+///
+/// We need to do this in assembly because we cannot have Rust access
+/// the global variable.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
+    let _ccr: u32;
+    let cfsr: u32;
+    let hfsr: u32;
+    let mmfar: u32;
+    let bfar: u32;
+
+    // Need this for compatibility with armv6.
+    //
+    // Using the normal `ldr  r0, =SCB_REGISTERS` gives
+    // "error: out of range pc-relative fixup value". So, instead, we pass in a
+    // pointer based on the symbol.
+    extern "C" {
+        static SCB_REGISTERS: u32;
+    }
+
+    // Retrieve the stored SCB register values using assembly.
+    //
+    // # Safety
+    //
+    // This is safe as long as the static memory is defined, of the correct
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
+    unsafe {
+        core::arch::asm!(
+            "
+    // Load all values of the SCB_REGISTERS array. Avoid ldm because
+    // it is not compatible with armv6.
+    ldr r1, [{addr}, #0]              // r1 = _ccr = SCB_REGISTERS[0]
+    ldr r2, [{addr}, #4]              // r2 = cfsr = SCB_REGISTERS[1]
+    ldr r3, [{addr}, #8]              // r3 = hfsr = SCB_REGISTERS[2]
+    ldr r4, [{addr}, #12]             // r4 = mmfar = SCB_REGISTERS[3]
+    ldr r5, [{addr}, #16]             // r5 = bfar = SCB_REGISTERS[4]
+            ",
+            addr = in(reg) core::ptr::from_ref::<u32>(&SCB_REGISTERS),
+            out("r1") _ccr,
+            out("r2") cfsr,
+            out("r3") hfsr,
+            out("r4") mmfar,
+            out("r5") bfar,
+        );
+    }
+
+    (_ccr, cfsr, hfsr, mmfar, bfar)
+}
+
+/// Dummy
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn get_global_app_hard_fault() -> usize {
+    0
+}
+
+/// Dummy
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn get_global_syscall_fired() -> usize {
+    0
+}
+
+/// Dummy
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
+    (0, 0, 0, 0, 0)
+}
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
@@ -248,10 +394,15 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         ptr::write(stack_bottom.add(7), state.psr); //......... -> APSR
         ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); //... -> PC
         ptr::write(stack_bottom.add(5), state.yield_pc | 1); // -> LR
-        ptr::write(stack_bottom.add(3), callback.argument3.as_usize()); // -> R3
-        ptr::write(stack_bottom.add(2), callback.argument2); // -> R2
-        ptr::write(stack_bottom.add(1), callback.argument1); // -> R1
-        ptr::write(stack_bottom.add(0), callback.argument0); // -> R0
+
+        // Write upcall arguments to the proper stack locations.
+        kernel::utilities::arch_helpers::encode_upcall_trd104_ptr(
+            &callback,
+            stack_bottom.add(0).cast::<u32>(), // -> R0
+            stack_bottom.add(1).cast::<u32>(), // -> R1
+            stack_bottom.add(2).cast::<u32>(), // -> R2
+            stack_bottom.add(3).cast::<u32>(), // -> R3
+        );
 
         Ok(())
     }
@@ -278,13 +429,11 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
         // Check to see if the fault handler was called while the process was
         // running.
-        let app_fault = read_volatile(&*addr_of!(APP_HARD_FAULT));
-        write_volatile(&mut *addr_of_mut!(APP_HARD_FAULT), 0);
+        let app_fault = get_global_app_hard_fault();
 
         // Check to see if the svc_handler was called and the process called a
         // syscall.
-        let syscall_fired = read_volatile(&*addr_of!(SYSCALL_FIRED));
-        write_volatile(&mut *addr_of_mut!(SYSCALL_FIRED), 0);
+        let syscall_fired = get_global_syscall_fired();
 
         // Now decide the reason based on which flags were set.
         let switch_reason = if app_fault == 1 || invalid_stack_pointer {
@@ -320,7 +469,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
             // Use the helper function to convert these raw values into a Tock
             // `Syscall` type.
-            let syscall = kernel::syscall::Syscall::from_register_arguments(
+            let syscall = kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
                 svc_num,
                 r0,
                 r1.into(),
