@@ -83,11 +83,11 @@ pub fn parse_tbf_header(
             let mut checksum: u32 = 0;
 
             // Get an iterator across 4 byte fields in the header.
-            let header_iter = header.chunks_exact(4);
+            let (header_chunks, _remainder) = header.as_chunks::<4>();
 
             // Iterate all chunks and XOR the chunks to compute the checksum.
-            for (i, chunk) in header_iter.enumerate() {
-                let word = u32::from_le_bytes(chunk.try_into()?);
+            for (i, chunk) in header_chunks.iter().enumerate() {
+                let word = u32::from_le_bytes(*chunk);
                 if i == 3 {
                     // Skip the checksum field.
                 } else {
