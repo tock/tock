@@ -107,10 +107,7 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         kernel::symbol_defined_slice!(_sapps, _eapps),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
+        kernel::symbol_defined_slice_mut!(_sappmem, _eappmem),
         &FAULT_RESPONSE,
         &process_management_capability,
     )
