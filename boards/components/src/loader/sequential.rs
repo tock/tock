@@ -27,7 +27,7 @@ macro_rules! process_loader_sequential_component_static {
         );
 
        (loader, process_binary_array)
-    };};
+    }};
 }
 
 pub type ProcessLoaderSequentialComponentType<C, D> =

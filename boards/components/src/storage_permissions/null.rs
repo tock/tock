@@ -14,7 +14,7 @@ use kernel::process::ProcessStandardDebug;
 macro_rules! storage_permissions_null_component_static {
     ($C:ty, $D:ty $(,)?) => {{
         kernel::static_buf!(capsules_system::storage_permissions::null::NullStoragePermissions<$C, $D>)
-    };};
+    }};
 }
 
 pub type StoragePermissionsNullComponentType<C, D> =

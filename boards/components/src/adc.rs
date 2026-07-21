@@ -14,16 +14,12 @@ use kernel::hil::adc;
 
 #[macro_export]
 macro_rules! adc_mux_component_static {
-    ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_adc::MuxAdc<'static, $A>)
-    };};
+    ($A:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_adc::MuxAdc<'static, $A>) }};
 }
 
 #[macro_export]
 macro_rules! adc_component_static {
-    ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_adc::AdcDevice<'static, $A>)
-    };};
+    ($A:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_adc::AdcDevice<'static, $A>) }};
 }
 
 #[macro_export]
@@ -41,7 +37,7 @@ macro_rules! adc_syscall_component_helper {
         );
         let adc_virtualized = kernel::static_buf!(capsules_core::adc::AdcVirtualized<'static>);
         (adc_virtualized, drivers)
-    };};
+    }};
 }
 
 #[macro_export]
@@ -53,7 +49,7 @@ macro_rules! adc_dedicated_component_static {
         let buffer3 = kernel::static_buf!([u16; capsules_core::adc::BUF_LEN]);
 
         (adc, buffer1, buffer2, buffer3)
-    };};
+    }};
 }
 
 pub struct AdcMuxComponent<A: 'static + adc::Adc<'static>> {

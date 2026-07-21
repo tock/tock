@@ -21,9 +21,7 @@ use kernel::component::Component;
 
 #[macro_export]
 macro_rules! priority_component_static {
-    ($CAP:ty $(,)?) => {{
-        kernel::static_buf!(capsules_system::scheduler::priority::PrioritySched<$CAP>)
-    };};
+    ($CAP:ty $(,)?) => {{ kernel::static_buf!(capsules_system::scheduler::priority::PrioritySched<$CAP>) }};
 }
 
 pub type PriorityComponentType<CAP> = capsules_system::scheduler::priority::PrioritySched<CAP>;

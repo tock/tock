@@ -25,7 +25,7 @@ macro_rules! apds9960_component_static {
         let buffer = kernel::static_buf!([u8; capsules_extra::apds9960::BUF_LEN]);
 
         (i2c_device, apds9960, buffer)
-    };};
+    }};
 }
 
 pub struct Apds9960Component<I: 'static + i2c::I2CMaster<'static>> {

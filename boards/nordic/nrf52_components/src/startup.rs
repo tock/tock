@@ -158,9 +158,7 @@ impl Component for NrfClockComponent<'_> {
 
 #[macro_export]
 macro_rules! uart_channel_component_static {
-    ($A:ty $(,)?) => {{
-        components::segger_rtt_component_static!($A)
-    };};
+    ($A:ty $(,)?) => {{ components::segger_rtt_component_static!($A) }};
 }
 
 /// Pins for the UART

@@ -41,7 +41,7 @@ macro_rules! segger_rtt_memory_component_static {
         );
 
         (rtt_memory, up_buffer, down_buffer)
-    };};
+    }};
 }
 
 #[macro_export]
@@ -58,7 +58,7 @@ macro_rules! segger_rtt_component_static {
         );
 
         (alarm, rtt)
-    };};
+    }};
 }
 
 pub struct SeggerRttMemoryRefs<'a> {

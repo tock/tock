@@ -35,7 +35,7 @@ macro_rules! text_screen_component_static {
         let screen = kernel::static_buf!(capsules_extra::text_screen::TextScreen);
 
         (buffer, screen)
-    };};
+    }};
 }
 
 pub struct TextScreenComponent<

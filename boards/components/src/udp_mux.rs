@@ -150,7 +150,7 @@ macro_rules! udp_mux_component_static {
             udp_vis_cap,
             ip_vis_cap,
         )
-    };};
+    }};
 }
 
 pub struct UDPMuxComponent<
