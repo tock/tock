@@ -399,23 +399,11 @@ code block, as documented next. Since the 2024 Edition of Rust, the body of an
 `unsafe fn` is no longer itself `unsafe`, thus explicit `unsafe` blocks are
 required within the implementation.
 
-***RFC: Should method impl's just also not have a comment? My rationale was
-(1) the link is nice to have (though probably also unnecessary since one could
-just click on the trait), and (2) helps keep an invariant that all `unsafe`
-has a Safety comment***
-
-For a method being `impl`'d, the Safety comment should be a minimal pointer,
-with valid rustdoc crosslink syntax, to the declaration, e.g.:
-
-    impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> {
-        /// # Safety
-        ///
-        /// [Trait Safety](kernel::syscall::UserspaceKernelBoundary::set_syscall_return_value)
-        unsafe fn set_syscall_return_value(
-
-If appropriate, this Safety comment may include additional information
-regarding how this specific implementation adheres to the callee requirements,
-however, it MUST NOT introduce any new caller requirements.
+For a method being `impl`'d, you should **not** include a Safety comment, as
+the canonical reference is in the trait definition. Comments with additional
+information regarding how this specific implementation adheres to the callee
+requirements should generally be included in the implementation body. Method
+`impl`s MUST NOT introduce any new caller Safety requirements.
 
 For a plain function, the definition and implementation site are the same, so
 there is already a Safety comment.
