@@ -48,6 +48,9 @@ register_bitfields![u8,
 /// `0xFFFFFFFF` on RV32 platforms.
 const PMPADDR_MASK: usize = (0x003F_FFFF_FFFF_FFFFu64 & usize::MAX as u64) as usize;
 
+/// The number of bytes, which is also the number of PMP entries, in a PMP
+/// configuration CSR. This is 4 on rv32i, and 8 on rv64i. So, we use the size
+/// of `usize` to make this easy to set.
 const OCTETS_PER_PMPCFG_CSR: usize = core::mem::size_of::<usize>();
 
 pub struct PmpConfigCSRIter {
@@ -981,10 +984,10 @@ impl<const MAX_REGIONS: usize> fmt::Display for PMPUserMPUConfig<MAX_REGIONS> {
             let pmpcfg = tor_user_pmpcfg.get_reg();
             write!(
                 f,
-                "     #{:02}: start={:p}, end={:p}, cfg={:#04X} ({}) (-{}{}{})\r\n",
+                "     #{:02}: start={:#010X}, end={:#010X}, cfg={:#04X} ({}) (-{}{}{})\r\n",
                 i,
-                *start,
-                *end,
+                *start as usize,
+                *end as usize,
                 pmpcfg.get(),
                 t(pmpcfg.is_set(pmpcfg_octet::a), "TOR", "OFF"),
                 t(pmpcfg.is_set(pmpcfg_octet::r), "r", "-"),
@@ -1668,7 +1671,10 @@ pub mod simple {
                 }
 
                 // Finally, turn the region off:
-                csr::CSR.pmpconfig_set(pmpcfg_csr_idx, pmpcfg_csr & !(0x18 << ((i % 4) * 8)));
+                csr::CSR.pmpconfig_set(
+                    pmpcfg_csr_idx,
+                    pmpcfg_csr & !(0x18 << ((i % OCTETS_PER_PMPCFG_CSR) * 8)),
+                );
             }
 
             // Hardware PMP is verified to be in a compatible mode / state, and
@@ -1745,7 +1751,9 @@ pub mod simple {
 }
 
 pub mod kernel_protection {
-    use super::{NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
+    use super::{
+        NAPOTRegionSpec, PmpConfigCSRIter, TORRegionSpec, TORUserPMP, TORUserPMPCFG, pmpcfg_octet,
+    };
     use crate::csr;
     use core::fmt;
     use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
@@ -2030,71 +2038,34 @@ pub mod kernel_protection {
             &self,
             regions: &[(TORUserPMPCFG, *const u8, *const u8); MPU_REGIONS],
         ) -> Result<(), ()> {
-            // Could use `iter_array_chunks` once that's stable.
-            let mut regions_iter = regions.iter();
-            let mut i = 0;
+            PmpConfigCSRIter::write_back(
+                0,
+                &mut regions
+                    .iter()
+                    .flat_map(|(region_pmpcfg, region_start, region_end)| {
+                        if *region_pmpcfg == TORUserPMPCFG::OFF {
+                            [(TORUserPMPCFG::OFF, None), (TORUserPMPCFG::OFF, None)]
+                        } else {
+                            [
+                                (TORUserPMPCFG::OFF, Some(region_start)),
+                                (*region_pmpcfg, Some(region_end)),
+                            ]
+                        }
+                    })
+                    .enumerate()
+                    .map(|(i, (pmpcfg, opt_addr))| {
+                        if let Some(addr) = opt_addr {
+                            csr::CSR.pmpaddr_set(i, (*addr as usize).overflowing_shr(2).0);
+                        }
 
-            while let Some(even_region) = regions_iter.next() {
-                let odd_region_opt = regions_iter.next();
-
-                if let Some(odd_region) = odd_region_opt {
-                    // We can configure two regions at once which, given that we
-                    // start at index 0 (an even offset), translates to a single
-                    // CSR write for the pmpcfgX register:
-                    csr::CSR.pmpconfig_set(
-                        i / 2,
-                        u32::from_be_bytes([
-                            odd_region.0.get(),
-                            TORUserPMPCFG::OFF.get(),
-                            even_region.0.get(),
-                            TORUserPMPCFG::OFF.get(),
-                        ]) as usize,
-                    );
-
-                    // Now, set the addresses of the respective regions, if they
-                    // are enabled, respectively:
-                    if even_region.0 != TORUserPMPCFG::OFF {
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 0, (even_region.1 as usize).overflowing_shr(2).0);
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 1, (even_region.2 as usize).overflowing_shr(2).0);
-                    }
-
-                    if odd_region.0 != TORUserPMPCFG::OFF {
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 2, (odd_region.1 as usize).overflowing_shr(2).0);
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 3, (odd_region.2 as usize).overflowing_shr(2).0);
-                    }
-
-                    i += 2;
-                } else {
-                    // Modify the first two pmpcfgX octets for this region:
-                    csr::CSR.pmpconfig_modify(
-                        i / 2,
-                        FieldValue::<usize, csr::pmpconfig::pmpcfg::Register>::new(
-                            0x0000FFFF,
-                            0,
-                            u32::from_be_bytes([
-                                0,
-                                0,
-                                even_region.0.get(),
-                                TORUserPMPCFG::OFF.get(),
-                            ]) as usize,
-                        ),
-                    );
-
-                    // Set the addresses if the region is enabled:
-                    if even_region.0 != TORUserPMPCFG::OFF {
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 0, (even_region.1 as usize).overflowing_shr(2).0);
-                        csr::CSR
-                            .pmpaddr_set(i * 2 + 1, (even_region.2 as usize).overflowing_shr(2).0);
-                    }
-
-                    i += 1;
-                }
-            }
+                        pmpcfg
+                    })
+                    .chain(core::iter::repeat_n(
+                        TORUserPMPCFG::OFF,
+                        AVAILABLE_ENTRIES - (MPU_REGIONS * 2),
+                    ))
+                    .map(TORUserPMPCFG::get_reg),
+            );
 
             Ok(())
         }
@@ -2122,7 +2093,9 @@ pub mod kernel_protection {
 }
 
 pub mod kernel_protection_mml_epmp {
-    use super::{NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG, pmpcfg_octet};
+    use super::{
+        NAPOTRegionSpec, PmpConfigCSRIter, TORRegionSpec, TORUserPMP, TORUserPMPCFG, pmpcfg_octet,
+    };
     use crate::csr;
     use core::cell::Cell;
     use core::fmt;
@@ -2458,74 +2431,15 @@ pub mod kernel_protection_mml_epmp {
             // `shadow_user_pmpcfg` field, such that we can re-enable the PMP
             // without a call to `configure_pmp` (where the `TORUserPMPCFG`s are
             // provided by the caller).
-
-            // Could use `iter_array_chunks` once that's stable.
-            let mut shadow_user_pmpcfgs_iter = self.shadow_user_pmpcfgs.iter();
-            let mut i = Self::TOR_REGIONS_OFFSET;
-
-            while let Some(first_region_pmpcfg) = shadow_user_pmpcfgs_iter.next() {
-                // If we're at a "region" offset divisible by two (where "region" =
-                // 2 PMP "entries"), then we can configure an entire `pmpcfgX` CSR
-                // in one operation. As CSR writes are expensive, this is an
-                // optimization worth making:
-                let second_region_opt = if i % 2 == 0 {
-                    shadow_user_pmpcfgs_iter.next()
-                } else {
-                    None
-                };
-
-                if let Some(second_region_pmpcfg) = second_region_opt {
-                    // We're at an even index and have two regions to configure, so
-                    // do that with a single CSR write:
-                    csr::CSR.pmpconfig_set(
-                        i / 2,
-                        u32::from_be_bytes([
-                            second_region_pmpcfg.get().get(),
-                            TORUserPMPCFG::OFF.get(),
-                            first_region_pmpcfg.get().get(),
-                            TORUserPMPCFG::OFF.get(),
-                        ]) as usize,
-                    );
-
-                    i += 2;
-                } else if i % 2 == 0 {
-                    // This is a single region at an even index. Thus, modify the
-                    // first two pmpcfgX octets for this region.
-                    csr::CSR.pmpconfig_modify(
-                        i / 2,
-                        FieldValue::<usize, csr::pmpconfig::pmpcfg::Register>::new(
-                            0x0000FFFF,
-                            0, // lower two octets
-                            u32::from_be_bytes([
-                                0,
-                                0,
-                                first_region_pmpcfg.get().get(),
-                                TORUserPMPCFG::OFF.get(),
-                            ]) as usize,
-                        ),
-                    );
-
-                    i += 1;
-                } else {
-                    // This is a single region at an odd index. Thus, modify the
-                    // latter two pmpcfgX octets for this region.
-                    csr::CSR.pmpconfig_modify(
-                        i / 2,
-                        FieldValue::<usize, csr::pmpconfig::pmpcfg::Register>::new(
-                            0x0000FFFF,
-                            16, // higher two octets
-                            u32::from_be_bytes([
-                                0,
-                                0,
-                                first_region_pmpcfg.get().get(),
-                                TORUserPMPCFG::OFF.get(),
-                            ]) as usize,
-                        ),
-                    );
-
-                    i += 1;
-                }
-            }
+            PmpConfigCSRIter::write_back(
+                Self::TOR_REGIONS_OFFSET * 2,
+                &mut self.shadow_user_pmpcfgs.iter().flat_map(|octet| {
+                    [
+                        TORUserPMPCFG::get_reg(TORUserPMPCFG::OFF),
+                        TORUserPMPCFG::get_reg(octet.get()),
+                    ]
+                }),
+            );
 
             self.user_pmp_enabled.set(true);
 
@@ -2534,62 +2448,18 @@ pub mod kernel_protection_mml_epmp {
 
         fn disable_user_pmp(&self) {
             // Simply set all of the user-region pmpcfg octets to OFF:
-
-            let mut user_region_pmpcfg_octet_pairs =
-                (Self::TOR_REGIONS_OFFSET)..(Self::TOR_REGIONS_OFFSET + MPU_REGIONS);
-            while let Some(first_region_idx) = user_region_pmpcfg_octet_pairs.next() {
-                let second_region_opt = if first_region_idx % 2 == 0 {
-                    user_region_pmpcfg_octet_pairs.next()
-                } else {
-                    None
-                };
-
-                if let Some(_second_region_idx) = second_region_opt {
-                    // We're at an even index and have two regions to configure, so
-                    // do that with a single CSR write:
-                    csr::CSR.pmpconfig_set(
-                        first_region_idx / 2,
-                        u32::from_be_bytes([
-                            TORUserPMPCFG::OFF.get(),
-                            TORUserPMPCFG::OFF.get(),
-                            TORUserPMPCFG::OFF.get(),
-                            TORUserPMPCFG::OFF.get(),
-                        ]) as usize,
-                    );
-                } else if first_region_idx % 2 == 0 {
-                    // This is a single region at an even index. Thus, modify the
-                    // first two pmpcfgX octets for this region.
-                    csr::CSR.pmpconfig_modify(
-                        first_region_idx / 2,
-                        FieldValue::<usize, csr::pmpconfig::pmpcfg::Register>::new(
-                            0x0000FFFF,
-                            0, // lower two octets
-                            u32::from_be_bytes([
-                                0,
-                                0,
-                                TORUserPMPCFG::OFF.get(),
-                                TORUserPMPCFG::OFF.get(),
-                            ]) as usize,
-                        ),
-                    );
-                } else {
-                    // This is a single region at an odd index. Thus, modify the
-                    // latter two pmpcfgX octets for this region.
-                    csr::CSR.pmpconfig_modify(
-                        first_region_idx / 2,
-                        FieldValue::<usize, csr::pmpconfig::pmpcfg::Register>::new(
-                            0x0000FFFF,
-                            16, // higher two octets
-                            u32::from_be_bytes([
-                                0,
-                                0,
-                                TORUserPMPCFG::OFF.get(),
-                                TORUserPMPCFG::OFF.get(),
-                            ]) as usize,
-                        ),
-                    );
-                }
-            }
+            PmpConfigCSRIter::write_back(
+                Self::TOR_REGIONS_OFFSET * 2,
+                // We don't actually read these elements, and are only
+                // interested in the array length. We use `.iter()` for the code
+                // to be symmetrical with `enable_user_pmp`.
+                &mut self.shadow_user_pmpcfgs.iter().flat_map(|_| {
+                    [
+                        TORUserPMPCFG::get_reg(TORUserPMPCFG::OFF),
+                        TORUserPMPCFG::get_reg(TORUserPMPCFG::OFF),
+                    ]
+                }),
+            );
 
             self.user_pmp_enabled.set(false);
         }
@@ -2635,11 +2505,11 @@ pub mod kernel_protection_mml_epmp {
 
                 write!(
                     f,
-                    "  [{:02}]: {}={:p}, end={:p}, cfg={:#04X} ({}  ) ({}{}{}{})\r\n",
+                    "  [{:02}]: {}={:#010X}, end={:#010X}, cfg={:#04X} ({}  ) ({}{}{}{})\r\n",
                     (i + Self::TOR_REGIONS_OFFSET) * 2 + 1,
                     start_pmpaddr_label,
-                    startaddr_pmpaddr as *const (),
-                    endaddr as *const (),
+                    startaddr_pmpaddr,
+                    endaddr,
                     shadowed_pmpcfg.get().get(),
                     mode,
                     if shadowed_pmpcfg.get().get_reg().is_set(pmpcfg_octet::l) {
