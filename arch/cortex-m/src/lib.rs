@@ -19,22 +19,6 @@ pub mod syscall;
 pub mod systick;
 pub mod thread_id;
 
-// These constants are defined in the linker script.
-//
-// # Safety
-//
-// All symbols must have the correct signatures. These symbols are values in the
-// program and we conservatively treat them as single bytes. In practice we do
-// not care or use the value of any of these static `u8`s. We are only
-// interested in the address of these static `u8`s.
-unsafe extern "C" {
-    static _szero: u8;
-    static _ezero: u8;
-    static _etext: u8;
-    static _srelocate: u8;
-    static _erelocate: u8;
-}
-
 /// Trait to encapsulate differences in between Cortex-M variants
 ///
 /// This trait contains functions and other associated data (constants) which
@@ -181,6 +165,24 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
+    // These constants are defined in the linker script.
+    //
+    // # Safety
+    //
+    // Linker script symbols are value-less entities, a concept that does not
+    // map onto any actual Rust type (as of July 2026).  This method only uses
+    // these declarations to pass their address to the assembly. By declaring
+    // these variables within this naked fn, we ensure that no Rust code
+    // attempts to access them, and assert that the assembly will take only the
+    // address, which is well-defined.
+    unsafe extern "C" {
+        static _szero: u8;
+        static _ezero: u8;
+        static _etext: u8;
+        static _srelocate: u8;
+        static _erelocate: u8;
+    }
+
     use core::arch::naked_asm;
     naked_asm!(
         "
