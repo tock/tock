@@ -314,7 +314,7 @@ upheld.
 
  - Invariants should be succinct and specific.
  - Invariants should be minimal in scope.
- - Invariants must be numbered such that they can be easily referenced.
+ - Invariants should start with a short name to be easily referenced.
  - Invariants that assume a Rust concept should write the concept in all
    capitals to indicate that this is more than a simple noun.
     - E.g., Rust has a specific [set of criteria][rust-valid-ptr] for what it
@@ -350,12 +350,12 @@ arguments.
     /// [optional]: Summary of caller expectations.
     ///
     /// Caller Invariants:
-    ///   1. <requirement 1>
-    ///   2. <requirement 2> ...
+    ///   - name1: <requirement 1>
+    ///   - name2: <requirement 2> ...
     ///
     /// [Callee Invariants]:
-    ///   1. <requirement 1>
-    ///   2. <requirement 2> ...
+    ///   - name1: <requirement 1>
+    ///   - name2: <requirement 2> ...
 
 Here is an example of a Safety comment for a method declaration:
 
@@ -375,13 +375,13 @@ Here is an example of a Safety comment for a method declaration:
     /// function has exclusive access to this memory range during operation.
     ///
     /// Caller Invariants:
-    ///   1. `accessible_memory_start` is a VALID pointer to process memory.
-    ///   2. `app_brk - 1` is a VALID pointer to process memory.
-    ///   3. `app_brk` > `accessible_memory_start`.
-    ///   4. `accessible_memory_start` is aligned to the native word type.
-    ///   5. No Rust references exist to [`accessible_memory_start`, `app_brk`).
+    ///   - valid_start: `accessible_memory_start` is a VALID pointer to process memory.
+    ///   - valid_end: `app_brk - 1` is a VALID pointer to process memory.
+    ///   - valid_range: `app_brk` > `accessible_memory_start`.
+    ///   - valid_align: `accessible_memory_start` is aligned to the native word type.
+    ///   - refs: No Rust references exist to [`accessible_memory_start`, `app_brk`).
     /// Callee Invariants:
-    ///   1. All unsafe memory operations will occur within the bounds
+    ///   - bounds: All unsafe memory operations will occur within the bounds
     ///      [`accessible_memory_start, `app_brk`).
     unsafe fn set_syscall_return_value(
         &self,
@@ -438,8 +438,8 @@ following template:
     // [optional]: Summary of safety related concerns.
     //
     // XXX invariants are satisfied as follows:
-    //   1. <requirement 1> is assured because ...
-    //   2. <requirement 2> is assured because ...
+    //   - name1: <requirement 1> is assured because ...
+    //   - name2: <requirement 2> is assured because ...
 
 The following is an example of a common-case Safety comment:
 
@@ -448,12 +448,12 @@ The following is an example of a common-case Safety comment:
     // SAFETY: This block contains one unsafe operation.
     //
     // `switch_to_user` invariants are satisfied as follows:
-    //   1. The first argument, `state.psp`, must hold a valid pointer to
-    //      userspace memory; this invariant is always held for an object
-    //      of the type `CortexMStoredState`.
-    //   2. The second argument, `state.regs`, must point to memory laid out
-    //      as `&mut [u32; 8]` for assembly access; this invariant is always
-    //      held for an object of the type `CortexMStoredState`.
+    //   - stack_ptr: The first argument, `state.psp`, must hold a valid
+    //     pointer touserspace memory; this invariant is always held for
+    //     an object of the type `CortexMStoredState`.
+    //   - regs: The second argument, `state.regs`, must point to memory
+    //     laid out as `&mut [u32; 8]` for assembly access; this invariant
+    //     is always held for an object of the type `CortexMStoredState`.
     let new_stack_pointer =
         unsafe { A::switch_to_user(state.psp as *const usize, &mut state.regs) };
 
@@ -472,10 +472,10 @@ are upheld:
     // access to.
     //
     // For each `add`, invariants are satisfied as follows:
-    //   1. The base pointer is VALID per caller assertion.
-    //   2. Each offset is within the bounds asserted by the caller as VALID.
+    //   - valid_base: The base pointer is VALID per caller assertion.
+    //   - bounds: Each offset is within the bounds asserted by the caller as VALID.
     // For each `ptr::read`, invariants are satisfied as follows:
-    //   1. The pointer is VALID per the above.
+    //   - valid_ptrs: The pointer is VALID per the above.
     let (r0, r1, r2, r3, yield_pc, psr) = unsafe {
         (
             ptr::read(new_stack_pointer.add(0)),
