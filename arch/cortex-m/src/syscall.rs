@@ -482,12 +482,20 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // u16).
             let pcptr: *const u16 = state.yield_pc as *const u16;
 
-            // Get a pointer to the instruction before the PC value.
-            let pcprev_ptr = unsafe { pcptr.sub(1) };
+            // SAFETY: ARM architecture specifications dictate that the PC we
+            // see is one past the instruction that caused the SVC entry, so
+            // decrementing the PC as a pointer and reading that memory will be
+            // valid per the architecture rules.
+            let svc_instr = unsafe {
+                // The svc instruction is the last instruction before the PC, and
+                // should be 16 bits. Get a pointer to the instruction before the PC
+                // value.
+                let pcprev_ptr = pcptr.sub(1);
+                // Read the instruction by with the PC-minus-one pointer.
+                ptr::read(pcprev_ptr)
+            };
 
-            // The svc instruction is the last instruction before the PC, and should be 16 bits.
-            // Read it by offsetting the PC.
-            let svc_instr = unsafe { ptr::read(pcprev_ptr) };
+            // The SVC num is the lower 8 bits of the instruction.
             let svc_num = (svc_instr & 0xff) as u8;
 
             // Use the helper function to convert these raw values into a Tock
