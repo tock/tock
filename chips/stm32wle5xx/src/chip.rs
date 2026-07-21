@@ -148,7 +148,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
                         !(1u128 << crate::nvic::RADIO_IRQ),
                     )) {
                         // check to confirm we masked properly
-                        assert!(radio_interrupt == crate::nvic::RADIO_IRQ);
+                        assert_eq!(radio_interrupt, crate::nvic::RADIO_IRQ);
                         self.interrupt_service.service_interrupt(radio_interrupt);
                         let n = cortexm4::nvic::Nvic::new(radio_interrupt);
                         n.clear_pending();

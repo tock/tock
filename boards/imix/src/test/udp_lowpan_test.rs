@@ -431,7 +431,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
 
     fn capsule_send_fail(&self) {
         let ret = self.mock_udp1.send(0);
-        assert!(ret != Ok(())); //trying to send while not bound should fail!
+        assert_ne!(ret, Ok(())); //trying to send while not bound should fail!
 
         debug!("send_fail test passed")
     }

@@ -62,7 +62,7 @@ pub struct Pwr {
 
 impl Pwr {
     pub fn new() -> Pwr {
-        assert!(core::mem::size_of::<PwrRegisters>() == 0x94);
+        assert_eq!(core::mem::size_of::<PwrRegisters>(), 0x94);
         Pwr { registers: PWR }
     }
 

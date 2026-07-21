@@ -95,7 +95,7 @@ impl<'a, A: AES<'a, AES128> + AESECB> TestAes128Ecb<'a, A> {
                 key[i] = *b;
             }
 
-            assert!(self.aes.set_key(key) == Ok(()));
+            assert_eq!(self.aes.set_key(key), Ok(()));
         });
 
         // Copy mode-appropriate source into source buffer
@@ -196,7 +196,7 @@ impl<'a, A: AES<'a, AES128> + AESCtr> TestAes128Ctr<'a, A> {
                 key[i] = *b;
             }
 
-            assert!(self.aes.set_key(key) == Ok(()));
+            assert_eq!(self.aes.set_key(key), Ok(()));
         });
 
         // Copy mode-appropriate IV into IV buffer and configure it in the hardware
@@ -206,7 +206,7 @@ impl<'a, A: AES<'a, AES128> + AESCtr> TestAes128Ctr<'a, A> {
                 iv[i] = *b;
             }
 
-            assert!(self.aes.set_iv(iv) == Ok(()));
+            assert_eq!(self.aes.set_iv(iv), Ok(()));
         });
 
         // Copy mode-appropriate source into source buffer
@@ -370,7 +370,7 @@ impl<'a, A: AES<'a, AES128> + AESCBC> TestAes128Cbc<'a, A> {
                 key[i] = *b;
             }
 
-            assert!(self.aes.set_key(key) == Ok(()));
+            assert_eq!(self.aes.set_key(key), Ok(()));
         });
 
         // Copy mode-appropriate IV into IV buffer and configure it in the hardware
@@ -381,7 +381,7 @@ impl<'a, A: AES<'a, AES128> + AESCBC> TestAes128Cbc<'a, A> {
                 iv[i] = *b;
             }
 
-            assert!(self.aes.set_iv(iv) == Ok(()));
+            assert_eq!(self.aes.set_iv(iv), Ok(()));
         });
 
         // Copy mode-appropriate source into source buffer
