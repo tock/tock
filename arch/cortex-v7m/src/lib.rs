@@ -6,19 +6,6 @@
 
 #![no_std]
 
-// These constants are defined in the linker script.
-//
-// # Safety
-//
-// All symbols must have the correct signatures. These symbols are values in the
-// program and we conservatively treat them as single bytes. In practice we do
-// not care or use the value of any of these static `u8`s. We are only
-// interested in the address of these static `u8`s.
-unsafe extern "C" {
-    static _estack: u8;
-    static _sstack: u8;
-}
-
 /// ARMv7-M systick handler function.
 ///
 /// For documentation of this function, please see
@@ -387,6 +374,24 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 
         let mode_str = "Kernel";
 
+        // Extract symbols from the linker script
+        let (estack, sstack) = {
+            // # Safety
+            //
+            // Linker script symbols are value-less entities, a concept that
+            // does not map onto any actual Rust type (as of July 2026). The
+            // only valid operation on these "types" is taking their address.
+            // We scope the declaration to a dedicated block here to ensure no
+            // invalid access attempts.
+            unsafe extern "C" {
+                static _estack: u8;
+                static _sstack: u8;
+            }
+            let estack: u32 = core::ptr::addr_of!(_estack) as u32;
+            let sstack: u32 = core::ptr::addr_of!(_sstack) as u32;
+            (estack, sstack)
+        };
+
         // Read system status registers.
         //
         // # Safety
@@ -491,8 +496,8 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
             exception_number,
             ipsr_isr_number_to_str(exception_number),
             faulting_stack as u32,
-            core::ptr::addr_of!(_estack) as u32,
-            core::ptr::addr_of!(_sstack) as u32,
+            estack,
+            sstack,
             shcsr,
             cfsr,
             hfsr,
@@ -541,6 +546,21 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
+    // These constants are defined in the linker script.
+    //
+    // # Safety
+    //
+    // Linker script symbols are value-less entities, a concept that does not
+    // map onto any actual Rust type (as of July 2026).  This method only uses
+    // these declarations to pass their address to the assembly. By declaring
+    // these variables within this naked fn, we ensure that no Rust code
+    // attempts to access them, and assert that the assembly will take only the
+    // address, which is well-defined.
+    unsafe extern "C" {
+        static _estack: u8;
+        static _sstack: u8;
+    }
+
     use core::arch::naked_asm;
     // First need to determine if this a kernel fault or a userspace fault, and store
     // the unmodified stack pointer. Place these values in registers, then call
