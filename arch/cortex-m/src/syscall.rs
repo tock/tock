@@ -395,38 +395,24 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //  - Stack offset 4 is R12, which the syscall interface ignores
         let stack_bottom = state.psp as *mut usize;
 
-        // # Safety
-        //
-        // We ensured there is `SVC_FRAME_SIZE` of memory at `stack_bottom` so
-        // we can create pointers to u32s in that memory.
-        let (ptr_apsr, ptr_pc, ptr_lr, ptr_r3, ptr_r2, ptr_r1, ptr_r0) = unsafe {
-            (
-                stack_bottom.add(7),
-                stack_bottom.add(6),
-                stack_bottom.add(5),
-                stack_bottom.add(3),
-                stack_bottom.add(2),
-                stack_bottom.add(1),
-                stack_bottom.add(0),
-            )
-        };
-
-        // # Safety
-        //
-        // The pointers are valid memory in the process's memory space and
-        // well-aligned to a u32.
+        // SAFETY: We both offset the pointer (`add()`) and then write using the
+        // pointer. Both of these require the pointers remain valid, there is
+        // allocated memory, and the pointers are aligned. We ensured there is
+        // `SVC_FRAME_SIZE` of memory at `stack_bottom` so we can create
+        // pointers to u32s in that memory. The pointers are valid memory in the
+        // process's memory space and well-aligned to a u32.
         unsafe {
-            ptr::write(ptr_apsr, state.psr); // ................. -> APSR
-            ptr::write(ptr_pc, callback.pc.addr() | 1); // ...... -> PC
-            ptr::write(ptr_lr, state.yield_pc | 1); // .......... -> LR
+            ptr::write(stack_bottom.add(7), state.psr); // ............ -> APSR
+            ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); // -> PC
+            ptr::write(stack_bottom.add(5), state.yield_pc | 1); // ... -> LR
 
             // Write upcall arguments to the proper stack locations.
             kernel::utilities::arch_helpers::encode_upcall_trd104_ptr(
                 &callback,
-                ptr_r0.cast::<u32>(), // -> R0
-                ptr_r1.cast::<u32>(), // -> R1
-                ptr_r2.cast::<u32>(), // -> R2
-                ptr_r3.cast::<u32>(), // -> R3
+                stack_bottom.add(0).cast::<u32>(), // -> R0
+                stack_bottom.add(1).cast::<u32>(), // -> R1
+                stack_bottom.add(2).cast::<u32>(), // -> R2
+                stack_bottom.add(3).cast::<u32>(), // -> R3
             );
         }
 
@@ -468,40 +454,25 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // handler and this process faulted.
             kernel::syscall::ContextSwitchReason::Fault
         } else if syscall_fired == 1 {
-            // # Safety
-            //
-            // We verified that there is room on the stack for the service frame
-            // so we can safely create pointers to that memory on the process
-            // stack.
-            let (yield_pc_ptr, psr_ptr, r0_ptr, r1_ptr, r2_ptr, r3_ptr) = unsafe {
-                (
-                    new_stack_pointer.add(6),
-                    new_stack_pointer.add(7),
-                    new_stack_pointer.add(0),
-                    new_stack_pointer.add(1),
-                    new_stack_pointer.add(2),
-                    new_stack_pointer.add(3),
-                )
-            };
-
-            // # Safety
-            //
-            // The pointers are to valid memory in the process stack.
+            // SAFETY: We verified that there is room on the stack for the
+            // service frame so we can safely create pointers to that memory on
+            // the process stack. The pointers are to valid memory in the
+            // process stack.
             let (r0, r1, r2, r3) = unsafe {
                 // Save these fields after a syscall. If this is a synchronous
                 // syscall (i.e. we return a value to the app immediately) then this
                 // will have no effect. If we are doing something like `yield()`,
                 // however, then we need to have this state.
-                state.yield_pc = ptr::read(yield_pc_ptr);
-                state.psr = ptr::read(psr_ptr);
+                state.yield_pc = ptr::read(new_stack_pointer.add(6));
+                state.psr = ptr::read(new_stack_pointer.add(7));
 
                 // Get the syscall arguments and return them along with the syscall.
                 // It's possible the app did something invalid, in which case we put
                 // the app in the fault state.
-                let r0 = ptr::read(r0_ptr);
-                let r1 = ptr::read(r1_ptr);
-                let r2 = ptr::read(r2_ptr);
-                let r3 = ptr::read(r3_ptr);
+                let r0 = ptr::read(new_stack_pointer.add(0));
+                let r1 = ptr::read(new_stack_pointer.add(1));
+                let r2 = ptr::read(new_stack_pointer.add(2));
+                let r3 = ptr::read(new_stack_pointer.add(3));
 
                 (r0, r1, r2, r3)
             };
@@ -568,36 +539,19 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 0xBAD00BAD,
             )
         } else {
-            // # Safety
-            //
-            // We ensured there is enough valid process memory on the stack to store
-            // these values we are creating pointers to.
-            let (r0_ptr, r1_ptr, r2_ptr, r3_ptr, r12_ptr, lr_ptr, pc_ptr, xpsr_ptr) = unsafe {
-                (
-                    stack_pointer.add(0),
-                    stack_pointer.add(1),
-                    stack_pointer.add(2),
-                    stack_pointer.add(3),
-                    stack_pointer.add(4),
-                    stack_pointer.add(5),
-                    stack_pointer.add(6),
-                    stack_pointer.add(7),
-                )
-            };
-
-            // # Safety
-            //
-            // We ensured the pointers point to valid stack memory we can read
+            // SAFETY: We ensured there is enough valid process memory on the
+            // stack to store these values we are creating pointers to. We
+            // ensured the pointers point to valid stack memory we can read
             // from.
             unsafe {
-                let r0 = ptr::read(r0_ptr);
-                let r1 = ptr::read(r1_ptr);
-                let r2 = ptr::read(r2_ptr);
-                let r3 = ptr::read(r3_ptr);
-                let r12 = ptr::read(r12_ptr);
-                let lr = ptr::read(lr_ptr);
-                let pc = ptr::read(pc_ptr);
-                let xpsr = ptr::read(xpsr_ptr);
+                let r0 = ptr::read(stack_pointer.add(0));
+                let r1 = ptr::read(stack_pointer.add(1));
+                let r2 = ptr::read(stack_pointer.add(2));
+                let r3 = ptr::read(stack_pointer.add(3));
+                let r12 = ptr::read(stack_pointer.add(4));
+                let lr = ptr::read(stack_pointer.add(5));
+                let pc = ptr::read(stack_pointer.add(6));
+                let xpsr = ptr::read(stack_pointer.add(7));
                 (r0, r1, r2, r3, r12, lr, pc, xpsr)
             }
         };
