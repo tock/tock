@@ -5,6 +5,15 @@
 //! Peripheral implementations for the Apollo3 MCU.
 
 #![no_std]
+// Fixes this error introduced in nightly-2026-07:
+//
+// ```
+// error: queries overflow the depth limit!
+//   |
+//   = help: consider increasing the recursion limit by adding a `#![recursion_limit = "256"]` attribute to your crate (`apollo3`)
+//   = note: query depth increased by 130 when simplifying constant for the type system `mcuctrl::_`
+// ```
+#![recursion_limit = "256"]
 
 // Peripherals
 pub mod ble;
