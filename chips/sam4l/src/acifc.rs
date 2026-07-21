@@ -458,20 +458,19 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Acifc<'a> {
     fn comparison(&self, channel: &Self::Channel) -> bool {
         self.enable();
         let regs = ACIFC_BASE;
-        let result;
-        if channel.chan_num == 0 {
-            result = regs.sr.is_set(Status::ACCS0);
+        let result = if channel.chan_num == 0 {
+            regs.sr.is_set(Status::ACCS0)
         } else if channel.chan_num == 1 {
-            result = regs.sr.is_set(Status::ACCS1);
+            regs.sr.is_set(Status::ACCS1)
         } else if channel.chan_num == 2 {
-            result = regs.sr.is_set(Status::ACCS2);
+            regs.sr.is_set(Status::ACCS2)
         } else if channel.chan_num == 3 {
-            result = regs.sr.is_set(Status::ACCS3);
+            regs.sr.is_set(Status::ACCS3)
         } else {
             // Should never get here, just making sure
             self.disable();
             panic!("PANIC! Please choose a comparator (value of ac) that this chip supports");
-        }
+        };
         result
     }
 
