@@ -323,9 +323,6 @@ upheld.
       Aligned, Initialized, and Live, a Safety invariant can simply assert
       "the pointer is VALID".
 
-***RFC: Are there any differences if Safety concerns between plain fn
-declaration and the declaration of a method within a trait?***
-
 There are several fundamental types of `unsafe` code, each with their own
 template for Safety comments:
 
