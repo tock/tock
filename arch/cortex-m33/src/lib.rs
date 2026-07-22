@@ -21,7 +21,7 @@ pub mod mpu {
         unsafe { StaticRef::new(0xE000ED90 as *const crate::mpu_v8m::MpuRegisters) };
 
     pub unsafe fn new<const NUM_REGIONS: usize>() -> mpu_v8m::MPU<NUM_REGIONS> {
-        mpu_v8m::MPU::new(MPU_BASE_ADDRESS)
+        unsafe { mpu_v8m::MPU::new(MPU_BASE_ADDRESS) }
     }
 }
 
@@ -52,7 +52,7 @@ impl cortexm::CortexMVariant for CortexM33 {
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
     ) -> *const usize {
-        cortexv7m::switch_to_user_arm_v7m(user_stack, process_regs)
+        unsafe { cortexv7m::switch_to_user_arm_v7m(user_stack, process_regs) }
     }
 
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
