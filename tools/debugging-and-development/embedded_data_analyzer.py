@@ -4,9 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2023.
 
-from audioop import add
 from embedded_data_visualizer import create_html_file
-from print_tock_memory_usage import parse_mangled_name
+from print_tock_memory_usage import parse_symbol_name
 import argparse
 from collections import defaultdict, namedtuple
 import os
@@ -215,7 +214,7 @@ def trace_function(disasm, line_num):
         if match:
             func_name = disasm[i][10:-3]
             if func_name[0] == '_':
-                return parse_mangled_name(func_name)
+                return parse_symbol_name(func_name)
 
 
 def account_symbols(disasm, symbols):
@@ -304,8 +303,8 @@ def main():
 
     check_architecture(args['elf_path'])
 
-    disasm = os.popen(f'{objdump} -d {args["elf_path"]}').readlines()
-    symbols = os.popen(f'{objdump} -t {args["elf_path"]}').readlines()
+    disasm = os.popen(f'{objdump} --demangle -d {args["elf_path"]}').readlines()
+    symbols = os.popen(f'{objdump} --demangle -t {args["elf_path"]}').readlines()
 
     symbols_table = filter_symbol_table(disasm, symbols)
     symbols_dict = build_symbols_dict(symbols_table)
