@@ -321,28 +321,17 @@ register_bitfields![u32,
         CC1E OFFSET(0) NUMBITS(1) []
     ],
     CNT [
-        /// Most significant part counter value (on TIM2 and TIM5)
-        CNT_H OFFSET(16) NUMBITS(15) [],
-        /// Least significant part of counter value
-        CNT_L OFFSET(0) NUMBITS(16) [],
-        /// Most significant bit of counter value(on TIM2 and TIM5)
-        CNT_bit31 OFFSET(31) NUMBITS(1) []
+        CNT OFFSET(16) NUMBITS(32) []
     ],
     PSC [
         /// Prescaler value
         PSC OFFSET(0) NUMBITS(16) []
     ],
     ARR [
-        /// High Auto-reload value (TIM2 only)
-        ARR_H OFFSET(16) NUMBITS(16) [],
-        /// Low Auto-reload value
-        ARR_L OFFSET(0) NUMBITS(16) []
+        ARR OFFSET(0) NUMBITS(32) []
     ],
     CCR1 [
-        /// High Capture/Compare 1 value (TIM2 only)
-        CCR1_H OFFSET(16) NUMBITS(16) [],
-        /// Low Capture/Compare 1 value
-        CCR1_L OFFSET(0) NUMBITS(16) []
+        CCR1 OFFSET(0) NUMBITS(32) []
     ],
     CCR2 [
         /// High Capture/Compare 2 value (TIM2 only)
@@ -468,7 +457,7 @@ impl<'a> Tim2<'a> {
         // 3. Clear the status flag caused by the manual update
         self.registers.sr.modify(SR::UIF::CLEAR);
 
-        self.registers.arr.write(ARR::ARR_L.val(0xFFFFFFFF));
+        self.registers.arr.write(ARR::ARR.val(0xFFFFFFFF));
         self.registers.cr1.modify(CR1::CEN::SET);
     }
 }
@@ -478,7 +467,7 @@ impl time::Time for Tim2<'_> {
     type Ticks = Ticks32;
 
     fn now(&self) -> Ticks32 {
-        Ticks32::from(self.registers.cnt.read(CNT::CNT_L))
+        Ticks32::from(self.registers.cnt.read(CNT::CNT))
     }
 }
 
@@ -509,14 +498,12 @@ impl<'a> time::Alarm<'a> for Tim2<'a> {
         self.registers.sr.modify(SR::CC1IF::CLEAR);
 
         // 5. Program the hardware
-        self.registers
-            .ccr1
-            .write(CCR1::CCR1_L.val(expire.into_u32()));
+        self.registers.ccr1.write(CCR1::CCR1.val(expire.into_u32()));
         self.registers.dier.modify(DIER::CC1IE::SET);
     }
 
     fn get_alarm(&self) -> Ticks32 {
-        Ticks32::from(self.registers.ccr1.read(CCR1::CCR1_L))
+        Ticks32::from(self.registers.ccr1.read(CCR1::CCR1))
     }
 
     fn is_armed(&self) -> bool {
@@ -619,6 +606,10 @@ impl<'a> Pwm<'a> {
         if duty_cycle > max_duty_cycle {
             return Err(ErrorCode::INVAL);
         }
+        // Prevent overflow in the ARR register
+        if self.timer_clock.as_hz() / frequency_hz > 65535 {
+            return Err(ErrorCode::INVAL);
+        }
 
         self.configure_pin(pin);
 
@@ -636,12 +627,12 @@ impl<'a> Pwm<'a> {
         self.registers.cr1.modify(CR1::ARPE::SET);
         // Set frequency and prescaler
         self.registers.psc.write(PSC::PSC.val(prescaler as u32));
-        self.registers.arr.write(ARR::ARR_L.val(arr_value as u32));
+        self.registers.arr.write(ARR::ARR.val(arr_value as u32));
 
         self.registers
             .ccmr1_output
             .modify(CCMR1_Output::OC1M::PwmMode1 + CCMR1_Output::OC1PE::SET);
-        self.registers.ccr1.write(CCR1::CCR1_L.val(ccr_val as u32));
+        self.registers.ccr1.write(CCR1::CCR1.val(ccr_val as u32));
         self.registers.ccer.modify(CCER::CC1E::SET);
 
         // Force an update event to load the prescaler and ARR
