@@ -187,10 +187,10 @@ pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
             if let Some(p) = pr.processes.take() {
                 panic_process_info(p, pr.printer.take(), &mut writer);
             } else {
-                let _ = writer.write_str("Processes List is not available\r\n");
+                let _ = writer.write_str("\r\nProcesses List is not available\r\n");
             }
         } else {
-            let _ = writer.write_str("Panic Resources are not available\r\n");
+            let _ = writer.write_str("\r\nPanic Resources are not available\r\n");
         }
     }
 }
@@ -259,10 +259,10 @@ pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
             if let Some(p) = pr.processes.take() {
                 panic_process_info(p, pr.printer.take(), writer);
             } else {
-                let _ = writer.write_str("Processes List is not available\r\n");
+                let _ = writer.write_str("\r\nProcesses List is not available\r\n");
             }
         } else {
-            let _ = writer.write_str("Panic Resources are not available\r\n");
+            let _ = writer.write_str("\r\nPanic Resources are not available\r\n");
         }
     }
 }
