@@ -172,7 +172,7 @@ pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
         flush(&mut writer);
         panic_banner(&mut writer, panic_info);
 
-        panic_resources.map(|pr| {
+        if let Some(pr) = panic_resources {
             let chip = pr.chip.take();
             panic_cpu_state(chip, &mut writer);
 
@@ -184,10 +184,14 @@ pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
                 use crate::platform::mpu::MPU;
                 c.mpu().disable_app_mpu()
             });
-            pr.processes.take().map(|p| {
+            if let Some(p) = pr.processes.take() {
                 panic_process_info(p, pr.printer.take(), &mut writer);
-            });
-        });
+            } else {
+                let _ = writer.write_str("Processes List is not available\r\n");
+            }
+        } else {
+            let _ = writer.write_str("Panic Resources are not available\r\n");
+        }
     }
 }
 
@@ -240,7 +244,7 @@ pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
         flush(writer);
         panic_banner(writer, panic_info);
 
-        panic_resources.map(|pr| {
+        if let Some(pr) = panic_resources {
             let chip = pr.chip.take();
             panic_cpu_state(chip, writer);
 
@@ -252,10 +256,14 @@ pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
                 use crate::platform::mpu::MPU;
                 c.mpu().disable_app_mpu()
             });
-            pr.processes.take().map(|p| {
+            if let Some(p) = pr.processes.take() {
                 panic_process_info(p, pr.printer.take(), writer);
-            });
-        });
+            } else {
+                let _ = writer.write_str("Processes List is not available\r\n");
+            }
+        } else {
+            let _ = writer.write_str("Panic Resources are not available\r\n");
+        }
     }
 }
 
@@ -340,8 +348,12 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, writer: &mut W) {
-    unsafe {
-        C::print_state(chip, writer);
+    if chip.is_none() {
+        let _ = writer.write_str("\r\nChip Information is not available\r\n");
+    } else {
+        unsafe {
+            C::print_state(chip, writer);
+        }
     }
 }
 
@@ -353,21 +365,27 @@ pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
     process_printer: Option<&'static PP>,
     writer: &mut W,
 ) {
-    process_printer.map(|printer| {
-        // print data about each process
-        let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-        for slot in processes {
-            slot.proc.get().map(|process| {
-                // Print the memory map and basic process info.
-                //
-                // Because we are using a synchronous printer we do not need to
-                // worry about looping on the print function.
-                printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
-                // Print all of the process details.
-                process.print_full_process(writer);
-            });
+    if processes.iter().filter(|p| p.get().is_some()).count() > 0 {
+        if let Some(printer) = process_printer {
+            // print data about each process
+            let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+            for slot in processes {
+                slot.proc.get().map(|process| {
+                    // Print the memory map and basic process info.
+                    //
+                    // Because we are using a synchronous printer we do not need to
+                    // worry about looping on the print function.
+                    printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
+                    // Print all of the process details.
+                    process.print_full_process(writer);
+                });
+            }
+        } else {
+            let _ = writer.write_str("\r\nProcess Printer is not available\r\n");
         }
-    });
+    } else {
+        let _ = writer.write_str("\r\nNo loaded processes\r\n");
+    }
 }
 
 /// Blinks a recognizable pattern forever.
