@@ -369,7 +369,7 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
                             .get_readwrite_processbuffer(rw_allow::READ)
                             .map_or(0, |read| read.len());
 
-                        if rlen >= arg1 && rlen > 0 {
+                        if rlen >= arg1 && arg1 > 0 {
                             app.len = arg1;
                             app.index = 0;
                             self.busy.set(true);
