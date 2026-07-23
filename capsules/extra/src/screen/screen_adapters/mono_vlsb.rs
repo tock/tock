@@ -134,9 +134,13 @@ fn convert_mvlsb_sub_rect(src: &[u8], dst: &mut [u8], sub_cols: usize) {
             let dst_row_pixels = dst_row.chunks_exact_mut(4);
 
             for (src_pixel, dst_pixel) in src_row_pixels.zip(dst_row_pixels) {
-                let v = if src_pixel { !0 } else { 0 };
                 // Yellow foreground, black background.
-                dst_pixel.copy_from_slice(&[0xFF, v, v, 0x00]);
+                let color = if src_pixel {
+                    [0, 0xFF, 0xFF, 0xFF]
+                } else {
+                    [0, 0, 0, 0xFF]
+                };
+                dst_pixel.copy_from_slice(&color);
             }
         }
     }

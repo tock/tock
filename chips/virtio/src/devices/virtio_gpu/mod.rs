@@ -190,7 +190,7 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
                 padding: 0,
             },
             resource_id: 1,
-            format: VideoFormat::A8R8G8B8Unorm,
+            format: VideoFormat::B8G8R8A8Unorm,
             width: self.width,
             height: self.height,
         };
@@ -858,7 +858,7 @@ impl<'a, F: DmaFence> Screen<'a> for VirtIOGPU<'a, '_, F> {
     }
 
     fn get_pixel_format(&self) -> ScreenPixelFormat {
-        ScreenPixelFormat::ARGB_8888
+        ScreenPixelFormat::BGRA_8888
     }
 
     fn get_rotation(&self) -> ScreenRotation {
