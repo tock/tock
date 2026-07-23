@@ -13,22 +13,54 @@ use cortexm4f::{CortexM4F, CortexMVariant, initialize_ram_jump_to_main, scb, unh
  * Copyright 2016, Michael Andersen <m.andersen@eecs.berkeley.edu>
  */
 
-extern "C" {
-    // _estack is not really a function, but it makes the types work
-    // You should never actually invoke it!!
-    fn _estack();
+// Get the `_estack` symbol from the linker.
+//
+// This variable must never be read.
+//
+// SAFETY: This is a valid and unique linker symbol. `[u8; 0]` is as close as
+// the type as we can get (this is not a valid memory location to access as any
+// type).
+unsafe extern "C" {
+    static _estack: [u8; 0];
 }
 
+// Ensure the address where the stack starts (i.e., the top of the stack or the
+// end of the stack memory range) is inserted at the start of the `.vectors`
+// section.
+//
+// Inserting the address of this symbol in this section is hard to do in any
+// other valid way. To use the
+// [`link_section`](https://doc.rust-lang.org/reference/abi.html#the-link_section-attribute)
+// attribute, the variable must be static. However, a static variable cannot be
+// of type `*const u8` because it is not Sync. A static can be of type `unsafe
+// extern "C" fn()`, however, it is not correct to define `_stack` as a `unsafe
+// extern "C" fn()`, because it does point to a function. Making the static
+// object a `usize` is possible, however, converting the linker symbol address
+// to a usize in a const environment is not. So, we are left using
+// `global_asm!()` to define the constant in the linker section.
+core::arch::global_asm!(
+    "
+.section .vectors
+.word {estack}
+    ",
+    estack = sym _estack
+);
+
+/// ARM Cortex-M Vector Table
+///
+/// # Safety
+///
+/// - `link_section = ".vectors"`: We must put this array of function pointers
+///   in the vector table to be compatible with the Cortex-M hardware when the
+///   MCU powers on. This array of function pointers is read-only and this
+///   section is placed in the .text segment.
+// The `used` attribute ensures that the symbol is kept until the final binary.
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
+    unsafe(link_section = ".vectors")
 )]
-// used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-/// ARM Cortex M Vector Table
-pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
-    // Stack Pointer
-    _estack,
+pub static BASE_VECTORS: [unsafe extern "C" fn(); 15] = [
     // Reset Handler
     initialize_ram_jump_to_main,
     // NMI
@@ -61,11 +93,19 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM4F::SYSTICK_HANDLER,
 ];
 
+/// nRF52 IRQ Function Pointers
+///
+/// # Safety
+///
+/// - `link_section = ".irq"`: We must put this array of function pointers at
+///   the beginning of the .text segment after the Cortex-M vector table. This
+///   array of function pointers is read-only and this section is placed in the
+///   .text segment.
+// The `used` attribute ensures that the symbol is kept until the final binary.
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
-    link_section = ".vectors"
+    unsafe(link_section = ".irqs")
 )]
-// used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 80] = [CortexM4F::GENERIC_ISR; 80];
 
