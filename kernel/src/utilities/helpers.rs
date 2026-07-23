@@ -96,10 +96,11 @@ macro_rules! stack_size {
 
 /// Create a slice from memory defined by start and end linker symbols.
 ///
-/// This is designed to help get a slice for the region of flash used to store
-/// TBFs. The actual addresses of the region are determined by the linker and
-/// the linker script, and this macro encapsulates safely using linker symbols
-/// to create a Rust slice representing that memory region.
+/// This is designed to help convert linker-defined buffers, such
+/// as TBF ranges in flash, into native Rust types. Linker symbols
+/// are not expressable with the Rust type system, which makes
+/// converting linker symbols subtle, so we encapsulate this in a
+/// helper macro here.
 ///
 /// This macro ensures that the slice is only a `u8` slice, which ensures that
 /// every element in the slice is a valid `u8` (as a `u8` is always valid for
