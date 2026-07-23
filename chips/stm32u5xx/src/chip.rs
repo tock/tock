@@ -3,28 +3,33 @@
 // Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
 
-use crate::adc::{self, SamplingTime as AdcSamplingTime};
-use crate::aes::ecb;
-use crate::crc::{self, CRC_BASE};
-use crate::dma::{ChannelId, Dma};
-use crate::gpio;
-use crate::hash;
-use crate::i2c;
-use crate::nvic::{
-    ADC1_2_IRQ, AES_IRQ, EXTI0_IRQ, EXTI1_IRQ, EXTI2_IRQ, EXTI3_IRQ, EXTI4_IRQ, EXTI5_IRQ,
-    EXTI6_IRQ, EXTI7_IRQ, EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ,
-    EXTI14_IRQ, EXTI15_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
-    GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
-    GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ,
-    GPDMA1_CH15_IRQ, HASH_IRQ, I2C1_ER_IRQ, I2C1_EV_IRQ, PKA_IRQ, SPI1_IRQ, TIM2_IRQ, USART1_IRQ,
+use crate::{
+    adc::{self, SamplingTime as AdcSamplingTime},
+    aes::{self, ecb},
+    crc, dac,
+    dma::{ChannelId, Dma},
+    exti, gpio, hash,
+    i2c::{self, I2cSpeed},
+    nvic::{
+        ADC1_2_IRQ, AES_IRQ, EXTI0_IRQ, EXTI1_IRQ, EXTI2_IRQ, EXTI3_IRQ, EXTI4_IRQ, EXTI5_IRQ,
+        EXTI6_IRQ, EXTI7_IRQ, EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ,
+        EXTI14_IRQ, EXTI15_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
+        GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ,
+        GPDMA1_CH9_IRQ, GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ,
+        GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, HASH_IRQ, I2C1_ER_IRQ, I2C1_EV_IRQ, PKA_IRQ, SPI1_IRQ,
+        TIM2_IRQ, USART1_IRQ,
+    },
+    pwr::{self, VoltageScale},
+    rcc::{
+        self,
+        config::{ClockMuxConfig, RccConfig},
+        values::{
+            AHBPrescaler, APBPrescaler, Adcdacsel, I2csel, MsiRange, Rtcsel, Spi1sel, Sysclk,
+            Usart1sel,
+        },
+    },
+    rsa, rtc, spi, tim, usart,
 };
-use crate::pwr;
-use crate::rcc;
-use crate::rtc;
-use crate::spi;
-use crate::tim;
-use crate::usart;
-use crate::{aes, dac, exti, rsa};
 
 use core::fmt::Write;
 use kernel::deferred_call::DeferredCallClient;
@@ -32,7 +37,6 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
-use stm32u5xx_unsafe::aes::AES_BASE;
 
 pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
@@ -62,101 +66,113 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub aes: ecb::Aes<'a, AES256>,
 }
 
-fn enable_tim2_clock() {
-    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
-    rcc.enable_tim2();
-}
-fn enable_tim3_clock() {
-    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
-    rcc.enable_tim3();
-}
-
-fn enable_dac1_clock() {
-    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
-    rcc.enable_dac1();
-}
-
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
     pub fn new(exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             rtc: rtc::Rtc::new(rtc::RTC_BASE),
-            tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
-            tim3: tim::Pwm::new(
-                tim::TIM3_BASE,
-                enable_tim3_clock,
-                tim::ClockSource::RESET_DEFAULT,
-            ),
+            tim2: tim::Tim2::new(tim::TIM2_BASE),
+            tim3: tim::Pwm::new(tim::TIM3_BASE),
             usart1: usart::Usart::new(usart::USART1_BASE),
             spi1: spi::Spi::new(spi::SPI1_BASE),
             i2c1: i2c::I2c::new(i2c::I2C1_BASE),
             exti,
             dma1,
-            pwr: pwr::Pwr::new(),
-            adc1: adc::Adc::new(),
+            pwr: pwr::Pwr::new(pwr::PWR_BASE),
+            adc1: adc::Adc::new(adc::ADC1_BASE),
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
-            pka: rsa::Pka::new(),
-            dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
-            crc: crc::CRC::new(CRC_BASE),
+            pka: rsa::Pka::new(rsa::PKA_BASE),
+            dac: dac::Dac::new(dac::DAC_BASE),
+            crc: crc::CRC::new(crc::CRC_BASE),
             hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
             aes: aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
-                registers: AES_BASE,
+                registers: stm32u5xx_unsafe::aes::AES_BASE,
             }),
         }
     }
 
     pub fn init(&'static self) {
-        // Power and Wires
+        // Enable clock routing to all used peripherals
+        self.rcc.enable_tim2();
+        self.rcc.enable_tim3();
         self.rcc.enable_dma1();
         self.rcc.enable_gpioa();
         self.rcc.enable_gpiob();
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_aes();
-        self.rcc.enable_spi1();
         self.rcc.enable_syscfg();
-        self.rcc.enable_pka();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
         self.rcc.enable_dac1();
         self.rcc.enable_hash();
-        self.rcc.set_usart1_source_pclk();
+        self.rcc.enable_trng();
+        self.rcc.enable_crc();
+        self.rcc.enable_pka();
+        self.rcc.enable_spi1();
+        self.rcc.enable_i2c1();
+        self.rcc.enable_rtc_apb();
 
-        // RTC
-        // The RTC lives in the backup domain, which is write protected on every start
-        self.pwr.disable_backup_domain();
-        // Clock the RTC registers so we can write to them.
-        self.rcc.enable_apb3_bus_clk();
-        self.rcc.enable_lsi();
-        // Only use the LSI once it is stable, but don't hang the kernel if it never is.
-        self.rcc.wait_for_lsi_ready();
-        self.rcc.select_rtc_source_lsi();
+        // Select which clocks to enable, and how to configure them
+        let mut rcc_config = RccConfig {
+            msis: Some(MsiRange::Range4mhz),
+            msik: Some(MsiRange::Range4mhz),
+            hsi: true, // 16MHz oscillator enabled (for SYSCLK/ADC/DAC)
+            hse: None,
+            hsi48: false,
+            lsi: true, // 32kHz oscillator enabled (for RTC)
+            pll1: None,
+            pll2: None,
+            pll3: None,
+            sys: Sysclk::Hsi, // 16MHz system clock
+            ahb_pre: AHBPrescaler::Div1,
+            apb1_pre: APBPrescaler::Div1,
+            apb2_pre: APBPrescaler::Div1,
+            apb3_pre: APBPrescaler::Div1,
+            voltage_range: VoltageScale::Range1, // allow highest frequencies
+            mux: ClockMuxConfig::default(),
+        };
+
+        // Use HSI (16MHz) for SYSCLK, ADC and DAC
+        rcc_config.mux.adcdacsel = Adcdacsel::Hsi;
+        // Use PCLK2 for USART1 (it's the default anyways)
+        rcc_config.mux.usart1sel = Usart1sel::Pclk2;
+        // Use PCLK1 for I2C1 (it's the default anyways)
+        rcc_config.mux.i2c1sel = I2csel::Pclk1;
+        // Use PCLK2 for SPI1 (it's the default anyways)
+        rcc_config.mux.spi1sel = Spi1sel::Pclk2;
+        // Use LSI for RTC
+        rcc_config.mux.rtcsel = Rtcsel::Lsi;
+
+        // Backup domain write protection needs to be disabled to be able to change the RCC_BDCR register
+        // This is necessary for enabling the LSI oscillator and configuring the RTC
+        self.pwr.disable_backup_domain_write_protection();
+
+        // Now the RTC clock can be enabled
         self.rcc.enable_rtc();
 
-        let _ = self.spi1.init();
+        // Initialize the RCC
+        // This returns a structure containing the effective calculated frequency for all clocks in the clock tree
+        let clocks = self.rcc.init(rcc_config, &self.pwr);
 
-        // ADC
-        // Decided to use clock source HSI16, so that needs to be enabled in the RCC too
-        self.rcc.set_adcdacsel_source_hsi16();
-        self.rcc.enable_hsi16();
-        // For the ADC's voltage regulator to receive power, V_DDA must be validated (SVMCR.ASV) in PWR
+        // Provide a copy of that structure to each peripheral that needs it
+        self.usart1.set_clocks(clocks);
+        self.tim2.set_clocks(clocks);
+        self.tim3.set_clocks(clocks);
+        self.spi1.set_clocks(clocks);
+        self.i2c1.set_clocks(clocks);
+        self.rtc.set_clocks(clocks);
+
+        // Activate the independent analog supply, needed for analog peripherals
         self.pwr.validate_vdda();
-        // As explained in the driver, an application can't change the samplling time, so it's hardcoded here
-        self.adc1.enable(AdcSamplingTime::ClockCycles20);
 
-        // CRC enabling
-        self.rcc.enable_crc();
-
-        // Deferred Calls
+        // Register deferred call clients
         self.usart1.register();
+        self.hash.register();
         self.crc.register();
         self.rtc.register();
-
-        // I2C
-        self.rcc.enable_i2c1();
-        self.rcc.set_i2c1_source_pclk();
 
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
@@ -170,7 +186,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         if let Some(tx) = hash_channel {
             hash::hash::Hash::set_dma(&self.hash, self.dma1, tx);
         }
-        self.hash.register();
 
         // Link DMA to AES
         let aes_in_channel = self.dma1.request_channel();
@@ -182,7 +197,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // Link DMA to SPI1
         let spi1_channel_tx = self.dma1.request_channel();
         let spi1_channel_rx = self.dma1.request_channel();
-
         if let (Some(tx), Some(rx)) = (spi1_channel_tx, spi1_channel_rx) {
             spi::Spi::set_dma(&self.spi1, self.dma1, tx, rx);
         }
@@ -190,15 +204,23 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // Link DMA to I2C1
         let i2c1_channel_tx = self.dma1.request_channel();
         let i2c1_channel_rx = self.dma1.request_channel();
-
         if let (Some(tx), Some(rx)) = (i2c1_channel_tx, i2c1_channel_rx) {
             i2c::I2c::set_dma(&self.i2c1, self.dma1, tx, rx);
         }
 
-        // Set up the RTC mode. (configure prescalers, 24h format, default date/time)
-        // This requires the RTC clock and backup domain to have been sucessfully
-        // initialized in the "Power and Wires" section above.
+        // Enable ADC
+        // As explained in the driver, an application can't change the ADC sampling time, so it's hardcoded here
+        self.adc1.enable(AdcSamplingTime::ClockCycles20);
+
+        // Set up the RTC mode (configure prescalers, 24h format, default date/time)
         let _ = self.rtc.init_mode();
+
+        // Initialize SPI1
+        let _ = self.spi1.init();
+
+        // Enable I2C1 and configure it at 100kHz
+        self.i2c1.enable();
+        self.i2c1.set_speed(I2cSpeed::Speed100k);
     }
 }
 

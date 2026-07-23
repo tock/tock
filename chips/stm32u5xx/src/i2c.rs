@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
-use crate::dma::{self, ChannelId, Dma, DmaPeripheral};
+use crate::{
+    dma::{self, ChannelId, Dma, DmaPeripheral},
+    rcc::{Clocks, hertz::Hertz},
+};
 use core::cell::Cell;
+use core::cmp;
 use core::fmt::{self};
 use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
@@ -276,9 +280,9 @@ register_bitfields![u32,
 ];
 
 pub enum I2cSpeed {
-    Speed100k,
-    Speed400k,
-    Speed1M,
+    Speed100k = 100_000,
+    Speed400k = 400_000,
+    Speed1M = 1_000_000,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -315,10 +319,134 @@ impl fmt::Display for I2cDirection {
     }
 }
 
+// Adapted from embassy-rs/embassy/embassy-stm32/src/i2c/v2.rs
+/// Computed field values for the I2C_TIMINGR register
+struct Timings {
+    prescale: u8,
+    scll: u8,
+    sclh: u8,
+    sdadel: u8,
+    scldel: u8,
+}
+impl Timings {
+    fn new(kernel_clock: Hertz, i2c_frequency: Hertz) -> Self {
+        let kernel_clock = kernel_clock.0;
+        let i2c_frequency = i2c_frequency.0;
+
+        // Refer to RM0433 Rev 7 Figure 539 for setup and hold timing:
+        //
+        // t_I2CCLK = 1 / PCLK1
+        // t_PRESC  = (PRESC + 1) * t_I2CCLK
+        // t_SCLL   = (SCLL + 1) * t_PRESC
+        // t_SCLH   = (SCLH + 1) * t_PRESC
+        //
+        // t_SYNC1 + t_SYNC2 > 4 * t_I2CCLK
+        // t_SCL ~= t_SYNC1 + t_SYNC2 + t_SCLL + t_SCLH
+        let ratio = kernel_clock / i2c_frequency;
+
+        // For the standard-mode configuration method, we must have a ratio of 4
+        // or higher
+        assert!(
+            ratio >= 4,
+            "The I2C PCLK must be at least 4 times the bus i2c_frequency!"
+        );
+
+        let (presc_reg, scll, sclh, sdadel, scldel) = if i2c_frequency > 100_000 {
+            // Fast-mode (Fm) or Fast-mode Plus (Fm+)
+            // here we pick SCLL + 1 = 2 * (SCLH + 1)
+
+            // Prescaler, 384 ticks for sclh/scll. Round up then subtract 1
+            let presc_reg = ((ratio - 1) / 384) as u8;
+            // ratio < 1200 by pclk 120MHz max., therefore presc < 16
+
+            // Actual precale value selected
+            let presc = (presc_reg + 1) as u32;
+
+            let sclh = ((ratio / presc) - 3) / 3;
+            let scll = (2 * (sclh + 1)) - 1;
+
+            let (sdadel, scldel) = if i2c_frequency > 400_000 {
+                // Fast-mode Plus (Fm+)
+                assert!(kernel_clock >= 17_000_000); // See table in datsheet
+
+                let sdadel = kernel_clock / 8_000_000 / presc;
+                let scldel = kernel_clock / 4_000_000 / presc - 1;
+
+                (sdadel, scldel)
+            } else {
+                // Fast-mode (Fm)
+                assert!(kernel_clock >= 8_000_000); // See table in datsheet
+
+                let sdadel = kernel_clock / 4_000_000 / presc;
+                let scldel = kernel_clock / 2_000_000 / presc - 1;
+
+                (sdadel, scldel)
+            };
+
+            (
+                presc_reg,
+                scll as u8,
+                sclh as u8,
+                sdadel as u8,
+                scldel as u8,
+            )
+        } else {
+            // Standard-mode (Sm)
+            // here we pick SCLL = SCLH
+            assert!(kernel_clock >= 2_000_000); // See table in datsheet
+
+            // Prescaler, 512 ticks for sclh/scll. Round up then
+            // subtract 1
+            let presc = (ratio - 1) / 512;
+            let presc_reg = cmp::min(presc, 15) as u8;
+
+            // Actual prescale value selected
+            let presc = (presc_reg + 1) as u32;
+
+            let sclh = ((ratio / presc) - 2) / 2;
+            let scll = sclh;
+
+            // Speed check
+            assert!(
+                sclh < 256,
+                "The I2C PCLK is too fast for this bus i2c_frequency!"
+            );
+
+            let sdadel = kernel_clock / 2_000_000 / presc;
+            let scldel = kernel_clock / 500_000 / presc - 1;
+
+            (
+                presc_reg,
+                scll as u8,
+                sclh as u8,
+                sdadel as u8,
+                scldel as u8,
+            )
+        };
+
+        // Sanity check
+        assert!(presc_reg < 16);
+
+        // Keep values within reasonable limits for fast per_ck
+        let sdadel = cmp::max(sdadel, 2);
+        let scldel = cmp::max(scldel, 4);
+
+        //(presc_reg, scll, sclh, sdadel, scldel)
+        Self {
+            prescale: presc_reg,
+            scll,
+            sclh,
+            sdadel,
+            scldel,
+        }
+    }
+}
+
 /// I2C driver implementation with DMA for the STM32U5 series.
 /// Currently, it is a controller-only driver.
 pub struct I2c<'a> {
     pub registers: StaticRef<I2cRegisters>,
+    clocks: OptionalCell<Clocks>,
 
     // DMA reference, buffer, and TX/RX channels
     dma: OptionalCell<&'a Dma>,
@@ -352,11 +480,11 @@ impl<'a> I2c<'a> {
     pub fn new(base: StaticRef<I2cRegisters>) -> Self {
         Self {
             registers: base,
-            dma: OptionalCell::empty(),
+            clocks: OptionalCell::empty(),
 
+            dma: OptionalCell::empty(),
             dma_channel_tx: OptionalCell::empty(),
             dma_channel_rx: OptionalCell::empty(),
-
             dma_buf: MapCell::empty(),
 
             buf: TakeCell::empty(),
@@ -374,6 +502,10 @@ impl<'a> I2c<'a> {
         }
     }
 
+    pub fn set_clocks(&self, clocks: Clocks) {
+        self.clocks.set(clocks);
+    }
+
     pub fn set_dma(i2c: &'static Self, dma: &'a Dma, tx_channel: ChannelId, rx_channel: ChannelId) {
         i2c.dma.set(dma);
 
@@ -387,23 +519,19 @@ impl<'a> I2c<'a> {
     pub fn set_speed(&self, speed: I2cSpeed) {
         self.disable();
 
-        // The following values for the TIMINGR register
-        // have been found using the STM32CubeMX tool,
-        // as per the STM32U5 documentation
-        // (65.4.10 I2C_TIMINGR register configuration examples or page 2720)
-        //
-        // These values are for the PCLK1 configuration (present in ./rcc.rs)
-        match speed {
-            I2cSpeed::Speed100k => {
-                self.registers.timingr.set(0x0000_0E14);
-            }
-            I2cSpeed::Speed400k => {
-                self.registers.timingr.set(0x0000_0004);
-            }
-            I2cSpeed::Speed1M => {
-                self.registers.timingr.set(0x0000_0000);
-            }
-        }
+        // Assume PCLK1 is the selected clock source
+        let clock_freq = self.clocks.get().unwrap().pclk1;
+
+        // Calculate the values to write into the TIMINGR register
+        let timings = Timings::new(clock_freq, Hertz(speed as u32));
+
+        self.registers.timingr.write(
+            TIMINGR::PRESC.val(timings.prescale as u32)
+                + TIMINGR::SCLL.val(timings.scll as u32)
+                + TIMINGR::SCLH.val(timings.sclh as u32)
+                + TIMINGR::SDADEL.val(timings.sdadel as u32)
+                + TIMINGR::SCLDEL.val(timings.scldel as u32),
+        );
 
         self.enable();
     }

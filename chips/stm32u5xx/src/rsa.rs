@@ -12,7 +12,7 @@ use kernel::utilities::registers::{
 };
 
 register_structs! {
-    PkaRegisters {
+    pub PkaRegisters {
         /// PKA control register
         (0x00 => cr: ReadWrite<u32, CR::Register>),
 
@@ -156,7 +156,7 @@ register_bitfields! [u32,
 ];
 
 /// Base address for PKA registers
-const PKA_BASE: StaticRef<PkaRegisters> =
+pub const PKA_BASE: StaticRef<PkaRegisters> =
     unsafe { StaticRef::new(0x520C2000 as *const PkaRegisters) };
 
 /// Start of the RAM region
@@ -198,9 +198,9 @@ pub struct Pka<'a> {
 }
 
 impl<'a> Pka<'a> {
-    pub const fn new() -> Pka<'a> {
+    pub const fn new(base: StaticRef<PkaRegisters>) -> Pka<'a> {
         Pka {
-            registers: PKA_BASE,
+            registers: base,
 
             client: OptionalCell::empty(),
 
