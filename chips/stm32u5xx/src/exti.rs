@@ -58,7 +58,7 @@ register_bitfields![u32,
 ];
 
 /// Base address for EXTI in Secure Alias mode.
-pub const EXTI_BASE: StaticRef<ExtiRegisters> =
+const EXTI_BASE: StaticRef<ExtiRegisters> =
     unsafe { StaticRef::new(0x56022000 as *const ExtiRegisters) };
 
 #[derive(Copy, Clone, PartialEq)]
@@ -91,9 +91,9 @@ pub struct Exti<'a> {
 
 impl<'a> Exti<'a> {
     /// Creates a new EXTI driver instance.
-    pub const fn new(base: StaticRef<ExtiRegisters>) -> Self {
+    pub const fn new() -> Self {
         Self {
-            registers: base,
+            registers: EXTI_BASE,
             clients: [const { kernel::utilities::cells::OptionalCell::empty() }; 16],
         }
     }

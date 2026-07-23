@@ -213,39 +213,30 @@ register_bitfields! [u32,
     ]
 ];
 
-pub const DAC_BASE: StaticRef<DacRegisters> =
+const DAC_BASE: StaticRef<DacRegisters> =
     unsafe { StaticRef::new(0x4602_1800 as *const DacRegisters) };
 
 /// The DAC takes in an arbitrary 12 bit number and outputs a voltage proportional to it.
 pub struct Dac {
+    /// The StaticRef pointing to the MMIO base address of the peripheral.
     registers: StaticRef<DacRegisters>,
-    enable_clock: fn(),
+    /// Bool cell that tracks whether the DAC has been initialized yet.
     initialized: Cell<bool>,
 }
 
 impl Dac {
     /// Creates a new instance of the driver.
-    ///
-    /// - `base`: The StaticRef pointing to the MMIO base address of the peripheral.
-    /// - `enable_clock`: A callback function to provide the peripheral clock via RCC.
-    /// - `initialized``: Bool cell that tracks whether the DAC has been initialized yet.
-    pub fn new(base: StaticRef<DacRegisters>, enable_clock: fn()) -> Self {
+    pub fn new() -> Self {
         Self {
-            registers: base,
-            enable_clock,
+            registers: DAC_BASE,
             initialized: Cell::new(false),
         }
-    }
-
-    fn enable_clock(&self) {
-        (self.enable_clock)();
     }
 
     /// Initialization function that only gets called on first set_value write.
     /// Because the HIL only exposes the set_value function, we have to store the initialization state as a bool to make sure we only initialize once.
     /// Configures the MODE1 register and then enables CH1 of the DAC. MODE1 is set for clarity as it set to 0 regardless and that's what we need.
     fn initialize(&self) {
-        self.enable_clock();
         self.registers.mcr.modify(MCR::MODE1::EXT_PIN_BUF_EN);
         self.registers.cr.modify(CR::EN1::SET);
         self.initialized.set(true);

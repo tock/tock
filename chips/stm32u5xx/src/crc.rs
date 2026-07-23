@@ -31,7 +31,7 @@ register_structs! {
 }
 
 /// Base address for CRC in Secure Alias mode
-pub const CRC_BASE: StaticRef<CrcRegisters> =
+const CRC_BASE: StaticRef<CrcRegisters> =
     unsafe { StaticRef::new(0x50023000 as *const CrcRegisters) };
 
 /// Byte-width alias into the CRC data register.
@@ -105,9 +105,9 @@ pub struct CRC<'a> {
 }
 
 impl CRC<'_> {
-    pub fn new(base_addr: StaticRef<CrcRegisters>) -> Self {
+    pub fn new() -> Self {
         Self {
-            registers: base_addr,
+            registers: CRC_BASE,
             client: OptionalCell::empty(),
             deferred_call: DeferredCall::new(),
             state: Cell::new(State::Idle),

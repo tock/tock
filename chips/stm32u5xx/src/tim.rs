@@ -11,7 +11,10 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
-use crate::gpio::{Mode, Pin};
+use crate::{
+    gpio::{Mode, Pin},
+    rcc::Clocks,
+};
 
 register_structs! {
     pub TimRegisters {
@@ -66,7 +69,7 @@ register_structs! {
     }
 }
 
-pub const TIM2_BASE: StaticRef<TimRegisters> =
+const TIM2_BASE: StaticRef<TimRegisters> =
     unsafe { StaticRef::new(0x50000000 as *const TimRegisters) };
 
 register_bitfields![u32,
@@ -404,25 +407,22 @@ register_bitfields![u32,
 /// timing while remaining power-efficient.
 pub struct Tim2<'a> {
     registers: StaticRef<TimRegisters>,
-    enable_clock: fn(),
+    clocks: OptionalCell<Clocks>,
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
 impl<'a> Tim2<'a> {
     /// Creates a new instance of the driver.
-    ///
-    /// - `base`: The StaticRef pointing to the MMIO base address of the peripheral.
-    /// - `enable_clock`: (For Timers) A callback function to power on the peripheral via RCC.
-    pub const fn new(base: StaticRef<TimRegisters>, enable_clock: fn()) -> Tim2<'a> {
+    pub const fn new() -> Tim2<'a> {
         Tim2 {
-            registers: base,
-            enable_clock,
+            registers: TIM2_BASE,
+            clocks: OptionalCell::empty(),
             client: OptionalCell::empty(),
         }
     }
 
-    fn enable_clock(&self) {
-        (self.enable_clock)();
+    pub fn set_clocks(&self, clocks: Clocks) {
+        self.clocks.set(clocks);
     }
 
     /// Core interrupt handler for the peripheral.
@@ -442,19 +442,24 @@ impl<'a> Tim2<'a> {
 
     /// Initializes and starts the timer hardware.
     ///
-    /// This sets the prescaler to 124 (converting the 4MHz clock to 32kHz)
-    /// and enables the 32-bit free-running counter.
+    /// This sets the prescaler to convert PCLK1 to 32kHz and enables the 32-bit free-running counter.
     pub fn start(&self) {
-        self.enable_clock();
+        // Get the frequency of the clock that feeds TIM2
+        let input_freq = self.clocks.get().unwrap().pclk1_tim;
 
-        // 1. Set the value
-        self.registers.psc.write(PSC::PSC.val(124));
+        // Determine the required prescaler to achieve 32kHz
+        let prescaler_value = input_freq / 32_000_u32;
 
-        // 2. Force the hardware to load the value NOW
-        // On STM32, the PSC is buffered. By setting the UG bit in EGR,
+        // Set the prescaler; the value used by hardware is [PSC + 1], so 1 must be subtracted
+        self.registers
+            .psc
+            .write(PSC::PSC.val(prescaler_value.0 - 1));
+
+        // Force the hardware to load the value NOW
+        // On STM32, the PSC is buffered.
         self.registers.egr.write(EGR::UG::SET);
 
-        // 3. Clear the status flag caused by the manual update
+        // Clear the status flag caused by the manual update
         self.registers.sr.modify(SR::UIF::CLEAR);
 
         self.registers.arr.write(ARR::ARR.val(0xFFFFFFFF));
@@ -524,62 +529,39 @@ impl<'a> time::Alarm<'a> for Tim2<'a> {
 // This driver implements the Tock PWM HIL using the 16-bit general-purpose TIM3 timer.
 // It works by making the timer count from 0 to a specified value and toggling the pin high/low
 
-pub enum ClockSource {
-    /// high-speed internal 16 MHz RC oscillator clock
-    Hsi16,
-    /// multi-speed internal RC oscillator clock , composed of four
-    /// base oscillators (48 MHz, 4 MHz, 3.072 MHz, 400 kHz)
-    Msis(usize),
-    /// high-speed external crystal or clock, from 4 to 50 MHz
-    Hse(usize),
-    /// PLL1 output, depends on PLL configuration (input, multiplier,dividers)
-    Pll1(usize),
-}
-
-impl ClockSource {
-    /// MSIS is selected as the system clock on startup after a reset. Configured at 4MHz
-    pub const RESET_DEFAULT: ClockSource = ClockSource::Msis(4_000_000);
-
-    pub fn as_hz(&self) -> usize {
-        match self {
-            ClockSource::Hsi16 => 16_000_000,
-            ClockSource::Msis(hz) => *hz,
-            ClockSource::Hse(hz) => *hz,
-            ClockSource::Pll1(hz) => *hz,
-        }
-    }
-}
-
-pub const TIM3_BASE: StaticRef<TimRegisters> =
+const TIM3_BASE: StaticRef<TimRegisters> =
     unsafe { StaticRef::new(0x50000400 as *const TimRegisters) };
 
 pub struct Pwm<'a> {
     // Base address for the TIM3 registers
     registers: StaticRef<TimRegisters>,
-    // The clock source
-    timer_clock: ClockSource,
-    // Function to enable the clock for the timer
-    enable_clock: fn(),
+    // All effective clock frequencies
+    clocks: OptionalCell<Clocks>,
     // Needed so the struct can carry 'a lifetime because of type Pin = Pin<'a>
     _phantom: core::marker::PhantomData<&'a ()>,
 }
 
 impl<'a> Pwm<'a> {
-    pub const fn new(
-        base: StaticRef<TimRegisters>,
-        enable_clock: fn(),
-        timer_clock: ClockSource,
-    ) -> Pwm<'a> {
+    pub const fn new() -> Pwm<'a> {
         Pwm {
-            registers: base,
-            timer_clock,
-            enable_clock,
+            registers: TIM3_BASE,
+            clocks: OptionalCell::empty(),
             _phantom: core::marker::PhantomData,
         }
     }
-    fn enable_clock(&self) {
-        (self.enable_clock)();
+
+    pub fn set_clocks(&self, clocks: Clocks) {
+        self.clocks.set(clocks);
     }
+
+    fn get_maximum_frequency_hz(&self) -> usize {
+        self.clocks.get().unwrap().pclk1_tim.0 as usize
+    }
+
+    fn get_maximum_duty_cycle(&self) -> usize {
+        u16::MAX as usize + 1
+    }
+
     // Switches the pin to alternate function mode and sets the alternate function to AF2 (TIM3_CH1)
     fn configure_pin(&self, pin: &Pin) {
         pin.set_mode(Mode::AlternateFunction);
@@ -593,31 +575,33 @@ impl<'a> Pwm<'a> {
         duty_cycle: usize,
         max_duty_cycle: usize,
     ) -> Result<(), ErrorCode> {
-        self.enable_clock();
-
         if frequency_hz == 0 {
             return self.stop_pwm(pin);
         }
 
-        if frequency_hz > self.timer_clock.as_hz() {
+        // Get the frequency of the clock that feeds TIM3
+        let input_hz = self.clocks.get().unwrap().pclk1_tim.0 as usize;
+
+        if frequency_hz > input_hz {
             return Err(ErrorCode::INVAL);
         }
 
         if duty_cycle > max_duty_cycle {
             return Err(ErrorCode::INVAL);
         }
+
         // Prevent overflow in the ARR register
-        if self.timer_clock.as_hz() / frequency_hz > 65535 {
+        if input_hz / frequency_hz > 65535 {
             return Err(ErrorCode::INVAL);
         }
 
         self.configure_pin(pin);
 
-        //We keep the prescaler 0 for maximum resolution
+        // We keep the prescaler 0 for maximum resolution
         let prescaler = 0;
         // Arr_value is the value that the timer counts to before resetting , it determines the frequency of the signal.
         // We derive it from Frequency = TimerClock / ((PSC + 1) * (ARR + 1))
-        let arr_value = (self.timer_clock.as_hz() / frequency_hz) - 1;
+        let arr_value = (input_hz / frequency_hz) - 1;
         // CCR = ARR * (duty_cycle / max_duty_cycle)
         // This is the value at which the output pin will be toggled. This dictates the duty cycle of the signal.
         // For example if Arr = 100 and Ccr = 25 , the output will be high for 25 ticks and low for 75 ticks, giving a duty cycle of 25%
@@ -664,11 +648,11 @@ impl<'a> hil::pwm::Pwm for Pwm<'a> {
     }
 
     fn get_maximum_frequency_hz(&self) -> usize {
-        self.timer_clock.as_hz()
+        self.get_maximum_frequency_hz()
     }
 
     fn get_maximum_duty_cycle(&self) -> usize {
-        u16::MAX as usize + 1
+        self.get_maximum_duty_cycle()
     }
 }
 
@@ -695,9 +679,9 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
         self.pwm.stop_pwm(self.pin)
     }
     fn get_maximum_frequency_hz(&self) -> usize {
-        self.pwm.timer_clock.as_hz()
+        self.pwm.get_maximum_frequency_hz()
     }
     fn get_maximum_duty_cycle(&self) -> usize {
-        u16::MAX as usize + 1
+        self.pwm.get_maximum_duty_cycle()
     }
 }

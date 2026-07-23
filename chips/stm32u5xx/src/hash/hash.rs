@@ -11,7 +11,7 @@ use core::ops::Index;
 use crate::dma::{ChannelId, Dma};
 use crate::hash::md5::Md5Adapter;
 use crate::hash::regs::HashRegisters;
-use crate::hash::regs::{CR, IMR, SR, STR};
+use crate::hash::regs::{CR, HASH_BASE, IMR, SR, STR};
 use crate::hash::sha1::Sha1Adapter;
 use crate::hash::sha224::Sha224Adapter;
 use crate::hash::sha256::Sha256Adapter;
@@ -123,9 +123,9 @@ impl<'a> Hash<'a> {
 }
 
 impl Hash<'_> {
-    pub fn new(base: StaticRef<HashRegisters>) -> Self {
+    pub fn new() -> Self {
         Self {
-            regs: base,
+            regs: HASH_BASE,
             dma: OptionalCell::empty(),
             dma_channel: Cell::new(None),
             dma_buffer: MapCell::empty(),
