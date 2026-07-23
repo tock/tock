@@ -13,6 +13,8 @@
 use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::hil::uart;
+use kernel::utilities::MmioWithDmaRef;
+use kernel::utilities::MmioWithDmaRefUnlocked;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::dma_slice::DmaSubSliceMut;
@@ -27,8 +29,13 @@ const UARTE_MAX_BUFFER_SIZE: usize = 0xff;
 
 static mut BYTE: u8 = 0;
 
-pub const UARTE0_BASE: StaticRef<UarteRegisters> =
-    unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
+/// UARTE0 registers.
+///
+/// # Safety
+///
+/// This is the correct address on this MCU for this peripheral.
+pub const UARTE0_BASE: MmioWithDmaRef<UarteRegisters> =
+    unsafe { MmioWithDmaRef::new(0x40002000 as *const UarteRegisters) };
 
 #[repr(C)]
 pub struct UarteRegisters {
@@ -165,7 +172,7 @@ register_bitfields! [u32,
 /// Wrapper for managing MMIO for UARTE.
 struct UarteRegistersManager {
     /// MMIO registers for the UARTE peripheral.
-    registers: StaticRef<UarteRegisters>,
+    registers: MmioWithDmaRefUnlocked<UarteRegisters>,
     /// Holding place for the TX DMA buffer while DMA in progress.
     tx_dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     /// Holding place for the RX DMA buffer while DMA in progress.
@@ -173,9 +180,12 @@ struct UarteRegistersManager {
 }
 
 impl UarteRegistersManager {
-    pub fn new(regs: StaticRef<UarteRegisters>) -> Self {
+    pub fn new(regs: MmioWithDmaRef<UarteRegisters>) -> Self {
+        // SAFETY: This register manager must only be constructed once.
+        // Therefore, we will only unlock the MMIO DMA registers at most once.
+        let registers = unsafe { regs.unlock() };
         Self {
-            registers: regs,
+            registers,
             tx_dma_buf: MapCell::empty(),
             rx_dma_buf: MapCell::empty(),
         }
@@ -338,7 +348,7 @@ pub struct UARTParams {
 impl<'a> Uarte<'a> {
     /// Constructor
     // This should only be constructed once
-    pub fn new(regs: StaticRef<UarteRegisters>) -> Uarte<'a> {
+    pub fn new(regs: MmioWithDmaRef<UarteRegisters>) -> Uarte<'a> {
         Uarte {
             registers: UarteRegistersManager::new(regs),
             tx_client: OptionalCell::empty(),
