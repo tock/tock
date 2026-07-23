@@ -60,7 +60,7 @@ impl kernel::platform::chip::InterruptService for Nrf52840DefaultPeripherals<'_>
                     ),
                 }
             }
-            _ => return self.nrf52.service_interrupt(interrupt),
+            _ => return unsafe { self.nrf52.service_interrupt(interrupt) },
         }
         true
     }

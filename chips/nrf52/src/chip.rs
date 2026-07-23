@@ -42,9 +42,17 @@ pub struct NRF52<'a, I: InterruptService + 'a> {
 
 impl<'a, I: InterruptService + 'a> NRF52<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
+        // SAFETY: This is a cortex-m4f chip and this MPU implementation will
+        // uphold the required guarantees on this hardware.
+        let mpu = unsafe { cortexm4f::mpu::new() };
+
+        // SAFETY: This is a cortex-m4f chip and this UKB implementation will
+        // uphold the required guarantees on this hardware.
+        let userspace_kernel_boundary = unsafe { cortexm4f::syscall::SysCall::new() };
+
         Self {
-            mpu: cortexm4f::mpu::new(),
-            userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
+            mpu,
+            userspace_kernel_boundary,
             interrupt_service,
         }
     }
@@ -158,9 +166,6 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         }
         crate::crt1::initialize_vector_table();
 
-        // # Safety
-        //
-        // Need to enable interrupts.
         nvic::enable_all();
     }
 
@@ -199,10 +204,13 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     where
         F: FnOnce() -> R,
     {
-        cortexm4f::support::with_interrupts_disabled(f)
+        // SAFETY: Same safety requirements as the trait function.
+        unsafe { cortexm4f::support::with_interrupts_disabled(f) }
     }
 
     unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
-        CortexM4F::print_cortexm_state(write);
+        unsafe {
+            CortexM4F::print_cortexm_state(write);
+        }
     }
 }
