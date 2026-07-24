@@ -6,13 +6,13 @@
 #![no_std]
 #![no_main]
 
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::{capabilities, debug};
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
@@ -177,6 +177,12 @@ unsafe fn start() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
+    // Bind global variables to this thread.
+    let _ = PANIC_RESOURCES
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
+
     // Create Individual Drivers
     let exti = static_init!(
         stm32u545::exti::Exti<'static>,
@@ -209,6 +215,10 @@ unsafe fn start() -> (
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.processes.put(processes.as_slice());
+    });
+
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     let uart_mux = components::console::UartMuxComponent::new(periphs.usart1, 115200)
@@ -234,12 +244,17 @@ unsafe fn start() -> (
     )
     .finalize(components::debug_writer_component_static!());
 
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.printer.put(process_printer);
+    });
+
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         alarm_mux,
-        components::process_printer::ProcessPrinterTextComponent::new()
-            .finalize(components::process_printer_text_component_static!()),
+        process_printer,
         None,
     )
     .finalize(components::process_console_component_static!(
@@ -327,13 +342,15 @@ unsafe fn start() -> (
             11 => periphs.gpio_a.pin(PinId::Pin07), // D11
             12 => periphs.gpio_a.pin(PinId::Pin06), // D12
             // 13 => D13/PA5 is used by the LD2 LED capsule
-            // D14-D15 require GPIOB
+            14 => periphs.gpio_b.pin(PinId::Pin07), // D14
+            15 => periphs.gpio_b.pin(PinId::Pin06), // D15
+
 
             // Analog pins exposed as GPIO
             16 => periphs.gpio_a.pin(PinId::Pin00), // A0
             17 => periphs.gpio_a.pin(PinId::Pin01), // A1
             18 => periphs.gpio_a.pin(PinId::Pin04), // A2
-            // 19 => A3 requires GPIOB
+            19 => periphs.gpio_b.pin(PinId::Pin00), // A3
             20 => periphs.gpio_c.pin(PinId::Pin01), // A4
             21 => periphs.gpio_c.pin(PinId::Pin00), // A5
 
@@ -368,6 +385,10 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xx<stm32u545::chip::Stm32u5xxDefaultPeripherals>,
         stm32u545::chip::Stm32u5xx::new(periphs)
     );
+
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     // Symbols for linker
     extern "C" {
@@ -409,6 +430,9 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
+
+    debug!("Initialization complete. Entering main loop");
+
     // Hand over control to the Tock Kernel Loop
     board_kernel.kernel_loop::<NucleoU545RE, ChipHw, { NUM_PROCS as u8 }>(
         platform,

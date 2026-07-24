@@ -21,6 +21,7 @@ use crate::usart;
 use crate::{dac, exti};
 
 use core::fmt::Write;
+use cortexm33::{CortexM33, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -316,6 +317,6 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     }
 
     unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
-        let _ = write.write_str("Cortex-M33 state\n");
+        CortexM33::print_cortexm_state(write);
     }
 }
