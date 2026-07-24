@@ -27,9 +27,10 @@
 //! the selected mode via `kernel::config::CONFIG.vga_mode` and decide whether
 //! to route the `ProcessConsole` to this driver or to the legacy serial mux.
 
-use core::cell::Cell;
+use core::{cell::Cell, marker::PhantomData};
 use kernel::utilities::StaticRef;
 use tock_cells::volatile_cell::VolatileCell;
+use tock_registers::{Address, Bus, BusWrite, RegisterArray, Write, register_map};
 
 /// Write an 8-bit value to an I/O Port.
 /// Read an 8-bit value from an I/O port.
@@ -217,6 +218,82 @@ impl core::ops::Index<(usize, usize)> for TextBuf {
     }
 }
 
+// Completely over-engineered API for accessing attribute registers. Implemented mainly because I
+// wanted to test register arrays, and the VGA color palette is the only register array on a
+// Tock-supported QEMU environment.
+#[derive(Clone, Copy)]
+pub struct Attribute {
+    index: u8,
+    _phantom: PhantomData<*mut ()>,
+}
+
+impl Attribute {
+    pub const fn new(index: u8) -> Self {
+        Self {
+            index,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl Address for Attribute {
+    unsafe fn byte_add(self, offset: usize) -> Self {
+        Self {
+            index: self.index + offset as u8,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+// Safety: Attribute does not expose safe operations to access registers on its own. Instead, it is
+// used through two types:
+// 1. The Real<> structs, which are always !Send + !Sync
+// 2. RegisterSender<>, which is Send if the bus is Send but which guarantees that only one thread
+//    can access the registers at a time. Making Attribute Send enables RegisterSender<> to work
+//    with it.
+unsafe impl Send for Attribute {}
+
+// Safety: A byte-sized register occupies a space of size 1 in the index range.
+unsafe impl Bus<u8> for Attribute {
+    const PADDED_SIZE: usize = 1;
+}
+
+impl BusWrite<u8> for Attribute {
+    unsafe fn write(self, val: u8) {
+        // Safety: 0x3C0 is the correct port to access the Attribute Controller though. This access
+        // does assume that the flip-flop is in the "next write is an index" state, but if that is
+        // incorrect then the outcome is setting the wrong attribute controller register to the
+        // wrong value. No attribute controller registers can cause UB, so this is sound.
+        //
+        // In general, we would want any register read operations to reset the flip-flop, but I
+        // didn't need to implement that operation for this example.
+        #[cfg(target_arch = "x86")]
+        unsafe {
+            // Write the register index to the Attribute Controller
+            outb(0x3C0, self.index);
+            // Write the corresponding value
+            outb(0x3C0, val);
+        }
+        #[cfg(not(target_arch = "x86"))]
+        {
+            let _ = val;
+            unimplemented!()
+        }
+    }
+}
+
+register_map! {
+    #[bus(Attribute)]
+    attributes {
+        0x00 => palette: [u8; 16] { Write },
+        0x10 => mode_control: u8 { Write },
+        0x11 => overscan_color: u8 { Write },
+        0x12 => color_plane_enable: u8 { Write },
+        0x13 => horizontal_pixel_panning: u8 { Write },
+        0x14 => color_select: u8 { Write },
+    }
+}
+
 /// Low-level VGA controller (global mode/programming).
 /// This configures the hardware; it is not tied to a particular `Vga` writer.
 pub struct VgaDevice;
@@ -252,6 +329,8 @@ impl VgaDevice {
     // --- private ---
 
     fn program_text_mode() {
+        use attributes::Interface;
+
         // (content moved verbatim from old `init_text_mode`)
         unsafe {
             // Select CRTC register index 0x11 (cursor start register) and reset its value to 0
@@ -262,40 +341,33 @@ impl VgaDevice {
             inb(0x3DA);
         }
 
-        // Program the 21 Attribute Controller registers:
-        //   0x00–0x0F are the 16 palette entries,
-        //   0x10 = mode control (graphics off, blink on),
-        //   0x12 = color plane enable mask.
+        // Safety: Attribute Controller registers start at index 0.
+        let ac = unsafe { attributes::Real::new(Attribute::new(0)) };
         for (idx, val) in [
-            (0x00, 0x00u8), // palette 0: black
-            (0x01, 0x01),   // palette 1: blue
-            (0x02, 0x02),   // palette 2: green
-            (0x03, 0x03),   // palette 3: cyan
-            (0x04, 0x04),   // palette 4: red
-            (0x05, 0x05),   // palette 5: magenta
-            (0x06, 0x14),   // palette 6: brown
-            (0x07, 0x07),   // palette 7: light grey
-            (0x08, 0x38),   // palette 8: dark grey
-            (0x09, 0x39),   // palette 9: light blue
-            (0x0A, 0x3A),   // palette A: light green
-            (0x0B, 0x3B),   // palette B: light cyan
-            (0x0C, 0x3C),   // palette C: light red
-            (0x0D, 0x3D),   // palette D: light magenta
-            (0x0E, 0x3E),   // palette E: yellow
-            (0x0F, 0x3F),   // palette F: white
-            (0x10, 0x0C),   // mode control: text mode, blink attribute on
-            (0x12, 0x0F),   // enable all 4 color planes
+            0x00, // palette 0: black
+            0x01, // palette 1: blue
+            0x02, // palette 2: green
+            0x03, // palette 3: cyan
+            0x04, // palette 4: red
+            0x05, // palette 5: magenta
+            0x14, // palette 6: brown
+            0x07, // palette 7: light grey
+            0x38, // palette 8: dark grey
+            0x39, // palette 9: light blue
+            0x3A, // palette A: light green
+            0x3B, // palette B: light cyan
+            0x3C, // palette C: light red
+            0x3D, // palette D: light magenta
+            0x3E, // palette E: yellow
+            0x3F, // palette F: white
         ]
-        .iter()
-        .copied()
+        .into_iter()
+        .enumerate()
         {
-            unsafe {
-                // Write the register index to the Attribute Controller
-                outb(0x3C0, idx);
-                // Write the corresponding value
-                outb(0x3C0, val);
-            }
+            ac.palette().get(idx).unwrap().set(val);
         }
+        ac.mode_control().set(0x0C);
+        ac.color_plane_enable().set(0x0F);
 
         // Reset the flip-flop again before enabling video output
         unsafe {

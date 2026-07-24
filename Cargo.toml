@@ -136,8 +136,10 @@ version = "0.2.3-dev"
 authors = ["Tock Project Developers <devel@lists.tockos.org>"]
 edition = "2021"
 
-[workspace.dependencies]
-tock-registers = { version = "0.10.0", default-features = false }
+[workspace.dependencies.tock-registers]
+default-features = false
+git = "https://github.com/jrvanwhy/tock-registers.git"
+branch = "mod-interface"
 
 [profile.dev]
 panic = "abort"
