@@ -230,6 +230,99 @@ register_bitfields![u32,
     ]
 ];
 
+/// Wrapper for managing MMIO for ADC.
+struct AdcRegistersManager {
+    /// MMIO registers for the ADC peripheral.
+    registers: StaticRef<AdcRegisters>,
+    /// Holding place for the SAMPLE buffer while DMA in progress.
+    dma_buf: MapCell<DmaSliceMut<'static, u8>>,
+}
+
+impl AdcRegistersManager {
+    pub fn new(regs: StaticRef<AdcRegisters>) -> Self {
+        Self {
+            registers: regs,
+            dma_buf: MapCell::empty(),
+        }
+    }
+
+    /// Start a UART transmission with DMA.
+    ///
+    /// # Return
+    ///
+    /// `Ok(())` on successfully starting the DMA operation. `Err(())` if the
+    /// DMA is busy and the operation could not be started.
+    pub fn start_dma(&self, buf: &'static mut [u16], count: usize) -> Result<(), ()> {
+        if self.dma_pending() {
+            return Err(());
+        }
+
+        // To create a DmaFence we must trust the implementation.
+        //
+        // # Safety
+        //
+        // The architecture-provided version is correct for the nRF52.
+        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+        // Create DmaSlice for the TX buffer. This ensures that we can soundly
+        // share it with the DMA hardware.
+        let dma_slice = DmaSliceMut::new_static(buf, fence);
+
+        // Provide the DmaSlice buffer to the hardware DMA engine.
+        // self.registers.txd_ptr.set(tx_dma_slice.ptr_addr() as u32);
+
+        self.registers.result_ptr.set(tx_slice.ptr_addr() as u32);
+
+        self.registers
+            .result_maxcnt
+            .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
+
+        // // Specify the length to transmit.
+        // self.registers
+        //     .txd_maxcnt
+        //     .write(Counter::COUNTER.val(tx_dma_slice.len() as u32));
+
+        // Save the DmaSlice while the DMA operation executes.
+        self.dma_buf.replace(dma_slice);
+
+        // Start the TX DMA operation
+        // self.registers.task_starttx.write(Task::ENABLE::SET);
+
+        self.registers.tasks_sample.write(TASK::TASK::SET);
+
+        Ok(())
+    }
+
+    pub fn finish_tx_dma(&self) -> Option<(SubSliceMut<'static, u8>, usize)> {
+        // End the DMA operation so it is safe to retrieve the buffer.
+        self.registers.event_endtx.write(Event::READY::CLEAR);
+
+        self.tx_dma_buf.take().map(|dma_slice| {
+            // To create a DmaFence we must trust the implementation.
+            //
+            // # Safety
+            //
+            // The architecture-provided version is correct for the nRF52.
+            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+            // # Safety
+            //
+            // We must ensure that the DMA hardware no longer has any access
+            // to this buffer. We ensure that by setting the `event_endtx`
+            // event before taking the dma slice back.
+            let buf = unsafe { dma_slice.take(fence) };
+
+            let tx_bytes = self.registers.txd_amount.get() as usize;
+
+            (buf, tx_bytes)
+        })
+    }
+
+    pub fn tx_dma_pending(&self) -> bool {
+        self.tx_dma_buf.is_some()
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AdcChannel {
     AnalogInput0 = 1,
@@ -456,7 +549,12 @@ impl Adc<'_> {
                 } else if self.registers.events_started.is_set(EVENT::EVENT) {
                     self.registers.events_started.write(EVENT::EVENT::CLEAR);
                     // ADC has started, now issue the sample.
-                    self.registers.tasks_sample.write(TASK::TASK::SET);
+
+                    let buf = self.single_sample_buffer.take().map(|buf| {
+                        self.registers.start_dma(buf, 1);
+                    });
+
+                    // self.registers.tasks_sample.write(TASK::TASK::SET);
                 } else if self.registers.events_end.is_set(EVENT::EVENT) {
                     self.registers.events_end.write(EVENT::EVENT::CLEAR);
                     // Reading finished. Turn off the ADC.
@@ -553,11 +651,11 @@ impl Adc<'_> {
         self.registers.resolution.write(RESOLUTION::VAL::bit12);
     }
 
-    fn setup_sample_count(&self, count: usize) {
-        self.registers
-            .result_maxcnt
-            .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
-    }
+    // fn setup_sample_count(&self, count: usize) {
+    //     self.registers
+    //         .result_maxcnt
+    //         .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
+    // }
 
     fn setup_frequency(&self, frequency: u32) {
         let raw_cc = 16000000 / frequency;
@@ -578,13 +676,14 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
         self.setup_resolution();
 
         // Do one measurement.
-        self.registers
-            .result_maxcnt
-            .write(RESULT_MAXCNT::MAXCNT.val(1));
-        // Where to put the reading.
-        let sample: *const [u16; 1] = addr_of!(SAMPLE);
-        let sample: *const u16 = sample.cast();
-        self.registers.result_ptr.set(sample);
+
+        // self.registers
+        //     .result_maxcnt
+        //     .write(RESULT_MAXCNT::MAXCNT.val(1));
+        // // Where to put the reading.
+        // let sample: *const [u16; 1] = addr_of!(SAMPLE);
+        // let sample: *const u16 = sample.cast();
+        // self.registers.result_ptr.set(sample);
 
         // No automatic sampling, will trigger manually.
         self.registers.samplerate.write(SAMPLERATE::MODE::Task);
