@@ -13,6 +13,7 @@ pub mod gpio;
 pub mod nvic;
 pub mod pwr;
 pub mod rcc;
+pub mod rtc;
 pub mod tim;
 pub mod usart;
 

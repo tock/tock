@@ -59,6 +59,8 @@ struct NucleoU545RE {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
+    date_time:
+        &'static capsules_extra::date_time::DateTimeCapsule<'static, stm32u545::rtc::Rtc<'static>>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -75,6 +77,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
     }
@@ -195,14 +198,22 @@ unsafe fn start() -> (
 
     usart1.register();
 
+    let rcc = static_init!(
+        stm32u545::rcc::Rcc,
+        stm32u545::rcc::Rcc::new(stm32u545::rcc::RCC_BASE)
+    );
+
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1, rcc)
     );
 
     // Initialize wiring (DMA, clocks)
     periphs.init();
+
+    // Register the RTC to the deferred call client
+    periphs.rtc.register();
 
     // Board specific wiring
     periphs.tim2.start();
@@ -255,6 +266,15 @@ unsafe fn start() -> (
         alarm_mux,
     )
     .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
+
+    let date_time = components::date_time::DateTimeComponent::new(
+        board_kernel,
+        capsules_extra::date_time::DRIVER_NUM,
+        &periphs.rtc,
+    )
+    .finalize(components::date_time_component_static!(
+        stm32u545::rtc::Rtc<'static>
+    ));
 
     let led_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin05));
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
@@ -374,6 +394,7 @@ unsafe fn start() -> (
             adc: adc_syscall,
             dac,
             gpio,
+            date_time,
         }
     );
 

@@ -33,7 +33,10 @@ register_structs! {
         (0x0E4 => ccipr2: ReadWrite<u32, CCIPR1::Register>),
         /// Peripherals independent clock configuration register 3
         (0x0E8 => ccipr3: ReadWrite<u32, CCIPR3::Register>),
-        (0x0EC => @END),
+        (0x0EC => _reserved5: [u32; 1]),
+        /// RCC backup domain control register
+        (0x0F0 => bdcr: ReadWrite<u32, BDCR::Register>),
+        (0x0F4 => @END),
     }
 }
 
@@ -70,7 +73,9 @@ register_bitfields![u32,
         USART1EN OFFSET(14) NUMBITS(1) []
     ],
     pub APB3ENR [
-        SYSCFGEN OFFSET(1) NUMBITS(1) []
+        SYSCFGEN OFFSET(1) NUMBITS(1) [],
+        PWREN OFFSET(2) NUMBITS(1) [],
+        RTCAPBEN OFFSET(21) NUMBITS(1) [],
     ],
     pub CCIPR1 [
         USART1SEL OFFSET(0) NUMBITS(2) [
@@ -94,6 +99,21 @@ register_bitfields![u32,
             LSI = 1
         ]
     ],
+    pub BDCR [
+        /// LSI oscillator enable
+        LSION OFFSET(26) NUMBITS(1) [],
+        /// LSI oscillator ready
+        LSIRDY OFFSET(27) NUMBITS(1) [],
+        /// RTC and TAMP clock enable
+        RTCEN OFFSET(15) NUMBITS(1) [],
+        /// RTC and TAMP clock source selection
+        RTCSEL OFFSET(8) NUMBITS(2) [
+            NO_CLK = 0,
+            LSE = 1,
+            LSI = 2,
+            HSE = 3,
+        ]
+    ]
 ];
 
 /// Base address for RCC in Nonsecure mode
@@ -162,5 +182,29 @@ impl Rcc {
 
     pub fn enable_dac1(&self) {
         self.registers.ahb3enr.modify(AHB3ENR::DAC1EN::SET);
+    }
+    // Enable the power clock on the 3rd bus, used by RTC peripheral
+    pub fn enable_ahb3_pwrclk(&self) {
+        self.registers.ahb3enr.modify(AHB3ENR::PWREN::SET);
+    }
+    // Enable the APB3 bus clock for the RTC and TAMP peripherals
+    pub fn enable_apb3_bus_clk(&self) {
+        self.registers.apb3enr.modify(APB3ENR::RTCAPBEN::SET);
+    }
+    // Enabling the LSI oscillator
+    pub fn enable_lsi(&self) {
+        self.registers.bdcr.modify(BDCR::LSION::SET);
+    }
+    // Check if LSI is ready
+    pub fn is_lsi_ready(&self) -> bool {
+        self.registers.bdcr.is_set(BDCR::LSIRDY)
+    }
+    // Select LSI (2) as the RTC clock source
+    pub fn select_rtc_source_lsi(&self) {
+        self.registers.bdcr.modify(BDCR::RTCSEL::LSI);
+    }
+    // Enable the RTC clock
+    pub fn enable_rtc(&self) {
+        self.registers.bdcr.modify(BDCR::RTCEN::SET);
     }
 }

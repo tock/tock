@@ -16,11 +16,13 @@ use crate::nvic::{
 };
 use crate::pwr;
 use crate::rcc;
+use crate::rtc;
 use crate::tim;
 use crate::usart;
 use crate::{dac, exti};
 
 use core::fmt::Write;
+use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -31,7 +33,8 @@ pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
 }
 
 pub struct Stm32u5xxDefaultPeripherals<'a> {
-    pub rcc: rcc::Rcc,
+    pub rcc: &'a rcc::Rcc,
+    pub rtc: rtc::Rtc<'a>,
     pub tim2: tim::Tim2<'a>,
     pub tim3: tim::Pwm<'a>,
     pub usart1: &'a usart::Usart<'a>,
@@ -60,9 +63,15 @@ fn enable_dac1_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(
+        usart1: &'a usart::Usart<'a>,
+        exti: &'a exti::Exti<'a>,
+        dma1: &'a Dma,
+        rcc: &'a rcc::Rcc,
+    ) -> Self {
         Self {
-            rcc: rcc::Rcc::new(rcc::RCC_BASE),
+            rcc,
+            rtc: rtc::Rtc::new(rcc),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
             tim3: tim::Pwm::new(
                 tim::TIM3_BASE,
@@ -108,6 +117,17 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         let usart1_channel_rx = self.dma1.request_channel();
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+        }
+
+        // Turn on the RTC clock and unlock the backup domain.
+        // We handle errors here such that a failure doesn't halt the kernel.
+        if let Err(e) = self.rtc.initialize_clock() {
+            debug!("{:?}", e)
+        }
+        // Set up the RTC mode. (configure prescalers, 24h format, default date/time)
+        // This requires the previous step, the clock and bckup domain to have been sucessfully initialized.
+        if let Err(e) = self.rtc.init_mode() {
+            debug!("{:?}", e)
         }
     }
 }

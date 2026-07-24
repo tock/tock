@@ -12,7 +12,10 @@ register_structs! {
         (0x000 => _reserved),
         /// PWR supply voltage monitoring control register
         (0x010 => pwr_svmcr: ReadWrite<u32, PWR_SVMCR::Register>),
-        (0x014 => @END),
+        (0x014 => _reserved1: [u32; 5]),
+        /// PWR disable backup domain register
+        (0x028 => pwr_dbpr: ReadWrite<u32, PWR_DBPR::Register>),
+        (0x02C => @END),
     }
 }
 register_bitfields![u32,
@@ -22,6 +25,10 @@ register_bitfields![u32,
         // If VDDA is not always present in the application, the VDDA voltage monitor can be used to determine whether this supply is ready or not.
         /// VDDA independent analog supply valid
         ASV OFFSET(30) NUMBITS(1) []
+    ],
+    PWR_DBPR [
+        /// Disable backup domain write protection
+        DBP OFFSET(0) NUMBITS(1) []
     ],
 ];
 const PWR_BASE: StaticRef<PwrRegisters> =
@@ -40,5 +47,10 @@ impl Pwr {
 
     pub fn validate_vdda(&self) {
         self.registers.pwr_svmcr.modify(PWR_SVMCR::ASV::SET);
+    }
+
+    /// Disable Backup Domain Write Protection
+    pub fn disable_backup_domain(&self) {
+        self.registers.pwr_dbpr.modify(PWR_DBPR::DBP::SET);
     }
 }
