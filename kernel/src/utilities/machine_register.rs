@@ -78,4 +78,19 @@ impl MachineRegister {
     pub fn as_usize(self) -> usize {
         self.value.addr()
     }
+
+    /// Returns this [`MachineRegister`] as a [`usize`], 32 bits only.
+    ///
+    /// This returns a `usize`, but only uses the lowest 32 bits from the
+    /// [`MachineRegister`]. If there are upper bits, they are set to 0. This is
+    /// useful for capturing only the lower 32 bits on a 64-bit machine.
+    ///
+    /// This is intended for use on [`MachineRegister`]s created from a
+    /// [`usize`], in which case 32 bits of the original [`usize`] will be
+    /// returned. If this [`MachineRegister`] was created from a pointer, this
+    /// returns the lowest 32 bits of the pointer's address (without exposing
+    /// provenance).
+    pub fn as_usize_32bit(self) -> usize {
+        self.value.addr() & 0xFFFF_FFFF
+    }
 }

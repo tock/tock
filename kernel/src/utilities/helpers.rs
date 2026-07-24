@@ -185,6 +185,52 @@ macro_rules! init_uninit_struct {
     };
 }
 
+/// Convert a `&usize` to a `&u32` on 32-bit and a `&u64` on 64-bit.
+///
+/// Sound because `usize` always has the same size and alignment as the
+/// register-width integer type on its target.
+///
+/// This is particularly useful for implementing system-call interfaces as the
+/// exact number of bits in the interface is important.
+#[macro_export]
+macro_rules! usize_as_native {
+    ($val:expr) => {{
+        let ptr = core::ptr::from_ref::<usize>($val);
+        // SAFETY: We are guaranteed to be on a 32-bit machine, so a `usize` is
+        // equivalent to a `u32`.
+        #[cfg(target_pointer_width = "32")]
+        let out: &u32 = unsafe { &*ptr.cast::<u32>() };
+        // SAFETY: We are guaranteed to be on a 64-bit machine, so a `usize` is
+        // equivalent to a `u64`.
+        #[cfg(target_pointer_width = "64")]
+        let out: &u64 = unsafe { &*ptr.cast::<u64>() };
+        out
+    }};
+}
+
+/// Convert a `&mut usize` to a `&umut 32` on 32-bit and a `&mut u64` on 64-bit.
+///
+/// Sound because `usize` always has the same size and alignment as the
+/// register-width integer type on its target.
+///
+/// This is particularly useful for implementing system-call interfaces as the
+/// exact number of bits in the interface is important.
+#[macro_export]
+macro_rules! usize_as_native_mut {
+    ($val:expr) => {{
+        let ptr = core::ptr::from_mut::<usize>($val);
+        // SAFETY: We are guaranteed to be on a 32-bit machine, so a `usize` is
+        // equivalent to a `u32`.
+        #[cfg(target_pointer_width = "32")]
+        let out: &mut u32 = unsafe { &mut *ptr.cast::<u32>() };
+        // SAFETY: We are guaranteed to be on a 64-bit machine, so a `usize` is
+        // equivalent to a `u64`.
+        #[cfg(target_pointer_width = "64")]
+        let out: &mut u64 = unsafe { &mut *ptr.cast::<u64>() };
+        out
+    }};
+}
+
 /// Compute a POSIX-style CRC32 checksum of a slice.
 ///
 /// Online calculator: <https://crccalc.com/>
