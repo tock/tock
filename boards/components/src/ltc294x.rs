@@ -38,14 +38,12 @@ macro_rules! ltc294x_component_static {
         let buffer = kernel::static_buf!([u8; capsules_extra::ltc294x::BUF_LEN]);
 
         (i2c_device, ltc294x, buffer)
-    };};
+    }};
 }
 
 #[macro_export]
 macro_rules! ltc294x_driver_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::ltc294x::LTC294XDriver<'static>)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::ltc294x::LTC294XDriver<'static>) }};
 }
 
 pub struct Ltc294xComponent<I: 'static + i2c::I2CMaster<'static>> {

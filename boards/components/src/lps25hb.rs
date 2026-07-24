@@ -27,7 +27,7 @@ macro_rules! lps25hb_component_static {
         let buffer = kernel::static_buf!([u8; capsules_extra::lps25hb::BUF_LEN]);
 
         (i2c_device, lps25hb, buffer)
-    };};
+    }};
 }
 
 pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster<'static>> {

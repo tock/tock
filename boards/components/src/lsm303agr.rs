@@ -49,7 +49,7 @@ macro_rules! lsm303agr_component_static {
         );
 
         (accelerometer_i2c, magnetometer_i2c, buffer, lsm303agr)
-    };};
+    }};
 }
 
 pub struct Lsm303agrI2CComponent<I: 'static + i2c::I2CMaster<'static>> {

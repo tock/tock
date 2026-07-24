@@ -67,7 +67,7 @@ macro_rules! st77xx_component_static {
         );
 
         (st77xx_alarm, st77xx, buffer, sequence_buffer)
-    };};
+    }};
 }
 
 pub struct ST77XXComponent<

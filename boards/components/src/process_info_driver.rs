@@ -21,7 +21,7 @@ macro_rules! process_info_component_static {
         );
 
         process_info
-    };};
+    }};
 }
 
 pub struct ProcessInfoComponent<C: ProcessManagementCapability + ProcessStartCapability> {

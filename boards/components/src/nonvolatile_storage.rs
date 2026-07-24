@@ -45,7 +45,7 @@ macro_rules! nonvolatile_storage_component_static {
         let buffer = kernel::static_buf!([u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
 
         (page, ntp, ns, buffer)
-    };};
+    }};
 }
 
 pub type NonvolatileStorageComponentType = NonvolatileStorage<'static>;

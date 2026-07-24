@@ -40,7 +40,7 @@ macro_rules! l3gd20_component_static {
         );
 
         (spi, l3gd20spi, txbuffer, rxbuffer)
-    };};
+    }};
 }
 
 pub type L3gd20ComponentType<S> = capsules_extra::l3gd20::L3gd20Spi<'static, S>;

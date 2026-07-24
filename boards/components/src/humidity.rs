@@ -20,9 +20,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! humidity_component_static {
-    ($H: ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::humidity::HumiditySensor<'static, $H>)
-    };};
+    ($H: ty $(,)?) => {{ kernel::static_buf!(capsules_extra::humidity::HumiditySensor<'static, $H>) }};
 }
 
 pub type HumidityComponentType<H> = capsules_extra::humidity::HumiditySensor<'static, H>;

@@ -9,9 +9,7 @@ use kernel::component::Component;
 
 #[macro_export]
 macro_rules! process_checker_machine_component_static {
-    () => {{
-        kernel::static_buf!(kernel::process::ProcessCheckerMachine)
-    };};
+    () => {{ kernel::static_buf!(kernel::process::ProcessCheckerMachine) }};
 }
 
 pub type ProcessCheckerMachineComponentType = kernel::process::ProcessCheckerMachine;

@@ -16,7 +16,7 @@ macro_rules! app_checker_sha256_component_static {
             kernel::static_buf!(capsules_system::process_checker::basic::AppCheckerSha256);
 
         (checker, buffer)
-    };};
+    }};
 }
 
 pub type AppCheckerSha256ComponentType = capsules_system::process_checker::basic::AppCheckerSha256;

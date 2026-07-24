@@ -33,7 +33,7 @@ macro_rules! crc_component_static {
         let crc = kernel::static_buf!(capsules_extra::crc::CrcDriver<'static, $C>);
 
         (crc, buffer)
-    };};
+    }};
 }
 
 pub struct CrcComponent<C: 'static + Crc<'static>> {

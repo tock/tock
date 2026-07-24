@@ -761,7 +761,10 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize, F: DmaFence> SplitVirtqueue<'a, 'b, MA
             let dma_virtqueue_buffer = self.descriptor_buffers[current_index]
                 .take()
                 .expect("Virtqueue descriptors and slices out of sync");
-            assert!(dma_virtqueue_buffer.as_ptr() as u64 == current_desc.addr.get());
+            assert_eq!(
+                dma_virtqueue_buffer.as_ptr() as u64,
+                current_desc.addr.get()
+            );
 
             // Return the original VirtqueueBuffer (which we obtain from the DMA
             // buffer, now that the operation is over), and hand it back with

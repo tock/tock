@@ -33,7 +33,7 @@ macro_rules! ninedof_component_static {
         );
         let ninedof = kernel::static_buf!(capsules_extra::ninedof::NineDof<'static>);
         (ninedof, drivers)
-    };};
+    }};
 }
 
 pub type NineDofComponentType = capsules_extra::ninedof::NineDof<'static>;

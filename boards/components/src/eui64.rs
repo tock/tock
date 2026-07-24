@@ -17,9 +17,7 @@ use kernel::component::Component;
 
 #[macro_export]
 macro_rules! eui64_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::eui64::Eui64)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::eui64::Eui64) }};
 }
 
 pub type Eui64ComponentType = capsules_extra::eui64::Eui64;

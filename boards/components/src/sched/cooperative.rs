@@ -32,7 +32,7 @@ macro_rules! cooperative_component_static {
         );
 
         (coop_sched, coop_nodes)
-    };};
+    }};
 }
 
 pub type CooperativeComponentType =

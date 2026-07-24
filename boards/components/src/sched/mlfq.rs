@@ -35,7 +35,7 @@ macro_rules! mlfq_component_static {
         );
 
         (alarm, mlfq_sched, mlfq_node)
-    };};
+    }};
 }
 
 pub type MLFQComponentType<A> =

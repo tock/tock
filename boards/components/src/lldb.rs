@@ -42,7 +42,7 @@ macro_rules! low_level_debug_component_static {
         );
 
         (uart, buffer, lldb)
-    };};
+    }};
 }
 
 pub struct LowLevelDebugComponent {

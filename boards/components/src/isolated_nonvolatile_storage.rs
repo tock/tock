@@ -56,7 +56,7 @@ macro_rules! isolated_nonvolatile_storage_component_static {
             kernel::static_buf!([u8; capsules_extra::isolated_nonvolatile_storage_driver::BUF_LEN]);
 
         (page, ntp, ns, buffer)
-    };};
+    }};
 }
 
 pub type IsolatedNonvolatileStorageComponentType<const APP_REGION_SIZE: usize> =

@@ -31,19 +31,13 @@ use kernel::hil::i2c::{self, NoSMBus};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! i2c_mux_component_static {
-    ($I:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, $I>)
-    };};
-    ($I:ty, $S:ty $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_i2c::MuxI2C<'static, $I, $S>)
-    };};
+    ($I:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, $I>) }};
+    ($I:ty, $S:ty $(,)?) => {{ kernel::static_buf!(capsules::virtual_i2c::MuxI2C<'static, $I, $S>) }};
 }
 
 #[macro_export]
 macro_rules! i2c_component_static {
-    ($I:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>)
-    };};
+    ($I:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>) }};
 }
 
 #[macro_export]
@@ -63,7 +57,7 @@ macro_rules! i2c_master_slave_component_static {
             i2c_slave_buffer1,
             i2c_slave_buffer2,
         )
-    };};
+    }};
 }
 
 #[macro_export]
@@ -74,7 +68,7 @@ macro_rules! i2c_master_driver_component_static {
         let driver = kernel::static_buf!(capsules_core::i2c_master::I2CMasterDriver<'static, $I>);
 
         (driver, i2c_master_buffer)
-    };};
+    }};
 }
 
 pub struct I2CMuxComponent<

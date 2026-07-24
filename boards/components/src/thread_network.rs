@@ -98,7 +98,7 @@ macro_rules! thread_network_component_static {
             crypt,
             alarm,
         )
-    };};
+    }};
 }
 pub struct ThreadNetworkComponent<
     A: Alarm<'static> + 'static,

@@ -33,7 +33,7 @@ macro_rules! round_robin_component_static {
         );
 
         (rr_sched, rr_nodes)
-    };};
+    }};
 }
 
 pub type RoundRobinComponentType =

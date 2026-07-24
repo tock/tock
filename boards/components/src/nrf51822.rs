@@ -37,7 +37,7 @@ macro_rules! nrf51822_component_static {
             kernel::static_buf!([u8; capsules_extra::nrf51822_serialization::READ_BUF_LEN]);
 
         (nrf, write_buffer, read_buffer)
-    };};
+    }};
 }
 
 pub struct Nrf51822Component<

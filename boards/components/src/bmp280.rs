@@ -53,7 +53,7 @@ macro_rules! bmp280_component_static {
         );
 
         (i2c_device, alarm, buffer, bmp280)
-    };};
+    }};
 }
 
 pub type Bmp280ComponentType<A, I> = capsules_extra::bmp280::Bmp280<'static, A, I>;

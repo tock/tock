@@ -48,7 +48,7 @@ macro_rules! buzzer_component_static {
             >
         );
         (alarm, pwm_buzzer, buzzer)
-    };};
+    }};
 }
 
 pub type BuzzerComponentType<A, P> = capsules_extra::buzzer_driver::Buzzer<

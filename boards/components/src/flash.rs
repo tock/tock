@@ -27,16 +27,12 @@ use kernel::hil::flash::{Flash, HasClient};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! flash_user_component_static {
-    ($F:ty) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_flash::FlashUser<'static, $F>)
-    };};
+    ($F:ty) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_flash::FlashUser<'static, $F>) }};
 }
 
 #[macro_export]
 macro_rules! flash_mux_component_static {
-    ($F:ty) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_flash::MuxFlash<'static, $F>)
-    };};
+    ($F:ty) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_flash::MuxFlash<'static, $F>) }};
 }
 
 pub struct FlashMuxComponent<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> {

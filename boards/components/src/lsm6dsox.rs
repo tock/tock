@@ -51,7 +51,7 @@ macro_rules! lsm6ds_i2c_component_static {
         );
 
         (i2c_device, buffer, lsm6dsoxtr)
-    };};
+    }};
 }
 
 pub struct Lsm6dsoxtrI2CComponent<I: 'static + i2c::I2CMaster<'static>> {

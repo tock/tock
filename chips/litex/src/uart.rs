@@ -395,7 +395,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         // and reading txfull. Hence, if an event is pending, rely on
         // the fact that an interrupt will be generated.
         if !(fifo_full || self.uart_regs.ev().event_pending(EVENT_MANAGER_INDEX_TX)) {
-            assert!(progress == tx_len);
+            assert_eq!(progress, tx_len);
 
             self.tx_deferred_call.set(true);
             self.deferred_call.set();

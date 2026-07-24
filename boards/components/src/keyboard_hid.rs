@@ -54,7 +54,7 @@ macro_rules! keyboard_hid_component_static {
         let recv_buffer = kernel::static_buf!([u8; 64]);
 
         (hid, driver, send_buffer, recv_buffer)
-    };};
+    }};
 }
 
 pub type KeyboardHidComponentType<U> = capsules_extra::usb_hid_driver::UsbHidDriver<

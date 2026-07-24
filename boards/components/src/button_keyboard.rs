@@ -16,9 +16,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! keyboard_button_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::button_keyboard::ButtonKeyboard<'static>)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::button_keyboard::ButtonKeyboard<'static>) }};
 }
 
 pub type KeyboardButtonComponentType = capsules_extra::button_keyboard::ButtonKeyboard<'static>;

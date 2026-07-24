@@ -45,7 +45,7 @@ macro_rules! si7021_component_static {
         let buffer = kernel::static_buf!([u8; 14]);
 
         (alarm, i2c_device, si7021, buffer)
-    };};
+    }};
 }
 
 pub type SI7021ComponentType<A, I> = capsules_extra::si7021::SI7021<'static, A, I>;

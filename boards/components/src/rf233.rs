@@ -54,7 +54,7 @@ macro_rules! rf233_component_static {
             kernel::static_buf!([u8; capsules_extra::rf233::SPI_REGISTER_TRANSACTION_LENGTH]);
 
         (spi_device, rf233_buf, rf233_reg_write, rf233_reg_read)
-    };};
+    }};
 }
 
 pub struct RF233Component<S: SpiMaster<'static> + 'static> {

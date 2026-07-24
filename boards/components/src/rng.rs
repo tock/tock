@@ -50,7 +50,7 @@ macro_rules! rng_component_static {
         );
 
         (etr, rng)
-    };};
+    }};
 }
 
 pub type RngComponentType<E> =
@@ -108,7 +108,7 @@ macro_rules! rng_random_component_static {
         let rng = kernel::static_buf!(capsules_core::rng::RngDriver<'static, $R>);
 
         rng
-    };};
+    }};
 }
 
 pub type RngRandomComponentType<R> = rng::RngDriver<'static, R>;

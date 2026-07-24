@@ -42,14 +42,12 @@ macro_rules! analog_comparator_component_helper {
                 $(static_init!($Channel, $P),)*
             ]
         )
-    };};
+    }};
 }
 
 #[macro_export]
 macro_rules! analog_comparator_component_static {
-    ($AC:ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::analog_comparator::AnalogComparator<'static, $AC>)
-    };};
+    ($AC:ty $(,)?) => {{ kernel::static_buf!(capsules_extra::analog_comparator::AnalogComparator<'static, $AC>) }};
 }
 
 pub type AnalogComparatorComponentType<AC> = AnalogComparator<'static, AC>;

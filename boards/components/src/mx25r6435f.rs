@@ -53,7 +53,7 @@ macro_rules! mx25r6435f_component_static {
         let rx_buf = kernel::static_buf!([u8; capsules_extra::mx25r6435f::RX_BUF_LEN]);
 
         (spi_device, alarm, mx25r6435f, tx_buf, rx_buf)
-    };};
+    }};
 }
 
 pub type Mx25r6435fComponentType<S, P, A> = capsules_extra::mx25r6435f::MX25R6435F<

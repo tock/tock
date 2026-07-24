@@ -20,9 +20,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! temperature_component_static {
-    ($T:ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::temperature::TemperatureSensor<'static, $T>)
-    };};
+    ($T:ty $(,)?) => {{ kernel::static_buf!(capsules_extra::temperature::TemperatureSensor<'static, $T>) }};
 }
 
 pub type TemperatureComponentType<T> = capsules_extra::temperature::TemperatureSensor<'static, T>;

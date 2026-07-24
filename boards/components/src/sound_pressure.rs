@@ -20,9 +20,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! sound_pressure_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::sound_pressure::SoundPressureSensor<'static>)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::sound_pressure::SoundPressureSensor<'static>) }};
 }
 
 pub type SoundPressureComponentType = capsules_extra::sound_pressure::SoundPressureSensor<'static>;

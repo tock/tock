@@ -40,7 +40,7 @@ macro_rules! sha_driver_component_static {
         let dest_buffer = kernel::static_buf!([u8; $L]);
 
         (sha_driver, data_buffer, dest_buffer)
-    };};
+    }};
 }
 
 pub type ShaDriverComponentType<A, const L: usize> = ShaDriver<'static, A, L>;
@@ -93,9 +93,7 @@ impl<A: kernel::hil::digest::Sha256 + 'static + digest::DigestDataHash<'static, 
 
 #[macro_export]
 macro_rules! sha_software_256_component_static {
-    ($(,)?) => {{
-        kernel::static_buf!(capsules_extra::sha256::Sha256Software<'static>)
-    };};
+    ($(,)?) => {{ kernel::static_buf!(capsules_extra::sha256::Sha256Software<'static>) }};
 }
 
 pub type ShaSoftware256ComponentType = capsules_extra::sha256::Sha256Software<'static>;

@@ -52,7 +52,7 @@ macro_rules! ctap_component_static {
         let recv_buffer = kernel::static_buf!([u8; 64]);
 
         (hid, driver, send_buffer, recv_buffer)
-    };};
+    }};
 }
 
 pub struct CtapComponent<U: 'static + hil::usb::UsbController<'static>> {

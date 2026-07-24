@@ -109,14 +109,12 @@ macro_rules! gpio_component_helper {
         )*
 
         pins
-    };};
+    }};
 }
 
 #[macro_export]
 macro_rules! gpio_component_static {
-    ($Pin:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::gpio::GPIO<'static, $Pin>)
-    };};
+    ($Pin:ty $(,)?) => {{ kernel::static_buf!(capsules_core::gpio::GPIO<'static, $Pin>) }};
 }
 
 pub type GpioComponentType<IP> = GPIO<'static, IP>;

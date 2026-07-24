@@ -72,7 +72,7 @@ macro_rules! tickv_component_static {
         );
 
         (flash, tickv)
-    };};
+    }};
 }
 
 #[macro_export]
@@ -83,7 +83,7 @@ macro_rules! tickv_dedicated_flash_component_static {
             kernel::static_buf!(capsules_extra::tickv::TicKVSystem<'static, $F, $H, $PAGE_SIZE>);
 
         (tickv, tickfs_read_buffer)
-    };};
+    }};
 }
 
 pub struct TicKVComponent<

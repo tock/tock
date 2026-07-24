@@ -397,7 +397,7 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
             .len()
             .checked_sub(write_buffer_offset)
             .unwrap();
-        assert!(write_buffer_remaining_bytes % PIXEL_STRIDE == 0);
+        assert_eq!(write_buffer_remaining_bytes % PIXEL_STRIDE, 0);
         let write_buffer_remaining_pixels = write_buffer_remaining_bytes / PIXEL_STRIDE;
         assert!(write_buffer_remaining_pixels <= remaining_pixels);
 

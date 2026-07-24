@@ -37,9 +37,7 @@ use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterDevice};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! bus8080_bus_component_static {
-    ($B:ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::bus::Bus8080Bus<'static, $B>)
-    };};
+    ($B:ty $(,)?) => {{ kernel::static_buf!(capsules_extra::bus::Bus8080Bus<'static, $B>) }};
 }
 
 #[macro_export]
@@ -57,7 +55,7 @@ macro_rules! spi_bus_component_static {
         );
 
         (spi, bus, address_buffer)
-    };};
+    }};
 }
 
 #[macro_export]
@@ -73,7 +71,7 @@ macro_rules! i2c_master_bus_component_static {
         );
 
         (bus, i2c_device, address_buffer)
-    };};
+    }};
 }
 
 pub struct Bus8080BusComponent<B: 'static + bus8080::Bus8080<'static>> {

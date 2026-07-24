@@ -14,16 +14,12 @@ use kernel::hil::pwm;
 
 #[macro_export]
 macro_rules! pwm_mux_component_static {
-    ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_pwm::MuxPwm<'static, $A>)
-    };};
+    ($A:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_pwm::MuxPwm<'static, $A>) }};
 }
 
 #[macro_export]
 macro_rules! pwm_pin_user_component_static {
-    ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, $A>)
-    };};
+    ($A:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, $A>) }};
 }
 
 #[macro_export]
@@ -41,7 +37,7 @@ macro_rules! pwm_driver_component_helper {
         );
         let pwm = kernel::static_buf!(capsules_extra::pwm::Pwm<'static, NUM_DRIVERS>);
         (pwm, drivers)
-    };};
+    }};
 }
 
 pub struct PwmMuxComponent<P: 'static + pwm::Pwm> {

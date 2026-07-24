@@ -22,7 +22,7 @@ macro_rules! screen_adapter_argb8888_to_mono8bitpage_component_static {
             kernel::static_buf!([u8; $SCREEN_WIDTH * $SCREEN_HEIGHT * $PIXEL_STRIDE]);
 
         (adapter, frame_buffer)
-    };};
+    }};
 }
 
 pub type ScreenAdapterARGB8888ToMono8BitPageComponentType<S> =

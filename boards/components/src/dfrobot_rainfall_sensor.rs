@@ -45,7 +45,7 @@ macro_rules! dfrobot_rainfall_sensor_component_static {
         );
 
         (i2c_device, i2c_buffer, dfrobot_rainfall_sensor, alarm)
-    };};
+    }};
 }
 
 pub type DFRobotRainFallSensorComponentType<A, I> =

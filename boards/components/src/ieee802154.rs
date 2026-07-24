@@ -49,9 +49,7 @@ pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES_BLOCK_SIZE + radio::
 
 #[macro_export]
 macro_rules! mux_aes128ccm_component_static {
-    ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, $A>)
-    };};
+    ($A:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, $A>) }};
 }
 
 pub type MuxAes128ccmComponentType<A> = MuxAES128CCM<'static, A>;
@@ -148,7 +146,7 @@ macro_rules! ieee802154_component_static {
             crypt_buf,
             radio_rx_crypt_buf,
         )
-    };};
+    }};
 }
 
 pub type Ieee802154ComponentType<R, A> = capsules_extra::ieee802154::RadioDriver<
@@ -368,7 +366,7 @@ macro_rules! ieee802154_raw_component_static {
         let rx_buffer = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
 
         (radio_driver, tx_buffer, rx_buffer)
-    };};
+    }};
 }
 
 pub type Ieee802154RawComponentType<R> =

@@ -29,9 +29,7 @@ use kernel::hil::gpio;
 
 #[macro_export]
 macro_rules! panic_button_component_static {
-    ($Pin:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::button::PanicButton<'static, $Pin>)
-    };};
+    ($Pin:ty $(,)?) => {{ kernel::static_buf!(capsules_core::button::PanicButton<'static, $Pin>) }};
 }
 
 pub struct PanicButtonComponent<'a, IP: gpio::InterruptPin<'a>> {

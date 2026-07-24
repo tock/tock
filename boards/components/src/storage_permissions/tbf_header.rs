@@ -20,7 +20,7 @@ macro_rules! storage_permissions_tbf_header_component_static {
                 components::storage_permissions::tbf_header::AppStoreCapability
             >
         )
-    };};
+    }};
 }
 
 pub struct AppStoreCapability;

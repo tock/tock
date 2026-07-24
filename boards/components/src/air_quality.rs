@@ -20,9 +20,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! air_quality_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::air_quality::AirQualitySensor<'static>)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::air_quality::AirQualitySensor<'static>) }};
 }
 
 pub struct AirQualityComponent<T: 'static + hil::sensors::AirQualityDriver<'static>> {

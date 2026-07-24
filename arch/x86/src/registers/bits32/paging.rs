@@ -206,8 +206,8 @@ impl PDEntry {
             ADDRESS_MASK
         };
         let pt_val = pt & mask;
-        assert!(pt_val == pt.into());
-        assert!(pt % BASE_PAGE_SIZE == 0);
+        assert_eq!(pt_val, pt.into());
+        assert_eq!(pt % BASE_PAGE_SIZE, 0);
         PDEntry(pt_val | flags.get())
     }
 
@@ -246,8 +246,8 @@ impl PTEntry {
     ///  * `flags`- Additional flags for the entry.
     pub fn new(page: PAddr, flags: LocalRegisterCopy<u32, PTFLAGS::Register>) -> PTEntry {
         let page_val = page & ADDRESS_MASK;
-        assert!(page_val == page.into());
-        assert!(page % BASE_PAGE_SIZE == 0);
+        assert_eq!(page_val, page.into());
+        assert_eq!(page % BASE_PAGE_SIZE, 0);
         PTEntry(page_val | flags.get())
     }
 

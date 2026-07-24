@@ -56,7 +56,7 @@ macro_rules! hd44780_component_static {
         let buffer = kernel::static_buf!([u8; capsules_extra::hd44780::BUF_LEN]);
 
         (alarm, hd44780, buffer)
-    };};
+    }};
 }
 
 pub struct HD44780Component<A: 'static + time::Alarm<'static>> {

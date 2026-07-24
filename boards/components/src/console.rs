@@ -61,10 +61,10 @@ macro_rules! uart_mux_component_static {
         (uart_mux, rx_buf)
     }};
     () => {
-        $crate::uart_mux_component_static!(capsules_core::virtualizers::virtual_uart::RX_BUF_LEN);
+        $crate::uart_mux_component_static!(capsules_core::virtualizers::virtual_uart::RX_BUF_LEN)
     };
     ($rx_buffer_len: literal) => {
-        $crate::uart_mux_component_static!($rx_buffer_len);
+        $crate::uart_mux_component_static!($rx_buffer_len)
     };
 }
 
@@ -117,10 +117,10 @@ macro_rules! console_component_static {
         (write_buf, read_buf, console_uart, console)
     }};
     () => {
-        $crate::console_component_static!(DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE);
+        $crate::console_component_static!(DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE)
     };
     ($rx_buffer_len: literal, $tx_buffer_len: literal) => {
-        $crate::console_component_static!($rx_buffer_len, $tx_buffer_len);
+        $crate::console_component_static!($rx_buffer_len, $tx_buffer_len)
     };
 }
 
@@ -188,7 +188,7 @@ macro_rules! console_ordered_component_static {
             kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
         let console = kernel::static_buf!(ConsoleOrdered<'static, VirtualMuxAlarm<'static, $A>>);
         (mux_alarm, read_buf, console_uart, console)
-    };};
+    }};
 }
 
 pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
