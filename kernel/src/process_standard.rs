@@ -27,7 +27,7 @@ use crate::platform::mpu::{self, MPU};
 use crate::process::ProcessBinary;
 use crate::process::{BinaryVersion, ReturnArguments};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, Task};
-use crate::process::{FaultAction, ProcessCustomGrantIdentifier, ProcessId};
+use crate::process::{FaultAction, FaultReason, ProcessCustomGrantIdentifier, ProcessId};
 use crate::process::{ProcessAddresses, ProcessSizes, ShortId};
 use crate::process::{State, StoppedState};
 use crate::process_checker::AcceptedCredential;
@@ -644,7 +644,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             State::Running => true,
             State::YieldedFor(_) => self.is_yield_wait_for_ready.get(),
             State::Yielded => self.tasks.map_or(false, |ring_buf| ring_buf.has_elements()),
-            _ => false,
+            State::Stopped(_) | State::Faulting(_) | State::Faulted | State::Terminated => false,
         }
     }
 
@@ -677,7 +677,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     fn is_running(&self) -> bool {
         match self.state.get() {
             State::Running | State::Yielded | State::YieldedFor(_) | State::Stopped(_) => true,
-            _ => false,
+            // Note: Semantically a process that is Faulting is still running,
+            // it stops running when the fault is resolved.
+            State::Faulting(_) => true,
+            State::Faulted | State::Terminated => false,
         }
     }
 
@@ -724,7 +727,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             State::Stopped(_stopped_state) => {
                 // Already stopped, nothing to do.
             }
-            State::Faulted | State::Terminated => {
+            State::Faulting(_) | State::Faulted | State::Terminated => {
                 // Stop has no meaning on a inactive process.
             }
         }
@@ -740,27 +743,39 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
-    fn set_fault_state(&self) {
+    fn set_faulting_state(&self, reason: FaultReason) {
+        // Once a process starts faulting, a few things might go wrong before
+        // that is actually handled. We preserve the original fault cause here.
+        if !matches!(self.get_state(), State::Faulting(_)) {
+            self.state.set(State::Faulting(reason));
+        }
+    }
+
+    fn resolve_faulting_state(&self, reason: FaultReason) {
         // Use the per-process fault policy to determine what action the kernel
         // should take since the process faulted.
-        let action = self.fault_policy.action(self);
+        let action = match reason {
+            FaultReason::ForcedTerminate => FaultAction::Terminate,
+            FaultReason::ForcedRestart => FaultAction::Restart,
+            FaultReason::AppError | FaultReason::KernelError => self.fault_policy.action(self),
+        };
         match action {
             FaultAction::Panic => {
                 // process faulted. Panic and print status
-                self.state.set(State::Faulted);
                 panic!("Process {} had a fault", self.get_process_name());
             }
             FaultAction::Restart => {
                 self.try_restart(None);
             }
             FaultAction::Stop => {
-                // This looks a lot like restart, except we just leave the app
-                // how it faulted and mark it as `Faulted`. By clearing
-                // all of the app's todo work it will not be scheduled, and
-                // clearing all of the grant regions will cause capsules to drop
-                // this app as well.
-                self.terminate(None);
+                // A `Faulted` app will return false for `ready()` and thus
+                // will not be scheduled.
+                // Similarly, `enter_grant()` will fail for `is_running()`
+                // false, thus capsules will ignore this app as well.
                 self.state.set(State::Faulted);
+            }
+            FaultAction::Terminate => {
+                self.terminate(None);
             }
         }
     }
@@ -790,26 +805,23 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
         // If there is a kernel policy that controls restarts, it should be
         // implemented here. For now, always restart.
-        if let Ok(()) = self.reset() {
-            self.state.set(State::Yielded);
-        }
+        //
+        // n.b., `reset()` sets process state to `State::Yielded` internally.
+        let _ = self.reset();
 
         // Decide what to do with res later. E.g., if we can't restart
         // want to reclaim the process resources.
     }
 
     fn terminate(&self, completion_code: Option<u32>) {
-        // A process can be terminated if it is running or in the `Faulted`
-        // state. Otherwise, you cannot terminate it and this method return
-        // early.
-        //
-        // The kernel can terminate in the `Faulted` state to return the process
-        // to a state in which it can run again (e.g., reset it).
-        if !self.is_running() && self.get_state() != State::Faulted {
+        // A process can only be terminated if it is not running or it is
+        // faulting and we are resolving the fault by terminating.
+        // Otherwise, you cannot terminate it and this method returns early.
+        if self.is_running() && !matches!(self.get_state(), State::Faulting(_)) {
             return;
         }
 
-        // And remove those tasks
+        // Clear the tasks for the defunct process.
         self.tasks.map(|tasks| {
             tasks.empty();
         });
@@ -1464,14 +1476,16 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             Some(Err(())) => {
                 // If we get an `Err`, then the UKB implementation could not set
                 // the return value, likely because the process's stack is no
-                // longer accessible to it. All we can do is fault.
-                self.set_fault_state();
+                // longer accessible to it. In spirit, this is the app
+                // attempting to write to memory it does not own, so we mark it
+                // as an AppError.
+                self.set_faulting_state(FaultReason::AppError);
             }
 
             None => {
                 // We should never be here since `stored_state` should always be
                 // occupied.
-                self.set_fault_state();
+                self.set_faulting_state(FaultReason::KernelError);
             }
         }
     }
@@ -1510,15 +1524,15 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // If we got an Error, then there was likely not enough room on
                 // the stack to allow the process to execute this function given
                 // the details of the particular architecture this is running
-                // on. This process has essentially faulted, so we mark it as
-                // such.
-                self.set_fault_state();
+                // on. In spirit, this is the app attempting to write to memory
+                // it does not own, so we mark it as an AppError.
+                self.set_faulting_state(FaultReason::AppError);
             }
 
             None => {
                 // We should never be here since `stored_state` should always be
                 // occupied.
-                self.set_fault_state();
+                self.set_faulting_state(FaultReason::KernelError);
             }
         }
     }

@@ -27,7 +27,7 @@ use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessSlot;
-use crate::process::{self, ProcessId, Task};
+use crate::process::{self, FaultReason, ProcessId, Task};
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
@@ -316,7 +316,7 @@ impl Kernel {
 
     /// Cause all apps to fault.
     ///
-    /// This will call `set_fault_state()` on each app, causing the app to enter
+    /// This will call `set_faulting_state()` on each app, causing the app to enter
     /// the state as if it had crashed (for example with an MPU violation). If
     /// the process is configured to be restarted it will be.
     ///
@@ -326,7 +326,7 @@ impl Kernel {
     /// apps.
     pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
         for process in self.get_process_iter() {
-            process.set_fault_state();
+            process.set_faulting_state(FaultReason::AppError);
         }
     }
 
@@ -525,6 +525,17 @@ impl Kernel {
                 break;
             }
 
+            // CAUTION: With the current architecture, once this selection is
+            // made, code must take caution to avoid any destructive operations
+            // to a process; e.g., the body of a syscall may change the state of
+            // a process to `Faulting(ForcedTerminate)`, but must not actually
+            // terminate the process, since the process object is within a code
+            // path that has matched to `State::Running`, and other code may
+            // assume that the process is still running since this state has
+            // already been checked (e.g., trying to set a process return value).
+            //
+            // This is a bit brittle, but is a limitation of the way that process
+            // state is managed and the executor loop runs currently.
             match process.get_state() {
                 process::State::Running => {
                     // Running means that this process expects to be running, so
@@ -578,7 +589,7 @@ impl Kernel {
                                 .is_err()
                             {
                                 // Let process deal with it as appropriate.
-                                process.set_fault_state();
+                                process.set_faulting_state(FaultReason::AppError);
                             }
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
@@ -598,10 +609,12 @@ impl Kernel {
                             continue;
                         }
                         None => {
-                            // Something went wrong when switching to this
-                            // process. Indicate this by putting it in a fault
-                            // state.
-                            process.set_fault_state();
+                            // Attempt to switch to an invalid process; this
+                            // should not happen since process liveness was
+                            // established when we matched `State::Running`.
+                            if process.is_running() {
+                                process.set_faulting_state(FaultReason::KernelError);
+                            }
                         }
                     }
                 }
@@ -700,6 +713,11 @@ impl Kernel {
                                 .set_syscall_return_value(SyscallReturn::YieldWaitFor(a0, a1, a2));
                         }
                     }
+                }
+                process::State::Faulting(reason) => {
+                    return_reason = process::StoppedExecutingReason::StoppedFaulted;
+                    process.resolve_faulting_state(reason);
+                    break;
                 }
                 process::State::Faulted | process::State::Terminated => {
                     // We should never be scheduling an unrunnable process.
