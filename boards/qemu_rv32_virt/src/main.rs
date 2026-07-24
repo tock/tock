@@ -111,7 +111,7 @@ pub unsafe fn main() {
     };
 
     // Start the process console:
-    let _ = platform.base.pconsole.start();
+    let _ = platform.base.process_console_start();
 
     // These symbols are defined in the linker script.
     extern "C" {

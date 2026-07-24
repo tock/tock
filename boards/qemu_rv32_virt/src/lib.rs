@@ -8,6 +8,7 @@
 #![no_main]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::ErrorCode;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
@@ -52,7 +53,7 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
 
 kernel::stack_size! {0x8000}
 
-kernel::declare_capability!(pub ProcessConsoleCap:
+kernel::declare_capability!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
     kernel::capabilities::ProcessStartCapability
 );
@@ -60,7 +61,7 @@ kernel::declare_capability!(pub ProcessConsoleCap:
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 pub struct QemuRv32VirtPlatform {
-    pub pconsole: &'static capsules_core::process_console::ProcessConsole<
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
@@ -103,6 +104,12 @@ pub struct QemuRv32VirtPlatform {
             RiscvCoherentDmaFence,
         >,
     >,
+}
+
+impl QemuRv32VirtPlatform {
+    pub fn process_console_start(&self) -> Result<(), ErrorCode> {
+        self.pconsole.start()
+    }
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
