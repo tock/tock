@@ -42,7 +42,6 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
     pub dac: dac::Dac,
-    pub trng: &'a entropy::Trng<'a>,
 }
 
 fn enable_tim2_clock() {
@@ -69,7 +68,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
-            trng,
         }
     }
 
