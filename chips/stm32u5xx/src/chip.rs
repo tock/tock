@@ -12,13 +12,13 @@ use crate::nvic::{
     EXTI15_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ,
     GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
     GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ,
-    GPDMA1_CH15_IRQ, TIM2_IRQ, USART1_IRQ,
+    GPDMA1_CH15_IRQ, PKA_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::pwr;
 use crate::rcc;
 use crate::tim;
 use crate::usart;
-use crate::{dac, exti};
+use crate::{dac, exti, rsa};
 
 use core::fmt::Write;
 use kernel::platform::chip::Chip;
@@ -41,6 +41,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_a: gpio::Port<'a>,
     pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
+    pub pka: rsa::Pka<'a>,
     pub dac: dac::Dac,
 }
 
@@ -67,6 +68,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
+            pka: rsa::Pka::new(),
             dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
         }
     }
@@ -78,6 +80,8 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_syscfg();
+        self.rcc.enable_trng();
+        self.rcc.enable_pka();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
         self.rcc.set_usart1_source_pclk();
@@ -247,6 +251,10 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             GPDMA1_CH15_IRQ => {
                 self.dma1.handle_interrupt(ChannelId::Channel15);
+                true
+            }
+            PKA_IRQ => {
+                self.pka.handle_interrupt();
                 true
             }
             _ => false,

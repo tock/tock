@@ -4,9 +4,13 @@
 
 #![no_std]
 
-pub use stm32u5xx::{adc, chip, dma, exti, gpio, pwr, rcc, tim, usart};
+use stm32u5xx::entropy::{RNG_CR_CONFIG_U545, RNG_HTCR_CONFIG_U545, RNG_NSCR_CONFIG_U545};
+pub use stm32u5xx::{adc, chip, dma, entropy, exti, gpio, nvic, rcc, rsa, tim, usart};
 
 use cortexm33::{CortexM33, CortexMVariant};
+
+pub type Trng<'a> =
+    stm32u5xx::entropy::Trng<'a, RNG_CR_CONFIG_U545, RNG_HTCR_CONFIG_U545, RNG_NSCR_CONFIG_U545>;
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]

@@ -1,0 +1,371 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright OxidOS Automotive 2026.
+
+use kernel::ErrorCode;
+use kernel::hil::public_key_crypto::rsa_math::{Client, RsaCryptoBase};
+use kernel::utilities::StaticRef;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
+
+const RAM_START: usize = 0x400;
+
+register_structs! {
+    PkaRegisters {
+        /// PKA control register
+        (0x00 => cr: ReadWrite<u32, CR::Register>),
+
+        /// PKA status register
+        (0x04 => sr: ReadOnly<u32, SR::Register>),
+
+        /// PKA clear flag register
+        (0x08 => clrfr: WriteOnly<u32, CLRFR::Register>),
+
+        (0x0C => _reserved0),
+
+        /// PKA RAM
+        /// 0x14D8-0x400 is 0x10D8 bytes, which is 4312 bytes in decimal. Since u32 takes exactly 4 bytes (32 / 8) we divide the number by 4 to obtain the indexes
+        /// Two 32-bit slices would correspond to one 64-bit "word" as defined in datasheet
+        (0x400 => ram: [ReadWrite<u32>; (0x14D8 - 0x400) / 4]),
+
+        (0x14D8 => @END),
+    }
+}
+
+register_bitfields! [u32,
+    CR [
+        /// Operation error interrupt enable
+        OPERRIE OFFSET(21) NUMBITS(1) [],
+
+        /// Address error interrupt enable
+        ADDERRIE OFFSET(20) NUMBITS(1) [],
+
+        /// RAM error interrupt enable
+        RAMERRIE OFFSET(19) NUMBITS(1) [],
+
+        /// End of operation interrupt enable
+        PROCENDIE OFFSET(17) NUMBITS(1) [],
+
+        /// PKA operation code
+        MODE OFFSET(8) NUMBITS(6) [
+            /// Montogomery parameter computation then modular exponentioantion
+            MontgomeryModularExp = 0b000000,
+
+            /// Montgomery parameter computation only
+            MontgomeryOnly = 0b000001,
+
+            /// Modular exponentiation only (Montgomery parameter must be loaded first)
+            ModularExpOnly = 0b000010,
+
+            /// Modular exponentiation (protected, used when manipulating secrets)
+            ModularExp = 0b000011,
+
+            /// Montgomery parameter computation then ECC scalar multiplication (protected)
+            MontgomeryECC = 0b100000,
+
+            /// ECDSA sign (protected)
+            ECDSASign = 0b100100,
+
+            /// ECDSA verification
+            ECDSAVerfication = 0b100110,
+
+            /// Point on elliptic curve Fp check
+            FpCheck = 0b101000,
+
+            /// RSA CRT exponentiation
+            RSACRTExp = 0b000111,
+
+            /// Modular inversion
+            ModularInversion = 0b001000,
+
+            /// Arithmetic addition
+            ArithmeticAddition = 0b001001,
+
+            /// Arithmetic substraction
+            ArithmeticSubstraction = 0b001010,
+
+            /// Arithmetic multiplication
+            ArithmeticMultiplication = 0b001011,
+
+            /// Arithmetic comparison
+            ArithmeticComparison = 0b001100,
+
+            /// Modular reduction
+            ModularReduction = 0b001101,
+
+            /// Modular addition
+            ModularAddition = 0b001110,
+
+            /// Modular substraction
+            ModularSubstraction = 0b001111,
+
+            /// Montgomery multiplication
+            MontgomeryMultiplication = 0b010000,
+
+            /// ECC complete addition
+            ECCCompleteAddition = 0b100011,
+
+            /// ECC double base ladder
+            ECCDoubleBaseLadder = 0b100111,
+
+            /// ECC projective to affine
+            ECCProjectiveToAffine = 0b101111,
+        ],
+
+        /// Start the operation
+        START OFFSET(1) NUMBITS(1) [],
+
+        /// PKA enable
+        EN OFFSET(0) NUMBITS(1) [],
+    ],
+
+    SR [
+        /// Operation error flag
+        OPERRF OFFSET(21) NUMBITS(1) [],
+
+        /// Address error flag
+        ADDRERRF OFFSET(20) NUMBITS(1) [],
+
+        /// PKA RAM Error flag
+        RAMERRF OFFSET(19) NUMBITS(1) [],
+
+        /// PKA end of operation flag
+        PROCENDF OFFSET(17) NUMBITS(1) [],
+
+        /// Busy flag
+        BUSY OFFSET(16) NUMBITS(1) [],
+
+        /// PKA initialization OK
+        INITOK OFFSET(0) NUMBITS(1) [],
+    ],
+
+    CLRFR [
+        /// Clear oferation error flag
+        OPERRFC OFFSET(21) NUMBITS(1) [],
+
+        /// Clear address error flag
+        ADDERRFC OFFSET(20) NUMBITS(1) [],
+
+        /// Clear PKA RAM error flag
+        RAMERRFC OFFSET(19) NUMBITS(1) [],
+
+        /// Clear PKA end of op flag
+        PROCENDFC OFFSET(17) NUMBITS(1) [],
+    ]
+];
+
+const PKA_BASE: StaticRef<PkaRegisters> =
+    unsafe { StaticRef::new(0x520C2000 as *const PkaRegisters) };
+
+// RAM mapping for mongomery modular exponentiation mode
+// We need to compute the offset from the RAM start, and divide by 4 to obtain its index in the RAM array
+const EXP_LEN_IDX: usize = (0x400 - RAM_START) / 4;
+const OP_LEN_IDX: usize = (0x408 - RAM_START) / 4;
+const OP_A_IDX: usize = (0xC68 - RAM_START) / 4;
+const EXP_IDX: usize = (0xE78 - RAM_START) / 4;
+const MOD_VALUE_IDX: usize = (0x1088 - RAM_START) / 4;
+const RESULT_IDX: usize = (0x838 - RAM_START) / 4;
+
+pub struct Pka<'a> {
+    registers: StaticRef<PkaRegisters>,
+
+    client: OptionalCell<&'a dyn Client<'a>>,
+
+    modulus: OptionalCell<&'static [u8]>,
+    exponent: OptionalCell<&'static [u8]>,
+
+    message: TakeCell<'static, [u8]>,
+    result: TakeCell<'static, [u8]>,
+}
+
+impl<'a> Pka<'a> {
+    pub const fn new() -> Pka<'a> {
+        Pka {
+            registers: PKA_BASE,
+
+            client: OptionalCell::empty(),
+
+            modulus: OptionalCell::empty(),
+            exponent: OptionalCell::empty(),
+
+            message: TakeCell::empty(),
+            result: TakeCell::empty(),
+        }
+    }
+
+    /// Helper function to write the data to RAM
+    fn write_slice(&self, idx: usize, data: &[u8]) {
+        // Four u8 slices correspond to one u32
+        let chunks = data.rchunks(4);
+
+        for (i, chunk) in chunks.enumerate() {
+            let mut slice = [0u8; 4];
+            let offset = 4 - chunk.len(); // in case chunk is less then 4 bytes
+
+            slice[offset..].copy_from_slice(chunk);
+
+            let semi_word = u32::from_be_bytes(slice);
+            self.registers.ram[idx + i].set(semi_word);
+        }
+    }
+
+    /// Helper function to read data from RAM
+    fn read_slice(&self, idx: usize, buffer: &mut [u8]) {
+        let chunks = buffer.rchunks_mut(4);
+        for (i, chunk) in chunks.enumerate() {
+            let semi_word = self.registers.ram[idx + i].get();
+            let bytes = semi_word.to_be_bytes();
+            let offset = 4 - chunk.len();
+            chunk.copy_from_slice(&bytes[offset..])
+        }
+    }
+
+    /// Handler for interrupts fired by PKA
+    pub fn handle_interrupt(&self) {
+        // Operand error
+        if self.registers.sr.is_set(SR::OPERRF) {
+            self.registers.clrfr.write(CLRFR::OPERRFC::SET);
+        }
+
+        // Address error
+        if self.registers.sr.is_set(SR::ADDRERRF) {
+            self.registers.clrfr.write(CLRFR::ADDERRFC::SET);
+        }
+
+        // RAM error
+        if self.registers.sr.is_set(SR::RAMERRF) {
+            self.registers.clrfr.write(CLRFR::RAMERRFC::SET);
+        }
+
+        // Successful operation
+        let success = if self.registers.sr.is_set(SR::PROCENDF) {
+            self.registers.clrfr.write(CLRFR::PROCENDFC::SET);
+            true
+        } else {
+            false
+        };
+
+        // Unpack the cells
+        let modulus = self.modulus.take().unwrap();
+        let exponent = self.exponent.take().unwrap();
+        let message = self.message.take().unwrap();
+        let result = self.result.take().unwrap();
+
+        if success {
+            // Only read the result if operation was successful
+            self.read_slice(RESULT_IDX, result);
+
+            self.client.map(|client| {
+                client.mod_exponent_done(Ok(true), message, modulus, exponent, result)
+            });
+        } else {
+            self.client.map(|client| {
+                client.mod_exponent_done(Err(ErrorCode::FAIL), message, modulus, exponent, result);
+            });
+        }
+    }
+}
+
+/// Helper function to compute the number of bits in the number
+fn get_bitlen(data: &[u8]) -> u32 {
+    for (i, &byte) in data.iter().enumerate() {
+        if byte != 0 {
+            let bits = 8 - byte.leading_zeros();
+            let remained = (data.len() - 1 - i) as u32;
+            return bits + remained * 8;
+        }
+    }
+    0
+}
+
+impl<'a> RsaCryptoBase<'a> for Pka<'a> {
+    fn set_client(&'a self, client: &'a dyn Client<'a>) {
+        self.client.set(client);
+    }
+
+    fn clear_data(&self) {
+        // Zero-out all current data
+        for i in 0..self.registers.ram.len() {
+            self.registers.ram[i].set(0);
+        }
+    }
+
+    fn mod_exponent(
+        &self,
+        message: &'static mut [u8],
+        modulus: &'static [u8],
+        exponent: &'static [u8],
+        result: &'static mut [u8],
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            &'static mut [u8],
+            &'static [u8],
+            &'static [u8],
+            &'static mut [u8],
+        ),
+    > {
+        // Check if PKA is not busy
+        if self.registers.sr.is_set(SR::BUSY) {
+            return Err((ErrorCode::BUSY, message, modulus, exponent, result));
+        }
+
+        // Check if parameters are correct
+        if result.len() < modulus.len() || exponent.is_empty() || message.is_empty() {
+            return Err((ErrorCode::SIZE, message, modulus, exponent, result));
+        }
+
+        // Compute lengths
+        let exp_bits = get_bitlen(exponent);
+        let op_bits = get_bitlen(modulus);
+
+        // Check for 0
+        if exp_bits == 0 || op_bits == 0 {
+            return Err((ErrorCode::INVAL, message, modulus, exponent, result));
+        }
+
+        // Enable the peripheral
+        self.registers.cr.modify(CR::EN::SET);
+
+        // Wait for initialization
+        while !self.registers.sr.is_set(SR::INITOK) {}
+
+        self.clear_data();
+
+        // Write necessary data to RAM
+        // Since 1 word is 64 bits, and length are u32, we need to wipe next index to form a word
+        self.registers.ram[EXP_LEN_IDX].set(exp_bits);
+        self.registers.ram[EXP_LEN_IDX + 1].set(0);
+        self.registers.ram[OP_LEN_IDX].set(op_bits);
+        self.registers.ram[OP_LEN_IDX + 1].set(0);
+
+        self.write_slice(EXP_IDX, exponent);
+        self.write_slice(MOD_VALUE_IDX, modulus);
+        self.write_slice(OP_A_IDX, message);
+
+        // Put the values into cells
+        self.message.replace(message);
+        self.modulus.set(modulus);
+        self.exponent.set(exponent);
+        self.result.replace(result);
+
+        // Configure the peripheral
+        self.registers.cr.modify(
+            CR::MODE::MontgomeryModularExp
+                + CR::PROCENDIE::SET
+                + CR::ADDERRIE::SET
+                + CR::RAMERRIE::SET
+                + CR::OPERRIE::SET
+                + CR::EN::SET,
+        );
+
+        // Start the math
+        self.registers.cr.modify(CR::START::SET);
+
+        Ok(())
+    }
+}

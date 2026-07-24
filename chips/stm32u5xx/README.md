@@ -6,9 +6,12 @@ microcontrollers from STMicroelectronics.
 ## Status
 
 Currently supported peripherals:
+
 - RCC (Reset and Clock Control)
 - GPIO (General Purpose I/O)
 - EXTI (External Interrupts)
 - USART (Universal Synchronous/Asynchronous Receiver Transmitter)
 - GPDMA (Global Programmable DMA)
 - TIM2 (Timer)
+- TRNG (True Random Number Generator)
+- PKA (Public Key Accelerator)

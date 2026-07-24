@@ -192,6 +192,10 @@ unsafe fn start() -> (
     );
 
     usart1.register();
+    let trng = static_init!(
+        stm32u545::Trng<'static>,
+        stm32u545::Trng::new(stm32u545::entropy::RNG_BASE)
+    );
 
     // Load Peripherals Bundle
     let periphs = static_init!(
@@ -201,6 +205,8 @@ unsafe fn start() -> (
 
     // Initialize wiring (DMA, clocks)
     periphs.init();
+
+    // let pka = &periphs.pka;
 
     // Board specific wiring
     periphs.tim2.start();
@@ -400,6 +406,8 @@ unsafe fn start() -> (
         &capsules_system::process_policies::PanicFaultPolicy {},
         &create_capability!(capabilities::ProcessManagementCapability),
     );
+
+    trng.init();
 
     (board_kernel, platform, chip)
 }

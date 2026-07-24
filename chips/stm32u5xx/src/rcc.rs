@@ -11,9 +11,12 @@ register_structs! {
     pub RccRegisters {
         /// Control register
         (0x000 => cr: ReadWrite<u32, CR::Register>),
+
         (0x004 => _reserved0: [u32; 33]),
+
         /// AHB1 peripheral clock enable register
         (0x088 => ahb1enr: ReadWrite<u32, AHB1ENR::Register>),
+
         /// AHB2 peripheral clock enable register 1
         (0x08C => ahb2enr1: ReadWrite<u32, AHB2ENR1::Register>),
         (0x090 => _reserved1: [u32; 1]),
@@ -25,6 +28,7 @@ register_structs! {
         (0x0A0 => _reserved3: [u32; 1]), //this would be APB1ENR2, but unused for now
         /// APB2 peripheral clock enable register
         (0x0A4 => apb2enr: ReadWrite<u32, APB2ENR::Register>),
+
         /// APB3 peripheral clock enable register
         (0x0A8 => apb3enr: ReadWrite<u32, APB3ENR::Register>),
         (0x0AC => _reserved4: [u32; 13]),
@@ -56,6 +60,9 @@ register_bitfields![u32,
         GPIOHEN OFFSET(7) NUMBITS(1) [],
         GPIOIEN OFFSET(8) NUMBITS(1) [],
         GPIOJEN OFFSET(9) NUMBITS(1) [],
+
+        PKAEN OFFSET(19) NUMBITS(1) [],
+        TRNGEN  OFFSET(18) NUMBITS(1) [],
         ADC12EN OFFSET(10) NUMBITS(1) []
     ],
     pub AHB3ENR [
@@ -132,6 +139,10 @@ impl Rcc {
         self.registers.apb3enr.modify(APB3ENR::SYSCFGEN::SET);
     }
 
+    pub fn enable_trng(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::TRNGEN::SET);
+    }
+
     pub fn enable_pwr(&self) {
         self.registers.ahb3enr.modify(AHB3ENR::PWREN::SET);
     }
@@ -149,6 +160,10 @@ impl Rcc {
 
     pub fn set_usart1_source_pclk(&self) {
         self.registers.ccipr1.modify(CCIPR1::USART1SEL::PCLK);
+    }
+
+    pub fn enable_pka(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::PKAEN::SET);
     }
 
     pub fn set_adcdacsel_source_hsi16(&self) {
