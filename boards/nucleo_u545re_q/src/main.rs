@@ -15,6 +15,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
+use stm32u545::entropy::RNG_BASE;
 use stm32u545::gpio::PinId;
 
 pub mod io;
@@ -192,12 +193,17 @@ unsafe fn start() -> (
     );
 
     usart1.register();
+    let trng = static_init!(
+        stm32u545::entropy::Trng<'static>,
+        stm32u545::entropy::Trng::new(RNG_BASE)
+    );
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
     );
+    trng.init();
 
     // Initialize wiring (DMA, clocks)
     periphs.init();

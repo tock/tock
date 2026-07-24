@@ -80,6 +80,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_syscfg();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
+        self.rcc.enable_trng();
         self.rcc.set_usart1_source_pclk();
 
         // ADC
