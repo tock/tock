@@ -56,7 +56,8 @@ register_bitfields![u32,
         GPIOHEN OFFSET(7) NUMBITS(1) [],
         GPIOIEN OFFSET(8) NUMBITS(1) [],
         GPIOJEN OFFSET(9) NUMBITS(1) [],
-        ADC12EN OFFSET(10) NUMBITS(1) []
+        ADC12EN OFFSET(10) NUMBITS(1) [],
+        HASHEN OFFSET(17) NUMBITS(1) [],
     ],
     pub AHB3ENR [
         PWREN OFFSET(2) NUMBITS(1) [],
@@ -157,5 +158,9 @@ impl Rcc {
 
     pub fn enable_dac1(&self) {
         self.registers.ahb3enr.modify(AHB3ENR::DAC1EN::SET);
+    }
+
+    pub fn enable_hash(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::HASHEN::SET);
     }
 }

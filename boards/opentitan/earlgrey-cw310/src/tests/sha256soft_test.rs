@@ -36,7 +36,12 @@ fn sha256software_verify() {
         )
     };
 
-    let test = unsafe { static_init!(TestSha256, TestSha256::new(sha, lstring, lhash, true)) };
+    let test = unsafe {
+        static_init!(
+            TestSha256<'static, Sha256Software<'static>>,
+            TestSha256::new(sha, lstring, lhash, true)
+        )
+    };
     test.run();
 
     run_kernel_op(1000);
