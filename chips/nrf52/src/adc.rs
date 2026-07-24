@@ -234,8 +234,10 @@ register_bitfields![u32,
 struct AdcRegistersManager {
     /// MMIO registers for the ADC peripheral.
     registers: StaticRef<AdcRegisters>,
-    /// Holding place for the SAMPLE buffer while DMA in progress.
-    dma_buf: MapCell<DmaSliceMut<'static, u8>>,
+    /// Holding place for a buffer while DMA in progress.
+    dma_buf1: MapCell<DmaSliceMut<'static, u8>>,
+    /// Holding place for a buffer while DMA in progress.
+    dma_buf2: MapCell<DmaSliceMut<'static, u8>>,
 }
 
 impl AdcRegistersManager {
@@ -252,7 +254,7 @@ impl AdcRegistersManager {
     ///
     /// `Ok(())` on successfully starting the DMA operation. `Err(())` if the
     /// DMA is busy and the operation could not be started.
-    pub fn start_dma(&self, buf: &'static mut [u16], count: usize) -> Result<(), ()> {
+    pub fn start_adc(&self, buf: SubSliceMut<'static, u16>) -> Result<(), ()> {
         if self.dma_pending() {
             return Err(());
         }
@@ -266,16 +268,16 @@ impl AdcRegistersManager {
 
         // Create DmaSlice for the TX buffer. This ensures that we can soundly
         // share it with the DMA hardware.
-        let dma_slice = DmaSliceMut::new_static(buf, fence);
+        let dma_slice = DmaSubSliceMut::new_static(buf, fence);
 
         // Provide the DmaSlice buffer to the hardware DMA engine.
         // self.registers.txd_ptr.set(tx_dma_slice.ptr_addr() as u32);
 
-        self.registers.result_ptr.set(tx_slice.ptr_addr() as u32);
+        self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
 
         self.registers
             .result_maxcnt
-            .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
+            .write(RESULT_MAXCNT::MAXCNT.val(dma_slice.len() as u32));
 
         // // Specify the length to transmit.
         // self.registers
@@ -283,21 +285,32 @@ impl AdcRegistersManager {
         //     .write(Counter::COUNTER.val(tx_dma_slice.len() as u32));
 
         // Save the DmaSlice while the DMA operation executes.
-        self.dma_buf.replace(dma_slice);
+        self.dma_buf1.replace(dma_slice);
 
         // Start the TX DMA operation
         // self.registers.task_starttx.write(Task::ENABLE::SET);
 
-        self.registers.tasks_sample.write(TASK::TASK::SET);
+        self.registers.tasks_start.write(TASK::TASK::SET);
 
         Ok(())
     }
 
-    pub fn finish_tx_dma(&self) -> Option<(SubSliceMut<'static, u8>, usize)> {
+    pub fn start_sample(&self) {
+        self.registers.tasks_sample.write(TASK::TASK::SET);
+    }
+
+    pub fn stop_sample(&self) {
+        self.registers.tasks_stop.write(TASK::TASK::SET);
+    }
+
+    pub fn stop_adc(&self) -> Option<(SubSliceMut<'static, u8>, usize)> {
         // End the DMA operation so it is safe to retrieve the buffer.
         self.registers.event_endtx.write(Event::READY::CLEAR);
 
-        self.tx_dma_buf.take().map(|dma_slice| {
+        // Disable ADC so we know the ADC is not using the buffer.
+        self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+
+        self.dma_buf1.take().map(|dma_slice| {
             // To create a DmaFence we must trust the implementation.
             //
             // # Safety
@@ -312,9 +325,9 @@ impl AdcRegistersManager {
             // event before taking the dma slice back.
             let buf = unsafe { dma_slice.take(fence) };
 
-            let tx_bytes = self.registers.txd_amount.get() as usize;
+            // let tx_bytes = self.registers.txd_amount.get() as usize;
 
-            (buf, tx_bytes)
+            (buf, 1)
         })
     }
 
@@ -550,25 +563,29 @@ impl Adc<'_> {
                     self.registers.events_started.write(EVENT::EVENT::CLEAR);
                     // ADC has started, now issue the sample.
 
-                    let buf = self.single_sample_buffer.take().map(|buf| {
-                        self.registers.start_dma(buf, 1);
-                    });
+                    self.registers.start_sample();
 
                     // self.registers.tasks_sample.write(TASK::TASK::SET);
                 } else if self.registers.events_end.is_set(EVENT::EVENT) {
                     self.registers.events_end.write(EVENT::EVENT::CLEAR);
                     // Reading finished. Turn off the ADC.
-                    self.registers.tasks_stop.write(TASK::TASK::SET);
+                    self.registers.stop_sample();
+                    // self.registers.tasks_stop.write(TASK::TASK::SET);
                 } else if self.registers.events_stopped.is_set(EVENT::EVENT) {
                     self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
                     // ADC is stopped. Disable and return value.
-                    self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+                    if let Some((mut buf, transmitted_length)) = self.registers.stop_adc() {
+                        let val = buf[0];
+                        self.single_sample_buffer.replace(buf);
 
-                    let val = unsafe { SAMPLE[0] as i16 };
-                    self.client.map(|client| {
-                        // shift left to meet the ADC HIL requirement
-                        client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
-                    });
+                        // self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+
+                        // let val = unsafe { SAMPLE[0] as i16 };
+                        self.client.map(|client| {
+                            // shift left to meet the ADC HIL requirement
+                            client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
+                        });
+                    }
                 }
             }
 
@@ -672,6 +689,8 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     type Channel = AdcChannelSetup;
 
     fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
+        let buf = self.single_sample_buffer.take()?;
+
         self.setup_channel(channel);
         self.setup_resolution();
 
@@ -699,7 +718,9 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
         self.mode.set(AdcMode::Single);
 
         // Start the SAADC and wait for the started interrupt.
-        self.registers.tasks_start.write(TASK::TASK::SET);
+        // self.registers.tasks_start.write(TASK::TASK::SET);
+
+        self.registers.start_adc(SubSliceMut::new(buf));
 
         Ok(())
     }
