@@ -14,6 +14,7 @@
 //! preempts the application, it tracks whether the app was in the secure world so that it
 //! can correctly restore the secure state upon context switch.
 
+use core::cell::UnsafeCell;
 use core::fmt::Write;
 use core::marker::PhantomData;
 use core::mem::{self, size_of};
@@ -29,7 +30,7 @@ pub use cortexm::syscall::{
 
 // Note: We do not define `SYSCALL_FIRED`, `APP_HARD_FAULT`, and `SCB_REGISTERS`
 // here because the `cortex-m33` crate depends on the `cortex-m` crate, which
-// already defines them as `#[no_mangle]` globals. Defining them here would cause
+// already defines them as globals. Defining them here would cause
 // a multiple definition linker error. The inline assembly in this file directly
 // references the symbols provided by `cortex-m`.
 
@@ -42,9 +43,8 @@ pub use cortexm::syscall::{
 ///
 /// Because this is a global `static mut` variable, we can only access it from
 /// inline assembly.
-#[no_mangle]
 #[used]
-pub static mut PROCESS_WAS_SECURE: usize = 0;
+pub static mut PROCESS_WAS_SECURE: UnsafeCell<usize> = UnsafeCell::new(0);
 
 /// Set `PROCESS_WAS_SECURE` flag.
 ///
@@ -57,14 +57,16 @@ pub fn set_global_process_was_secure(secure: usize) {
     // # Safety
     //
     // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly.
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
     unsafe {
         core::arch::asm!(
             "
-    ldr  r1, =PROCESS_WAS_SECURE      // r1 = &PROCESS_WAS_SECURE
+    ldr  r1, ={process_was_secure}     // r1 = &PROCESS_WAS_SECURE
     str  {0}, [r1]                    // *PROCESS_WAS_SECURE = secure
             ",
             in(reg) secure,
+            process_was_secure = sym PROCESS_WAS_SECURE,
             out("r1") _,
         );
     }
@@ -83,15 +85,17 @@ pub fn get_global_process_was_secure() -> usize {
     // # Safety
     //
     // This is safe as long as the static memory is defined, of the correct
-    // size, and aligned correctly.
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
     unsafe {
         core::arch::asm!(
             "
-    ldr  r0, =PROCESS_WAS_SECURE      // r0 = &PROCESS_WAS_SECURE
+    ldr  r0, ={process_was_secure}     // r0 = &PROCESS_WAS_SECURE
     movs r1, #0                       // r1 = 0
     ldr  r2, [r0]                     // r2 = *PROCESS_WAS_SECURE
     str  r1, [r0]                     // *PROCESS_WAS_SECURE = 0
             ",
+            process_was_secure = sym PROCESS_WAS_SECURE,
             out("r0") _,
             out("r1") _,
             out("r2") secure,
@@ -256,8 +260,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
         }
 
         let sp = state.psp as *mut u32;
-        let (r0, r1, r2, r3) = (sp.add(0), sp.add(1), sp.add(2), sp.add(3));
+        // # Safety
+        //
+        // To offset the pointer there must be valid memory pointed to by `sp`.
+        // We verified that there is space for four u32s on the stack before
+        // hitting the `app_brk`.
+        let (r0, r1, r2, r3) = unsafe { (sp.add(0), sp.add(1), sp.add(2), sp.add(3)) };
 
+        // # Safety
+        //
         // These operations are only safe so long as
         // - the pointers are properly aligned. This is guaranteed because the
         //   pointers are all offset multiples of 4 bytes from the stack
@@ -276,15 +287,17 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
         //
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
-            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
-                return_value,
-            ),
-            &mut *r0,
-            &mut *r1,
-            &mut *r2,
-            &mut *r3,
-        );
+        unsafe {
+            kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+                &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
+                    return_value,
+                ),
+                &mut *r0,
+                &mut *r1,
+                &mut *r2,
+                &mut *r3,
+            );
+        }
 
         Ok(())
     }
@@ -320,18 +333,27 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
         //  - Instruction addresses require `|1` to indicate thumb code
         //  - Stack offset 4 is R12, which the syscall interface ignores
         let stack_bottom = state.psp as *mut usize;
-        ptr::write(stack_bottom.add(7), state.psr); //......... -> APSR
-        ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); //... -> PC
-        ptr::write(stack_bottom.add(5), state.yield_pc | 1); // -> LR
 
-        // Write upcall arguments to the proper stack locations.
-        kernel::utilities::arch_helpers::encode_upcall_trd104_ptr(
-            &callback,
-            stack_bottom.add(0).cast::<u32>(), // -> R0
-            stack_bottom.add(1).cast::<u32>(), // -> R1
-            stack_bottom.add(2).cast::<u32>(), // -> R2
-            stack_bottom.add(3).cast::<u32>(), // -> R3
-        );
+        // SAFETY: We both offset the pointer (`add()`) and then write using the
+        // pointer. Both of these require the pointers remain valid, there is
+        // allocated memory, and the pointers are aligned. We ensured there is
+        // `SVC_FRAME_SIZE` of memory at `stack_bottom` so we can create
+        // pointers to u32s in that memory. The pointers are valid memory in the
+        // process's memory space and well-aligned to a u32.
+        unsafe {
+            ptr::write(stack_bottom.add(7), state.psr); // ............ -> APSR
+            ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); // -> PC
+            ptr::write(stack_bottom.add(5), state.yield_pc | 1); // ... -> LR
+
+            // Write upcall arguments to the proper stack locations.
+            kernel::utilities::arch_helpers::encode_upcall_trd104_ptr(
+                &callback,
+                stack_bottom.add(0).cast::<u32>(), // -> R0
+                stack_bottom.add(1).cast::<u32>(), // -> R1
+                stack_bottom.add(2).cast::<u32>(), // -> R2
+                stack_bottom.add(3).cast::<u32>(), // -> R3
+            );
+        }
 
         Ok(())
     }
@@ -347,7 +369,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
         set_global_process_was_secure(state.secure);
 
         let new_stack_pointer =
-            CortexM33NonSecure::switch_to_user(state.psp as *const usize, &mut state.regs);
+            unsafe { CortexM33NonSecure::switch_to_user(state.psp as *const usize, &mut state.regs) };
 
         // We need to keep track of the current stack pointer.
         state.psp = new_stack_pointer as usize;
@@ -378,30 +400,48 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
             // handler and this process faulted.
             kernel::syscall::ContextSwitchReason::Fault
         } else if syscall_fired == 1 {
-            // Save these fields after a syscall. If this is a synchronous
-            // syscall (i.e. we return a value to the app immediately) then this
-            // will have no effect. If we are doing something like `yield()`,
-            // however, then we need to have this state.
-            state.yield_pc = ptr::read(new_stack_pointer.add(6));
-            state.psr = ptr::read(new_stack_pointer.add(7));
+            // SAFETY: We verified that there is room on the stack for the
+            // service frame so we can safely create pointers to that memory on
+            // the process stack. The pointers are to valid memory in the
+            // process stack.
+            let (r0, r1, r2, r3) = unsafe {
+                // Save these fields after a syscall. If this is a synchronous
+                // syscall (i.e. we return a value to the app immediately) then this
+                // will have no effect. If we are doing something like `yield()`,
+                // however, then we need to have this state.
+                state.yield_pc = ptr::read(new_stack_pointer.add(6));
+                state.psr = ptr::read(new_stack_pointer.add(7));
 
-            // Get the syscall arguments and return them along with the syscall.
-            // It's possible the app did something invalid, in which case we put
-            // the app in the fault state.
-            let r0 = ptr::read(new_stack_pointer.add(0));
-            let r1 = ptr::read(new_stack_pointer.add(1));
-            let r2 = ptr::read(new_stack_pointer.add(2));
-            let r3 = ptr::read(new_stack_pointer.add(3));
+                // Get the syscall arguments and return them along with the syscall.
+                // It's possible the app did something invalid, in which case we put
+                // the app in the fault state.
+                let r0 = ptr::read(new_stack_pointer.add(0));
+                let r1 = ptr::read(new_stack_pointer.add(1));
+                let r2 = ptr::read(new_stack_pointer.add(2));
+                let r3 = ptr::read(new_stack_pointer.add(3));
+
+                (r0, r1, r2, r3)
+            };
 
             // Get the actual SVC number.
-            // Read the PC from the stack as a *const u16 (i.e. we're treating instructions as
-            // u16).
-            let pcptr_ptr: *const usize = new_stack_pointer;
-            let pcptr_ptr: *const *const u16 = pcptr_ptr.cast();
-            let pcptr = ptr::read(pcptr_ptr.add(6));
-            // The svc instruction is the last instruction before the PC, and should be 16 bits.
-            // Read it by offsetting the PC.
-            let svc_instr = ptr::read(pcptr.sub(1));
+            // Use the PC from the stack as a *const u16 (i.e. we're treating instructions as
+            // u16). Clear Thumb bit (bit 0) if set.
+            let pcptr: *const u16 = (state.yield_pc & !1) as *const u16;
+
+            // SAFETY: ARM architecture specifications dictate that the PC we
+            // see is one past the instruction that caused the SVC entry, so
+            // decrementing the PC as a pointer and reading that memory will be
+            // valid per the architecture rules.
+            let svc_instr = unsafe {
+                // The svc instruction is the last instruction before the PC, and
+                // should be 16 bits. Get a pointer to the instruction before the PC
+                // value.
+                let pcprev_ptr = pcptr.sub(1);
+                // Read the instruction by with the PC-minus-one pointer.
+                ptr::read(pcprev_ptr)
+            };
+
+            // The SVC num is the lower 8 bits of the instruction.
             let svc_num = (svc_instr & 0xff) as u8;
 
             // Use the helper function to convert these raw values into a Tock
@@ -453,15 +493,21 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
                 0xBAD00BAD,
             )
         } else {
-            let r0 = ptr::read(stack_pointer.add(0));
-            let r1 = ptr::read(stack_pointer.add(1));
-            let r2 = ptr::read(stack_pointer.add(2));
-            let r3 = ptr::read(stack_pointer.add(3));
-            let r12 = ptr::read(stack_pointer.add(4));
-            let lr = ptr::read(stack_pointer.add(5));
-            let pc = ptr::read(stack_pointer.add(6));
-            let xpsr = ptr::read(stack_pointer.add(7));
-            (r0, r1, r2, r3, r12, lr, pc, xpsr)
+            // SAFETY: We ensured there is enough valid process memory on the
+            // stack to store these values we are creating pointers to. We
+            // ensured the pointers point to valid stack memory we can read
+            // from.
+            unsafe {
+                let r0 = ptr::read(stack_pointer.add(0));
+                let r1 = ptr::read(stack_pointer.add(1));
+                let r2 = ptr::read(stack_pointer.add(2));
+                let r3 = ptr::read(stack_pointer.add(3));
+                let r12 = ptr::read(stack_pointer.add(4));
+                let lr = ptr::read(stack_pointer.add(5));
+                let pc = ptr::read(stack_pointer.add(6));
+                let xpsr = ptr::read(stack_pointer.add(7));
+                (r0, r1, r2, r3, r12, lr, pc, xpsr)
+            }
         };
 
         let _ = writer.write_fmt(format_args!(

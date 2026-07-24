@@ -87,7 +87,7 @@ impl cortexm::CortexMVariant for CortexM33NonSecure {
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
     ) -> *const usize {
-        isr::switch_to_user(user_stack, process_regs)
+        unsafe { isr::switch_to_user(user_stack, process_regs) }
     }
 
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
