@@ -4,7 +4,6 @@
 
 #![no_std]
 #![no_main]
-#![deny(missing_docs)]
 
 //! Tock kernel for the PSC3M5-EVK evaluation board.
 
@@ -19,11 +18,22 @@ use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{Kernel, capabilities, create_capability, static_init};
 
-use psc3::chip::{Psc3, Psc3DefaultPeripherals};
-use psc3::gpio;
+use psc3::chip::{Psc3DefaultPeripherals, Psc3Secure};
 use psc3::tcpwm::Tcpwm0;
-#[allow(unused)]
-use psc3::{BASE_VECTORS, IRQS};
+use psc3::{BASE_VECTORS_SECURE, IRQS_SECURE};
+use psc3::{chip_init, gpio};
+
+// used Ensures that the symbol is kept until the final binary
+// in board crate to allow reuse of chip crate
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[no_mangle]
+pub static _BASE_VECTORS: &[unsafe extern "C" fn(); 16] = &BASE_VECTORS_SECURE;
+
+// used Ensures that the symbol is kept until the final binary
+// in board crate to allow reuse of chip crate
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[no_mangle]
+pub static _IRQS: &[unsafe extern "C" fn(); 140] = &IRQS_SECURE;
 
 mod io;
 
@@ -38,7 +48,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-type ChipHw = Psc3<'static, Psc3DefaultPeripherals<'static>>;
+type ChipHw = Psc3Secure<'static, Psc3DefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
@@ -83,7 +93,7 @@ impl SyscallDriverLookup for Psc3Plattform {
     }
 }
 
-impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Plattform {
+impl KernelResources<Psc3Secure<'static, Psc3DefaultPeripherals<'static>>> for Psc3Plattform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -116,7 +126,7 @@ impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Pla
 }
 
 // These symbols are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     /// Beginning of the ROM region containing app images.
     static _sapps: u8;
     /// End of the ROM region containing app images.
@@ -136,12 +146,25 @@ extern "C" {
 pub unsafe fn start() -> (
     &'static kernel::Kernel,
     Psc3Plattform,
-    &'static Psc3<'static, Psc3DefaultPeripherals<'static>>,
+    &'static Psc3Secure<'static, Psc3DefaultPeripherals<'static>>,
 ) {
-    ChipHw::init();
+    /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
+    chip_init::preinit_peripherals();
 
-    // Todo set MSP limit to the start of the stack (done in infineon board support package)
-    // cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
+    // Explicitly set vector-table. Needed when coming from secure world.
+    unsafe {
+        cortexm33::scb::set_vector_table_offset(BASE_VECTORS_SECURE.as_ptr().cast::<()>());
+    }
+
+    // Set stack limit
+    unsafe {
+        core::arch::asm!(
+            "msr msplim, {0}",
+            in(reg) core::ptr::addr_of!(_sstack)
+        );
+    }
+
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -154,10 +177,13 @@ pub unsafe fn start() -> (
             PanicResources::new(),
         );
 
-    let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
+    let peripherals = unsafe {
+        static_init!(
+            Psc3DefaultPeripherals,
+            Psc3DefaultPeripherals::new(gpio::SecurityState::Secure)
+        )
+    };
 
-    /* Only after peripherals.sys_init() was called peripheral view for debugging works */
-    peripherals.preinit_peripherals();
     peripherals.init();
 
     const GPIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
@@ -174,15 +200,17 @@ pub unsafe fn start() -> (
         vtrip_sel: 0,
         vref_sel: 0,
         voh_sel: 0,
-        non_sec: false,
     };
 
-    peripherals
-        .gpio
-        .get_pin(gpio::PsocPin::P8_5)
-        .preconfigure(&GPIO_CONFIG);
+    let debug_led_pin = peripherals.gpio.get_pin(gpio::PsocPin::P8_5);
+    debug_led_pin.preconfigure(&GPIO_CONFIG);
 
-    let chip = static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals));
+    let chip = unsafe {
+        static_init!(
+            Psc3Secure<Psc3DefaultPeripherals>,
+            Psc3Secure::new(peripherals)
+        )
+    };
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
@@ -194,7 +222,7 @@ pub unsafe fn start() -> (
         resources.processes.put(processes.as_slice());
     });
 
-    let board_kernel = static_init!(Kernel, Kernel::new(processes.as_slice()));
+    let board_kernel = unsafe { static_init!(Kernel, Kernel::new(processes.as_slice())) };
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -349,14 +377,18 @@ pub unsafe fn start() -> (
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
+        unsafe {
+            core::slice::from_raw_parts(
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            )
+        },
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            )
+        },
         &FAULT_RESPONSE,
         &process_management_capability,
     )

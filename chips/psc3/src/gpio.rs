@@ -17,6 +17,10 @@ use kernel::utilities::registers::interfaces::Writeable;
 const GPIO_BASE: StaticRef<regs::GpioRegisters> =
     unsafe { StaticRef::new(0x42410000 as *const regs::GpioRegisters) };
 const HSIOM_BASE: StaticRef<HsiomRegisters> =
+    unsafe { StaticRef::new(0x42400000 as *const HsiomRegisters) };
+const GPIO_BASE_SEC: StaticRef<regs::GpioRegisters> =
+    unsafe { StaticRef::new(0x52410000 as *const regs::GpioRegisters) };
+const HSIOM_BASE_SEC: StaticRef<HsiomRegisters> =
     unsafe { StaticRef::new(0x52400000 as *const HsiomRegisters) };
 
 const HIGHZ: u32 = 0;
@@ -24,6 +28,12 @@ const PULL_UP: u32 = 2;
 const PULL_DOWN: u32 = 3;
 const GPIO_HALF: usize = 4;
 const HSIOM_SEC_MASK: u32 = 0x1;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SecurityState {
+    Secure,
+    NonSecure,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum PsocPin {
@@ -110,12 +120,19 @@ pub struct PsocPins<'a> {
 }
 
 impl<'a> PsocPins<'a> {
-    pub const fn new() -> Self {
+    pub const fn new(registers_security: SecurityState) -> Self {
+        let use_secure_registers = registers_security;
         Self {
             pins: [
                 // Port 0: P0.0 to P0.1
-                Some(GpioPin::new(PsocPin::P0_0)),
-                Some(GpioPin::new(PsocPin::P0_1)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P0_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P0_1,
+                    use_secure_registers,
+                )),
                 None,
                 None,
                 None,
@@ -123,87 +140,239 @@ impl<'a> PsocPins<'a> {
                 None,
                 None,
                 // Port 1: P1.0 to P1.3
-                Some(GpioPin::new(PsocPin::P1_0)),
-                Some(GpioPin::new(PsocPin::P1_1)),
-                Some(GpioPin::new(PsocPin::P1_2)),
-                Some(GpioPin::new(PsocPin::P1_3)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P1_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P1_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P1_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P1_3,
+                    use_secure_registers,
+                )),
                 None,
                 None,
                 None,
                 None,
                 // Port 2: P2.0 to P2.3
-                Some(GpioPin::new(PsocPin::P2_0)),
-                Some(GpioPin::new(PsocPin::P2_1)),
-                Some(GpioPin::new(PsocPin::P2_2)),
-                Some(GpioPin::new(PsocPin::P2_3)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P2_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P2_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P2_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P2_3,
+                    use_secure_registers,
+                )),
                 None,
                 None,
                 None,
                 None,
                 // Port 3: P3.0 to P3.3
-                Some(GpioPin::new(PsocPin::P3_0)),
-                Some(GpioPin::new(PsocPin::P3_1)),
-                Some(GpioPin::new(PsocPin::P3_2)),
-                Some(GpioPin::new(PsocPin::P3_3)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P3_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P3_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P3_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P3_3,
+                    use_secure_registers,
+                )),
                 None,
                 None,
                 None,
                 None,
                 // Port 4: P4.0 to P4.7
-                Some(GpioPin::new(PsocPin::P4_0)),
-                Some(GpioPin::new(PsocPin::P4_1)),
-                Some(GpioPin::new(PsocPin::P4_2)),
-                Some(GpioPin::new(PsocPin::P4_3)),
-                Some(GpioPin::new(PsocPin::P4_4)),
-                Some(GpioPin::new(PsocPin::P4_5)),
-                Some(GpioPin::new(PsocPin::P4_6)),
-                Some(GpioPin::new(PsocPin::P4_7)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P4_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P4_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P4_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P4_3,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P4_4,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P4_5,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P4_6,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P4_7,
+                    use_secure_registers,
+                )),
                 // Port 5: P5.0 to P5.3
-                Some(GpioPin::new(PsocPin::P5_0)),
-                Some(GpioPin::new(PsocPin::P5_1)),
-                Some(GpioPin::new(PsocPin::P5_2)),
-                Some(GpioPin::new(PsocPin::P5_3)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P5_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P5_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P5_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P5_3,
+                    use_secure_registers,
+                )),
                 None,
                 None,
                 None,
                 None,
                 // Port 6: P6.0 to P6.3
-                Some(GpioPin::new(PsocPin::P6_0)),
-                Some(GpioPin::new(PsocPin::P6_1)),
-                Some(GpioPin::new(PsocPin::P6_2)),
-                Some(GpioPin::new(PsocPin::P6_3)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P6_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P6_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P6_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P6_3,
+                    use_secure_registers,
+                )),
                 None,
                 None,
                 None,
                 None,
                 // Port 7: P7.0 to P7.7
-                Some(GpioPin::new(PsocPin::P7_0)),
-                Some(GpioPin::new(PsocPin::P7_1)),
-                Some(GpioPin::new(PsocPin::P7_2)),
-                Some(GpioPin::new(PsocPin::P7_3)),
-                Some(GpioPin::new(PsocPin::P7_4)),
-                Some(GpioPin::new(PsocPin::P7_5)),
-                Some(GpioPin::new(PsocPin::P7_6)),
-                Some(GpioPin::new(PsocPin::P7_7)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P7_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P7_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P7_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P7_3,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P7_4,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P7_5,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P7_6,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P7_7,
+                    use_secure_registers,
+                )),
                 // Port 8: P8.0 to P8.5
-                Some(GpioPin::new(PsocPin::P8_0)),
-                Some(GpioPin::new(PsocPin::P8_1)),
-                Some(GpioPin::new(PsocPin::P8_2)),
-                Some(GpioPin::new(PsocPin::P8_3)),
-                Some(GpioPin::new(PsocPin::P8_4)),
-                Some(GpioPin::new(PsocPin::P8_5)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P8_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P8_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P8_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P8_3,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P8_4,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P8_5,
+                    use_secure_registers,
+                )),
                 None,
                 None,
                 // Port 9: P9.0 to P9.5
-                Some(GpioPin::new(PsocPin::P9_0)),
-                Some(GpioPin::new(PsocPin::P9_1)),
-                Some(GpioPin::new(PsocPin::P9_2)),
-                Some(GpioPin::new(PsocPin::P9_3)),
-                Some(GpioPin::new(PsocPin::P9_4)),
-                Some(GpioPin::new(PsocPin::P9_5)),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P9_0,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P9_1,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P9_2,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P9_3,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P9_4,
+                    use_secure_registers,
+                )),
+                Some(GpioPin::new_with_tz_regs(
+                    PsocPin::P9_5,
+                    use_secure_registers,
+                )),
                 None,
                 None,
             ],
+        }
+    }
+
+    pub fn set_security(&self, state: SecurityState) {
+        for pin_opt in self.pins.iter() {
+            if let Some(pin) = pin_opt {
+                pin.set_security(state);
+            }
         }
     }
 
@@ -233,6 +402,7 @@ pub enum DriveMode {
 pub struct GpioPin<'a> {
     registers: StaticRef<regs::GpioRegisters>,
     hsiom_registers: StaticRef<HsiomRegisters>,
+    pub security: SecurityState,
     pin: usize,
     port: usize,
 
@@ -278,17 +448,23 @@ pub struct PreConfig {
     pub vref_sel: u32,
     /// SIO pair regulated voltage output level
     pub voh_sel: u32,
-    /// Secure attribute for each pin of a port
-    /// From experiments: A pin can either be used from non-secure or secure world
-    ///   as non_sec is default set this to false for secure access.
-    pub non_sec: bool,
 }
 
 impl GpioPin<'_> {
     pub const fn new(id: PsocPin) -> Self {
+        Self::new_with_tz_regs(id, SecurityState::NonSecure)
+    }
+
+    pub const fn new_with_tz_regs(id: PsocPin, registers_security: SecurityState) -> Self {
+        let (registers, hsiom_registers) = match registers_security {
+            SecurityState::Secure => (GPIO_BASE_SEC, HSIOM_BASE_SEC),
+            SecurityState::NonSecure => (GPIO_BASE, HSIOM_BASE),
+        };
+
         Self {
-            registers: GPIO_BASE,
-            hsiom_registers: HSIOM_BASE,
+            registers,
+            hsiom_registers,
+            security: registers_security,
             pin: (id as usize) % 8,
             port: (id as usize) / 8,
             client: OptionalCell::empty(),
@@ -296,7 +472,13 @@ impl GpioPin<'_> {
     }
 
     pub fn preconfigure(&self, preconfig: &PreConfig) {
-        self.set_secure_port_nonsecure_pin(false);
+        let prev_non_sec = if self.security == SecurityState::Secure {
+            let state = self.get_secure_port_nonsecure_pin();
+            self.set_secure_port_nonsecure_pin(SecurityState::Secure);
+            Some(state)
+        } else {
+            None
+        };
 
         self.set_slew_rate(preconfig.fast_slew_rate);
         self.set_drive_sel(preconfig.drive_sel);
@@ -314,7 +496,9 @@ impl GpioPin<'_> {
         );
         self.write_output_raw(preconfig.out_val);
 
-        self.set_secure_port_nonsecure_pin(preconfig.non_sec);
+        if let Some(state) = prev_non_sec {
+            self.set_secure_port_nonsecure_pin(state);
+        }
     }
 
     fn replace_field(value: u32, offset: u32, width: u32, new_field_value: u32) -> u32 {
@@ -429,14 +613,34 @@ impl GpioPin<'_> {
         register.set((old_value & !mask) | (function_value & mask));
     }
 
-    fn set_secure_port_nonsecure_pin(&self, nonsecure: bool) {
+    fn set_secure_port_nonsecure_pin(&self, state: SecurityState) {
         let register = &self.hsiom_registers.secure_prts[self.port].secure_prt_nonsecure_mask;
         let pin_shift = self.pin as u32;
         let bit_mask = HSIOM_SEC_MASK << pin_shift;
-        let new_bit = (nonsecure as u32) << pin_shift;
+        let new_bit = match state {
+            SecurityState::Secure => 0,
+            SecurityState::NonSecure => 1,
+        } << pin_shift;
 
         let old_value = register.get();
         register.set((old_value & !bit_mask) | new_bit);
+    }
+
+    fn get_secure_port_nonsecure_pin(&self) -> SecurityState {
+        let register = &self.hsiom_registers.secure_prts[self.port].secure_prt_nonsecure_mask;
+        let pin_shift = self.pin as u32;
+        let bit_mask = HSIOM_SEC_MASK << pin_shift;
+        if (register.get() & bit_mask) != 0 {
+            SecurityState::NonSecure
+        } else {
+            SecurityState::Secure
+        }
+    }
+
+    pub fn set_security(&self, state: SecurityState) {
+        if self.security == SecurityState::Secure {
+            self.set_secure_port_nonsecure_pin(state);
+        }
     }
 
     pub fn get_configuration(&self) -> Configuration {

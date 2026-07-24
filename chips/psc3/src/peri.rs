@@ -160,54 +160,43 @@ GR_SL_WOUND [
     DISABLED OFFSET(0) NUMBITS(32) []
 ],
 ];
-const PERI_BASE: StaticRef<PeriRegisters> =
+const PERI: StaticRef<PeriRegisters> =
     unsafe { StaticRef::new(0x42000000 as *const PeriRegisters) };
 
-pub struct Peri {
-    registers: StaticRef<PeriRegisters>,
-}
+/// Enables the peripheral groups 1-5
+pub fn sys_init_enable_peri() {
+    // Migrated from MTB code, it not so clear how to use this peripheral.
+    /* Reset values for each PERI group */
+    const CY_PERI_GR1_SL_CTL: u32 = 0x0F;
+    const CY_PERI_GR2_SL_CTL: u32 = 0x03;
+    const CY_PERI_GR3_SL_CTL: u32 = 0x3F;
+    const CY_PERI_GR4_SL_CTL: u32 = 0x03;
+    const CY_PERI_GR5_SL_CTL: u32 = 0x01;
 
-impl Peri {
-    pub const fn new() -> Self {
-        Peri {
-            registers: PERI_BASE,
-        }
+    const GROUP_SL_CTL_ENABLE_ALL: u32 = 0xFFFF_FFFF;
+
+    if PERI.gr_1_sl_ctl.get() != CY_PERI_GR1_SL_CTL {
+        PERI.gr_1_sl_ctl2.set(0);
+        PERI.gr_1_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
     }
 
-    pub fn sys_init_enable_peri(&self) {
-        // Migrated from MTB code, it not so clear how to use this peripheral.
-        /* Reset values for each PERI group */
-        const CY_PERI_GR1_SL_CTL: u32 = 0x0F;
-        const CY_PERI_GR2_SL_CTL: u32 = 0x03;
-        const CY_PERI_GR3_SL_CTL: u32 = 0x3F;
-        const CY_PERI_GR4_SL_CTL: u32 = 0x03;
-        const CY_PERI_GR5_SL_CTL: u32 = 0x01;
+    if PERI.gr_2_sl_ctl.get() != CY_PERI_GR2_SL_CTL {
+        PERI.gr_2_sl_ctl2.set(0);
+        PERI.gr_2_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
+    }
 
-        const GROUP_SL_CTL_ENABLE_ALL: u32 = 0xFFFF_FFFF;
+    if PERI.gr_3_sl_ctl.get() != CY_PERI_GR3_SL_CTL {
+        PERI.gr_3_sl_ctl2.set(0);
+        PERI.gr_3_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
+    }
 
-        if self.registers.gr_1_sl_ctl.get() != CY_PERI_GR1_SL_CTL {
-            self.registers.gr_1_sl_ctl2.set(0);
-            self.registers.gr_1_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
-        }
+    if PERI.gr_4_sl_ctl.get() != CY_PERI_GR4_SL_CTL {
+        PERI.gr_4_sl_ctl2.set(0);
+        PERI.gr_4_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
+    }
 
-        if self.registers.gr_2_sl_ctl.get() != CY_PERI_GR2_SL_CTL {
-            self.registers.gr_2_sl_ctl2.set(0);
-            self.registers.gr_2_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
-        }
-
-        if self.registers.gr_3_sl_ctl.get() != CY_PERI_GR3_SL_CTL {
-            self.registers.gr_3_sl_ctl2.set(0);
-            self.registers.gr_3_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
-        }
-
-        if self.registers.gr_4_sl_ctl.get() != CY_PERI_GR4_SL_CTL {
-            self.registers.gr_4_sl_ctl2.set(0);
-            self.registers.gr_4_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
-        }
-
-        if self.registers.gr_5_sl_ctl.get() != CY_PERI_GR5_SL_CTL {
-            self.registers.gr_5_sl_ctl2.set(0);
-            self.registers.gr_5_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
-        }
+    if PERI.gr_5_sl_ctl.get() != CY_PERI_GR5_SL_CTL {
+        PERI.gr_5_sl_ctl2.set(0);
+        PERI.gr_5_sl_ctl.set(GROUP_SL_CTL_ENABLE_ALL);
     }
 }

@@ -1,0 +1,599 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
+
+//! Cortex-M System Call Interface
+//!
+//! Implementation of the architecture-specific portions of the kernel-userland
+//! system call interface.
+//!
+//! # Secure state tracking
+//!
+//! Tracking the application's secure state is necessary because an app can
+//! switch to the secure world also from non-privileged software. When the kernel
+//! preempts the application, it tracks whether the app was in the secure world so that it
+//! can correctly restore the secure state upon context switch.
+
+use core::cell::UnsafeCell;
+use core::fmt::Write;
+use core::marker::PhantomData;
+use core::mem::{self, size_of};
+use core::ops::Range;
+use core::ptr;
+use kernel::errorcode::ErrorCode;
+
+use crate::{CortexM33NonSecure, CortexMVariant};
+
+pub use cortexm::syscall::{
+    get_global_app_hard_fault, get_global_scb_registers, get_global_syscall_fired,
+};
+
+// Note: We do not define `SYSCALL_FIRED`, `APP_HARD_FAULT`, and `SCB_REGISTERS`
+// here because the `cortex-m33` crate depends on the `cortex-m` crate, which
+// already defines them as globals. Defining them here would cause
+// a multiple definition linker error. The inline assembly in this file directly
+// references the symbols provided by `cortex-m`.
+
+/// Tracks whether a process was executing in the secure world when it was
+/// preempted.
+///
+/// Set by the interrupt/svc handlers and read/written by
+/// `switch_to_process` to save/restore per-process secure state.
+/// Detected via bit 6 of EXC_RETURN.
+///
+/// Because this is a global `static mut` variable, we can only access it from
+/// inline assembly.
+#[used]
+pub static mut PROCESS_WAS_SECURE: UnsafeCell<usize> = UnsafeCell::new(0);
+
+/// Set `PROCESS_WAS_SECURE` flag.
+///
+/// This indicates that the process was in a secure state when pre-empted.
+///
+/// We need to do this in assembly because we cannot have Rust access
+/// the global variable.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub fn set_global_process_was_secure(secure: usize) {
+    // # Safety
+    //
+    // This is safe as long as the static memory is defined, of the correct
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
+    unsafe {
+        core::arch::asm!(
+            "
+    ldr  r1, ={process_was_secure}     // r1 = &PROCESS_WAS_SECURE
+    str  {0}, [r1]                    // *PROCESS_WAS_SECURE = secure
+            ",
+            in(reg) secure,
+            process_was_secure = sym PROCESS_WAS_SECURE,
+            out("r1") _,
+        );
+    }
+}
+
+/// Get the `PROCESS_WAS_SECURE` flag.
+///
+/// This indicates that the process was in a secure state when pre-empted.
+///
+/// We need to do this in assembly because we cannot have Rust access
+/// the global variable.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub fn get_global_process_was_secure() -> usize {
+    let secure: usize;
+
+    // # Safety
+    //
+    // This is safe as long as the static memory is defined, of the correct
+    // size, and aligned correctly. We ensure these conditions are met by
+    // creating the variable as an Rust type in an `UnsafeCell`.
+    unsafe {
+        core::arch::asm!(
+            "
+    ldr  r0, ={process_was_secure}     // r0 = &PROCESS_WAS_SECURE
+    movs r1, #0                       // r1 = 0
+    ldr  r2, [r0]                     // r2 = *PROCESS_WAS_SECURE
+    str  r1, [r0]                     // *PROCESS_WAS_SECURE = 0
+            ",
+            process_was_secure = sym PROCESS_WAS_SECURE,
+            out("r0") _,
+            out("r1") _,
+            out("r2") secure,
+            // clobbers flags
+        );
+    }
+    secure
+}
+
+/// Dummy
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn get_global_process_was_secure() -> usize {
+    0
+}
+
+/// Dummy
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub fn set_global_process_was_secure(_secure: usize) {}
+
+/// This holds all of the state that the kernel must keep for the process when
+/// the process is not executing.
+#[derive(Default)]
+pub struct CortexMStoredState {
+    regs: [usize; 8],
+    yield_pc: usize,
+    psr: usize,
+    psp: usize,
+    /// Whether the process was executing in the secure world when it was
+    /// last preempted. Used to restore bit 6 of EXC_RETURN on context switch.
+    secure: usize,
+}
+
+// Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
+const SVC_FRAME_SIZE: usize = 32;
+
+/// Values for encoding the stored state buffer in a binary slice.
+const VERSION: usize = 1;
+const STORED_STATE_SIZE: usize = size_of::<CortexMStoredState>();
+const TAG: [u8; 4] = *b"ctxm";
+const METADATA_LEN: usize = 3;
+
+const VERSION_IDX: usize = 0;
+const SIZE_IDX: usize = 1;
+const TAG_IDX: usize = 2;
+const YIELDPC_IDX: usize = 3;
+const PSR_IDX: usize = 4;
+const PSP_IDX: usize = 5;
+const REGS_IDX: usize = 6;
+const REGS_RANGE: Range<usize> = REGS_IDX..REGS_IDX + 8;
+const SECURE_IDX: usize = REGS_IDX + 8;
+
+const USIZE_SZ: usize = size_of::<usize>();
+
+fn usize_byte_range(index: usize) -> Range<usize> {
+    index * USIZE_SZ..(index + 1) * USIZE_SZ
+}
+
+fn usize_from_u8_slice(slice: &[u8], index: usize) -> Result<usize, ErrorCode> {
+    let range = usize_byte_range(index);
+    Ok(usize::from_le_bytes(
+        slice
+            .get(range)
+            .ok_or(ErrorCode::SIZE)?
+            .try_into()
+            .or(Err(ErrorCode::FAIL))?,
+    ))
+}
+
+fn write_usize_to_u8_slice(val: usize, slice: &mut [u8], index: usize) {
+    let range = usize_byte_range(index);
+    slice[range].copy_from_slice(&val.to_le_bytes());
+}
+
+impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
+    type Error = ErrorCode;
+    fn try_from(ss: &[u8]) -> Result<CortexMStoredState, Self::Error> {
+        if ss.len() == size_of::<CortexMStoredState>() + METADATA_LEN * USIZE_SZ
+            && usize_from_u8_slice(ss, VERSION_IDX)? == VERSION
+            && usize_from_u8_slice(ss, SIZE_IDX)? == STORED_STATE_SIZE
+            && usize_from_u8_slice(ss, TAG_IDX)? == u32::from_le_bytes(TAG) as usize
+        {
+            let mut res = CortexMStoredState {
+                regs: [0; 8],
+                yield_pc: usize_from_u8_slice(ss, YIELDPC_IDX)?,
+                psr: usize_from_u8_slice(ss, PSR_IDX)?,
+                psp: usize_from_u8_slice(ss, PSP_IDX)?,
+                secure: usize_from_u8_slice(ss, SECURE_IDX)?,
+            };
+            for (i, v) in (REGS_RANGE).enumerate() {
+                res.regs[i] = usize_from_u8_slice(ss, v)?;
+            }
+            Ok(res)
+        } else {
+            Err(ErrorCode::FAIL)
+        }
+    }
+}
+
+/// Implementation of the
+/// [`UserspaceKernelBoundary`](kernel::syscall::UserspaceKernelBoundary) for
+/// the Cortex-M non-floating point architecture.
+pub struct SysCallM33NonSecure(PhantomData<CortexM33NonSecure>);
+
+impl SysCallM33NonSecure {
+    pub const unsafe fn new() -> SysCallM33NonSecure {
+        SysCallM33NonSecure(PhantomData)
+    }
+}
+
+impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
+    type StoredState = CortexMStoredState;
+
+    fn initial_process_app_brk_size(&self) -> usize {
+        // Cortex-M hardware uses 8 words on the stack to implement context
+        // switches. So we need at least 32 bytes.
+        SVC_FRAME_SIZE
+    }
+
+    unsafe fn initialize_process(
+        &self,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut Self::StoredState,
+    ) -> Result<(), ()> {
+        // We need to initialize the stored state for the process here. This
+        // initialization can be called multiple times for a process, for
+        // example if the process is restarted.
+        state.regs.iter_mut().for_each(|x| *x = 0);
+        state.yield_pc = 0;
+        state.psr = 0x01000000; // Set the Thumb bit and clear everything else.
+        state.psp = app_brk as usize; // Set to top of process-accessible memory.
+        state.secure = 0;
+
+        // Make sure there's enough room on the stack for the initial SVC frame.
+        if (app_brk as usize - accessible_memory_start as usize) < SVC_FRAME_SIZE {
+            // Not enough room on the stack to add a frame.
+            return Err(());
+        }
+
+        // Allocate the kernel frame
+        state.psp -= SVC_FRAME_SIZE;
+        Ok(())
+    }
+
+    unsafe fn set_syscall_return_value(
+        &self,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut Self::StoredState,
+        return_value: kernel::syscall::SyscallReturn,
+    ) -> Result<(), ()> {
+        // For the Cortex-M arch, write the return values in the same
+        // place that they were originally passed in (i.e. at the
+        // bottom the SVC structure on the stack)
+
+        // First, we need to validate that this location is inside of the
+        // process's accessible memory. Alignment is guaranteed by hardware.
+        if state.psp < accessible_memory_start as usize
+            || state.psp.saturating_add(mem::size_of::<u32>() * 4) > app_brk as usize
+        {
+            return Err(());
+        }
+
+        let sp = state.psp as *mut u32;
+        // # Safety
+        //
+        // To offset the pointer there must be valid memory pointed to by `sp`.
+        // We verified that there is space for four u32s on the stack before
+        // hitting the `app_brk`.
+        let (r0, r1, r2, r3) = unsafe { (sp.add(0), sp.add(1), sp.add(2), sp.add(3)) };
+
+        // # Safety
+        //
+        // These operations are only safe so long as
+        // - the pointers are properly aligned. This is guaranteed because the
+        //   pointers are all offset multiples of 4 bytes from the stack
+        //   pointer, which is guaranteed to be properly aligned after
+        //   exception entry on Cortex-M. See
+        //   https://github.com/tock/tock/pull/2478#issuecomment-796389747
+        //   for more details.
+        // - the pointer is dereferencable, i.e. the memory range of
+        //   the given size starting at the pointer must all be within
+        //   the bounds of a single allocated object
+        // - the pointer must point to an initialized instance of its
+        //   type
+        // - during the lifetime of the returned reference (of the
+        //   cast, essentially an arbitrary 'a), the memory must not
+        //   get accessed (read or written) through any other pointer.
+        //
+        // Refer to
+        // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
+        unsafe {
+            kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+                &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
+                    return_value,
+                ),
+                &mut *r0,
+                &mut *r1,
+                &mut *r2,
+                &mut *r3,
+            );
+        }
+
+        Ok(())
+    }
+
+    /// When the process calls `svc` to enter the kernel, the hardware
+    /// automatically pushes an SVC frame that will be unstacked when the kernel
+    /// returns to the process. In the special case of process startup,
+    /// `initialize_new_process` sets up an empty SVC frame as if an `svc` had
+    /// been called.
+    ///
+    /// Here, we modify this stack frame such that the process resumes at the
+    /// beginning of the callback function that we want the process to run. We
+    /// place the originally intended return address in the link register so
+    /// that when the function completes execution continues.
+    ///
+    /// In effect, this converts `svc` into `bl callback`.
+    unsafe fn set_process_function(
+        &self,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut CortexMStoredState,
+        callback: kernel::process::FunctionCall,
+    ) -> Result<(), ()> {
+        // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is within
+        // process-accessible memory. Alignment is guaranteed by hardware.
+        if state.psp < accessible_memory_start as usize
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize
+        {
+            return Err(());
+        }
+
+        // Notes:
+        //  - Instruction addresses require `|1` to indicate thumb code
+        //  - Stack offset 4 is R12, which the syscall interface ignores
+        let stack_bottom = state.psp as *mut usize;
+
+        // SAFETY: We both offset the pointer (`add()`) and then write using the
+        // pointer. Both of these require the pointers remain valid, there is
+        // allocated memory, and the pointers are aligned. We ensured there is
+        // `SVC_FRAME_SIZE` of memory at `stack_bottom` so we can create
+        // pointers to u32s in that memory. The pointers are valid memory in the
+        // process's memory space and well-aligned to a u32.
+        unsafe {
+            ptr::write(stack_bottom.add(7), state.psr); // ............ -> APSR
+            ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); // -> PC
+            ptr::write(stack_bottom.add(5), state.yield_pc | 1); // ... -> LR
+
+            // Write upcall arguments to the proper stack locations.
+            kernel::utilities::arch_helpers::encode_upcall_trd104_ptr(
+                &callback,
+                stack_bottom.add(0).cast::<u32>(), // -> R0
+                stack_bottom.add(1).cast::<u32>(), // -> R1
+                stack_bottom.add(2).cast::<u32>(), // -> R2
+                stack_bottom.add(3).cast::<u32>(), // -> R3
+            );
+        }
+
+        Ok(())
+    }
+
+    unsafe fn switch_to_process(
+        &self,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut CortexMStoredState,
+    ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
+        // Set PROCESS_WAS_SECURE so the SVC handler can restore the secure
+        // state bit (bit 6 of EXC_RETURN) when switching to the process.
+        set_global_process_was_secure(state.secure);
+
+        let new_stack_pointer =
+            unsafe { CortexM33NonSecure::switch_to_user(state.psp as *const usize, &mut state.regs) };
+
+        // We need to keep track of the current stack pointer.
+        state.psp = new_stack_pointer as usize;
+
+        // Read back whether the process was in the secure world when preempted.
+        state.secure = get_global_process_was_secure();
+
+        // We need to validate that the stack pointer and the SVC frame are
+        // within process accessible memory. Alignment is guaranteed by
+        // hardware.
+        let invalid_stack_pointer = state.psp < accessible_memory_start as usize
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
+
+        // Determine why this returned and the process switched back to the
+        // kernel.
+
+        // Check to see if the fault handler was called while the process was
+        // running.
+        let app_fault = get_global_app_hard_fault();
+
+        // Check to see if the svc_handler was called and the process called a
+        // syscall.
+        let syscall_fired = get_global_syscall_fired();
+
+        // Now decide the reason based on which flags were set.
+        let switch_reason = if app_fault == 1 || invalid_stack_pointer {
+            // APP_HARD_FAULT takes priority. This means we hit the hardfault
+            // handler and this process faulted.
+            kernel::syscall::ContextSwitchReason::Fault
+        } else if syscall_fired == 1 {
+            // SAFETY: We verified that there is room on the stack for the
+            // service frame so we can safely create pointers to that memory on
+            // the process stack. The pointers are to valid memory in the
+            // process stack.
+            let (r0, r1, r2, r3) = unsafe {
+                // Save these fields after a syscall. If this is a synchronous
+                // syscall (i.e. we return a value to the app immediately) then this
+                // will have no effect. If we are doing something like `yield()`,
+                // however, then we need to have this state.
+                state.yield_pc = ptr::read(new_stack_pointer.add(6));
+                state.psr = ptr::read(new_stack_pointer.add(7));
+
+                // Get the syscall arguments and return them along with the syscall.
+                // It's possible the app did something invalid, in which case we put
+                // the app in the fault state.
+                let r0 = ptr::read(new_stack_pointer.add(0));
+                let r1 = ptr::read(new_stack_pointer.add(1));
+                let r2 = ptr::read(new_stack_pointer.add(2));
+                let r3 = ptr::read(new_stack_pointer.add(3));
+
+                (r0, r1, r2, r3)
+            };
+
+            // Get the actual SVC number.
+            // Use the PC from the stack as a *const u16 (i.e. we're treating instructions as
+            // u16). Clear Thumb bit (bit 0) if set.
+            let pcptr: *const u16 = (state.yield_pc & !1) as *const u16;
+
+            // SAFETY: ARM architecture specifications dictate that the PC we
+            // see is one past the instruction that caused the SVC entry, so
+            // decrementing the PC as a pointer and reading that memory will be
+            // valid per the architecture rules.
+            let svc_instr = unsafe {
+                // The svc instruction is the last instruction before the PC, and
+                // should be 16 bits. Get a pointer to the instruction before the PC
+                // value.
+                let pcprev_ptr = pcptr.sub(1);
+                // Read the instruction by with the PC-minus-one pointer.
+                ptr::read(pcprev_ptr)
+            };
+
+            // The SVC num is the lower 8 bits of the instruction.
+            let svc_num = (svc_instr & 0xff) as u8;
+
+            // Use the helper function to convert these raw values into a Tock
+            // `Syscall` type.
+            let syscall = kernel::utilities::arch_helpers::syscall_from_register_arguments_trd104(
+                svc_num,
+                r0,
+                r1.into(),
+                r2.into(),
+                r3.into(),
+            );
+
+            match syscall {
+                Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
+                None => kernel::syscall::ContextSwitchReason::Fault,
+            }
+        } else {
+            // If none of the above cases are true its because the process was interrupted by an
+            // ISR for a hardware event
+            kernel::syscall::ContextSwitchReason::Interrupted
+        };
+
+        // Cast new_stack_pointer from a *const usize to a *const u8 to match
+        // UserspaceKernelBoundary::switch_to_process' return type.
+        let new_stack_pointer: *const u8 = new_stack_pointer.cast();
+        (switch_reason, Some(new_stack_pointer))
+    }
+
+    unsafe fn print_context(
+        &self,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &CortexMStoredState,
+        writer: &mut dyn Write,
+    ) {
+        // Check if the stored stack pointer is valid. Alignment is guaranteed
+        // by hardware.
+        let invalid_stack_pointer = state.psp < accessible_memory_start as usize
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
+
+        let stack_pointer = state.psp as *const usize;
+
+        // If we cannot use the stack pointer, generate default bad looking
+        // values we can use for the printout. Otherwise, read the correct
+        // values.
+        let (r0, r1, r2, r3, r12, lr, pc, xpsr) = if invalid_stack_pointer {
+            (
+                0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD,
+                0xBAD00BAD,
+            )
+        } else {
+            // SAFETY: We ensured there is enough valid process memory on the
+            // stack to store these values we are creating pointers to. We
+            // ensured the pointers point to valid stack memory we can read
+            // from.
+            unsafe {
+                let r0 = ptr::read(stack_pointer.add(0));
+                let r1 = ptr::read(stack_pointer.add(1));
+                let r2 = ptr::read(stack_pointer.add(2));
+                let r3 = ptr::read(stack_pointer.add(3));
+                let r12 = ptr::read(stack_pointer.add(4));
+                let lr = ptr::read(stack_pointer.add(5));
+                let pc = ptr::read(stack_pointer.add(6));
+                let xpsr = ptr::read(stack_pointer.add(7));
+                (r0, r1, r2, r3, r12, lr, pc, xpsr)
+            }
+        };
+
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n  R0 : {:#010X}    R6 : {:#010X}\
+             \r\n  R1 : {:#010X}    R7 : {:#010X}\
+             \r\n  R2 : {:#010X}    R8 : {:#010X}\
+             \r\n  R3 : {:#010X}    R10: {:#010X}\
+             \r\n  R4 : {:#010X}    R11: {:#010X}\
+             \r\n  R5 : {:#010X}    R12: {:#010X}\
+             \r\n  R9 : {:#010X} (Static Base Register)\
+             \r\n  SP : {:#010X} (Process Stack Pointer)\
+             \r\n  LR : {:#010X}\
+             \r\n  PC : {:#010X}\
+             \r\n YPC : {:#010X}\
+             \r\n",
+            r0,
+            state.regs[2],
+            r1,
+            state.regs[3],
+            r2,
+            state.regs[4],
+            r3,
+            state.regs[6],
+            state.regs[0],
+            state.regs[7],
+            state.regs[1],
+            r12,
+            state.regs[5],
+            stack_pointer as usize,
+            lr,
+            pc,
+            state.yield_pc,
+        ));
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n APSR: N {} Z {} C {} V {} Q {}\
+             \r\n       GE {} {} {} {}",
+            (xpsr >> 31) & 0x1,
+            (xpsr >> 30) & 0x1,
+            (xpsr >> 29) & 0x1,
+            (xpsr >> 28) & 0x1,
+            (xpsr >> 27) & 0x1,
+            (xpsr >> 19) & 0x1,
+            (xpsr >> 18) & 0x1,
+            (xpsr >> 17) & 0x1,
+            (xpsr >> 16) & 0x1,
+        ));
+        let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
+        let thumb_bit = ((xpsr >> 24) & 0x1) == 1;
+        let _ = writer.write_fmt(format_args!(
+            "\
+             \r\n EPSR: ICI.IT {:#04x}\
+             \r\n       ThumbBit {} {}\r\n",
+            ici_it,
+            thumb_bit,
+            if thumb_bit {
+                ""
+            } else {
+                "!!ERROR - Cortex M Thumb only!"
+            },
+        ));
+    }
+
+    fn store_context(
+        &self,
+        state: &CortexMStoredState,
+        out: &mut [u8],
+    ) -> Result<usize, ErrorCode> {
+        if out.len() >= size_of::<CortexMStoredState>() + 3 * USIZE_SZ {
+            write_usize_to_u8_slice(VERSION, out, VERSION_IDX);
+            write_usize_to_u8_slice(STORED_STATE_SIZE, out, SIZE_IDX);
+            write_usize_to_u8_slice(u32::from_le_bytes(TAG) as usize, out, TAG_IDX);
+            write_usize_to_u8_slice(state.yield_pc, out, YIELDPC_IDX);
+            write_usize_to_u8_slice(state.psr, out, PSR_IDX);
+            write_usize_to_u8_slice(state.psp, out, PSP_IDX);
+            for (i, v) in state.regs.iter().enumerate() {
+                write_usize_to_u8_slice(*v, out, REGS_IDX + i);
+            }
+            write_usize_to_u8_slice(state.secure, out, SECURE_IDX);
+            // + 4 for yield_pc, psr, psp, secure
+            Ok((state.regs.len() + 4 + METADATA_LEN) * USIZE_SZ)
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+}
+
+pub type SysCallM33Secure = cortexm::syscall::SysCall<crate::CortexM33Secure>;

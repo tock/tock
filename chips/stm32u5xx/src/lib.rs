@@ -16,7 +16,9 @@ pub mod rcc;
 pub mod tim;
 pub mod usart;
 
-use cortexm33::{CortexM33, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt};
+use cortexm33::{
+    CortexM33Secure, CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt,
+};
 
 extern "C" {
     // _estack is the initial stack pointer (defined in the linker script).
@@ -29,20 +31,20 @@ extern "C" {
 )]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
-    _estack,                       // 0x00: Initial stack pointer
-    initialize_ram_jump_to_main,   // 0x04: Reset
-    unhandled_interrupt,           // 0x08: NMI
-    CortexM33::HARD_FAULT_HANDLER, // 0x0C: HardFault
-    unhandled_interrupt,           // 0x10: MemManage
-    unhandled_interrupt,           // 0x14: BusFault
-    unhandled_interrupt,           // 0x18: UsageFault
-    unhandled_interrupt,           // 0x1C: SecureFault
-    unhandled_interrupt,           // 0x20: Reserved
-    unhandled_interrupt,           // 0x24: Reserved
-    unhandled_interrupt,           // 0x28: Reserved
-    CortexM33::SVC_HANDLER,        // 0x2C: SVCall
-    unhandled_interrupt,           // 0x30: Debug monitor
-    unhandled_interrupt,           // 0x34: Reserved
-    unhandled_interrupt,           // 0x38: PendSV
-    CortexM33::SYSTICK_HANDLER,    // 0x3C: SysTick
+    _estack,                             // 0x00: Initial stack pointer
+    initialize_ram_jump_to_main,         // 0x04: Reset
+    unhandled_interrupt,                 // 0x08: NMI
+    CortexM33Secure::HARD_FAULT_HANDLER, // 0x0C: HardFault
+    unhandled_interrupt,                 // 0x10: MemManage
+    unhandled_interrupt,                 // 0x14: BusFault
+    unhandled_interrupt,                 // 0x18: UsageFault
+    unhandled_interrupt,                 // 0x1C: SecureFault
+    unhandled_interrupt,                 // 0x20: Reserved
+    unhandled_interrupt,                 // 0x24: Reserved
+    unhandled_interrupt,                 // 0x28: Reserved
+    CortexM33Secure::SVC_HANDLER,        // 0x2C: SVCall
+    unhandled_interrupt,                 // 0x30: Debug monitor
+    unhandled_interrupt,                 // 0x34: Reserved
+    unhandled_interrupt,                 // 0x38: PendSV
+    CortexM33Secure::SYSTICK_HANDLER,    // 0x3C: SysTick
 ];

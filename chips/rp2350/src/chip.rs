@@ -15,7 +15,7 @@ use crate::ticks::Ticks;
 use crate::timer::RPTimer;
 use crate::uart::Uart;
 use crate::xosc::Xosc;
-use cortexm33::{CortexM33, CortexMVariant, interrupt_mask};
+use cortexm33::{CortexM33Secure, CortexMVariant, interrupt_mask};
 
 #[repr(u8)]
 pub enum Processor {
@@ -25,7 +25,7 @@ pub enum Processor {
 
 pub struct Rp2350<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
-    userspace_kernel_boundary: cortexm33::syscall::SysCall,
+    userspace_kernel_boundary: cortexm33::syscall::SysCallM33Secure,
     interrupt_service: &'a I,
     sio: &'a SIO,
     processor0_interrupt_mask: (u128, u128),
@@ -36,7 +36,7 @@ impl<'a, I: InterruptService> Rp2350<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
         Self {
             mpu: cortexm33::mpu::new(),
-            userspace_kernel_boundary: cortexm33::syscall::SysCall::new(),
+            userspace_kernel_boundary: cortexm33::syscall::SysCallM33Secure::new(),
             interrupt_service,
             sio,
             processor0_interrupt_mask: interrupt_mask!(interrupts::PROC1_IRQ_CTI),
@@ -47,7 +47,7 @@ impl<'a, I: InterruptService> Rp2350<'a, I> {
 
 impl<I: InterruptService> Chip for Rp2350<'_, I> {
     type MPU = cortexm33::mpu::MPU<8>;
-    type UserspaceKernelBoundary = cortexm33::syscall::SysCall;
+    type UserspaceKernelBoundary = cortexm33::syscall::SysCallM33Secure;
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
     fn init() {
@@ -114,7 +114,7 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
     }
 
     unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
-        CortexM33::print_cortexm_state(writer);
+        CortexM33Secure::print_cortexm_state(writer);
     }
 }
 
