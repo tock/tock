@@ -74,13 +74,6 @@ macro_rules! create_capability {
 /// level.
 #[macro_export]
 macro_rules! declare_capability {
-    (pub $name:ident: $($T:ty),+) => {
-        pub struct $name;
-        $(
-            #[allow(unsafe_code)]
-            unsafe impl $T for $name {}
-        )*
-    };
     ($name:ident: $($T:ty),+) => {
         struct $name;
         $(
