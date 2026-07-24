@@ -33,6 +33,7 @@ pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
 pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub tim2: tim::Tim2<'a>,
+    pub tim3: tim::Pwm<'a>,
     pub usart1: &'a usart::Usart<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
@@ -48,6 +49,10 @@ fn enable_tim2_clock() {
     let rcc = rcc::Rcc::new(rcc::RCC_BASE);
     rcc.enable_tim2();
 }
+fn enable_tim3_clock() {
+    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
+    rcc.enable_tim3();
+}
 
 fn enable_dac1_clock() {
     let rcc = rcc::Rcc::new(rcc::RCC_BASE);
@@ -59,6 +64,12 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
+            tim3: tim::Pwm::new(
+                tim::TIM3_BASE,
+                enable_tim3_clock,
+                tim::ClockSource::RESET_DEFAULT,
+            ),
+
             usart1,
             exti,
             dma1,

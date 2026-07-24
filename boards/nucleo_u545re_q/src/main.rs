@@ -55,6 +55,7 @@ struct NucleoU545RE {
             stm32u545::tim::Tim2<'static>,
         >,
     >,
+    pwm: &'static capsules_extra::pwm::Pwm<'static, 1>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
@@ -70,6 +71,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_extra::pwm::DRIVER_NUM => f(Some(self.pwm)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
@@ -274,6 +276,16 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
+    let pwm_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin06));
+
+    let tim3_pwm_pin = static_init!(
+        stm32u545::tim::PwmPin<'static>,
+        stm32u545::tim::PwmPin::new(&periphs.tim3, pwm_pin),
+    );
+
+    let pwm =
+        components::pwm::PwmDriverComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
+            .finalize(components::pwm_driver_component_helper!(tim3_pwm_pin));
     let adc_mux = components::adc::AdcMuxComponent::new(&periphs.adc1)
         .finalize(components::adc_mux_component_static!(stm32u545::adc::Adc));
 
@@ -325,7 +337,7 @@ unsafe fn start() -> (
             9 => periphs.gpio_c.pin(PinId::Pin06), // D9
             10 => periphs.gpio_c.pin(PinId::Pin09), // D10
             11 => periphs.gpio_a.pin(PinId::Pin07), // D11
-            12 => periphs.gpio_a.pin(PinId::Pin06), // D12
+            // 12 => D12/PA6 is used by the PWM capsule
             // 13 => D13/PA5 is used by the LD2 LED capsule
             // D14-D15 require GPIOB
 
@@ -358,6 +370,7 @@ unsafe fn start() -> (
             led,
             button,
             alarm,
+            pwm,
             adc: adc_syscall,
             dac,
             gpio,
