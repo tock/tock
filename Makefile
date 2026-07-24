@@ -416,6 +416,8 @@ ci-job-clippy:
 	@cd boards/raspberry_pi_pico && cargo clippy -- -D warnings
 	@cd boards/hifive1 && cargo clippy -- -D warnings
 	@cd boards/qemu_i486_q35 && cargo clippy -Zjson-target-spec -- -D warnings
+	# - nxp_s32g3_sail: Cortex-M7 test-harness-only hardware suites
+	@cd boards/nxp_s32g3_sail && cargo clippy --features test-harness -- -D warnings
 
 
 
