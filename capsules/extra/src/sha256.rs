@@ -51,7 +51,10 @@ const ROUND_CONSTANTS: [u32; NUM_ROUND_CONSTANTS] = [
 pub struct Sha256Software<'a> {
     state: Cell<State>,
 
-    client: OptionalCell<&'a dyn Client<SHA_256_OUTPUT_LEN_BYTES>>,
+    client_data: OptionalCell<&'a dyn ClientData<SHA_256_OUTPUT_LEN_BYTES>>,
+    client_hash: OptionalCell<&'a dyn ClientHash<SHA_256_OUTPUT_LEN_BYTES>>,
+    client_verify: OptionalCell<&'a dyn ClientVerify<SHA_256_OUTPUT_LEN_BYTES>>,
+
     input_data: OptionalCell<SubSliceMutImmut<'static, u8>>,
     data_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
     buffered_length: Cell<usize>,
@@ -68,7 +71,9 @@ impl Sha256Software<'_> {
     pub fn new() -> Self {
         let s = Self {
             state: Cell::new(State::Idle),
-            client: OptionalCell::empty(),
+            client_data: OptionalCell::empty(),
+            client_hash: OptionalCell::empty(),
+            client_verify: OptionalCell::empty(),
             input_data: OptionalCell::empty(),
             data_buffer: MapCell::new([0; SHA_BLOCK_LEN_BYTES]),
             buffered_length: Cell::new(0),
@@ -331,8 +336,10 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
         self.initialize();
     }
 
-    fn set_data_client(&'a self, _client: &'a (dyn ClientData<32> + 'a)) {
-        unimplemented!()
+    fn set_data_client(&'a self, client: &'a (dyn ClientData<32> + 'a)) {
+        self.client_data.set(client);
+        self.client_hash.clear();
+        self.client_verify.clear();
     }
 }
 
@@ -359,8 +366,10 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
         }
     }
 
-    fn set_hash_client(&'a self, _client: &'a (dyn ClientHash<32> + 'a)) {
-        unimplemented!()
+    fn set_hash_client(&'a self, client: &'a (dyn ClientHash<32> + 'a)) {
+        self.client_data.clear();
+        self.client_hash.set(client);
+        self.client_verify.clear();
     }
 }
 
@@ -380,14 +389,18 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
         }
     }
 
-    fn set_verify_client(&'a self, _client: &'a (dyn ClientVerify<32> + 'a)) {
-        unimplemented!()
+    fn set_verify_client(&'a self, client: &'a (dyn ClientVerify<32> + 'a)) {
+        self.client_data.clear();
+        self.client_hash.clear();
+        self.client_verify.set(client);
     }
 }
 
 impl<'a> Digest<'a, 32> for Sha256Software<'a> {
     fn set_client(&'a self, client: &'a dyn Client<32>) {
-        self.client.set(client);
+        self.client_data.set(client);
+        self.client_hash.set(client);
+        self.client_verify.set(client);
     }
 }
 
@@ -415,8 +428,8 @@ impl DeferredCallClient for Sha256Software<'_> {
                 }
                 self.state.set(State::Idle);
                 self.clear_data();
-                self.client.map(|c| {
-                    c.verification_done(Ok(pass), output);
+                self.client_verify.map(|client| {
+                    client.verification_done(Ok(pass), output);
                 });
             }
             State::Data => {
@@ -425,12 +438,12 @@ impl DeferredCallClient for Sha256Software<'_> {
                 self.state.set(State::Idle);
                 match data {
                     SubSliceMutImmut::Mutable(buffer) => {
-                        self.client.map(|client| {
+                        self.client_data.map(|client| {
                             client.add_mut_data_done(Ok(()), buffer);
                         });
                     }
                     SubSliceMutImmut::Immutable(buffer) => {
-                        self.client.map(|client| {
+                        self.client_data.map(|client| {
                             client.add_data_done(Ok(()), buffer);
                         });
                     }
@@ -441,8 +454,8 @@ impl DeferredCallClient for Sha256Software<'_> {
                 let output = self.output_data.replace(None).unwrap();
                 self.state.set(State::Idle);
                 self.clear_data();
-                self.client.map(|c| {
-                    c.hash_done(Ok(()), output);
+                self.client_hash.map(|client| {
+                    client.hash_done(Ok(()), output);
                 });
             }
             State::CancelData => {
@@ -451,12 +464,12 @@ impl DeferredCallClient for Sha256Software<'_> {
                 let data = self.input_data.take().unwrap();
                 match data {
                     SubSliceMutImmut::Mutable(buffer) => {
-                        self.client.map(|client| {
+                        self.client_data.map(|client| {
                             client.add_mut_data_done(Err(ErrorCode::CANCEL), buffer);
                         });
                     }
                     SubSliceMutImmut::Immutable(buffer) => {
-                        self.client.map(|client| {
+                        self.client_data.map(|client| {
                             client.add_data_done(Err(ErrorCode::CANCEL), buffer);
                         });
                     }
@@ -466,7 +479,7 @@ impl DeferredCallClient for Sha256Software<'_> {
                 self.state.set(State::Idle);
                 self.clear_data();
                 let output = self.output_data.replace(None).unwrap();
-                self.client.map(|client| {
+                self.client_verify.map(|client| {
                     client.verification_done(Err(ErrorCode::CANCEL), output);
                 });
             }
@@ -474,7 +487,7 @@ impl DeferredCallClient for Sha256Software<'_> {
                 self.state.set(State::Idle);
                 self.clear_data();
                 let output = self.output_data.replace(None).unwrap();
-                self.client.map(|client| {
+                self.client_hash.map(|client| {
                     client.hash_done(Err(ErrorCode::CANCEL), output);
                 });
             }
@@ -494,13 +507,17 @@ impl Sha256 for Sha256Software<'_> {
 }
 
 impl<'a> DigestDataHash<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, _client: &'a dyn ClientDataHash<32>) {
-        unimplemented!()
+    fn set_client(&'a self, client: &'a dyn ClientDataHash<32>) {
+        self.client_data.set(client);
+        self.client_hash.set(client);
+        self.client_verify.clear();
     }
 }
 
 impl<'a> DigestDataVerify<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, _client: &'a dyn ClientDataVerify<32>) {
-        unimplemented!()
+    fn set_client(&'a self, client: &'a dyn ClientDataVerify<32>) {
+        self.client_data.set(client);
+        self.client_hash.clear();
+        self.client_verify.set(client);
     }
 }
