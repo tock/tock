@@ -348,7 +348,6 @@ unsafe fn start() -> (
         ),
     )
     .finalize(components::gpio_component_static!(GpioHw));
-    kernel::deferred_call::DeferredCallClient::register(&periphs.crc);
 
     let crc = components::crc::CrcComponent::new(
         board_kernel,
