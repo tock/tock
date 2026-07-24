@@ -272,6 +272,7 @@ pub unsafe fn main() {
         capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         apps_regions,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::screen_shared_component_static!(1032, Screen));
 
@@ -308,7 +309,8 @@ pub unsafe fn main() {
         capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
         virtual_flash_nvm,
         core::ptr::addr_of!(APP_STORAGE) as usize,
-        APP_STORAGE.len()
+        APP_STORAGE.len(),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::isolated_nonvolatile_storage_component_static!(
         capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>,
@@ -323,6 +325,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::process_info_driver::DRIVER_NUM,
         PMCapability,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::process_info_component_static!(PMCapability));
 
@@ -492,6 +495,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        create_capability!(capabilities::ProcessManagementCapability),
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
@@ -521,6 +525,7 @@ pub unsafe fn main() {
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_binary_storage,
         dynamic_binary_storage,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,

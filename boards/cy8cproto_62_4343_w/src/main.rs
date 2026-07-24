@@ -184,6 +184,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     components::debug_writer::DebugWriterComponent::new_unsafe(
@@ -209,6 +210,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(Tcpwm0));
 
@@ -221,14 +223,22 @@ pub unsafe fn main() {
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm0p::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(Tcpwm0));
+    .finalize(components::process_console_component_static!(
+        Tcpwm0,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     let led_pin = peripherals.gpio.get_pin(psoc62xa::gpio::PsocPin::P13_7);
@@ -270,6 +280,7 @@ pub unsafe fn main() {
             108 => peripherals.gpio.get_pin(psoc62xa::gpio::PsocPin::P13_4),
             110 => peripherals.gpio.get_pin(psoc62xa::gpio::PsocPin::P13_6),
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(psoc62xa::gpio::GpioPin));
 
@@ -290,6 +301,7 @@ pub unsafe fn main() {
                 kernel::hil::gpio::FloatingState::PullNone
             ),
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(GpioPin));
 

@@ -224,15 +224,21 @@ unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        e310_g003::chip::E310xClint
+        e310_g003::chip::E310xClint,
+        ProcessConsoleCap
     ));
     let _ = process_console.start();
 
@@ -250,6 +256,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -265,6 +272,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::low_level_debug_component_static!());
 

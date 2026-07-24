@@ -12,9 +12,8 @@
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::ble_advertising::BleConfig;
 use kernel::hil::time::Alarm;
 
@@ -43,29 +42,34 @@ pub type BLEComponentType<B, A> =
 pub struct BLEComponent<
     A: kernel::hil::time::Alarm<'static> + 'static,
     B: kernel::hil::ble_advertising::BleAdvertisementDriver<'static> + BleConfig + 'static,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     radio: &'static B,
     mux_alarm: &'static capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, A>,
+    mem_cap: CAP,
 }
 
 impl<
     A: kernel::hil::time::Alarm<'static> + 'static,
     B: kernel::hil::ble_advertising::BleAdvertisementDriver<'static> + BleConfig + 'static,
-> BLEComponent<A, B>
+    CAP: MemoryAllocationCapability + 'static,
+> BLEComponent<A, B, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         radio: &'static B,
         mux_alarm: &'static capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, A>,
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             radio,
             mux_alarm,
+            mem_cap,
         }
     }
 }
@@ -73,7 +77,8 @@ impl<
 impl<
     A: kernel::hil::time::Alarm<'static> + 'static,
     B: kernel::hil::ble_advertising::BleAdvertisementDriver<'static> + BleConfig + 'static,
-> Component for BLEComponent<A, B>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for BLEComponent<A, B, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
@@ -91,8 +96,6 @@ impl<
     >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let ble_radio_virtual_alarm = s.0.write(
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(self.mux_alarm),
         );
@@ -102,7 +105,8 @@ impl<
 
         let ble_radio = s.1.write(capsules_extra::ble_advertising_driver::BLE::new(
             self.radio,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
             buffer,
             ble_radio_virtual_alarm,
         ));

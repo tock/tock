@@ -34,9 +34,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 // Setup static space for the objects.
@@ -62,16 +61,22 @@ pub type KeyboardHidComponentType<U> = capsules_extra::usb_hid_driver::UsbHidDri
     capsules_extra::usb::keyboard_hid::KeyboardHid<'static, U>,
 >;
 
-pub struct KeyboardHidComponent<U: 'static + hil::usb::UsbController<'static>> {
+pub struct KeyboardHidComponent<
+    U: 'static + hil::usb::UsbController<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     usb: &'static U,
     vendor_id: u16,
     product_id: u16,
     strings: &'static [&'static str; 3],
+    mem_cap: CAP,
 }
 
-impl<U: 'static + hil::usb::UsbController<'static>> KeyboardHidComponent<U> {
+impl<U: 'static + hil::usb::UsbController<'static>, CAP: MemoryAllocationCapability + 'static>
+    KeyboardHidComponent<U, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -79,7 +84,8 @@ impl<U: 'static + hil::usb::UsbController<'static>> KeyboardHidComponent<U> {
         vendor_id: u16,
         product_id: u16,
         strings: &'static [&'static str; 3],
-    ) -> KeyboardHidComponent<U> {
+        mem_cap: CAP,
+    ) -> KeyboardHidComponent<U, CAP> {
         KeyboardHidComponent {
             board_kernel,
             driver_num,
@@ -87,11 +93,14 @@ impl<U: 'static + hil::usb::UsbController<'static>> KeyboardHidComponent<U> {
             vendor_id,
             product_id,
             strings,
+            mem_cap,
         }
     }
 }
 
-impl<U: 'static + hil::usb::UsbController<'static>> Component for KeyboardHidComponent<U> {
+impl<U: 'static + hil::usb::UsbController<'static>, CAP: MemoryAllocationCapability + 'static>
+    Component for KeyboardHidComponent<U, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<capsules_extra::usb::keyboard_hid::KeyboardHid<'static, U>>,
         &'static mut MaybeUninit<
@@ -121,8 +130,6 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for KeyboardHidCom
             ));
         self.usb.set_client(keyboard_hid);
 
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let send_buffer = s.2.write([0; 64]);
         let recv_buffer = s.3.write([0; 64]);
 
@@ -130,7 +137,8 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for KeyboardHidCom
             keyboard_hid,
             send_buffer,
             recv_buffer,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         keyboard_hid.set_client(usb_hid_driver);

@@ -118,6 +118,11 @@ fn init_virtio_dev(
     Some((int_line, dev))
 }
 
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+
 /// Provides interrupt servicing logic for Virtio devices which may or may not be present at
 /// runtime.
 struct VirtioDevices {
@@ -144,7 +149,7 @@ pub struct QemuI386Q35Platform {
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
-        components::process_console::Capability,
+        ProcessConsoleCap,
     >,
     console: &'static Console<'static>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
@@ -463,14 +468,21 @@ unsafe extern "cdecl" fn main() {
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        Pit<'static, RELOAD_1KHZ>
+        Pit<'static, RELOAD_1KHZ>,
+        ProcessConsoleCap,
     ));
 
     // Setup the console.
-    let console = ConsoleComponent::new(board_kernel, console::DRIVER_NUM, console_uart_device)
-        .finalize(components::console_component_static!());
+    let console = ConsoleComponent::new(
+        board_kernel,
+        console::DRIVER_NUM,
+        console_uart_device,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
     DebugWriterComponent::new::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
@@ -483,6 +495,7 @@ unsafe extern "cdecl" fn main() {
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::low_level_debug_component_static!());
 
@@ -490,10 +503,15 @@ unsafe extern "cdecl" fn main() {
 
     // Userspace RNG driver over the VirtIO EntropySource
     let rng_driver = virtio_rng.map(|rng| {
-        components::rng::RngRandomComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
-            .finalize(components::rng_random_component_static!(
-                VirtIORng<X86DmaFence>
-            ))
+        components::rng::RngRandomComponent::new(
+            board_kernel,
+            capsules_core::rng::DRIVER_NUM,
+            rng,
+            create_capability!(capabilities::MemoryAllocationCapability),
+        )
+        .finalize(components::rng_random_component_static!(
+            VirtIORng<X86DmaFence>
+        ))
     });
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)

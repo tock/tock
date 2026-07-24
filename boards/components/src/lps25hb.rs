@@ -7,9 +7,8 @@
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::lps25hb::LPS25HB;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
 
@@ -30,21 +29,28 @@ macro_rules! lps25hb_component_static {
     };};
 }
 
-pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster<'static>> {
+pub struct Lps25hbComponent<
+    I: 'static + i2c::I2CMaster<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
-impl<I: 'static + i2c::I2CMaster<'static>> Lps25hbComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'static>
+    Lps25hbComponent<I, CAP>
+{
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
+        mem_cap: CAP,
     ) -> Self {
         Lps25hbComponent {
             i2c_mux,
@@ -52,11 +58,14 @@ impl<I: 'static + i2c::I2CMaster<'static>> Lps25hbComponent<I> {
             interrupt_pin,
             board_kernel,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster<'static>> Component for Lps25hbComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'static> Component
+    for Lps25hbComponent<I, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<LPS25HB<'static, I2CDevice<'static, I>>>,
@@ -65,8 +74,9 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for Lps25hbComponent<I> {
     type Output = &'static LPS25HB<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
+        let grant = self
+            .board_kernel
+            .create_grant(self.driver_num, &self.mem_cap);
 
         let lps25hb_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
 

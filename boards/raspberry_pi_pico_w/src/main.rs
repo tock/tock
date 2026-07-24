@@ -161,6 +161,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::wifi::DRIVER_NUM,
         cyw4343_device,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::wifi_component_static!(CYW4343xHw));
 

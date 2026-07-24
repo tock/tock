@@ -18,9 +18,8 @@
 use capsules_extra::app_flash_driver::AppFlash;
 use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::nonvolatile_storage::NonvolatileStorage;
 
@@ -42,26 +41,31 @@ pub type AppFlashComponentType = capsules_extra::app_flash_driver::AppFlash<'sta
 pub struct AppFlashComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     const BUF_LEN: usize,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     storage: &'static F,
+    mem_cap: CAP,
 }
 
 impl<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     const BUF_LEN: usize,
-> AppFlashComponent<F, BUF_LEN>
+    CAP: MemoryAllocationCapability + 'static,
+> AppFlashComponent<F, BUF_LEN, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         storage: &'static F,
-    ) -> AppFlashComponent<F, BUF_LEN> {
+        mem_cap: CAP,
+    ) -> AppFlashComponent<F, BUF_LEN, CAP> {
         AppFlashComponent {
             board_kernel,
             driver_num,
             storage,
+            mem_cap,
         }
     }
 }
@@ -69,7 +73,8 @@ impl<
 impl<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     const BUF_LEN: usize,
-> Component for AppFlashComponent<F, BUF_LEN>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for AppFlashComponent<F, BUF_LEN, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<[u8; BUF_LEN]>,
@@ -80,8 +85,6 @@ impl<
     type Output = &'static AppFlash<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let buffer = static_buffer.0.write([0; BUF_LEN]);
 
         let flash_pagebuffer = static_buffer
@@ -97,7 +100,8 @@ impl<
             .3
             .write(capsules_extra::app_flash_driver::AppFlash::new(
                 nv_to_page,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                self.board_kernel
+                    .create_grant(self.driver_num, &self.mem_cap),
                 buffer,
             ));
 

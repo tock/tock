@@ -14,9 +14,8 @@
 
 use capsules_extra::ninedof::NineDof;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 
 #[macro_export]
 macro_rules! ninedof_component_static {
@@ -38,21 +37,27 @@ macro_rules! ninedof_component_static {
 
 pub type NineDofComponentType = capsules_extra::ninedof::NineDof<'static>;
 
-pub struct NineDofComponent {
+pub struct NineDofComponent<CAP: MemoryAllocationCapability + 'static> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
-impl NineDofComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> NineDofComponent {
+impl<CAP: MemoryAllocationCapability + 'static> NineDofComponent<CAP> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        mem_cap: CAP,
+    ) -> NineDofComponent<CAP> {
         NineDofComponent {
             board_kernel,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl Component for NineDofComponent {
+impl<CAP: MemoryAllocationCapability + 'static> Component for NineDofComponent<CAP> {
     type StaticInput = (
         &'static mut MaybeUninit<NineDof<'static>>,
         &'static [&'static dyn kernel::hil::sensors::NineDof<'static>],
@@ -60,8 +65,9 @@ impl Component for NineDofComponent {
     type Output = &'static capsules_extra::ninedof::NineDof<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_ninedof = self.board_kernel.create_grant(self.driver_num, &grant_cap);
+        let grant_ninedof = self
+            .board_kernel
+            .create_grant(self.driver_num, &self.mem_cap);
 
         let ninedof = static_buffer.0.write(capsules_extra::ninedof::NineDof::new(
             static_buffer.1,

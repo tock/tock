@@ -49,9 +49,7 @@ use capsules_core::virtualizers::virtual_flash::FlashUser;
 use capsules_core::virtualizers::virtual_flash::MuxFlash;
 use capsules_extra::tickv::TicKVSystem;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::flash::HasClient;
 use kernel::hil::hasher::Hasher;
@@ -137,8 +135,6 @@ impl<
     type Output = &'static TicKVSystem<'static, FlashUser<'static, F>, H, PAGE_SIZE>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let _grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let virtual_flash = static_buffer.0.write(FlashUser::new(self.mux_flash));
 
         let driver = static_buffer.1.write(TicKVSystem::new(
@@ -212,8 +208,6 @@ impl<
     type Output = &'static TicKVSystem<'static, F, H, PAGE_SIZE>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let _grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let tickfs_read_buf = static_buffer.1.write([0; PAGE_SIZE]);
 
         let tickv = static_buffer.0.write(TicKVSystem::new(

@@ -7,9 +7,8 @@
 use capsules_core::virtualizers::virtual_pwm::{MuxPwm, PwmPinUser};
 use capsules_extra::pwm::Pwm;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::pwm;
 
 #[macro_export]
@@ -95,24 +94,31 @@ impl<P: 'static + pwm::Pwm> Component for PwmPinUserComponent<P> {
 pub type PwmDriverComponentType<const NUM_PINS: usize> =
     capsules_extra::pwm::Pwm<'static, NUM_PINS>;
 
-pub struct PwmDriverComponent<const NUM_PINS: usize> {
+pub struct PwmDriverComponent<const NUM_PINS: usize, CAP: MemoryAllocationCapability + 'static> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
+    mem_cap: CAP,
 }
 
-impl<const NUM_PINS: usize> PwmDriverComponent<NUM_PINS> {
+impl<const NUM_PINS: usize, CAP: MemoryAllocationCapability + 'static>
+    PwmDriverComponent<NUM_PINS, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-    ) -> PwmDriverComponent<NUM_PINS> {
+        mem_cap: CAP,
+    ) -> PwmDriverComponent<NUM_PINS, CAP> {
         PwmDriverComponent {
             board_kernel,
             driver_num,
+            mem_cap,
         }
     }
 }
 
-impl<const NUM_PINS: usize> Component for PwmDriverComponent<NUM_PINS> {
+impl<const NUM_PINS: usize, CAP: MemoryAllocationCapability + 'static> Component
+    for PwmDriverComponent<NUM_PINS, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<Pwm<'static, NUM_PINS>>,
         &'static [&'static dyn kernel::hil::pwm::PwmPin; NUM_PINS],
@@ -120,8 +126,9 @@ impl<const NUM_PINS: usize> Component for PwmDriverComponent<NUM_PINS> {
     type Output = &'static capsules_extra::pwm::Pwm<'static, NUM_PINS>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_adc = self.board_kernel.create_grant(self.driver_num, &grant_cap);
+        let grant_adc = self
+            .board_kernel
+            .create_grant(self.driver_num, &self.mem_cap);
 
         let pwm = static_buffer
             .0

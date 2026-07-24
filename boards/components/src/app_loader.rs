@@ -33,9 +33,8 @@
 
 use capsules_extra::app_loader::AppLoader;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::dynamic_binary_storage;
 
 // Setup static space for the objects.
@@ -52,29 +51,34 @@ macro_rules! app_loader_component_static {
 pub struct AppLoaderComponent<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     storage_driver: &'static S,
     load_driver: &'static L,
+    mem_cap: CAP,
 }
 
 impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-> AppLoaderComponent<S, L>
+    CAP: MemoryAllocationCapability + 'static,
+> AppLoaderComponent<S, L, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         storage_driver: &'static S,
         load_driver: &'static L,
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             storage_driver,
             load_driver,
+            mem_cap,
         }
     }
 }
@@ -82,7 +86,8 @@ impl<
 impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-> Component for AppLoaderComponent<S, L>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for AppLoaderComponent<S, L, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<AppLoader<S, L>>,
@@ -91,14 +96,13 @@ impl<
     type Output = &'static AppLoader<S, L>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let buffer = static_buffer
             .1
             .write([0; capsules_extra::app_loader::BUF_LEN]);
 
         let dynamic_app_loader = static_buffer.0.write(AppLoader::new(
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
             self.storage_driver,
             self.load_driver,
             buffer,

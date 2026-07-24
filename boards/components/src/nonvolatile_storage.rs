@@ -26,9 +26,8 @@
 use capsules_extra::nonvolatile_storage_driver::NonvolatileStorage;
 use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 // Setup static space for the objects.
@@ -52,6 +51,7 @@ pub type NonvolatileStorageComponentType = NonvolatileStorage<'static>;
 
 pub struct NonvolatileStorageComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -60,11 +60,13 @@ pub struct NonvolatileStorageComponent<
     userspace_length: usize,
     kernel_start: usize,
     kernel_length: usize,
+    mem_cap: CAP,
 }
 
 impl<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-> NonvolatileStorageComponent<F>
+    CAP: MemoryAllocationCapability + 'static,
+> NonvolatileStorageComponent<F, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -74,6 +76,7 @@ impl<
         userspace_length: usize,
         kernel_start: usize,
         kernel_length: usize,
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
@@ -83,13 +86,15 @@ impl<
             userspace_length,
             kernel_start,
             kernel_length,
+            mem_cap,
         }
     }
 }
 
 impl<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-> Component for NonvolatileStorageComponent<F>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for NonvolatileStorageComponent<F, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
@@ -100,8 +105,6 @@ impl<
     type Output = &'static NonvolatileStorage<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let buffer = static_buffer
             .3
             .write([0; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
@@ -117,7 +120,8 @@ impl<
 
         let nonvolatile_storage = static_buffer.2.write(NonvolatileStorage::new(
             nv_to_page,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
             self.userspace_start, // Start address for userspace accessible region
             self.userspace_length, // Length of userspace accessible region
             self.kernel_start,    // Start address of kernel region

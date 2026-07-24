@@ -178,6 +178,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(
         lpc55s6x::ctimer0::LPCTimer
@@ -254,6 +255,7 @@ unsafe fn start() -> (
             63 => peripherals.pins.get_pin(lpc55s6x::gpio::LPCPin::P1_30),
             64 => peripherals.pins.get_pin(lpc55s6x::gpio::LPCPin::P1_31),
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(lpc55s6x::gpio::GpioPin));
 
@@ -270,6 +272,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             ),
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(
         lpc55s6x::gpio::GpioPin
@@ -345,6 +348,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -363,15 +367,21 @@ unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        lpc55s6x::ctimer0::LPCTimer
+        lpc55s6x::ctimer0::LPCTimer,
+        ProcessConsoleCap
     ));
     let _ = process_console.start();
 

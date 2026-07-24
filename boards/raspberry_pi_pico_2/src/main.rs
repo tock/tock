@@ -318,6 +318,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -329,6 +330,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -370,6 +372,7 @@ pub unsafe fn main() {
             28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
@@ -394,14 +397,22 @@ pub unsafe fn main() {
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm33::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(RPTimer));
+    .finalize(components::process_console_component_static!(
+        RPTimer,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)

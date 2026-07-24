@@ -15,6 +15,7 @@ use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::static_init;
+use kernel::{capabilities, create_capability};
 use nrf52_components::{UartChannel, UartPins};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
@@ -219,6 +220,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
 
@@ -244,6 +246,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         mux_uart,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 

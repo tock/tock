@@ -99,7 +99,12 @@ type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 type ConsoleDriver = components::console::ConsoleComponentType;
 type AnalogComparatorDriver =
     components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
-type ProcessConsoleDriver = components::process_console::ProcessConsoleComponentType<AlarmHw>;
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+type ProcessConsoleDriver =
+    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -256,6 +261,7 @@ pub unsafe fn start() -> (
             22 => &nrf52840_peripherals.gpio_port[Pin::P1_04],
             23 => &nrf52840_peripherals.gpio_port[Pin::P1_02]
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(GpioHw));
 
@@ -270,6 +276,7 @@ pub unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(GpioHw));
 
@@ -330,6 +337,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(AlarmHw));
     let uart_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
@@ -356,14 +364,19 @@ pub unsafe fn start() -> (
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(AlarmHw));
+    .finalize(components::process_console_component_static!(
+        AlarmHw,
+        ProcessConsoleCap,
+    ));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -380,6 +393,7 @@ pub unsafe fn start() -> (
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
@@ -394,6 +408,7 @@ pub unsafe fn start() -> (
         PAN_ID,
         SRC_MAC,
         DEFAULT_EXT_SRC_MAC,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -404,6 +419,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(
         nrf52840::temperature::Temp
@@ -413,6 +429,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
@@ -426,6 +443,7 @@ pub unsafe fn start() -> (
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::analog_comparator_component_static!(
         AnalogComparatorHw
