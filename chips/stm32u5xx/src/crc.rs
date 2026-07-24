@@ -275,7 +275,6 @@ impl DeferredCallClient for CRC<'_> {
 
             Request::Compute => {
                 let unprocessed_result = self.registers.dr.get();
-                //debug!("CRC: Request::Compute; client.crc_done...");
                 let result = match self.current_algorithm.get() {
                     // As the STM's CRC does not offer the option of a final XOR on the value, as some
                     // CRC algorithms do, we do it in software, when needed.
