@@ -185,7 +185,11 @@ pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
                 c.mpu().disable_app_mpu()
             });
             if let Some(p) = pr.processes.take() {
-                panic_process_info(p, pr.printer.take(), &mut writer);
+                if let Some(process_printer) = pr.printer.take() {
+                    panic_process_info(p, process_printer, &mut writer);
+                } else {
+                    let _ = writer.write_str("\r\nProcess Printer is not available\r\n");
+                }
             } else {
                 let _ = writer.write_str("\r\nProcesses List is not available\r\n");
             }
@@ -257,7 +261,11 @@ pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
                 c.mpu().disable_app_mpu()
             });
             if let Some(p) = pr.processes.take() {
-                panic_process_info(p, pr.printer.take(), writer);
+                if let Some(process_printer) = pr.printer.take() {
+                    panic_process_info(p, process_printer, writer);
+                } else {
+                    let _ = writer.write_str("\r\nProcess Printer is not available\r\n");
+                }
             } else {
                 let _ = writer.write_str("\r\nProcesses List is not available\r\n");
             }
@@ -350,10 +358,9 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, writer: &mut W) {
     if chip.is_none() {
         let _ = writer.write_str("\r\nChip Information is not available\r\n");
-    } else {
-        unsafe {
-            C::print_state(chip, writer);
-        }
+    }
+    unsafe {
+        C::print_state(chip, writer);
     }
 }
 
@@ -362,26 +369,26 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, write
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
     processes: &'static [ProcessSlot],
-    process_printer: Option<&'static PP>,
+    process_printer: &'static PP,
     writer: &mut W,
 ) {
     if processes.iter().filter(|p| p.get().is_some()).count() > 0 {
-        if let Some(printer) = process_printer {
-            // print data about each process
-            let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-            for slot in processes {
-                slot.proc.get().map(|process| {
-                    // Print the memory map and basic process info.
-                    //
-                    // Because we are using a synchronous printer we do not need to
-                    // worry about looping on the print function.
-                    printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
-                    // Print all of the process details.
-                    process.print_full_process(writer);
-                });
-            }
-        } else {
-            let _ = writer.write_str("\r\nProcess Printer is not available\r\n");
+        // print data about each process
+        let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+        for slot in processes {
+            slot.proc.get().map(|process| {
+                // Print the memory map and basic process info.
+                //
+                // Because we are using a synchronous printer we do not need to
+                // worry about looping on the print function.
+                process_printer.print_overview(
+                    process,
+                    &mut BinaryToWriteWrapper::new(writer),
+                    None,
+                );
+                // Print all of the process details.
+                process.print_full_process(writer);
+            });
         }
     } else {
         let _ = writer.write_str("\r\nNo loaded processes\r\n");
