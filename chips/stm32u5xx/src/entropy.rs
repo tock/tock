@@ -6,10 +6,10 @@ use core::cell::Cell;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::entropy::{Client32, Continue, Entropy32};
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 register_structs! {
     /// Random number generator
