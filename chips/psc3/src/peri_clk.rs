@@ -283,6 +283,7 @@ pub fn enable_scb3() {
 }
 
 /// Enable and configure the clock for SCB0
+#[inline(never)]
 pub fn enable_scb0() {
     // 115200 baud rate
     set_clk_div8(&PERI_PCLK.gr4_div_cmd, &PERI_PCLK.gr4_div_8_ctl0, 108);

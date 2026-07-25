@@ -368,16 +368,22 @@ impl<'a> PsocPins<'a> {
         }
     }
 
-    pub fn set_security(&self, state: SecurityState) {
+    pub fn set_security(&self, state: SecurityState) -> Result<(), ()> {
         for pin_opt in self.pins.iter() {
             if let Some(pin) = pin_opt {
-                pin.set_security(state);
+                pin.set_security(state)?;
             }
         }
+        Ok(())
     }
 
-    pub fn get_pin(&self, searched_pin: PsocPin) -> &GpioPin<'a> {
-        self.pins[searched_pin as usize].as_ref().unwrap()
+    pub fn get_pin(&self, searched_pin: PsocPin) -> Result<&GpioPin<'a>, ()> {
+        let idx = searched_pin as usize;
+        if idx < self.pins.len() {
+            self.pins[idx].as_ref().ok_or(())
+        } else {
+            Err(())
+        }
     }
 
     pub fn handle_interrupt(&self) {
@@ -471,34 +477,35 @@ impl GpioPin<'_> {
         }
     }
 
-    pub fn preconfigure(&self, preconfig: &PreConfig) {
+    pub fn preconfigure(&self, preconfig: &PreConfig) -> Result<(), ()> {
         let prev_non_sec = if self.security == SecurityState::Secure {
-            let state = self.get_secure_port_nonsecure_pin();
-            self.set_secure_port_nonsecure_pin(SecurityState::Secure);
+            let state = self.get_secure_port_nonsecure_pin()?;
+            self.set_secure_port_nonsecure_pin(SecurityState::Secure)?;
             Some(state)
         } else {
             None
         };
 
-        self.set_slew_rate(preconfig.fast_slew_rate);
-        self.set_drive_sel(preconfig.drive_sel);
-        self.set_hsiom_function(preconfig.hsiom);
-        self.configure_drive_mode(preconfig.drive_mode);
-        self.set_interrupt_edge(preconfig.int_edge);
-        self.set_interrupt_mask(preconfig.int_mask);
-        self.set_vtrip(preconfig.vtrip);
+        self.set_slew_rate(preconfig.fast_slew_rate)?;
+        self.set_drive_sel(preconfig.drive_sel)?;
+        self.set_hsiom_function(preconfig.hsiom)?;
+        self.configure_drive_mode(preconfig.drive_mode)?;
+        self.set_interrupt_edge(preconfig.int_edge)?;
+        self.set_interrupt_mask(preconfig.int_mask)?;
+        self.set_vtrip(preconfig.vtrip)?;
         self.set_sio_config(
             preconfig.vreg_en,
             preconfig.ibuf_mode,
             preconfig.vtrip_sel,
             preconfig.vref_sel,
             preconfig.voh_sel,
-        );
-        self.write_output_raw(preconfig.out_val);
+        )?;
+        self.write_output_raw(preconfig.out_val)?;
 
         if let Some(state) = prev_non_sec {
-            self.set_secure_port_nonsecure_pin(state);
+            self.set_secure_port_nonsecure_pin(state)?;
         }
+        Ok(())
     }
 
     fn replace_field(value: u32, offset: u32, width: u32, new_field_value: u32) -> u32 {
@@ -510,7 +517,10 @@ impl GpioPin<'_> {
         Self::replace_field(value, (pin as u32) * width, width, new_field_value)
     }
 
-    fn set_slew_rate(&self, fast_slew_rate: bool) {
+    fn set_slew_rate(&self, fast_slew_rate: bool) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         let register = &self.registers.ports[self.port].prt_slew_ext;
         let old_value = register.get();
         register.set(Self::replace_pin_field(
@@ -519,9 +529,13 @@ impl GpioPin<'_> {
             1,
             fast_slew_rate as u32,
         ));
+        Ok(())
     }
 
-    fn set_drive_sel(&self, drive_sel: DriveSelect) {
+    fn set_drive_sel(&self, drive_sel: DriveSelect) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         let port_addr = &self.registers.ports[self.port];
         let local_pin = if self.pin < GPIO_HALF {
             self.pin
@@ -541,24 +555,37 @@ impl GpioPin<'_> {
 
         let old_value = register.get();
         register.set((old_value & !mask) | (drive_sel_value & mask));
+        Ok(())
     }
 
-    fn set_interrupt_edge(&self, edge: bool) {
+    fn set_interrupt_edge(&self, edge: bool) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         let register = &self.registers.ports[self.port].prt_intr_cfg;
         let old_value = register.get();
         register.set(Self::replace_pin_field(old_value, self.pin, 2, edge as u32));
+        Ok(())
     }
 
-    fn set_interrupt_mask(&self, mask: u32) {
+    fn set_interrupt_mask(&self, mask: u32) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         let register = &self.registers.ports[self.port].prt_intr_mask;
         let old_value = register.get();
         register.set(Self::replace_pin_field(old_value, self.pin, 1, mask));
+        Ok(())
     }
 
-    fn set_vtrip(&self, vtrip: u32) {
+    fn set_vtrip(&self, vtrip: u32) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         let register = &self.registers.ports[self.port].prt_cfg_in;
         let old_value = register.get();
         register.set(Self::replace_pin_field(old_value, self.pin, 1, vtrip));
+        Ok(())
     }
 
     fn set_sio_config(
@@ -568,7 +595,10 @@ impl GpioPin<'_> {
         vtrip_sel: u32,
         vref_sel: u32,
         voh_sel: u32,
-    ) {
+    ) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         let register = &self.registers.ports[self.port].prt_cfg_sio;
 
         let pin_shift = ((self.pin & 0x1) as u32) << 3;
@@ -583,15 +613,23 @@ impl GpioPin<'_> {
         let temp_reg = register.get() & !pin_mask;
         let temp_reg2 = temp_reg | ((sio_cfg << pin_shift) & pin_mask);
         register.set(temp_reg2);
+        Ok(())
     }
 
-    fn write_output_raw(&self, out_val: u32) {
+    fn write_output_raw(&self, out_val: u32) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         let register = &self.registers.ports[self.port].prt_out;
         let old_value = register.get();
         register.set(Self::replace_pin_field(old_value, self.pin, 1, out_val));
+        Ok(())
     }
 
-    fn set_hsiom_function(&self, function: HsiomFunction) {
+    fn set_hsiom_function(&self, function: HsiomFunction) -> Result<(), ()> {
+        if self.port >= self.hsiom_registers.ports.len() {
+            return Err(());
+        }
         let port_addr = &self.hsiom_registers.ports[self.port];
         let local_pin = if self.pin < GPIO_HALF {
             self.pin
@@ -611,9 +649,13 @@ impl GpioPin<'_> {
 
         let old_value = register.get();
         register.set((old_value & !mask) | (function_value & mask));
+        Ok(())
     }
 
-    fn set_secure_port_nonsecure_pin(&self, state: SecurityState) {
+    pub fn set_secure_port_nonsecure_pin(&self, state: SecurityState) -> Result<(), ()> {
+        if self.port >= self.hsiom_registers.secure_prts.len() {
+            return Err(());
+        }
         let register = &self.hsiom_registers.secure_prts[self.port].secure_prt_nonsecure_mask;
         let pin_shift = self.pin as u32;
         let bit_mask = HSIOM_SEC_MASK << pin_shift;
@@ -624,26 +666,34 @@ impl GpioPin<'_> {
 
         let old_value = register.get();
         register.set((old_value & !bit_mask) | new_bit);
+        Ok(())
     }
 
-    fn get_secure_port_nonsecure_pin(&self) -> SecurityState {
+    pub fn get_secure_port_nonsecure_pin(&self) -> Result<SecurityState, ()> {
+        if self.port >= self.hsiom_registers.secure_prts.len() {
+            return Err(());
+        }
         let register = &self.hsiom_registers.secure_prts[self.port].secure_prt_nonsecure_mask;
         let pin_shift = self.pin as u32;
         let bit_mask = HSIOM_SEC_MASK << pin_shift;
         if (register.get() & bit_mask) != 0 {
-            SecurityState::NonSecure
+            Ok(SecurityState::NonSecure)
         } else {
-            SecurityState::Secure
+            Ok(SecurityState::Secure)
         }
     }
 
-    pub fn set_security(&self, state: SecurityState) {
+    pub fn set_security(&self, state: SecurityState) -> Result<(), ()> {
         if self.security == SecurityState::Secure {
-            self.set_secure_port_nonsecure_pin(state);
+            self.set_secure_port_nonsecure_pin(state)?;
         }
+        Ok(())
     }
 
-    pub fn get_configuration(&self) -> Configuration {
+    pub fn get_configuration(&self) -> Result<Configuration, ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         let (input_buffer, high_impedance) = if self.pin == 0 {
             (
                 self.registers.ports[self.port]
@@ -725,15 +775,18 @@ impl GpioPin<'_> {
                     == HIGHZ,
             )
         };
-        match (input_buffer, high_impedance) {
+        Ok(match (input_buffer, high_impedance) {
             (false, false) => Configuration::Output,
             (false, true) => Configuration::LowPower,
             (true, true) => Configuration::Input,
             (true, false) => Configuration::InputOutput,
-        }
+        })
     }
 
-    pub fn configure_drive_mode(&self, drive_mode: DriveMode) {
+    pub fn configure_drive_mode(&self, drive_mode: DriveMode) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         if self.pin == 0 {
             self.registers.ports[self.port]
                 .prt_cfg
@@ -767,9 +820,13 @@ impl GpioPin<'_> {
                 .prt_cfg
                 .modify(regs::PRT_CFG::DRIVE_MODE7.val(drive_mode as u32));
         }
+        Ok(())
     }
 
-    pub fn configure_input(&self, input_enable: bool) {
+    pub fn configure_input(&self, input_enable: bool) -> Result<(), ()> {
+        if self.port >= self.registers.ports.len() {
+            return Err(());
+        }
         if self.pin == 0 {
             self.registers.ports[self.port]
                 .prt_cfg
@@ -803,6 +860,12 @@ impl GpioPin<'_> {
                 .prt_cfg
                 .modify(regs::PRT_CFG::IN_EN7.val(input_enable as u32));
         }
+        Ok(())
+    }
+
+    pub fn make_input(&self) -> Result<Configuration, ()> {
+        self.configure_input(true)?;
+        self.get_configuration()
     }
 
     pub fn handle_interrupt(&self) {
@@ -828,7 +891,7 @@ impl GpioPin<'_> {
 impl Input for GpioPin<'_> {
     fn read(&self) -> bool {
         match self.get_configuration() {
-            Configuration::Input => {
+            Ok(Configuration::Input) => {
                 let bitfield = match self.pin {
                     0 => regs::PRT_IN::IN0,
                     1 => regs::PRT_IN::IN1,
@@ -841,7 +904,7 @@ impl Input for GpioPin<'_> {
                 };
                 self.registers.ports[self.port].prt_in.is_set(bitfield)
             }
-            Configuration::Output => {
+            Ok(Configuration::Output) => {
                 let bitfield = match self.pin {
                     0 => regs::PRT_OUT::OUT0,
                     1 => regs::PRT_OUT::OUT1,
@@ -861,44 +924,38 @@ impl Input for GpioPin<'_> {
 
 impl Output for GpioPin<'_> {
     fn set(&self) {
-        match self.get_configuration() {
-            Configuration::Output | Configuration::InputOutput => {
-                let bitfield = match self.pin {
-                    0 => regs::PRT_OUT::OUT0,
-                    1 => regs::PRT_OUT::OUT1,
-                    2 => regs::PRT_OUT::OUT2,
-                    3 => regs::PRT_OUT::OUT3,
-                    4 => regs::PRT_OUT::OUT4,
-                    5 => regs::PRT_OUT::OUT5,
-                    6 => regs::PRT_OUT::OUT6,
-                    _ => regs::PRT_OUT::OUT7,
-                };
-                self.registers.ports[self.port]
-                    .prt_out
-                    .modify(bitfield.val(1));
-            }
-            _ => (),
+        if let Ok(Configuration::Output | Configuration::InputOutput) = self.get_configuration() {
+            let bitfield = match self.pin {
+                0 => regs::PRT_OUT::OUT0,
+                1 => regs::PRT_OUT::OUT1,
+                2 => regs::PRT_OUT::OUT2,
+                3 => regs::PRT_OUT::OUT3,
+                4 => regs::PRT_OUT::OUT4,
+                5 => regs::PRT_OUT::OUT5,
+                6 => regs::PRT_OUT::OUT6,
+                _ => regs::PRT_OUT::OUT7,
+            };
+            self.registers.ports[self.port]
+                .prt_out
+                .modify(bitfield.val(1));
         }
     }
 
     fn clear(&self) {
-        match self.get_configuration() {
-            Configuration::Output | Configuration::InputOutput => {
-                let bitfield = match self.pin {
-                    0 => regs::PRT_OUT::OUT0,
-                    1 => regs::PRT_OUT::OUT1,
-                    2 => regs::PRT_OUT::OUT2,
-                    3 => regs::PRT_OUT::OUT3,
-                    4 => regs::PRT_OUT::OUT4,
-                    5 => regs::PRT_OUT::OUT5,
-                    6 => regs::PRT_OUT::OUT6,
-                    _ => regs::PRT_OUT::OUT7,
-                };
-                self.registers.ports[self.port]
-                    .prt_out
-                    .modify(bitfield.val(0));
-            }
-            _ => (),
+        if let Ok(Configuration::Output | Configuration::InputOutput) = self.get_configuration() {
+            let bitfield = match self.pin {
+                0 => regs::PRT_OUT::OUT0,
+                1 => regs::PRT_OUT::OUT1,
+                2 => regs::PRT_OUT::OUT2,
+                3 => regs::PRT_OUT::OUT3,
+                4 => regs::PRT_OUT::OUT4,
+                5 => regs::PRT_OUT::OUT5,
+                6 => regs::PRT_OUT::OUT6,
+                _ => regs::PRT_OUT::OUT7,
+            };
+            self.registers.ports[self.port]
+                .prt_out
+                .modify(bitfield.val(0));
         }
     }
 
@@ -915,48 +972,47 @@ impl Output for GpioPin<'_> {
 
 impl Configure for GpioPin<'_> {
     fn configuration(&self) -> Configuration {
-        self.get_configuration()
+        self.get_configuration().unwrap_or(Configuration::Other)
     }
 
     fn make_input(&self) -> Configuration {
-        self.configure_input(true);
-        self.get_configuration()
+        self.make_input().unwrap_or(Configuration::Other)
     }
 
     fn disable_input(&self) -> Configuration {
-        self.configure_input(false);
-        self.get_configuration()
+        let _ = self.configure_input(false);
+        self.configuration()
     }
 
     fn make_output(&self) -> Configuration {
-        self.configure_drive_mode(DriveMode::Strong);
-        self.get_configuration()
+        let _ = self.configure_drive_mode(DriveMode::Strong);
+        self.configuration()
     }
 
     fn disable_output(&self) -> Configuration {
-        self.configure_drive_mode(DriveMode::HighZ);
-        self.get_configuration()
+        let _ = self.configure_drive_mode(DriveMode::HighZ);
+        self.configuration()
     }
 
     fn set_floating_state(&self, state: kernel::hil::gpio::FloatingState) {
         match state {
             kernel::hil::gpio::FloatingState::PullUp => {
-                self.configure_drive_mode(DriveMode::PullUp);
+                let _ = self.configure_drive_mode(DriveMode::PullUp);
                 self.set();
             }
             kernel::hil::gpio::FloatingState::PullDown => {
-                self.configure_drive_mode(DriveMode::PullDown);
+                let _ = self.configure_drive_mode(DriveMode::PullDown);
                 self.clear();
             }
             kernel::hil::gpio::FloatingState::PullNone => {
-                self.configure_drive_mode(DriveMode::HighZ)
+                let _ = self.configure_drive_mode(DriveMode::HighZ);
             }
         }
     }
 
     fn deactivate_to_low_power(&self) {
-        self.configure_drive_mode(DriveMode::HighZ);
-        self.configure_input(false);
+        let _ = self.configure_drive_mode(DriveMode::HighZ);
+        let _ = self.configure_input(false);
     }
 
     fn floating_state(&self) -> kernel::hil::gpio::FloatingState {

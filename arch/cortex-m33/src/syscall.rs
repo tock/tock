@@ -368,8 +368,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCallM33NonSecure {
         // state bit (bit 6 of EXC_RETURN) when switching to the process.
         set_global_process_was_secure(state.secure);
 
-        let new_stack_pointer =
-            unsafe { CortexM33NonSecure::switch_to_user(state.psp as *const usize, &mut state.regs) };
+        let new_stack_pointer = unsafe {
+            CortexM33NonSecure::switch_to_user(state.psp as *const usize, &mut state.regs)
+        };
 
         // We need to keep track of the current stack pointer.
         state.psp = new_stack_pointer as usize;
