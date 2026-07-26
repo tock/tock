@@ -10,6 +10,6 @@ pub const RNG_HTCR_CONFIG_U545: u32 = 0x76B3;
 pub const RNG_NSCR_CONFIG_U545: u32 = 0x24C2;
 
 pub type Trng<'a> =
-    stm32u5xx::entropy::Trng<'a, RNG_CR_CONFIG_U545, RNG_HTCR_CONFIG_U545, RNG_NSCR_CONFIG_U545>;
+    stm32u5xx::rng::Trng<'a, RNG_CR_CONFIG_U545, RNG_HTCR_CONFIG_U545, RNG_NSCR_CONFIG_U545>;
 
-pub use stm32u5xx::entropy::RNG_BASE;
+pub use stm32u5xx::rng::RNG_BASE;
