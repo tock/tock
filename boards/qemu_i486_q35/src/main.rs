@@ -22,6 +22,7 @@ use kernel::debug;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
+use kernel::hil::keyboard::Keyboard;
 use kernel::ipc::IPC;
 use kernel::platform::chip::InterruptService;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -224,6 +225,19 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
         &()
     }
 }
+
+impl kernel::hil::keyboard::KeyboardClient for QemuI386Q35Platform {
+    fn keys_pressed(&self, keys: &[(u16, bool)], result: Result<(), kernel::ErrorCode>) {
+        if result.is_ok() {
+            for (key, pressed) in keys {
+                if *pressed {
+                    kernel::debug!("Keyboard Key Pressed: {}", key);
+                }
+            }
+        }
+    }
+}
+
 // `allow(unsupported_calling_conventions)`: cdecl is not valid when testing
 // this code on an x86_64 machine. This avoids a warning until a more permanent
 // fix is decided. See: https://github.com/tock/tock/pull/4662
@@ -256,7 +270,7 @@ unsafe extern "cdecl" fn main() {
                     (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
                     kernel::static_buf!(x86_q35::vga_uart_driver::VgaText<'static>),
                     kernel::static_buf!(x86_q35::ps2::Ps2Controller),
-                    kernel::static_buf!(x86_q35::keyboard::Keyboard<'static>),
+                    kernel::static_buf!(x86_q35::keyboard::Ps2Keyboard<'static>),
                 ),
                 &mut *ptr::addr_of_mut!(PAGE_DIR),
             )
@@ -525,23 +539,29 @@ unsafe extern "cdecl" fn main() {
                 AlarmHw
             ));
 
-    let platform = QemuI386Q35Platform {
-        pconsole,
-        console,
-        alarm,
-        lldb,
-        scheduler,
-        scheduler_timer,
-        rng: rng_driver,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_cap,
-        ),
-    };
+    let platform = static_init!(
+        QemuI386Q35Platform,
+        QemuI386Q35Platform {
+            pconsole,
+            console,
+            alarm,
+            lldb,
+            scheduler,
+            scheduler_timer,
+            rng: rng_driver,
+            ipc: kernel::ipc::IPC::new(
+                board_kernel,
+                kernel::ipc::DRIVER_NUM,
+                &memory_allocation_cap,
+            ),
+        }
+    );
 
     // Start the process console:
     let _ = platform.pconsole.start();
+
+    // Attach the keyboard button press callback to ourself.
+    default_peripherals.keyboard.set_client(platform);
 
     debug!("QEMU i486 \"Q35\" machine, initialization complete.");
     debug!("Entering main loop.");
@@ -579,5 +599,5 @@ unsafe extern "cdecl" fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
+    board_kernel.kernel_loop(platform, chip, Some(&platform.ipc), &main_loop_cap);
 }
