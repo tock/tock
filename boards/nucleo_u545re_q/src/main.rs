@@ -210,9 +210,6 @@ unsafe fn start() -> (
     // Initialize wiring (DMA, clocks)
     periphs.init();
 
-    // Register the RTC to the deferred call client
-    periphs.rtc.register();
-
     // Board specific wiring
     periphs.tim2.start();
     set_pin_primary_functions(periphs);

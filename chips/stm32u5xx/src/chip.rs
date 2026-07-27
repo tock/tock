@@ -23,6 +23,7 @@ use crate::{dac, exti};
 
 use core::fmt::Write;
 use kernel::debug;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -101,6 +102,10 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.adc1.enable(AdcSamplingTime::ClockCycles20);
 
         self.rcc.enable_dac1();
+
+        // Deferred Calls
+        self.rtc.register();
+
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();
