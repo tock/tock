@@ -56,22 +56,55 @@ macro_rules! create_capability {
 /// when you need to name the capability type, such as when passing it to a
 /// component's static buffer macro.
 ///
-/// ```
+/// # Usage Example
+///
+/// ```ignore
 /// # use kernel::capabilities::ProcessManagementCapability;
 /// # use kernel::declare_capability;
+///
 /// declare_capability!(MyCapability: ProcessManagementCapability);
-/// let cap = MyCapability;
+///
+/// let manager = components::manager::ManagerComponent::new(
+///     board_kernel,
+///     mux_alarm,
+///     MyCapability,
+/// )
+/// .finalize(components::manager_component_static!(
+///     AlarmHw,
+///     MyCapability,
+/// ));
 /// ```
+///
+/// # Difference from `create_capability!()`
+///
+/// `declare_capability!()` creates a named type, whereas [`create_capability!`]
+/// does not. If possible, use [`create_capability!`]. However, for components
+/// that need the capability struct named in the static constructor macro, use
+/// `declare_capability!()` to create the named struct that is used in the macro
+/// expansion and in the component `finalize()` method.
+///
+/// # Supporting Multiple Capabilities
+///
+/// Some type signatures require multiple capabilities. This macro supports
+/// declaring multiple capabilities. For example:
+///
+/// ```
+/// kernel::declare_capability!(ProcessConsoleCap:
+///     kernel::capabilities::ProcessManagementCapability,
+///     kernel::capabilities::ProcessStartCapability
+/// );
+/// ```
+///
+/// # Restrictions
 ///
 /// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates,
 /// and is used by trusted code to generate a capability type.
 ///
 /// # Safety
 ///
-/// This macro can only be used in a context that is allowed to use
-/// `unsafe`. Specifically, an internal `allow(unsafe_code)` directive
-/// will conflict with any `forbid(unsafe_code)` at the crate or block
-/// level.
+/// This macro can only be used in a context that is allowed to use `unsafe`.
+/// Specifically, an internal `allow(unsafe_code)` directive will conflict with
+/// any `forbid(unsafe_code)` at the crate or block level.
 #[macro_export]
 macro_rules! declare_capability {
     ($name:ident: $($T:ty),+) => {
