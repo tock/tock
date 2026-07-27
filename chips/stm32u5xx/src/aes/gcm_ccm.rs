@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use crate::aes::{AES_IV_SIZE, AESMode, Aes, CryptoContext, DeferredOp, State};
+use crate::aes::ecb::{AES_IV_SIZE, AESMode, Aes, CryptoContext, DeferredOp, State};
 use crate::dma::ChannelId;
 use crate::dma::Dma;
 use crate::dma::DmaPeripheral;
 use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AESKeySize, GCMClient};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use stm32u5xx_unsafe::aes::{Control, DMABuffers, Interrupt};
+use stm32u5xx_unsafe::aes::{AesDmaBuffers, Control, Interrupt};
 
 impl<K: AESKeySize> Aes<'_, K> {
     /// Configures and initiates a DMA-backed transfer for GCM or CCM modes.
@@ -26,7 +26,7 @@ impl<K: AESKeySize> Aes<'_, K> {
     ) {
         ctx.using_dma = true;
         // If the payload isn't a multiple of the block size, we need to add 0-padding
-        let (msg_len, msg_pad) = DMABuffers::extract_dma_padding(
+        let (msg_len, msg_pad) = AesDmaBuffers::extract_dma_padding(
             buf,
             ctx.message_start,
             ctx.message_end - ctx.message_start,
@@ -41,7 +41,7 @@ impl<K: AESKeySize> Aes<'_, K> {
             // Hardware requirement: DMA processes block-aligned chunks. Trailing bytes are saved
             // and fed manually via interrupts. If the header isn't a multiple of AES_BLOCK_SIZE,
             // we need 0-padding
-            let (aad_len, aad_pad) = DMABuffers::extract_dma_padding(
+            let (aad_len, aad_pad) = AesDmaBuffers::extract_dma_padding(
                 buf,
                 ctx.aad_offset,
                 ctx.message_start - ctx.aad_offset,
@@ -69,7 +69,7 @@ impl<K: AESKeySize> Aes<'_, K> {
         };
 
         // Wrap the entire buffer in a DMA slice for later use
-        let (in_slice, in_ptr) = DMABuffers::setup_dma_buf(buf, start, len);
+        let (in_slice, in_ptr) = AesDmaBuffers::setup_dma_buf(buf, start, len);
         self.dma_bufs.dma_in_buf.replace(in_slice);
 
         // Setup DMA Channels
@@ -158,14 +158,15 @@ impl<K: AESKeySize> Aes<'_, K> {
         if let (Some(dma), Some(in_ch)) = (self.dma.get(), self.dma_in_channel.get()) {
             if let Some(buf) = self.output.take() {
                 let (len, aad_pad) =
-                    DMABuffers::extract_dma_padding(buf, aad_offset + block_len, remaining_aad);
+                    AesDmaBuffers::extract_dma_padding(buf, aad_offset + block_len, remaining_aad);
                 if let Some(pad) = aad_pad {
                     self.dma_bufs.dma_aad_buff.replace(pad);
                 }
                 ctx.current_idx = block_len + len;
                 self.state.set(State::Header(ctx));
                 if len > 0 {
-                    let (slice, ptr) = DMABuffers::setup_dma_buf(buf, aad_offset + block_len, len);
+                    let (slice, ptr) =
+                        AesDmaBuffers::setup_dma_buf(buf, aad_offset + block_len, len);
                     self.dma_bufs.dma_in_buf.replace(slice);
                     dma.setup(in_ch, DmaPeripheral::AESIN, ptr, len as u32);
                     self.register_manager.registers.cr.modify(Control::EN::SET);
@@ -177,7 +178,7 @@ impl<K: AESKeySize> Aes<'_, K> {
                     // If len is 0, we don't need DMA. Just put the buffer back directly
                     // using a 0-length call so the buffer is saved in dma_in_buf
                     // on future reads even when this branch was followed
-                    let (slice, _) = DMABuffers::setup_dma_buf(buf, aad_offset + block_len, 0);
+                    let (slice, _) = AesDmaBuffers::setup_dma_buf(buf, aad_offset + block_len, 0);
                     self.dma_bufs.dma_in_buf.replace(slice);
                     self.handle_dma_gcm_ccm(true);
                 }
@@ -199,26 +200,22 @@ impl<K: AESKeySize> Aes<'_, K> {
 
         // Safely extract all asynchronous resources at once
         if let (Some(buf), Some(in_ch), Some(out_ch), Some(dma)) = (
-            self.dma_bufs.take_dma_in_buf(),
+            self.dma_bufs
+                .take_dma_in_buf(self.register_manager.registers),
             self.dma_in_channel.get(),
             self.dma_out_channel.get(),
             self.dma.get(),
         ) {
-            let (len, msg_pad) = DMABuffers::extract_dma_padding(buf, start_idx, message_len);
+            let (len, msg_pad) = AesDmaBuffers::extract_dma_padding(buf, start_idx, message_len);
             if let Some(pad) = msg_pad {
                 self.dma_bufs.dma_message_buff.replace(pad);
             }
             ctx.current_idx = len;
             self.state.set(State::Payload(ctx));
 
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::DMAINEN::CLEAR + Control::DMAOUTEN::CLEAR);
-
             if len > 0 {
                 // Wrap the entire buffer in a DMA slice for later use
-                let (in_slice, ptr) = DMABuffers::setup_dma_buf(buf, start_idx, len);
+                let (in_slice, ptr) = AesDmaBuffers::setup_dma_buf(buf, start_idx, len);
                 self.dma_bufs.dma_in_buf.replace(in_slice);
 
                 dma.setup(out_ch, DmaPeripheral::AESOUT, ptr, len as u32);
@@ -245,7 +242,7 @@ impl<K: AESKeySize> Aes<'_, K> {
                 // If len is 0, we don't need DMA. Just put the buffer back directly
                 // using a 0-length call so the buffer is inside dma_in_buf on future
                 // reads even when this branch was followed
-                let (in_slice, _) = DMABuffers::setup_dma_buf(buf, start_idx, 0);
+                let (in_slice, _) = AesDmaBuffers::setup_dma_buf(buf, start_idx, 0);
                 self.dma_bufs.dma_in_buf.replace(in_slice);
 
                 self.register_manager
@@ -290,7 +287,10 @@ impl<K: AESKeySize> Aes<'_, K> {
     pub(crate) fn dma_gcm_ccm_finish(&self, ctx: CryptoContext) {
         let hardware_tag = self.get_output();
 
-        if let Some(buf) = self.dma_bufs.take_dma_in_buf() {
+        if let Some(buf) = self
+            .dma_bufs
+            .take_dma_in_buf(self.register_manager.registers)
+        {
             self.register_manager
                 .registers
                 .cr
@@ -690,14 +690,14 @@ impl<K: AESKeySize> Aes<'_, K> {
                     // The first block of CCM AAD (B1) must encode the total AAD length using
                     // specific byte markers.
                     match aad_len {
-                        0..crate::aes::CCM_AAD_L16_MAX => {
+                        0..crate::aes::ecb::CCM_AAD_L16_MAX => {
                             let len_bytes = (aad_len as u16).to_be_bytes();
                             b1[0..2].copy_from_slice(&len_bytes);
                             offset = 2;
                         }
-                        crate::aes::CCM_AAD_L16_MAX..=0xFFFFFFFF => {
-                            b1[0] = crate::aes::CCM_AAD_L32_MARKER_0;
-                            b1[1] = crate::aes::CCM_AAD_L32_MARKER_1;
+                        crate::aes::ecb::CCM_AAD_L16_MAX..=0xFFFFFFFF => {
+                            b1[0] = crate::aes::ecb::CCM_AAD_L32_MARKER_0;
+                            b1[1] = crate::aes::ecb::CCM_AAD_L32_MARKER_1;
                             let len_bytes = (aad_len as u32).to_be_bytes();
                             b1[2..6].copy_from_slice(&len_bytes);
                             offset = 6;

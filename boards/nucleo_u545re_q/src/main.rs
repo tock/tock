@@ -67,7 +67,7 @@ struct NucleoU545RE {
         32,
     aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
         'static,
-        stm32u545::aes::Aes<'static, AES256>,
+        stm32u545::aes::ecb::Aes<'static, AES256>,
         AES256,
     >,
 }
@@ -204,8 +204,8 @@ unsafe fn start() -> (
 
     usart1.register();
     let aes = static_init!(
-        stm32u545::aes::Aes<'static, AES256>,
-        stm32u545::aes::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
+        stm32u545::aes::ecb::Aes<'static, AES256>,
+        stm32u545::aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
             registers: AES_BASE
         })
     );
@@ -273,7 +273,7 @@ unsafe fn start() -> (
         create_capability!(MemoryAllocationCapability),
     )
     .finalize(components::aes_driver_component_static!(
-        stm32u545::aes::Aes<'static, AES256>,
+        stm32u545::aes::ecb::Aes<'static, AES256>,
         AES256
     ));
     AES::set_client(aes, aes_driver);

@@ -9,6 +9,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::dma_slice::DmaSubSliceMut;
 use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
@@ -154,7 +155,7 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct DMABuffers {
+pub struct AesDmaBuffers {
     pub dma_in_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     pub dma_out_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     pub dma_aad_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
@@ -177,7 +178,7 @@ impl AesRegistersManager {
         Self { registers: regs }
     }
 }
-impl DMABuffers {
+impl AesDmaBuffers {
     pub const fn new() -> Self {
         Self {
             dma_in_buf: MapCell::empty(),
@@ -188,7 +189,13 @@ impl DMABuffers {
     }
     /// Helper function to take the dma_in_buf as a normal [u8]. If there is no dma_in_buf,
     /// will return None
-    pub fn take_dma_in_buf(&self) -> Option<&'static mut [u8]> {
+    pub fn take_dma_in_buf(&self, reg: StaticRef<AesRegisters>) -> Option<&'static mut [u8]> {
+        if reg.cr.is_set(Control::DMAOUTEN) {
+            reg.cr.modify(Control::DMAOUTEN::CLEAR);
+        }
+        if reg.cr.is_set(Control::DMAINEN) {
+            reg.cr.modify(Control::DMAINEN::CLEAR);
+        }
         self.dma_in_buf.take().map(|s| {
             // ### Safety
             //
@@ -203,7 +210,13 @@ impl DMABuffers {
 
     /// Helper function to take the dma_out_buf as a normal [u8].
     /// If there is no dma_in_buf, will return None
-    pub fn take_dma_out_buf(&self) -> Option<&'static mut [u8]> {
+    pub fn take_dma_out_buf(&self, reg: StaticRef<AesRegisters>) -> Option<&'static mut [u8]> {
+        if reg.cr.is_set(Control::DMAOUTEN) {
+            reg.cr.modify(Control::DMAOUTEN::CLEAR);
+        }
+        if reg.cr.is_set(Control::DMAINEN) {
+            reg.cr.modify(Control::DMAINEN::CLEAR);
+        }
         self.dma_out_buf.take().map(|s| {
             // ### Safety
             //

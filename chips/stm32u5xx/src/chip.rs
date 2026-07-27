@@ -4,6 +4,7 @@
 // Copyright OxidOS Automotive 2026.
 
 use crate::adc::{self, SamplingTime as AdcSamplingTime};
+use crate::aes::ecb;
 use crate::dma::{ChannelId, Dma};
 use crate::gpio;
 use crate::hash;
@@ -47,7 +48,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_c: gpio::Port<'a>,
     pub dac: dac::Dac,
     pub hash: hash::hash::Hash<'a>,
-    pub aes: &'a aes::Aes<'a, AES256>,
+    pub aes: &'a ecb::Aes<'a, AES256>,
 }
 
 fn enable_tim2_clock() {
@@ -135,7 +136,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 
         self.hash.register();
         if let (Some(in_channel), Some(out_channel)) = (aes_in_channel, aes_out_channel) {
-            aes::Aes::set_dma(self.aes, self.dma1, in_channel, out_channel);
+            aes::ecb::Aes::set_dma(self.aes, self.dma1, in_channel, out_channel);
         }
     }
 }
