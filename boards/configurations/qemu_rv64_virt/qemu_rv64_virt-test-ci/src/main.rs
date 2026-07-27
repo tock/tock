@@ -150,6 +150,7 @@ pub unsafe fn main() {
                 capsules_extra::screen::screen::DRIVER_NUM,
                 screen_split_userspace,
                 None,
+                create_capability!(capabilities::MemoryAllocationCapability),
             )
             .finalize(components::screen_component_static!(1032));
 
@@ -202,6 +203,7 @@ pub unsafe fn main() {
             capsules_extra::button_keyboard::DRIVER_NUM,
             keyboard,
             key_mappings,
+            create_capability!(capabilities::MemoryAllocationCapability),
         )
         .finalize(components::keyboard_button_component_static!())
     });
@@ -214,7 +216,7 @@ pub unsafe fn main() {
     };
 
     // Start the process console:
-    let _ = platform.base.pconsole.start();
+    let _ = platform.base.process_console_start();
 
     // These symbols are defined in the linker script.
     extern "C" {
