@@ -326,7 +326,6 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         // To offset the pointer there must be valid memory pointed to by `sp`.
         // We verified that there is space for four u32s on the stack before
         // hitting the `app_brk`.
-        let (r0, r1, r2, r3) = unsafe { (sp.add(0), sp.add(1), sp.add(2), sp.add(3)) };
 
         // # Safety
         //
@@ -348,18 +347,19 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
-        let (mut r0_val, mut r1_val, mut r2_val, mut r3_val) = unsafe { (*r0, *r1, *r2, *r3) };
+        unsafe {
+            let (r0, r1, r2, r3) = (sp.add(0), sp.add(1), sp.add(2), sp.add(3));
 
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
-            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
-                return_value,
-            ),
-            &mut r0_val,
-            &mut r1_val,
-            &mut r2_val,
-            &mut r3_val,
-        );
-
+            kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+                &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
+                    return_value,
+                ),
+                &mut *r0,
+                &mut *r1,
+                &mut *r2,
+                &mut *r3,
+            );
+        }
         Ok(())
     }
 
