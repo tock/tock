@@ -325,7 +325,7 @@ unsafe fn start() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
-    kernel::declare_capability!(ProcessConsoleCap:
+    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
@@ -335,7 +335,7 @@ unsafe fn start() -> (
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>,
