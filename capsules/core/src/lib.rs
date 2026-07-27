@@ -16,6 +16,7 @@ pub mod button;
 pub mod console;
 pub mod console_ordered;
 pub mod driver;
+pub mod driver_mutex;
 pub mod gpio;
 pub mod i2c_master;
 pub mod i2c_master_slave_combo;
