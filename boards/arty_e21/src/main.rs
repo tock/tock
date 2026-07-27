@@ -195,6 +195,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -211,6 +212,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(
         arty_e21_chip::chip::ArtyExxClint
@@ -248,6 +250,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(
         arty_e21_chip::gpio::GpioPin
@@ -263,6 +266,7 @@ unsafe fn start() -> (
             1 => &peripherals.gpio_port[5],
             2 => &peripherals.gpio_port[6]
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(
         arty_e21_chip::gpio::GpioPin

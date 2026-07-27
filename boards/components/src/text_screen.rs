@@ -25,9 +25,8 @@
 
 use capsules_extra::text_screen::TextScreen;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 
 #[macro_export]
 macro_rules! text_screen_component_static {
@@ -39,27 +38,37 @@ macro_rules! text_screen_component_static {
     };};
 }
 
-pub struct TextScreenComponent<const SCREEN_BUF_LEN: usize> {
+pub struct TextScreenComponent<
+    const SCREEN_BUF_LEN: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
+    mem_cap: CAP,
 }
 
-impl<const SCREEN_BUF_LEN: usize> TextScreenComponent<SCREEN_BUF_LEN> {
+impl<const SCREEN_BUF_LEN: usize, CAP: MemoryAllocationCapability + 'static>
+    TextScreenComponent<SCREEN_BUF_LEN, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
-    ) -> TextScreenComponent<SCREEN_BUF_LEN> {
+        mem_cap: CAP,
+    ) -> TextScreenComponent<SCREEN_BUF_LEN, CAP> {
         TextScreenComponent {
             board_kernel,
             driver_num,
             text_screen,
+            mem_cap,
         }
     }
 }
 
-impl<const SCREEN_BUF_LEN: usize> Component for TextScreenComponent<SCREEN_BUF_LEN> {
+impl<const SCREEN_BUF_LEN: usize, CAP: MemoryAllocationCapability + 'static> Component
+    for TextScreenComponent<SCREEN_BUF_LEN, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<[u8; SCREEN_BUF_LEN]>,
         &'static mut MaybeUninit<TextScreen<'static>>,
@@ -67,8 +76,9 @@ impl<const SCREEN_BUF_LEN: usize> Component for TextScreenComponent<SCREEN_BUF_L
     type Output = &'static TextScreen<'static>;
 
     fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant_text_screen = self.board_kernel.create_grant(self.driver_num, &grant_cap);
+        let grant_text_screen = self
+            .board_kernel
+            .create_grant(self.driver_num, &self.mem_cap);
 
         let buffer = static_input.0.write([0; SCREEN_BUF_LEN]);
 

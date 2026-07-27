@@ -50,9 +50,8 @@
 
 use capsules_core::gpio::GPIO;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::gpio::InterruptWithValue;
 
@@ -121,35 +120,45 @@ macro_rules! gpio_component_static {
 
 pub type GpioComponentType<IP> = GPIO<'static, IP>;
 
-pub struct GpioComponent<IP: 'static + gpio::InterruptPin<'static>> {
+pub struct GpioComponent<
+    IP: 'static + gpio::InterruptPin<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
+    mem_cap: CAP,
 }
 
-impl<IP: 'static + gpio::InterruptPin<'static>> GpioComponent<IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>, CAP: MemoryAllocationCapability + 'static>
+    GpioComponent<IP, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             gpio_pins,
+            mem_cap,
         }
     }
 }
 
-impl<IP: 'static + gpio::InterruptPin<'static>> Component for GpioComponent<IP> {
+impl<IP: 'static + gpio::InterruptPin<'static>, CAP: MemoryAllocationCapability + 'static> Component
+    for GpioComponent<IP, CAP>
+{
     type StaticInput = &'static mut MaybeUninit<GPIO<'static, IP>>;
     type Output = &'static GPIO<'static, IP>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let gpio = static_buffer.write(GPIO::new(
             self.gpio_pins,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
         for maybe_pin in self.gpio_pins.iter() {
             if let Some(pin) = maybe_pin {
