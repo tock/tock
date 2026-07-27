@@ -761,16 +761,10 @@ impl<'a> date_time::DateTime<'a> for Rtc<'a> {
         // 3. The time and date are then stored in the time cell and it is later retrieved via the deferred call
         //    handler and passed to the client.
         // 4. Set a deferred call task and schedules it to notify client.
-        match self.deferred_call_task.take() {
-            Some(DeferredCallTask::Set) => {
-                self.deferred_call_task.insert(Some(DeferredCallTask::Set));
-                return Err(ErrorCode::BUSY);
-            }
-            Some(DeferredCallTask::Get) => {
-                self.deferred_call_task.insert(Some(DeferredCallTask::Get));
-                return Err(ErrorCode::ALREADY);
-            }
-            _ => (),
+        match self.deferred_call_task.get() {
+            Some(DeferredCallTask::Set) => return Err(ErrorCode::BUSY),
+            Some(DeferredCallTask::Get) => return Err(ErrorCode::ALREADY),
+            None => (),
         }
 
         let month_num =
@@ -811,16 +805,10 @@ impl<'a> date_time::DateTime<'a> for Rtc<'a> {
         // 3. Convert the provided date and time values to BCD format and writes them to the registers (TR and DR).
         // 4. Exit initialization mode, resume clk and reactivate wp.
         // 5. Set a deferred call task and schedule it to notify client.
-        match self.deferred_call_task.take() {
-            Some(DeferredCallTask::Set) => {
-                self.deferred_call_task.insert(Some(DeferredCallTask::Set));
-                return Err(ErrorCode::ALREADY);
-            }
-            Some(DeferredCallTask::Get) => {
-                self.deferred_call_task.insert(Some(DeferredCallTask::Get));
-                return Err(ErrorCode::BUSY);
-            }
-            _ => (),
+        match self.deferred_call_task.get() {
+            Some(DeferredCallTask::Set) => return Err(ErrorCode::ALREADY),
+            Some(DeferredCallTask::Get) => return Err(ErrorCode::BUSY),
+            None => (),
         }
 
         self.enter_init_mode()?;
