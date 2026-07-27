@@ -88,7 +88,14 @@ def map_adress_to_data(disasm):
     address_pattern = r'^\s*([0-9a-f]+):'
     data_pattern = r'[ |\t][0-9a-f]{4}'
 
-    sro_data = ""
+    # Collect the section as raw bytes and let the caller decode the slice it
+    # actually wants to display. Decoding here, byte by byte, would turn every
+    # byte outside ASCII into U+FFFD: a single byte >= 0x80 is never valid
+    # UTF-8 on its own, so a multi-byte character only decodes once all of its
+    # bytes are present. Keeping bytes also keeps indices aligned with the ELF
+    # addresses the caller slices by, which a decoded string would not be
+    # (one multi-byte character is several bytes but a single index).
+    sro_bytes = bytearray()
     for i in range(start_index, len(disasm)):
         match = re.search(address_pattern, disasm[i])
         if match:
@@ -100,13 +107,12 @@ def map_adress_to_data(disasm):
                     data[0] = re.sub('\s+', '', data[0])
                     for j in range(len(data)):
                         data[j] = data[j].strip()
-                        # seperate the bytes
-                        sro_data += bytes.fromhex(data[j][2:]
-                                                  ).decode("utf-8", errors='replace')
-                        sro_data += bytes.fromhex(data[j][0:2]
-                                                  ).decode("utf-8", errors='replace')
+                        # objdump prints these as little-endian 16-bit words,
+                        # so the low byte comes first in the hex string.
+                        sro_bytes.append(int(data[j][2:], 16))
+                        sro_bytes.append(int(data[j][0:2], 16))
 
-    return sro_data
+    return bytes(sro_bytes)
 
 
 def get_sro_range(disasm):

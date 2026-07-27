@@ -121,13 +121,17 @@ def create_function_page(func_name, addresses, symbols_dict, sro_data, sro_start
     for i in range(len(symbol_infos)):
         info = symbol_infos[i]
 
-        ascii_data = info[3]
-        hex_data = binascii.hexlify(
-            bytes(ascii_data, encoding='utf-8')).decode('utf-8')
+        # info[3] holds the raw section bytes. Hexlify them directly rather
+        # than re-encoding a decoded string, which would turn each U+FFFD
+        # replacement character into its own three bytes (ef bf bd) and show
+        # data that is not what the binary actually contains.
+        raw_data = info[3]
+        hex_data = binascii.hexlify(raw_data).decode('utf-8')
         formatted_hex_data = ''
         for j in range(0, len(hex_data), 4):
             formatted_hex_data += f'{hex_data[j:j+4]} '
 
+        ascii_data = raw_data.decode('utf-8', errors='replace')
         initial_hex = ascii_data.count(u'\uFFFD') > (len(ascii_data) // 2)
 
         hex_font = ' style=\"font-family: monospace, monospace;\"'
