@@ -7,14 +7,14 @@ pub mod gcm_ccm;
 use crate::dma::{ChannelId, DmaPeripheral};
 use core::cell::Cell;
 use core::marker::PhantomData;
-use kernel::hil::symmetric_encryption::{AESKeySize, AES, AES_BLOCK_SIZE, AES_IV_SIZE};
+use kernel::ErrorCode;
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AESKeySize};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::ErrorCode;
 use stm32u5xx_unsafe::aes::{AesRegistersManager, Control, DMABuffers, Data, Interrupt};
 
 use crate::dma::Dma;
-
+pub const AES_IV_SIZE: usize = 16;
 // If 0 < a < 2^16 - 2^8, length is encoded in 2 bytes.
 pub(crate) const CCM_AAD_L16_MAX: usize = 0xFF00;
 

@@ -21,10 +21,10 @@
 //!   [message_offset+msg_len ..]                — tag (written by enc, checked by dec)
 
 use core::cell::Cell;
-use kernel::debug;
-use kernel::hil::symmetric_encryption::{GCMClient, AES256, AES256_KEY_SIZE, AESGCM};
-use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
+use kernel::debug;
+use kernel::hil::symmetric_encryption::{AES256, AES256_KEY_SIZE, AESGCM, GCMClient};
+use kernel::utilities::cells::TakeCell;
 
 // Maximum buffer size needed across all vectors.
 const BUF_LEN: usize = 128;

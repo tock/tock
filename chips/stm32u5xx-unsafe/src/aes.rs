@@ -5,13 +5,13 @@
 //! AES driver, stm32u5xx-family, unsafe code
 use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::hil::symmetric_encryption::AES_BLOCK_SIZE;
+use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::dma_slice::DmaSubSliceMut;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-use kernel::utilities::StaticRef;
 
 pub const AES_BASE: StaticRef<AesRegisters> =
     unsafe { StaticRef::new(0x520C0000 as *const AesRegisters) };

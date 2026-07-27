@@ -19,7 +19,7 @@ use core::cell::Cell;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
-    AESCtr, AES, AES256, AES256_KEY_SIZE, AESCBC, AESECB, AES_BLOCK_SIZE,
+    AES, AES_BLOCK_SIZE, AES256, AES256_KEY_SIZE, AESCBC, AESCtr, AESECB,
 };
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;

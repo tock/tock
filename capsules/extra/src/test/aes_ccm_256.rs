@@ -21,10 +21,10 @@
 //!   [a_data.len() .. a_data.len() + m_data.len() + tag.len()] — ciphertext + MIC (dec)
 
 use core::cell::Cell;
-use kernel::debug;
-use kernel::hil::symmetric_encryption::{CCMClient, AES256, AES256_KEY_SIZE, AESCCM};
-use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
+use kernel::debug;
+use kernel::hil::symmetric_encryption::{AES256, AES256_KEY_SIZE, AESCCM, CCMClient};
+use kernel::utilities::cells::TakeCell;
 
 const BUF_LEN: usize = 128;
 

@@ -266,6 +266,18 @@ unsafe fn start() -> (
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    let aes_driver = components::aes::AesDriverComponent::new(
+        board_kernel,
+        capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
+        aes,
+        create_capability!(MemoryAllocationCapability),
+    )
+    .finalize(components::aes_driver_component_static!(
+        stm32u545::aes::Aes<'static, AES256>,
+        AES256
+    ));
+    AES::set_client(aes, aes_driver);
+
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,

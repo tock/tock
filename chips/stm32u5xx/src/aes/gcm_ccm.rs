@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use crate::aes::{AESMode, Aes, CryptoContext, DeferredOp, State};
+use crate::aes::{AES_IV_SIZE, AESMode, Aes, CryptoContext, DeferredOp, State};
 use crate::dma::ChannelId;
 use crate::dma::Dma;
 use crate::dma::DmaPeripheral;
-use kernel::hil::symmetric_encryption::{AESKeySize, GCMClient, AES, AES_BLOCK_SIZE, AES_IV_SIZE};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::ErrorCode;
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AESKeySize, GCMClient};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use stm32u5xx_unsafe::aes::{Control, DMABuffers, Interrupt};
 
 impl<K: AESKeySize> Aes<'_, K> {
