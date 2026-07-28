@@ -17,7 +17,7 @@ pub mod mpu {
         unsafe { StaticRef::new(0xE000ED90 as *const cortexm::mpu::MpuRegisters) };
 
     pub unsafe fn new() -> MPU {
-        MPU::new(MPU_BASE_ADDRESS)
+        unsafe { MPU::new(MPU_BASE_ADDRESS) }
     }
 }
 
@@ -41,6 +41,14 @@ pub unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
 
+/// # Safety
+///
+/// - INPUTS:
+///   - This reads the `lr`, which is part of the calling convention.
+/// - OUTPUTS:
+///   - This writes to `r0`, a caller-saved register.
+///   - This writes to `r1`, a caller-saved register.
+/// - This does not fall-through, it branches in both branches.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler() {
@@ -59,7 +67,7 @@ pub unsafe extern "C" fn svc_handler() {
     bx r1
 
 300: // to_kernel
-    ldr r0, =SYSCALL_FIRED
+    ldr r0, ={syscall_fired}
     movs r1, #1
     str r1, [r0, #0]
     // Set thread mode to privileged as we switch back to the kernel.
@@ -73,7 +81,8 @@ pub unsafe extern "C" fn svc_handler() {
     .word 0xFFFFFFF9
 200: // EXC_RETURN_PSP
     .word 0xFFFFFFFD
-        "
+        ",
+        syscall_fired = sym cortexm::syscall::SYSCALL_FIRED,
     );
 }
 
@@ -93,7 +102,7 @@ impl cortexm::CortexMVariant for CortexM0P {
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
     ) -> *const usize {
-        CortexM0::switch_to_user(user_stack, process_regs)
+        unsafe { CortexM0::switch_to_user(user_stack, process_regs) }
     }
 
     #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]

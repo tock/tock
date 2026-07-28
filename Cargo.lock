@@ -200,6 +200,7 @@ dependencies = [
 name = "cortexv7m"
 version = "0.2.3-dev"
 dependencies = [
+ "cortexm",
  "kernel",
 ]
 

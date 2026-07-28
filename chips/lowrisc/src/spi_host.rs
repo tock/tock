@@ -242,7 +242,7 @@ impl SpiHost<'_> {
     //Determine if transfer complete or if we need to keep
     //writing from an offset.
     fn continue_transfer(&self) -> Result<SpiHostStatus, ErrorCode> {
-        let rc = self.rx_buf.take().map_or(
+        self.rx_buf.take().map_or(
             Err(ErrorCode::FAIL),
             |mut rx_buf| -> Result<SpiHostStatus, ErrorCode> {
                 let regs = self.registers;
@@ -281,9 +281,7 @@ impl SpiHost<'_> {
                     self.spi_transfer_progress()
                 }
             },
-        );
-
-        rc
+        )
     }
 
     /// Continue SPI transfer from offset point
