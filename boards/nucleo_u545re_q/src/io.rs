@@ -13,7 +13,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         base: stm32u545::usart::USART1_BASE,
     };
 
-    debug::panic_print::<stm32u545::usart::Usart, crate::ChipHw, crate::ProcessPrinterInUse>(
+    debug::panic_print::<stm32u545::usart::Usart, crate::ChipHw, crate::ProcessPrinterInUse, ()>(
         writer_config,
         info,
         &cortexm33::support::nop,

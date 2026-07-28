@@ -18,7 +18,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &GpioPin::new(gpio::PsocPin::P8_5);
     let led = &mut LedHigh::new(led_kernel_pin);
 
-    debug::panic::<_, psc3::scb::Scb, _, _>(
+    debug::panic::<_, psc3::scb::Scb, _, _, _>(
         &mut [led],
         psc3::scb::ScbPanicWriterConfig {
             params: kernel::hil::uart::Parameters {
