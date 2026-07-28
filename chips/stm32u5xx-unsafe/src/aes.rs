@@ -230,23 +230,27 @@ impl AesDmaBuffers {
     }
 
     /// Wraps a raw buffer slice into a DmaSubSliceMut, applying the
-    /// necessary memory barriers for safe DMA transfer.
-    pub fn setup_dma_buf(
-        buf: &'static mut [u8],
-        start: usize,
-        len: usize,
-    ) -> (DmaSubSliceMut<'static, u8>, u32) {
+    /// necessary memory barriers for safe DMA transfer. Stores it in dma_out_buf.
+    pub fn setup_dma_out_buf(&self, buf: &'static mut [u8], start: usize, len: usize) -> u32 {
         let mut subslice = SubSliceMut::new(buf);
         subslice.slice(start..start + len);
-        // ### Safety
-        //
-        // This creates a new DMA fence to ensure that all previous CPU
-        // writes to the buffer are visible to the DMA engine before the
-        // transfer starts.
         let fence = unsafe { CortexMDmaFence::new() };
         let dma_slice = DmaSubSliceMut::new_static(subslice, fence);
         let ptr = dma_slice.as_mut_ptr() as u32;
-        (dma_slice, ptr)
+        self.dma_out_buf.replace(dma_slice);
+        ptr
+    }
+
+    /// Wraps a raw buffer slice into a DmaSubSliceMut, applying the
+    /// necessary memory barriers for safe DMA transfer. Stores it in dma_in_buf.
+    pub fn setup_dma_in_buf(&self, buf: &'static mut [u8], start: usize, len: usize) -> u32 {
+        let mut subslice = SubSliceMut::new(buf);
+        subslice.slice(start..start + len);
+        let fence = unsafe { CortexMDmaFence::new() };
+        let dma_slice = DmaSubSliceMut::new_static(subslice, fence);
+        let ptr = dma_slice.as_mut_ptr() as u32;
+        self.dma_in_buf.replace(dma_slice);
+        ptr
     }
 
     /// Helper function designed to calculate the length of the buffer as a multiple of AES_BLOCK_SIZE

@@ -291,19 +291,16 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
             // prepare Output Buffer
             let dest = self.output.take().unwrap();
 
-            let (out_slice, out_ptr) = AesDmaBuffers::setup_dma_buf(
+            let out_ptr = self.dma_bufs.setup_dma_out_buf(
                 dest,
                 ctx.message_start,
                 ctx.message_end - ctx.message_start,
             );
-            self.dma_bufs.dma_out_buf.replace(out_slice);
 
             // prepare Input Buffer
             let in_ptr = if let Some(src) = self.input.take() {
-                let (in_slice, ptr) =
-                    AesDmaBuffers::setup_dma_buf(src, 0, ctx.message_end - ctx.message_start);
-                self.dma_bufs.dma_in_buf.replace(in_slice); // Put it directly into in_buf!
-                ptr
+                self.dma_bufs
+                    .setup_dma_in_buf(src, 0, ctx.message_end - ctx.message_start)
             } else {
                 // in-place: Source pointer mirrors the output pointer
                 out_ptr

@@ -69,8 +69,7 @@ impl<K: AESKeySize> Aes<'_, K> {
         };
 
         // Wrap the entire buffer in a DMA slice for later use
-        let (in_slice, in_ptr) = AesDmaBuffers::setup_dma_buf(buf, start, len);
-        self.dma_bufs.dma_in_buf.replace(in_slice);
+        let in_ptr = self.dma_bufs.setup_dma_in_buf(buf, start, len);
 
         // Setup DMA Channels
         dma.setup(in_ch, DmaPeripheral::AESIN, in_ptr, len as u32);
@@ -165,9 +164,9 @@ impl<K: AESKeySize> Aes<'_, K> {
                 ctx.current_idx = block_len + len;
                 self.state.set(State::Header(ctx));
                 if len > 0 {
-                    let (slice, ptr) =
-                        AesDmaBuffers::setup_dma_buf(buf, aad_offset + block_len, len);
-                    self.dma_bufs.dma_in_buf.replace(slice);
+                    let ptr = self
+                        .dma_bufs
+                        .setup_dma_in_buf(buf, aad_offset + block_len, len);
                     dma.setup(in_ch, DmaPeripheral::AESIN, ptr, len as u32);
                     self.register_manager.registers.cr.modify(Control::EN::SET);
                     self.register_manager
@@ -178,8 +177,9 @@ impl<K: AESKeySize> Aes<'_, K> {
                     // If len is 0, we don't need DMA. Just put the buffer back directly
                     // using a 0-length call so the buffer is saved in dma_in_buf
                     // on future reads even when this branch was followed
-                    let (slice, _) = AesDmaBuffers::setup_dma_buf(buf, aad_offset + block_len, 0);
-                    self.dma_bufs.dma_in_buf.replace(slice);
+                    let _ = self
+                        .dma_bufs
+                        .setup_dma_in_buf(buf, aad_offset + block_len, 0);
                     self.handle_dma_gcm_ccm(true);
                 }
             }
@@ -215,8 +215,7 @@ impl<K: AESKeySize> Aes<'_, K> {
 
             if len > 0 {
                 // Wrap the entire buffer in a DMA slice for later use
-                let (in_slice, ptr) = AesDmaBuffers::setup_dma_buf(buf, start_idx, len);
-                self.dma_bufs.dma_in_buf.replace(in_slice);
+                let ptr = self.dma_bufs.setup_dma_in_buf(buf, start_idx, len);
 
                 dma.setup(out_ch, DmaPeripheral::AESOUT, ptr, len as u32);
                 dma.setup(in_ch, DmaPeripheral::AESIN, ptr, len as u32);
@@ -242,8 +241,7 @@ impl<K: AESKeySize> Aes<'_, K> {
                 // If len is 0, we don't need DMA. Just put the buffer back directly
                 // using a 0-length call so the buffer is inside dma_in_buf on future
                 // reads even when this branch was followed
-                let (in_slice, _) = AesDmaBuffers::setup_dma_buf(buf, start_idx, 0);
-                self.dma_bufs.dma_in_buf.replace(in_slice);
+                let _ = self.dma_bufs.setup_dma_in_buf(buf, start_idx, 0);
 
                 self.register_manager
                     .registers
