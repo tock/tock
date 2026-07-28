@@ -59,6 +59,14 @@ QEMU standalone, or with a single app. These can be executed through the
   tock/boards/qemu_rv32_virt $ make run-app APP=$PATH_TO_APP.tbf
   ```
 
+With default configuration, this QEMU board will attempt to load processes from
+flash=0x80100000-0x801FFFFF into sram=0x8021ACE0-0x803FFFFF. With fixed-slot
+apps, you will need to select something within this range, e.g.,
+
+  ```
+  APP=$PATH_TO_LIBTOCK_C/examples/blink/build/rv32imac/rv32imac.0x80100080.0x80300000.tbf
+  ```
+
 Through the **`NETDEV`** environment variable, QEMU can be instructed to attach
 a VirtIO-based network adapter to the target. The following options are available:
 
