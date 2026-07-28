@@ -6,10 +6,10 @@
 //! storage permissions based on TBF headers.
 //!
 //! ```rust
-//! kernel::declare_capability!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+//! kernel::create_typed_capability!(app_store_cap, AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
 //! let storage_permissions_policy =
 //!     components::storage_permissions::tbf_header::StoragePermissionsTbfHeaderComponent::new(
-//!         AppStoreCap,
+//!         app_store_cap,
 //!     )
 //!     .finalize(
 //!         components::storage_permissions_tbf_header_component_static!(

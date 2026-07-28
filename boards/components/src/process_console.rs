@@ -11,7 +11,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! kernel::declare_capability!(ProcessConsoleCap:
+//! kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
 //!     kernel::capabilities::ProcessManagementCapability,
 //!     kernel::capabilities::ProcessStartCapability
 //! );
@@ -21,7 +21,7 @@
 //!     alarm_mux,
 //!     process_printer,
 //!     Some(reset_function),
-//!     ProcessConsoleCap,
+//!     process_console_cap,
 //! )
 //! .finalize(process_console_component_static!(AlarmType, ProcessConsoleCap));
 //! ```
