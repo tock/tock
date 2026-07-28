@@ -2060,10 +2060,6 @@ pub mod kernel_protection {
 
                         pmpcfg
                     })
-                    .chain(core::iter::repeat_n(
-                        TORUserPMPCFG::OFF,
-                        AVAILABLE_ENTRIES - (MPU_REGIONS * 2),
-                    ))
                     .map(TORUserPMPCFG::get_reg),
             );
 
