@@ -132,10 +132,6 @@ impl<'a> Crc<'a> for CRC<'a> {
     }
 
     fn set_algorithm(&self, algorithm: CrcAlgorithm) -> Result<(), ErrorCode> {
-        if !self.algorithm_supported(algorithm) {
-            return Err(ErrorCode::NOSUPPORT);
-        }
-
         if self.state.get() == State::Processing {
             return Err(ErrorCode::BUSY);
         }
@@ -165,31 +161,38 @@ impl<'a> Crc<'a> for CRC<'a> {
 
         // POL is used to write the coefficients of the polynomial to be used.
 
+        // For efficieny, LocalRegisterCopy is used, as to only write to CR only once,
+        // with everything in place.
+        let mut cr = self.registers.cr.extract();
+
         match algorithm {
             CrcAlgorithm::Crc32 => {
                 self.registers.init.write(INIT::INIT.val(0xFFFFFFFF));
-                self.registers.cr.modify(CR::PSIZE.val(0b00));
-                self.registers.cr.modify(CR::REVIN.val(0b01));
-                self.registers.cr.modify(CR::REVOUT.val(0b01));
+                cr.modify(CR::PSIZE.val(0b00));
+                cr.modify(CR::REVIN.val(0b01));
+                cr.modify(CR::REVOUT.val(0b01));
                 self.registers.pol.write(POL::POL.val(0x4C11DB7));
             }
 
             CrcAlgorithm::Crc32C => {
                 self.registers.init.write(INIT::INIT.val(0xFFFFFFFF));
-                self.registers.cr.modify(CR::PSIZE.val(0b00));
-                self.registers.cr.modify(CR::REVIN.val(0b01));
-                self.registers.cr.modify(CR::REVOUT.val(0b1));
+                cr.modify(CR::PSIZE.val(0b00));
+                cr.modify(CR::REVIN.val(0b01));
+                cr.modify(CR::REVOUT.val(0b1));
                 self.registers.pol.write(POL::POL.val(0x1EDC6F41));
             }
 
             CrcAlgorithm::Crc16CCITT => {
                 self.registers.init.write(INIT::INIT.val(0x0000FFFF));
-                self.registers.cr.modify(CR::PSIZE.val(0b01));
-                self.registers.cr.modify(CR::REVIN.val(0b01));
-                self.registers.cr.modify(CR::REVOUT.val(0b0));
+                cr.modify(CR::PSIZE.val(0b01));
+                cr.modify(CR::REVIN.val(0b01));
+                cr.modify(CR::REVOUT.val(0b0));
                 self.registers.pol.write(POL::POL.val(0x1021));
             }
         }
+
+        // Now writting to CR
+        self.registers.cr.set(cr.get());
 
         // Initialising the CRC engine as per the manual, by setting the RESET Bit.
         self.registers.cr.modify(CR::RESET::SET);
