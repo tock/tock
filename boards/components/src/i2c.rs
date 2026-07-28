@@ -23,9 +23,8 @@
 
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::i2c::{self, NoSMBus};
 
 // Setup static space for the objects.
@@ -137,23 +136,37 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CComponent<I> {
 pub type I2CMasterSlaveDriverComponentType<I> =
     capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<'static, I>;
 
-pub struct I2CMasterSlaveDriverComponent<I: 'static + i2c::I2CMasterSlave<'static>> {
+pub struct I2CMasterSlaveDriverComponent<
+    I: 'static + i2c::I2CMasterSlave<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     i2c: &'static I,
+    mem_cap: CAP,
 }
 
-impl<I: 'static + i2c::I2CMasterSlave<'static>> I2CMasterSlaveDriverComponent<I> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, i2c: &'static I) -> Self {
+impl<I: 'static + i2c::I2CMasterSlave<'static>, CAP: MemoryAllocationCapability + 'static>
+    I2CMasterSlaveDriverComponent<I, CAP>
+{
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        i2c: &'static I,
+        mem_cap: CAP,
+    ) -> Self {
         I2CMasterSlaveDriverComponent {
             board_kernel,
             driver_num,
             i2c,
+            mem_cap,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMasterSlave<'static>> Component for I2CMasterSlaveDriverComponent<I> {
+impl<I: 'static + i2c::I2CMasterSlave<'static>, CAP: MemoryAllocationCapability + 'static> Component
+    for I2CMasterSlaveDriverComponent<I, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<
             capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<'static, I>,
@@ -165,8 +178,6 @@ impl<I: 'static + i2c::I2CMasterSlave<'static>> Component for I2CMasterSlaveDriv
     type Output = &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<'static, I>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let i2c_master_buffer = static_buffer.1.write([0; 32]);
         let i2c_slave_buffer1 = static_buffer.2.write([0; 32]);
         let i2c_slave_buffer2 = static_buffer.3.write([0; 32]);
@@ -177,7 +188,8 @@ impl<I: 'static + i2c::I2CMasterSlave<'static>> Component for I2CMasterSlaveDriv
                 i2c_master_buffer,
                 i2c_slave_buffer1,
                 i2c_slave_buffer2,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                self.board_kernel
+                    .create_grant(self.driver_num, &self.mem_cap),
             ),
         );
 
@@ -188,22 +200,36 @@ impl<I: 'static + i2c::I2CMasterSlave<'static>> Component for I2CMasterSlaveDriv
     }
 }
 
-pub struct I2CMasterDriverComponent<I: 'static + i2c::I2CMaster<'static>> {
+pub struct I2CMasterDriverComponent<
+    I: 'static + i2c::I2CMaster<'static>,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     i2c: &'static I,
+    mem_cap: CAP,
 }
 
-impl<I: 'static + i2c::I2CMaster<'static>> I2CMasterDriverComponent<I> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, i2c: &'static I) -> Self {
+impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'static>
+    I2CMasterDriverComponent<I, CAP>
+{
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        i2c: &'static I,
+        mem_cap: CAP,
+    ) -> Self {
         I2CMasterDriverComponent {
             board_kernel,
             driver_num,
             i2c,
+            mem_cap,
         }
     }
 }
-impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CMasterDriverComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'static> Component
+    for I2CMasterDriverComponent<I, CAP>
+{
     type StaticInput = (
         &'static mut MaybeUninit<capsules_core::i2c_master::I2CMasterDriver<'static, I>>,
         &'static mut MaybeUninit<[u8; 32]>,
@@ -211,8 +237,6 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CMasterDriverComponen
     type Output = &'static capsules_core::i2c_master::I2CMasterDriver<'static, I>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let i2c_master_buffer = static_buffer.1.write([0; 32]);
 
         let i2c_master_driver =
@@ -221,7 +245,8 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CMasterDriverComponen
                 .write(capsules_core::i2c_master::I2CMasterDriver::new(
                     self.i2c,
                     i2c_master_buffer,
-                    self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                    self.board_kernel
+                        .create_grant(self.driver_num, &self.mem_cap),
                 ));
 
         self.i2c.set_master_client(i2c_master_driver);

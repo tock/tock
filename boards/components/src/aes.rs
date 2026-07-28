@@ -26,9 +26,8 @@
 
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
@@ -141,26 +140,36 @@ impl<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> Component
     }
 }
 
-pub struct AesDriverComponent<K: AESKeySize, A: AES<'static, K> + AESCCM<'static, K> + 'static> {
+pub struct AesDriverComponent<
+    K: AESKeySize,
+    A: AES<'static, K> + AESCCM<'static, K> + 'static,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     aes: &'static A,
-
+    mem_cap: CAP,
     _phantom: PhantomData<K>,
 }
 
-impl<K: AESKeySize, A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K>>
-    AesDriverComponent<K, A>
+impl<
+    K: AESKeySize,
+    A: AES<'static, K> + AESCCM<'static, K> + 'static,
+    CAP: MemoryAllocationCapability + 'static,
+> AesDriverComponent<K, A, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         aes: &'static A,
-    ) -> AesDriverComponent<K, A> {
+
+        mem_cap: CAP,
+    ) -> AesDriverComponent<K, A, CAP> {
         AesDriverComponent {
             board_kernel,
             driver_num,
             aes,
+            mem_cap,
 
             _phantom: PhantomData::<K>,
         }
@@ -170,7 +179,8 @@ impl<K: AESKeySize, A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'stat
 impl<
     K: AESKeySize + 'static,
     A: AES<'static, K> + AESCtr + AESCBC + AESECB + AESCCM<'static, K> + AESGCM<'static, K>,
-> Component for AesDriverComponent<K, A>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for AesDriverComponent<K, A, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
@@ -182,7 +192,6 @@ impl<
     type Output = &'static capsules_extra::symmetric_encryption::aes::AesDriver<'static, A, K>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let aes_src_buf = static_buffer.1.write([0; 32]);
         let aes_dst_buf = static_buffer.2.write([0; CRYPT_SIZE]);
 
@@ -193,7 +202,8 @@ impl<
                     self.aes,
                     aes_src_buf,
                     aes_dst_buf,
-                    self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                    self.board_kernel
+                        .create_grant(self.driver_num, &self.mem_cap),
                 ));
 
         hil::symmetric_encryption::AESCCM::set_client(self.aes, aes_driver);

@@ -90,6 +90,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::sha256_driver::DRIVER_NUM,
         sha,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::sha_driver_component_static!(
         Sha,

@@ -215,6 +215,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -255,6 +256,7 @@ unsafe fn setup() -> (
             7 => &peripherals.gpio[7],
             8 => &peripherals.gpio[15]
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(esp32::gpio::GpioPin));
 
@@ -319,6 +321,7 @@ unsafe fn setup() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(GpioHw));
 
@@ -345,15 +348,21 @@ unsafe fn setup() -> (
     // PROCESS CONSOLE
     //
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        esp32_c3::timg::TimG
+        esp32_c3::timg::TimG,
+        ProcessConsoleCap
     ));
     let _ = process_console.start();
 
@@ -365,6 +374,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &peripherals.rng,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::rng_component_static!(esp32_c3::rng::Rng));
 
