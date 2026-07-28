@@ -7,7 +7,7 @@ use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 use kernel::utilities::io_write::IoWrite;
 
-use nrf52840::uart::{UARTE0_BASE, Uarte};
+use nrf52840::uart::{Uarte, UarteRegistersManager};
 
 struct Writer {
     initialized: bool,
@@ -31,7 +31,8 @@ impl IoWrite for Writer {
         // Here, we create a second instance of the Uarte struct.
         // This is okay because we only call this during a panic, and
         // we will never actually process the interrupts
-        let uart = Uarte::new(UARTE0_BASE);
+        let registers_manager = UarteRegistersManager::new_uarte0();
+        let uart = Uarte::new(&registers_manager);
         if !self.initialized {
             self.initialized = true;
             let _ = uart.configure(uart::Parameters {

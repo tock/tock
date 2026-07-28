@@ -257,9 +257,13 @@ pub unsafe fn start() -> (
         );
 
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let uarte0_registers_manager = static_init!(
+        nrf52832::uart::UarteRegistersManager,
+        nrf52832::uart::UarteRegistersManager::new_uarte0()
+    );
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new(aes_ecb_buf)
+        Nrf52832DefaultPeripherals::new(aes_ecb_buf, uarte0_registers_manager)
     );
 
     // set up circular peripheral dependencies
