@@ -76,8 +76,11 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub pwm0: crate::pwm::Pwm,
 }
 
-impl Nrf52DefaultPeripherals<'_> {
-    pub fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
+impl<'a> Nrf52DefaultPeripherals<'a> {
+    pub fn new(
+        aes_ecb_buffer: &'static mut [u8; 48],
+        uarte0_registers_manager: &'a crate::uart::UarteRegistersManager,
+    ) -> Self {
         // # Safety
         //
         // This must only get constructed once.
@@ -100,7 +103,7 @@ impl Nrf52DefaultPeripherals<'_> {
             timer0: crate::timer::TimerAlarm::new(TIMER0_BASE),
             timer1: crate::timer::TimerAlarm::new(TIMER1_BASE),
             timer2: crate::timer::Timer::new(TIMER2_BASE),
-            uarte0: crate::uart::Uarte::new(crate::uart::UARTE0_BASE),
+            uarte0: crate::uart::Uarte::new(uarte0_registers_manager),
             spim0: crate::spi::SPIM::new(0),
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),

@@ -15,13 +15,14 @@ pub struct Nrf52833DefaultPeripherals<'a> {
     pub ieee802154_radio: crate::ieee802154_radio::Radio<'a>,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
-impl Nrf52833DefaultPeripherals<'_> {
+impl<'a> Nrf52833DefaultPeripherals<'a> {
     pub unsafe fn new(
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
         aes_ecb_buf: &'static mut [u8; 48],
+        uarte0_registers_manager: &'a nrf52::uart::UarteRegistersManager,
     ) -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(aes_ecb_buf),
+            nrf52: Nrf52DefaultPeripherals::new(aes_ecb_buf, uarte0_registers_manager),
             ieee802154_radio: crate::ieee802154_radio::Radio::new(ieee802154_radio_ack_buf),
             gpio_port: crate::gpio::nrf52833_gpio_create(),
         }

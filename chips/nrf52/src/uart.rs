@@ -27,7 +27,7 @@ const UARTE_MAX_BUFFER_SIZE: usize = 0xff;
 
 static mut BYTE: u8 = 0;
 
-pub const UARTE0_BASE: StaticRef<UarteRegisters> =
+const UARTE0_BASE: StaticRef<UarteRegisters> =
     unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
 
 #[repr(C)]
@@ -163,7 +163,7 @@ register_bitfields! [u32,
 ];
 
 /// Wrapper for managing MMIO for UARTE.
-struct UarteRegistersManager {
+pub struct UarteRegistersManager {
     /// MMIO registers for the UARTE peripheral.
     registers: StaticRef<UarteRegisters>,
     /// Holding place for the TX DMA buffer while DMA in progress.
@@ -173,9 +173,19 @@ struct UarteRegistersManager {
 }
 
 impl UarteRegistersManager {
-    pub fn new(regs: StaticRef<UarteRegisters>) -> Self {
+    /// Create the register manager for the UARTE0 peripheral.
+    ///
+    /// This wraps the StaticRef for the UARTE0 memory location and owns the
+    /// registers, particularly the DMA registers.
+    ///
+    /// # Panics
+    ///
+    /// This can _only be called once_. Because the UARTE peripheral uses DMA,
+    /// we must ensure there is only one register manager in existence. Trying
+    /// to call this constructor twice will result in a board panic.
+    pub fn new_uarte0() -> Self {
         Self {
-            registers: regs,
+            registers: UARTE0_BASE,
             tx_dma_buf: MapCell::empty(),
             rx_dma_buf: MapCell::empty(),
         }
@@ -322,7 +332,7 @@ impl UarteRegistersManager {
 // It should never be instanced outside this module but because a static mutable reference to it
 // is exported outside this module it must be `pub`
 pub struct Uarte<'a> {
-    registers: UarteRegistersManager,
+    registers: &'a UarteRegistersManager,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     tx_len: Cell<usize>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
@@ -336,11 +346,9 @@ pub struct UARTParams {
 }
 
 impl<'a> Uarte<'a> {
-    /// Constructor
-    // This should only be constructed once
-    pub fn new(regs: StaticRef<UarteRegisters>) -> Uarte<'a> {
+    pub fn new(registers: &'a UarteRegistersManager) -> Uarte<'a> {
         Uarte {
-            registers: UarteRegistersManager::new(regs),
+            registers,
             tx_client: OptionalCell::empty(),
             // tx_buffer: kernel::utilities::cells::TakeCell::empty(),
             tx_len: Cell::new(0),
@@ -827,6 +835,7 @@ impl core::fmt::Write for UartPanicWriter<'_> {
 /// This captures everything needed to setup the UART for panic display, even
 /// if the normal kernel had initialized it differently.
 pub struct UartPanicWriterConfig {
+    pub registers_manager: &'static UarteRegistersManager,
     pub params: uart::Parameters,
     pub txd: Pin,
     pub rxd: Pin,
@@ -840,7 +849,7 @@ impl kernel::platform::chip::PanicWriter for Uarte<'_> {
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
         use uart::Configure as _;
 
-        let inner = Uarte::new(UARTE0_BASE);
+        let inner = Uarte::new(config.registers_manager);
         inner.initialize(
             pinmux::Pinmux::new(config.txd),
             pinmux::Pinmux::new(config.rxd),
@@ -858,7 +867,8 @@ mod tests {
 
     #[test]
     fn baud_rate_divider_calculation() {
-        let u = super::Uarte::new(super::UARTE0_BASE);
+        let registers_manager = super::UarteRegistersManager::new(super::UARTE0_BASE);
+        let u = super::Uarte::new(&registers_manager);
         assert_eq!(u.get_divider_for_baud(0), Err(ErrorCode::INVAL));
         assert_eq!(u.get_divider_for_baud(4_000_000), Err(ErrorCode::INVAL));
 
