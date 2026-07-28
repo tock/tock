@@ -45,7 +45,9 @@ pub static mut LHASH: [u8; 32] = [
     0x45, 0x94, 0xd5, 0xee, 0x15, 0xcb, 0x8a, 0x1e, 0x28, 0x7c, 0x20, 0x12, 0xc2, 0xce, 0xb5, 0xa9,
 ];
 
-unsafe fn static_init_test_sha256(client: &'static dyn CapsuleTestClient) -> &'static TestSha256 {
+unsafe fn static_init_test_sha256(
+    client: &'static dyn CapsuleTestClient,
+) -> &'static TestSha256<'static, Sha256Software<'static>> {
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
     kernel::deferred_call::DeferredCallClient::register(sha);
     let bytes = b"hello ";
@@ -56,7 +58,7 @@ unsafe fn static_init_test_sha256(client: &'static dyn CapsuleTestClient) -> &'s
     }
     // We expect LSTRING to hash to LHASH, so final argument is true
     let test = static_init!(
-        TestSha256,
+        TestSha256<Sha256Software>,
         TestSha256::new(
             sha,
             &mut *addr_of_mut!(LSTRING),

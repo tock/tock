@@ -13,3 +13,4 @@ Currently supported peripherals:
 - GPDMA (Global Programmable DMA)
 - TIM2 (Timer)
 - PWM (Pulse Width Modulation)
+- HASH (Hash processor)

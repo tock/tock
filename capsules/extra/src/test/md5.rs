@@ -1,9 +1,8 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
 // Copyright Oxidos Automotive 2026.
 
-//! Test the implementation of SHA256 driver by performing a hash
+//! Test the implementation of MD5 driver by performing a hash
 //! and checking it against the expected hash value. It uses
 //! DigestData::add_date and DigestVerify::verify through the
 //! Digest trait.
@@ -19,14 +18,12 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 
-const SHA256_DIGEST_LEN: usize = 32;
-
-pub struct TestSha256<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> {
+pub struct TestMd5<'a, H: digest::Digest<'a, 16>> {
     sha: &'a H,
-    data: TakeCell<'static, [u8]>, // The data to hash
-    hash: TakeCell<'static, [u8; SHA256_DIGEST_LEN]>, // The supplied hash
-    position: Cell<usize>,         // Keep track of position in data
-    correct: Cell<bool>,           // Whether supplied hash is correct
+    data: TakeCell<'static, [u8]>,     // The data to hash
+    hash: TakeCell<'static, [u8; 16]>, // The supplied hash
+    position: Cell<usize>,             // Keep track of position in data
+    correct: Cell<bool>,               // Whether supplied hash is correct
     client: OptionalCell<&'static dyn CapsuleTestClient>,
 }
 
@@ -35,14 +32,14 @@ pub struct TestSha256<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> {
 // as well as zeroing out incomplete blocks).
 const CHUNK_SIZE: usize = 12;
 
-impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN> + digest::Sha256> TestSha256<'a, H> {
+impl<'a, H: digest::Digest<'a, 16> + digest::Md5> TestMd5<'a, H> {
     pub fn new(
         sha: &'a H,
         data: &'static mut [u8],
-        hash: &'static mut [u8; SHA256_DIGEST_LEN],
+        hash: &'static mut [u8; 16],
         correct: bool,
     ) -> Self {
-        TestSha256 {
+        TestMd5 {
             sha,
             data: TakeCell::new(data),
             hash: TakeCell::new(hash),
@@ -53,9 +50,9 @@ impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN> + digest::Sha256> TestSha256<'
     }
 
     pub fn run(&'a self) {
-        let r = self.sha.set_mode_sha256();
+        let r = self.sha.set_mode_md5();
         if r.is_err() {
-            panic!("Sha256Test: failed to set mode: {:?}", r)
+            panic!("Md5Test: failed to set mode: {:?}", r)
         }
         self.sha.set_client(self);
         let data = self.data.take().unwrap();
@@ -65,14 +62,12 @@ impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN> + digest::Sha256> TestSha256<'
         buffer.slice(0..chunk_size);
         let r = self.sha.add_mut_data(buffer);
         if r.is_err() {
-            panic!("Sha256Test: failed to add data: {:?}", r);
+            panic!("Md5Test: failed to add data: {:?}", r);
         }
     }
 }
 
-impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> digest::ClientData<SHA256_DIGEST_LEN>
-    for TestSha256<'a, H>
-{
+impl<'a, H: digest::Digest<'a, 16>> digest::ClientData<16> for TestMd5<'a, H> {
     fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
@@ -81,7 +76,7 @@ impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> digest::ClientData<SHA256_DIG
         if data.len() != 0 {
             let r = self.sha.add_mut_data(data);
             if r.is_err() {
-                panic!("Sha256Test: failed to add data: {:?}", r);
+                panic!("Md5Test: failed to add data: {:?}", r);
             }
         } else {
             data.reset();
@@ -89,13 +84,13 @@ impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> digest::ClientData<SHA256_DIG
                 let new_position = cmp::min(data.len(), self.position.get() + CHUNK_SIZE);
                 data.slice(self.position.get()..new_position);
                 debug!(
-                    "Sha256Test: Setting slice to {}..{}",
+                    "Md5Test: Setting slice to {}..{}",
                     self.position.get(),
                     new_position
                 );
                 let r = self.sha.add_mut_data(data);
                 if r.is_err() {
-                    panic!("Sha256Test: failed to add data: {:?}", r);
+                    panic!("Md5Test: failed to add data: {:?}", r);
                 }
                 self.position.set(new_position);
             } else {
@@ -105,11 +100,11 @@ impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> digest::ClientData<SHA256_DIG
                     Ok(()) => {
                         let v = self.sha.verify(self.hash.take().unwrap());
                         if v.is_err() {
-                            panic!("Sha256Test: failed to verify: {:?}", v);
+                            panic!("Md5Test: failed to verify: {:?}", v);
                         }
                     }
                     Err(e) => {
-                        panic!("Sha256Test: adding data failed: {:?}", e);
+                        panic!("Md5Test: adding data failed: {:?}", e);
                     }
                 }
             }
@@ -117,21 +112,15 @@ impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> digest::ClientData<SHA256_DIG
     }
 }
 
-impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> digest::ClientVerify<SHA256_DIGEST_LEN>
-    for TestSha256<'a, H>
-{
-    fn verification_done(
-        &self,
-        result: Result<bool, ErrorCode>,
-        compare: &'static mut [u8; SHA256_DIGEST_LEN],
-    ) {
+impl<'a, H: digest::Digest<'a, 16>> digest::ClientVerify<16> for TestMd5<'a, H> {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; 16]) {
         self.hash.put(Some(compare));
-        debug!("Sha256Test: Verification result: {:?}", result);
+        debug!("Md5Test: Verification result: {:?}", result);
         match result {
             Ok(success) => {
                 if success != self.correct.get() {
                     panic!(
-                        "Sha256Test: Verification should have been {}, was {}",
+                        "Md5Test: Verification should have been {}, was {}",
                         self.correct.get(),
                         success
                     );
@@ -142,24 +131,17 @@ impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> digest::ClientVerify<SHA256_D
                 }
             }
             Err(e) => {
-                panic!("Sha256Test: Error in verification: {:?}", e);
+                panic!("Md5Test: Error in verification: {:?}", e);
             }
         }
     }
 }
 
-impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> digest::ClientHash<SHA256_DIGEST_LEN>
-    for TestSha256<'a, H>
-{
-    fn hash_done(
-        &self,
-        _result: Result<(), ErrorCode>,
-        _digest: &'static mut [u8; SHA256_DIGEST_LEN],
-    ) {
-    }
+impl<'a, H: digest::Digest<'a, 16>> digest::ClientHash<16> for TestMd5<'a, H> {
+    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 16]) {}
 }
 
-impl<'a, H: digest::Digest<'a, SHA256_DIGEST_LEN>> CapsuleTest for TestSha256<'a, H> {
+impl<'a, H: digest::Digest<'a, 16>> CapsuleTest for TestMd5<'a, H> {
     fn set_client(&self, client: &'static dyn CapsuleTestClient) {
         self.client.set(client);
     }

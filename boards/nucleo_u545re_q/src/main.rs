@@ -6,6 +6,7 @@
 #![no_std]
 #![no_main]
 
+use components::hmac_component_static;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
@@ -58,6 +59,11 @@ struct NucleoU545RE {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
+    hmac: &'static capsules_extra::hmac::HmacDriver<
+        'static,
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        32,
+    >,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -74,6 +80,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             _ => f(None),
         }
     }
@@ -200,6 +207,16 @@ unsafe fn start() -> (
     // Board specific wiring
     periphs.tim2.start();
     set_pin_primary_functions(periphs);
+
+    // Create an adapter for the HASH peripheral.
+    // In this way it is ensured that only one mode is used by the peripheral.
+    let sha256 = static_init!(
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        stm32u545::hash::sha256::Sha256Adapter::new(&periphs.hash)
+    );
+
+    // Adapter receives callbacks from the peripheral
+    let _ = periphs.hash.set_sha256_adapter(sha256);
 
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -367,6 +384,16 @@ unsafe fn start() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(GpioHw));
+    let hmac = components::hmac::HmacComponent::new(
+        board_kernel,
+        capsules_extra::hmac::DRIVER_NUM,
+        sha256,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(hmac_component_static!(
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        32
+    ));
 
     // Platform and Interrupts
     let platform = static_init!(
@@ -383,6 +410,7 @@ unsafe fn start() -> (
             adc: adc_syscall,
             dac,
             gpio,
+            hmac
         }
     );
 
