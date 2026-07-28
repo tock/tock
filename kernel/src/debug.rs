@@ -126,22 +126,30 @@ use crate::utilities::single_thread_value::SingleThreadValue;
 // panic! support routines
 
 /// Resources needed by the main panic routines.
-pub struct PanicResources<C: Chip + 'static, PP: ProcessPrinter + 'static> {
+pub struct PanicResources<C: Chip + 'static, PP: ProcessPrinter + 'static, T = ()> {
     /// The array of process slots.
     pub processes: MapCell<&'static [ProcessSlot]>,
     /// The board-specific chip object.
     pub chip: MapCell<&'static C>,
     /// The tool for printing process details.
     pub printer: MapCell<&'static PP>,
+    /// Board-specific resource to use during panic.
+    ///
+    /// This type is configured entirely by the board and can be used to store
+    /// anything that the board needs in its panic handler. This simplifies
+    /// creating multiple `SingleThreadValue`s in the board main.rs and
+    /// logically groups resources which are all used by the panic handler.
+    pub custom: MapCell<T>,
 }
 
-impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
+impl<T, C: Chip, PP: ProcessPrinter> PanicResources<C, PP, T> {
     /// Create a new [`PanicResources`] with nothing stored.
     pub const fn new() -> Self {
         Self {
             processes: MapCell::empty(),
             chip: MapCell::empty(),
             printer: MapCell::empty(),
+            custom: MapCell::empty(),
         }
     }
 }
@@ -157,11 +165,11 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter, T>(
     writer_config: PW::Config,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    panic_resources: Option<&PanicResources<C, PP>>,
+    panic_resources: Option<&PanicResources<C, PP, T>>,
 ) {
     unsafe {
         // Create the synchronous writer we can use to output the panic message.
@@ -197,17 +205,17 @@ pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrinter, T>(
     leds: &mut [&L],
     writer_config: PW::Config,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    panic_resources: Option<&PanicResources<C, PP>>,
+    panic_resources: Option<&PanicResources<C, PP, T>>,
 ) -> ! {
     unsafe {
         // Call `panic_print` first which will print out the panic information and
         // return
-        panic_print::<PW, C, PP>(writer_config, panic_info, nop, panic_resources);
+        panic_print::<PW, C, PP, T>(writer_config, panic_info, nop, panic_resources);
 
         // The system is no longer in a well-defined state, we cannot
         // allow this function to return
@@ -228,11 +236,11 @@ pub unsafe fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrint
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter, T>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    panic_resources: Option<&PanicResources<C, PP>>,
+    panic_resources: Option<&PanicResources<C, PP, T>>,
 ) {
     unsafe {
         panic_begin(nop);
@@ -265,12 +273,12 @@ pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic_old<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic_old<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter, T>(
     leds: &mut [&L],
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    panic_resources: Option<&PanicResources<C, PP>>,
+    panic_resources: Option<&PanicResources<C, PP, T>>,
 ) -> ! {
     unsafe {
         // Call `panic_print` first which will print out the panic information and
