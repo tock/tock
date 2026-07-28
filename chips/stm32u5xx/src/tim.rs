@@ -321,7 +321,7 @@ register_bitfields![u32,
         CC1E OFFSET(0) NUMBITS(1) []
     ],
     CNT [
-        CNT OFFSET(16) NUMBITS(32) []
+        CNT OFFSET(0) NUMBITS(32) []
     ],
     PSC [
         /// Prescaler value
