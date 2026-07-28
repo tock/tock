@@ -110,9 +110,6 @@ pub unsafe fn main() {
         screen,
     };
 
-    // Start the process console:
-    let _ = platform.base.process_console_start();
-
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.

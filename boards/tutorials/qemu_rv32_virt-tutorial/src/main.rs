@@ -257,9 +257,6 @@ pub unsafe fn main() {
         buttons,
     };
 
-    // Start the process console:
-    let _ = platform.base.process_console_start();
-
     //--------------------------------------------------------------------------
     // CREDENTIAL CHECKING
     //--------------------------------------------------------------------------
