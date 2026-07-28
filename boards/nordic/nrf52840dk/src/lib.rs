@@ -156,7 +156,7 @@ static RTT_BUFFER: SingleThreadValue<MapCell<&'static segger::rtt::SeggerRttMemo
 /// Register manager for the UARTE0 peripheral, shared between the normal
 /// kernel UART driver and the panic writer so both operate on the same
 /// underlying MMIO management state.
-static UARTE0_REGISTERS_MANAGER: SingleThreadValue<nrf52840::uart::UarteRegistersManager> =
+static UARTE0_REGISTERS_MANAGER: SingleThreadValue<&'static nrf52840::uart::UarteRegistersManager> =
     SingleThreadValue::new();
 
 kernel::stack_size! {0x2000}
@@ -437,9 +437,13 @@ pub unsafe fn start_no_pconsole() -> (
         .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
             MapCell::empty(),
         );
+    let uarte0_registers_manager = static_init!(
+        nrf52840::uart::UarteRegistersManager,
+        nrf52840::uart::UarteRegistersManager::new_uarte0()
+    );
     let _ = UARTE0_REGISTERS_MANAGER
         .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
-            nrf52840::uart::UarteRegistersManager::new_uarte0(),
+            uarte0_registers_manager,
         );
 
     // Set up peripheral drivers. Called in separate function to reduce stack
@@ -452,13 +456,7 @@ pub unsafe fn start_no_pconsole() -> (
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(
-            ieee802154_ack_buf,
-            aes_ecb_buf,
-            UARTE0_REGISTERS_MANAGER
-                .get()
-                .expect("UARTE0_REGISTERS_MANAGER not bound to this thread"),
-        )
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf, uarte0_registers_manager)
     );
 
     // Set up circular peripheral dependencies.

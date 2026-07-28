@@ -39,6 +39,7 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
             nrf52840::uart::UartPanicWriterConfig {
                 registers_manager: crate::UARTE0_REGISTERS_MANAGER
                     .get()
+                    .copied()
                     .expect("UARTE0_REGISTERS_MANAGER not bound to this thread"),
                 params: uart::Parameters {
                     baud_rate: 115200,
