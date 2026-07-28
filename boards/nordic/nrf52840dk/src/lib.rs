@@ -185,12 +185,6 @@ type AnalogComparatorDriver =
     components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
 type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
 type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
-kernel::declare_capability!(ProcessConsoleCap:
-    kernel::capabilities::ProcessManagementCapability,
-    kernel::capabilities::ProcessStartCapability
-);
-type ProcessConsoleDriver =
-    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
 type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
 
@@ -226,7 +220,6 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 pub struct Platform {
     ble_radio: &'static BleDriver,
     button: &'static ButtonDriver,
-    pconsole: &'static ProcessConsoleDriver,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
@@ -402,7 +395,9 @@ pub unsafe fn ieee802154_udp(
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-pub unsafe fn start_no_pconsole() -> (
+pub unsafe fn start_pconsole_optional(
+    start_pconsole: bool,
+) -> (
     &'static kernel::Kernel,
     Platform,
     &'static ChipHw,
@@ -636,21 +631,6 @@ pub unsafe fn start_no_pconsole() -> (
     // Virtualize the UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
         .finalize(components::uart_mux_component_static!());
-
-    // Create the process console, an interactive terminal for managing
-    // processes.
-    let pconsole = components::process_console::ProcessConsoleComponent::new(
-        board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-        Some(cortexm4::support::reset),
-        ProcessConsoleCap,
-    )
-    .finalize(components::process_console_component_static!(
-        AlarmHw,
-        ProcessConsoleCap
-    ));
 
     // Setup the serial console for userspace.
     let console = components::console::ConsoleComponent::new(
@@ -934,7 +914,6 @@ pub unsafe fn start_no_pconsole() -> (
     let platform = Platform {
         button,
         ble_radio,
-        pconsole,
         console,
         led,
         gpio,
@@ -960,6 +939,33 @@ pub unsafe fn start_no_pconsole() -> (
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", ficr);
 
+    if start_pconsole {
+        // Create the process console, an interactive terminal for managing
+        // processes. This is done last, after the debug prints above,
+        // because starting the console arms an alarm that will
+        // (asynchronously) print its prompt and begin accepting input; if it
+        // were started earlier, its output could interleave with or precede
+        // the initialization messages above.
+        kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+            kernel::capabilities::ProcessManagementCapability,
+            kernel::capabilities::ProcessStartCapability
+        );
+        let pconsole = components::process_console::ProcessConsoleComponent::new(
+            board_kernel,
+            uart_mux,
+            mux_alarm,
+            process_printer,
+            Some(cortexm4::support::reset),
+            process_console_cap,
+        )
+        .finalize(components::process_console_component_static!(
+            AlarmHw,
+            ProcessConsoleCap
+        ));
+
+        let _ = pconsole.start();
+    }
+
     (
         board_kernel,
         platform,
@@ -980,7 +986,6 @@ pub unsafe fn start() -> (
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, AlarmHw>,
 ) {
-    let (kernel, platform, chip, peripherals, mux_alarm) = start_no_pconsole();
-    let _ = platform.pconsole.start();
+    let (kernel, platform, chip, peripherals, mux_alarm) = start_pconsole_optional(true);
     (kernel, platform, chip, peripherals, mux_alarm)
 }
