@@ -16,7 +16,6 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
-use stm32u5xx_unsafe::aes::AES_BASE;
 use stm32u545::gpio::PinId;
 
 pub mod io;
@@ -203,12 +202,6 @@ unsafe fn start() -> (
     );
 
     usart1.register();
-    let aes = static_init!(
-        stm32u545::aes::ecb::Aes<'static, AES256>,
-        stm32u545::aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
-            registers: AES_BASE
-        })
-    );
 
     // Load Peripherals Bundle
     let periphs = static_init!(
@@ -269,14 +262,14 @@ unsafe fn start() -> (
     let aes_driver = components::aes::AesDriverComponent::new(
         board_kernel,
         capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
-        aes,
+        &periphs.aes,
         create_capability!(MemoryAllocationCapability),
     )
     .finalize(components::aes_driver_component_static!(
         stm32u545::aes::ecb::Aes<'static, AES256>,
         AES256
     ));
-    AES::set_client(aes, aes_driver);
+    AES::set_client(&periphs.aes, aes_driver);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,

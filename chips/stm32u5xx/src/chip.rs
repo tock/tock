@@ -27,6 +27,7 @@ use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use stm32u5xx_unsafe::aes::AES_BASE;
 
 pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
@@ -48,7 +49,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_c: gpio::Port<'a>,
     pub dac: dac::Dac,
     pub hash: hash::hash::Hash<'a>,
-    pub aes: &'a ecb::Aes<'a, AES256>,
+    pub aes: ecb::Aes<'a, AES256>,
 }
 
 fn enable_tim2_clock() {
@@ -85,7 +86,9 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
             hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
-            aes,
+            aes: aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
+                registers: AES_BASE,
+            }),
         }
     }
 
@@ -136,7 +139,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 
         self.hash.register();
         if let (Some(in_channel), Some(out_channel)) = (aes_in_channel, aes_out_channel) {
-            aes::ecb::Aes::set_dma(self.aes, self.dma1, in_channel, out_channel);
+            aes::ecb::Aes::set_dma(&self.aes, self.dma1, in_channel, out_channel);
         }
     }
 }
