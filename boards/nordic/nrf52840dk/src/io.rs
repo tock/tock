@@ -22,7 +22,7 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
         crate::RTT_BUFFER.get().and_then(MapCell::take).map_or_else(
             || debug::panic_blink_forever(&mut [led]),
             |rtt| {
-                debug::panic::<_, segger::rtt::SeggerRttMemory, _, _>(
+                debug::panic::<_, segger::rtt::SeggerRttMemory, _, _, _>(
                     &mut [led],
                     rtt,
                     pi,
@@ -34,24 +34,33 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     } else {
         // Use the nRF52 UART for panic output.
 
-        debug::panic::<_, nrf52840::uart::Uarte, _, _>(
-            &mut [led],
-            nrf52840::uart::UartPanicWriterConfig {
-                params: uart::Parameters {
-                    baud_rate: 115200,
-                    stop_bits: uart::StopBits::One,
-                    parity: uart::Parity::None,
-                    hw_flow_control: false,
-                    width: uart::Width::Eight,
+        crate::PANIC_RESOURCES
+            .get()
+            .and_then(|r| r.custom.take())
+            .map_or_else(
+                || debug::panic_blink_forever(&mut [led]),
+                |uarte0_register_manager| {
+                    debug::panic::<_, nrf52840::uart::Uarte, _, _, _>(
+                        &mut [led],
+                        nrf52840::uart::UartPanicWriterConfig {
+                            registers_manager: uarte0_register_manager,
+                            params: uart::Parameters {
+                                baud_rate: 115200,
+                                stop_bits: uart::StopBits::One,
+                                parity: uart::Parity::None,
+                                hw_flow_control: false,
+                                width: uart::Width::Eight,
+                            },
+                            txd: crate::UART_TXD,
+                            rxd: crate::UART_RXD,
+                            cts: crate::UART_CTS,
+                            rts: crate::UART_CTS,
+                        },
+                        pi,
+                        &cortexm4::support::nop,
+                        crate::PANIC_RESOURCES.get(),
+                    )
                 },
-                txd: crate::UART_TXD,
-                rxd: crate::UART_RXD,
-                cts: crate::UART_CTS,
-                rts: crate::UART_CTS,
-            },
-            pi,
-            &cortexm4::support::nop,
-            crate::PANIC_RESOURCES.get(),
-        )
+            )
     }
 }

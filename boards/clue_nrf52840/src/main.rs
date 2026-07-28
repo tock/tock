@@ -111,7 +111,7 @@ static mut CDC_REF_FOR_PANIC: Option<
     >,
 > = None;
 /// Resources for when a board panics used by io.rs.
-static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter, ()>> =
     SingleThreadValue::new();
 static NRF52_POWER: SingleThreadValue<&'static nrf52840::power::Power> = SingleThreadValue::new();
 
@@ -277,10 +277,14 @@ unsafe fn start() -> (
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let uarte0_registers_manager = static_init!(
+        nrf52840::uart::UarteRegistersManager,
+        nrf52840::uart::UarteRegistersManager::new_uarte0()
+    );
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf, uarte0_registers_manager)
     );
 
     // set up circular peripheral dependencies

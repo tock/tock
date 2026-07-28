@@ -126,8 +126,9 @@ type ChipHw = nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'static>
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
-static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new();
+static PANIC_RESOURCES: SingleThreadValue<
+    PanicResources<ChipHw, ProcessPrinterInUse, &nrf52832::uart::UarteRegistersManager>,
+> = SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
 
@@ -257,9 +258,16 @@ pub unsafe fn start() -> (
         );
 
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let uarte0_registers_manager = static_init!(
+        nrf52832::uart::UarteRegistersManager,
+        nrf52832::uart::UarteRegistersManager::new_uarte0()
+    );
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.custom.put(uarte0_registers_manager);
+    });
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new(aes_ecb_buf)
+        Nrf52832DefaultPeripherals::new(aes_ecb_buf, uarte0_registers_manager)
     );
 
     // set up circular peripheral dependencies
