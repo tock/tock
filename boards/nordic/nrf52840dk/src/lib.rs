@@ -217,8 +217,6 @@ pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<Radi
 /// Userspace EUI64 driver.
 pub type Eui64Driver = components::eui64::Eui64ComponentType;
 
-kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
-
 /// Userspace UDP driver.
 pub type UdpDriver = components::udp_driver::UDPDriverComponentType;
 
@@ -380,6 +378,7 @@ pub unsafe fn ieee802154_udp(
     ));
 
     // UDP driver initialization happens here
+    kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::driver::DRIVER_NUM,
@@ -387,7 +386,7 @@ pub unsafe fn ieee802154_udp(
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
-        UdpDriverCap,
+        udp_driver_cap,
         create_capability!(capabilities::MemoryAllocationCapability),
         create_capability!(capabilities::NetworkCapabilityCreationCapability),
     )

@@ -10,7 +10,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+//! kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
 //! let udp_driver = UDPDriverComponent::new(
 //!     board_kernel,
 //!     udp_send_mux,
@@ -18,7 +18,7 @@
 //!     udp_port_table,
 //!     local_ip_ifaces,
 //!     PAYLOAD_LEN,
-//!     UdpDriverCap,
+//!     udp_driver_cap,
 //! )
 //! .finalize(components::udp_driver_component_static!(AlarmType, UdpDriverCap));
 //! ```

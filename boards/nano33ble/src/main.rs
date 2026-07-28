@@ -637,7 +637,7 @@ pub unsafe fn start() -> (
     ));
 
     // UDP driver initialization happens here
-    kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+    kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::DRIVER_NUM,
@@ -645,7 +645,7 @@ pub unsafe fn start() -> (
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
-        UdpDriverCap,
+        udp_driver_cap,
         create_capability!(capabilities::MemoryAllocationCapability),
         create_capability!(capabilities::NetworkCapabilityCreationCapability),
     )
