@@ -19,18 +19,13 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_red_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_14);
     let led = &mut led::LedHigh::new(led_red_pin);
 
-    // Here, we create a new instance of the UARTE0 registers manager. This is
-    // okay because we only call this during a panic, and we will never
-    // actually process the interrupts.
-    let registers_manager = kernel::static_init!(
-        nrf52840::uart::UarteRegistersManager,
-        nrf52840::uart::UarteRegistersManager::new_uarte0()
-    );
-
     debug::panic::<_, nrf52840::uart::Uarte, _, _>(
         &mut [led],
         nrf52840::uart::UartPanicWriterConfig {
-            registers_manager,
+            registers_manager: crate::UARTE0_REGISTERS_MANAGER
+                .get()
+                .copied()
+                .expect("UARTE0_REGISTERS_MANAGER not bound to this thread"),
             params: uart::Parameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,
