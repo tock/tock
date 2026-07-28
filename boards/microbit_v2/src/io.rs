@@ -10,7 +10,7 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::utilities::io_write::IoWrite;
 use nrf52833::gpio::Pin;
-use nrf52833::uart::{Uarte, UarteRegistersManager};
+use nrf52833::uart::Uarte;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
@@ -36,8 +36,12 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let registers_manager = UarteRegistersManager::new_uarte0();
-        let uart = Uarte::new(&registers_manager);
+        let uart = Uarte::new(
+            crate::UARTE0_REGISTERS_MANAGER
+                .get()
+                .copied()
+                .expect("UARTE0_REGISTERS_MANAGER not bound to this thread"),
+        );
 
         use kernel::hil::uart::Configure;
 

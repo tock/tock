@@ -10,7 +10,7 @@ use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 use kernel::utilities::io_write::IoWrite;
 use nrf52840::gpio::Pin;
-use nrf52840::uart::{Uarte, UarteRegistersManager};
+use nrf52840::uart::Uarte;
 
 // Expand here with more writing methods as required (rtt/cdc etc...)
 enum Writer {
@@ -30,11 +30,12 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         match self {
             Writer::WriterUart(ref mut initialized) => {
-                // Here, we create a second instance of the Uarte struct.
-                // This is okay because we only call this during a panic, and
-                // we will never actually process the interrupts
-                let registers_manager = UarteRegistersManager::new_uarte0();
-                let uart = Uarte::new(&registers_manager);
+                let uart = Uarte::new(
+                    crate::UARTE0_REGISTERS_MANAGER
+                        .get()
+                        .copied()
+                        .expect("UARTE0_REGISTERS_MANAGER not bound to this thread"),
+                );
                 if !*initialized {
                     *initialized = true;
                     let _ = uart.configure(uart::Parameters {

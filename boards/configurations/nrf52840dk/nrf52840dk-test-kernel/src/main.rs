@@ -45,6 +45,12 @@ type ProcessPrinter = capsules_system::process_printer::ProcessPrinterNull;
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
     SingleThreadValue::new();
 
+/// Register manager for the UARTE0 peripheral, shared between the normal
+/// kernel UART driver and the panic writer so both operate on the same
+/// underlying MMIO management state.
+static UARTE0_REGISTERS_MANAGER: SingleThreadValue<&'static nrf52840::uart::UarteRegistersManager> =
+    SingleThreadValue::new();
+
 kernel::stack_size! {0x2000}
 
 //------------------------------------------------------------------------------
@@ -119,6 +125,10 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
         nrf52840::uart::UarteRegistersManager,
         nrf52840::uart::UarteRegistersManager::new_uarte0()
     );
+    let _ = UARTE0_REGISTERS_MANAGER
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            uarte0_registers_manager,
+        );
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
