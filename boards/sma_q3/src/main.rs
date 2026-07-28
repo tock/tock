@@ -102,21 +102,12 @@ type AnalogComparatorDriver =
     components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
 type ScreenDriver = components::screen::ScreenComponentType;
 
-kernel::declare_capability!(ProcessConsoleCap:
-    kernel::capabilities::ProcessManagementCapability,
-    kernel::capabilities::ProcessStartCapability
-);
-
-type ProcessConsoleDriver =
-    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
-
 /// Supported drivers by the platform
 pub struct Platform {
     temperature: &'static TemperatureDriver,
     ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
     button: &'static ButtonDriver,
-    pconsole: &'static ProcessConsoleDriver,
     console: &'static ConsoleDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
@@ -342,13 +333,17 @@ pub unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
+    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc<'static>,
@@ -521,7 +516,6 @@ pub unsafe fn start() -> (
         button,
         ble_radio,
         ieee802154_radio,
-        pconsole,
         console,
         led,
         gpio,
@@ -576,7 +570,7 @@ pub unsafe fn start() -> (
         }
     }
 
-    let _ = platform.pconsole.start();
+    let _ = pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", ficr);
 

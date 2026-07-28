@@ -138,21 +138,13 @@ type LedDriver = components::led::LedsComponentType<LedHw, 1>;
 type ButtonDriver = components::button::ButtonComponentType<Nrf52840GpioHw>;
 type ConsoleDriver = components::console::ConsoleComponentType;
 type AdcDriver = components::adc::AdcVirtualComponentType;
-type ProcessConsoleDriver =
-    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type UdpDriver = components::udp_driver::UDPDriverComponentType;
-
-kernel::declare_capability!(ProcessConsoleCap:
-    kernel::capabilities::ProcessManagementCapability,
-    kernel::capabilities::ProcessStartCapability
-);
 
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static BleDriver,
     ieee802154_radio: &'static Ieee802154Driver,
     console: &'static ConsoleDriver,
-    pconsole: &'static ProcessConsoleDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
     adc: &'static AdcDriver,
@@ -432,13 +424,17 @@ pub unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
         .finalize(components::uart_mux_component_static!());
 
+    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         nrf52::rtc::Rtc<'static>,
@@ -788,7 +784,6 @@ pub unsafe fn start() -> (
         ble_radio,
         ieee802154_radio,
         console,
-        pconsole,
         adc: adc_syscall,
         led,
         button,
@@ -823,7 +818,7 @@ pub unsafe fn start() -> (
     // );
 
     debug!("Initialization complete. Entering main loop.");
-    let _ = platform.pconsole.start();
+    let _ = pconsole.start();
 
     ssd1306.init_screen();
 
