@@ -88,7 +88,7 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     // Create the base board:
-    let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
+    let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm, _pconsole) =
         nrf52840dk_lib::start_pconsole_optional(false);
 
     //--------------------------------------------------------------------------

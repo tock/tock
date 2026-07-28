@@ -185,6 +185,30 @@ type AnalogComparatorDriver =
     components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
 type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
 type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
+
+/// Capability type used to construct the process console.
+///
+/// Unlike most capabilities in this file, this one is declared by hand
+/// (rather than with [`kernel::create_typed_capability!`]) because it must
+/// be nameable both in [`start_pconsole_optional`] and in its return type,
+/// so that callers in other crates (board `main.rs` files) can decide
+/// whether and how to start the returned [`ProcessConsoleDriver`]. Its
+/// private tuple field prevents construction from outside this module, and
+/// [`ProcessConsoleCap::new`] additionally requires an `unsafe` block,
+/// matching the convention used for capability creation elsewhere.
+pub struct ProcessConsoleCap(());
+
+unsafe impl kernel::capabilities::ProcessManagementCapability for ProcessConsoleCap {}
+unsafe impl kernel::capabilities::ProcessStartCapability for ProcessConsoleCap {}
+
+impl ProcessConsoleCap {
+    unsafe fn new() -> Self {
+        ProcessConsoleCap(())
+    }
+}
+
+type ProcessConsoleDriver =
+    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
 type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
 
@@ -403,6 +427,7 @@ pub unsafe fn start_pconsole_optional(
     &'static ChipHw,
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, AlarmHw>,
+    Option<&'static ProcessConsoleDriver>,
 ) {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
@@ -939,18 +964,16 @@ pub unsafe fn start_pconsole_optional(
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", ficr);
 
-    if start_pconsole {
-        // Create the process console, an interactive terminal for managing
-        // processes. This is done last, after the debug prints above,
-        // because starting the console arms an alarm that will
-        // (asynchronously) print its prompt and begin accepting input; if it
-        // were started earlier, its output could interleave with or precede
-        // the initialization messages above.
-        kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
-            kernel::capabilities::ProcessManagementCapability,
-            kernel::capabilities::ProcessStartCapability
-        );
-        let pconsole = components::process_console::ProcessConsoleComponent::new(
+    // Create the process console, an interactive terminal for managing
+    // processes. This is left unstarted; it is up to the caller to start it
+    // (or start it hibernated) once the rest of initialization, including
+    // the debug prints above, has completed. Starting the console arms an
+    // alarm that will (asynchronously) print its prompt and begin accepting
+    // input, so starting it too early could interleave its output with or
+    // precede the initialization messages above.
+    let pconsole = start_pconsole.then(|| {
+        let process_console_cap = unsafe { ProcessConsoleCap::new() };
+        components::process_console::ProcessConsoleComponent::new(
             board_kernel,
             uart_mux,
             mux_alarm,
@@ -961,10 +984,8 @@ pub unsafe fn start_pconsole_optional(
         .finalize(components::process_console_component_static!(
             AlarmHw,
             ProcessConsoleCap
-        ));
-
-        let _ = pconsole.start();
-    }
+        ))
+    });
 
     (
         board_kernel,
@@ -972,6 +993,7 @@ pub unsafe fn start_pconsole_optional(
         chip,
         nrf52840_peripherals,
         mux_alarm,
+        pconsole,
     )
 }
 
@@ -986,6 +1008,7 @@ pub unsafe fn start() -> (
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, AlarmHw>,
 ) {
-    let (kernel, platform, chip, peripherals, mux_alarm) = start_pconsole_optional(true);
+    let (kernel, platform, chip, peripherals, mux_alarm, pconsole) = start_pconsole_optional(true);
+    let _ = pconsole.unwrap().start();
     (kernel, platform, chip, peripherals, mux_alarm)
 }

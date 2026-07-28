@@ -52,6 +52,30 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
 
 kernel::stack_size! {0x8000}
 
+/// Capability type used to construct the process console.
+///
+/// Unlike most capabilities in this file, this one is declared by hand
+/// (rather than with [`kernel::create_typed_capability!`]) because it must
+/// be nameable both in [`start`] and in its return type, so that callers in
+/// other crates (board `main.rs` files) can decide whether and how to
+/// start the returned [`ProcessConsoleDriver`]. Its private tuple field
+/// prevents construction from outside this module, and
+/// [`ProcessConsoleCap::new`] additionally requires an `unsafe` block,
+/// matching the convention used for capability creation elsewhere.
+pub struct ProcessConsoleCap(());
+
+unsafe impl kernel::capabilities::ProcessManagementCapability for ProcessConsoleCap {}
+unsafe impl kernel::capabilities::ProcessStartCapability for ProcessConsoleCap {}
+
+impl ProcessConsoleCap {
+    unsafe fn new() -> Self {
+        ProcessConsoleCap(())
+    }
+}
+
+type ProcessConsoleDriver =
+    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 pub struct QemuRv32VirtPlatform {
@@ -176,6 +200,7 @@ pub unsafe fn start() -> (
         'static,
         QemuRv32VirtDefaultPeripherals<'static>,
     >,
+    &'static ProcessConsoleDriver,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -763,15 +788,14 @@ pub unsafe fn start() -> (
         debug!("- VirtIO Input device not found, disabling Input");
     }
 
-    // Initialize the kernel's process console. This is done last, after the
-    // debug prints above, because starting the console arms an alarm that
-    // will (asynchronously) print its prompt and begin accepting input; if
-    // it were started earlier, its output could interleave with or precede
-    // the initialization messages above.
-    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
-        kernel::capabilities::ProcessManagementCapability,
-        kernel::capabilities::ProcessStartCapability
-    );
+    // Create the process console, an interactive terminal for managing
+    // processes. This is left unstarted; it is up to the caller to start it
+    // once the rest of initialization, including the debug prints above,
+    // has completed. Starting the console arms an alarm that will
+    // (asynchronously) print its prompt and begin accepting input, so
+    // starting it too early could interleave its output with or precede the
+    // initialization messages above.
+    let process_console_cap = unsafe { ProcessConsoleCap::new() };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
@@ -785,7 +809,5 @@ pub unsafe fn start() -> (
         ProcessConsoleCap
     ));
 
-    let _ = pconsole.start();
-
-    (board_kernel, platform, chip)
+    (board_kernel, platform, chip, pconsole)
 }
