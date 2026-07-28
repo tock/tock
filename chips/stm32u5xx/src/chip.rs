@@ -21,6 +21,7 @@ use crate::usart;
 use crate::{dac, exti};
 
 use core::fmt::Write;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -34,7 +35,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub tim2: tim::Tim2<'a>,
     pub tim3: tim::Pwm<'a>,
-    pub usart1: &'a usart::Usart<'a>,
+    pub usart1: usart::Usart<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub pwr: pwr::Pwr,
@@ -60,7 +61,7 @@ fn enable_dac1_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
@@ -69,8 +70,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
                 enable_tim3_clock,
                 tim::ClockSource::RESET_DEFAULT,
             ),
-
-            usart1,
+            usart1: usart::Usart::new(usart::USART1_BASE),
             exti,
             dma1,
             pwr: pwr::Pwr::new(),
@@ -103,11 +103,15 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.adc1.enable(AdcSamplingTime::ClockCycles20);
 
         self.rcc.enable_dac1();
+
+        // Deferred Calls
+        self.usart1.register();
+
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
-            usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+            usart::Usart::set_dma(&self.usart1, self.dma1, tx, rx);
         }
     }
 }
