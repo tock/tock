@@ -43,8 +43,10 @@ const GPIO_P8: Pin = Pin::P0_10;
 const GPIO_P9: Pin = Pin::P0_09;
 const GPIO_P16: Pin = Pin::P1_02;
 
-const UART_TX_PIN: Pin = Pin::P0_06;
-const UART_RX_PIN: Pin = Pin::P1_08;
+/// UART transmit pin.
+pub const UART_TX_PIN: Pin = Pin::P0_06;
+/// UART receive pin.
+pub const UART_RX_PIN: Pin = Pin::P1_08;
 
 /// LED matrix
 const LED_MATRIX_COLS: [Pin; 5] = [Pin::P0_28, Pin::P0_11, Pin::P0_31, Pin::P1_05, Pin::P0_30];

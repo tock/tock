@@ -34,10 +34,14 @@ const LED2_B_PIN: Pin = Pin::P0_12;
 const BUTTON_PIN: Pin = Pin::P1_06;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: Option<Pin> = Some(Pin::P0_13);
-const UART_TXD: Pin = Pin::P0_15;
-const UART_CTS: Option<Pin> = Some(Pin::P0_17);
-const UART_RXD: Pin = Pin::P0_20;
+/// UART RTS pin.
+pub const UART_RTS: Option<Pin> = Some(Pin::P0_13);
+/// UART transmit pin.
+pub const UART_TXD: Pin = Pin::P0_15;
+/// UART CTS pin.
+pub const UART_CTS: Option<Pin> = Some(Pin::P0_17);
+/// UART receive pin.
+pub const UART_RXD: Pin = Pin::P0_20;
 
 // SPI pins not currently in use, but left here for convenience
 const _SPI_MOSI: Pin = Pin::P1_01;
