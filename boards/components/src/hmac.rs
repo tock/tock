@@ -32,7 +32,7 @@ macro_rules! hmac_component_static {
         let dest_buffer = kernel::static_buf!([u8; $L]);
 
         (hmac, data_buffer, dest_buffer)
-    };};
+    }};
 }
 
 pub type HmacComponentType<H, const L: usize> = capsules_extra::hmac::HmacDriver<'static, H, L>;
@@ -73,6 +73,9 @@ impl<
     A: kernel::hil::digest::HmacSha256
         + digest::HmacSha384
         + digest::HmacSha512
+        + digest::HmacMd5
+        + digest::HmacSha224
+        + digest::HmacSha1
         + 'static
         + digest::Digest<'static, L>,
     const L: usize,
@@ -114,7 +117,7 @@ macro_rules! hmac_sha256_software_component_static {
         let verify_buffer = kernel::static_buf!([u8; 32]);
 
         (hmac_sha256, data_buffer, verify_buffer)
-    };};
+    }};
 }
 
 pub type HmacSha256SoftwareComponentType<S> =

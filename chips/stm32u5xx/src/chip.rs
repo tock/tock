@@ -6,13 +6,14 @@
 use crate::adc::{self, SamplingTime as AdcSamplingTime};
 use crate::dma::{ChannelId, Dma};
 use crate::gpio;
+use crate::hash;
 use crate::nvic::{
     ADC1_2_IRQ, EXTI0_IRQ, EXTI1_IRQ, EXTI2_IRQ, EXTI3_IRQ, EXTI4_IRQ, EXTI5_IRQ, EXTI6_IRQ,
     EXTI7_IRQ, EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ, EXTI14_IRQ,
     EXTI15_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ,
     GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
     GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ,
-    GPDMA1_CH15_IRQ, TIM2_IRQ, USART1_IRQ,
+    GPDMA1_CH15_IRQ, HASH_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::pwr;
 use crate::rcc;
@@ -21,6 +22,7 @@ use crate::usart;
 use crate::{dac, exti};
 
 use core::fmt::Write;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -34,7 +36,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub tim2: tim::Tim2<'a>,
     pub tim3: tim::Pwm<'a>,
-    pub usart1: &'a usart::Usart<'a>,
+    pub usart1: usart::Usart<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub pwr: pwr::Pwr,
@@ -43,6 +45,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
     pub dac: dac::Dac,
+    pub hash: hash::hash::Hash<'a>,
 }
 
 fn enable_tim2_clock() {
@@ -60,7 +63,7 @@ fn enable_dac1_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
@@ -69,8 +72,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
                 enable_tim3_clock,
                 tim::ClockSource::RESET_DEFAULT,
             ),
-
-            usart1,
+            usart1: usart::Usart::new(usart::USART1_BASE),
             exti,
             dma1,
             pwr: pwr::Pwr::new(),
@@ -79,6 +81,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
+            hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
         }
     }
 
@@ -91,6 +94,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_syscfg();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
+        self.rcc.enable_hash();
         self.rcc.set_usart1_source_pclk();
 
         // ADC
@@ -103,12 +107,26 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.adc1.enable(AdcSamplingTime::ClockCycles20);
 
         self.rcc.enable_dac1();
+
+        // Deferred Calls
+        self.usart1.register();
+
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();
+
+        // Link DMA to HASH
+        let hash_channel = self.dma1.request_channel();
+
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
-            usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+            usart::Usart::set_dma(&self.usart1, self.dma1, tx, rx);
         }
+
+        if let Some(tx) = hash_channel {
+            hash::hash::Hash::set_dma(&self.hash, self.dma1, tx);
+        }
+
+        self.hash.register();
     }
 }
 
@@ -258,6 +276,10 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             GPDMA1_CH15_IRQ => {
                 self.dma1.handle_interrupt(ChannelId::Channel15);
+                true
+            }
+            HASH_IRQ => {
+                self.hash.handle_interupts();
                 true
             }
             _ => false,

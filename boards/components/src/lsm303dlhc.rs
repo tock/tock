@@ -47,7 +47,7 @@ macro_rules! lsm303dlhc_component_static {
         );
 
         (accelerometer_i2c, magnetometer_i2c, buffer, lsm303dlhc)
-    };};
+    }};
 }
 
 pub struct Lsm303dlhcI2CComponent<

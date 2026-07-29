@@ -348,16 +348,16 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
-        let (mut r0_val, mut r1_val, mut r2_val, mut r3_val) = unsafe { (*r0, *r1, *r2, *r3) };
+        let (r0_ref, r1_ref, r2_ref, r3_ref) = unsafe { (&mut *r0, &mut *r1, &mut *r2, &mut *r3) };
 
         kernel::utilities::arch_helpers::encode_syscall_return_trd104(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
-            &mut r0_val,
-            &mut r1_val,
-            &mut r2_val,
-            &mut r3_val,
+            r0_ref,
+            r1_ref,
+            r2_ref,
+            r3_ref,
         );
 
         Ok(())

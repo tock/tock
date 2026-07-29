@@ -70,10 +70,10 @@ macro_rules! process_console_component_static {
             command_history_buffer,
             pconsole,
         )
-    };};
+    }};
     ($A: ty, $C: ty $(,)?) => {{
         $crate::process_console_component_static!($A, $C, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
-    };};
+    }};
 }
 
 pub type ProcessConsoleComponentType<A, C> = process_console::ProcessConsole<

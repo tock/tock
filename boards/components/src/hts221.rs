@@ -34,7 +34,7 @@ macro_rules! hts221_component_static {
         );
 
         (i2c_device, buffer, hts221)
-    };};
+    }};
 }
 
 pub type Hts221ComponentType<I> = capsules_extra::hts221::Hts221<'static, I>;

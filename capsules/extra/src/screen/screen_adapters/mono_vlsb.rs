@@ -131,9 +131,9 @@ fn convert_mvlsb_sub_rect(src: &[u8], dst: &mut [u8], sub_cols: usize) {
             // Extract the row of source pixels
             let src_row_pixels = src_page.iter().map(|b| (b >> bit) & 1 != 0);
             // Within a row, each source byte fills one 4-byte pixel.
-            let dst_row_pixels = dst_row.chunks_exact_mut(4);
+            let dst_row_pixels = dst_row.as_chunks_mut::<4>().0;
 
-            for (src_pixel, dst_pixel) in src_row_pixels.zip(dst_row_pixels) {
+            for (src_pixel, dst_pixel) in src_row_pixels.zip(dst_row_pixels.iter_mut()) {
                 // Yellow foreground, black background.
                 let color = if src_pixel {
                     [0, 0xFF, 0xFF, 0xFF]

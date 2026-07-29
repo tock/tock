@@ -45,7 +45,7 @@ macro_rules! app_loader_component_static {
         let buffer = kernel::static_buf!([u8; capsules_extra::app_loader::BUF_LEN]);
 
         (al, buffer)
-    };};
+    }};
 }
 
 pub struct AppLoaderComponent<

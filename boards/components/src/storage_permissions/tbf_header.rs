@@ -36,7 +36,7 @@ macro_rules! storage_permissions_tbf_header_component_static {
                 $CAP,
             >
         )
-    };};
+    }};
 }
 
 pub type StoragePermissionsTbfHeaderComponentType<C, D, CAP> =

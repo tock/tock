@@ -6,10 +6,10 @@
 #![no_std]
 #![no_main]
 
+use components::hmac_component_static;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -59,6 +59,11 @@ struct NucleoU545RE {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
+    hmac: &'static capsules_extra::hmac::HmacDriver<
+        'static,
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        32,
+    >,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -75,6 +80,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             _ => f(None),
         }
     }
@@ -188,17 +194,11 @@ unsafe fn start() -> (
         stm32u545::dma::Dma,
         stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
     );
-    let usart1 = static_init!(
-        stm32u545::usart::Usart<'static>,
-        stm32u545::usart::Usart::new(stm32u545::usart::USART1_BASE)
-    );
-
-    usart1.register();
 
     // Load Peripherals Bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
-        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(usart1, exti, dma1)
+        stm32u545::chip::Stm32u5xxDefaultPeripherals::new(exti, dma1)
     );
 
     // Initialize wiring (DMA, clocks)
@@ -208,12 +208,22 @@ unsafe fn start() -> (
     periphs.tim2.start();
     set_pin_primary_functions(periphs);
 
+    // Create an adapter for the HASH peripheral.
+    // In this way it is ensured that only one mode is used by the peripheral.
+    let sha256 = static_init!(
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        stm32u545::hash::sha256::Sha256Adapter::new(&periphs.hash)
+    );
+
+    // Adapter receives callbacks from the peripheral
+    let _ = periphs.hash.set_sha256_adapter(sha256);
+
     // Kernel and Muxes
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    let uart_mux = components::console::UartMuxComponent::new(periphs.usart1, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&periphs.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
 
     let alarm_mux = components::alarm::AlarmMuxComponent::new(&periphs.tim2).finalize(
@@ -374,6 +384,16 @@ unsafe fn start() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(GpioHw));
+    let hmac = components::hmac::HmacComponent::new(
+        board_kernel,
+        capsules_extra::hmac::DRIVER_NUM,
+        sha256,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(hmac_component_static!(
+        stm32u545::hash::sha256::Sha256Adapter<'static>,
+        32
+    ));
 
     // Platform and Interrupts
     let platform = static_init!(
@@ -390,6 +410,7 @@ unsafe fn start() -> (
             adc: adc_syscall,
             dac,
             gpio,
+            hmac
         }
     );
 

@@ -76,7 +76,7 @@ macro_rules! udp_driver_component_static {
             udp_recv,
             driver_cap,
         )
-    };};
+    }};
 }
 
 pub type UDPDriverComponentType = capsules_extra::net::udp::UDPDriver<'static>;

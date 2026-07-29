@@ -100,7 +100,7 @@ macro_rules! thread_network_component_static {
             alarm,
             driver_cap,
         )
-    };};
+    }};
 }
 pub struct ThreadNetworkComponent<
     A: Alarm<'static> + 'static,
