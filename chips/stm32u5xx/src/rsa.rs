@@ -11,8 +11,6 @@ use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
 
-const RAM_START: usize = 0x400;
-
 register_structs! {
     PkaRegisters {
         /// PKA control register
@@ -27,9 +25,9 @@ register_structs! {
         (0x0C => _reserved0),
 
         /// PKA RAM
-        /// 0x14D8-0x400 is 0x10D8 bytes, which is 4312 bytes in decimal. Since u32 takes exactly 4 bytes (32 / 8) we divide the number by 4 to obtain the indexes
+        /// 0x14D8-0x400 is 0x10D8 bytes, which is 4312 bytes in decimal. We divide by the size of u32 (4 bytes)
         /// Two 32-bit slices would correspond to one 64-bit "word" as defined in datasheet
-        (0x400 => ram: [ReadWrite<u32>; (0x14D8 - 0x400) / 4]),
+        (0x400 => ram: [ReadWrite<u32>; (0x14D8 - 0x400) / size_of::<u32>()]),
 
         (0x14D8 => @END),
     }
@@ -157,17 +155,35 @@ register_bitfields! [u32,
     ]
 ];
 
+/// Base address for PKA registers
 const PKA_BASE: StaticRef<PkaRegisters> =
     unsafe { StaticRef::new(0x520C2000 as *const PkaRegisters) };
 
-// RAM mapping for mongomery modular exponentiation mode
-// We need to compute the offset from the RAM start, and divide by 4 to obtain its index in the RAM array
-const EXP_LEN_IDX: usize = (0x400 - RAM_START) / 4;
-const OP_LEN_IDX: usize = (0x408 - RAM_START) / 4;
-const OP_A_IDX: usize = (0xC68 - RAM_START) / 4;
-const EXP_IDX: usize = (0xE78 - RAM_START) / 4;
-const MOD_VALUE_IDX: usize = (0x1088 - RAM_START) / 4;
-const RESULT_IDX: usize = (0x838 - RAM_START) / 4;
+/// Start of the RAM region
+const RAM_START: usize = 0x400;
+
+/// Addresses for montgomery modular exponentiation mode
+/// Exponent length address
+const EXP_LEN_ADDR: usize = 0x400;
+/// Operand length address
+const OP_LEN_ADDR: usize = 0x408;
+/// Operand A (base of exponentiation) address
+const OP_A_ADDR: usize = 0xC68;
+/// Exponent address
+const EXP_ADDR: usize = 0xE78;
+/// Modulus value address
+const MOD_VALUE_ADDR: usize = 0x1088;
+/// Result address
+const RESULT_ADDR: usize = 0x838;
+
+/// RAM array mapping
+/// We need to compute the offset from the RAM start, and divide by the size of u32 to obtain its index in the RAM array
+const EXP_LEN_IDX: usize = (EXP_LEN_ADDR - RAM_START) / size_of::<u32>();
+const OP_LEN_IDX: usize = (OP_LEN_ADDR - RAM_START) / size_of::<u32>();
+const OP_A_IDX: usize = (OP_A_ADDR - RAM_START) / size_of::<u32>();
+const EXP_IDX: usize = (EXP_ADDR - RAM_START) / size_of::<u32>();
+const MOD_VALUE_IDX: usize = (MOD_VALUE_ADDR - RAM_START) / size_of::<u32>();
+const RESULT_IDX: usize = (RESULT_ADDR - RAM_START) / size_of::<u32>();
 
 pub struct Pka<'a> {
     registers: StaticRef<PkaRegisters>,
