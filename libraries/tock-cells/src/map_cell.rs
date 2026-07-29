@@ -233,8 +233,9 @@ impl<T> MapCell<T> {
         // SAFETY:
         // - Since `occupied` is `Init` or `Uninit`, no `&mut` to the `val` exists, meaning it
         //   is safe to mutate the `get` pointer.
-        // - If occupied is `Init`, `maybe_uninit_val` must be initialized.
         let maybe_uninit_val = unsafe { self.val.get().replace(MaybeUninit::new(val)) };
+        // SAFETY:
+        // - If occupied is `Init`, `maybe_uninit_val` must be initialized.
         (occupied == MapCellState::Init).then(|| unsafe { maybe_uninit_val.assume_init() })
     }
 
@@ -288,7 +289,12 @@ impl<T> MapCell<T> {
                 }
             }
             let _reset_to_init = ResetToInit(&self.occupied);
-            unsafe { closure(&mut *self.val.get().cast::<T>()) }
+            let val_ptr_mut: *mut T = self.val.get().cast::<T>();
+            // SAFETY: The pointer points to memory for a `T`. Creating the
+            // reference is only sound if the value is initialized, which we
+            // ensured by checking that the state is `MapCell::Init`.
+            let val_ref_mut = unsafe { &mut *val_ptr_mut };
+            closure(val_ref_mut)
         })
     }
 
