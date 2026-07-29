@@ -425,13 +425,11 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        unsafe {
-            with_interrupts_disabled(|| {
-                // Disable counter
-                self.registers.dier.modify(DIER::CC1IE::CLEAR);
-                cortexm4::nvic::Nvic::new(self.irqn).clear_pending();
-            });
-        }
+        with_interrupts_disabled(|| {
+            // Disable counter
+            self.registers.dier.modify(DIER::CC1IE::CLEAR);
+            cortexm4::nvic::Nvic::new(self.irqn).clear_pending();
+        });
         Ok(())
     }
 

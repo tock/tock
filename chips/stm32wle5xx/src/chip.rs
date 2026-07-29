@@ -172,7 +172,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
         &self.userspace_kernel_boundary
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
