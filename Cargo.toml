@@ -138,8 +138,8 @@ edition = "2021"
 
 [workspace.dependencies.tock-registers]
 default-features = false
-git = "https://github.com/jrvanwhy/tock-registers.git"
-branch = "mod-interface"
+git = "https://github.com/tock/tock-registers.git"
+branch = "main"
 
 [profile.dev]
 panic = "abort"
