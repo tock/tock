@@ -131,29 +131,42 @@ def create_function_page(func_name, addresses, symbols_dict, sro_data, sro_start
         for j in range(0, len(hex_data), 4):
             formatted_hex_data += f'{hex_data[j:j+4]} '
 
-        ascii_data = raw_data.decode('utf-8', errors='replace')
-        initial_hex = ascii_data.count(u'\uFFFD') > (len(ascii_data) // 2)
+        # .srodata mixes string literals with binary constants, so decoding it
+        # as text is only ever partly meaningful. Render it the way a hex dump
+        # does: printable ASCII as itself, everything else as '.'. Decoding
+        # with errors='replace' instead would litter the pane with U+FFFD for
+        # every byte >= 0x80 and emit raw control characters for the low ones,
+        # which is the garbled output this pane was showing.
+        ascii_data = ''.join(
+            chr(b) if 0x20 <= b < 0x7f else '.' for b in raw_data)
 
         hex_font = ' style=\"font-family: monospace, monospace;\"'
 
-        escaped_ascii_data = ascii_data.replace('`', '\`')
+        # This goes into a JS template literal, so backslash, backtick and the
+        # ${...} interpolation marker all have to be escaped -- .srodata holds
+        # arbitrary strings from the firmware, and an unescaped ${...} would be
+        # evaluated as an expression when the pane is toggled.
+        escaped_ascii_data = (ascii_data
+                              .replace('\\', '\\\\')
+                              .replace('`', '\\`')
+                              .replace('${', '\\${'))
 
         data_html = f'''
                 <th>
                     <script>
                         function toggle{i}() {{
                             var x = document.getElementById("{i}");
-                            if (getComputedStyle( x, null ).getPropertyValue( 'font-family' ) === "monospace, monospace") {{
-                                x.style.fontFamily = "Arial";
+                            if (x.dataset.mode === "hex") {{
+                                x.dataset.mode = "ascii";
                                 x.innerHTML = `{escaped_ascii_data}`;
                             }} else {{
-                                x.style.fontFamily = "monospace, monospace";
+                                x.dataset.mode = "hex";
                                 x.innerHTML = "{formatted_hex_data}";
                             }}
                         }}
                     </script>
-                    <button onclick="toggle{i}()">UTF-8/HEX</button>
-                    <div {hex_font if initial_hex else ""} id="{i}">{formatted_hex_data if initial_hex else ascii_data}</div>
+                    <button onclick="toggle{i}()">ASCII/HEX</button>
+                    <div{hex_font} data-mode="ascii" id="{i}">{ascii_data}</div>
                 </th>
         '''
 
