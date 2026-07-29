@@ -1,19 +1,19 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2022.
+# Copyright Tock Contributors 2026.
 
 [package]
-name = "qemu_rv32_virt_chip"
+name = "rv64i"
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
-sifive = { path = "../sifive" }
-virtio = { path = "../virtio" }
-rv32i = { path = "../../arch/rv32i" }
-qemu_virt_chip = { path = "../qemu_virt_chip" }
 kernel = { path = "../../kernel" }
+tock-registers.workspace = true
+riscv-csr = { path = "../../libraries/riscv-csr" }
+riscv = { path = "../riscv" }
+
 
 [lints]
 workspace = true
