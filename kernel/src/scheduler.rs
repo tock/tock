@@ -45,7 +45,7 @@ pub trait Scheduler<C: Chip> {
     ///
     /// Custom implementations of this function must be very careful, however,
     /// as this function is called in the core kernel loop.
-    unsafe fn execute_kernel_work(&self, chip: &C) {
+    fn execute_kernel_work(&self, chip: &C) {
         chip.service_pending_interrupts();
         while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
             DeferredCall::service_next_pending();
