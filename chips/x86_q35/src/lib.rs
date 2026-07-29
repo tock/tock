@@ -17,13 +17,16 @@
 mod chip;
 pub use chip::{Pc, PcDefaultPeripherals};
 
+mod cmd_fifo;
 mod interrupts;
 
 pub mod pic;
 
 pub mod pit;
 
+pub mod ps2;
 pub mod serial;
 
+pub mod keyboard;
 pub mod vga;
 pub mod vga_uart_driver;

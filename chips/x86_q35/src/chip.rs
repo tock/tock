@@ -11,8 +11,10 @@ use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
 use x86::{Boundary, InterruptPoller};
 
+use crate::keyboard::Ps2Keyboard;
 use crate::pic::PIC1_OFFSET;
 use crate::pit::{Pit, RELOAD_1KHZ};
+use crate::ps2::Ps2Controller;
 use crate::serial::{COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE, SerialPort, SerialPortComponent};
 use crate::vga_uart_driver::VgaText;
 
@@ -28,6 +30,10 @@ mod interrupt {
 
     /// Interrupt number shared by COM1 and COM3 serial devices
     pub(super) const COM1_COM3: u32 = (PIC1_OFFSET as u32) + 4;
+
+    /// Interrupt number used by the PS/2 keyboard (i8042, IRQ1).
+    /// Raised when the controller’s output buffer has data ready (OB=1).
+    pub(super) const KEYBOARD: u32 = (PIC1_OFFSET as u32) + 1;
 }
 
 /// Representation of a generic PC platform.
@@ -73,6 +79,12 @@ pub struct Pc<'a, I1: InterruptService + 'a, I2: InterruptService + 'a, const PR
     /// Vga
     pub vga: &'a VgaText<'a>,
 
+    /// PS/2 Controller
+    pub ps2: &'a Ps2Controller,
+
+    /// Keyboard device
+    pub keyboard: &'a Ps2Keyboard<'a>,
+
     /// System call context
     syscall: Boundary,
     paging: PagingMPU<'a>,
@@ -113,6 +125,8 @@ impl<I2: InterruptService, const PR: u16> Pc<'static, PcDefaultPeripherals<PR>, 
             com4: default_peripherals.com4,
             pit: &default_peripherals.pit,
             vga: default_peripherals.vga,
+            ps2: default_peripherals.ps2,
+            keyboard: default_peripherals.keyboard,
             syscall,
             paging,
             default_peripherals,
@@ -246,6 +260,8 @@ pub struct PcDefaultPeripherals<const PR: u16 = RELOAD_1KHZ> {
     pub com4: &'static SerialPort<'static>,
     pub pit: Pit<'static, PR>,
     pub vga: &'static VgaText<'static>,
+    pub ps2: &'static Ps2Controller,
+    pub keyboard: &'static Ps2Keyboard<'static>,
 }
 
 impl<const PR: u16> PcDefaultPeripherals<PR> {
@@ -262,6 +278,8 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
             (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
             (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
             &'static mut core::mem::MaybeUninit<VgaText<'static>>,
+            &'static mut core::mem::MaybeUninit<Ps2Controller>,
+            &'static mut core::mem::MaybeUninit<Ps2Keyboard<'static>>,
         ),
         page_dir: &mut PD,
     ) -> Self {
@@ -291,6 +309,18 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
 
         let vga = s.4.write(VgaText::new());
 
+        // PS/2 inside the component
+        let ps2 = s.5.write(Ps2Controller::new());
+
+        // controller bring-up owned by the chip
+        let _ = ps2.init_early();
+
+        // keyboard device
+        let keyboard = s.6.write(Ps2Keyboard::new(ps2));
+        // connect keyboard as the ps/2 client, controller will call `receive_scancode`
+        ps2.set_client(keyboard);
+        keyboard.init_device();
+
         Self {
             com1,
             com2,
@@ -298,12 +328,15 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
             com4,
             pit,
             vga,
+            ps2,
+            keyboard,
         }
     }
 
     /// Finalize deferred-call registrations and any circular deps.
     pub fn setup_circular_deps(&self) {
         kernel::deferred_call::DeferredCallClient::register(self.vga);
+        kernel::deferred_call::DeferredCallClient::register(self.ps2);
     }
 }
 
@@ -322,6 +355,10 @@ impl<const PR: u16> InterruptService for PcDefaultPeripherals<PR> {
             interrupt::COM1_COM3 => {
                 self.com1.handle_interrupt();
                 self.com3.handle_interrupt();
+                true
+            }
+            interrupt::KEYBOARD => {
+                self.ps2.handle_interrupt();
                 true
             }
             _ => false,
