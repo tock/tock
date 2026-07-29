@@ -197,11 +197,9 @@ impl<'a> RPTimer<'a> {
         // Failing to do so results in the interrupt being set as pending but
         // not fired. This means that the interrupt will be handled whenever the
         // next kernel tasks are processed.
-        unsafe {
-            with_interrupts_disabled(|| {
-                cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).enable();
-            })
-        }
+        with_interrupts_disabled(|| {
+            cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).enable();
+        })
     }
 
     fn disable_timer_interrupt0(&self) {
@@ -253,12 +251,10 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
 
     fn disarm(&self) -> Result<(), ErrorCode> {
         self.registers.armed.set(1);
-        unsafe {
-            with_interrupts_disabled(|| {
-                // Clear pending interrupts
-                cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).clear_pending();
-            });
-        }
+        with_interrupts_disabled(|| {
+            // Clear pending interrupts
+            cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).clear_pending();
+        });
         self.disable_interrupt0();
         self.disable_timer_interrupt0();
         Ok(())

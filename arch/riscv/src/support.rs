@@ -25,7 +25,7 @@ pub unsafe fn wfi() {
 }
 
 /// Single-core critical section operation
-pub unsafe fn with_interrupts_disabled<F, R>(f: F) -> R
+pub fn with_interrupts_disabled<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {

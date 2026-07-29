@@ -1105,46 +1105,42 @@ impl hil::gpio::Input for Pin<'_> {
 
 impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
-        unsafe {
-            with_interrupts_disabled(|| {
-                self.exti_lineid.map(|lineid| {
-                    let l = lineid;
+        with_interrupts_disabled(|| {
+            self.exti_lineid.map(|lineid| {
+                let l = lineid;
 
-                    // disable the interrupt
-                    self.exti.mask_interrupt(l);
-                    self.exti.clear_pending(l);
+                // disable the interrupt
+                self.exti.mask_interrupt(l);
+                self.exti.clear_pending(l);
 
-                    match mode {
-                        hil::gpio::InterruptEdge::EitherEdge => {
-                            self.exti.select_rising_trigger(l);
-                            self.exti.select_falling_trigger(l);
-                        }
-                        hil::gpio::InterruptEdge::RisingEdge => {
-                            self.exti.select_rising_trigger(l);
-                            self.exti.deselect_falling_trigger(l);
-                        }
-                        hil::gpio::InterruptEdge::FallingEdge => {
-                            self.exti.deselect_rising_trigger(l);
-                            self.exti.select_falling_trigger(l);
-                        }
+                match mode {
+                    hil::gpio::InterruptEdge::EitherEdge => {
+                        self.exti.select_rising_trigger(l);
+                        self.exti.select_falling_trigger(l);
                     }
+                    hil::gpio::InterruptEdge::RisingEdge => {
+                        self.exti.select_rising_trigger(l);
+                        self.exti.deselect_falling_trigger(l);
+                    }
+                    hil::gpio::InterruptEdge::FallingEdge => {
+                        self.exti.deselect_rising_trigger(l);
+                        self.exti.select_falling_trigger(l);
+                    }
+                }
 
-                    self.exti.unmask_interrupt(l);
-                });
+                self.exti.unmask_interrupt(l);
             });
-        }
+        });
     }
 
     fn disable_interrupts(&self) {
-        unsafe {
-            with_interrupts_disabled(|| {
-                self.exti_lineid.map(|lineid| {
-                    let l = lineid;
-                    self.exti.mask_interrupt(l);
-                    self.exti.clear_pending(l);
-                });
+        with_interrupts_disabled(|| {
+            self.exti_lineid.map(|lineid| {
+                let l = lineid;
+                self.exti.mask_interrupt(l);
+                self.exti.clear_pending(l);
             });
-        }
+        });
     }
 
     fn set_client(&self, client: &'a dyn hil::gpio::Client) {

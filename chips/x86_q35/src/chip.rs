@@ -220,7 +220,7 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
         unimplemented!()
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
