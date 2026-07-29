@@ -41,8 +41,10 @@ const BUTTON_RST_PIN: Pin = Pin::P0_18;
 // UART Pins (CTS/RTS Unused)
 const _UART_RTS: Option<Pin> = Some(Pin::P0_30);
 const _UART_CTS: Option<Pin> = Some(Pin::P0_31);
-const UART_TXD: Pin = Pin::P0_06;
-const UART_RXD: Pin = Pin::P0_08;
+/// UART transmit pin.
+pub const UART_TXD: Pin = Pin::P0_06;
+/// UART receive pin.
+pub const UART_RXD: Pin = Pin::P0_08;
 
 // SPI pins not currently in use, but left here for convenience
 const _SPI_MOSI: Pin = Pin::P1_13;
