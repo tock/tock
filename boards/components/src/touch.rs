@@ -41,9 +41,7 @@ use kernel::component::Component;
 
 #[macro_export]
 macro_rules! touch_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::touch::Touch<'static>)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::touch::Touch<'static>) }};
 }
 
 pub struct TouchComponent<CAP: MemoryAllocationCapability + 'static> {

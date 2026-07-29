@@ -39,7 +39,7 @@ macro_rules! fxos8700_component_static {
         let fxo = kernel::static_buf!(capsules_extra::fxos8700cq::Fxos8700cq<'static>);
 
         (i2c_device, buffer, fxo)
-    };};
+    }};
 }
 
 pub struct Fxos8700Component<I: 'static + i2c::I2CMaster<'static>> {

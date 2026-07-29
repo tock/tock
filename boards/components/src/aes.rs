@@ -38,9 +38,7 @@ const CRYPT_SIZE: usize = 7 * hil::symmetric_encryption::AES_BLOCK_SIZE;
 
 #[macro_export]
 macro_rules! aes_mux_component_static {
-    ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, $A>)
-    };};
+    ($A:ty $(,)?) => {{ kernel::static_buf!(capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, $A>) }};
 }
 
 pub type AesMuxComponentType<A> =
@@ -85,7 +83,7 @@ macro_rules! aes_virtual_component_static {
         let crypt_buf = kernel::static_buf!([u8; CRYPT_SIZE]);
 
         (virtual_aes, crypt_buf)
-    };};
+    }};
 }
 
 #[macro_export]
@@ -99,7 +97,7 @@ macro_rules! aes_driver_component_static {
         );
 
         (aes_driver, aes_src_buffer, aes_dst_buffer)
-    };};
+    }};
 }
 
 pub struct AesVirtualComponent<A: 'static + AES<'static, AES128> + AESCtr + AESCBC + AESECB> {

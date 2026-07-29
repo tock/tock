@@ -23,7 +23,7 @@ macro_rules! multi_alarm_test_component_buf {
         let buf21 = kernel::static_buf!(TestRandomAlarm<'static, VirtualMuxAlarm<'static, $A>>);
 
         ((buf00, buf01)(buf10, buf11)(buf20, buf21))
-    };};
+    }};
 }
 
 pub struct MultiAlarmTestComponent<A: 'static + time::Alarm<'static>> {

@@ -39,7 +39,7 @@ macro_rules! ft6x06_component_static {
         );
 
         (i2c_device, ft6x06, buffer, events_buffer)
-    };};
+    }};
 }
 
 pub struct Ft6x06Component<I: 'static + i2c::I2CMaster<'static>> {

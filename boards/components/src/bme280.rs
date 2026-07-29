@@ -44,7 +44,7 @@ macro_rules! bme280_component_static {
         );
 
         (i2c_device, i2c_buffer, bme280)
-    };};
+    }};
 }
 
 pub type Bme280ComponentType<I> = capsules_extra::bme280::Bme280<'static, I>;

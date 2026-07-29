@@ -36,7 +36,7 @@ macro_rules! storage_permissions_individual_component_static {
                 $CAP,
             >
         )
-    };};
+    }};
 }
 
 pub type StoragePermissionsIndividualComponentType<C, D, CAP> =

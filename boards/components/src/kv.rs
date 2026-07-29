@@ -26,7 +26,7 @@ macro_rules! kv_driver_component_static {
         let value_buffer = kernel::static_buf!([u8; 512]);
 
         (kv, key_buffer, value_buffer)
-    };};
+    }};
 }
 
 pub type KVDriverComponentType<V> = capsules_extra::kv_driver::KVStoreDriver<'static, V>;
@@ -97,7 +97,7 @@ macro_rules! kv_permissions_mux_component_static {
         );
 
         mux
-    };};
+    }};
 }
 
 pub type KVPermissionsMuxComponentType<V> =
@@ -136,7 +136,7 @@ macro_rules! virtual_kv_permissions_component_static {
         );
 
         virtual_kv
-    };};
+    }};
 }
 
 pub type VirtualKVPermissionsComponentType<V> =
@@ -176,7 +176,7 @@ macro_rules! kv_store_permissions_component_static {
         );
 
         (kv_store, buffer)
-    };};
+    }};
 }
 
 pub type KVStorePermissionsComponentType<V> =
@@ -226,7 +226,7 @@ macro_rules! tickv_kv_store_component_static {
             kernel::static_buf!(capsules_extra::tickv_kv_store::TicKVKVStore<'static, $K, $T>);
 
         (kv_store, key)
-    };};
+    }};
 }
 
 pub type TicKVKVStoreComponentType<K, T> =

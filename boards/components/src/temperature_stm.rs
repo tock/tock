@@ -23,7 +23,7 @@ macro_rules! temperature_stm_adc_component_static {
         );
 
         (adc_device, temperature_stm)
-    };};
+    }};
 }
 
 pub type TemperatureSTMComponentType<A> =

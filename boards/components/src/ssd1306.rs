@@ -32,7 +32,7 @@ macro_rules! ssd1306_component_static {
         );
 
         (buffer, ssd1306)
-    };};
+    }};
 }
 
 pub type Ssd1306ComponentType<I> = capsules_extra::ssd1306::Ssd1306<
