@@ -780,6 +780,23 @@ pub mod immutable_from_into_bytes {
     /// [zerocopy-frombytes]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.FromBytes.html
     /// [zerocopy-intobytes]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.IntoBytes.html
     /// [zerocopy-immutable]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.Immutable.html
+    ///
+    /// # Safety
+    ///
+    /// If `T: ImmutableFromIntoBytes`, then unsafe code may assume that it is
+    /// sound to produce a `T` whose bytes are initialized to any sequence of
+    /// valid u8s (in other words, any byte value which is not uninitialized).
+    /// Additionally, unsafe code may assume that it is sound to treat any `t:
+    /// T` as an immutable `[u8]` of length `size_of_val(t)`. If a type is
+    /// marked as `ImmutableFromIntoBytes` which violates this contract, it may
+    /// cause undefined behavior.
+    ///
+    /// Unsafe code outside of this crate must not make any assumptions about
+    /// `T` based on `T` not featuring interior mutability. We reserve the right
+    /// to relax the requirements for `ImmutableFromIntoBytes` in the future,
+    /// and if unsafe code outside of this crate makes assumptions based on not
+    /// featuring interior mutability, future relaxations may cause that code to
+    /// become unsound.
     pub unsafe trait ImmutableFromIntoBytes: private::Sealed {}
 
     impl private::Sealed for u8 {}
