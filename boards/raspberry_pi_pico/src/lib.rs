@@ -592,6 +592,7 @@ pub unsafe fn setup(
             spi_chip_select,
         ),
         capsules_core::spi_controller::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::spi_syscall_component_static!(Spi));
 
