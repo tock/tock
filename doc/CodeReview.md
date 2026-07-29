@@ -321,7 +321,7 @@ upheld.
       means for a raw pointer to be "valid". In lieu of enumerating individual
       invariants to assert that a raw pointer is NonNull, Dereferenceable,
       Aligned, Initialized, and Live, a Safety invariant can simply assert
-      "the pointer is VALID".
+      "the pointer is VALID for a [read/write]".
 
 There are several fundamental types of `unsafe` code, each with their own
 template for Safety comments:
@@ -462,15 +462,16 @@ are upheld:
     // contiguous region of memory with the same safety requirements derived
     // from the same caller assertion.
     //
-    // The caller asserted that `new_stack_pointer` is VALID and points to the
-    // beginning of an array of 8 contiguous words of memory we have exclusive
-    // access to.
+    // The caller asserted that `new_stack_pointer` is VALID for reads and
+    // points to the beginning of an array of 8 contiguous words of memory
+    // we have exclusive access to.
     //
     // For each `add`, invariants are satisfied as follows:
-    //   - valid_base: The base pointer is VALID per caller assertion.
-    //   - bounds: Each offset is within the bounds asserted by the caller as VALID.
+    //   - valid_base: The base pointer is VALID for reads per caller assertion.
+    //   - bounds: Each offset is within the bounds asserted by the caller as
+    //     VALID for reads.
     // For each `ptr::read`, invariants are satisfied as follows:
-    //   - valid_ptrs: The pointer is VALID per the above.
+    //   - valid_ptrs: The pointer is VALID for reads per the above.
     let (r0, r1, r2, r3, yield_pc, psr) = unsafe {
         (
             ptr::read(new_stack_pointer.add(0)),
