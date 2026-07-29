@@ -95,7 +95,7 @@ pub unsafe fn start() -> (
 
     let output = raspberry_pi_pico::Output::Cdc;
 
-    // Uncomment this to use UART0 as output for console caspule/debug writer/process console
+    // Uncomment this to use UART0 as output for console capsule/debug writer/process console
     // let output = raspberry_pi_pico::Output::Uart;
 
     let (board_kernel, base, peripherals, _, chip) = raspberry_pi_pico::setup(output);
