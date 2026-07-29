@@ -10,43 +10,21 @@ use kernel::utilities::registers::ReadWrite;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub struct MachineTimer<'a> {
-    compare_low: &'a ReadWrite<u32>,
-    compare_high: &'a ReadWrite<u32>,
-    value_low: &'a ReadWrite<u32>,
-    value_high: &'a ReadWrite<u32>,
+    compare: &'a ReadWrite<u64>,
+    value: &'a ReadWrite<u64>,
 }
 
 impl<'a> MachineTimer<'a> {
-    pub const fn new(
-        compare_low: &'a ReadWrite<u32>,
-        compare_high: &'a ReadWrite<u32>,
-        value_low: &'a ReadWrite<u32>,
-        value_high: &'a ReadWrite<u32>,
-    ) -> Self {
-        MachineTimer {
-            compare_low,
-            compare_high,
-            value_low,
-            value_high,
-        }
+    pub const fn new(compare: &'a ReadWrite<u64>, value: &'a ReadWrite<u64>) -> Self {
+        MachineTimer { compare, value }
     }
 
     pub fn disable_machine_timer(&self) {
-        self.compare_high.set(0xFFFF_FFFF);
-        self.compare_low.set(0xFFFF_FFFF);
+        self.compare.set(0xFFFF_FFFF_FFFF_FFFF);
     }
 
     pub fn now(&self) -> Ticks64 {
-        let first_low: u32 = self.value_low.get();
-        let mut high: u32 = self.value_high.get();
-        let second_low: u32 = self.value_low.get();
-
-        if second_low < first_low {
-            // Wraparound
-            high = self.value_high.get();
-        }
-
-        Ticks64::from(((high as u64) << 32) | second_low as u64)
+        Ticks64::from(self.value.get())
     }
 
     pub fn set_alarm(&self, reference: Ticks64, dt: Ticks64) {
@@ -56,7 +34,6 @@ impl<'a> MachineTimer<'a> {
         // maximum value, issuing a callback on the overflow client
         // if there is one, spinning until it wraps around to 0, then
         // setting the compare to the correct value.
-        let regs = self;
         let now = self.now();
         let mut expire = reference.wrapping_add(dt);
 
@@ -64,22 +41,11 @@ impl<'a> MachineTimer<'a> {
             expire = now;
         }
 
-        let val = expire.into_u64();
-
-        let high = (val >> 32) as u32;
-        let low = (val & 0xffffffff) as u32;
-
-        // Recommended approach for setting the two compare registers
-        // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
-        regs.compare_low.set(0xFFFF_FFFF);
-        regs.compare_high.set(high);
-        regs.compare_low.set(low);
+        self.compare.set(expire.into_u64());
     }
 
     pub fn get_alarm(&self) -> Ticks64 {
-        let mut val: u64 = (self.compare_high.get() as u64) << 32;
-        val |= self.compare_low.get() as u64;
-        Ticks64::from(val)
+        Ticks64::from(self.compare.get())
     }
 
     pub fn disarm(&self) -> Result<(), ErrorCode> {
@@ -90,7 +56,7 @@ impl<'a> MachineTimer<'a> {
     pub fn is_armed(&self) -> bool {
         // Check if mtimecmp is the max value. If it is, then we are not armed,
         // otherwise we assume we have a value set.
-        self.compare_high.get() != 0xFFFF_FFFF || self.compare_low.get() != 0xFFFF_FFFF
+        self.compare.get() != 0xFFFF_FFFF_FFFF_FFFF
     }
 
     pub fn minimum_dt(&self) -> Ticks64 {
