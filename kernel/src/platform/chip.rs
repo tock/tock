@@ -174,12 +174,12 @@ pub unsafe trait ThreadIdProvider {
 pub trait InterruptService {
     /// Service an interrupt, if supported by this chip. If this interrupt
     /// number is not supported, return false.
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
+    fn service_interrupt(&self, interrupt: u32) -> bool;
 }
 
 /// A default implementation of `InterruptService` that handles nothing and returns `false`.
 impl InterruptService for () {
-    unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
+    fn service_interrupt(&self, _interrupt: u32) -> bool {
         false
     }
 }

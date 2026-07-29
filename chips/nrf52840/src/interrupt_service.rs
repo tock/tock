@@ -43,7 +43,7 @@ impl Nrf52840DefaultPeripherals<'_> {
     }
 }
 impl kernel::platform::chip::InterruptService for Nrf52840DefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),
             nrf52::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
