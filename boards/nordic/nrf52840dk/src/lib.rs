@@ -83,7 +83,10 @@ use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::cells::MapCell;
 #[allow(unused_imports)]
-use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
+use kernel::{
+    capabilities, create_capability, debug, debug_gpio, debug_verbose, define_capability_type,
+    mint_defined_capability, static_init,
+};
 use nrf52_components::{UartChannel, UartPins};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
@@ -186,29 +189,10 @@ type AnalogComparatorDriver =
 type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
 type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
 
-/// Capability type used to construct the process console.
-///
-/// Unlike most capabilities in this file, this one is declared by hand
-/// (rather than with [`kernel::create_typed_capability!`]) because it must
-/// be nameable both in [`start_pconsole_optional`] and in its return type,
-/// so that callers in other crates (board `main.rs` files) can decide
-/// whether and how to start the returned [`ProcessConsoleDriver`]. Its
-/// private tuple field prevents construction from outside this module, and
-/// [`ProcessConsoleCap::new`] additionally requires an `unsafe` block,
-/// matching the convention used for capability creation elsewhere.
-pub struct ProcessConsoleCap(());
-
-unsafe impl kernel::capabilities::ProcessManagementCapability for ProcessConsoleCap {}
-unsafe impl kernel::capabilities::ProcessStartCapability for ProcessConsoleCap {}
-
-impl ProcessConsoleCap {
-    unsafe fn new() -> Self {
-        ProcessConsoleCap(())
-    }
-}
-
+define_capability_type!(ProcessConsoleCap: capabilities::ProcessManagementCapability, capabilities::ProcessStartCapability);
 type ProcessConsoleDriver =
     components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
+
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
 type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
 
@@ -972,7 +956,7 @@ pub unsafe fn start_pconsole_optional(
     // input, so starting it too early could interleave its output with or
     // precede the initialization messages above.
     let pconsole = start_pconsole.then(|| {
-        let process_console_cap = unsafe { ProcessConsoleCap::new() };
+        let process_console_cap = unsafe { mint_defined_capability!(ProcessConsoleCap) };
         components::process_console::ProcessConsoleComponent::new(
             board_kernel,
             uart_mux,

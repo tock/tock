@@ -16,7 +16,9 @@ use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{create_capability, debug, static_init};
+use kernel::{
+    create_capability, debug, define_capability_type, mint_defined_capability, static_init,
+};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use rv32i::csr;
 use rv32i::dma_fence::RiscvCoherentDmaFence;
@@ -52,27 +54,7 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
 
 kernel::stack_size! {0x8000}
 
-/// Capability type used to construct the process console.
-///
-/// Unlike most capabilities in this file, this one is declared by hand
-/// (rather than with [`kernel::create_typed_capability!`]) because it must
-/// be nameable both in [`start`] and in its return type, so that callers in
-/// other crates (board `main.rs` files) can decide whether and how to
-/// start the returned [`ProcessConsoleDriver`]. Its private tuple field
-/// prevents construction from outside this module, and
-/// [`ProcessConsoleCap::new`] additionally requires an `unsafe` block,
-/// matching the convention used for capability creation elsewhere.
-pub struct ProcessConsoleCap(());
-
-unsafe impl kernel::capabilities::ProcessManagementCapability for ProcessConsoleCap {}
-unsafe impl kernel::capabilities::ProcessStartCapability for ProcessConsoleCap {}
-
-impl ProcessConsoleCap {
-    unsafe fn new() -> Self {
-        ProcessConsoleCap(())
-    }
-}
-
+define_capability_type!(ProcessConsoleCap: capabilities::ProcessManagementCapability, capabilities::ProcessStartCapability);
 type ProcessConsoleDriver =
     components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 
@@ -795,7 +777,7 @@ pub unsafe fn start() -> (
     // (asynchronously) print its prompt and begin accepting input, so
     // starting it too early could interleave its output with or precede the
     // initialization messages above.
-    let process_console_cap = unsafe { ProcessConsoleCap::new() };
+    let process_console_cap = unsafe { mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
