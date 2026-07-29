@@ -63,7 +63,7 @@ impl E310xDefaultPeripherals<'_> {
 }
 
 impl InterruptService for E310xDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
+    fn service_interrupt(&self, _interrupt: u32) -> bool {
         false
     }
 }

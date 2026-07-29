@@ -62,7 +62,7 @@ impl LiteXSimInterruptablePeripherals {
 }
 
 impl InterruptService for LiteXSimInterruptablePeripherals {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt as usize {
             socc::UART_INTERRUPT => {
                 self.uart0.service_interrupt();

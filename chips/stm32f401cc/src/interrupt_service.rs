@@ -28,7 +28,7 @@ impl<'a> Stm32f401ccDefaultPeripherals<'a> {
     }
 }
 impl kernel::platform::chip::InterruptService for Stm32f401ccDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         #[allow(clippy::match_single_binding)]
         match interrupt {
             // put Stm32f401cc specific interrupts here
