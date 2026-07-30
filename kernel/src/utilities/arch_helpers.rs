@@ -533,9 +533,7 @@ pub unsafe fn encode_upcall_trd104_ptr(
     a2: *mut u32,
     a3: *mut u32,
 ) {
-    // # Safety
-    //
-    // All safety invariants must be upheld by the function caller.
+    // SAFETY: All safety invariants must be upheld by the function caller.
     unsafe {
         core::ptr::write(a0, upcall.argument0 as u32);
         core::ptr::write(a1, upcall.argument1 as u32);
