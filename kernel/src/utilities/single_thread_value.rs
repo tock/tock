@@ -201,9 +201,7 @@ pub struct SingleThreadValue<T> {
 
 /// Mark that [`SingleThreadValue`] is [`Sync`] to enable multiple accesses.
 ///
-/// # Safety
-///
-/// This is safe because [`SingleThreadValue`] enforces that the shared value
+/// SAFETY: This is safe because [`SingleThreadValue`] enforces that the shared value
 /// is only ever accessed from the same thread it originated from.
 unsafe impl<T> Sync for SingleThreadValue<T> {}
 
@@ -279,9 +277,7 @@ impl<T> SingleThreadValue<T> {
         // the currently running thread ID.
         let ptr_thread_id_and_fn = self.thread_id_and_fn.get();
 
-        // # Safety
-        //
-        // We must ensure that there are no (mutable) aliases or concurrent
+        // SAFETY: We must ensure that there are no (mutable) aliases or concurrent
         // reads or writes of the thread_id_and_fn value.
         //
         // This value is accessed in three functions: `bind_to_thread_unsafe`,
@@ -335,9 +331,7 @@ impl<T> SingleThreadValue<T> {
         // running) thread that we are binding the `SingleThreadValue` to. This
         // avoids a requirement of `T: Send`.
         //
-        // # Safety
-        //
-        // We are the only thread with access to `self.value` going forward, and
+        // SAFETY: We are the only thread with access to `self.value` going forward, and
         // this is the first time that this value is being accessed (as we're
         // initializing it). Therefore, we can safely dereference a mutable
         // (unique) pointer to this value:
@@ -397,9 +391,7 @@ impl<T> SingleThreadValue<T> {
         // query the currently running thread ID.
         let ptr_thread_id_and_fn = self.thread_id_and_fn.get();
 
-        // # Safety
-        //
-        // We must ensure that there are no (mutable) aliases or concurrent
+        // SAFETY: We must ensure that there are no (mutable) aliases or concurrent
         // reads or writes of the `thread_id_and_fn` value.
         //
         // This value is accessed in three functions: `bind_to_thread`,
@@ -436,9 +428,7 @@ impl<T> SingleThreadValue<T> {
         // running) thread that we are binding the `SingleThreadValue` to. This
         // avoids a requirement of `T: Send`.
         //
-        // # Safety
-        //
-        // We are the only thread with access to `self.value` going forward, and
+        // SAFETY: We are the only thread with access to `self.value` going forward, and
         // this is the first time that this value is being accessed (as we're
         // initializing it). Therefore, we can safely dereference a mutable
         // (unique) pointer to this value:
@@ -485,9 +475,9 @@ impl<T> SingleThreadValue<T> {
         let ptr_thread_id_and_fn: *mut MaybeUninit<(fn() -> usize, usize)> =
             self.thread_id_and_fn.get();
 
-        // # Safety
-        //
-        // We must ensure that there are no (mutable) aliases or concurrent
+        let maybe_thread_id_and_fn: *const MaybeUninit<(fn() -> usize, usize)> =
+            ptr_thread_id_and_fn.cast_const();
+        // SAFETY: We must ensure that there are no (mutable) aliases or concurrent
         // reads or writes of the thread_id_and_fn value.
         //
         // This value is accessed in three functions: `bind_to_thread`,
@@ -525,14 +515,10 @@ impl<T> SingleThreadValue<T> {
         //   have ceased to exist.
         //
         // Thus, this operation is sound.
-        let maybe_thread_id_and_fn: *const MaybeUninit<(fn() -> usize, usize)> =
-            ptr_thread_id_and_fn.cast_const();
         let maybe_thread_id_and_fn: &MaybeUninit<(fn() -> usize, usize)> =
             unsafe { &*maybe_thread_id_and_fn };
 
-        // # Safety
-        //
-        // Both `bind_to_thread` and `bind_to_thread_unsafe` are guaranteed to
+        // SAFETY: Both `bind_to_thread` and `bind_to_thread_unsafe` are guaranteed to
         // have initialized `thread_id_and_fn` *before* setting
         // `bound_to_thread` to `Bound` with `Release` ordering constraints.
         //
@@ -558,9 +544,7 @@ impl<T> SingleThreadValue<T> {
     /// reference to its contained value.
     pub fn get(&self) -> Option<&T> {
         if self.bound_to_current_thread() {
-            // # Safety
-            //
-            // When `self.bound_to_current_thread()` returns true, we know that
+            // SAFETY: When `self.bound_to_current_thread()` returns true, we know that
             // `self.value` is initialized, and that the value belongs to and is
             // accessible to the currently running thread. We can safely
             // construct a reference to it.
