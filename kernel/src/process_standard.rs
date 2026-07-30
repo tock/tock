@@ -424,6 +424,11 @@ struct GrantPointerEntry {
 ///   process uses for storing optional debugging data. Kernels that do not wish
 ///   to store per-process debugging state can use the `()` type for this
 ///   parameter.
+///
+/// # Code Level
+///
+/// - Assurance: Extensively Tested
+/// - Criticality: Critical
 pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDebug + Default> {
     /// Identifier of this process and the index of the process in the process
     /// table.
