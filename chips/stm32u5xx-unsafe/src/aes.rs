@@ -156,8 +156,8 @@ register_bitfields![u32,
 ];
 
 pub struct AesDmaBuffers {
-    pub dma_in_buf: MapCell<DmaSubSliceMut<'static, u8>>,
-    pub dma_out_buf: MapCell<DmaSubSliceMut<'static, u8>>,
+    dma_in_buf: MapCell<DmaSubSliceMut<'static, u8>>,
+    dma_out_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     pub dma_aad_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
     pub dma_message_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
 }

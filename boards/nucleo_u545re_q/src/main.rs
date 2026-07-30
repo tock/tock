@@ -413,7 +413,6 @@ unsafe fn start() -> (
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         32
     ));
-    AES::set_client(&periphs.aes, aes_driver);
 
     // Platform and Interrupts
     let platform = static_init!(
