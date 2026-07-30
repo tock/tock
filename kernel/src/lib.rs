@@ -89,6 +89,9 @@
 //!    this use case. It is likely we will have to create new interfaces as new
 //!    use cases are discovered.
 
+// `clippy::missing_safety_doc`: Our goal is to apply this in all of Tock,
+// but as of September 2026 we are starting with the kernel crate.
+#![deny(clippy::missing_safety_doc)]
 #![warn(unreachable_pub)]
 #![no_std]
 
