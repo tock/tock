@@ -281,9 +281,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     ) -> Self {
         let counters_ptr: *mut usize = base_ptr.as_ptr().cast();
 
-        // # Safety
-        //
-        // The safety requirement for the function ensures that `base_ptr` is
+        // SAFETY: The safety requirement for the function ensures that `base_ptr` is
         // well aligned and there is an initialized counters structure there.
         let counters_val = unsafe { counters_ptr.read() };
 
@@ -293,9 +291,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // Skip over the counter usize, then the stored array of `SavedAllowRo`
         // items and `SavedAllowRw` items.
         //
-        // # Safety
-        //
-        // The safety requirement for the function ensures that `base_ptr` is
+        // SAFETY: The safety requirement for the function ensures that `base_ptr` is
         // well aligned and there are initialized arrays of saved upcalls and
         // allows above the counters.
         let (upcalls_array, allow_ro_array, allow_rw_array) = unsafe {
@@ -342,9 +338,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
             u32::from_be_bytes([0, allow_rw_num_val.0, allow_ro_num_val.0, upcalls_num_val.0])
                 as usize;
 
-        // # Safety
-        //
-        // Callers guarantee that the `base_ptr` is well aligned to the kernel
+        // SAFETY: Callers guarantee that the `base_ptr` is well aligned to the kernel
         // managed grant structure and these pointers reconstruct that grant
         // structure.
         let (upcalls_array, allow_ro_array, allow_rw_array) = unsafe {
@@ -356,9 +350,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
             (upcalls_array, allow_ro_array, allow_rw_array)
         };
 
-        // # Safety
-        //
-        // Callers guarantee that the `base_ptr` is well aligned to the kernel
+        // SAFETY: Callers guarantee that the `base_ptr` is well aligned to the kernel
         // managed grant structure and there is enough memory to hold the entire
         // grant structure. That ensures writing the grant structure is safe.
         unsafe {
@@ -424,9 +416,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         grant_size: usize,
         grant_t_size: GrantDataSize,
     ) -> NonNull<u8> {
-        // # Safety
-        //
-        // The location of the grant data T is the last element in the entire
+        // SAFETY: The location of the grant data T is the last element in the entire
         // grant region. Caller must verify that memory is accessible and well
         // aligned to T.
         unsafe {
@@ -438,9 +428,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Read an 8 bit value from the counter field offset by the specified
     /// number of bits. This is a helper function for reading the counter field.
     fn get_counter_offset(&self, offset_bits: usize) -> usize {
-        // # Safety
-        //
-        // Creating a `EnteredGrantKernelManagedLayout` object requires that the
+        // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object requires that the
         // pointers are well aligned and point to valid memory.
         let counters_val = unsafe { self.counters_ptr.read() };
         (counters_val >> offset_bits) & 0xFF
@@ -466,9 +454,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Return mutable access to the slice of stored upcalls for this grant.
     /// This is necessary for storing a new upcall.
     fn get_upcalls_slice(&mut self) -> &mut [SavedUpcall] {
-        // # Safety
-        //
-        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the upcall array is valid.
         unsafe { slice::from_raw_parts_mut(self.upcalls_array, self.get_upcalls_number()) }
     }
@@ -476,9 +462,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Return mutable access to the slice of stored read-only allow buffers for
     /// this grant. This is necessary for storing a new read-only allow.
     fn get_allow_ro_slice(&mut self) -> &mut [SavedAllowRo] {
-        // # Safety
-        //
-        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the RO allow array is valid.
         unsafe { slice::from_raw_parts_mut(self.allow_ro_array, self.get_allow_ro_number()) }
     }
@@ -486,9 +470,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Return mutable access to the slice of stored read-write allow buffers
     /// for this grant. This is necessary for storing a new read-write allow.
     fn get_allow_rw_slice(&mut self) -> &mut [SavedAllowRw] {
-        // # Safety
-        //
-        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the RW allow array is valid.
         unsafe { slice::from_raw_parts_mut(self.allow_rw_array, self.get_allow_rw_number()) }
     }
@@ -497,23 +479,17 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// permits using upcalls and allow buffers when a capsule is accessing a
     /// grant.
     fn get_resource_slices(&self) -> (&[SavedUpcall], &[SavedAllowRo], &[SavedAllowRw]) {
-        // # Safety
-        //
-        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the upcall array is valid.
         let upcall_slice =
             unsafe { slice::from_raw_parts(self.upcalls_array, self.get_upcalls_number()) };
 
-        // # Safety
-        //
-        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the RO allow array is valid.
         let allow_ro_slice =
             unsafe { slice::from_raw_parts(self.allow_ro_array, self.get_allow_ro_number()) };
 
-        // # Safety
-        //
-        // Creating a `KernelManagedLayout` object ensures that the pointer to
+        // SAFETY: Creating a `KernelManagedLayout` object ensures that the pointer to
         // the RW allow array is valid.
         let allow_rw_slice =
             unsafe { slice::from_raw_parts(self.allow_rw_array, self.get_allow_rw_number()) };
@@ -525,9 +501,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 // Ensure that we leave the grant once this goes out of scope.
 impl Drop for EnteredGrantKernelManagedLayout<'_> {
     fn drop(&mut self) {
-        // ### Safety
-        //
-        // To safely call this function we must ensure that no references will
+        // SAFETY: To safely call this function we must ensure that no references will
         // exist to the grant once `leave_grant()` returns. Because using a
         // `EnteredGrantKernelManagedLayout` object is the only only way we
         // access the actual memory of a grant, and we are calling
@@ -716,9 +690,7 @@ impl<'a> GrantKernelData<'a> {
         self.allow_ro.get(allow_ro_num).map_or(
             Err(crate::process::Error::AddressOutOfBounds),
             |saved_ro| {
-                // # Safety
-                //
-                // This is the saved process buffer data has been validated to
+                // SAFETY: This is the saved process buffer data has been validated to
                 // be wholly contained within this process before it was stored.
                 // The lifetime of the ReadOnlyProcessBuffer is bound to the
                 // lifetime of self, which correctly limits dereferencing this
@@ -757,9 +729,7 @@ impl<'a> GrantKernelData<'a> {
         self.allow_rw.get(allow_rw_num).map_or(
             Err(crate::process::Error::AddressOutOfBounds),
             |saved_rw| {
-                // # Safety
-                //
-                // This is the saved process buffer data has been validated to
+                // SAFETY: This is the saved process buffer data has been validated to
                 // be wholly contained within this process before it was stored.
                 // The lifetime of the ReadWriteProcessBuffer is bound to the
                 // lifetime of self, which correctly limits dereferencing this
@@ -841,9 +811,7 @@ impl Default for SavedAllowRw {
 /// already does contain initialized memory, then those contents will be
 /// overwritten without being `Drop`ed first.
 unsafe fn write_default_array<T: Default>(base: *mut T, num: usize) {
-    // # Safety
-    //
-    // See function description.
+    // SAFETY: See function description.
     unsafe {
         for i in 0..num {
             base.add(i).write(T::default());
@@ -870,9 +838,7 @@ fn enter_grant_kernel_managed(
 
     // Return early if no grant.
     let grant_base_ptr = process.enter_grant(grant_num).or(Err(ErrorCode::NOMEM))?;
-    // # Safety
-    //
-    // We know that this pointer is well aligned and initialized with meaningful
+    // SAFETY: We know that this pointer is well aligned and initialized with meaningful
     // data when the grant region was allocated.
     let layout = unsafe {
         EnteredGrantKernelManagedLayout::read_from_base(grant_base_ptr, process, grant_num)
@@ -954,9 +920,7 @@ pub(crate) fn allow_ro(
     // userspace passed us a bad allow number.
     match saved_allow_ro_slice.get_mut(allow_num) {
         Some(saved) => {
-            // # Safety
-            //
-            // The pointer has already been validated to be within application
+            // SAFETY: The pointer has already been validated to be within application
             // memory before storing the values in the saved slice.
             let old_allow =
                 unsafe { ReadOnlyProcessBuffer::new(saved.ptr, saved.len, process.processid()) };
@@ -1002,9 +966,7 @@ pub(crate) fn allow_rw(
     // userspace passed us a bad allow number.
     match saved_allow_rw_slice.get_mut(allow_num) {
         Some(saved) => {
-            // # Safety
-            //
-            // The pointer has already been validated to be within application
+            // SAFETY: The pointer has already been validated to be within application
             // memory before storing the values in the saved slice.
             let old_allow =
                 unsafe { ReadWriteProcessBuffer::new(saved.ptr, saved.len, process.processid()) };
@@ -1152,8 +1114,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                     // all memory so it is valid in the future to read as a
                     // reference.
                     //
-                    // # Safety
-                    //
+                    // SAFETY:
                     // - The grant base pointer is well aligned, yet does not
                     //   have initialized data.
                     // - The pointer points to a large enough space to correctly
@@ -1172,9 +1133,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                         );
                     }
 
-                    // # Safety
-                    //
-                    // The grant pointer points to an alloc that is alloc_size
+                    // SAFETY: The grant pointer points to an alloc that is alloc_size
                     // large and is at least as aligned as grant_t_align.
                     unsafe {
                         Ok((
@@ -1214,9 +1173,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         if let Some(allocated_ptr) = opt_raw_grant_ptr_nn {
             // Grant type T
             //
-            // # Safety
-            //
-            // This is safe because:
+            // SAFETY: This is safe because:
             //
             // 1. The pointer address is valid. The pointer is allocated
             //    statically in process memory, and will exist for as long
@@ -1490,17 +1447,14 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
 
         // Parse layout of entire grant allocation using the known base pointer.
         //
-        // # Safety
-        //
-        // Grant pointer is well aligned and points to initialized data.
+        // SAFETY: Grant pointer is well aligned and points to initialized data.
         let layout = unsafe {
             EnteredGrantKernelManagedLayout::read_from_base(grant_ptr, self.process, self.grant_num)
         };
 
         // Get references to all of the saved upcall data.
         //
-        // # Safety
-        //
+        // SAFETY:
         // - Pointer is well aligned and initialized with data from Self::new()
         //   call.
         // - Data will not be modified externally while this immutable reference
@@ -1602,9 +1556,7 @@ impl<T> CustomGrant<T> {
                 let grant_ptr: *mut u8 = process.enter_custom_grant(self.identifier)?;
                 let grant_ptr: *mut T = grant_ptr.cast();
 
-                // # Safety
-                //
-                // `grant_ptr` must be a valid pointer and there must not exist
+                // SAFETY: `grant_ptr` must be a valid pointer and there must not exist
                 // any other references to the same memory. We verify the
                 // pointer is valid and aligned when the memory is allocated and
                 // `CustomGrant` is created. We are sure that there are no
@@ -1646,9 +1598,7 @@ impl GrantRegionAllocator {
     {
         let (custom_grant_identifier, typed_ptr) = self.alloc_raw::<T>()?;
 
-        // # Safety
-        //
-        // Writing to this pointer is safe as long as the pointer is valid
+        // SAFETY: Writing to this pointer is safe as long as the pointer is valid
         // and aligned. `alloc_raw()` guarantees these constraints are met.
         unsafe {
             // We use `ptr::write` to avoid `Drop`ping the uninitialized memory
@@ -1679,9 +1629,7 @@ impl GrantRegionAllocator {
         let (custom_grant_identifier, typed_ptr) = self.alloc_n_raw::<T>(NUM_ITEMS)?;
 
         for i in 0..NUM_ITEMS {
-            // # Safety
-            //
-            // The allocate function guarantees that `ptr` points to memory
+            // SAFETY: The allocate function guarantees that `ptr` points to memory
             // large enough to allocate `num_items` copies of the object.
             unsafe {
                 write(typed_ptr.as_ptr().add(i), init(i));
