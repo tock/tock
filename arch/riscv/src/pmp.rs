@@ -1704,6 +1704,12 @@ pub mod simple {
                 0,
                 &mut regions
                     .iter()
+                    // Each region occupies two physical PMP entries: a
+                    // "start" entry (always OFF, only its pmpaddr matters as
+                    // the lower TOR bound) and an "end" entry (carries the
+                    // actual permissions and the upper TOR bound). An OFF
+                    // region contributes two OFF entries with no address to
+                    // write, since its old address, if any, is irrelevant:
                     .flat_map(|(region_pmpcfg, region_start, region_end)| {
                         if *region_pmpcfg == TORUserPMPCFG::OFF {
                             [(TORUserPMPCFG::OFF, None), (TORUserPMPCFG::OFF, None)]
@@ -1715,6 +1721,9 @@ pub mod simple {
                         }
                     })
                     .enumerate()
+                    // Write each entry's pmpaddr (if it has one), and pass its
+                    // pmpcfg octet through to be written to the pmpcfgX CSRs
+                    // by `write_back` below:
                     .map(|(i, (pmpcfg, opt_addr))| {
                         if let Some(addr) = opt_addr {
                             csr::CSR.pmpaddr_set(i, (*addr as usize).overflowing_shr(2).0);
@@ -1722,6 +1731,11 @@ pub mod simple {
 
                         pmpcfg
                     })
+                    // Since SimplePMP keeps no record of which entries were
+                    // previously enabled, explicitly turn off every remaining
+                    // hardware entry beyond the `MPU_REGIONS * 2` entries
+                    // above, so that a region disabled since the last call is
+                    // actually cleared in hardware:
                     .chain(core::iter::repeat_n(
                         TORUserPMPCFG::OFF,
                         AVAILABLE_ENTRIES - (MPU_REGIONS * 2),
@@ -2030,10 +2044,6 @@ pub mod kernel_protection {
             MPU_REGIONS
         }
 
-        // This implementation is specific for 32-bit systems. We use
-        // `u32::from_be_bytes` and then cast to usize, as it manages to compile
-        // on 64-bit systems as well. However, this implementation will not work
-        // on RV64I systems, due to the changed pmpcfgX CSR layout.
         fn configure_pmp(
             &self,
             regions: &[(TORUserPMPCFG, *const u8, *const u8); MPU_REGIONS],
@@ -2042,6 +2052,12 @@ pub mod kernel_protection {
                 0,
                 &mut regions
                     .iter()
+                    // Each region occupies two physical PMP entries: a
+                    // "start" entry (always OFF, only its pmpaddr matters as
+                    // the lower TOR bound) and an "end" entry (carries the
+                    // actual permissions and the upper TOR bound). An OFF
+                    // region contributes two OFF entries with no address to
+                    // write, since its old address, if any, is irrelevant:
                     .flat_map(|(region_pmpcfg, region_start, region_end)| {
                         if *region_pmpcfg == TORUserPMPCFG::OFF {
                             [(TORUserPMPCFG::OFF, None), (TORUserPMPCFG::OFF, None)]
@@ -2053,6 +2069,9 @@ pub mod kernel_protection {
                         }
                     })
                     .enumerate()
+                    // Write each entry's pmpaddr (if it has one), and pass its
+                    // pmpcfg octet through to be written to the pmpcfgX CSRs
+                    // by `write_back` below:
                     .map(|(i, (pmpcfg, opt_addr))| {
                         if let Some(addr) = opt_addr {
                             csr::CSR.pmpaddr_set(i, (*addr as usize).overflowing_shr(2).0);
