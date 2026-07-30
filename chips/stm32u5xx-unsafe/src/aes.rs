@@ -20,7 +20,7 @@ pub const AES_BASE: StaticRef<AesRegisters> =
 register_structs! {
     pub AesRegisters {
         // Control register
-        (0x0000 => pub cr: ReadWrite<u32, Control::Register>),
+        (0x0000 => cr: ReadWrite<u32, Control::Register>),
 
         // Status register
         (0x0004 => pub sr: ReadOnly<u32, Status::Register>),
@@ -177,7 +177,120 @@ impl AesRegistersManager {
     pub unsafe fn new(regs: StaticRef<AesRegisters>) -> Self {
         Self { registers: regs }
     }
+
+    pub fn apply_crypto_direction(&self, encrypting: bool) {
+        if encrypting {
+            self.registers.cr.modify(Control::MODE::Encrypt);
+        } else {
+            self.registers.cr.modify(Control::MODE::Decrypt);
+        }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.registers.cr.any_matching_bits_set(Control::EN::SET)
+    }
+
+    pub fn enable(&self) {
+        self.registers.cr.modify(Control::EN::SET);
+    }
+
+    pub fn set_dma(&self, both: bool) {
+        if both {
+            self.registers
+                .cr
+                .modify(Control::DMAINEN::SET + Control::DMAOUTEN::SET);
+        } else {
+            self.registers.cr.modify(Control::DMAINEN::SET);
+        }
+    }
+
+    pub fn clear_dma(&self) {
+        self.registers
+            .cr
+            .modify(Control::DMAINEN::CLEAR + Control::DMAOUTEN::CLEAR);
+    }
+
+    pub fn disable(&self) {
+        self.registers.cr.modify(Control::EN::CLEAR);
+    }
+
+    pub fn key_preparation(&self) {
+        self.registers
+            .cr
+            .modify(Control::MODE::KeyDerivation + Control::KMOD::Normal);
+    }
+
+    pub fn reset(&self) {
+        self.registers.cr.modify(Control::IPRST::SET);
+    }
+
+    pub fn set_data_swap_byte(&self) {
+        self.registers.cr.modify(Control::DATATYPE::Byte);
+    }
+
+    pub fn set_key_len(&self, length: usize) {
+        if length == 16 {
+            self.registers.cr.modify(Control::KEYSIZE::AES128);
+        } else {
+            self.registers.cr.modify(Control::KEYSIZE::AES256);
+        }
+    }
+
+    pub fn set_mode_ecb(&self) {
+        self.registers
+            .cr
+            .modify(Control::CHMOD::ECB + Control::CHMOD_2::CLEAR);
+    }
+
+    pub fn set_mode_ctr(&self) {
+        self.registers
+            .cr
+            .modify(Control::CHMOD::CTR + Control::CHMOD_2::CLEAR);
+    }
+
+    pub fn set_mode_cbc(&self) {
+        self.registers
+            .cr
+            .modify(Control::CHMOD::CBC + Control::CHMOD_2::CLEAR);
+    }
+
+    pub fn set_mode_ccm(&self) {
+        self.registers.cr.modify(Control::CHMOD::ECB);
+        self.registers.cr.modify(Control::CHMOD_2::SET);
+    }
+
+    pub fn set_mode_gcm(&self) {
+        self.registers.cr.modify(Control::CHMOD::GCM_CCM);
+        self.registers.cr.modify(Control::CHMOD_2::CLEAR);
+    }
+
+    pub fn set_init_phase(&self) {
+        self.registers.cr.modify(Control::GCMPH::Init);
+    }
+
+    pub fn set_header_phase(&self) {
+        self.registers.cr.modify(Control::GCMPH::Header);
+    }
+
+    pub fn set_payload_phase(&self) {
+        self.registers.cr.modify(Control::GCMPH::Payload);
+    }
+
+    pub fn set_final_phase(&self) {
+        self.registers.cr.modify(Control::GCMPH::Final);
+    }
+
+    pub fn clear_phase(&self) {
+        self.registers.cr.modify(Control::GCMPH::CLEAR);
+    }
+
+    pub fn set_npblb(&self, block_len: usize) {
+        self.registers
+            .cr
+            .modify(Control::NPBLB.val((AES_BLOCK_SIZE - block_len) as u32));
+    }
 }
+
 impl AesDmaBuffers {
     pub const fn new() -> Self {
         Self {

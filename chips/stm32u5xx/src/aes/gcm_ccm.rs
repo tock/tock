@@ -8,8 +8,8 @@ use crate::dma::Dma;
 use crate::dma::DmaPeripheral;
 use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AESKeySize, GCMClient};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use stm32u5xx_unsafe::aes::{AesDmaBuffers, Control, Interrupt};
+use kernel::utilities::registers::interfaces::Writeable;
+use stm32u5xx_unsafe::aes::{AesDmaBuffers, Interrupt};
 
 impl<K: AESKeySize> Aes<'_, K> {
     /// Configures and initiates a DMA-backed transfer for GCM or CCM modes.
@@ -52,19 +52,12 @@ impl<K: AESKeySize> Aes<'_, K> {
             }
             ctx.current_idx = aad_len;
             self.state.set(State::Header(ctx));
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::GCMPH::Header);
+            self.register_manager.set_header_phase();
             (aad_len, ctx.aad_offset)
         } else {
             ctx.current_idx = msg_len;
             self.state.set(State::Payload(ctx));
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::GCMPH::Payload);
-
+            self.register_manager.set_payload_phase();
             (msg_len, ctx.message_start)
         };
 
@@ -78,19 +71,10 @@ impl<K: AESKeySize> Aes<'_, K> {
             dma.setup(out_ch, DmaPeripheral::AESOUT, in_ptr, len as u32);
         }
 
-        self.register_manager.registers.cr.modify(Control::EN::SET);
+        self.register_manager.enable();
         // Start Hardware — enable DMAINEN always; DMAOUTEN only for Payload
-        if ctx.aad_offset == ctx.message_start {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::DMAINEN::SET + Control::DMAOUTEN::SET);
-        } else {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::DMAINEN::SET);
-        }
+        self.register_manager
+            .set_dma(ctx.aad_offset == ctx.message_start)
     }
 
     /// The primary interrupt router for DMA-based GCM/CCM operations.
@@ -126,10 +110,7 @@ impl<K: AESKeySize> Aes<'_, K> {
                     // Set NPBLB to indicate the number of padding bytes when
                     // required by the mode (GCM encrypt or CCM decrypt).
                     if self.uses_npblb() {
-                        self.register_manager
-                            .registers
-                            .cr
-                            .modify(Control::NPBLB.val((AES_BLOCK_SIZE - block_len) as u32));
+                        self.register_manager.set_npblb(block_len);
                     }
 
                     // Manually write the padded block to DINR
@@ -168,11 +149,8 @@ impl<K: AESKeySize> Aes<'_, K> {
                         .dma_bufs
                         .setup_dma_in_buf(buf, aad_offset + block_len, len);
                     dma.setup(in_ch, DmaPeripheral::AESIN, ptr, len as u32);
-                    self.register_manager.registers.cr.modify(Control::EN::SET);
-                    self.register_manager
-                        .registers
-                        .cr
-                        .modify(Control::DMAINEN::SET);
+                    self.register_manager.enable();
+                    self.register_manager.set_dma(false);
                 } else {
                     // If len is 0, we don't need DMA. Just put the buffer back directly
                     // using a 0-length call so the buffer is saved in dma_in_buf
@@ -220,33 +198,19 @@ impl<K: AESKeySize> Aes<'_, K> {
                 dma.setup(out_ch, DmaPeripheral::AESOUT, ptr, len as u32);
                 dma.setup(in_ch, DmaPeripheral::AESIN, ptr, len as u32);
 
-                if !self
-                    .register_manager
-                    .registers
-                    .cr
-                    .any_matching_bits_set(Control::EN::SET)
-                {
-                    self.register_manager.registers.cr.modify(Control::EN::SET);
+                if !self.register_manager.is_enabled() {
+                    self.register_manager.enable();
                 }
 
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::GCMPH::Payload);
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::DMAINEN::SET + Control::DMAOUTEN::SET);
+                self.register_manager.set_payload_phase();
+                self.register_manager.set_dma(true);
             } else {
                 // If len is 0, we don't need DMA. Just put the buffer back directly
                 // using a 0-length call so the buffer is inside dma_in_buf on future
                 // reads even when this branch was followed
                 let _ = self.dma_bufs.setup_dma_in_buf(buf, start_idx, 0);
 
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::GCMPH::Payload);
+                self.register_manager.set_payload_phase();
                 self.handle_dma_gcm_ccm(false);
             }
         } else {
@@ -257,10 +221,8 @@ impl<K: AESKeySize> Aes<'_, K> {
     /// Triggers the Final phase of the AES hardware to compute the authentication tag. For GCM, this
     /// involves writing the length block; for both modes, it triggers tag computation.
     pub(crate) fn dma_start_tag_computation(&self, ctx: CryptoContext) {
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::DMAINEN::CLEAR + Control::DMAOUTEN::CLEAR + Control::GCMPH::Final);
+        self.register_manager.clear_dma();
+        self.register_manager.set_final_phase();
 
         self.register_manager
             .registers
@@ -289,14 +251,8 @@ impl<K: AESKeySize> Aes<'_, K> {
             .dma_bufs
             .take_dma_in_buf(self.register_manager.registers)
         {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::GCMPH::CLEAR);
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::EN::CLEAR);
+            self.register_manager.clear_phase();
+            self.register_manager.disable();
 
             let end_idx = ctx.message_end;
             let start_idx = ctx.message_start;
@@ -337,18 +293,8 @@ impl<K: AESKeySize> Aes<'_, K> {
     pub(crate) fn init_ccm(&self) {
         self.enable();
         // ECB mode has value 00. The CCM mode thould be 100, 1 in CHMOD_2 and 00 in CHMOD
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::CHMOD::ECB);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::CHMOD_2::SET);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::GCMPH::Init);
+        self.register_manager.set_mode_ccm();
+        self.register_manager.set_init_phase();
         self.mode.set(AESMode::CCM);
     }
 
@@ -367,18 +313,12 @@ impl<K: AESKeySize> Aes<'_, K> {
             self.output.replace(buf);
             // if aad exists, we continue to the header phase, otherwise we go straight to payload
             if ctx.aad_offset != ctx.message_start {
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::GCMPH::Header);
-                self.register_manager.registers.cr.modify(Control::EN::SET);
+                self.register_manager.set_header_phase();
+                self.register_manager.enable();
                 self.aad_phase(ctx);
             } else {
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::GCMPH::Payload);
-                self.register_manager.registers.cr.modify(Control::EN::SET);
+                self.register_manager.set_payload_phase();
+                self.register_manager.enable();
                 self.start_payload_phase(ctx);
             }
         }
@@ -388,18 +328,8 @@ impl<K: AESKeySize> Aes<'_, K> {
     /// pushing the state machine into the GCMInit phase.
     pub(crate) fn init_gcm(&self) {
         self.enable();
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::CHMOD::GCM_CCM);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::CHMOD_2::CLEAR);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::GCMPH::Init);
+        self.register_manager.set_mode_gcm();
+        self.register_manager.set_init_phase();
         self.state.set(State::GCMInit(DeferredOp::None));
         self.mode.set(AESMode::GCM);
     }
@@ -424,10 +354,7 @@ impl<K: AESKeySize> Aes<'_, K> {
         if ctx.current_idx + ctx.aad_offset >= ctx.message_start {
             ctx.current_idx = 0;
             if ctx.message_start != ctx.message_end {
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::GCMPH::Payload);
+                self.register_manager.set_payload_phase();
                 self.state.set(State::Payload(ctx));
                 self.start_payload_phase(ctx);
             } else {
@@ -435,10 +362,7 @@ impl<K: AESKeySize> Aes<'_, K> {
                     self.insert_lengths_gcm(ctx);
                 } else {
                     self.state.set(State::Final(ctx));
-                    self.register_manager
-                        .registers
-                        .cr
-                        .modify(Control::GCMPH::Final);
+                    self.register_manager.set_final_phase();
                 }
             }
         } else {
@@ -452,10 +376,7 @@ impl<K: AESKeySize> Aes<'_, K> {
         let start_idx = ctx.message_start;
         let block_len = (ctx.message_end - start_idx).min(AES_BLOCK_SIZE);
         if block_len < AES_BLOCK_SIZE && self.uses_npblb() {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::NPBLB.val((AES_BLOCK_SIZE - block_len) as u32));
+            self.register_manager.set_npblb(block_len);
         }
         self.output.map(|output| {
             self.write_padded_to_dinr(&output[start_idx..start_idx + block_len]);
@@ -480,10 +401,7 @@ impl<K: AESKeySize> Aes<'_, K> {
         // The NPBLB register must be programmed with the number of padding bytes in
         // the final block so the hardware can accurately compute the GCM/CCM tag.
         if block_len < AES_BLOCK_SIZE && self.uses_npblb() {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::NPBLB.val((AES_BLOCK_SIZE - block_len) as u32));
+            self.register_manager.set_npblb(block_len);
         }
 
         self.output.map(|output| {
@@ -507,10 +425,7 @@ impl<K: AESKeySize> Aes<'_, K> {
             });
             if self.mode.get() == AESMode::CCM {
                 self.state.set(State::Final(ctx));
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::GCMPH::Final);
+                self.register_manager.set_final_phase();
             } else {
                 self.insert_lengths_gcm(ctx);
             }
@@ -523,10 +438,7 @@ impl<K: AESKeySize> Aes<'_, K> {
     /// aad and the message are sent to the peripheral
     pub(crate) fn insert_lengths_gcm(&self, ctx: CryptoContext) {
         self.state.set(State::Final(ctx));
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::GCMPH::Final);
+        self.register_manager.set_final_phase();
 
         let aad_len_bits = ((ctx.message_start - ctx.aad_offset) * 8) as u32;
         let msg_len_bits = ((ctx.message_end - ctx.message_start) * 8) as u32;
@@ -551,14 +463,8 @@ impl<K: AESKeySize> Aes<'_, K> {
             })
         };
 
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::GCMPH::CLEAR);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::EN::CLEAR);
+        self.register_manager.clear_phase();
+        self.register_manager.disable();
 
         if let Some(output) = self.output.take() {
             if self.mode.get() == AESMode::GCM {
@@ -669,11 +575,8 @@ impl<K: AESKeySize> Aes<'_, K> {
                         }
                         // normal version using interrupts
                     } else {
-                        self.register_manager
-                            .registers
-                            .cr
-                            .modify(Control::GCMPH::Payload);
-                        self.register_manager.registers.cr.modify(Control::EN::SET);
+                        self.register_manager.set_payload_phase();
+                        self.register_manager.enable();
                         self.state.set(State::Payload(ctx));
                         self.start_payload_phase(ctx);
                     }
@@ -707,11 +610,8 @@ impl<K: AESKeySize> Aes<'_, K> {
                     let block_len = (AES_BLOCK_SIZE - offset).min(aad_len);
                     ctx.current_idx = block_len;
                     self.state.set(State::Header(ctx));
-                    self.register_manager
-                        .registers
-                        .cr
-                        .modify(Control::GCMPH::Header);
-                    self.register_manager.registers.cr.modify(Control::EN::SET);
+                    self.register_manager.set_header_phase();
+                    self.register_manager.enable();
                     self.output.map(|output| {
                         b1[offset..offset + block_len]
                             .copy_from_slice(&output[aad_offset..aad_offset + block_len]);
@@ -765,12 +665,7 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AESGCM<'a, K> for Aes
             return Err(ErrorCode::INVAL);
         }
 
-        if self
-            .register_manager
-            .registers
-            .cr
-            .any_matching_bits_set(Control::EN::SET)
-        {
+        if self.register_manager.is_enabled() {
             return Err(ErrorCode::BUSY);
         }
         let mut full_gcm_iv = [0u8; AES_IV_SIZE];
@@ -778,7 +673,7 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AESGCM<'a, K> for Aes
         full_gcm_iv[12..AES_IV_SIZE].copy_from_slice(&2u32.to_be_bytes());
         AES::set_iv(self, &full_gcm_iv)?;
 
-        self.register_manager.registers.cr.modify(Control::EN::SET);
+        self.register_manager.enable();
 
         Ok(())
     }
@@ -848,12 +743,7 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AESCCM<'a, K> for Aes
             return Err(ErrorCode::INVAL);
         }
 
-        if self
-            .register_manager
-            .registers
-            .cr
-            .any_matching_bits_set(Control::EN::SET)
-        {
+        if self.register_manager.is_enabled() {
             return Err(ErrorCode::BUSY);
         }
 
@@ -877,8 +767,7 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AESCCM<'a, K> for Aes
         confidential: bool,
         encrypting: bool,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.state.get() != State::Idle || self.register_manager.registers.cr.is_set(Control::EN)
-        {
+        if self.state.get() != State::Idle || self.register_manager.is_enabled() {
             return Err((ErrorCode::BUSY, buf));
         }
         if m_off - a_off + m_len + mic_len > buf.len() || a_off > m_off {
@@ -918,19 +807,9 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AESCCM<'a, K> for Aes
         // write IV to registers
         self.write_iv_registers(&iv);
 
-        if encrypting {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::MODE::Encrypt);
-        } else {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::MODE::Decrypt);
-        }
+        self.apply_crypto_direction(encrypting);
         self.state.set(State::CCMInit(ctx));
-        self.register_manager.registers.cr.modify(Control::EN::SET);
+        self.register_manager.enable();
 
         Ok(())
     }

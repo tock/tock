@@ -9,7 +9,7 @@ use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AESKeySize};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use stm32u5xx_unsafe::aes::{AesDmaBuffers, AesRegistersManager, Control, Data, Interrupt};
+use stm32u5xx_unsafe::aes::{AesDmaBuffers, AesRegistersManager, Data, Interrupt};
 
 use crate::dma::Dma;
 pub const AES_IV_SIZE: usize = 16;
@@ -159,17 +159,7 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
 
     pub(crate) fn apply_crypto_direction(&self, encrypting: bool) {
         self.encrypting.set(encrypting);
-        if encrypting {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::MODE::Encrypt);
-        } else {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::MODE::Decrypt);
-        }
+        self.register_manager.apply_crypto_direction(encrypting);
     }
 
     // Returns true if the NPBLB register needs to be set for the current mode and encryption direction
@@ -311,28 +301,15 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
             dma.setup(out_ch, DmaPeripheral::AESOUT, out_ptr, len);
 
             self.state.set(State::Classic(ctx));
-            if !self
-                .register_manager
-                .registers
-                .cr
-                .any_matching_bits_set(Control::EN::SET)
-            {
-                self.register_manager.registers.cr.modify(Control::EN::SET);
+            if !self.register_manager.is_enabled() {
+                self.register_manager.enable();
             }
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::DMAINEN::SET + Control::DMAOUTEN::SET);
+            self.register_manager.set_dma(true);
         } else {
             // interrupt fallback
             self.state.set(State::Classic(ctx));
-            if !self
-                .register_manager
-                .registers
-                .cr
-                .any_matching_bits_set(Control::EN::SET)
-            {
-                self.register_manager.registers.cr.modify(Control::EN::SET);
+            if !self.register_manager.is_enabled() {
+                self.register_manager.enable();
             }
             self.write_input(ctx);
         }
@@ -341,32 +318,20 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     /// Function for ECB and CBC decryption modes which goes though Key derivation operation
     pub(crate) fn prepare_decryption_key(&self, key: &[u8]) {
         self.state.set(State::KeyPreparation(DeferredOp::None));
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::EN::CLEAR);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::MODE::KeyDerivation + Control::KMOD::Normal);
+        self.register_manager.disable();
+        self.register_manager.key_preparation();
 
         self.write_key_registers(key);
 
-        self.register_manager.registers.cr.modify(Control::EN::SET);
+        self.register_manager.enable();
     }
 
     /// Main state machine handler for ECB, CBC and CTR modes.
     pub(crate) fn handle_classic_client(&self) {
         match self.state.get() {
             State::KeyPreparation(deferred_op) => {
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::EN::CLEAR);
-                self.register_manager
-                    .registers
-                    .cr
-                    .modify(Control::MODE::Decrypt);
+                self.register_manager.disable();
+                self.register_manager.apply_crypto_direction(false);
 
                 match deferred_op {
                     DeferredOp::Classic(ctx) => {
@@ -458,26 +423,17 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
 
 impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a, K> {
     fn enable(&self) {
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::IPRST::SET);
-        self.register_manager.registers.cr.write(Control::EN::CLEAR);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::DATATYPE::Byte);
+        self.register_manager.reset();
+        self.register_manager.disable();
+        self.register_manager.set_data_swap_byte();
         self.state.set(State::Idle);
         self.enable_interrupts();
     }
 
     fn disable(&self) {
-        self.register_manager.registers.cr.write(Control::EN::CLEAR);
+        self.register_manager.disable();
         self.disable_interrupts();
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::IPRST::SET);
+        self.register_manager.reset();
         self.state.set(State::Idle);
     }
 
@@ -490,24 +446,9 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a
             return Err(ErrorCode::INVAL);
         }
 
-        if K::LENGTH == 16 {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::KEYSIZE::AES128);
-        } else {
-            self.register_manager
-                .registers
-                .cr
-                .modify(Control::KEYSIZE::AES256);
-        }
+        self.register_manager.set_key_len(K::LENGTH);
 
-        if self
-            .register_manager
-            .registers
-            .cr
-            .any_matching_bits_set(Control::EN::SET)
-        {
+        if self.register_manager.is_enabled() {
             return Err(ErrorCode::BUSY);
         }
 
@@ -527,12 +468,7 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a
             return Err(ErrorCode::INVAL);
         }
 
-        if self
-            .register_manager
-            .registers
-            .cr
-            .any_matching_bits_set(Control::EN::SET)
-        {
+        if self.register_manager.is_enabled() {
             return Err(ErrorCode::BUSY);
         }
 
@@ -611,10 +547,7 @@ impl<'a, K: AESKeySize> kernel::hil::symmetric_encryption::AES<'a, K> for Aes<'a
 impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESECB for Aes<'_, K> {
     fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.mode.set(AESMode::ECB);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::CHMOD::ECB + Control::CHMOD_2::CLEAR);
+        self.register_manager.set_mode_ecb();
         self.apply_crypto_direction(encrypting);
         Ok(())
     }
@@ -623,14 +556,8 @@ impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESECB for Aes<'_, K> {
 impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESCtr for Aes<'_, K> {
     fn set_mode_aesctr(&self, _encrypting: bool) -> Result<(), ErrorCode> {
         self.mode.set(AESMode::CTR);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::CHMOD::CTR + Control::CHMOD_2::CLEAR);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::MODE::Encrypt);
+        self.register_manager.set_mode_ctr();
+        self.apply_crypto_direction(_encrypting);
         Ok(())
     }
 }
@@ -638,10 +565,7 @@ impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESCtr for Aes<'_, K> {
 impl<K: AESKeySize> kernel::hil::symmetric_encryption::AESCBC for Aes<'_, K> {
     fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         self.mode.set(AESMode::CBC);
-        self.register_manager
-            .registers
-            .cr
-            .modify(Control::CHMOD::CBC + Control::CHMOD_2::CLEAR);
+        self.register_manager.set_mode_cbc();
         self.apply_crypto_direction(encrypting);
         Ok(())
     }
