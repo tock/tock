@@ -194,7 +194,9 @@ unsafe extern "C" fn systick_handler() {
 }
 
 /// The `systick_handler` is called when the systick interrupt occurs, signaling
-/// that an application executed for longer than its timeslice. This interrupt
+/// that an application executed for longer than its timeslice.
+///
+/// This interrupt
 /// handler is no longer responsible for signaling to the kernel thread that an
 /// interrupt has occurred, but is slightly more efficient than the
 /// `generic_isr` handler on account of not needing to mark the interrupt as

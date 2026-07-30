@@ -180,6 +180,7 @@ pub struct CortexMConfig<const NUM_REGIONS: usize> {
 }
 
 /// Records the index of the last region used for application RAM memory.
+///
 /// Regions 0-APP_MEMORY_REGION_MAX_NUM are used for application RAM. Regions
 /// with indices above APP_MEMORY_REGION_MAX_NUM can be used for other MPU
 /// needs.
