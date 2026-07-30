@@ -684,27 +684,26 @@ impl<K: AESKeySize> Aes<'_, K> {
                     // phase included
                     let mut b1 = [0u8; AES_BLOCK_SIZE];
                     let aad_len = start_idx - aad_offset;
-                    let offset;
                     // The first block of CCM AAD (B1) must encode the total AAD length using
                     // specific byte markers.
-                    match aad_len {
+                    let offset = match aad_len {
                         0..crate::aes::ecb::CCM_AAD_L16_MAX => {
                             let len_bytes = (aad_len as u16).to_be_bytes();
                             b1[0..2].copy_from_slice(&len_bytes);
-                            offset = 2;
+                            2
                         }
                         crate::aes::ecb::CCM_AAD_L16_MAX..=0xFFFFFFFF => {
                             b1[0] = crate::aes::ecb::CCM_AAD_L32_MARKER_0;
                             b1[1] = crate::aes::ecb::CCM_AAD_L32_MARKER_1;
                             let len_bytes = (aad_len as u32).to_be_bytes();
                             b1[2..6].copy_from_slice(&len_bytes);
-                            offset = 6;
+                            6
                         }
                         _ => {
                             // aad buffer size cannot exceed 0xFFFFFFFF on stm32
                             unreachable!("");
                         }
-                    }
+                    };
                     let block_len = (AES_BLOCK_SIZE - offset).min(aad_len);
                     ctx.current_idx = block_len;
                     self.state.set(State::Header(ctx));

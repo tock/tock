@@ -184,8 +184,8 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
         let mut buf = [0u8; AES_BLOCK_SIZE];
         buf[..slice.len()].copy_from_slice(slice);
 
-        for chunk in buf.chunks_exact(4) {
-            let word = u32::from_le_bytes(chunk.try_into().unwrap());
+        for &chunk in buf.as_chunks::<4>().0 {
+            let word = u32::from_le_bytes(chunk);
             self.register_manager.registers.dinr.set(word);
         }
     }
@@ -210,7 +210,7 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
     /// returns AES_BLOCK_SIZE bytes of data from the DOUTR register
     pub(crate) fn get_output(&self) -> [u8; AES_BLOCK_SIZE] {
         let mut block = [0u8; AES_BLOCK_SIZE];
-        for chunk in block.chunks_exact_mut(4) {
+        for chunk in block.as_chunks_mut::<4>().0 {
             let word = self.register_manager.registers.doutr.get();
             chunk.copy_from_slice(&word.to_le_bytes());
         }
@@ -224,15 +224,15 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
 
         if K::LENGTH == 32 {
             // AES-256: Write KEYR7 down to KEYR4 first
-            for (reg, chunk) in self
+            for (reg, &chunk) in self
                 .register_manager
                 .registers
                 .keyr2
                 .iter()
                 .rev()
-                .zip(key[0..16].chunks_exact(4))
+                .zip(key[0..16].as_chunks::<4>().0)
             {
-                let word = u32::from_be_bytes(chunk.try_into().unwrap());
+                let word = u32::from_be_bytes(chunk);
                 reg.write(Data::DATA.val(word));
             }
 
@@ -241,30 +241,30 @@ impl<'a, K: AESKeySize> Aes<'a, K> {
         }
 
         // Write KEYR3 down to KEYR0
-        for (reg, chunk) in self
+        for (reg, &chunk) in self
             .register_manager
             .registers
             .keyr
             .iter()
             .rev()
-            .zip(lower_key_chunk.chunks_exact(4))
+            .zip(lower_key_chunk.as_chunks::<4>().0)
         {
-            let word = u32::from_be_bytes(chunk.try_into().unwrap());
+            let word = u32::from_be_bytes(chunk);
             reg.write(Data::DATA.val(word));
         }
     }
 
     /// Helper to write a AES128_IV_SIZE-byte IV into the hardware IV registers
     pub(crate) fn write_iv_registers(&self, iv: &[u8; AES_IV_SIZE]) {
-        for (reg, chunk) in self
+        for (reg, &chunk) in self
             .register_manager
             .registers
             .ivr
             .iter()
             .rev()
-            .zip(iv.chunks_exact(4))
+            .zip(iv.as_chunks::<4>().0)
         {
-            let word = u32::from_be_bytes(chunk.try_into().expect("IV chunk len mismatch"));
+            let word = u32::from_be_bytes(chunk);
             reg.write(Data::DATA.val(word));
         }
     }

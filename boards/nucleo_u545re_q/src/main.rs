@@ -7,7 +7,7 @@
 #![no_main]
 
 use components::hmac_component_static;
-use kernel::capabilities;
+use kernel::capabilities::{self, MemoryAllocationCapability};
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::symmetric_encryption::{AES, AES256};
@@ -64,6 +64,7 @@ struct NucleoU545RE {
         'static,
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         32,
+    >,
     aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
         'static,
         stm32u545::aes::ecb::Aes<'static, AES256>,
@@ -200,8 +201,6 @@ unsafe fn start() -> (
         stm32u545::dma::Dma,
         stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
     );
-
-    usart1.register();
 
     // Load Peripherals Bundle
     let periphs = static_init!(
@@ -414,7 +413,7 @@ unsafe fn start() -> (
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         32
     ));
-    AES::set_client(aes, aes_driver);
+    AES::set_client(&periphs.aes, aes_driver);
 
     // Platform and Interrupts
     let platform = static_init!(
@@ -431,7 +430,7 @@ unsafe fn start() -> (
             adc: adc_syscall,
             dac,
             gpio,
-            hmac
+            hmac,
             aes: aes_driver,
         }
     );

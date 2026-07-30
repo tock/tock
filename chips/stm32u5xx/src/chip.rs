@@ -294,6 +294,7 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             HASH_IRQ => {
                 self.hash.handle_interupts();
+                true
             }
             AES_IRQ => {
                 self.aes.handle_interrupt();
