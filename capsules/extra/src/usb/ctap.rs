@@ -41,7 +41,8 @@ pub const MAX_CTRL_PACKET_SIZE: u8 = 64;
 
 const N_ENDPOINTS: usize = 2;
 
-/// The HID report descriptor for CTAP
+/// The HID report descriptor for CTAP.
+///
 /// This is a combination of:
 ///     - the CTAP spec, example 8
 ///     - USB HID spec examples

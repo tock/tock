@@ -169,6 +169,7 @@ const PWM0_BASE: StaticRef<PwmRegisters> =
     unsafe { StaticRef::new(0x4001C000 as *const PwmRegisters) };
 
 /// `DUTY_CYCLES` is a static array that must be passed to the PWM hardware.
+///
 /// The nRF52 hardware uses this static array in memory to enable switching
 /// between multiple duty cycles automatically while generating the PWM output.
 /// This isn't ideal from a Rust perspective, but the peripheral hardware must

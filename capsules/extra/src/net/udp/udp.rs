@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 //! This file contains the structs and methods associated with the UDP header.
+//!
 //! This includes getters and setters for the various header fields, as well
 //! as the standard encode/decode functionality required for serializing
 //! the struct for transmission.

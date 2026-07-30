@@ -95,8 +95,9 @@ const SEQ_NUM_LEN: usize = 1;
 pub const ACK_BUF_SIZE: usize =
     radio::SPI_HEADER_SIZE + radio::PHR_SIZE + radio::MHR_FC_SIZE + SEQ_NUM_LEN + radio::MFR_SIZE;
 
-/// Where the 15.4 packet from the radio is stored in the buffer. The HIL
-/// reserves one byte at the beginning of the buffer for use by the
+/// Where the 15.4 packet from the radio is stored in the buffer.
+///
+/// The HIL reserves one byte at the beginning of the buffer for use by the
 /// capsule/hardware. We have no use for this, but the upper layers expect it so
 /// we skip over it.
 // We can't just drop the byte from the buffer because then it would be lost

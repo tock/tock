@@ -3,7 +3,9 @@
 // Copyright Tock Contributors 2022.
 
 //! A SPI test which read/writes and expects MOSI to
-//! be loopbacked to MISO. It checks that what it writes
+//! be loopbacked to MISO.
+//!
+//! It checks that what it writes
 //! is what it reads. The values put in the buffer are
 //! a circular ring of 8-bit values, starting with an
 //! initial value and incrementing by 1 on each write.

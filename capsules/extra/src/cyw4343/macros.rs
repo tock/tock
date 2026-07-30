@@ -3,6 +3,7 @@
 // Copyright OxidOS Automotive 2025.
 
 /// Macro for parsing into/from bytes for structs that represent protocol packet headers.
+///
 /// This generates an `impl` block with `into_bytes` and `from_bytes` const methods and an
 /// associated `SIZE` constant for the struct size in bytes.
 ///

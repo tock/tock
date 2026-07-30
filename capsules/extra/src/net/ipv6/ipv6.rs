@@ -3,7 +3,9 @@
 // Copyright Tock Contributors 2022.
 
 //! This file contains structs, traits, and methods associated with the IP layer
-//! of the networking stack. This includes the declaration and methods for the
+//! of the networking stack.
+//!
+//! This includes the declaration and methods for the
 //! IP6Header, IP6Packet, and IP6Payload structs. These methods implement the
 //! bulk of the functionality required for manipulating the fields of the
 //! IPv6 header. Additionally, the IP6Packet struct allows for multiple types

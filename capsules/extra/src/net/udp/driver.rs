@@ -42,7 +42,9 @@ mod upcall {
     /// `RESERVE` to indicate that port binding is is a prerequisite to
     /// reception.
     pub const PACKET_RECEIVED: usize = 0;
-    /// Callback for when packet is transmitted. Notably, this callback receives
+    /// Callback for when packet is transmitted.
+    ///
+    /// Notably, this callback receives
     /// the result of the send_done callback from udp_send.rs, which does not
     /// currently pass information regarding whether packets were acked at the
     /// link layer.
