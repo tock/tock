@@ -803,15 +803,23 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
         "digraph calls {\n  rankdir=LR;\n  node [shape=box, style=filled, fontsize=10];\n\n",
     );
 
-    for f in nodes {
+    // Only draw resolved edges (see below), so only keep nodes that are a
+    // caller or callee of at least one -- an isolated function adds no
+    // information to a call graph.
+    let connected: HashSet<&str> = edges
+        .iter()
+        .filter_map(|e| {
+            e.callee
+                .as_deref()
+                .map(|callee| [e.caller.as_str(), callee])
+        })
+        .flatten()
+        .collect();
+
+    for f in nodes.iter().filter(|f| connected.contains(f.path.as_str())) {
         let label = match &f.code_level {
-            Some(cl) => format!(
-                "{}\\n{} / {}",
-                simple_name(&f.path),
-                cl.assurance,
-                cl.criticality
-            ),
-            None => simple_name(&f.path).to_string(),
+            Some(cl) => format!("{}\\n{} / {}", f.path, cl.assurance, cl.criticality),
+            None => f.path.clone(),
         };
         out.push_str(&format!(
             "  \"{}\" [label=\"{}\", fillcolor=\"{}\"];\n",
@@ -822,6 +830,9 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
     }
     out.push('\n');
 
+    // Ambiguous calls (multiple same-named candidates, no type info to
+    // pick between them) are omitted rather than drawn to every candidate,
+    // which would make the graph mostly noise.
     for e in edges {
         if let Some(callee) = &e.callee {
             out.push_str(&format!(
@@ -829,14 +840,6 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
                 dot_escape(&e.caller),
                 dot_escape(callee)
             ));
-        } else {
-            for candidate in &e.candidates {
-                out.push_str(&format!(
-                    "  \"{}\" -> \"{}\" [style=dashed];\n",
-                    dot_escape(&e.caller),
-                    dot_escape(candidate)
-                ));
-            }
         }
     }
 
