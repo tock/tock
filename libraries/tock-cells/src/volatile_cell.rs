@@ -66,6 +66,10 @@ impl<T> VolatileCell<T> {
     where
         T: Copy,
     {
+        // SAFETY:
+        // - `self.value` is valid to read, as it is an allocated Rust type.
+        // - `self.value` is properly aligned as a normal type in an UnsafeCell.
+        // - The `VolatileCell` constructor ensures `self.value` is initialized.
         unsafe { ptr::read_volatile(self.value.get()) }
     }
 
@@ -90,6 +94,9 @@ impl<T> VolatileCell<T> {
     where
         T: Copy,
     {
+        // SAFETY:
+        // - `self.value` is valid to read, as it is an allocated Rust type.
+        // - `self.value` is properly aligned as a normal type in an UnsafeCell.
         unsafe { ptr::write_volatile(self.value.get(), value) }
     }
 }
