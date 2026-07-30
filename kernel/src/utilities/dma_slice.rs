@@ -222,9 +222,7 @@ pub struct DmaSliceMut<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes>
 impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMut<'a, T> {
     /// Create a [`DmaSliceMut`] from a static mutable slice.
     pub fn new_static(slice: &'static mut [T], fence: impl DmaFence) -> DmaSliceMut<'static, T> {
-        // # Safety
-        //
-        // This operation is safe, as dropping or forgetting its return value is
+        // SAFETY: This operation is safe, as dropping or forgetting its return value is
         // safe. This would merely leak memory and make the underlying slice
         // inaccessible.
         unsafe { Self::new(slice, fence) }
@@ -337,9 +335,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
     /// Even though this method takes a unique, mutable Rust slice, DMA
     /// operations must not modify the buffers contents.
     pub fn new_mut(slice: &mut [T], fence: impl DmaFence) -> DmaSliceMutImmut<'_, T> {
-        // # Safety
-        //
-        // `DmaSliceMut::from_mut_slice_ref` is unsafe, as dropping its return
+        // SAFETY: `DmaSliceMut::from_mut_slice_ref` is unsafe, as dropping its return
         // value without calling `take` may make the underlying buffer
         // accessible as a Rust slice, potentially before the DMA operation is
         // complete, and without using `fence.acquire` to make DMA writes
@@ -378,21 +374,21 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
     pub fn get(&self) -> &'a [T] {
         match self {
             DmaSliceMutImmut::Immutable(dma_slice) => dma_slice.get(),
-            DmaSliceMutImmut::Mutable(dma_slice_mut) => unsafe {
-                // # Safety
-                //
-                // Over the duration that [`DmaSliceMutImmut`] the user
+            DmaSliceMutImmut::Mutable(dma_slice_mut) => {
+                // SAFETY: Over the duration that [`DmaSliceMutImmut`] the user
                 // guarantees that no DMA operation modifies the buffer (and
                 // doing so would require an MMIO write, which is itself
                 // unsafe). The `dma_slice_mut` is capturing a unique, mutable
                 // borrow of the underlying slice over its lifetime `'a`. As
                 // such, we can safely hand out immutable references over this
                 // slice, which are also bound to the lifetime `'a`.
-                core::slice::from_raw_parts(
-                    dma_slice_mut.as_mut_ptr().cast_const(),
-                    dma_slice_mut.len(),
-                )
-            },
+                unsafe {
+                    core::slice::from_raw_parts(
+                        dma_slice_mut.as_mut_ptr().cast_const(),
+                        dma_slice_mut.len(),
+                    )
+                }
+            }
         }
     }
 }
@@ -533,9 +529,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMut<'a
         sub_slice: SubSliceMut<'static, T>,
         fence: impl DmaFence,
     ) -> DmaSubSliceMut<'static, T> {
-        // # Safety
-        //
-        // This operation is safe, as dropping or forgetting its return value is
+        // SAFETY: This operation is safe, as dropping or forgetting its return value is
         // safe. This would merely leak memory and make the underlying slice
         // inaccessible.
         unsafe { Self::new(sub_slice, fence) }
@@ -688,10 +682,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImm
             SubSliceMutImmut::Immutable(sub_slice) => {
                 DmaSubSliceMutImmut::Immutable(DmaSubSlice::new(sub_slice, fence))
             }
-            SubSliceMutImmut::Mutable(sub_slice_mut) => DmaSubSliceMutImmut::Mutable(unsafe {
-                // # Safety
-                //
-                // `DmaSubSliceMut::new` is unsafe, as dropping its return value
+            SubSliceMutImmut::Mutable(sub_slice_mut) => DmaSubSliceMutImmut::Mutable(
+                // SAFETY: `DmaSubSliceMut::new` is unsafe, as dropping its return value
                 // without calling `take` may make the underlying buffer
                 // accessible as a Rust slice, potentially before the DMA
                 // operation is complete, and without using `fence.acquire` to
@@ -699,8 +691,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImm
                 // not permit DMA operations which write to the slice, and hence
                 // it can be safely dropped without risk of concurrent
                 // modifications or incoherence.
-                DmaSubSliceMut::new(sub_slice_mut, fence)
-            }),
+                unsafe { DmaSubSliceMut::new(sub_slice_mut, fence) },
+            ),
         }
     }
 
@@ -742,16 +734,14 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImm
             DmaSubSliceMutImmut::Immutable(dma_sub_slice) => {
                 SubSliceMutImmut::Immutable(dma_sub_slice.as_sub_slice())
             }
-            DmaSubSliceMutImmut::Mutable(dma_sub_slice_mut) => SubSliceMutImmut::Mutable(unsafe {
-                // # Safety
-                //
-                // The user guarantees that there has not been any DMA operation
+            DmaSubSliceMutImmut::Mutable(dma_sub_slice_mut) => SubSliceMutImmut::Mutable(
+                // SAFETY: The user guarantees that there has not been any DMA operation
                 // that changed the buffers contents while the
                 // `DmaSubSliceMutImmut` existed, and hence restoring a unique
                 // Rust slice through `take` is safe. No acquire-fence is
                 // needed, given the bufer contents have not been modified.
-                dma_sub_slice_mut.take_no_acquire()
-            }),
+                unsafe { dma_sub_slice_mut.take_no_acquire() },
+            ),
         }
     }
 }
