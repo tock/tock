@@ -127,10 +127,22 @@ use crate::utilities::single_thread_value::SingleThreadValue;
 
 /// Resources needed by the main panic routines.
 ///
+/// Assurances:
+/// 1. Formally Verified
+/// 2. Extensively Tested
+/// 3. Functionally Tested
+/// 4. Normal
+///
+/// Importances:
+/// 1. Critical
+/// 2. Widely Used
+/// 3. Normal
+/// 4. Experimental
+///
 /// # Code Level
 ///
-/// - Assurance: 3
-/// - Criticality: 1
+/// - Assurance: Normal
+/// - Criticality: Widely Used
 pub struct PanicResources<C: Chip + 'static, PP: ProcessPrinter + 'static> {
     /// The array of process slots.
     pub processes: MapCell<&'static [ProcessSlot]>,
