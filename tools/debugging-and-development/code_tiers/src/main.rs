@@ -6,12 +6,36 @@ use std::path::{Path, PathBuf};
 use ignore::WalkBuilder;
 use serde::Serialize;
 
-/// The assurance and criticality numbers extracted from a `# Code Level`
-/// doc comment.
+/// The named assurance levels, in order from strongest to weakest guarantee.
+const ASSURANCE_LEVELS: &[&str] = &[
+    "Formally Verified",
+    "Extensively Tested",
+    "Functionally Tested",
+    "Normal",
+];
+
+/// The named criticality (importance) levels, in order from most to least
+/// critical.
+const CRITICALITY_LEVELS: &[&str] = &["Critical", "Widely Used", "Normal", "Experimental"];
+
+/// The assurance and criticality levels extracted from a `# Code Level`
+/// doc comment, along with each level's rank (1 is strongest/most
+/// critical) within its category.
 #[derive(Serialize)]
 struct CodeLevel {
-    assurance: u32,
-    criticality: u32,
+    assurance: String,
+    assurance_rank: u32,
+    criticality: String,
+    criticality_rank: u32,
+}
+
+/// The rank (1-based position) of `value` within `levels`, if it names one
+/// of the known levels.
+fn level_rank(levels: &[&str], value: &str) -> Option<u32> {
+    levels
+        .iter()
+        .position(|level| *level == value)
+        .map(|i| i as u32 + 1)
 }
 
 /// One item in the crate (a file, module, function, struct, ...) that has
@@ -55,8 +79,8 @@ fn get_doc_string(attrs: &[syn::Attribute]) -> Option<String> {
 /// ```text
 /// /// # Code Level
 /// ///
-/// /// - Assurance: 3
-/// /// - Criticality: 1
+/// /// - Assurance: Normal
+/// /// - Criticality: Widely Used
 /// ```
 fn get_code_level(attrs: &[syn::Attribute]) -> Option<CodeLevel> {
     let doc = get_doc_string(attrs)?;
@@ -74,17 +98,29 @@ fn get_code_level(attrs: &[syn::Attribute]) -> Option<CodeLevel> {
             break;
         }
         if let Some(rest) = line.strip_prefix("- Assurance:") {
-            assurance = rest.trim().parse().ok();
+            let value = rest.trim();
+            match level_rank(ASSURANCE_LEVELS, value) {
+                Some(rank) => assurance = Some((value.to_string(), rank)),
+                None => eprintln!("warning: unrecognized assurance level {value:?}"),
+            }
         } else if let Some(rest) = line.strip_prefix("- Criticality:") {
-            criticality = rest.trim().parse().ok();
+            let value = rest.trim();
+            match level_rank(CRITICALITY_LEVELS, value) {
+                Some(rank) => criticality = Some((value.to_string(), rank)),
+                None => eprintln!("warning: unrecognized criticality level {value:?}"),
+            }
         }
     }
 
     match (assurance, criticality) {
-        (Some(assurance), Some(criticality)) => Some(CodeLevel {
-            assurance,
-            criticality,
-        }),
+        (Some((assurance, assurance_rank)), Some((criticality, criticality_rank))) => {
+            Some(CodeLevel {
+                assurance,
+                assurance_rank,
+                criticality,
+                criticality_rank,
+            })
+        }
         _ => None,
     }
 }
