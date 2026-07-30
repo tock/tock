@@ -346,7 +346,7 @@ impl ReadOnlyProcessBuffer {
     /// Construct a new [`ReadOnlyProcessBuffer`] over a given pointer and
     /// length.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
@@ -367,7 +367,7 @@ impl ReadOnlyProcessBuffer {
     /// [`Process`](crate::process::Process) trait outside of the
     /// `kernel` crate.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// If the length is `0`, an arbitrary pointer may be passed into
     /// `ptr`. It does not necessarily have to point to allocated
@@ -488,7 +488,7 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// Construct a new [`ReadOnlyProcessBufferRef`] over a given pointer and
     /// length with a lifetime derived from the caller.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`]. The derived lifetime can
@@ -540,7 +540,7 @@ impl ReadWriteProcessBuffer {
     /// Construct a new [`ReadWriteProcessBuffer`] over a given
     /// pointer and length.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
@@ -561,7 +561,7 @@ impl ReadWriteProcessBuffer {
     /// [`Process`](crate::process::Process) trait outside of the
     /// `kernel` crate.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// If the length is `0`, an arbitrary pointer may be passed into
     /// `ptr`. It does not necessarily have to point to allocated
@@ -733,7 +733,7 @@ impl ReadWriteProcessBufferRef<'_> {
     /// Construct a new [`ReadWriteProcessBufferRef`] over a given pointer and
     /// length with a lifetime derived from the caller.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`]. The derived lifetime can
