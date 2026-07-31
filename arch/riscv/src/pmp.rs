@@ -1731,11 +1731,22 @@ pub mod simple {
 
                         pmpcfg
                     })
-                    // Since SimplePMP keeps no record of which entries were
-                    // previously enabled, explicitly turn off every remaining
-                    // hardware entry beyond the `MPU_REGIONS * 2` entries
-                    // above, so that a region disabled since the last call is
-                    // actually cleared in hardware:
+                    // Explicitly turn off every remaining hardware entry beyond
+                    // the `MPU_REGIONS * 2` entries above, so that any stale
+                    // entry left enabled is actually cleared in hardware. While
+                    // `MPU_REGIONS` is constant for a given trait impl they may
+                    // nonetheless be enabled, as a single `SimplePMP`
+                    // implements `TORUserPMP<MPU_REGIONS>` for *multiple*
+                    // values of `MPU_REGIONS` (every value permitted by
+                    // `CONST_ASSERT_CHECK`, i.e. `MPU_REGIONS <=
+                    // AVAILABLE_ENTRIES / 2`). A prior call may thus have gone
+                    // through a different monomorphization with a larger
+                    // `MPU_REGIONS`, enabling entries that this impl would
+                    // otherwise leave untouched.
+                    //
+                    // Because SimplePMP keeps no record of which entries were
+                    // previously enabled, we must unconditionally clear all
+                    // remaining entries on every call:
                     .chain(core::iter::repeat_n(
                         TORUserPMPCFG::OFF,
                         AVAILABLE_ENTRIES - (MPU_REGIONS * 2),
