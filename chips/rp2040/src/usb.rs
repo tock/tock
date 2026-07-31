@@ -1321,7 +1321,6 @@ pub struct UsbCtrl<'a> {
     next_pid_in: [Cell<u8>; 16],
     next_pid_out: [Cell<u8>; 16],
     errata_pin: OptionalCell<&'a RPGpioPin<'a>>,
-    counter: VolatileCell<u32>,
 }
 
 impl<'a> UsbCtrl<'a> {
@@ -1388,7 +1387,6 @@ impl<'a> UsbCtrl<'a> {
                 Cell::new(0),
             ],
             errata_pin: OptionalCell::empty(),
-            counter: VolatileCell::new(0),
         }
     }
 
@@ -2203,7 +2201,6 @@ impl<'a> UsbCtrl<'a> {
                 hil::usb::InResult::Packet(size) => {
                     let slice = self.descriptors[endpoint].slice_in.unwrap_or_panic();
 
-                    self.counter.set(self.counter.get() + 1);
                     for idx in 0..size {
                         self.dpsram.buffers[(64 * (endpoint - 1)) + idx].set(slice[idx].get());
                     }
