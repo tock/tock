@@ -15,10 +15,12 @@
 
 pub type FCB = [u8; 512];
 
-// When compiling for a macOS host, the `link_section` attribute is elided as
-// it yields the following error: `mach-o section specifier requires a segment
-// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".fcb")]
+// This section attribute is only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
+// section separated by a comma`.
+#[cfg_attr(target_os = "none", link_section = ".fcb")]
 #[no_mangle]
 #[used]
 static FLEXSPI_CONFIGURATION_BLOCK: FCB = [

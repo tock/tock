@@ -46,10 +46,12 @@ mod io;
 
 /// Multiboot V1 header, allowing this kernel to be booted directly by QEMU
 ///
-/// When compiling for a macOS host, the `link_section` attribute is elided as
-/// it yields the following error: `mach-o section specifier requires a segment
-/// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".multiboot")]
+/// This section attribute is only applied when targeting bare-metal
+/// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+/// formats (Mach-O, PE, ...) that reject a bare section name like this,
+/// yielding errors such as: `mach-o section specifier requires a segment and
+/// section separated by a comma`.
+#[cfg_attr(target_os = "none", link_section = ".multiboot")]
 #[used]
 static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 
@@ -76,11 +78,17 @@ type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 // Static allocations used for page tables
 //
 // These are placed into custom sections so they can be properly aligned and padded in layout.ld
+//
+// The section attributes are only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
+// section separated by a comma`.
 #[no_mangle]
-#[cfg_attr(not(target_os = "macos"), link_section = ".pde")]
+#[cfg_attr(target_os = "none", link_section = ".pde")]
 pub static mut PAGE_DIR: PD = [PDEntry(0); 1024];
 #[no_mangle]
-#[cfg_attr(not(target_os = "macos"), link_section = ".pte")]
+#[cfg_attr(target_os = "none", link_section = ".pte")]
 pub static mut PAGE_TABLE: PT = [PTEntry(0); 1024];
 
 /// Initializes a Virtio transport driver for the given PCI device.

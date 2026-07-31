@@ -151,11 +151,12 @@ macro_rules! stack_size {
         /// section that the linker script picks up and places at the correct
         /// location in RAM.
         ///
-        /// When compiling for a macOS host, this section attribute is elided as
-        /// it is incompatible with Mach-O objects and yields the following
-        /// error: `mach-o section specifier requires a segment and section
-        /// separated by a comma`.
-        #[cfg_attr(not(target_os = "macos"), unsafe(link_section = ".stack_buffer"))]
+        /// This section attribute is only applied when targeting bare-metal
+        /// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use
+        /// object formats (Mach-O, PE, ...) that reject a bare section name
+        /// like this, yielding errors such as: `mach-o section specifier
+        /// requires a segment and section separated by a comma`.
+        #[cfg_attr(target_os = "none", unsafe(link_section = ".stack_buffer"))]
         #[unsafe(no_mangle)]
         static mut STACK_MEMORY: [u8; $size] = [0; $size];
     }

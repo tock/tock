@@ -46,10 +46,12 @@ kernel::stack_size! {0x1500}
 
 // Manually setting the boot header section that contains the FCB header
 //
-// When compiling for a macOS host, the `link_section` attribute is elided as it
-// yields the following error: `mach-o section specifier requires a segment and
+// This section attribute is only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
 // section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".flash_bootloader")]
+#[cfg_attr(target_os = "none", link_section = ".flash_bootloader")]
 #[used]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
