@@ -71,9 +71,9 @@ extern "C" {
 // like this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
 #[cfg_attr(
-    all(
-        target_os = "none",
-        any(target_arch = "riscv32", target_arch = "riscv64")
+    any(
+        all(target_arch = "riscv32", target_os = "none"),
+        all(target_arch = "riscv64", target_os = "none")
     ),
     link_section = ".riscv.start"
 )]
@@ -323,9 +323,9 @@ pub extern "C" fn _start_trap() -> ! {
 // like this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
 #[cfg_attr(
-    all(
-        target_os = "none",
-        any(target_arch = "riscv32", target_arch = "riscv64")
+    any(
+        all(target_arch = "riscv32", target_os = "none"),
+        all(target_arch = "riscv64", target_os = "none")
     ),
     link_section = ".riscv.trap"
 )]
