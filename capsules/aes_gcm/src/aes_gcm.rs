@@ -18,7 +18,7 @@ use ghash::universal_hash::UniversalHash;
 use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
-    AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE, AES128CBC, AES128CCM, AES128Ctr, AES128ECB,
+    AES, AES_BLOCK_SIZE, AES128, AES128_KEY_SIZE, AESCBC, AESCCM, AESCtr, AESECB,
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 
@@ -29,7 +29,7 @@ enum GCMState {
     CtrEncrypt,
 }
 
-pub struct Aes128Gcm<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> {
+pub struct Aes128Gcm<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>> {
     aes: &'a A,
 
     mac: OptionalCell<GHash>,
@@ -50,7 +50,7 @@ pub struct Aes128Gcm<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES
     iv: Cell<[u8; AES128_KEY_SIZE]>,
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> Aes128Gcm<'a, A> {
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>> Aes128Gcm<'a, A> {
     pub fn new(aes: &'a A, crypt_buf: &'static mut [u8]) -> Aes128Gcm<'a, A> {
         Aes128Gcm {
             aes,
@@ -74,9 +74,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> Aes1
     }
 
     fn start_ctr_encrypt(&self) -> Result<(), ErrorCode> {
-        self.aes.set_mode_aes128ctr(self.encrypting.get())?;
+        self.aes.set_mode_aesctr(self.encrypting.get())?;
 
-        let res = AES128::set_key(self.aes, &self.key.get());
+        let res = AES::set_key(self.aes, &self.key.get());
         if res != Ok(()) {
             return res;
         }
@@ -87,12 +87,12 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> Aes1
         let crypt_buf = self.crypt_buf.take().unwrap();
         let (_aad_offset, message_offset, message_len) = self.pos.get();
 
-        match AES128::crypt(
+        match AES::crypt(
             self.aes,
             None,
             crypt_buf,
             message_offset,
-            message_offset + message_len + AES128_BLOCK_SIZE,
+            message_offset + message_len + AES_BLOCK_SIZE,
         ) {
             None => {
                 self.state.set(GCMState::CtrEncrypt);
@@ -119,18 +119,18 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> Aes1
 
         self.encrypting.set(encrypting);
 
-        self.aes.set_mode_aes128ctr(self.encrypting.get()).unwrap();
-        AES128::set_key(self.aes, &self.key.get()).unwrap();
-        self.aes.set_iv(&[0; AES128_BLOCK_SIZE]).unwrap();
+        self.aes.set_mode_aesctr(self.encrypting.get()).unwrap();
+        AES::set_key(self.aes, &self.key.get()).unwrap();
+        self.aes.set_iv(&[0; AES_BLOCK_SIZE]).unwrap();
 
         self.aes.start_message();
         let crypt_buf = self.crypt_buf.take().unwrap();
 
-        for i in 0..AES128_BLOCK_SIZE {
+        for i in 0..AES_BLOCK_SIZE {
             crypt_buf[i] = 0;
         }
 
-        match AES128::crypt(self.aes, None, crypt_buf, 0, AES128_BLOCK_SIZE) {
+        match AES::crypt(self.aes, None, crypt_buf, 0, AES_BLOCK_SIZE) {
             None => {
                 self.state.set(GCMState::GenerateHashKey);
             }
@@ -145,7 +145,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> Aes1
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>>
     symmetric_encryption::CCMClient for Aes128Gcm<'a, A>
 {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
@@ -155,8 +155,8 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
-    symmetric_encryption::AES128GCM<'a> for Aes128Gcm<'a, A>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>>
+    symmetric_encryption::AESGCM<'a, AES128> for Aes128Gcm<'a, A>
 {
     fn set_client(&self, client: &'a dyn symmetric_encryption::GCMClient) {
         self.gcm_client.set(client);
@@ -190,10 +190,15 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
         aad_offset: usize,
         message_offset: usize,
         message_len: usize,
+        tag_len: usize,
         encrypting: bool,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.state.get() != GCMState::Idle {
             return Err((ErrorCode::BUSY, buf));
+        }
+
+        if aad_offset > message_offset || message_offset + message_len + tag_len > buf.len() {
+            return Err((ErrorCode::INVAL, buf));
         }
 
         let _ = self
@@ -210,8 +215,8 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
-    symmetric_encryption::AES128<'a> for Aes128Gcm<'a, A>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>>
+    symmetric_encryption::AES<'a, AES128> for Aes128Gcm<'a, A>
 {
     fn enable(&self) {
         self.aes.enable();
@@ -226,7 +231,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
     }
 
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
-        AES128::set_key(self.aes, key)
+        AES::set_key(self.aes, key)
     }
 
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
@@ -248,19 +253,19 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
         Option<&'static mut [u8]>,
         &'static mut [u8],
     )> {
-        AES128::crypt(self.aes, source, dest, start_index, stop_index)
+        AES::crypt(self.aes, source, dest, start_index, stop_index)
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a> + AES128CCM<'a>>
-    symmetric_encryption::AES128CCM<'a> for Aes128Gcm<'a, A>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128> + AESCCM<'a, AES128>>
+    symmetric_encryption::AESCCM<'a, AES128> for Aes128Gcm<'a, A>
 {
     fn set_client(&'a self, client: &'a dyn symmetric_encryption::CCMClient) {
         self.ccm_client.set(client);
     }
 
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
-        AES128CCM::set_key(self.aes, key)
+        AESCCM::set_key(self.aes, key)
     }
 
     fn set_nonce(&self, nonce: &[u8]) -> Result<(), ErrorCode> {
@@ -277,7 +282,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a> + AES
         confidential: bool,
         encrypting: bool,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        AES128CCM::crypt(
+        AESCCM::crypt(
             self.aes,
             buf,
             a_off,
@@ -290,31 +295,31 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a> + AES
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> AES128Ctr
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>> AESCtr
     for Aes128Gcm<'a, A>
 {
-    fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
-        self.aes.set_mode_aes128ctr(encrypting)
+    fn set_mode_aesctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
+        self.aes.set_mode_aesctr(encrypting)
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> AES128ECB
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>> AESECB
     for Aes128Gcm<'a, A>
 {
-    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
-        self.aes.set_mode_aes128ecb(encrypting)
+    fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
+        self.aes.set_mode_aesecb(encrypting)
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>> AES128CBC
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>> AESCBC
     for Aes128Gcm<'a, A>
 {
-    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
-        self.aes.set_mode_aes128cbc(encrypting)
+    fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
+        self.aes.set_mode_aescbc(encrypting)
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>>
     symmetric_encryption::Client<'a> for Aes128Gcm<'a, A>
 {
     fn crypt_done(&self, _: Option<&'static mut [u8]>, crypt_buf: &'static mut [u8]) {
@@ -323,21 +328,21 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
             GCMState::GenerateHashKey => {
                 let (aad_offset, message_offset, message_len) = self.pos.get();
 
-                let mut mac = GHash::new(Key::from_slice(&crypt_buf[0..AES128_BLOCK_SIZE]));
+                let mut mac = GHash::new(Key::from_slice(&crypt_buf[0..AES_BLOCK_SIZE]));
                 let buf = self.buf.take().unwrap();
 
                 if self.encrypting.get() {
                     mac.update_padded(&buf[aad_offset..message_offset]);
 
-                    crypt_buf[AES128_BLOCK_SIZE..(AES128_BLOCK_SIZE + message_len)]
+                    crypt_buf[AES_BLOCK_SIZE..(AES_BLOCK_SIZE + message_len)]
                         .copy_from_slice(&buf[message_offset..(message_offset + message_len)]);
-                    for i in 0..AES128_BLOCK_SIZE {
+                    for i in 0..AES_BLOCK_SIZE {
                         crypt_buf[i] = 0;
                     }
 
                     self.mac.replace(mac);
                 } else {
-                    let copy_offset = (message_offset / AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
+                    let copy_offset = (message_offset / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
                     mac.update_padded(&buf[aad_offset..message_offset]);
                     mac.update_padded(&buf[message_offset..(message_offset + message_len)]);
 
@@ -351,11 +356,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
 
                     let mut tag = mac.finalize().into_bytes();
 
-                    for i in 0..AES128_BLOCK_SIZE {
+                    for i in 0..AES_BLOCK_SIZE {
                         tag[i] ^= crypt_buf[copy_offset + i];
                     }
 
-                    buf[0..AES128_BLOCK_SIZE].copy_from_slice(&tag);
+                    buf[0..AES_BLOCK_SIZE].copy_from_slice(&tag);
                 }
                 self.crypt_buf.replace(crypt_buf);
                 self.buf.replace(buf);
@@ -365,15 +370,15 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
             GCMState::CtrEncrypt => {
                 let buf = self.buf.take().unwrap();
                 let (aad_offset, message_offset, message_len) = self.pos.get();
-                let tag_offset = (message_offset / AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
-                let copy_offset = (message_offset / AES128_BLOCK_SIZE).max(1) * AES128_BLOCK_SIZE;
+                let tag_offset = (message_offset / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+                let copy_offset = (message_offset / AES_BLOCK_SIZE).max(1) * AES_BLOCK_SIZE;
 
                 if self.encrypting.get() {
                     // Check the mac
                     let mut mac = self.mac.take().unwrap();
                     mac.update_padded(
-                        &crypt_buf[(message_offset + AES128_BLOCK_SIZE)
-                            ..(message_offset + message_len + AES128_BLOCK_SIZE)],
+                        &crypt_buf[(message_offset + AES_BLOCK_SIZE)
+                            ..(message_offset + message_len + AES_BLOCK_SIZE)],
                     );
 
                     buf[0..message_len]
@@ -389,12 +394,12 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
 
                     let mut tag = mac.finalize().into_bytes();
 
-                    for i in 0..AES128_BLOCK_SIZE {
+                    for i in 0..AES_BLOCK_SIZE {
                         tag[i] ^= crypt_buf[tag_offset + i];
                     }
 
                     buf[(message_offset + message_len)
-                        ..(message_offset + message_len + AES128_BLOCK_SIZE)]
+                        ..(message_offset + message_len + AES_BLOCK_SIZE)]
                         .copy_from_slice(&tag);
                 } else {
                     buf[0..message_len]

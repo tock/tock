@@ -33,7 +33,9 @@
 use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::hil::symmetric_encryption;
-use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::hil::symmetric_encryption::AES128;
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 pub use nrf5x_unsafe::aes::AesEcbRegisters;
@@ -115,10 +117,7 @@ impl AesECB<'_> {
             });
         }
 
-        let take = core::cmp::min(
-            symmetric_encryption::AES128_BLOCK_SIZE,
-            self.remaining_len(),
-        );
+        let take = core::cmp::min(symmetric_encryption::AES_BLOCK_SIZE, self.remaining_len());
 
         match self.mode.get() {
             AESMode::ECB => {
@@ -186,10 +185,7 @@ impl AesECB<'_> {
                 self.ecb_data.replace(ecb_data);
             }
 
-            let take = core::cmp::min(
-                symmetric_encryption::AES128_BLOCK_SIZE,
-                self.remaining_len(),
-            );
+            let take = core::cmp::min(symmetric_encryption::AES_BLOCK_SIZE, self.remaining_len());
 
             if take > 0 {
                 match self.mode.get() {
@@ -281,7 +277,7 @@ impl AesECB<'_> {
     }
 }
 
-impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
+impl<'a> kernel::hil::symmetric_encryption::AES<'a, AES128> for AesECB<'a> {
     fn enable(&self) {}
 
     fn disable(&self) {
@@ -306,7 +302,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
-        if iv.len() != symmetric_encryption::AES128_BLOCK_SIZE {
+        if iv.len() != symmetric_encryption::AES_BLOCK_SIZE {
             Err(ErrorCode::INVAL)
         } else {
             self.ecb_data.map(|buf| {
@@ -332,7 +328,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     )> {
         // Validate indices and buffer sizes before consuming any buffers.
         let len = match stop_index.checked_sub(start_index) {
-            Some(l) if l.is_multiple_of(symmetric_encryption::AES128_BLOCK_SIZE) => l,
+            Some(l) if l.is_multiple_of(symmetric_encryption::AES_BLOCK_SIZE) => l,
             _ => return Some((Err(ErrorCode::INVAL), source, dest)),
         };
 
@@ -359,9 +355,9 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128ECB for AesECB<'_> {
+impl kernel::hil::symmetric_encryption::AESECB for AesECB<'_> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
-    fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
+    fn set_mode_aesecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
         if encrypting {
             self.mode.set(AESMode::ECB);
             Ok(())
@@ -371,16 +367,16 @@ impl kernel::hil::symmetric_encryption::AES128ECB for AesECB<'_> {
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'_> {
+impl kernel::hil::symmetric_encryption::AESCtr for AesECB<'_> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
-    fn set_mode_aes128ctr(&self, _encrypting: bool) -> Result<(), ErrorCode> {
+    fn set_mode_aesctr(&self, _encrypting: bool) -> Result<(), ErrorCode> {
         self.mode.set(AESMode::CTR);
         Ok(())
     }
 }
 
-impl kernel::hil::symmetric_encryption::AES128CBC for AesECB<'_> {
-    fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
+impl kernel::hil::symmetric_encryption::AESCBC for AesECB<'_> {
+    fn set_mode_aescbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
         if encrypting {
             self.mode.set(AESMode::CBC);
             Ok(())
@@ -391,7 +387,7 @@ impl kernel::hil::symmetric_encryption::AES128CBC for AesECB<'_> {
 }
 
 //TODO: replace this placeholder with a proper implementation of the AES system
-impl<'a> kernel::hil::symmetric_encryption::AES128CCM<'a> for AesECB<'a> {
+impl<'a> kernel::hil::symmetric_encryption::AESCCM<'a, AES128> for AesECB<'a> {
     /// Set the client instance which will receive `crypt_done()` callbacks
     fn set_client(&'a self, _client: &'a dyn kernel::hil::symmetric_encryption::CCMClient) {}
 

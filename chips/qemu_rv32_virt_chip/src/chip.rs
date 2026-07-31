@@ -38,14 +38,14 @@ pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
 }
 
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
-    pub uart0: crate::uart::Uart16550<'a>,
+    pub uart0: qemu_virt_chip::uart::Uart16550<'a>,
     pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
 impl QemuRv32VirtDefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
-            uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
+            uart0: qemu_virt_chip::uart::Uart16550::new(crate::uart::UART0_BASE),
             virtio_mmio: [
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_0_BASE),
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_1_BASE),

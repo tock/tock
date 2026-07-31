@@ -155,7 +155,7 @@ impl<'a> FrameBuffer<'a> {
             for (frame_pixel, buf_pixel) in frame_row
                 .iter_mut()
                 .skip(buffer.frame.column as usize)
-                .zip(buf_row.data.chunks_exact(2))
+                .zip(buf_row.data.as_chunks::<2>().0.iter())
             {
                 let buf_pixel = [buf_pixel[0], buf_pixel[1]];
                 let buf_p = u16::from_le_bytes(buf_pixel);

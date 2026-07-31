@@ -296,6 +296,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -313,6 +314,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(imxrt1060::gpt::Gpt1));
 

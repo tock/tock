@@ -88,7 +88,7 @@ use core::cell::Cell;
 
 use kernel::ErrorCode;
 use kernel::hil::radio::{self, LQI_SIZE};
-use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
+use kernel::hil::symmetric_encryption::{AES128, AESCCM, CCMClient};
 use kernel::processbuffer::ReadableProcessSlice;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -325,7 +325,7 @@ enum RxState {
 /// corresponding to the transmission, reception and
 /// encryption/decryption pipelines. See the documentation in
 /// `capsules/extra/src/ieee802154/mac.rs` for more details.
-pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {
+pub struct Framer<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> {
     mac: &'a M,
     aes_ccm: &'a A,
     data_sequence: Cell<u8>,
@@ -349,7 +349,7 @@ pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {
     crypt_buf: MapCell<SubSliceMut<'static, u8>>,
 }
 
-impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
+impl<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> Framer<'a, M, A> {
     pub fn new(
         mac: &'a M,
         aes_ccm: &'a A,
@@ -733,7 +733,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 }
 
-impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
+impl<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> MacDevice<'a> for Framer<'a, M, A> {
     fn set_transmit_client(&self, client: &'a dyn TxClient) {
         self.tx_client.set(client);
     }
@@ -885,7 +885,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
     }
 }
 
-impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
+impl<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> radio::TxClient for Framer<'a, M, A> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.data_sequence.set(self.data_sequence.get() + 1);
         self.tx_client.map(move |client| {
@@ -894,7 +894,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::TxClient for Framer<'a, M, A> {
     }
 }
 
-impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
+impl<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> radio::RxClient for Framer<'a, M, A> {
     fn receive(
         &self,
         buf: &'static mut [u8],
@@ -931,7 +931,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
     }
 }
 
-impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> {
+impl<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> radio::ConfigClient for Framer<'a, M, A> {
     fn config_done(&self, _: Result<(), ErrorCode>) {
         // The transmission pipeline is the only state machine that
         // waits for the configuration procedure to complete before
@@ -945,7 +945,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::ConfigClient for Framer<'a, M, A> 
     }
 }
 
-impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
+impl<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> CCMClient for Framer<'a, M, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         let mut tx_waiting = false;
         let mut rx_waiting = false;

@@ -24,7 +24,7 @@ macro_rules! app_checker_signature_component_static {
         );
 
         (checker, hash_buffer, signature_buffer)
-    };};
+    }};
 }
 
 pub type AppCheckerSignatureComponentType<S, H, const HASH_LEN: usize, const SIGNATURE_LEN: usize> =

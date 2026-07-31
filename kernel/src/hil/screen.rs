@@ -120,9 +120,9 @@ pub enum ScreenPixelFormat {
     /// Pixels encoded as 8-bit red channel, 8-bit green channel, 8-bit blue
     /// channel.
     RGB_888 = 3,
-    /// Pixels encoded as 8-bit alpha channel, 8-bit red channel, 8-bit green
-    /// channel, 8-bit blue channel.
-    ARGB_8888 = 4,
+    /// Pixels encoded as 8-bit blue channel, 8-bit green channel,
+    /// 8-bit red channel, 8-bit alpha channel.
+    BGRA_8888 = 4,
     // other pixel formats may be defined.
 }
 
@@ -135,7 +135,7 @@ impl ScreenPixelFormat {
             Self::RGB_332 => 8,
             Self::RGB_565 => 16,
             Self::RGB_888 => 24,
-            Self::ARGB_8888 => 32,
+            Self::BGRA_8888 => 32,
         }
     }
 }

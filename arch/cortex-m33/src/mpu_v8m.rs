@@ -354,9 +354,12 @@ impl CortexMRegion {
             return None;
         }
 
-        // Limit Address register
+        // Limit Address register.
+        //
+        // RLAR::LIMIT is inclusive so `logical_end - 1` here to not have the
+        // region 32 bytes further.
         let rlar_value = MPU_RLAR::ENABLE::SET
-            + MPU_RLAR::LIMIT.val((logical_end as u32) >> 5)
+            + MPU_RLAR::LIMIT.val(((logical_end - 1) as u32) >> 5)
             + MPU_RLAR::PXN::Disable
             + MPU_RLAR::ATTRINDX.val(0);
 

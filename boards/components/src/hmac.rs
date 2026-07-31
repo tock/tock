@@ -19,9 +19,8 @@
 
 use capsules_extra::hmac::HmacDriver;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::digest;
 
 #[macro_export]
@@ -33,27 +32,39 @@ macro_rules! hmac_component_static {
         let dest_buffer = kernel::static_buf!([u8; $L]);
 
         (hmac, data_buffer, dest_buffer)
-    };};
+    }};
 }
 
 pub type HmacComponentType<H, const L: usize> = capsules_extra::hmac::HmacDriver<'static, H, L>;
 
-pub struct HmacComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
+pub struct HmacComponent<
+    A: 'static + digest::Digest<'static, L>,
+    const L: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     hmac: &'static A,
+    mem_cap: CAP,
 }
 
-impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacComponent<A, L> {
+impl<
+    A: 'static + digest::Digest<'static, L>,
+    const L: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> HmacComponent<A, L, CAP>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         hmac: &'static A,
-    ) -> HmacComponent<A, L> {
+        mem_cap: CAP,
+    ) -> HmacComponent<A, L, CAP> {
         HmacComponent {
             board_kernel,
             driver_num,
             hmac,
+            mem_cap,
         }
     }
 }
@@ -62,10 +73,14 @@ impl<
     A: kernel::hil::digest::HmacSha256
         + digest::HmacSha384
         + digest::HmacSha512
+        + digest::HmacMd5
+        + digest::HmacSha224
+        + digest::HmacSha1
         + 'static
         + digest::Digest<'static, L>,
     const L: usize,
-> Component for HmacComponent<A, L>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for HmacComponent<A, L, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<HmacDriver<'static, A, L>>,
@@ -75,8 +90,6 @@ impl<
     type Output = &'static HmacDriver<'static, A, L>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
         let data_buffer = s.1.write([0; 64]);
         let dest_buffer = s.2.write([0; L]);
 
@@ -84,7 +97,8 @@ impl<
             self.hmac,
             data_buffer,
             dest_buffer,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
         ));
 
         self.hmac.set_client(hmac);
@@ -103,7 +117,7 @@ macro_rules! hmac_sha256_software_component_static {
         let verify_buffer = kernel::static_buf!([u8; 32]);
 
         (hmac_sha256, data_buffer, verify_buffer)
-    };};
+    }};
 }
 
 pub type HmacSha256SoftwareComponentType<S> =

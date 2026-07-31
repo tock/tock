@@ -372,18 +372,13 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                             .map_or(Err(ErrorCode::BUSY), move |buf2| {
                                 // determine request length
                                 let request_len = app_buf_length / 2;
-                                let len1;
-                                let len2;
-                                if request_len <= buf1.len() {
-                                    len1 = app_buf_length / 2;
-                                    len2 = 0;
+                                let (len1, len2) = if request_len <= buf1.len() {
+                                    (app_buf_length / 2, 0)
                                 } else if request_len <= (buf1.len() + buf2.len()) {
-                                    len1 = buf1.len();
-                                    len2 = request_len - buf1.len();
+                                    (buf1.len(), request_len - buf1.len())
                                 } else {
-                                    len1 = buf1.len();
-                                    len2 = buf2.len();
-                                }
+                                    (buf1.len(), buf2.len())
+                                };
 
                                 // begin sampling
                                 app.using_app_buf0.set(true);
@@ -873,15 +868,11 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedC
                         // determine which app buffer to copy data into and which is
                         // next up if we're in continuous mode
                         let use0 = app.using_app_buf0.get();
-                        let next_app_buf;
-                        let app_buf_ref;
-                        if use0 {
-                            app_buf_ref = &app_buf0;
-                            next_app_buf = &app_buf1;
+                        let (app_buf_ref, next_app_buf) = if use0 {
+                            (&app_buf0, &app_buf1)
                         } else {
-                            app_buf_ref = &app_buf1;
-                            next_app_buf = &app_buf0;
-                        }
+                            (&app_buf1, &app_buf0)
+                        };
 
                         // update count of outstanding sample requests
                         app.samples_outstanding

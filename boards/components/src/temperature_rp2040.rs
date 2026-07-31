@@ -23,7 +23,7 @@ macro_rules! temperature_rp2040_adc_component_static {
         );
 
         (adc_device, temperature_rp2040)
-    };};
+    }};
 }
 
 pub type TemperatureRp2040ComponentType<A> =

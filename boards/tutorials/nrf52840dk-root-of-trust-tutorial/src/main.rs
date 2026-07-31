@@ -20,7 +20,7 @@ use nrf52840::gpio::Pin;
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES_BLOCK_SIZE;
 
 // Screen
 type ScreenDriver = components::screen::ScreenComponentType;
@@ -127,6 +127,7 @@ pub unsafe fn main() {
         capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         None,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::screen_component_static!(1032));
 
@@ -155,7 +156,7 @@ pub unsafe fn main() {
         ),
     );
 
-    kernel::hil::symmetric_encryption::AES128::set_client(&nrf52840_peripherals.nrf52.ecb, oracle);
+    kernel::hil::symmetric_encryption::AES::set_client(&nrf52840_peripherals.nrf52.ecb, oracle);
 
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP

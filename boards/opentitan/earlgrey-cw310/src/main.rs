@@ -12,7 +12,6 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use crate::otbn::OtbnComponent;
 use crate::pinmux_layout::BoardPinmuxLayout;
 use capsules_aes_gcm::aes_gcm;
@@ -31,7 +30,7 @@ use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
-use kernel::hil::symmetric_encryption::AES128;
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AES128};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -212,6 +211,7 @@ struct EarlGrey {
             'static,
             virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
+        AES128,
     >,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
@@ -457,6 +457,7 @@ unsafe fn setup() -> (
             6 => &peripherals.gpio_port[6],
             7 => &peripherals.gpio_port[15]
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(
         earlgrey::gpio::GpioPin<earlgrey::pinmux::PadConfig>
@@ -524,6 +525,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -542,6 +544,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::low_level_debug_component_static!());
 
@@ -549,6 +552,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
         &peripherals.hmac,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::hmac_component_static!(lowrisc::hmac::Hmac, 32));
 
@@ -580,6 +584,7 @@ unsafe fn setup() -> (
         mux_spi,
         lowrisc::spi_host::CS(0),
         capsules_core::spi_controller::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::spi_syscall_component_static!(
         lowrisc::spi_host::SpiHost
@@ -664,7 +669,7 @@ unsafe fn setup() -> (
         // Region Size
         lowrisc::flash_ctrl::FLASH_PAGES_PER_BANK * lowrisc::flash_ctrl::PAGE_SIZE,
         flash_ctrl_read_buf, // Buffer used internally in TicKV
-        page_buffer,         // Buffer used with the flash controller
+        page_buffer,         // Buffer used with the flash controller,
     )
     .finalize(components::tickv_component_static!(
         lowrisc::flash_ctrl::FlashCtrl,
@@ -741,6 +746,7 @@ unsafe fn setup() -> (
         virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::kv_driver_component_static!(
         capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<
@@ -814,7 +820,7 @@ unsafe fn setup() -> (
     );
     entropy_to_random.set_client(rng);
 
-    const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
+    const CRYPT_SIZE: usize = 7 * AES_BLOCK_SIZE;
 
     let ccm_mux = static_init!(
         virtual_aes_ccm::MuxAES128CCM<'static, earlgrey::aes::Aes<'static>>,
@@ -841,12 +847,14 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
         gcm_client,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::aes_driver_component_static!(
         aes_gcm::Aes128Gcm<
             'static,
             virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
+        AES128
     ));
 
     AES = Some(gcm_client);
@@ -861,8 +869,8 @@ unsafe fn setup() -> (
         SHA256SOFT = Some(sha_soft);
     }
 
-    hil::symmetric_encryption::AES128GCM::set_client(gcm_client, aes);
-    hil::symmetric_encryption::AES128::set_client(gcm_client, ccm_client);
+    hil::symmetric_encryption::AESGCM::set_client(gcm_client, aes);
+    hil::symmetric_encryption::AES::set_client(gcm_client, ccm_client);
 
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
     let scheduler = components::sched::priority::PriorityComponent::new(

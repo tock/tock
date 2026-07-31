@@ -43,7 +43,7 @@ macro_rules! sht3x_component_static {
         );
 
         (sht3x_alarm, i2c_device, sht3x, buffer)
-    };};
+    }};
 }
 
 pub type SHT3xComponentType<A, I> = capsules_extra::sht3x::SHT3x<'static, A, I>;

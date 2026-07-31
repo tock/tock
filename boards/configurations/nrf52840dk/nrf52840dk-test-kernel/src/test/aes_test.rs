@@ -29,7 +29,7 @@ use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use capsules_extra::test::aes::TestAes128Cbc;
 use capsules_extra::test::aes::TestAes128Ctr;
 use capsules_extra::test::aes::TestAes128Ecb;
-use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
+use kernel::hil::symmetric_encryption::{AES, AES_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
 use nrf52840::aes::AesECB;
 
@@ -58,10 +58,10 @@ unsafe fn static_init_test_ctr(
     aes: &'static AesECB,
     client: &'static dyn CapsuleTestClient,
 ) -> &'static TestAes128Ctr<'static, AesECB<'static>> {
-    let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
-    let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
+    let source = static_init!([u8; 4 * AES_BLOCK_SIZE], [0; 4 * AES_BLOCK_SIZE]);
+    let data = static_init!([u8; 6 * AES_BLOCK_SIZE], [0; 6 * AES_BLOCK_SIZE]);
     let key = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
-    let iv = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+    let iv = static_init!([u8; AES_BLOCK_SIZE], [0; AES_BLOCK_SIZE]);
 
     let test = static_init!(
         TestAes128Ctr<'static, AesECB>,
@@ -75,10 +75,10 @@ unsafe fn static_init_test_cbc(
     aes: &'static AesECB,
     client: &'static dyn CapsuleTestClient,
 ) -> &'static TestAes128Cbc<'static, AesECB<'static>> {
-    let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
-    let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
+    let source = static_init!([u8; 4 * AES_BLOCK_SIZE], [0; 4 * AES_BLOCK_SIZE]);
+    let data = static_init!([u8; 6 * AES_BLOCK_SIZE], [0; 6 * AES_BLOCK_SIZE]);
     let key = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
-    let iv = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+    let iv = static_init!([u8; AES_BLOCK_SIZE], [0; AES_BLOCK_SIZE]);
 
     let test = static_init!(
         TestAes128Cbc<'static, AesECB>,
@@ -92,8 +92,8 @@ unsafe fn static_init_test_ecb(
     aes: &'static AesECB,
     client: &'static dyn CapsuleTestClient,
 ) -> &'static TestAes128Ecb<'static, AesECB<'static>> {
-    let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
-    let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
+    let source = static_init!([u8; 4 * AES_BLOCK_SIZE], [0; 4 * AES_BLOCK_SIZE]);
+    let data = static_init!([u8; 6 * AES_BLOCK_SIZE], [0; 6 * AES_BLOCK_SIZE]);
     let key = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
 
     let test = static_init!(
