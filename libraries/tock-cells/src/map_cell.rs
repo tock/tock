@@ -65,7 +65,7 @@ pub struct MapCell<T> {
     val: UnsafeCell<MaybeUninit<T>>,
 
     // Safety invariants:
-    // - The contents of `val` must be initialized if this is `Init` or `InsideMap`.
+    // - The contents of `val` must be initialized if this is `Init` or `Borrowed`.
     // - It must be sound to mutate `val` behind a shared reference if this is `Uninit` or `Init`.
     //   No outside mutation can occur while a `&mut` to the contents of `val` exist.
     occupied: Cell<MapCellState>,
