@@ -60,7 +60,7 @@ struct PwmRegisters {
     _reserved6: [u8; 16],
     seq1: PwmSeqRegisters,
     _reserved7: [u8; 16],
-    psel_out: [VolatileCell<nrf5x::pinmux::Pinmux>; 4],
+    psel_out: [ReadWrite<u32>; 4],
 }
 
 #[repr(C)]
@@ -210,7 +210,7 @@ impl Pwm {
         let dc_out = counter_top - ((3 * duty_cycle) / frequency_hz);
 
         // Configure the pin
-        self.registers.psel_out[0].set(*pin);
+        self.registers.psel_out[0].set((*pin).into());
 
         // Start by enabling the peripheral.
         self.registers.enable.write(ENABLE::ENABLE::SET);

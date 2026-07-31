@@ -11,7 +11,6 @@ use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use nrf5x::pinmux::Pinmux;
@@ -65,8 +64,8 @@ impl TWI<'_> {
 
     /// Configures an already constructed `TWI`.
     pub fn configure(&self, scl: Pinmux, sda: Pinmux) {
-        self.registers.psel_scl.set(scl);
-        self.registers.psel_sda.set(sda);
+        self.registers.psel_scl.set(scl.into());
+        self.registers.psel_sda.set(sda.into());
     }
 
     /// Sets the I2C bus speed to one of three possible values
@@ -469,9 +468,9 @@ register_structs! {
         (0x500 => enable: ReadWrite<u32, ENABLE::Register>),
         (0x504 => _reserved13),
         /// Pin select for SCL signal
-        (0x508 => psel_scl: VolatileCell<Pinmux>),
+        (0x508 => psel_scl: ReadWrite<u32>),
         /// Pin select for SDA signal
-        (0x50C => psel_sda: VolatileCell<Pinmux>),
+        (0x50C => psel_sda: ReadWrite<u32>),
         (0x510 => _reserved_14),
         /// TWI frequency
         (0x524 => frequency: ReadWrite<u32>),
