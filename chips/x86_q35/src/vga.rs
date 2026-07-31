@@ -29,7 +29,8 @@
 
 use core::cell::Cell;
 use kernel::utilities::StaticRef;
-use tock_cells::volatile_cell::VolatileCell;
+use kernel::utilities::registers::ReadWrite;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 /// Write an 8-bit value to an I/O Port.
 /// Read an 8-bit value from an I/O port.
@@ -150,18 +151,18 @@ const TEXT_BUFFER_HEIGHT: usize = 25;
 /// Physical address where QEMU exposes the linear-frame-buffer BAR.
 const LFB_PHYS_BASE: u32 = 0xE0_00_0000;
 
-const VGA_CELLS: StaticRef<[VolatileCell<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]> =
+const VGA_CELLS: StaticRef<[ReadWrite<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]> =
     unsafe { StaticRef::new(TEXT_BUFFER_ADDR as *const _) };
 
 /// `TextBuf` is a thin, zero-cost view over the 80×25 VGA text buffer at 0xB8000.
-/// It wraps the `StaticRef<[VolatileCell<u16>; N]>` so code can:
+/// It wraps the `StaticRef<[ReadWrite<u16>; N]>` so code can:
 /// - iterate all cells (`iter()`) and by rows (`rows()`),
 /// - use bracket indexing `TEXT[(row, col)]` (panics on OOB in debug),
-/// - or use safe lookup `get(row, col) -> Option<&VolatileCell<u16>>`.
+/// - or use safe lookup `get(row, col) -> Option<&ReadWrite<u16>>`.
 ///
-/// All accesses go through `VolatileCell`, so reads/writes are *volatile*.
+/// All accesses go through `ReadWrite`, so reads/writes are *volatile*.
 struct TextBuf {
-    cells: StaticRef<[VolatileCell<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]>,
+    cells: StaticRef<[ReadWrite<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]>,
 }
 
 impl TextBuf {
@@ -172,19 +173,19 @@ impl TextBuf {
 
     /// Iterate all cells (row-major).
     #[inline(always)]
-    fn iter(&self) -> core::slice::Iter<'_, VolatileCell<u16>> {
+    fn iter(&self) -> core::slice::Iter<'_, ReadWrite<u16>> {
         self.cells[..].iter()
     }
 
     /// Iterate rows as fixed-size chunks.
     #[inline(always)]
-    fn rows(&self) -> &[[VolatileCell<u16>; 80]] {
+    fn rows(&self) -> &[[ReadWrite<u16>; 80]] {
         self.cells[..].as_chunks::<TEXT_BUFFER_WIDTH>().0
     }
 
     /// Expose an Option for row, col for the user
     #[inline(always)]
-    pub fn get(&self, row: usize, col: usize) -> Option<&VolatileCell<u16>> {
+    pub fn get(&self, row: usize, col: usize) -> Option<&ReadWrite<u16>> {
         if row < TEXT_BUFFER_HEIGHT && col < TEXT_BUFFER_WIDTH {
             Some(&self.cells[row * TEXT_BUFFER_WIDTH + col])
         } else {
@@ -193,8 +194,8 @@ impl TextBuf {
     }
 }
 impl<'a> IntoIterator for &'a TextBuf {
-    type Item = &'a VolatileCell<u16>;
-    type IntoIter = core::slice::Iter<'a, VolatileCell<u16>>;
+    type Item = &'a ReadWrite<u16>;
+    type IntoIter = core::slice::Iter<'a, ReadWrite<u16>>;
     #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -202,7 +203,7 @@ impl<'a> IntoIterator for &'a TextBuf {
 }
 
 impl core::ops::Index<usize> for TextBuf {
-    type Output = VolatileCell<u16>;
+    type Output = ReadWrite<u16>;
     #[inline(always)]
     fn index(&self, i: usize) -> &Self::Output {
         &self.cells[i]
@@ -210,7 +211,7 @@ impl core::ops::Index<usize> for TextBuf {
 }
 
 impl core::ops::Index<(usize, usize)> for TextBuf {
-    type Output = VolatileCell<u16>;
+    type Output = ReadWrite<u16>;
     #[inline(always)]
     fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
         &self.cells[row * TEXT_BUFFER_WIDTH + col] // panics on OOB
