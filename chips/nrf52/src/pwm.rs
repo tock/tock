@@ -7,7 +7,6 @@
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
@@ -65,7 +64,7 @@ struct PwmRegisters {
 
 #[repr(C)]
 struct PwmSeqRegisters {
-    seq_ptr: VolatileCell<*const u16>,
+    seq_ptr: ReadWrite<u32>,
     seq_cnt: ReadWrite<u32, SEQ_CNT::Register>,
     seq_refresh: ReadWrite<u32, SEQ_REFRESH::Register>,
     seq_enddelay: ReadWrite<u32, SEQ_ENDDELAY::Register>,
@@ -235,7 +234,7 @@ impl Pwm {
         }
         let duty_cycles: *const [u16; 4] = core::ptr::addr_of!(DUTY_CYCLES);
         let duty_cycles: *const u16 = duty_cycles.cast();
-        self.registers.seq0.seq_ptr.set(duty_cycles);
+        self.registers.seq0.seq_ptr.set(duty_cycles as u32);
         self.registers.seq0.seq_cnt.write(SEQ_CNT::CNT.val(1));
         self.registers
             .seq0

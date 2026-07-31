@@ -34,13 +34,13 @@
 //! * Date: Sep 10, 2017
 
 use core::cell::Cell;
-use core::{cmp, ptr};
+use core::cmp;
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{MapCell, OptionalCell, VolatileCell};
+use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
@@ -80,17 +80,17 @@ struct SpimRegisters {
     _reserved9: [u8; 500],                           // reserved
     enable: ReadWrite<u32, ENABLE::Register>,        // Enable SPIM
     _reserved10: [u8; 4],                            // reserved
-    psel_sck: VolatileCell<Pinmux>,                  // Pin select for SCK
-    psel_mosi: VolatileCell<Pinmux>,                 // Pin select for MOSI signal
-    psel_miso: VolatileCell<Pinmux>,                 // Pin select for MISO signal
+    psel_sck: ReadWrite<u32>,                        // Pin select for SCK
+    psel_mosi: ReadWrite<u32>,                       // Pin select for MOSI signal
+    psel_miso: ReadWrite<u32>,                       // Pin select for MISO signal
     _reserved11: [u8; 16],                           // reserved
     frequency: ReadWrite<u32>,                       // SPI frequency
     _reserved12: [u8; 12],                           // reserved
-    rxd_ptr: VolatileCell<*mut u8>,                  // Data pointer
+    rxd_ptr: ReadWrite<u32>,                         // Data pointer
     rxd_maxcnt: ReadWrite<u32, MAXCNT::Register>,    // Maximum number of bytes in receive buffer
     rxd_amount: ReadWrite<u32>,                      // Number of bytes transferred
     rxd_list: ReadWrite<u32>,                        // EasyDMA list type
-    txd_ptr: VolatileCell<*const u8>,                // Data pointer
+    txd_ptr: ReadWrite<u32>,                         // Data pointer
     txd_maxcnt: ReadWrite<u32, MAXCNT::Register>,    // Maximum number of bytes in transmit buffer
     txd_amount: ReadWrite<u32>,                      // Number of bytes transferred
     txd_list: ReadWrite<u32>,                        // EasyDMA list type
@@ -316,9 +316,9 @@ impl<'a> SPIM<'a> {
 
     /// Configures an already constructed `SPIM`.
     pub fn configure(&self, mosi: Pinmux, miso: Pinmux, sck: Pinmux) {
-        self.registers.psel_mosi.set(mosi);
-        self.registers.psel_miso.set(miso);
-        self.registers.psel_sck.set(sck);
+        self.registers.psel_mosi.set(mosi.into());
+        self.registers.psel_miso.set(miso.into());
+        self.registers.psel_sck.set(sck.into());
     }
 
     /// Enables `SPIM` peripheral.
@@ -375,20 +375,20 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
 
         // Setup transmit data registers
         let tx_len: u32 = tx_buf.len() as u32;
-        self.registers.txd_ptr.set(tx_buf.as_ptr());
+        self.registers.txd_ptr.set(tx_buf.as_ptr() as u32);
         self.registers.txd_maxcnt.write(MAXCNT::MAXCNT.val(tx_len));
         self.tx_buf.replace(tx_buf);
 
         // Setup receive data registers
         match rx_buf {
             None => {
-                self.registers.rxd_ptr.set(ptr::null_mut());
+                self.registers.rxd_ptr.set(0);
                 self.registers.rxd_maxcnt.write(MAXCNT::MAXCNT.val(0));
                 self.transfer_len.set(tx_len as usize);
                 self.rx_buf.take();
             }
             Some(mut buf) => {
-                self.registers.rxd_ptr.set(buf.as_mut_ptr());
+                self.registers.rxd_ptr.set(buf.as_mut_ptr() as u32);
                 let rx_len: u32 = buf.len() as u32;
                 self.registers.rxd_maxcnt.write(MAXCNT::MAXCNT.val(rx_len));
                 self.transfer_len.set(cmp::min(tx_len, rx_len) as usize);
