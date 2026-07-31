@@ -653,6 +653,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    // # Code Levels
+    //
+    // - Assurance: Extensively Tested
+    // - Importance: Critical
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize {
         self.tasks.map_or(0, |tasks| {
             let count_before = tasks.len();
