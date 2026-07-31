@@ -223,20 +223,24 @@ impl<T> MapCell<T> {
     /// # Panics
     /// If debug assertions are enabled, this panics if the `MapCell`'s contents are already borrowed.
     pub fn replace(&self, val: T) -> Option<T> {
-        let occupied = self.occupied.get();
+        let was_occupied = self.occupied.get();
         debug_assert_not_borrowed!(self);
-        if occupied == MapCellState::Borrowed {
+        if was_occupied == MapCellState::Borrowed {
             return None;
         }
         self.occupied.set(MapCellState::Init);
 
+        let new_contents = MaybeUninit::new(val);
         // SAFETY:
-        // - Since `occupied` is `Init` or `Uninit`, no `&mut` to the `val` exists, meaning it
-        //   is safe to mutate the `get` pointer.
-        let maybe_uninit_val = unsafe { self.val.get().replace(MaybeUninit::new(val)) };
-        // SAFETY:
-        // - If occupied is `Init`, `maybe_uninit_val` must be initialized.
-        (occupied == MapCellState::Init).then(|| unsafe { maybe_uninit_val.assume_init() })
+        // - Since `was_occupied` is `Init` or `Uninit`, no `&mut` to the `val`
+        //   exists, meaning it is safe to mutate the `get` pointer.
+        let old_contents_maybe_uninit = unsafe { self.val.get().replace(new_contents) };
+
+        (was_occupied == MapCellState::Init).then(|| {
+            // SAFETY:
+            // - If was_occupied is `Init`, `old_contents_maybe_uninit` must be initialized.
+            unsafe { old_contents_maybe_uninit.assume_init() }
+        })
     }
 
     /// Calls `closure` with a `&mut` of the contents of the `MapCell`, if available.
