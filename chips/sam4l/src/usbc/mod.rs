@@ -12,7 +12,6 @@ use crate::pm;
 use crate::pm::{Clock, HSBClock, PBBClock, disable_clock, enable_clock};
 use crate::scif;
 use core::cell::Cell;
-use core::ptr;
 use core::slice;
 use kernel::debug as debugln;
 use kernel::hil;
@@ -380,7 +379,7 @@ pub const fn new_endpoint() -> Endpoint {
 
 #[repr(C)]
 pub struct Bank {
-    addr: VolatileCell<*mut u8>,
+    addr: InMemoryRegister<u32>,
 
     // The following fields are not actually registers
     // (they may be placed anywhere in memory),
@@ -395,7 +394,7 @@ pub struct Bank {
 impl Bank {
     pub const fn new() -> Bank {
         Bank {
-            addr: VolatileCell::new(ptr::null_mut()),
+            addr: InMemoryRegister::new(0),
             packet_size: InMemoryRegister::new(0),
             control_status: InMemoryRegister::new(0),
             _reserved: 0,
@@ -403,7 +402,7 @@ impl Bank {
     }
 
     pub fn set_addr(&self, addr: *mut u8) {
-        self.addr.set(addr);
+        self.addr.set(addr as u32);
     }
 }
 
@@ -1379,7 +1378,7 @@ impl<'a> Usbc<'a> {
     fn debug_show_d0(&self) {
         for bi in 0..1 {
             let b = &self.descriptors[0][bi];
-            let addr = b.addr.get();
+            let addr = b.addr.get() as *const u8;
             let _buf = if addr.is_null() {
                 None
             } else {
