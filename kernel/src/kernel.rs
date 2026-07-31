@@ -315,11 +315,10 @@ impl Kernel {
     }
 
     /// Terminate a process if it exists, and remove it from ProcessArray.
-    pub fn remove_process_from_active_processes<F>(
+    pub(crate) fn remove_process_from_active_processes<F>(
         &self,
         shortid: process::ShortId,
         f: F,
-        _capability: &dyn capabilities::ProcessManagementCapability,
     ) -> Result<usize, ()>
     where
         F: FnOnce(&'static dyn process::Process) -> usize,

@@ -134,7 +134,11 @@ pub trait DynamicProcessLoadClient {
 /// This interface supports unloading processes at runtime.
 pub trait DynamicProcessUnload {
     /// Call to terminate a process with given ShortId.
-    fn unload(&self, app: ShortId) -> Result<(), ErrorCode>;
+    fn unload(
+        &self,
+        app: ShortId,
+        _capability: &dyn ProcessManagementCapability,
+    ) -> Result<(), ErrorCode>;
 
     /// Sets a client for the SequentialDynamicProcessUnload Object
     ///
@@ -156,7 +160,6 @@ pub struct SequentialDynamicBinaryStorage<
     C: Chip + 'static,
     D: ProcessStandardDebug + 'static,
     F: NonvolatileStorage<'b>,
-    P: ProcessManagementCapability + 'static,
 > {
     kernel: &'static Kernel,
     flash_driver: &'b F,
@@ -168,24 +171,16 @@ pub struct SequentialDynamicBinaryStorage<
     process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
     deferred_call: DeferredCall,
-    capability: P,
 }
 
-impl<
-    'a,
-    'b,
-    C: Chip + 'static,
-    D: ProcessStandardDebug + 'static,
-    F: NonvolatileStorage<'b>,
-    P: ProcessManagementCapability + 'static,
-> SequentialDynamicBinaryStorage<'a, 'b, C, D, F, P>
+impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
+    SequentialDynamicBinaryStorage<'a, 'b, C, D, F>
 {
     pub fn new(
         kernel: &'static Kernel,
         flash_driver: &'b F,
         loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
         buffer: &'static mut [u8],
-        capability: P,
     ) -> Self {
         Self {
             kernel,
@@ -198,7 +193,6 @@ impl<
             process_metadata: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             deferred_call: DeferredCall::new(),
-            capability,
         }
     }
 
@@ -372,13 +366,8 @@ impl<
     }
 }
 
-impl<
-    'b,
-    C: Chip,
-    D: ProcessStandardDebug,
-    F: NonvolatileStorage<'b>,
-    P: ProcessManagementCapability + 'static,
-> DeferredCallClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
+impl<'b, C: Chip, D: ProcessStandardDebug, F: NonvolatileStorage<'b>> DeferredCallClient
+    for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
 {
     fn handle_deferred_call(&self) {
         // We use deferred call to signal the completion of finalize or unload
@@ -412,13 +401,8 @@ impl<
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl<
-    'b,
-    C: Chip + 'static,
-    D: ProcessStandardDebug + 'static,
-    F: NonvolatileStorage<'b>,
-    P: ProcessManagementCapability + 'static,
-> NonvolatileStorageClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
+impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
+    NonvolatileStorageClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
 {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {
         // We will never use this, but we need to implement this anyway.
@@ -502,13 +486,8 @@ impl<
 }
 
 /// Callback client for the async process loader
-impl<
-    'b,
-    C: Chip + 'static,
-    D: ProcessStandardDebug + 'static,
-    F: NonvolatileStorage<'b>,
-    P: ProcessManagementCapability + 'static,
-> ProcessLoadingAsyncClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
+impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
+    ProcessLoadingAsyncClient for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
 {
     fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
         self.load_client.map(|client| {
@@ -524,13 +503,8 @@ impl<
 }
 
 /// Storage interface exposed to the app_loader capsule
-impl<
-    'b,
-    C: Chip + 'static,
-    D: ProcessStandardDebug + 'static,
-    F: NonvolatileStorage<'b>,
-    P: ProcessManagementCapability + 'static,
-> DynamicBinaryStore for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
+impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
+    DynamicBinaryStore for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
 {
     fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient) {
         self.storage_client.set(client);
@@ -716,13 +690,8 @@ impl<
 }
 
 /// Loading interface exposed to the app_loader capsule
-impl<
-    'b,
-    C: Chip + 'static,
-    D: ProcessStandardDebug + 'static,
-    F: NonvolatileStorage<'b>,
-    P: ProcessManagementCapability + 'static,
-> DynamicProcessLoad for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
+impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
+    DynamicProcessLoad for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
 {
     fn set_load_client(&self, client: &'static dyn DynamicProcessLoadClient) {
         self.load_client.set(client);
@@ -757,28 +726,27 @@ impl<
 }
 
 /// Loading interface exposed to the app_loader capsule
-impl<
-    'b,
-    C: Chip + 'static,
-    D: ProcessStandardDebug + 'static,
-    F: NonvolatileStorage<'b>,
-    P: ProcessManagementCapability + 'static,
-> DynamicProcessUnload for SequentialDynamicBinaryStorage<'_, 'b, C, D, F, P>
+impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
+    DynamicProcessUnload for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
 {
     fn set_unload_client(&self, client: &'static dyn DynamicProcessUnloadClient) {
         self.unload_client.set(client);
     }
 
-    fn unload(&self, app: ShortId) -> Result<(), ErrorCode> {
+    fn unload(
+        &self,
+        app: ShortId,
+        _capability: &dyn ProcessManagementCapability,
+    ) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Idle => {
                 self.state.set(State::Unload(Err(ErrorCode::BUSY), 0)); // To ensure the state machine knows not to service other apps
 
-                let (result, _app_handle) = match self.kernel.remove_process_from_active_processes(
-                    app,
-                    |proc| proc.get_addresses().flash_start,
-                    &self.capability,
-                ) {
+                let (result, _app_handle) = match self
+                    .kernel
+                    .remove_process_from_active_processes(app, |proc| {
+                        proc.get_addresses().flash_start
+                    }) {
                     Ok(id) => {
                         let res = Ok(());
                         let handle = id;

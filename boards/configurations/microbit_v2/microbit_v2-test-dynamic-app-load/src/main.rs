@@ -86,7 +86,7 @@ type RngDriver = components::rng::RngComponentType<nrf52833::trng::Trng<'static>
 type Ieee802154RawDriver =
     components::ieee802154::Ieee802154RawComponentType<nrf52833::ieee802154_radio::Radio<'static>>;
 type NonVolatilePages = components::dynamic_binary_storage::NVPages<nrf52833::nvmc::Nvmc>;
-/// Needed for dynamic binary storage capsule.
+/// Needed for apploader capsule.
 pub struct PMCap;
 unsafe impl capabilities::ProcessManagementCapability for PMCap {}
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
@@ -95,7 +95,6 @@ type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynami
     nrf52833::chip::NRF52<'a, Nrf52833DefaultPeripherals<'a>>,
     kernel::process::ProcessStandardDebugFull,
     NonVolatilePages,
-    PMCap,
 >;
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
@@ -160,6 +159,7 @@ pub struct MicroBit {
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
+        PMCap,
     >,
 
     scheduler: &'static SchedulerInUse,
@@ -875,13 +875,11 @@ unsafe fn start() -> (
             board_kernel,
             &base_peripherals.nvmc,
             loader,
-            PMCap,
         )
         .finalize(components::sequential_binary_storage_component_static!(
             nrf52833::nvmc::Nvmc,
             nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>,
             kernel::process::ProcessStandardDebugFull,
-            PMCap,
         ));
 
     // Create the dynamic app loader capsule.
@@ -892,11 +890,13 @@ unsafe fn start() -> (
         dynamic_binary_storage,
         create_capability!(capabilities::MemoryAllocationCapability),
         dynamic_binary_storage,
+        PMCap,
     )
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
+        PMCap,
     ));
 
     //--------------------------------------------------------------------------
