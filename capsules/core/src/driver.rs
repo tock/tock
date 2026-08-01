@@ -102,5 +102,8 @@ pub enum NUM {
     DateTime              = 0x90007,
     CycleCount            = 0x90008,
     Servo                 = 0x90009,
+
+    // IPC Mechanisms
+    IpcRegistryPackageName = 0xA0001,
 }
 }
