@@ -46,9 +46,9 @@ register_structs! {
         (0x04 => setup_l: ReadWrite<u32, SETUP_L::Register>),
         (0x08 => ep_ctrl: [Ep_ctrl; 15]),
         (0x80 => ep_buf_ctrl: [Ep_buf_ctrl; 16]),
-        (0x100 => ep0_buffer0: [VolatileCell<u8>; 0x40]),
-        (0x140 => optional_ep0_buffer0: [VolatileCell<u8>; 0x40]),
-        (0x180 => buffers: [VolatileCell<u8>; 4096-0x180]),
+        (0x100 => ep0_buffer0: [ReadWrite<u8>; 0x40]),
+        (0x140 => optional_ep0_buffer0: [ReadWrite<u8>; 0x40]),
+        (0x180 => buffers: [ReadWrite<u8>; 4096-0x180]),
         (0x1000 => @END),
     }
 }
