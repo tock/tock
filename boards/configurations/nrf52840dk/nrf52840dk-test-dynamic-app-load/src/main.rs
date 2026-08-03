@@ -72,9 +72,6 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rt
 
 type NonVolatilePages = components::dynamic_binary_storage::NVPages<nrf52840::nvmc::Nvmc>;
 
-/// Needed for apploader capsule.
-pub struct PMCap;
-unsafe impl kernel::capabilities::ProcessManagementCapability for PMCap {}
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
     'static,
     'static,
@@ -103,7 +100,6 @@ pub struct Platform {
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
-        PMCap,
     >,
 }
 
@@ -513,13 +509,11 @@ pub unsafe fn main() {
         dynamic_binary_storage,
         create_capability!(capabilities::MemoryAllocationCapability),
         dynamic_binary_storage,
-        PMCap,
     )
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
-        PMCap,
     ));
 
     //--------------------------------------------------------------------------

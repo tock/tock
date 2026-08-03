@@ -47,7 +47,7 @@ const SIGNATURE_SIG_LEN: usize = 64;
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
-/// Needed for process info and apploader capsules.
+/// Needed for process info capsule.
 pub struct PMCapability;
 unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
 unsafe impl capabilities::ProcessStartCapability for PMCapability {}
@@ -83,7 +83,6 @@ type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
     DynamicBinaryStorage<'static>,
     DynamicBinaryStorage<'static>,
     DynamicBinaryStorage<'static>,
-    PMCapability,
 >;
 
 type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
@@ -530,13 +529,11 @@ pub unsafe fn main() {
         dynamic_binary_storage,
         create_capability!(capabilities::MemoryAllocationCapability),
         dynamic_binary_storage,
-        PMCapability,
     )
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
-        PMCapability,
     ));
 
     //--------------------------------------------------------------------------

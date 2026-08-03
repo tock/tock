@@ -11,7 +11,6 @@ use core::cell::Cell;
 
 use crate::ErrorCode;
 use crate::Kernel;
-use crate::capabilities::ProcessManagementCapability;
 use crate::config;
 use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
@@ -134,11 +133,7 @@ pub trait DynamicProcessLoadClient {
 /// This interface supports unloading processes at runtime.
 pub trait DynamicProcessUnload {
     /// Call to terminate a process with given ShortId.
-    fn unload(
-        &self,
-        app: ShortId,
-        _capability: &dyn ProcessManagementCapability,
-    ) -> Result<(), ErrorCode>;
+    fn unload(&self, app: ShortId) -> Result<(), ErrorCode>;
 
     /// Sets a client for the SequentialDynamicProcessUnload Object
     ///
@@ -377,18 +372,11 @@ impl<'b, C: Chip, D: ProcessStandardDebug, F: NonvolatileStorage<'b>> DeferredCa
                     client.finalize_done(Ok(()));
                 });
             }
-            State::Unload(result, app_id) => {
-                // let id = app_id;
-                let id = app_id;
-                let res = if id == 0 {
-                    Err(ErrorCode::FAIL)
-                } else {
-                    result
-                };
+            State::Unload(result, app_handle) => {
                 self.reset_process_loading_metadata();
 
                 self.unload_client.map(|client| {
-                    client.unload_done(res, id);
+                    client.unload_done(result, app_handle);
                 });
             }
             _ => {}
@@ -733,11 +721,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
         self.unload_client.set(client);
     }
 
-    fn unload(
-        &self,
-        app: ShortId,
-        _capability: &dyn ProcessManagementCapability,
-    ) -> Result<(), ErrorCode> {
+    fn unload(&self, app: ShortId) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Idle => {
                 self.state.set(State::Unload(Err(ErrorCode::BUSY), 0)); // To ensure the state machine knows not to service other apps
@@ -765,7 +749,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 // We are in the wrong mode of operation. Ideally we should never reach
                 // here, but this error exists as a failsafe. The capsule should send
                 // a busy error out to the userland app.
-                Err(ErrorCode::INVAL)
+                Err(ErrorCode::BUSY)
             }
         }
     }

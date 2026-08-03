@@ -26,12 +26,10 @@
 //!     dynamic_binary_storage,
 //!     dynamic_binary_storage,
 //!     dynamic_binary_storage,
-//!     PMCapability,
 //!     ).finalize(components::app_loader_component_static!(
 //!     DynamicBinaryStorage<'static>,
 //!     DynamicBinaryStorage<'static>,
 //!     DynamicBinaryStorage<'static>,
-//!     PMCapability,
 //!     ));
 //! ```
 
@@ -44,8 +42,8 @@ use kernel::dynamic_binary_storage;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! app_loader_component_static {
-    ($S:ty, $L:ty, $T:ty, $P:ty $(,)?) => {{
-        let al = kernel::static_buf!(capsules_extra::app_loader::AppLoader<$S, $L, $T, $P>);
+    ($S:ty, $L:ty, $T:ty $(,)?) => {{
+        let al = kernel::static_buf!(capsules_extra::app_loader::AppLoader<$S, $L, $T>);
         let buffer = kernel::static_buf!([u8; capsules_extra::app_loader::BUF_LEN]);
 
         (al, buffer)
@@ -57,7 +55,6 @@ pub struct AppLoaderComponent<
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     CAP: MemoryAllocationCapability + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-    P: capabilities::ProcessManagementCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -65,7 +62,6 @@ pub struct AppLoaderComponent<
     load_driver: &'static L,
     mem_cap: CAP,
     unload_driver: &'static T,
-    capability: P,
 }
 
 impl<
@@ -73,8 +69,7 @@ impl<
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     CAP: MemoryAllocationCapability + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-    P: capabilities::ProcessManagementCapability + 'static,
-> AppLoaderComponent<S, L, CAP, T, P>
+> AppLoaderComponent<S, L, CAP, T>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -83,7 +78,6 @@ impl<
         load_driver: &'static L,
         mem_cap: CAP,
         unload_driver: &'static T,
-        capability: P,
     ) -> Self {
         Self {
             board_kernel,
@@ -92,7 +86,6 @@ impl<
             load_driver,
             mem_cap,
             unload_driver,
-            capability,
         }
     }
 }
@@ -102,14 +95,13 @@ impl<
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     CAP: MemoryAllocationCapability + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-    P: capabilities::ProcessManagementCapability + 'static,
-> Component for AppLoaderComponent<S, L, CAP, T, P>
+> Component for AppLoaderComponent<S, L, CAP, T>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<AppLoader<S, L, T, P>>,
+        &'static mut MaybeUninit<AppLoader<S, L, T>>,
         &'static mut MaybeUninit<[u8; capsules_extra::app_loader::BUF_LEN]>,
     );
-    type Output = &'static AppLoader<S, L, T, P>;
+    type Output = &'static AppLoader<S, L, T>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let buffer = static_buffer
@@ -122,7 +114,6 @@ impl<
             self.storage_driver,
             self.load_driver,
             self.unload_driver,
-            self.capability,
             buffer,
         ));
         dynamic_binary_storage::DynamicBinaryStore::set_storage_client(

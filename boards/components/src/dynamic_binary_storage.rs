@@ -11,6 +11,7 @@
 //! # use kernel::static_init;
 //!
 //! let dynamic_binary_storage = components::dyn_binary_storage::SequentialBinaryStorageComponent::new(
+//!     board_kernel,
 //!     &base_peripherals.nvmc,
 //!     &loader,
 //! )

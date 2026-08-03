@@ -70,10 +70,6 @@ pub unsafe trait ProcessManagementCapability {}
 /// Capabilities can only be created in trusted crates that can use `unsafe`.
 pub unsafe trait ProcessStartCapability {}
 
-/// `RemoveProcessFromActiveProcessesCapability` allows the holder to remove
-///  process from the `Processes` struct.
-pub unsafe trait RemoveProcessFromActiveProcessesCapability {}
-
 /// The `MainLoopCapability` capability allows the holder to start executing as
 /// well as manage the main scheduler loop in Tock.
 ///

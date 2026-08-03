@@ -315,10 +315,12 @@ impl Kernel {
     }
 
     /// Terminate a process if it exists, and remove it from ProcessArray.
+    /// `extract_app_handle` is the caller-passed operation which is used
+    /// to determine the `app_handle` which is returned as a usize value.
     pub(crate) fn remove_process_from_active_processes<F>(
         &self,
         shortid: process::ShortId,
-        f: F,
+        extract_app_handle: F,
     ) -> Result<usize, ()>
     where
         F: FnOnce(&'static dyn process::Process) -> usize,
@@ -327,7 +329,7 @@ impl Kernel {
             if let Some(process) = slot.get() {
                 if process.short_app_id() == shortid {
                     process.terminate(None);
-                    let result = f(process);
+                    let result = extract_app_handle(process);
                     slot.proc.set(None);
                     return Ok(result);
                 }
