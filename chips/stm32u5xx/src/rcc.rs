@@ -58,6 +58,7 @@ register_bitfields![u32,
         GPIOJEN OFFSET(9) NUMBITS(1) [],
         ADC12EN OFFSET(10) NUMBITS(1) [],
         HASHEN OFFSET(17) NUMBITS(1) [],
+        TRNGEN  OFFSET(18) NUMBITS(1) [],
     ],
     pub AHB3ENR [
         PWREN OFFSET(2) NUMBITS(1) [],
@@ -151,6 +152,10 @@ impl Rcc {
 
     pub fn enable_adc1(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::ADC12EN::SET);
+    }
+
+    pub fn enable_trng(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::TRNGEN::SET);
     }
 
     pub fn set_usart1_source_pclk(&self) {
