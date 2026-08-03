@@ -193,7 +193,7 @@ macro_rules! stack_size {
 ///         kernel: kernel,
 ///         chip: chip,
 ///         ...
-///     )};
+///     });
 /// }
 /// ```
 ///
