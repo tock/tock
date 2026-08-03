@@ -165,11 +165,19 @@ process to choose which other processes can send it messages.
 
 The IPC Identifier is a type loosely binding the entire IPC ecosystem of
 capsules. It is an opaque handle which can be used by processes to identify
-another process as a target for communication.
+another potential process as a target for communication.
 
-Each IPC Identifier MUST have a valid and unique 64-bit encoding. Userspace can
-treat them as unsigned 64-bit integers. They can be split into two 32-bit halves
-(upper and lower) for transmission through syscalls and upcalls.
+IPC Identifiers do not necessarily refer to an existing process. For example,
+they can refer to a previously-existing processes which has now terminated
+Communication with non-existent processes won't succeed, but the IPC Identifier
+can still exist.
+
+Each IPC Identifier MUST have a single, unique 64-bit encoding. This means
+every IPC Identifier has a single 64-bit value it corresponds to. And every
+64-bit value has a single IPC Identifier it corresponds to. Userspace can
+always treat an IPC Identifier as an unsigned 64-bit integer. This can be split
+into two 32-bit halves (upper and lower) for transmission through syscalls and
+upcalls.
 
 Typically userspace gets an IPC Identifier via an IPC Registry capsule as part
 of the discovery process. This is not a hard requirement, however, and it's
