@@ -459,7 +459,7 @@ pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
 
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 // Only apply the `link_section` attribute when actually targeting bare-metal
-// RISC-V. Host builds (e.g. `doc`, tests, clippy on macOS, Windows, Linux,
+// RISC-V. Some host builds (e.g. `doc`, tests, clippy on macOS, Windows,
 // ...) use object formats (Mach-O, PE, ...) that reject a bare section name
 // like this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
