@@ -104,6 +104,7 @@ pub enum NUM {
     Servo                 = 0x90009,
 
     // IPC Mechanisms
+    IpcRegistryStringName  = 0xA0000,
     IpcRegistryPackageName = 0xA0001,
 }
 }
