@@ -158,8 +158,8 @@ register_bitfields![u32,
 pub struct AesDmaBuffers {
     dma_in_buf: MapCell<DmaSubSliceMut<'static, u8>>,
     dma_out_buf: MapCell<DmaSubSliceMut<'static, u8>>,
-    pub dma_aad_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
-    pub dma_message_buff: OptionalCell<[u8; AES_BLOCK_SIZE]>,
+    dma_aad_buf: OptionalCell<[u8; AES_BLOCK_SIZE]>,
+    dma_message_buf: OptionalCell<[u8; AES_BLOCK_SIZE]>,
 }
 
 /// Wrapper for managing MMIO for the AES peripheral.
@@ -296,10 +296,27 @@ impl AesDmaBuffers {
         Self {
             dma_in_buf: MapCell::empty(),
             dma_out_buf: MapCell::empty(),
-            dma_aad_buff: OptionalCell::empty(),
-            dma_message_buff: OptionalCell::empty(),
+            dma_aad_buf: OptionalCell::empty(),
+            dma_message_buf: OptionalCell::empty(),
         }
     }
+
+    pub fn set_aad_buffer(&self, buf: [u8; AES_BLOCK_SIZE]) {
+        self.dma_aad_buf.replace(buf);
+    }
+
+    pub fn set_message_buffer(&self, buf: [u8; AES_BLOCK_SIZE]) {
+        self.dma_message_buf.replace(buf);
+    }
+
+    pub fn get_aad_buf(&self) -> Option<[u8; AES_BLOCK_SIZE]> {
+        self.dma_aad_buf.take()
+    }
+
+    pub fn get_message_buf(&self) -> Option<[u8; AES_BLOCK_SIZE]> {
+        self.dma_message_buf.take()
+    }
+
     /// Helper function to take the dma_in_buf as a normal [u8]. If there is no dma_in_buf,
     /// will return None
     pub fn take_dma_in_buf(&self, reg: StaticRef<AesRegisters>) -> Option<&'static mut [u8]> {

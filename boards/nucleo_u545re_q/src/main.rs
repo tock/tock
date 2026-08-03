@@ -268,7 +268,6 @@ unsafe fn start() -> (
         stm32u545::aes::ecb::Aes<'static, AES256>,
         AES256
     ));
-    AES::set_client(&periphs.aes, aes_driver);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,

@@ -32,7 +32,7 @@ impl<K: AESKeySize> Aes<'_, K> {
             ctx.message_end - ctx.message_start,
         );
         if let Some(pad) = msg_pad {
-            self.dma_bufs.dma_message_buff.replace(pad);
+            self.dma_bufs.set_message_buffer(pad);
         }
 
         // Determine whether to start with Header (AAD) or Payload phase.
@@ -48,7 +48,7 @@ impl<K: AESKeySize> Aes<'_, K> {
             );
 
             if let Some(pad) = aad_pad {
-                self.dma_bufs.dma_aad_buff.replace(pad);
+                self.dma_bufs.set_aad_buffer(pad);
             }
             ctx.current_idx = aad_len;
             self.state.set(State::Header(ctx));
@@ -84,7 +84,7 @@ impl<K: AESKeySize> Aes<'_, K> {
         match self.state.get() {
             State::Header(mut ctx) => {
                 // Handle padded last AAD block if present.
-                if let Some(buf) = self.dma_bufs.dma_aad_buff.take() {
+                if let Some(buf) = self.dma_bufs.get_aad_buf() {
                     let aad_offset = ctx.aad_offset;
                     let start_idx = ctx.message_start;
                     let remaining_aad = start_idx - (aad_offset + ctx.current_idx);
@@ -101,7 +101,7 @@ impl<K: AESKeySize> Aes<'_, K> {
                     return;
                 }
                 // Handle padded partial block if present
-                if let Some(pad_buf) = self.dma_bufs.dma_message_buff.take() {
+                if let Some(pad_buf) = self.dma_bufs.get_message_buf() {
                     let start_idx = ctx.message_start;
                     let end_idx = ctx.message_end;
                     let message_len = end_idx - start_idx;
@@ -140,7 +140,7 @@ impl<K: AESKeySize> Aes<'_, K> {
                 let (len, aad_pad) =
                     AesDmaBuffers::extract_dma_padding(buf, aad_offset + block_len, remaining_aad);
                 if let Some(pad) = aad_pad {
-                    self.dma_bufs.dma_aad_buff.replace(pad);
+                    self.dma_bufs.set_aad_buffer(pad);
                 }
                 ctx.current_idx = block_len + len;
                 self.state.set(State::Header(ctx));
@@ -186,7 +186,7 @@ impl<K: AESKeySize> Aes<'_, K> {
         ) {
             let (len, msg_pad) = AesDmaBuffers::extract_dma_padding(buf, start_idx, message_len);
             if let Some(pad) = msg_pad {
-                self.dma_bufs.dma_message_buff.replace(pad);
+                self.dma_bufs.set_message_buffer(pad);
             }
             ctx.current_idx = len;
             self.state.set(State::Payload(ctx));
@@ -257,7 +257,7 @@ impl<K: AESKeySize> Aes<'_, K> {
             let end_idx = ctx.message_end;
             let start_idx = ctx.message_start;
 
-            if let Some(padded_msg) = self.dma_bufs.dma_message_buff.take() {
+            if let Some(padded_msg) = self.dma_bufs.get_message_buf() {
                 let pad_len = (end_idx - start_idx) % AES_BLOCK_SIZE;
                 if pad_len > 0 {
                     buf[end_idx - pad_len..end_idx].copy_from_slice(&padded_msg[0..pad_len]);
@@ -517,7 +517,7 @@ impl<K: AESKeySize> Aes<'_, K> {
             }
             State::DmaPayloadPadding(ctx) => {
                 let block = self.get_output();
-                self.dma_bufs.dma_message_buff.replace(block);
+                self.dma_bufs.set_message_buffer(block);
                 self.dma_start_tag_computation(ctx);
             }
             State::DmaFinalize(ctx) => {
@@ -552,7 +552,7 @@ impl<K: AESKeySize> Aes<'_, K> {
             }
             State::DmaPayloadPadding(ctx) => {
                 let block = self.get_output();
-                self.dma_bufs.dma_message_buff.replace(block);
+                self.dma_bufs.set_message_buffer(block);
                 self.dma_start_tag_computation(ctx);
             }
             State::DmaFinalize(ctx) => {
