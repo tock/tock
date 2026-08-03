@@ -5,10 +5,9 @@
 //! UDP userspace interface for transmit and receive.
 //!
 //! Implements a userspace interface for sending and receiving UDP messages.
-//! Processes use this driver to send UDP packets from a common interface
-//! and bind to UDP ports for receiving packets.
-//! Also exposes a list of interface addresses to the application (currently
-//! hard-coded).
+//! Processes use this driver to send UDP packets from a common interface and
+//! bind to UDP ports for receiving packets. Also exposes a list of interface
+//! addresses to the application (currently hard-coded).
 
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::network_capabilities::NetworkCapability;
@@ -44,10 +43,9 @@ mod upcall {
     pub const PACKET_RECEIVED: usize = 0;
     /// Callback for when packet is transmitted.
     ///
-    /// Notably, this callback receives
-    /// the result of the send_done callback from udp_send.rs, which does not
-    /// currently pass information regarding whether packets were acked at the
-    /// link layer.
+    /// Notably, this callback receives the result of the send_done callback
+    /// from udp_send.rs, which does not currently pass information regarding
+    /// whether packets were acked at the link layer.
     pub const PACKET_TRANSMITTED: usize = 1;
     /// Number of upcalls.
     pub const COUNT: u8 = 2;
