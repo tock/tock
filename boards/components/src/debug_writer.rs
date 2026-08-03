@@ -62,10 +62,8 @@ macro_rules! debug_writer_component_static {
             kernel::static_buf!(capsules_system::debug_writer::uart_debug_writer::UartDebugWriter);
 
         (uart, ring, buffer, debug)
-    };};
-    () => {{
-        $crate::debug_writer_component_static!($crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE)
-    };};
+    }};
+    () => {{ $crate::debug_writer_component_static!($crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE) }};
 }
 
 /// The optional argument to this macro allows boards to specify the size of the in-RAM
@@ -82,11 +80,11 @@ macro_rules! debug_writer_no_mux_component_static {
             kernel::static_buf!(capsules_system::debug_writer::uart_debug_writer::UartDebugWriter);
 
         (ring, buffer, debug)
-    };};
+    }};
     () => {{
         use $crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE;
         $crate::debug_writer_no_mux_component_static!(DEFAULT_DEBUG_BUFFER_KBYTE)
-    };};
+    }};
 }
 
 // Allow dead code because we need the `Chip` type but don't use `chip`.

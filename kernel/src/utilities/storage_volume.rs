@@ -25,10 +25,12 @@
 #[macro_export]
 macro_rules! storage_volume {
     ($N:ident, $kB:expr $(,)?) => {
-        // When compiling for a macOS host, the `link_section` attribute is
-        // elided as it yields the following error: `mach-o section specifier
+        // This section attribute is only applied when targeting bare-metal
+        // (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use
+        // object formats (Mach-O, PE, ...) that reject a bare section name
+        // like this, yielding errors such as: `mach-o section specifier
         // requires a segment and section separated by a comma`.
-        #[cfg_attr(not(target_os = "macos"), unsafe(link_section = ".storage"))]
+        #[cfg_attr(target_os = "none", unsafe(link_section = ".storage"))]
         #[used]
         #[unsafe(no_mangle)]
         pub static $N: [u8; $kB * 1024] = [0x00; $kB * 1024];

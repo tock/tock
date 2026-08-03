@@ -48,17 +48,21 @@ kernel::stack_size! {0x3000}
 
 // Manually setting the boot header section that contains the FCB header
 //
-// When compiling for a macOS host, the `link_section` attribute is elided as
-// it yields the following error: `mach-o section specifier requires a segment
-// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".flash_bootloader")]
+// This section attribute is only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
+// section separated by a comma`.
+#[cfg_attr(target_os = "none", link_section = ".flash_bootloader")]
 #[used]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
-// When compiling for a macOS host, the `link_section` attribute is elided as
-// it yields the following error: `mach-o section specifier requires a segment
-// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".metadata_block")]
+// This section attribute is only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
+// section separated by a comma`.
+#[cfg_attr(target_os = "none", link_section = ".metadata_block")]
 #[used]
 static METADATA_BLOCK: [u8; 28] = flash_bootloader::METADATA_BLOCK;
 
@@ -318,6 +322,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -329,6 +334,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -370,6 +376,7 @@ pub unsafe fn main() {
             28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
@@ -394,14 +401,22 @@ pub unsafe fn main() {
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm33::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(RPTimer));
+    .finalize(components::process_console_component_static!(
+        RPTimer,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)

@@ -32,6 +32,11 @@ mod litex_generated_constants;
 // short name.
 use litex_generated_constants as socc;
 
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+
 /// Structure for dynamic interrupt mapping, depending on the SoC
 /// configuration
 ///
@@ -113,7 +118,7 @@ struct LiteXArty {
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, AlarmHw>,
-        components::process_console::Capability,
+        ProcessConsoleCap,
     >,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
@@ -452,14 +457,19 @@ unsafe fn start() -> (
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(AlarmHw));
+    .finalize(components::process_console_component_static!(
+        AlarmHw,
+        ProcessConsoleCap
+    ));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -479,6 +489,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::low_level_debug_component_static!());
 

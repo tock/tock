@@ -60,10 +60,12 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 // Manually setting the boot header section that contains the FCB header
 //
-// When compiling for a macOS host, the `link_section` attribute is elided as it
-// yields the following error: `mach-o section specifier requires a segment and
+// This section attribute is only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
 // section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".boot_hdr")]
+#[cfg_attr(target_os = "none", link_section = ".boot_hdr")]
 #[used]
 static BOOT_HDR: [u8; 8192] = boot_header::BOOT_HDR;
 
@@ -337,6 +339,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         lpuart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -368,6 +371,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullDown
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(imxrt10xx::gpio::Pin));
 
@@ -381,6 +385,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(imxrt10xx::gpt::Gpt1));
 
@@ -394,6 +399,7 @@ unsafe fn start() -> (
             // The User Led
             0 => peripherals.ports.pin(imxrt10xx::gpio::PinId::AdB0_09)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(
         imxrt10xx::gpio::Pin<'static>
@@ -471,6 +477,7 @@ unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ninedof_component_static!(fxos8700));
 
@@ -508,15 +515,21 @@ unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         lpuart_mux,
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        imxrt10xx::gpt::Gpt1
+        imxrt10xx::gpt::Gpt1,
+        ProcessConsoleCap
     ));
     let _ = process_console.start();
 

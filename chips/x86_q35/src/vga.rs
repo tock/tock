@@ -178,8 +178,8 @@ impl TextBuf {
 
     /// Iterate rows as fixed-size chunks.
     #[inline(always)]
-    fn rows(&self) -> core::slice::ChunksExact<'_, VolatileCell<u16>> {
-        self.cells[..].chunks_exact(TEXT_BUFFER_WIDTH)
+    fn rows(&self) -> &[[VolatileCell<u16>; 80]] {
+        self.cells[..].as_chunks::<TEXT_BUFFER_WIDTH>().0
     }
 
     /// Expose an Option for row, col for the user
@@ -344,7 +344,7 @@ impl Vga {
 
         // move rows 1..H up by one
         let rows = VgaDevice::TEXT.rows();
-        let src_rows = rows.clone().skip(1);
+        let src_rows = rows.iter().clone().skip(1);
         let dst_rows = rows;
         for (src_row, dst_row) in src_rows.zip(dst_rows) {
             for (src, dst) in src_row.iter().zip(dst_row.iter()) {

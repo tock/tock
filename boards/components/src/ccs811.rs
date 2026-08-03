@@ -39,7 +39,7 @@ macro_rules! ccs811_component_static {
         let ccs811 = kernel::static_buf!(capsules_extra::ccs811::Ccs811<'static>);
 
         (i2c_device, buffer, ccs811)
-    };};
+    }};
 }
 
 pub struct Ccs811Component<I: 'static + i2c::I2CMaster<'static>> {

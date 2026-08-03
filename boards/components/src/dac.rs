@@ -18,9 +18,7 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! dac_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::dac::Dac<'static>)
-    };};
+    () => {{ kernel::static_buf!(capsules_extra::dac::Dac<'static>) }};
 }
 
 pub struct DacComponent {

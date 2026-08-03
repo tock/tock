@@ -29,18 +29,14 @@ install: flash
 
 .PHONY: flash-debug
 flash-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-	@echo "--- Preparing Clean Debug Kernel ELF ---"
-	$(OBJCOPY) -j .text -j .ARM.exidx -j .storage -j .relocate $< $<.clean
 	@echo "--- Flashing Debug Kernel via probe-rs ---"
-	$(PROBE_RS) download --chip $(CHIP) --allow-erase-all $<.clean
+	$(PROBE_RS) download --chip $(CHIP) --allow-erase-all $<
 	$(PROBE_RS) reset --chip $(CHIP)
 
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	@echo "--- Preparing Clean Release Kernel ELF ---"
-	$(OBJCOPY) -j .text -j .ARM.exidx -j .storage -j .relocate $< $<.clean
 	@echo "--- Flashing Release Kernel via probe-rs ---"
-	$(PROBE_RS) download --chip $(CHIP) --allow-erase-all $<.clean
+	$(PROBE_RS) download --chip $(CHIP) --allow-erase-all $<
 	$(PROBE_RS) reset --chip $(CHIP)
 
 .PHONY: program

@@ -27,10 +27,14 @@ mod test;
 
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: Option<Pin> = Some(Pin::P0_05);
-const UART_TXD: Pin = Pin::P0_06;
-const UART_CTS: Option<Pin> = Some(Pin::P0_07);
-const UART_RXD: Pin = Pin::P0_08;
+/// UART RTS pin.
+pub const UART_RTS: Option<Pin> = Some(Pin::P0_05);
+/// UART transmit pin.
+pub const UART_TXD: Pin = Pin::P0_06;
+/// UART CTS pin.
+pub const UART_CTS: Option<Pin> = Some(Pin::P0_07);
+/// UART receive pin.
+pub const UART_RXD: Pin = Pin::P0_08;
 
 /// Debug Writer
 pub mod io;

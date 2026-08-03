@@ -8,6 +8,7 @@
 #![no_main]
 #![deny(missing_docs)]
 
+use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
@@ -85,6 +86,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        create_capability!(capabilities::ProcessManagementCapability),
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,

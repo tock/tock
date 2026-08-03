@@ -15,3 +15,4 @@ Currently supported peripherals:
 - TIM2 (Timer)
 - PWM (Pulse Width Modulation)
 - TRNG (True Random Number Generator)
+- HASH (Hash processor)
