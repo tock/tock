@@ -56,6 +56,7 @@
 //!     dynamic_binary_storage,
 //!     dynamic_binary_storage,
 //!     dynamic_binary_storage,
+//!     create_capability!(capabilities::MemoryAllocationCapability),
 //!     ).finalize(components::app_loader_component_static!(
 //!     DynamicBinaryStorage<'static>,
 //!     DynamicBinaryStorage<'static>,
@@ -145,10 +146,10 @@ pub struct AppLoader<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-    > AppLoader<S, L, T>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+> AppLoader<S, L, T>
 {
     pub fn new(
         grant: Grant<
@@ -246,10 +247,10 @@ impl<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-    > dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L, T>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+> dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L, T>
 {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self, result: Result<(), ErrorCode>) {
@@ -310,10 +311,10 @@ impl<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-    > dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L, T>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+> dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L, T>
 {
     /// Let the requesting app know we are done loading the new process
     ///
@@ -357,10 +358,10 @@ impl<
 }
 
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-    > dynamic_binary_storage::DynamicProcessUnloadClient for AppLoader<S, L, T>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+> dynamic_binary_storage::DynamicProcessUnloadClient for AppLoader<S, L, T>
 {
     /// Let the app know we have unloaded the target process
     /// and return an opaque identifier for the process binary
@@ -382,10 +383,10 @@ impl<
 
 /// Provide an interface for userland.
 impl<
-        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
-        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-        T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-    > SyscallDriver for AppLoader<S, L, T>
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+> SyscallDriver for AppLoader<S, L, T>
 {
     /// Command interface.
     ///

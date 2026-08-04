@@ -26,6 +26,7 @@
 //!     dynamic_binary_storage,
 //!     dynamic_binary_storage,
 //!     dynamic_binary_storage,
+//!     create_capability!(capabilities::MemoryAllocationCapability),
 //!     ).finalize(components::app_loader_component_static!(
 //!     DynamicBinaryStorage<'static>,
 //!     DynamicBinaryStorage<'static>,
@@ -53,39 +54,39 @@ macro_rules! app_loader_component_static {
 pub struct AppLoaderComponent<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    CAP: MemoryAllocationCapability + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    CAP: MemoryAllocationCapability + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     storage_driver: &'static S,
     load_driver: &'static L,
-    mem_cap: CAP,
     unload_driver: &'static T,
+    mem_cap: CAP,
 }
 
 impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    CAP: MemoryAllocationCapability + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-> AppLoaderComponent<S, L, CAP, T>
+    CAP: MemoryAllocationCapability + 'static,
+> AppLoaderComponent<S, L, T, CAP>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         storage_driver: &'static S,
         load_driver: &'static L,
-        mem_cap: CAP,
         unload_driver: &'static T,
+        mem_cap: CAP,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             storage_driver,
             load_driver,
-            mem_cap,
             unload_driver,
+            mem_cap,
         }
     }
 }
@@ -93,9 +94,9 @@ impl<
 impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
-    CAP: MemoryAllocationCapability + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-> Component for AppLoaderComponent<S, L, CAP, T>
+    CAP: MemoryAllocationCapability + 'static,
+> Component for AppLoaderComponent<S, L, T, CAP>
 {
     type StaticInput = (
         &'static mut MaybeUninit<AppLoader<S, L, T>>,

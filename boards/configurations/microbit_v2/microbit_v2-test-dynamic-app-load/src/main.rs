@@ -884,8 +884,8 @@ unsafe fn start() -> (
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_binary_storage,
         dynamic_binary_storage,
-        create_capability!(capabilities::MemoryAllocationCapability),
         dynamic_binary_storage,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,

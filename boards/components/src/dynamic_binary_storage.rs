@@ -68,12 +68,10 @@ pub struct SequentialBinaryStorageComponent<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-        C: 'static + Chip,
-        D: 'static + ProcessStandardDebug,
-    > SequentialBinaryStorageComponent<F, C, D>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    C: 'static + Chip,
+    D: 'static + ProcessStandardDebug,
+> SequentialBinaryStorageComponent<F, C, D>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -89,12 +87,10 @@ impl<
 }
 
 impl<
-        F: 'static
-            + hil::flash::Flash
-            + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-        C: 'static + Chip,
-        D: 'static + ProcessStandardDebug,
-    > Component for SequentialBinaryStorageComponent<F, C, D>
+    F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    C: 'static + Chip,
+    D: 'static + ProcessStandardDebug,
+> Component for SequentialBinaryStorageComponent<F, C, D>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
