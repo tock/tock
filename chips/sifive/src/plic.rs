@@ -4,8 +4,9 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
+use core::cell::Cell;
+
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::LocalRegisterCopy;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
@@ -109,7 +110,7 @@ register_bitfields![u32,
 /// platforms implemented without the generic parameter.
 pub struct Plic<const TOTAL_INTS: usize = 51> {
     registers: RegsWrapper,
-    saved: [VolatileCell<LocalRegisterCopy<u32>>; 2],
+    saved: [Cell<LocalRegisterCopy<u32>>; 2],
 }
 
 impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
@@ -117,8 +118,8 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
         Plic {
             registers: RegsWrapper::new(base, TOTAL_INTS),
             saved: [
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
             ],
         }
     }
