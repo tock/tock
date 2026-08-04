@@ -648,6 +648,15 @@ endef
 ci-job-qemu: ci-setup-qemu
 	$(if $(CI_JOB_QEMU),$(call ci_job_qemu))
 
+define ci_job_qemu_virt
+	$(call banner,CI-Job: QEMU virt (rv64))
+	@cd tools/ci/qemu-virt-ci-runner;\
+		NOWARNINGS=true cargo run -- $(QEMU_VIRT_ARGS)
+endef
+
+.PHONY: ci-job-qemu-virt
+ci-job-qemu-virt:
+	$(call ci_job_qemu_virt)
 
 
 ### ci-runner-netlify jobs:
