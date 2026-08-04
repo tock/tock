@@ -5,6 +5,7 @@
 #![no_std]
 
 pub mod adc;
+pub mod aes;
 pub mod chip;
 pub mod dac;
 pub mod dma;

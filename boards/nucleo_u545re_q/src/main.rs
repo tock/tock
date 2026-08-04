@@ -7,9 +7,10 @@
 #![no_main]
 
 use components::hmac_component_static;
-use kernel::capabilities;
+use kernel::capabilities::{self, MemoryAllocationCapability};
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -65,6 +66,11 @@ struct NucleoU545RE {
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         32,
     >,
+    aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
+        'static,
+        stm32u545::aes::ecb::Aes<'static, AES256>,
+        AES256,
+    >,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -82,6 +88,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             _ => f(None),
         }
     }
@@ -259,6 +266,17 @@ unsafe fn start() -> (
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    let aes_driver = components::aes::AesDriverComponent::new(
+        board_kernel,
+        capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
+        &periphs.aes,
+        create_capability!(MemoryAllocationCapability),
+    )
+    .finalize(components::aes_driver_component_static!(
+        stm32u545::aes::ecb::Aes<'static, AES256>,
+        AES256
+    ));
+
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
@@ -418,7 +436,8 @@ unsafe fn start() -> (
             adc: adc_syscall,
             dac,
             gpio,
-            hmac
+            hmac,
+            aes: aes_driver,
         }
     );
 

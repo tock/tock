@@ -25,6 +25,15 @@ const HASH_DIN: u32 = HASH_BASE_ADDR + 0x04;
 const GPDMA_REQ_USART1_RX: u32 = 24;
 const GPDMA_REQ_USART1_TX: u32 = 25;
 const GPDMA_REQ_HASH_IN: u32 = 89;
+const GPDMA_REQ_AES_IN: u32 = 87;
+const GPDMA_REQ_AES_OUT: u32 = 88;
+
+/// Base address for AES in Secure Alias mode.
+const AES_BASE_ADDR: u32 = 0x520C0000;
+/// AES Data Input Register (DINR) address.
+const AES_DINR: u32 = AES_BASE_ADDR + 0x08;
+/// AES Data Output Register (DOUTR) address.
+const AES_DOUTR: u32 = AES_BASE_ADDR + 0x0C;
 
 register_bitfields! [
     u32,
@@ -242,6 +251,8 @@ pub enum DmaDirection {
 pub enum DmaPeripheral {
     Usart1Tx,
     Usart1Rx,
+    AESIN,
+    AESOUT,
     Hash,
 }
 
@@ -369,6 +380,30 @@ impl DmaPeripheral {
                 TransferSettings::Source(DmaDataWidth::Byte, ByteExchange::NoByteExchange),
                 TransferSettings::Destination(
                     DmaDataWidth::Word,
+                    ByteExchange::NoByteExchange,
+                    HalfWordExchange::NoHalfWordExchange,
+                ),
+                PaddingAlignmentMode::PackedUnpacked,
+            ),
+            DmaPeripheral::AESIN => (
+                AES_DINR,
+                GPDMA_REQ_AES_IN,
+                DmaDirection::MemoryToPeripheral,
+                TransferSettings::Source(DmaDataWidth::Byte, ByteExchange::NoByteExchange),
+                TransferSettings::Destination(
+                    DmaDataWidth::Word,
+                    ByteExchange::NoByteExchange,
+                    HalfWordExchange::NoHalfWordExchange,
+                ),
+                PaddingAlignmentMode::PackedUnpacked,
+            ),
+            DmaPeripheral::AESOUT => (
+                AES_DOUTR,
+                GPDMA_REQ_AES_OUT,
+                DmaDirection::PeripheralToMemory,
+                TransferSettings::Source(DmaDataWidth::Word, ByteExchange::NoByteExchange),
+                TransferSettings::Destination(
+                    DmaDataWidth::Byte,
                     ByteExchange::NoByteExchange,
                     HalfWordExchange::NoHalfWordExchange,
                 ),
