@@ -25,7 +25,7 @@ pub enum NUM {
     Pwm                   = 0x00010,
 
     // Kernel
-    Ipc                   = 0x10000,
+    OldIpc                = 0x10000,
     AppLoader             = 0x10001,
     ProcessInfo           = 0x10002,
 
