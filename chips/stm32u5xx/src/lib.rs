@@ -6,6 +6,7 @@
 
 pub mod adc;
 pub mod chip;
+pub mod crc;
 pub mod dac;
 pub mod dma;
 pub mod exti;
