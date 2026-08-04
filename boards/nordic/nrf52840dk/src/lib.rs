@@ -193,6 +193,9 @@ type ProcessConsoleDriver =
     components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
 type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
+type IpcRegistryStringNameDriver =
+    components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponentType;
+type IpcRelayRequestDriver = components::ipc::ipc_relay_request::IpcRelayRequestComponentType;
 
 // TicKV
 type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<SpiHw, GpioHw, AlarmHw>;
@@ -235,6 +238,8 @@ pub struct Platform {
     temp: &'static TemperatureDriver,
     /// The IPC driver.
     pub ipc: IpcDriver,
+    ipc_registry_string_name: &'static IpcRegistryStringNameDriver,
+    ipc_relay_request: &'static IpcRelayRequestDriver,
     analog_comparator: &'static AnalogComparatorDriver,
     alarm: &'static AlarmDriver,
     i2c_master_slave: &'static I2CMasterSlaveDriver,
@@ -261,6 +266,10 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM => {
+                f(Some(self.ipc_registry_string_name))
+            }
+            capsules_core::ipc::ipc_relay_request::DRIVER_NUM => f(Some(self.ipc_relay_request)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
@@ -873,6 +882,25 @@ pub unsafe fn start_no_pconsole() -> (
     ));
 
     //--------------------------------------------------------------------------
+    // Interprocess Communication
+    //--------------------------------------------------------------------------
+
+    let ipc_registry_string_name =
+        components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponent::new(
+            board_kernel,
+            capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
+            create_capability!(capabilities::MemoryAllocationCapability),
+        )
+        .finalize(components::ipc_registry_string_name_component_static!());
+
+    let ipc_relay_request = components::ipc::ipc_relay_request::IpcRelayRequestComponent::new(
+        board_kernel,
+        capsules_core::ipc::ipc_relay_request::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::ipc_relay_request_component_static!());
+
+    //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
     //--------------------------------------------------------------------------
 
@@ -949,6 +977,8 @@ pub unsafe fn start_no_pconsole() -> (
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
+        ipc_registry_string_name,
+        ipc_relay_request,
         i2c_master_slave,
         spi_controller,
         kv_driver,
