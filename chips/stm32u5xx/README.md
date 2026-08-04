@@ -6,6 +6,7 @@ microcontrollers from STMicroelectronics.
 ## Status
 
 Currently supported peripherals:
+
 - RCC (Reset and Clock Control)
 - GPIO (General Purpose I/O)
 - EXTI (External Interrupts)
@@ -13,5 +14,6 @@ Currently supported peripherals:
 - GPDMA (Global Programmable DMA)
 - TIM2 (Timer)
 - PWM (Pulse Width Modulation)
+- TRNG (True Random Number Generator)
 - HASH (Hash processor)
 - AES (encryption and decryption)

@@ -10,7 +10,7 @@ use core::ptr::addr_of;
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 
@@ -63,7 +63,7 @@ struct AdcRegisters {
     samplerate: ReadWrite<u32, SAMPLERATE::Register>,
     _reserved6: [u8; 48],
     /// Pointer to store samples to
-    result_ptr: VolatileCell<*const u16>,
+    result_ptr: ReadWrite<u32>,
     /// Number of 16 bit samples to save in RAM
     result_maxcnt: ReadWrite<u32, RESULT_MAXCNT::Register>,
     /// Number of 16 bit samples recorded to RAM
@@ -401,7 +401,7 @@ impl Adc<'_> {
                     // Where to put the reading.
                     let sample: *const [u16; 1] = addr_of!(SAMPLE);
                     let sample: *const u16 = sample.cast();
-                    self.registers.result_ptr.set(sample);
+                    self.registers.result_ptr.set(sample as u32);
 
                     // No automatic sampling, will trigger manually.
                     self.registers.samplerate.write(SAMPLERATE::MODE::Task);
@@ -484,7 +484,7 @@ impl Adc<'_> {
                         // First determine the buffer's length in samples.
                         let dma_len = cmp::min(buf.len(), self.next_length.get());
                         if dma_len > 0 {
-                            self.registers.result_ptr.set(buf.as_ptr());
+                            self.registers.result_ptr.set(buf.as_ptr() as u32);
                         }
                     });
 
@@ -584,7 +584,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
         // Where to put the reading.
         let sample: *const [u16; 1] = addr_of!(SAMPLE);
         let sample: *const u16 = sample.cast();
-        self.registers.result_ptr.set(sample);
+        self.registers.result_ptr.set(sample as u32);
 
         // No automatic sampling, will trigger manually.
         self.registers.samplerate.write(SAMPLERATE::MODE::Task);
@@ -653,7 +653,7 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
             self.setup_resolution();
 
             // Use EasyDMA to save the samples to our buffer.
-            self.registers.result_ptr.set(buffer1.as_ptr());
+            self.registers.result_ptr.set(buffer1.as_ptr() as u32);
 
             // Also need to save these to return to the caller.
             self.buffer.replace(buffer1);

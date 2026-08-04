@@ -8,6 +8,8 @@ pub use stm32u5xx::{adc, aes, chip, dma, exti, gpio, hash, pwr, rcc, tim, usart}
 
 use cortexm33::{CortexM33, CortexMVariant};
 
+pub mod rng;
+
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
 // Link to the STM32U5 series reference manual (RM0456):

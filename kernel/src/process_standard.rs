@@ -692,7 +692,9 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn set_yielded_for_state(&self, upcall_id: UpcallId) {
-        if self.state.get() == State::Running {
+        if self.state.get() == State::Running
+            || self.state.get() == State::Stopped(StoppedState::YieldedFor(upcall_id))
+        {
             self.state.set(State::YieldedFor(upcall_id));
 
             // Verify if the process has a task that this yield waits for
@@ -888,16 +890,14 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            // # Safety
-            //
-            // `configure_mpu` is unsafe, as invoking it with an incorrect
+            // SAFETY: `configure_mpu` is unsafe, as invoking it with an incorrect
             // configuration can allow an untrusted application to access
             // kernel-private memory.
             //
             // This call is safe given we trust that the implementation of
             // `ProcessStandard` correctly provisions a set of MPU regions that
             // does not grant access to any kernel-private memory, and
-            // `ProcessStandard` does not provide safe, publically accessible
+            // `ProcessStandard` does not provide safe, publicly accessible
             // APIs to add other arbitrary MPU regions to this configuration.
             unsafe {
                 self.chip.mpu().configure_mpu(config);
@@ -983,16 +983,14 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 let old_break: *const u8 = self.app_break.get();
                 self.app_break.set(new_break);
 
-                // # Safety
-                //
-                // `configure_mpu` is unsafe, as invoking it with an incorrect
+                // SAFETY: `configure_mpu` is unsafe, as invoking it with an incorrect
                 // configuration can allow an untrusted application to access
                 // kernel-private memory.
                 //
                 // This call is safe given we trust that the implementation of
                 // `ProcessStandard` correctly provisions a set of MPU regions
                 // that does not grant access to any kernel-private memory, and
-                // `ProcessStandard` does not provide safe, publically
+                // `ProcessStandard` does not provide safe, publicly
                 // accessible APIs to add other arbitrary MPU regions to this
                 // configuration.
                 unsafe {
@@ -1026,8 +1024,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
                 let base = self.mem_start() as usize;
                 let old_break_unit_ptr: *const () = old_break.cast();
-                // # Safety
-                // The passed range [base, new_break) exactly matches the process' memory range,
+                // SAFETY: The passed range [base, new_break) exactly matches the process' memory range,
                 // and a process should have RW access to its own memory.
                 let break_result = unsafe {
                     CapabilityPtr::new_with_authority(
@@ -1069,9 +1066,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // It should be fine to ignore the lint here, as a buffer of length
             // 0 will never allow dereferencing any memory in a safe manner.
             //
-            // ### Safety
-            //
-            // We specify a zero-length buffer, so the implementation of
+            // SAFETY: We specify a zero-length buffer, so the implementation of
             // `ReadWriteProcessBuffer` will handle any safety issues.
             // Therefore, we can encapsulate the unsafe.
             Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
@@ -1098,9 +1093,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // constraints of the Rust references created by
             // `ReadWriteProcessBuffer`.
             //
-            // ### Safety
-            //
-            // We encapsulate the unsafe here on the condition in the TODO
+            // SAFETY: We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadWriteProcessBuffer` will
             // be the only reference to this memory.
             Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, size, self.processid()) })
@@ -1135,9 +1128,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // It should be fine to ignore the lint here, as a buffer of length
             // 0 will never allow dereferencing any memory in a safe manner.
             //
-            // ### Safety
-            //
-            // We specify a zero-length buffer, so the implementation of
+            // SAFETY: We specify a zero-length buffer, so the implementation of
             // `ReadOnlyProcessBuffer` will handle any safety issues. Therefore,
             // we can encapsulate the unsafe.
             Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid()) })
@@ -1169,9 +1160,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // alignment and other constraints of the Rust references created by
             // `ReadWriteProcessBuffer`.
             //
-            // ### Safety
-            //
-            // We encapsulate the unsafe here on the condition in the TODO
+            // SAFETY: We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadOnlyProcessBuffer` will
             // be the only reference to this memory.
             Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, size, self.processid()) })
@@ -1182,9 +1171,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
         if self.in_app_owned_memory(addr, 1) {
-            // # Safety
-            //
-            // We verify that this will only write process-accessible memory,
+            // SAFETY: We verify that this will only write process-accessible memory,
             // but this can still be undefined behavior if something else holds
             // a reference to this memory. The caller must ensure nothing else
             // holds a reference to this memory.
@@ -1873,9 +1860,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                     // it more cleanly would be good but was a bit beyond my borrow ken;
                     // calling get_mut has a mutable borrow.-pal
                     //
-                    // # Safety
-                    //
-                    // `diff` must be within the `remaining_memory` slice. Because we
+                    // SAFETY: `diff` must be within the `remaining_memory` slice. Because we
                     // check that `diff` is less than the length of `remaining_memory`
                     // we know diff will be within  `remaining_memory`.
                     let (_, sliced) = unsafe { raw_slice_split_at_mut(remaining_memory, diff) };
@@ -2010,18 +1995,14 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // 2. `unused_memory`: the rest of the `remaining_memory`, not assigned
         //    to this app.
         //
-        // # Safety
-        //
-        // `app_memory_start_offset + allocation_size` must be within `remaining_memory`.
+        // SAFETY: `app_memory_start_offset + allocation_size` must be within `remaining_memory`.
         let (allocated_padded_memory, unused_memory) = unsafe {
             raw_slice_split_at_mut(remaining_memory, app_memory_start_offset + allocation_size)
         };
 
         // Now, slice off the (optional) padding at the start:
         //
-        // # Safety
-        //
-        // `app_memory_start_offset` must be within `allocated_padded_memory`.
+        // SAFETY: `app_memory_start_offset` must be within `allocated_padded_memory`.
         let (_padding, allocated_memory) =
             unsafe { raw_slice_split_at_mut(allocated_padded_memory, app_memory_start_offset) };
 
@@ -2033,9 +2014,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Slice off the process-accessible memory:
         //
-        // # Safety
-        //
-        // `min_process_memory_size` must be within `allocated_memory`.
+        // SAFETY: `min_process_memory_size` must be within `allocated_memory`.
         let (app_accessible_memory, allocated_kernel_memory) =
             unsafe { raw_slice_split_at_mut(allocated_memory, min_process_memory_size) };
 
@@ -2050,9 +2029,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //    references into this process-accessible memory region through the
         //    process buffer infrastructure.
         let app_accessible_memory_bytes: *mut u8 = app_accessible_memory.cast();
-        // # Safety
-        //
-        // `app_accessible_memory_bytes` is from a slice, and we use that
+        // SAFETY: `app_accessible_memory_bytes` is from a slice, and we use that
         // slice's length, so we know that there is enough memory and that the
         // pointer is aligned.
         unsafe {
@@ -2066,9 +2043,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Set the initial process-accessible memory.
         //
-        // # Safety
-        //
-        // By using the slice `app_accessible_memory` and getting a pointer to
+        // SAFETY: By using the slice `app_accessible_memory` and getting a pointer to
         // the byte after the slice, we are ensured that the memory between the
         // start of the allocation and the new pointer (at the end of the slice)
         // is valid because of the existing slice.
@@ -2113,9 +2088,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             kernel_memory_break.cast();
         // Get a reference to the slice of `GrantPointerEntry`s.
         //
-        // # Safety
-        //
-        // This is safe, as `grant_pointers_memory_location` is aligned to a
+        // SAFETY: This is safe, as `grant_pointers_memory_location` is aligned to a
         // `GrantPointerEntry`, and we ensured there is space for
         // `grant_ptrs_num` of `GrantPointerEntry`s allocated.
         let grant_pointers_uninit: &mut [MaybeUninit<GrantPointerEntry>] =
@@ -2127,9 +2100,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 grant_ptr: core::ptr::null_mut(),
             });
         }
-        // # Safety
-        //
-        // All values in this slice have been properly initialized.
+        // SAFETY: All values in this slice have been properly initialized.
         let grant_pointers = unsafe { maybe_uninit_slice_assume_init_mut(grant_pointers_uninit) };
 
         ////////////////////////
@@ -2151,9 +2122,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Get a reference `&mut [Task; Self:CALLBACK_LEN]`
         //
-        // # Safety
-        //
-        // This needs to be aligned and have allocated space for
+        // SAFETY: This needs to be aligned and have allocated space for
         // `Self::CALLBACK_LEN` instances of `Task`. We ensured there is enough
         // space when we allocated `allocated_kernel_memory` and we moved
         // kernel_memory_break up to fit the callbacks. We ensured this is
@@ -2186,9 +2155,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // just transforming a pointer into a structure. Because the
         // `ProcessStandard` is not initialized we mark it with `MaybeUninit`.
         //
-        // # Safety
-        //
-        // This must have sufficient allocated space and proper alignment. When
+        // SAFETY: This must have sufficient allocated space and proper alignment. When
         // we sized `allocated_kernel_memory` we ensured there was room for the
         // entire `ProcessStandard` struct. We also allocated space for
         // potential alignment issues, and ensured `kernel_memory_break` was
@@ -2198,9 +2165,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Initialize ALL fields of `ProcessStandard`.
         //
-        // # Safety
-        //
-        // These need to be valid and aligned writes. When we create the `MaybeUnint`
+        // SAFETY: These need to be valid and aligned writes. When we create the `MaybeUnint`
         // ProcessStandard struct we ensure there is valid memory for the object and
         // that it is aligned.
         unsafe {
@@ -2252,9 +2217,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // Convert the originally uninitialized `ProcessStandard` to a proper
         // `ProcessStandard` struct reference.
         //
-        // # Safety
-        //
-        // All fields in `ProcessStandard` must be initialized. We guaranteed
+        // SAFETY: All fields in `ProcessStandard` must be initialized. We guaranteed
         // this by using the `init_uninit_struct!()` macro, which causes a
         // compiler error if there is a missing field.
         let process = unsafe { process_uninit.assume_init_mut() };
@@ -2272,9 +2235,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Handle any architecture-specific requirements for a new process.
         match process.stored_state.map(|stored_state| {
-            // # Safety
-            //
-            // NOTE! We have to ensure that the start of process-accessible memory
+            // SAFETY: NOTE! We have to ensure that the start of process-accessible memory
             // (`app_memory_start`) is word-aligned. Since we currently start
             // process-accessible memory at the beginning of the allocated memory
             // region, we trust the MPU to give us a word-aligned starting address.
@@ -2318,9 +2279,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // all of a user's code, with permissions to execute it. The entirety of
         // flash is sufficient.
         //
-        // # Safety
-        //
-        // TODO? I don't understand the `new_with_authority()` safety block as
+        // SAFETY: TODO? I don't understand the `new_with_authority()` safety block as
         // it doesn't define what the caller must do.
         let init_fn = unsafe {
             CapabilityPtr::new_with_authority(
@@ -2617,9 +2576,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // We need `grant_ptr` as a mutable pointer.
                 let grant_ptr: *mut u8 = new_break.cast_mut();
 
-                // ### Safety
-                //
-                // Here we are guaranteeing that `grant_ptr` is not null. We can
+                // SAFETY: Here we are guaranteeing that `grant_ptr` is not null. We can
                 // ensure this because we just created `grant_ptr` based on the
                 // process's allocated memory, and we know it cannot be null.
                 unsafe { Some(NonNull::new_unchecked(grant_ptr)) }

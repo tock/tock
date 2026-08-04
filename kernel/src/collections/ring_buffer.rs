@@ -51,10 +51,10 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     ///   (although physically the "left" slice is stored after the "right"
     ///   slice).
     pub fn as_slices(&'a self) -> (Option<&'a [T]>, Option<&'a [T]>) {
-        // SAFETY: Reinterprets &[MaybeUninit<T>] as &[T]. MaybeUninit<T> has the same layout as
-        // T, and every element in the returned slice falls within [head, tail) which has been
-        // written by enqueue/push, so reading those elements as T is valid.
         let assume_init = |s: &[MaybeUninit<T>]| -> &[T] {
+            // SAFETY: Reinterprets &[MaybeUninit<T>] as &[T]. MaybeUninit<T> has the same layout as
+            // T, and every element in the returned slice falls within [head, tail) which has been
+            // written by enqueue/push, so reading those elements as T is valid.
             unsafe { core::slice::from_raw_parts(s.as_ptr().cast::<T>(), s.len()) }
         };
 
@@ -98,9 +98,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         } else {
             let element = self.ring.get(index);
             element.map(|e| {
-                // # Safety
-                //
-                // It is safe to read the element from this location in the ring and
+                // SAFETY: It is safe to read the element from this location in the ring and
                 // assume it is initialized because we verified that the index is
                 // within the populated elements of the ring. Our invariant is that
                 // any index with head and tail _must_ be initialized.
@@ -120,9 +118,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         } else {
             let element = self.ring.get(index);
             element.map(|e| {
-                // # Safety
-                //
-                // It is safe to read the element from this location in the ring and
+                // SAFETY: It is safe to read the element from this location in the ring and
                 // assume it is initialized because we verified that the index is
                 // within the populated elements of the ring. Our invariant is that
                 // any index with head and tail _must_ be initialized.

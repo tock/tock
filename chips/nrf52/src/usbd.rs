@@ -315,7 +315,7 @@ mod detail {
 
     #[repr(C)]
     pub struct EndpointRegisters<'a> {
-        ptr: VolatileCell<*const u8>,
+        ptr: ReadWrite<u32>,
         maxcnt: ReadWrite<u32, Count::Register>,
         amount: ReadOnly<u32, Amount::Register>,
         // padding
@@ -326,7 +326,7 @@ mod detail {
 
     impl<'a> EndpointRegisters<'a> {
         pub fn set_buffer(&self, slice: &'a [VolatileCell<u8>]) {
-            self.ptr.set(slice.as_ptr().cast::<u8>());
+            self.ptr.set(slice.as_ptr().cast::<u8>() as u32);
             self.maxcnt.write(Count::MAXCNT.val(slice.len() as u32));
         }
     }

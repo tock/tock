@@ -1557,6 +1557,7 @@ name = "sam4l"
 version = "0.2.3-dev"
 dependencies = [
  "cortexm4",
+ "enum_primitive",
  "kernel",
 ]
 

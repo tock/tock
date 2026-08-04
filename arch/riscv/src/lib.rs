@@ -65,7 +65,18 @@ extern "C" {
 ///    information.
 /// 3. Finally it calls `main()`, the main entry point for Tock boards.
 #[cfg(any(doc, any(target_arch = "riscv32", target_arch = "riscv64")))]
-#[link_section = ".riscv.start"]
+// Only apply the `link_section` attribute when actually targeting bare-metal
+// RISC-V. Host builds (e.g. `doc`, tests, clippy on macOS, Windows, Linux,
+// ...) use object formats (Mach-O, PE, ...) that reject a bare section name
+// like this, yielding errors such as: `mach-o section specifier requires a
+// segment and section separated by a comma`.
+#[cfg_attr(
+    any(
+        all(target_arch = "riscv32", target_os = "none"),
+        all(target_arch = "riscv64", target_os = "none")
+    ),
+    link_section = ".riscv.start"
+)]
 #[unsafe(naked)]
 // We don't want the function name symbol to be mangled in order to be able to refer to
 // it the linker script. It is not currently being used in the provided linker script
@@ -306,7 +317,18 @@ pub extern "C" fn _start_trap() -> ! {
     all(target_arch = "riscv32", target_os = "none"),
     all(target_arch = "riscv64", target_os = "none")
 ))]
-#[link_section = ".riscv.trap"]
+// Only apply the `link_section` attribute when actually targeting bare-metal
+// RISC-V. Host builds (e.g. `doc`, tests, clippy on macOS, Windows, Linux,
+// ...) use object formats (Mach-O, PE, ...) that reject a bare section name
+// like this, yielding errors such as: `mach-o section specifier requires a
+// segment and section separated by a comma`.
+#[cfg_attr(
+    any(
+        all(target_arch = "riscv32", target_os = "none"),
+        all(target_arch = "riscv64", target_os = "none")
+    ),
+    link_section = ".riscv.trap"
+)]
 // We need the `_start_trap` function to be 256 byte aligned. The linker script
 // includes a check for whether a symbol named `_start_trap` exists. If it does,
 // it makes sure to align the `.riscv.trap` section on a 256 byte
