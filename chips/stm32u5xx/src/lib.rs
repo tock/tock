@@ -11,9 +11,11 @@ pub mod dac;
 pub mod dma;
 pub mod exti;
 pub mod gpio;
+pub mod hash;
 pub mod nvic;
 pub mod pwr;
 pub mod rcc;
+pub mod rng;
 pub mod tim;
 pub mod usart;
 

@@ -207,6 +207,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(Tcpwm0));
 
@@ -218,6 +219,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -237,14 +239,22 @@ pub unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm33::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(Tcpwm0));
+    .finalize(components::process_console_component_static!(
+        Tcpwm0,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     let led_pin = peripherals.gpio.get_pin(gpio::PsocPin::P8_4);
@@ -298,6 +308,7 @@ pub unsafe fn start() -> (
             91 => peripherals.gpio.get_pin(gpio::PsocPin::P9_1), // Header J5.25
             93 => peripherals.gpio.get_pin(gpio::PsocPin::P9_3), // Header J24.3
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(gpio::GpioPin));
 
@@ -319,6 +330,7 @@ pub unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             ),
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(gpio::GpioPin));
 

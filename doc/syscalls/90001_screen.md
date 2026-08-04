@@ -51,7 +51,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: Ok(()) followed by the ready callback if the command was successful,
     BUSY if another command is in progress.
-    
+
     The callback will carry 1 as an argument if the display was turned on,
     but configuration not fully applied. Otherwise, the argument is 0.
 
@@ -78,7 +78,7 @@ may return OFF when power is not enabled (see screen HIL for details).
     **Argument 2**: unused
 
     **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
-  
+
   * ### Command number: `5` (deprecated)
 
     **Description**: Turn off invert colors mode
@@ -88,7 +88,7 @@ may return OFF when power is not enabled (see screen HIL for details).
     **Argument 2**: unused
 
     **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
-    
+
   * ### Command number: `6`
 
     **Description**: Control invert colors mode.
@@ -101,7 +101,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
 
-  * ### Command number: `11` 
+  * ### Command number: `11`
 
     **Description**: Get the number of supported resolutions (Setup API)
 
@@ -111,7 +111,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: SUCCESS_U32 with a u32 being the number of supported resolutions (minimum 1).
 
-  * ### Command number: `12` 
+  * ### Command number: `12`
 
     **Description**: Get the size of a supported resolution (Setup API)
 
@@ -120,8 +120,8 @@ may return OFF when power is not enabled (see screen HIL for details).
     **Argument 2**: unused
 
     **Returns**: A pair of u32 values: width, height.
-  
-  * ### Command number: `13` 
+
+  * ### Command number: `13`
 
     **Description**: Get the number of supported pixel formats (Setup API)
 
@@ -131,7 +131,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: SUCCESS_U32 with a u32 being the number of supported pixel formats (minimum 1).
 
-  * ### Command number: `14` 
+  * ### Command number: `14`
 
     **Description**: Get the type of a supported pixel format (Setup API)
 
@@ -141,7 +141,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: SUCCESS_U32 with the pixel format value, INVAL if index out of bounds.
 
-  * ### Command number: `21` 
+  * ### Command number: `21`
 
     **Description**: Get the screen's rotation.
 
@@ -154,10 +154,10 @@ may return OFF when power is not enabled (see screen HIL for details).
     Rotated90 = 1,
     Rotated180 = 2,
     Rotated270 = 3.
-  
+
     Rotation is measured counterclockwise.
 
-  * ### Command number: `22` 
+  * ### Command number: `22`
 
     **Description**: Set the screen's rotation (Setup API)
 
@@ -167,7 +167,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
-  * ### Command number: `23` 
+  * ### Command number: `23`
 
     **Description**: Get the screen's resolution
 
@@ -177,7 +177,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: A pair of u32 values: width, height.
 
-  * ### Command number: `24` 
+  * ### Command number: `24`
 
     **Description**: Set the screen's resolution (Setup API)
 
@@ -187,7 +187,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
-  * ### Command number: `25` 
+  * ### Command number: `25`
 
     **Description**: Get the screen's pixel format
 
@@ -200,13 +200,13 @@ may return OFF when power is not enabled (see screen HIL for details).
     - 1: RGB_233, 2-bit red channel, 3-bit green channel, 3-bit blue channel.
     - 2: RGB_565, 5-bit red channel, 6-bit green channel, 5-bit blue channel.
     - 3: RGB_888
-    - 4: ARGB_8888 (RGB with transparency)
+    - 4: BGRA_8888 (RGB with transparency)
     - 5: RGB_4BIT, 1-bit blue channel, 1-bit green, 1-bit red, 1-bit for opaque (1) vs transparent (0)
     - 6: Mono_8BitPage, 8 pixels per byte monochromatic, each byte is displayed
       vertically (pixels above are less significant bits) and tile
       horizontally.
 
-  * ### Command number: `26` 
+  * ### Command number: `26`
 
     **Description**: Set the screen's pixel format (Setup API)
 
@@ -216,7 +216,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
-  * ### Command number: `100` 
+  * ### Command number: `100`
 
     **Description**: Set the framebuffer write frame
 
@@ -256,7 +256,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Description**: Subscribe to to all commands.
 
-    **Callback signature**: The callback receives different arguments 
+    **Callback signature**: The callback receives different arguments
     depending on the issued command.
 
     **Returns**: Ok(()) if the subscribe was successful.

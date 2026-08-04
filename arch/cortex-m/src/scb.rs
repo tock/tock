@@ -281,7 +281,29 @@ pub unsafe fn set_sleepdeep() {
 
     SCB.scr.modify(SystemControl::SLEEPDEEP::SET);
 
-    asm!("dsb", "isb", options(nomem, nostack, preserves_flags));
+    // # Safety
+    //
+    // - INPUTS: This does not use the existing value of any registers.
+    // - OUTPUTS: This does not write any registers.
+    // - Options set:
+    //   - nomem: We do not read or write memory.
+    //   - nostack: This does not use the stack.
+    //   - preserves_flags: This does not change flags.
+    // - Options not set:
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on arm
+    //   - raw: not required
+    unsafe {
+        asm!(
+            "
+    dsb                 // Data Synchronization Barrier
+    isb                 // Instruction Synchronization Barrier
+            ",
+            options(nomem, nostack, preserves_flags)
+        );
+    }
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -322,7 +344,29 @@ pub unsafe fn disable_fpca() {
     SCB.cpacr
         .modify(CoprocessorAccessControl::CP10::CLEAR + CoprocessorAccessControl::CP11::CLEAR);
 
-    asm!("dsb", "isb", options(nomem, nostack, preserves_flags));
+    // # Safety
+    //
+    // - INPUTS: This does not use the existing value of any registers.
+    // - OUTPUTS: This does not write any registers.
+    // - Options set:
+    //   - nomem: We do not read or write memory.
+    //   - nostack: This does not use the stack.
+    //   - preserves_flags: This does not change flags.
+    // - Options not set:
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on arm
+    //   - raw: not required
+    unsafe {
+        asm!(
+            "
+    dsb                 // Data Synchronization Barrier
+    isb                 // Instruction Synchronization Barrier
+            ",
+            options(nomem, nostack, preserves_flags)
+        );
+    }
 
     if SCB.cpacr.read(CoprocessorAccessControl::CP10) != 0
         || SCB.cpacr.read(CoprocessorAccessControl::CP11) != 0

@@ -554,9 +554,7 @@ impl Kernel {
                     // inaccessible to kernel mode if memory protection is
                     // active.
                     //
-                    // # Safety
-                    //
-                    // This function is unsafe, as calling it before switching
+                    // SAFETY: This function is unsafe, as calling it before switching
                     // to a process, without first re-enabling memory
                     // protection, could allow an application to access
                     // kernel-private memory. Invoking this function is safe
@@ -824,9 +822,7 @@ impl Kernel {
                         // Set the "did I trigger upcalls" flag.
                         // If address is invalid does nothing.
                         //
-                        // # Safety
-                        //
-                        // This is fine as long as no references to the
+                        // SAFETY: This is fine as long as no references to the
                         // process's memory exist. We do not have a reference,
                         // so we can safely call `set_byte()`.
                         unsafe {

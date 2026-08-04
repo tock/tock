@@ -127,6 +127,7 @@ pub unsafe fn main() {
         capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         None,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::screen_component_static!(1032));
 

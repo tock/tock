@@ -46,10 +46,12 @@ kernel::stack_size! {0x1500}
 
 // Manually setting the boot header section that contains the FCB header
 //
-// When compiling for a macOS host, the `link_section` attribute is elided as it
-// yields the following error: `mach-o section specifier requires a segment and
+// This section attribute is only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
 // section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".flash_bootloader")]
+#[cfg_attr(target_os = "none", link_section = ".flash_bootloader")]
 #[used]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
@@ -340,6 +342,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -385,6 +388,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -442,6 +446,7 @@ pub unsafe fn start() -> (
             // 28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             // 29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
@@ -480,6 +485,7 @@ pub unsafe fn start() -> (
         capsules_extra::lsm6dsoxtr::ACCELEROMETER_BASE_ADDRESS,
         board_kernel,
         capsules_extra::lsm6dsoxtr::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::lsm6ds_i2c_component_static!(
         rp2040::i2c::I2c<'static, 'static>
@@ -488,6 +494,7 @@ pub unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::ninedof_component_static!(lsm6dsoxtr));
 
@@ -495,6 +502,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         temp_sensor,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(
         TemperatureRp2040Sensor
@@ -538,14 +546,17 @@ pub unsafe fn start() -> (
     let adc_channel_3 = components::adc::AdcComponent::new(adc_mux, Channel::Channel3)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                adc_channel_0,
-                adc_channel_1,
-                adc_channel_2,
-                adc_channel_3,
-            ));
+    let adc_syscall = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        adc_channel_0,
+        adc_channel_1,
+        adc_channel_2,
+        adc_channel_3,
+    ));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -554,14 +565,22 @@ pub unsafe fn start() -> (
     });
 
     // PROCESS CONSOLE
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm0p::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(RPTimer));
+    .finalize(components::process_console_component_static!(
+        RPTimer,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)

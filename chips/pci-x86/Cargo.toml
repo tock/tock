@@ -6,7 +6,7 @@
 name = "pci-x86"
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 tock-registers.workspace = true

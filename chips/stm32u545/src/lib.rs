@@ -4,9 +4,11 @@
 
 #![no_std]
 
-pub use stm32u5xx::{adc, chip, crc, dma, exti, gpio, pwr, rcc, tim, usart};
+pub use stm32u5xx::{adc, chip, crc, dma, exti, gpio, hash, pwr, rcc, tim, usart};
 
 use cortexm33::{CortexM33, CortexMVariant};
+
+pub mod rng;
 
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]

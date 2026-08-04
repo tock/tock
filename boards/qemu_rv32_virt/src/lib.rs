@@ -8,6 +8,7 @@
 #![no_main]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::ErrorCode;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
@@ -52,17 +53,22 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
 
 kernel::stack_size! {0x8000}
 
+kernel::declare_capability!(ProcessConsoleCap:
+    kernel::capabilities::ProcessManagementCapability,
+    kernel::capabilities::ProcessStartCapability
+);
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 pub struct QemuRv32VirtPlatform {
-    pub pconsole: &'static capsules_core::process_console::ProcessConsole<
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
             'static,
             qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
         >,
-        components::process_console::Capability,
+        ProcessConsoleCap,
     >,
     console: &'static capsules_core::console::Console<'static>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
@@ -98,6 +104,12 @@ pub struct QemuRv32VirtPlatform {
             RiscvCoherentDmaFence,
         >,
     >,
+}
+
+impl QemuRv32VirtPlatform {
+    pub fn process_console_start(&self) -> Result<(), ErrorCode> {
+        self.pconsole.start()
+    }
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -685,9 +697,11 @@ pub unsafe fn start() -> (
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        qemu_rv32_virt_chip::chip::QemuRv32VirtClint
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
+        ProcessConsoleCap
     ));
 
     // Setup the console.
@@ -695,6 +709,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -710,6 +725,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::low_level_debug_component_static!());
 
@@ -717,10 +733,15 @@ pub unsafe fn start() -> (
 
     // Userspace RNG driver over the VirtIO EntropySource
     let rng_driver = virtio_rng.map(|rng| {
-        components::rng::RngRandomComponent::new(board_kernel, capsules_core::rng::DRIVER_NUM, rng)
-            .finalize(components::rng_random_component_static!(
-                qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<RiscvCoherentDmaFence>
-            ))
+        components::rng::RngRandomComponent::new(
+            board_kernel,
+            capsules_core::rng::DRIVER_NUM,
+            rng,
+            create_capability!(capabilities::MemoryAllocationCapability),
+        )
+        .finalize(components::rng_random_component_static!(
+            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<RiscvCoherentDmaFence>
+        ))
     });
 
     // ---------- SCHEDULER ----------

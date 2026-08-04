@@ -65,7 +65,7 @@ pub struct MapCell<T> {
     val: UnsafeCell<MaybeUninit<T>>,
 
     // Safety invariants:
-    // - The contents of `val` must be initialized if this is `Init` or `InsideMap`.
+    // - The contents of `val` must be initialized if this is `Init` or `Borrowed`.
     // - It must be sound to mutate `val` behind a shared reference if this is `Uninit` or `Init`.
     //   No outside mutation can occur while a `&mut` to the contents of `val` exist.
     occupied: Cell<MapCellState>,
@@ -223,19 +223,26 @@ impl<T> MapCell<T> {
     /// # Panics
     /// If debug assertions are enabled, this panics if the `MapCell`'s contents are already borrowed.
     pub fn replace(&self, val: T) -> Option<T> {
-        let occupied = self.occupied.get();
         debug_assert_not_borrowed!(self);
-        if occupied == MapCellState::Borrowed {
-            return None;
-        }
-        self.occupied.set(MapCellState::Init);
+        let was_occupied = self.occupied.get();
+        match was_occupied {
+            MapCellState::Borrowed => None,
+            MapCellState::Uninit | MapCellState::Init => {
+                self.occupied.set(MapCellState::Init);
 
-        // SAFETY:
-        // - Since `occupied` is `Init` or `Uninit`, no `&mut` to the `val` exists, meaning it
-        //   is safe to mutate the `get` pointer.
-        // - If occupied is `Init`, `maybe_uninit_val` must be initialized.
-        let maybe_uninit_val = unsafe { self.val.get().replace(MaybeUninit::new(val)) };
-        (occupied == MapCellState::Init).then(|| unsafe { maybe_uninit_val.assume_init() })
+                let new_contents = MaybeUninit::new(val);
+                // SAFETY:
+                // - Since `was_occupied` is `Init` or `Uninit`, no `&mut` to the `val`
+                //   exists, meaning it is safe to mutate the `get` pointer.
+                let old_contents_maybe_uninit = unsafe { self.val.get().replace(new_contents) };
+
+                (was_occupied == MapCellState::Init).then(|| {
+                    // SAFETY:
+                    // - If was_occupied is `Init`, `old_contents_maybe_uninit` must be initialized.
+                    unsafe { old_contents_maybe_uninit.assume_init() }
+                })
+            }
+        }
     }
 
     /// Calls `closure` with a `&mut` of the contents of the `MapCell`, if available.
@@ -288,7 +295,12 @@ impl<T> MapCell<T> {
                 }
             }
             let _reset_to_init = ResetToInit(&self.occupied);
-            unsafe { closure(&mut *self.val.get().cast::<T>()) }
+            let val_ptr_mut: *mut T = self.val.get().cast::<T>();
+            // SAFETY: The pointer points to memory for a `T`. Creating the
+            // reference is only sound if the value is initialized, which we
+            // ensured by checking that the state is `MapCell::Init`.
+            let val_ref_mut = unsafe { &mut *val_ptr_mut };
+            closure(val_ref_mut)
         })
     }
 

@@ -6,10 +6,11 @@
 name = "cortexv7m"
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 kernel = { path = "../../kernel" }
+cortexm = { path = "../cortex-m" }
 
 [lints]
 workspace = true

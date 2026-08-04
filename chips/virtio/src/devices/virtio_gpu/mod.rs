@@ -190,7 +190,7 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
                 padding: 0,
             },
             resource_id: 1,
-            format: VideoFormat::A8R8G8B8Unorm,
+            format: VideoFormat::B8G8R8A8Unorm,
             width: self.width,
             height: self.height,
         };
@@ -397,7 +397,7 @@ impl<'a, 'b, F: DmaFence> VirtIOGPU<'a, 'b, F> {
             .len()
             .checked_sub(write_buffer_offset)
             .unwrap();
-        assert!(write_buffer_remaining_bytes % PIXEL_STRIDE == 0);
+        assert_eq!(write_buffer_remaining_bytes % PIXEL_STRIDE, 0);
         let write_buffer_remaining_pixels = write_buffer_remaining_bytes / PIXEL_STRIDE;
         assert!(write_buffer_remaining_pixels <= remaining_pixels);
 
@@ -858,7 +858,7 @@ impl<'a, F: DmaFence> Screen<'a> for VirtIOGPU<'a, '_, F> {
     }
 
     fn get_pixel_format(&self) -> ScreenPixelFormat {
-        ScreenPixelFormat::ARGB_8888
+        ScreenPixelFormat::BGRA_8888
     }
 
     fn get_rotation(&self) -> ScreenRotation {

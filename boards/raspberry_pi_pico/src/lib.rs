@@ -34,6 +34,7 @@ use rp2040::clocks::{SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliary
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::i2c::I2c;
 use rp2040::resets::Peripheral;
+use rp2040::spi::Spi;
 use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
 use rp2040::usb::UsbCtrl;
@@ -42,10 +43,12 @@ mod flash_bootloader;
 
 // Manually setting the boot header section that contains the FCB header
 //
-// When compiling for a macOS host, the `link_section` attribute is elided as
-// it yields the following error: `mach-o section specifier requires a segment
-// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".flash_bootloader")]
+// This section attribute is only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
+// section separated by a comma`.
+#[cfg_attr(target_os = "none", link_section = ".flash_bootloader")]
 #[used]
 static FLASH_BOOTLOADER: [u8; 256] = flash_bootloader::FLASH_BOOTLOADER;
 
@@ -79,6 +82,10 @@ pub struct Platform {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static TemperatureDriver,
     i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, I2c<'static, 'static>>,
+    spi_controller: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, Spi<'static>>,
+    >,
     date_time:
         &'static capsules_extra::date_time::DateTimeCapsule<'static, rp2040::rtc::Rtc<'static>>,
     console: &'static capsules_core::console::Console<'static>,
@@ -97,6 +104,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
@@ -324,6 +332,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -370,6 +379,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -407,10 +417,11 @@ pub unsafe fn setup(
             13 => peripherals.pins.get_pin(RPGpio::GPIO13),
             14 => peripherals.pins.get_pin(RPGpio::GPIO14),
             15 => peripherals.pins.get_pin(RPGpio::GPIO15),
-            16 => peripherals.pins.get_pin(RPGpio::GPIO16),
-            17 => peripherals.pins.get_pin(RPGpio::GPIO17),
-            18 => peripherals.pins.get_pin(RPGpio::GPIO18),
-            19 => peripherals.pins.get_pin(RPGpio::GPIO19),
+            // Pins 16(RX), 17(CSn), 18(SCK) 19(TX) used for SPI0. Comment them in if you don't use SPI.
+            // 16 => peripherals.pins.get_pin(RPGpio::GPIO16),
+            // 17 => peripherals.pins.get_pin(RPGpio::GPIO17),
+            // 18 => peripherals.pins.get_pin(RPGpio::GPIO18),
+            // 19 => peripherals.pins.get_pin(RPGpio::GPIO19),
             20 => peripherals.pins.get_pin(RPGpio::GPIO20),
             21 => peripherals.pins.get_pin(RPGpio::GPIO21),
             22 => peripherals.pins.get_pin(RPGpio::GPIO22),
@@ -425,6 +436,7 @@ pub unsafe fn setup(
             // 28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             // 29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
@@ -454,6 +466,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_extra::date_time::DRIVER_NUM,
         &peripherals.rtc,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::date_time_component_static!(
         rp2040::rtc::Rtc<'static>
@@ -463,6 +476,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         temp_sensor,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(
         TemperatureRp2040Sensor
@@ -480,14 +494,17 @@ pub unsafe fn setup(
     let adc_channel_3 = components::adc::AdcComponent::new(adc_mux, adc::Channel::Channel3)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_component_helper!(
-                adc_channel_0,
-                adc_channel_1,
-                adc_channel_2,
-                adc_channel_3,
-            ));
+    let adc = components::adc::AdcVirtualComponent::new(
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::adc_syscall_component_helper!(
+        adc_channel_0,
+        adc_channel_1,
+        adc_channel_2,
+        adc_channel_3,
+    ));
 
     // PROCESS CONSOLE
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -496,14 +513,22 @@ pub unsafe fn setup(
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm0p::support::reset),
+        ProcessConsoleCap,
     )
-    .finalize(components::process_console_component_static!(RPTimer));
+    .finalize(components::process_console_component_static!(
+        RPTimer,
+        ProcessConsoleCap
+    ));
     let _ = process_console.start();
 
     let sda_pin = peripherals.pins.get_pin(RPGpio::GPIO4);
@@ -534,6 +559,45 @@ pub unsafe fn setup(
     i2c0.init(10 * 1000);
     i2c0.set_master_client(i2c);
 
+    // Set SPI0 bus pins to SPI function (SCK, MOSI, MISO).
+    peripherals
+        .pins
+        .get_pin(RPGpio::GPIO18)
+        .set_function(GpioFunction::SPI);
+    peripherals
+        .pins
+        .get_pin(RPGpio::GPIO19)
+        .set_function(GpioFunction::SPI);
+    peripherals
+        .pins
+        .get_pin(RPGpio::GPIO16)
+        .set_function(GpioFunction::SPI);
+    peripherals
+        .pins
+        .get_pin(RPGpio::GPIO17)
+        .set_function(GpioFunction::SPI);
+    let spi_chip_select = peripherals.pins.get_pin(RPGpio::GPIO17);
+
+    // If instead hold_low and release_low
+    // The RP2040 SPI peripheral toggles its hardware CS between data frames.
+    // Keep CS as a GPIO so the SPI HIL can hold it active for the full buffer.
+    // spi_chip_select.make_output();
+    // spi_chip_select.set();
+
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi0)
+        .finalize(components::spi_mux_component_static!(Spi));
+
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
+            spi_chip_select,
+        ),
+        capsules_core::spi_controller::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::spi_syscall_component_static!(Spi));
+
     let platform_type = match peripherals.sysinfo.get_platform() {
         sysinfo::Platform::Asic => "ASIC",
         sysinfo::Platform::Fpga => "FPGA",
@@ -555,6 +619,7 @@ pub unsafe fn setup(
         adc,
         temperature,
         i2c,
+        spi_controller,
         date_time,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
         ipc: kernel::ipc::IPC::new(

@@ -202,7 +202,7 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimer<'_, R, F> {
                 // If the timer really is a oneshot, the remaining time must be 0
                 WriteRegWrapper::wrap(&self.registers.update_value)
                     .write(update_value::latch_value::SET);
-                assert!(self.registers.value.get() == 0);
+                assert_eq!(self.registers.value.get(), 0);
 
                 // Completely disable and make sure it doesn't generate
                 // more interrupts until it is started again

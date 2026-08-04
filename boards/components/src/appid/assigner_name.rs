@@ -13,7 +13,7 @@ macro_rules! appid_assigner_names_component_static {
         kernel::static_buf!(
             capsules_system::process_checker::basic::AppIdAssignerNames<fn(&'static str) -> u32>
         )
-    };};
+    }};
 }
 
 pub struct AppIdAssignerNamesComponent {}

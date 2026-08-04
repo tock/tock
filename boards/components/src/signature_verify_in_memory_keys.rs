@@ -23,7 +23,7 @@ macro_rules! signature_verify_in_memory_keys_component_static {
         );
 
         verifier
-    };};
+    }};
 }
 
 pub type SignatureVerifyInMemoryKeysComponentType<
