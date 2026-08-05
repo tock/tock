@@ -15,7 +15,7 @@ RISC-V 64-bit ABI
 Abstract
 -------------------------------
 
-This TRD specifies the Tock system call ABI for 64-bit systems.
+This TRD specifies the Tock system call ABI for 64-bit RISC-V systems.
 
 1 Introduction
 ====================================================================
@@ -34,6 +34,8 @@ decisions that are the same as the 32-bit ABI described in
 ====================================================================
 
 This specifies the ABI for non-CHERI 64-bit RISC-V systems.
+
+This TRD may be extended for other 64-bit architectures in the future.
 
 2.1 Compatibility with 32-bit and Tock Capsules
 ====================================================================
@@ -118,12 +120,12 @@ following register encoding:
 3.4 Upcalls
 ====================================================================
 
-| Argument   | Register | Type     |
-|------------|----------|----------|
-| Argument 0 | a0       | `u32`    |
-| Argument 1 | a1       | `u32`    |
-| Argument 2 | a2       | `u32`    |
-| Argument 3 | a3       | `OPAQUE` |
+| Argument   | Register | Type       |
+|------------|----------|------------|
+| Argument 0 | a0       | `VALUE_32` |
+| Argument 1 | a1       | `VALUE_32` |
+| Argument 2 | a2       | `VALUE_32` |
+| Argument 3 | a3       | `OPAQUE`   |
 
 4 System Call API
 =================================
@@ -133,45 +135,45 @@ This ABI uses the same system calls as [TRD 104](trd104-syscalls.md).
 4.1 Yield (Class ID: 0)
 --------------------------------
 
-| Argument               | Register | Type     |
-|------------------------|----------|----------|
-| Yield number           | a0       | `u32`    |
-| yield-param-A          | a1       | _varies_ |
-| yield-param-B          | a2       | _varies_ |
-| yield-param-C          | a3       | _varies_ |
+| Argument               | Register | Type       |
+|------------------------|----------|------------|
+| Yield number           | a0       | `VALUE_32` |
+| yield-param-A          | a1       | _varies_   |
+| yield-param-B          | a2       | _varies_   |
+| yield-param-C          | a3       | _varies_   |
 
 ### 4.1.1 Yield-NoWait
 
-| Argument      | Register | Type           | Value                                            |
-|---------------|----------|----------------|--------------------------------------------------|
-| Yield number  | a0       | `u32`          | `0`                                              |
-| yield-param-A | a1       | `*mut [u8; 1]` | Pointer to one byte of userspace memory or `0x0` |
+| Argument      | Register | Type              | Value                                                             |
+|---------------|----------|-------------------|-------------------------------------------------------------------|
+| Yield number  | a0       | `VALUE_32`        | `0`                                                               |
+| yield-param-A | a1       | `POINTER_OR_ZERO` | Pointer to one byte of userspace memory (`*mut [u8; 1]`) or `0x0` |
 
 
 ### 4.1.2 Yield-Wait
 
 | Argument      | Register | Type           | Value |
 |---------------|----------|----------------|-------|
-| Yield number  | a0       | `u32`          | `1`   |
+| Yield number  | a0       | `VALUE_32`     | `1`   |
 
 ### 4.1.3 Yield-WaitFor
 
-| Argument      | Register | Type  | Value            |
-|---------------|----------|-------|------------------|
-| Yield number  | a0       | `u32` | `2`              |
-| yield-param-A | a1       | `u32` | Driver number    |
-| yield-param-B | a2       | `u32` | Subscribe number |
+| Argument      | Register | Type       | Value            |
+|---------------|----------|------------|------------------|
+| Yield number  | a0       | `VALUE_32` | `2`              |
+| yield-param-A | a1       | `VALUE_32` | Driver number    |
+| yield-param-B | a2       | `VALUE_32` | Subscribe number |
 
 
 4.2 Subscribe (Class ID: 1)
 --------------------------------
 
-| Argument          | Register | Type                       |
-|-------------------|----------|----------------------------|
-| Driver number     | a0       | `u32`                      |
-| Subscribe number  | a1       | `u32`                      |
-| Upcall pointer    | a2       | C_FUNCTION_POINTER_OR_ZERO |
-| Application data  | a3       | OPAQUE                     |
+| Argument          | Register | Type                         |
+|-------------------|----------|------------------------------|
+| Driver number     | a0       | `VALUE_32`                   |
+| Subscribe number  | a1       | `VALUE_32`                   |
+| Upcall pointer    | a2       | `C_FUNCTION_POINTER_OR_ZERO` |
+| Application data  | a3       | `OPAQUE`                     |
 
 Valid return types:
 
@@ -191,8 +193,8 @@ pointer and application data parameter returned MUST be the Null Upcall.
 
 | Argument          | Register | Type                         |
 |-------------------|----------|------------------------------|
-| Driver number     | a0       | `u32`                        |
-| Command number    | a1       | `u32`                        |
+| Driver number     | a0       | `VALUE_32`                   |
+| Command number    | a1       | `VALUE_32`                   |
 | Argument 0        | a2       | `{u32, i32, u64_lo, i64_lo}` |
 | Argument 1        | a3       | `{u32, i32, u64_hi, i64_hi}` |
 
@@ -220,8 +222,8 @@ Valid return types:
 
 | Argument         | Register | Type              | Additional Restrictions                                                                 |
 |------------------|----------|-------------------|-----------------------------------------------------------------------------------------|
-| Driver number    | a0       | `u32`             |                                                                                         |
-| Allow number     | a1       | `u32`             |                                                                                         |
+| Driver number    | a0       | `VALUE_32`        |                                                                                         |
+| Allow number     | a1       | `VALUE_32`        |                                                                                         |
 | Address          | a2       | `POINTER_OR_ZERO` | Pointers must refer to a contiguous array of writable userspace memory of length `{a3}` |
 | Size             | a3       | `SIZE`            |                                                                                         |
 
@@ -238,8 +240,8 @@ length.
 
 | Argument         | Register | Type              | Additional Restrictions                                                                 |
 |------------------|----------|-------------------|-----------------------------------------------------------------------------------------|
-| Driver number    | a0       | `u32`             |                                                                                         |
-| Allow number     | a1       | `u32`             |                                                                                         |
+| Driver number    | a0       | `VALUE_32`        |                                                                                         |
+| Allow number     | a1       | `VALUE_32`        |                                                                                         |
 | Address          | a2       | `POINTER_OR_ZERO` | Pointers must refer to a contiguous array of readable userspace memory of length `{a3}` |
 | Size             | a3       | `SIZE`            |                                                                                         |
 
@@ -248,35 +250,35 @@ Return types are the same as Read-Write Allow.
 4.6 Memop (Class ID: 5)
 ---------------------------------
 
-| Argument               | Register | Type     |
-|------------------------|----------|----------|
-| Operation              | a0       | `u32`    |
-| Operation argument     | a1       | _varies_ |
+| Argument               | Register | Type       |
+|------------------------|----------|------------|
+| Operation              | a0       | `VALUE_32` |
+| Operation argument     | a1       | _varies_   |
 
 Memop operations:
 
-| Memop Operation | Operation                                               | Argument  | Success              | Failure |
-|-----------------|---------------------------------------------------------|-----------|----------------------|---------|
-| 0               | Break                                                   | `POINTER` | Success              | Failure |
-| 1               | SBreak                                                  | `i64`     | Success with pointer | Failure |
-| 2               | Get process RAM start address                           |           | Success with pointer |         |
-| 3               | Get address immediately after process RAM allocation    |           | Success with pointer |         |
-| 4               | Get process flash start address                         |           | Success with pointer |         |
-| 5               | Get address immediately after process flash region      |           | Success with pointer |         |
-| 6               | Get lowest address (end) of the grant region            |           | Success with address |         |
-| 7               | Get number of writeable flash regions in process header |           | Success with u32     |         |
-| 8               | Get start address of a writeable flash region           | `u32`     | Success with pointer | Failure |
-| 9               | Get end address of a writeable flash region             | `u32`     | Success with pointer | Failure |
-| 10              | Set the start of the process stack                      | `POINTER` | Success              |         |
-| 11              | Set the start of the process heap                       | `POINTER` | Success              |         |
+| Memop Operation | Operation                                               | Argument   | Success              | Failure |
+|-----------------|---------------------------------------------------------|------------|----------------------|---------|
+| 0               | Break                                                   | `POINTER`  | Success              | Failure |
+| 1               | SBreak                                                  | `i64`      | Success with pointer | Failure |
+| 2               | Get process RAM start address                           |            | Success with pointer |         |
+| 3               | Get address immediately after process RAM allocation    |            | Success with pointer |         |
+| 4               | Get process flash start address                         |            | Success with pointer |         |
+| 5               | Get address immediately after process flash region      |            | Success with pointer |         |
+| 6               | Get lowest address (end) of the grant region            |            | Success with address |         |
+| 7               | Get number of writeable flash regions in process header |            | Success with u32     |         |
+| 8               | Get start address of a writeable flash region           | `VALUE_32` | Success with pointer | Failure |
+| 9               | Get end address of a writeable flash region             | `VALUE_32` | Success with pointer | Failure |
+| 10              | Set the start of the process stack                      | `POINTER`  | Success              |         |
+| 11              | Set the start of the process heap                       | `POINTER`  | Success              |         |
 
 4.7 Exit (Class ID: 6)
 --------------------------------
 
-| Argument         | Register | Type  |
-|------------------|----------|-------|
-| Exit number      | a0       | `u32` |
-| Completion code  | a1       | `u32` |
+| Argument         | Register | Type       |
+|------------------|----------|------------|
+| Exit number      | a0       | `VALUE_32` |
+| Completion code  | a1       | `VALUE_32` |
 
 
 5 Author's Address
