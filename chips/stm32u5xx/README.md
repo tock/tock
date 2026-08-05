@@ -16,3 +16,4 @@ Currently supported peripherals:
 - PWM (Pulse Width Modulation)
 - TRNG (True Random Number Generator)
 - HASH (Hash processor)
+- AES (encryption and decryption)
