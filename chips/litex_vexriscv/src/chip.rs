@@ -97,7 +97,7 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
