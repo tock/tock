@@ -5,8 +5,7 @@
 # This workflow builds a real libtock-c example app, boots the qemu_rv64_virt
 # board kernel under qemu-system-riscv64 with that app loaded, and asserts that
 # the app actually ran. This exercises the rv64 userspace round-trip
-# (switch_to_process -> mret -> ecall -> kernel -> UART), which nothing else in
-# CI currently covers.
+# (switch_to_process -> mret -> ecall -> kernel -> UART).
 
 name: qemu-rv64-virt-ci
 env:
