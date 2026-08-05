@@ -130,12 +130,12 @@ and asynchronous server notifications are supported in communication mechanisms.
 
 Two primary security models were in mind for this IPC design. The first is
 a system without security concerns. While this is a trivial case, it does
-include most development of Tock, Tock tutorials, and Tock for use as a research
-platform. In this system, processes are trusted to not impersonate other
-processes or intentionally deny service to other processes.
+include most development of Tock, some demos, and often Tock for use as a
+research platform. In this system, processes are trusted to not impersonate
+other processes or intentionally deny service to other processes.
 
-The other security model in ind is a system where all apps are signed by a
-single developer and checked before being loaded. In this case, all applications
+The other security model is a system where all apps are signed by a single
+developer and checked before being loaded. In this case, all applications
 running on the system have been confirmed by the developer (either as a group or
 individually). In practice, this has similar expectations for processes, where
 they can be trusted to not impersonate other processes or intentionally deny
@@ -146,14 +146,32 @@ apps signed by multiple developers coexist on a single platform. In this case,
 these apps can only be partially trusted for good behavior. They could
 impersonate other processes or deny service to other processes.
 
-Preventing impersonation would require modification to the IPC Identifier
-implementation. We discuss this possibility below as "Process Descriptor Tables".
-This was not implemented in the initial design due to the effort involved in
-creation of descriptor tables. Alongside a revised IPC Identifier
-implementation, we would also need to add validation to the IPC Registry
-capsules for both servers and clients. The design of those capsules has left
-room for such validation to occur in the future but make no efforts to do so at
-this time.
+Preventing impersonation would require server and client validation. The ability
+to validate servers and clients is not part of the initial design, but we
+believe that the design enables it to be implemented if desired. Particularly,
+registration and discovery have been broken into an asynchronous operation, with
+an upcall confirming the result. This allows validation, possibly asynchronous
+validation, to be inserted into the operation without change to the process
+implementations.
+
+**Server validation** is the more straightforward of the two to implement. As
+part of the registration command, the capsule would make a request to the kernel
+to perform some type of validation. The exact details of this validation process
+are left open to determination. Once validation is completed, a call would be
+made to the capsule to complete the registration operation, either successfully
+or with an error condition.
+
+**Client validation** would require more effort. The core issue with validating
+clients is that IPC Identifiers are forgeable in their current design. A client
+could simply guess a 64-bit value that maps to an existing process. So even if
+client validation was inserted into the discovery process, it would not actually
+guarantee validated clients. Instead, we believe that client validation would
+require a modification of the IPC Identifier design to include a
+process-specific lookup table that maps from IPC Identifiers to discovered
+processes. We discuss this possibility below as
+"[Process Descriptor Tables](#22-potential-alternative-designs)". This was not
+implemented in the initial design due to the effort involved in creation of
+descriptor tables.
 
 Preventing denial of service should be more straightforward and is attempted in
 this IPC design wherever possible. In the IPC Relay Request system, requests
@@ -212,7 +230,12 @@ The ShortID is a 32-bit number assigned to an application, which is constant
 across restarts of the application. However, for many boards, the ShortID is set
 to LocallyUnique, which maps to a value of 0.
 
-### 2.2 Potential Alternative Design: Process Descriptor Tables
+Particularly given the structure inherent to the current implementation, be
+aware that IPC Identifiers are forgeable. It's possible for a client to guess at
+IPC Identifiers for existing processes. So simply knowing an IPC Identifier
+should not be used as proof that access has been previously validated.
+
+### 2.2 Potential Alternative Designs
 
 One remaining challenge is that IPC Identifiers as implemented are insufficient
 as an access control mechanism. Nothing is stops an application from crafting
