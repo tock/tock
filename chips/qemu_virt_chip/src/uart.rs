@@ -219,7 +219,12 @@ pub struct Uart16550<'a> {
 impl<'a> Uart16550<'a> {
     pub fn new(regs: StaticRef<Uart16550Registers>) -> Uart16550<'a> {
         // Disable all interrupts when constructing the UART
-        regs.ier.set(0xF);
+        regs.ier.write(
+            IER::ModemStatusRegisterChange::CLEAR
+                + IER::ReceiverLineStatusRegisterChange::CLEAR
+                + IER::TransmitterHoldingRegisterEmpty::CLEAR
+                + IER::ReceivedDataAvailable::CLEAR,
+        );
 
         regs.iir_fcr.write(FCR::Enable::CLEAR);
 
