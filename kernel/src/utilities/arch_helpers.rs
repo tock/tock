@@ -221,7 +221,7 @@ pub enum TRD104SyscallReturn {
     AllowReadOnlyFailure(ErrorCode, *const u8, usize),
     SubscribeSuccess(*const (), usize),
     SubscribeFailure(ErrorCode, *const (), usize),
-    YieldWaitFor(usize, usize, usize),
+    YieldWaitFor(u32, u32, u32),
 }
 
 impl TRD104SyscallReturn {
@@ -265,7 +265,9 @@ impl TRD104SyscallReturn {
             SyscallReturn::SubscribeFailure(a, b, c) => {
                 TRD104SyscallReturn::SubscribeFailure(a, b, c)
             }
-            SyscallReturn::YieldWaitFor(a, b, c) => TRD104SyscallReturn::YieldWaitFor(a, b, c),
+            SyscallReturn::YieldWaitFor(a, b, c) => {
+                TRD104SyscallReturn::YieldWaitFor(a as u32, b as u32, c as u32)
+            }
 
             // Compatibility mapping:
             SyscallReturn::SuccessAddr(a) => TRD104SyscallReturn::SuccessU32(a as u32),
@@ -387,9 +389,9 @@ pub fn encode_syscall_return_trd104(
             *a3 = data as u32;
         }
         TRD104SyscallReturn::YieldWaitFor(data0, data1, data2) => {
-            *a0 = data0 as u32;
-            *a1 = data1 as u32;
-            *a2 = data2 as u32;
+            *a0 = data0;
+            *a1 = data1;
+            *a2 = data2;
         }
     }
 }
