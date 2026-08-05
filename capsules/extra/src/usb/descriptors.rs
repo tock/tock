@@ -11,25 +11,33 @@ use core::cmp::min;
 use core::fmt;
 
 use kernel::hil::usb::TransferType;
-use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::InMemoryRegister;
+use kernel::utilities::registers::interfaces::Readable;
 
 // On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For
 // now we apply these constraints on all platforms.
-#[derive(Default)]
 #[repr(align(4))]
 pub struct Buffer8 {
-    pub buf: [VolatileCell<u8>; 8],
+    pub buf: [InMemoryRegister<u8>; 8],
+}
+
+impl Default for Buffer8 {
+    fn default() -> Self {
+        Self {
+            buf: [const { InMemoryRegister::new(0) }; 8],
+        }
+    }
 }
 
 #[repr(align(4))]
 pub struct Buffer64 {
-    pub buf: [VolatileCell<u8>; 64],
+    pub buf: [InMemoryRegister<u8>; 64],
 }
 
 impl Default for Buffer64 {
     fn default() -> Self {
         Self {
-            buf: [(); 64].map(|()| VolatileCell::default()),
+            buf: [const { InMemoryRegister::new(0) }; 64],
         }
     }
 }
@@ -46,7 +54,7 @@ pub struct SetupData {
 
 impl SetupData {
     /// Create a `SetupData` structure from a packet received from the wire
-    pub fn get(p: &[VolatileCell<u8>]) -> Option<Self> {
+    pub fn get(p: &[InMemoryRegister<u8>]) -> Option<Self> {
         if p.len() < 8 {
             return None;
         }
@@ -877,7 +885,7 @@ pub struct CdcAcmSetLineCodingData {
 impl CdcAcmSetLineCodingData {
     /// Create a `CdcAcmSetLineCodingData` structure from a packet received
     /// after the ctrl endpoint setup.
-    pub fn get(p: &[VolatileCell<u8>]) -> Option<Self> {
+    pub fn get(p: &[InMemoryRegister<u8>]) -> Option<Self> {
         if p.len() < 7 {
             return None;
         }
