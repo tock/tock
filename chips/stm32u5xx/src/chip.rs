@@ -5,6 +5,7 @@
 
 use crate::adc::{self, SamplingTime as AdcSamplingTime};
 use crate::aes::ecb;
+use crate::crc::{self, CRC_BASE};
 use crate::dma::{ChannelId, Dma};
 use crate::gpio;
 use crate::hash;
@@ -48,6 +49,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
     pub dac: dac::Dac,
+    pub crc: crc::CRC<'a>,
     pub hash: hash::hash::Hash<'a>,
     pub aes: ecb::Aes<'a, AES256>,
 }
@@ -85,6 +87,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
+            crc: crc::CRC::new(CRC_BASE),
             hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
             aes: aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
                 registers: AES_BASE,
@@ -114,7 +117,11 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // As explained in the driver, an application can't change the samplling time, so it's hardcoded here
         self.adc1.enable(AdcSamplingTime::ClockCycles20);
 
+        // Registering the CRC deferred call
+        kernel::deferred_call::DeferredCallClient::register(&self.crc);
+
         self.rcc.enable_dac1();
+        self.rcc.enable_crc();
 
         // Deferred Calls
         self.usart1.register();
