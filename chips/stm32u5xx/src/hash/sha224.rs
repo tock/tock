@@ -109,6 +109,10 @@ impl<'a> digest::DigestData<'a, SHA224_DIGEST_LEN> for Sha224Adapter<'a> {
         self.hash.add_mut_data(data)
     }
 
+    fn preset_message_length(&self, _len: usize) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+
     fn clear_data(&self) {
         self.hash.clear_data();
     }
