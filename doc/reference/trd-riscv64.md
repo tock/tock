@@ -109,7 +109,7 @@ following register encoding:
 | Success                                          | 128  |                                               |                                               |                             |                    |
 | Success with `u32`                               | 129  | `VALUE_32` - Return Value 0                   |                                               |                             |                    |
 | Success with 2 `u32`                             | 130  | `VALUE_32` - Return Value 0                   | `VALUE_32` - Return Value 1                   |                             |                    |
-| Success with `u64`                               | 131  | `VALUE_32` - Return Value 0                   |                                               |                             |                    |
+| Success with `u64`                               | 131  | `VALUE_64` - Return Value 0                   |                                               |                             |                    |
 | Success with 3 `u32`                             | 132  | `VALUE_32` - Return Value 0                   | `VALUE_32` - Return Value 1                   | `VALUE_32` - Return Value 2 |                    |
 | Success with `u32` and `u64`                     | 133  | `VALUE_32` - Return Value 0                   | `VALUE_64` - Return Value 1                   |                             |                    |
 | Success with upcall pointer and opaque parameter | 134  | `C_FUNCTION_POINTER_OR_ZERO` - Upcall Pointer | `OPAQUE`                                      |                             | Only for subscribe |
