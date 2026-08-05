@@ -4,9 +4,10 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
+use core::cell::Cell;
+
 use crate::registers::top_earlgrey::RV_PLIC_BASE_ADDR;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::LocalRegisterCopy;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
@@ -51,7 +52,7 @@ register_bitfields![u32,
 
 pub struct Plic {
     registers: StaticRef<PlicRegisters>,
-    saved: [VolatileCell<LocalRegisterCopy<u32>>; PLIC_REGS],
+    saved: [Cell<LocalRegisterCopy<u32>>; PLIC_REGS],
 }
 
 impl Plic {
@@ -59,12 +60,12 @@ impl Plic {
         Plic {
             registers: base,
             saved: [
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
             ],
         }
     }

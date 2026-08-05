@@ -4,9 +4,10 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
+use core::cell::Cell;
+
 use crate::interrupts;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
     LocalRegisterCopy, ReadWrite, register_bitfields, register_structs,
@@ -57,14 +58,14 @@ register_bitfields![u32,
 
 pub struct Intc {
     registers: StaticRef<IntcRegisters>,
-    saved: VolatileCell<LocalRegisterCopy<u32>>,
+    saved: Cell<LocalRegisterCopy<u32>>,
 }
 
 impl Intc {
     pub const fn new(base: StaticRef<IntcRegisters>) -> Self {
         Intc {
             registers: base,
-            saved: VolatileCell::new(LocalRegisterCopy::new(0)),
+            saved: Cell::new(LocalRegisterCopy::new(0)),
         }
     }
 
