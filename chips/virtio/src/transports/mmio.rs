@@ -8,7 +8,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    InMemoryRegister, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
+    LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
 };
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
@@ -262,10 +262,10 @@ impl VirtIOTransport for VirtIOMMIODevice {
         device_features_reg |= (self.regs.device_features.get() as u64) << 32;
 
         // Negotiate the transport features
-        let offered_transport_features: InMemoryRegister<u64, TransportFeatures::Register> =
-            InMemoryRegister::new(device_features_reg);
-        let selected_transport_features: InMemoryRegister<u64, TransportFeatures::Register> =
-            InMemoryRegister::new(0x0000000000000000);
+        let offered_transport_features: LocalRegisterCopy<u64, TransportFeatures::Register> =
+            LocalRegisterCopy::new(device_features_reg);
+        let mut selected_transport_features: LocalRegisterCopy<u64, TransportFeatures::Register> =
+            LocalRegisterCopy::new(0x0000000000000000);
 
         // Sanity check: Version1 must be offered AND accepted
         if !offered_transport_features.is_set(TransportFeatures::Version1) {
