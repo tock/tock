@@ -11,10 +11,11 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+    InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
+    register_structs,
 };
 
 pub const N_ENDPOINTS: usize = 12;
@@ -305,8 +306,8 @@ impl From<BankIndex> for usize {
 
 #[repr(C)]
 pub struct Endpoint<'a> {
-    slice_in: OptionalCell<&'a [VolatileCell<u8>]>,
-    slice_out: OptionalCell<&'a [VolatileCell<u8>]>,
+    slice_in: OptionalCell<&'a [InMemoryRegister<u8>]>,
+    slice_out: OptionalCell<&'a [InMemoryRegister<u8>]>,
     state: Cell<EndpointState>,
 
     _reserved: u32,
@@ -965,7 +966,7 @@ impl<'a> Usb<'a> {
 
     /// Provide a buffer for transfers in and out of the given endpoint
     /// (The controller need not be enabled before calling this method.)
-    fn endpoint_bank_set_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_bank_set_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         self.descriptors[endpoint].slice_in.set(buf);
         self.descriptors[endpoint].slice_out.set(buf);
     }
@@ -976,15 +977,15 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
         self.client.set(client);
     }
 
-    fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_ctrl_buffer(&self, buf: &'a [InMemoryRegister<u8>]) {
         self.endpoint_bank_set_buffer(0, buf);
     }
 
-    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         self.endpoint_bank_set_buffer(endpoint, buf);
     }
 
-    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         self.endpoint_bank_set_buffer(endpoint, buf);
     }
 

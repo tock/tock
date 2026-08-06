@@ -12,9 +12,11 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
+use kernel::utilities::registers::{
+    InMemoryRegister, ReadWrite, register_bitfields, register_structs,
+};
 
 macro_rules! internal_err {
     [ $( $arg:expr ),+ ] => {
@@ -1279,8 +1281,8 @@ pub enum EndpointType {
 }
 
 pub struct Endpoint<'a> {
-    slice_in: OptionalCell<&'a [VolatileCell<u8>]>,
-    slice_out: OptionalCell<&'a [VolatileCell<u8>]>,
+    slice_in: OptionalCell<&'a [InMemoryRegister<u8>]>,
+    slice_out: OptionalCell<&'a [InMemoryRegister<u8>]>,
     state: Cell<EndpointState>,
     // Whether a transfer is requested on this IN endpoint.
     request_transmit_in: Cell<bool>,
@@ -2324,7 +2326,7 @@ impl<'a> hil::usb::UsbController<'a> for UsbCtrl<'a> {
         self.client.set(client);
     }
 
-    fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_ctrl_buffer(&self, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             panic!("Endpoint buffer must be at least 8 bytes");
         }
@@ -2335,7 +2337,7 @@ impl<'a> hil::usb::UsbController<'a> for UsbCtrl<'a> {
         self.descriptors[0].slice_out.set(buf);
     }
 
-    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             panic!("Endpoint buffer must be at least 8 bytes");
         }
@@ -2348,7 +2350,7 @@ impl<'a> hil::usb::UsbController<'a> for UsbCtrl<'a> {
         self.descriptors[endpoint].slice_in.set(buf);
     }
 
-    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             panic!("Endpoint buffer must be at least 8 bytes");
         }
