@@ -71,6 +71,7 @@ kernel::stack_size! {0x2000}
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 
 type NonVolatilePages = components::dynamic_binary_storage::NVPages<nrf52840::nvmc::Nvmc>;
+
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
     'static,
     'static,
@@ -96,6 +97,7 @@ pub struct Platform {
     systick: cortexm4::systick::SysTick,
     processes: &'static ProcessArray<NUM_PROCS>,
     dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<
+        DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
     >,
@@ -489,6 +491,7 @@ pub unsafe fn main() {
     // Create the dynamic binary flasher.
     let dynamic_binary_storage =
         components::dynamic_binary_storage::SequentialBinaryStorageComponent::new(
+            board_kernel,
             &base_peripherals.nvmc,
             loader,
         )
@@ -504,9 +507,11 @@ pub unsafe fn main() {
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_binary_storage,
         dynamic_binary_storage,
+        dynamic_binary_storage,
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::app_loader_component_static!(
+        DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
     ));
