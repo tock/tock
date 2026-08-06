@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
+use core::cell::Cell;
 use core::ptr;
 
-use tock_cells::volatile_cell::VolatileCell;
 use tock_registers::LocalRegisterCopy;
 
 use crate::support;
@@ -32,7 +32,7 @@ use super::NUM_VECTORS;
 /// directly. Instead, you must access the singleton instance using `InterruptPoller::access`.
 pub struct InterruptPoller {
     /// Tracks the pending status of each interrupt
-    pending: [VolatileCell<LocalRegisterCopy<u32>>; NUM_VECTORS / 32],
+    pending: [Cell<LocalRegisterCopy<u32>>; NUM_VECTORS / 32],
 }
 
 /// The singleton poller instance
@@ -47,14 +47,14 @@ pub struct InterruptPoller {
 /// instance: `InterruptPoller::access` and `InterruptPoller::save`.
 static mut SINGLETON: InterruptPoller = InterruptPoller {
     pending: [
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
     ],
 };
 
