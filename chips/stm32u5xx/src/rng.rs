@@ -76,7 +76,7 @@ register_bitfields![u32,
         HTCFG OFFSET(0) NUMBITS(32) []
     ]
 ];
-const RNG_BASE: StaticRef<RngRegisters> =
+pub const RNG_BASE: StaticRef<RngRegisters> =
     unsafe { StaticRef::new(0x520C0800 as *const RngRegisters) };
 
 /// Iterator that retreives the full entropy outputs provided by the RNG peripheral
@@ -118,9 +118,9 @@ pub struct Trng<'a, const CR: u32, const HTCR: u32, const NSCR: u32> {
 impl<const CR_CFG: u32, const HTCR_CFG: u32, const NSCR_CFG: u32>
     Trng<'_, CR_CFG, HTCR_CFG, NSCR_CFG>
 {
-    pub fn new() -> Self {
+    pub fn new(base: StaticRef<RngRegisters>) -> Self {
         Self {
-            registers: RNG_BASE,
+            registers: base,
             client: OptionalCell::empty(),
             entropy_needed: Cell::new(false),
             deferred_call: DeferredCall::new(),

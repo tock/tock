@@ -14,7 +14,7 @@ use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
 
-const AES_BASE: StaticRef<AesRegisters> =
+pub const AES_BASE: StaticRef<AesRegisters> =
     unsafe { StaticRef::new(0x520C0000 as *const AesRegisters) };
 
 register_structs! {
@@ -169,10 +169,13 @@ pub struct AesRegistersManager {
 }
 
 impl AesRegistersManager {
-    pub const fn new() -> Self {
-        Self {
-            registers: AES_BASE,
-        }
+    /// ### Safety
+    ///
+    /// The caller must ensure that the provided `StaticRef` points to a valid
+    /// memory-mapped AES peripheral and that no other part of the system is
+    /// conflicting with its register access.
+    pub unsafe fn new(regs: StaticRef<AesRegisters>) -> Self {
+        Self { registers: regs }
     }
 
     pub fn apply_crypto_direction(&self, encrypting: bool) {

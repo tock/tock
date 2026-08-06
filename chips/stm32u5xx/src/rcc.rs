@@ -271,7 +271,7 @@ register_bitfields![u32,
     ],
 ];
 /// Base address for RCC in Nonsecure mode
-const RCC_BASE: StaticRef<RccRegisters> =
+pub const RCC_BASE: StaticRef<RccRegisters> =
     unsafe { StaticRef::new(0x46020C00 as *const RccRegisters) };
 
 pub struct Rcc {
@@ -279,10 +279,8 @@ pub struct Rcc {
 }
 
 impl Rcc {
-    pub const fn new() -> Self {
-        Self {
-            registers: RCC_BASE,
-        }
+    pub const fn new(base: StaticRef<RccRegisters>) -> Self {
+        Self { registers: base }
     }
 
     /// Configure and start all necessary clocks

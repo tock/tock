@@ -8,7 +8,7 @@ use kernel::utilities::registers::{ReadWrite, register_bitfields, register_struc
 
 register_structs! {
     /// Power control
-    PwrRegisters {
+    pub PwrRegisters {
         (0x000 => _reserved1),
         /// PWR voltage scaling register
         (0x00C => pwr_vosr: ReadWrite<u32, PWR_VOSR::Register>),
@@ -56,7 +56,7 @@ register_bitfields![u32,
         VDDA1RDY OFFSET(26) NUMBITS(1) []
     ],
 ];
-const PWR_BASE: StaticRef<PwrRegisters> =
+pub const PWR_BASE: StaticRef<PwrRegisters> =
     unsafe { StaticRef::new(0x46020800 as *const PwrRegisters) };
 
 #[derive(Clone, Copy)]
@@ -76,10 +76,8 @@ pub struct Pwr {
 }
 
 impl Pwr {
-    pub const fn new() -> Self {
-        Self {
-            registers: PWR_BASE,
-        }
+    pub const fn new(base: StaticRef<PwrRegisters>) -> Self {
+        Self { registers: base }
     }
 
     pub fn validate_vdda(&self) {

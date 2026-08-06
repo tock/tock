@@ -68,8 +68,7 @@ register_structs! {
         (0x3E4 => @END),
     }
 }
-
-const TIM2_BASE: StaticRef<TimRegisters> =
+pub const TIM2_BASE: StaticRef<TimRegisters> =
     unsafe { StaticRef::new(0x50000000 as *const TimRegisters) };
 
 register_bitfields![u32,
@@ -413,9 +412,9 @@ pub struct Tim2<'a> {
 
 impl<'a> Tim2<'a> {
     /// Creates a new instance of the driver.
-    pub const fn new() -> Tim2<'a> {
+    pub const fn new(base: StaticRef<TimRegisters>) -> Tim2<'a> {
         Tim2 {
-            registers: TIM2_BASE,
+            registers: base,
             clocks: OptionalCell::empty(),
             client: OptionalCell::empty(),
         }
@@ -529,7 +528,7 @@ impl<'a> time::Alarm<'a> for Tim2<'a> {
 // This driver implements the Tock PWM HIL using the 16-bit general-purpose TIM3 timer.
 // It works by making the timer count from 0 to a specified value and toggling the pin high/low
 
-const TIM3_BASE: StaticRef<TimRegisters> =
+pub const TIM3_BASE: StaticRef<TimRegisters> =
     unsafe { StaticRef::new(0x50000400 as *const TimRegisters) };
 
 pub struct Pwm<'a> {
@@ -542,9 +541,9 @@ pub struct Pwm<'a> {
 }
 
 impl<'a> Pwm<'a> {
-    pub const fn new() -> Pwm<'a> {
+    pub const fn new(base: StaticRef<TimRegisters>) -> Pwm<'a> {
         Pwm {
-            registers: TIM3_BASE,
+            registers: base,
             clocks: OptionalCell::empty(),
             _phantom: core::marker::PhantomData,
         }

@@ -59,21 +59,23 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
     pub fn new(exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
-            rcc: rcc::Rcc::new(),
-            tim2: tim::Tim2::new(),
-            tim3: tim::Pwm::new(),
+            rcc: rcc::Rcc::new(rcc::RCC_BASE),
+            tim2: tim::Tim2::new(tim::TIM2_BASE),
+            tim3: tim::Pwm::new(tim::TIM3_BASE),
             usart1: usart::Usart::new(usart::USART1_BASE),
             exti,
             dma1,
-            pwr: pwr::Pwr::new(),
-            adc1: adc::Adc::new(),
+            pwr: pwr::Pwr::new(pwr::PWR_BASE),
+            adc1: adc::Adc::new(adc::ADC1_BASE),
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
-            dac: dac::Dac::new(),
-            crc: crc::CRC::new(),
-            hash: hash::hash::Hash::new(),
-            aes: aes::ecb::Aes::new(),
+            dac: dac::Dac::new(dac::DAC_BASE),
+            crc: crc::CRC::new(crc::CRC_BASE),
+            hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
+            aes: aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
+                registers: stm32u5xx_unsafe::aes::AES_BASE,
+            }),
         }
     }
 

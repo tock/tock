@@ -195,7 +195,10 @@ unsafe fn start() -> (
     >();
 
     // Create individual drivers
-    let exti = static_init!(stm32u545::exti::Exti<'static>, stm32u545::exti::Exti::new());
+    let exti = static_init!(
+        stm32u545::exti::Exti<'static>,
+        stm32u545::exti::Exti::new(stm32u545::exti::EXTI_BASE)
+    );
     let dma1 = static_init!(
         stm32u545::dma::Dma,
         stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
@@ -224,7 +227,10 @@ unsafe fn start() -> (
     );
 
     // Create the TRNG peripheral
-    let trng = static_init!(stm32u545::rng::Trng<'static>, stm32u545::rng::Trng::new());
+    let trng = static_init!(
+        stm32u545::rng::Trng<'static>,
+        stm32u545::rng::Trng::new(stm32u545::rng::RNG_BASE)
+    );
     // Note: TRNG clock routing is enabled in the RCC in `periphs.init()` above
     trng.init();
 

@@ -213,7 +213,7 @@ register_bitfields! [u32,
     ]
 ];
 
-const DAC_BASE: StaticRef<DacRegisters> =
+pub const DAC_BASE: StaticRef<DacRegisters> =
     unsafe { StaticRef::new(0x4602_1800 as *const DacRegisters) };
 
 /// The DAC takes in an arbitrary 12 bit number and outputs a voltage proportional to it.
@@ -226,9 +226,11 @@ pub struct Dac {
 
 impl Dac {
     /// Creates a new instance of the driver.
-    pub fn new() -> Self {
+    ///
+    /// - `base`: The StaticRef pointing to the MMIO base address of the peripheral.
+    pub fn new(base: StaticRef<DacRegisters>) -> Self {
         Self {
-            registers: DAC_BASE,
+            registers: base,
             initialized: Cell::new(false),
         }
     }
