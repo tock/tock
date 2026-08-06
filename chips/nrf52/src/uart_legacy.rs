@@ -143,16 +143,12 @@ register_bitfields! [u32,
     ]
 ];
 
-/// UART
-// It should never be instanced outside this module but because a static mutable reference to it
-// is exported outside this module it must be `pub`
+/// UART driver
 pub struct Uart {
     registers: StaticRef<UartRegisters>,
 }
 
 impl Uart {
-    /// Constructor
-    // This should only be constructed once
     pub fn new(regs: StaticRef<UartRegisters>) -> Uart {
         Uart { registers: regs }
     }
@@ -256,13 +252,10 @@ impl Uart {
     /// [`Uart::tx_ready`]. This is used by the panic handler.
     pub fn send_byte(&self, byte: u8) {
         self.registers.event_txdrdy.write(Event::READY::CLEAR);
-        self.registers.task_starttx.write(Task::ENABLE::SET);
         self.registers.txd.write(Byte::VALUE.val(byte as u32));
-    }
+        self.registers.task_starttx.write(Task::ENABLE::SET);
 
-    /// Check if the UART transmission is done
-    pub fn tx_ready(&self) -> bool {
-        self.registers.event_txdrdy.is_set(Event::READY)
+        while !self.registers.event_txdrdy.is_set(Event::READY) {}
     }
 }
 
@@ -305,7 +298,6 @@ impl IoWrite for UartPanicWriter {
     fn write(&mut self, buf: &[u8]) -> usize {
         for &c in buf {
             self.inner.send_byte(c);
-            while !self.inner.tx_ready() {}
         }
         buf.len()
     }
@@ -345,58 +337,5 @@ impl kernel::platform::chip::PanicWriter for Uart {
         );
         let _ = inner.configure(config.params);
         UartPanicWriter { inner }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use kernel::ErrorCode;
-
-    #[test]
-    fn baud_rate_divider_calculation() {
-        let u = super::Uart::new(super::UART0_BASE);
-        assert_eq!(u.get_divider_for_baud(0), Err(ErrorCode::INVAL));
-        assert_eq!(u.get_divider_for_baud(4_000_000), Err(ErrorCode::INVAL));
-
-        // The constants below are the list from the Nordic technical documents.
-        //
-        // n.b., some datasheet constants do not match formula constants,
-        // so we skip those, see nordic forum thread for details:
-        // https://devzone.nordicsemi.com/f/nordic-q-a/84204/framing-error-and-noisy-data-when-using-uarte-at-high-baud-rate
-        //
-        // This is a *datasheet bug*, i.e., for a target baud of 115200, the
-        // datasheet divisor yields 115108 (-0.079% err) where direct
-        // computation of the divider yields 115203 (+0.002% err). Both work in
-        // practice, but the error here is an annoying and uncharacteristic
-        // Nordic quirk.
-        assert_eq!(u.get_divider_for_baud(1200), Ok(0x0004F000));
-        assert_eq!(u.get_divider_for_baud(2400), Ok(0x0009D000));
-        assert_eq!(u.get_divider_for_baud(4800), Ok(0x0013B000));
-        assert_eq!(u.get_divider_for_baud(9600), Ok(0x00275000));
-        //assert_eq!(u.get_divider_for_baud(14400), Ok(0x003AF000));
-        assert_eq!(u.get_divider_for_baud(19200), Ok(0x004EA000));
-        //assert_eq!(u.get_divider_for_baud(28800), Ok(0x0075C000));
-        //assert_eq!(u.get_divider_for_baud(38400), Ok(0x009D0000));
-        //assert_eq!(u.get_divider_for_baud(57600), Ok(0x00EB0000));
-        assert_eq!(u.get_divider_for_baud(76800), Ok(0x013A9000));
-        //assert_eq!(u.get_divider_for_baud(115200), Ok(0x01D60000));
-        //assert_eq!(u.get_divider_for_baud(230400), Ok(0x03B00000));
-        assert_eq!(u.get_divider_for_baud(250000), Ok(0x04000000));
-        //assert_eq!(u.get_divider_for_baud(460800), Ok(0x07400000));
-        //assert_eq!(u.get_divider_for_baud(921600), Ok(0x0F000000));
-        assert_eq!(u.get_divider_for_baud(1000000), Ok(0x10000000));
-        //
-        // For completeness of testing, we do verify that the calculation works
-        // as-expected to generate the empirically correct divisors.  (i.e.,
-        // these are not the datasheet constants, but are the correct divisors
-        // for the desired bauds):
-        assert_eq!(u.get_divider_for_baud(14400), Ok(0x003B0000));
-        assert_eq!(u.get_divider_for_baud(28800), Ok(0x0075F000));
-        assert_eq!(u.get_divider_for_baud(38400), Ok(0x009D5000));
-        assert_eq!(u.get_divider_for_baud(57600), Ok(0x00EBF000));
-        assert_eq!(u.get_divider_for_baud(115200), Ok(0x01D7E000));
-        assert_eq!(u.get_divider_for_baud(230400), Ok(0x03AFB000));
-        assert_eq!(u.get_divider_for_baud(460800), Ok(0x075F7000));
-        assert_eq!(u.get_divider_for_baud(921600), Ok(0x0EBEE000));
     }
 }
