@@ -1205,8 +1205,8 @@ impl<'a> Usbd<'a> {
     fn active_events(
         &self,
         _saved_inter: &LocalRegisterCopy<u32, Interrupt::Register>,
-    ) -> InMemoryRegister<u32, Interrupt::Register> {
-        let result = InMemoryRegister::new(0);
+    ) -> LocalRegisterCopy<u32, Interrupt::Register> {
+        let mut result = LocalRegisterCopy::new(0);
         if Usbd::take_event(&self.registers.event_usbreset) {
             debug_events!(
                 "- event: usbreset{}",
