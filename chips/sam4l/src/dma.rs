@@ -8,8 +8,9 @@ use crate::pm;
 use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic;
+use enum_primitive::cast::FromPrimitive;
+use kernel::debug;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
@@ -19,7 +20,7 @@ use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitf
 #[allow(dead_code)]
 struct DMARegisters {
     mar: ReadWrite<u32, MemoryAddress::Register>,
-    psr: VolatileCell<DMAPeripheral>,
+    psr: ReadWrite<u8>,
     _psr_padding: [u8; 3],
     tcr: ReadWrite<u32, TransferCounter::Register>,
     marr: ReadWrite<u32, MemoryAddressReload::Register>,
@@ -126,6 +127,7 @@ pub enum DMAChannelNum {
     DMAChannel15 = 15,
 }
 
+enum_primitive::enum_from_primitive! {
 /// The peripheral function a channel is assigned to (Section 16.7). `*_RX`
 /// means transfer data from peripheral to memory, `*_TX` means transfer data
 /// from memory to peripheral.
@@ -171,6 +173,7 @@ pub enum DMAPeripheral {
     AESA_TX = 36,
     LCDCA_ACMDR_TX = 37,
     LCDCA_ABMDR_TX = 38,
+}
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -254,9 +257,19 @@ impl DMAChannel {
             .write(Interrupt::TERR::SET + Interrupt::TRC::SET + Interrupt::RCZ::SET);
         let channel = self.registers.psr.get();
 
-        self.client.map(|client| {
-            client.transfer_done(channel);
-        });
+        match DMAPeripheral::from_u8(channel) {
+            Some(channel) => {
+                self.client.map(|client| {
+                    client.transfer_done(channel);
+                });
+            }
+            None => {
+                debug!(
+                    "sam4l dma: psr read back invalid DMAPeripheral value {}",
+                    channel
+                );
+            }
+        }
     }
 
     pub fn start_transfer(&self) {
@@ -277,7 +290,7 @@ impl DMAChannel {
             .mr
             .write(Mode::SIZE.val(self.width.get() as u32));
 
-        self.registers.psr.set(pid);
+        self.registers.psr.set(pid as u8);
         self.registers
             .marr
             .write(MemoryAddressReload::MARV.val(core::ptr::from_ref::<u8>(&buf[0]) as u32));

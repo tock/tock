@@ -2,53 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::debug;
 use kernel::hil::led;
-use kernel::hil::uart::{self, Configure};
-use kernel::utilities::io_write::IoWrite;
+use kernel::hil::uart;
 use nrf52840::gpio::Pin;
-use nrf52840::uart::{UARTE0_BASE, Uarte};
-
-struct Writer {
-    initialized: bool,
-}
-
-static mut WRITER: Writer = Writer { initialized: false };
-
-impl Write for Writer {
-    fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        // Here, we create a second instance of the Uarte struct.
-        // This is okay because we only call this during a panic, and
-        // we will never actually process the interrupts
-        let uart = Uarte::new(UARTE0_BASE);
-        if !self.initialized {
-            self.initialized = true;
-            let _ = uart.configure(uart::Parameters {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-                width: uart::Width::Eight,
-            });
-        }
-        for &c in buf {
-            unsafe {
-                uart.send_byte(c);
-            }
-            while !uart.tx_ready() {}
-        }
-        buf.len()
-    }
-}
+use nrf52840::uart::{UartPanicWriterConfig, Uarte};
 
 #[cfg(not(test))]
 #[panic_handler]
@@ -56,13 +15,23 @@ impl IoWrite for Writer {
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840 Dongle LEDs (see back of board)
 
-    use core::ptr::addr_of_mut;
     let led_kernel_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_06);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic_old(
+    debug::panic::<_, Uarte, _, _>(
         &mut [led],
-        writer,
+        UartPanicWriterConfig {
+            params: uart::Parameters {
+                baud_rate: 115200,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+                width: uart::Width::Eight,
+            },
+            txd: crate::UART_TXD,
+            rxd: crate::UART_RXD,
+            cts: crate::UART_CTS,
+            rts: crate::UART_RTS,
+        },
         pi,
         &cortexm4::support::nop,
         crate::PANIC_RESOURCES.get(),

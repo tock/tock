@@ -1150,6 +1150,7 @@ dependencies = [
  "cortexm33",
  "kernel",
  "stm32u545",
+ "stm32u5xx-unsafe",
  "tock_build_scripts",
 ]
 
@@ -1328,10 +1329,61 @@ name = "qemu_rv32_virt_chip"
 version = "0.2.3-dev"
 dependencies = [
  "kernel",
+ "qemu_virt_chip",
  "rv32i",
  "sifive",
  "tock-registers",
  "virtio",
+]
+
+[[package]]
+name = "qemu_rv64_virt"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "kernel",
+ "qemu_rv64_virt_chip",
+ "rv64i",
+ "sifive",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "qemu_rv64_virt-test-ci"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "kernel",
+ "qemu_rv64_virt",
+ "qemu_rv64_virt_chip",
+ "rv64i",
+ "sifive",
+ "tock_build_scripts",
+]
+
+[[package]]
+name = "qemu_rv64_virt_chip"
+version = "0.2.3-dev"
+dependencies = [
+ "kernel",
+ "qemu_virt_chip",
+ "rv64i",
+ "sifive",
+ "tock-registers",
+ "virtio",
+]
+
+[[package]]
+name = "qemu_virt_chip"
+version = "0.2.3-dev"
+dependencies = [
+ "kernel",
 ]
 
 [[package]]
@@ -1493,10 +1545,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "rv64i"
+version = "0.2.3-dev"
+dependencies = [
+ "kernel",
+ "riscv",
+ "riscv-csr",
+ "tock-registers",
+]
+
+[[package]]
 name = "sam4l"
 version = "0.2.3-dev"
 dependencies = [
  "cortexm4",
+ "enum_primitive",
  "kernel",
 ]
 
@@ -1677,6 +1740,15 @@ dependencies = [
 
 [[package]]
 name = "stm32u5xx"
+version = "0.2.3-dev"
+dependencies = [
+ "cortexm33",
+ "kernel",
+ "stm32u5xx-unsafe",
+]
+
+[[package]]
+name = "stm32u5xx-unsafe"
 version = "0.2.3-dev"
 dependencies = [
  "cortexm33",

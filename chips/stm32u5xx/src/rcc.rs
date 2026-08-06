@@ -43,7 +43,8 @@ register_bitfields![u32,
         HSIRDY OFFSET(10) NUMBITS(1) []
     ],
     pub AHB1ENR [
-        GPDMA1EN OFFSET(0) NUMBITS(1) []
+        GPDMA1EN OFFSET(0) NUMBITS(1) [],
+        CRCEN OFFSET(12) NUMBITS(1) [],
     ],
     pub AHB2ENR1 [
         GPIOAEN OFFSET(0) NUMBITS(1) [],
@@ -57,7 +58,9 @@ register_bitfields![u32,
         GPIOIEN OFFSET(8) NUMBITS(1) [],
         GPIOJEN OFFSET(9) NUMBITS(1) [],
         ADC12EN OFFSET(10) NUMBITS(1) [],
-        HASHEN OFFSET(17) NUMBITS(1) [],
+        AESEN   OFFSET(16) NUMBITS(1) [],
+        HASHEN  OFFSET(17) NUMBITS(1) [],
+        TRNGEN  OFFSET(18) NUMBITS(1) [],
     ],
     pub AHB3ENR [
         PWREN OFFSET(2) NUMBITS(1) [],
@@ -110,6 +113,10 @@ impl Rcc {
         Self { registers: base }
     }
 
+    pub fn enable_crc(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::CRCEN::SET);
+    }
+
     pub fn enable_dma1(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPDMA1EN::SET);
     }
@@ -134,6 +141,10 @@ impl Rcc {
         self.registers.apb1enr1.modify(APB1ENR1::TIM3EN::SET);
     }
 
+    pub fn enable_aes(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::AESEN::SET);
+    }
+
     pub fn enable_syscfg(&self) {
         self.registers.apb3enr.modify(APB3ENR::SYSCFGEN::SET);
     }
@@ -151,6 +162,10 @@ impl Rcc {
 
     pub fn enable_adc1(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::ADC12EN::SET);
+    }
+
+    pub fn enable_trng(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::TRNGEN::SET);
     }
 
     pub fn set_usart1_source_pclk(&self) {

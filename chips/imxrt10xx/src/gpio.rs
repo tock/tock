@@ -332,13 +332,11 @@ impl<'a, const N: usize> Port<'a, N> {
         // changed due to an external interrupt. `ISR` is a read/clear write
         // 1 register (`rc_w1`). So, we only clear bits whose value has been
         // transferred to `isr`.
-        let isr_val = unsafe {
-            with_interrupts_disabled(|| {
-                let isr_val = self.registers.isr.get();
-                self.registers.isr.set(isr_val);
-                isr_val
-            })
-        };
+        let isr_val = with_interrupts_disabled(|| {
+            let isr_val = self.registers.isr.get();
+            self.registers.isr.set(isr_val);
+            isr_val
+        });
 
         BitOffsets(isr_val)
             // Did we enable this interrupt?
@@ -746,25 +744,21 @@ impl hil::gpio::Input for Pin<'_> {
 
 impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
-        unsafe {
-            with_interrupts_disabled(|| {
-                // disable the interrupt
-                self.mask_interrupt();
-                self.clear_pending();
-                self.set_edge_sensitive(mode);
+        with_interrupts_disabled(|| {
+            // disable the interrupt
+            self.mask_interrupt();
+            self.clear_pending();
+            self.set_edge_sensitive(mode);
 
-                self.unmask_interrupt();
-            });
-        }
+            self.unmask_interrupt();
+        });
     }
 
     fn disable_interrupts(&self) {
-        unsafe {
-            with_interrupts_disabled(|| {
-                self.mask_interrupt();
-                self.clear_pending();
-            });
-        }
+        with_interrupts_disabled(|| {
+            self.mask_interrupt();
+            self.clear_pending();
+        });
     }
 
     fn set_client(&self, client: &'a dyn hil::gpio::Client) {

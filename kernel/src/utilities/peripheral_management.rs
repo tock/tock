@@ -11,15 +11,15 @@
 //! Generally, Tock peripherals are modeled by two structures, such as:
 //!
 //! ```rust
-//! # use kernel::utilities::cells::VolatileCell;
 //! # use kernel::utilities::StaticRef;
+//! # use kernel::utilities::registers::ReadWrite;
 //! # struct ChipSpecificPeripheralClock {};
 //! /// The MMIO Structure.
 //! #[repr(C)]
 //! #[allow(dead_code)]
 //! pub struct PeripheralRegisters {
-//!     control: VolatileCell<u32>,
-//!     interrupt_mask: VolatileCell<u32>,
+//!     control: ReadWrite<u32>,
+//!     interrupt_mask: ReadWrite<u32>,
 //! }
 //!
 //! /// The Tock object that holds all information for this peripheral.
@@ -36,12 +36,13 @@
 //! MMIO pointer safely, Tock provides the PeripheralManager interface:
 //!
 //! ```rust
-//! # use kernel::utilities::cells::VolatileCell;
 //! # use kernel::utilities::peripheral_management::PeripheralManager;
 //! # use kernel::utilities::StaticRef;
+//! # use kernel::utilities::registers::ReadWrite;
+//! # use kernel::utilities::registers::interfaces::Writeable;
 //! # use kernel::ErrorCode;
 //! # use kernel::hil;
-//! # struct PeripheralRegisters { control: VolatileCell<u32> };
+//! # struct PeripheralRegisters { control: ReadWrite<u32> };
 //! # struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
 //! impl hil::uart::Configure for PeripheralHardware {
 //!     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
@@ -186,10 +187,11 @@ where
 /// object.
 ///
 /// ```
-/// # use kernel::utilities::cells::VolatileCell;
 /// # use kernel::utilities::peripheral_management::PeripheralManager;
 /// # use kernel::utilities::StaticRef;
-/// # pub struct PeripheralRegisters { control: VolatileCell<u32> };
+/// # use kernel::utilities::registers::ReadWrite;
+/// # use kernel::utilities::registers::interfaces::Writeable;
+/// # pub struct PeripheralRegisters { control: ReadWrite<u32> };
 /// # pub struct PeripheralHardware { mmio_address: StaticRef<PeripheralRegisters> };
 /// impl PeripheralHardware {
 ///     fn example(&self) {

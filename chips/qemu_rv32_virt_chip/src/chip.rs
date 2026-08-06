@@ -14,6 +14,7 @@ use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
+use tock_registers::Mmio32;
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;
@@ -39,14 +40,14 @@ pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
 }
 
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
-    pub uart0: crate::uart::Uart16550<'a>,
-    pub virtio_mmio: [VirtIOMMIODevice<virtio_mmio_device_registers::Real>; 8],
+    pub uart0: qemu_virt_chip::uart::Uart16550<'a>,
+    pub virtio_mmio: [VirtIOMMIODevice<virtio_mmio_device_registers::Real<Mmio32>>; 8],
 }
 
 impl QemuRv32VirtDefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
-            uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
+            uart0: qemu_virt_chip::uart::Uart16550::new(crate::uart::UART0_BASE),
             virtio_mmio: [
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_0_BASE),
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_1_BASE),
@@ -170,7 +171,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

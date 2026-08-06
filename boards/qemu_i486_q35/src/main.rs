@@ -22,6 +22,7 @@ use kernel::debug;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
+use kernel::hil::keyboard::Keyboard;
 use kernel::ipc::IPC;
 use kernel::platform::chip::InterruptService;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -45,10 +46,12 @@ mod io;
 
 /// Multiboot V1 header, allowing this kernel to be booted directly by QEMU
 ///
-/// When compiling for a macOS host, the `link_section` attribute is elided as
-/// it yields the following error: `mach-o section specifier requires a segment
-/// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".multiboot")]
+/// This section attribute is only applied when targeting bare-metal
+/// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+/// formats (Mach-O, PE, ...) that reject a bare section name like this,
+/// yielding errors such as: `mach-o section specifier requires a segment and
+/// section separated by a comma`.
+#[cfg_attr(target_os = "none", link_section = ".multiboot")]
 #[used]
 static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 
@@ -75,11 +78,17 @@ type SchedulerInUse = components::sched::cooperative::CooperativeComponentType;
 // Static allocations used for page tables
 //
 // These are placed into custom sections so they can be properly aligned and padded in layout.ld
+//
+// The section attributes are only applied when targeting bare-metal
+// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+// formats (Mach-O, PE, ...) that reject a bare section name like this,
+// yielding errors such as: `mach-o section specifier requires a segment and
+// section separated by a comma`.
 #[no_mangle]
-#[cfg_attr(not(target_os = "macos"), link_section = ".pde")]
+#[cfg_attr(target_os = "none", link_section = ".pde")]
 pub static mut PAGE_DIR: PD = [PDEntry(0); 1024];
 #[no_mangle]
-#[cfg_attr(not(target_os = "macos"), link_section = ".pte")]
+#[cfg_attr(target_os = "none", link_section = ".pte")]
 pub static mut PAGE_TABLE: PT = [PTEntry(0); 1024];
 
 /// Initializes a Virtio transport driver for the given PCI device.
@@ -224,6 +233,19 @@ impl<C: kernel::platform::chip::Chip> KernelResources<C> for QemuI386Q35Platform
         &()
     }
 }
+
+impl kernel::hil::keyboard::KeyboardClient for QemuI386Q35Platform {
+    fn keys_pressed(&self, keys: &[(u16, bool)], result: Result<(), kernel::ErrorCode>) {
+        if result.is_ok() {
+            for (key, pressed) in keys {
+                if *pressed {
+                    kernel::debug!("Keyboard Key Pressed: {}", key);
+                }
+            }
+        }
+    }
+}
+
 // `allow(unsupported_calling_conventions)`: cdecl is not valid when testing
 // this code on an x86_64 machine. This avoids a warning until a more permanent
 // fix is decided. See: https://github.com/tock/tock/pull/4662
@@ -255,6 +277,8 @@ unsafe extern "cdecl" fn main() {
                     (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
                     (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
                     kernel::static_buf!(x86_q35::vga_uart_driver::VgaText<'static>),
+                    kernel::static_buf!(x86_q35::ps2::Ps2Controller),
+                    kernel::static_buf!(x86_q35::keyboard::Ps2Keyboard<'static>),
                 ),
                 &mut *ptr::addr_of_mut!(PAGE_DIR),
             )
@@ -523,23 +547,29 @@ unsafe extern "cdecl" fn main() {
                 AlarmHw
             ));
 
-    let platform = QemuI386Q35Platform {
-        pconsole,
-        console,
-        alarm,
-        lldb,
-        scheduler,
-        scheduler_timer,
-        rng: rng_driver,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_cap,
-        ),
-    };
+    let platform = static_init!(
+        QemuI386Q35Platform,
+        QemuI386Q35Platform {
+            pconsole,
+            console,
+            alarm,
+            lldb,
+            scheduler,
+            scheduler_timer,
+            rng: rng_driver,
+            ipc: kernel::ipc::IPC::new(
+                board_kernel,
+                kernel::ipc::DRIVER_NUM,
+                &memory_allocation_cap,
+            ),
+        }
+    );
 
     // Start the process console:
     let _ = platform.pconsole.start();
+
+    // Attach the keyboard button press callback to ourself.
+    default_peripherals.keyboard.set_client(platform);
 
     debug!("QEMU i486 \"Q35\" machine, initialization complete.");
     debug!("Entering main loop.");
@@ -577,5 +607,5 @@ unsafe extern "cdecl" fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
+    board_kernel.kernel_loop(platform, chip, Some(&platform.ipc), &main_loop_cap);
 }

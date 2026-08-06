@@ -584,12 +584,10 @@ impl<'a> Exti<'a> {
         // changed due to an external interrupt. `EXTI_PR` is a read/clear write
         // 1 register (`rc_w1`). So, we only clear bits whose value has been
         // transferred to `exti_pr`.
-        unsafe {
-            with_interrupts_disabled(|| {
-                exti_pr = self.registers.pr.get();
-                self.registers.pr.set(exti_pr);
-            });
-        }
+        with_interrupts_disabled(|| {
+            exti_pr = self.registers.pr.get();
+            self.registers.pr.set(exti_pr);
+        });
 
         // ignore the "reserved" EXTI bits. Use bits [22:0]. See `EXTI_PR` for
         // details.

@@ -315,7 +315,7 @@ mod detail {
 
     #[repr(C)]
     pub struct EndpointRegisters<'a> {
-        ptr: VolatileCell<*const u8>,
+        ptr: ReadWrite<u32>,
         maxcnt: ReadWrite<u32, Count::Register>,
         amount: ReadOnly<u32, Amount::Register>,
         // padding
@@ -326,7 +326,7 @@ mod detail {
 
     impl<'a> EndpointRegisters<'a> {
         pub fn set_buffer(&self, slice: &'a [VolatileCell<u8>]) {
-            self.ptr.set(slice.as_ptr().cast::<u8>());
+            self.ptr.set(slice.as_ptr().cast::<u8>() as u32);
             self.maxcnt.write(Count::MAXCNT.val(slice.len() as u32));
         }
     }
@@ -791,34 +791,30 @@ impl<'a> Usbd<'a> {
     /// USBD might not reach its active state.
     fn apply_errata_171(&self, val: u32) {
         if self.has_errata_171() {
-            unsafe {
-                with_interrupts_disabled(|| {
-                    if USBERRATA_BASE.reg_c00.get() == 0 {
-                        USBERRATA_BASE.reg_c00.set(0x9375);
-                        USBERRATA_BASE.reg_c14.set(val);
-                        USBERRATA_BASE.reg_c00.set(0x9375);
-                    } else {
-                        USBERRATA_BASE.reg_c14.set(val);
-                    }
-                });
-            }
+            with_interrupts_disabled(|| {
+                if USBERRATA_BASE.reg_c00.get() == 0 {
+                    USBERRATA_BASE.reg_c00.set(0x9375);
+                    USBERRATA_BASE.reg_c14.set(val);
+                    USBERRATA_BASE.reg_c00.set(0x9375);
+                } else {
+                    USBERRATA_BASE.reg_c14.set(val);
+                }
+            });
         }
     }
 
     /// USB cannot be enabled
     fn apply_errata_187(&self, val: u32) {
         if self.has_errata_187() {
-            unsafe {
-                with_interrupts_disabled(|| {
-                    if USBERRATA_BASE.reg_c00.get() == 0 {
-                        USBERRATA_BASE.reg_c00.set(0x9375);
-                        USBERRATA_BASE.reg_d14.set(val);
-                        USBERRATA_BASE.reg_c00.set(0x9375);
-                    } else {
-                        USBERRATA_BASE.reg_d14.set(val);
-                    }
-                });
-            }
+            with_interrupts_disabled(|| {
+                if USBERRATA_BASE.reg_c00.get() == 0 {
+                    USBERRATA_BASE.reg_c00.set(0x9375);
+                    USBERRATA_BASE.reg_d14.set(val);
+                    USBERRATA_BASE.reg_c00.set(0x9375);
+                } else {
+                    USBERRATA_BASE.reg_d14.set(val);
+                }
+            });
         }
     }
 

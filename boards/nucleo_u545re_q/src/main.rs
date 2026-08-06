@@ -7,15 +7,17 @@
 #![no_main]
 
 use components::hmac_component_static;
-use kernel::capabilities;
+use kernel::capabilities::{self, MemoryAllocationCapability};
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
+use stm32u545::rng::RNG_BASE;
 
 pub mod io;
 
@@ -59,10 +61,16 @@ struct NucleoU545RE {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     gpio: &'static GpioDriver,
+    crc: &'static capsules_extra::crc::CrcDriver<'static, stm32u545::crc::CRC<'static>>,
     hmac: &'static capsules_extra::hmac::HmacDriver<
         'static,
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         32,
+    >,
+    aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
+        'static,
+        stm32u545::aes::ecb::Aes<'static, AES256>,
+        AES256,
     >,
 }
 
@@ -80,7 +88,9 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_extra::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             _ => f(None),
         }
     }
@@ -201,6 +211,13 @@ unsafe fn start() -> (
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(exti, dma1)
     );
 
+    let trng = static_init!(
+        stm32u545::rng::Trng<'static>,
+        stm32u545::rng::Trng::new(RNG_BASE)
+    );
+    trng.init();
+    periphs.rcc.enable_trng();
+
     // Initialize wiring (DMA, clocks)
     periphs.init();
 
@@ -251,6 +268,17 @@ unsafe fn start() -> (
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    let aes_driver = components::aes::AesDriverComponent::new(
+        board_kernel,
+        capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
+        &periphs.aes,
+        create_capability!(MemoryAllocationCapability),
+    )
+    .finalize(components::aes_driver_component_static!(
+        stm32u545::aes::ecb::Aes<'static, AES256>,
+        AES256
+    ));
+
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
@@ -395,6 +423,16 @@ unsafe fn start() -> (
         32
     ));
 
+    let crc = components::crc::CrcComponent::new(
+        board_kernel,
+        capsules_extra::crc::DRIVER_NUM,
+        &periphs.crc,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::crc_component_static!(
+        stm32u545::crc::CRC<'static>
+    ));
+
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -410,7 +448,9 @@ unsafe fn start() -> (
             adc: adc_syscall,
             dac,
             gpio,
-            hmac
+            crc,
+            hmac,
+            aes: aes_driver,
         }
     );
 

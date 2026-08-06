@@ -392,13 +392,11 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        unsafe {
-            with_interrupts_disabled(|| {
-                // Disable counter
-                self.registers.ir.modify(IR::OF1IE::CLEAR);
-                cortexm7::nvic::Nvic::new(self.irqn).clear_pending();
-            });
-        }
+        with_interrupts_disabled(|| {
+            // Disable counter
+            self.registers.ir.modify(IR::OF1IE::CLEAR);
+            cortexm7::nvic::Nvic::new(self.irqn).clear_pending();
+        });
         Ok(())
     }
 

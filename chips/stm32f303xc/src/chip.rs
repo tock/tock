@@ -144,7 +144,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f3xx<'a, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
