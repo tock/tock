@@ -124,21 +124,7 @@ type Ieee802154MacDevice =
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
-kernel::declare_capability!(ProcessConsoleCap:
-    kernel::capabilities::ProcessManagementCapability,
-    kernel::capabilities::ProcessStartCapability
-);
-
 struct Imix {
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            sam4l::ast::Ast<'static>,
-        >,
-        ProcessConsoleCap,
-    >,
     console: &'static capsules_core::console_ordered::ConsoleOrdered<
         'static,
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -412,13 +398,17 @@ unsafe fn start() -> (
     )
     .finalize(components::alarm_component_static!(sam4l::ast::Ast));
 
+    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let pconsole = ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast,
@@ -722,7 +712,7 @@ unsafe fn start() -> (
     ));
 
     // UDP driver initialization happens here
-    kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+    kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::driver::DRIVER_NUM,
@@ -730,7 +720,7 @@ unsafe fn start() -> (
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
-        UdpDriverCap,
+        udp_driver_cap,
         create_capability!(capabilities::MemoryAllocationCapability),
         create_capability!(capabilities::NetworkCapabilityCreationCapability),
     )
@@ -762,10 +752,10 @@ unsafe fn start() -> (
     // STORAGE PERMISSIONS
     //--------------------------------------------------------------------------
 
-    kernel::declare_capability!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    kernel::create_typed_capability!(app_store_cap, AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
     let storage_permissions_policy =
         components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
-            AppStoreCap,
+            app_store_cap,
         )
         .finalize(
             components::storage_permissions_individual_component_static!(
@@ -819,7 +809,6 @@ unsafe fn start() -> (
     ));
 
     let imix = Imix {
-        pconsole,
         console,
         alarm,
         gpio,
@@ -851,7 +840,7 @@ unsafe fn start() -> (
     let _ = rf233.reset();
     let _ = rf233.start();
 
-    let _ = imix.pconsole.start();
+    let _ = pconsole.start();
 
     // Optional kernel tests. Note that these might conflict
     // with normal operation (e.g., steal callbacks from drivers, etc.),

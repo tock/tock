@@ -127,11 +127,6 @@ fn init_virtio_dev(
     Some((int_line, dev))
 }
 
-kernel::declare_capability!(ProcessConsoleCap:
-    kernel::capabilities::ProcessManagementCapability,
-    kernel::capabilities::ProcessStartCapability
-);
-
 /// Provides interrupt servicing logic for Virtio devices which may or may not be present at
 /// runtime.
 struct VirtioDevices {
@@ -154,12 +149,6 @@ impl InterruptService for VirtioDevices {
 }
 
 pub struct QemuI386Q35Platform {
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
-        ProcessConsoleCap,
-    >,
     console: &'static Console<'static>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
@@ -486,13 +475,17 @@ unsafe extern "cdecl" fn main() {
     let console_uart_device = uart_mux;
 
     // Initialize the kernel's process console.
+    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         console_uart_device,
         mux_alarm,
         process_printer,
         None,
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         Pit<'static, RELOAD_1KHZ>,
@@ -550,7 +543,6 @@ unsafe extern "cdecl" fn main() {
     let platform = static_init!(
         QemuI386Q35Platform,
         QemuI386Q35Platform {
-            pconsole,
             console,
             alarm,
             lldb,
@@ -566,7 +558,7 @@ unsafe extern "cdecl" fn main() {
     );
 
     // Start the process console:
-    let _ = platform.pconsole.start();
+    let _ = pconsole.start();
 
     // Attach the keyboard button press callback to ourself.
     default_peripherals.keyboard.set_client(platform);

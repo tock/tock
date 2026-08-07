@@ -8,7 +8,6 @@
 #![no_main]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::ErrorCode;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
@@ -17,7 +16,9 @@ use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
-use kernel::{create_capability, debug, static_init};
+use kernel::{
+    create_capability, debug, define_capability_type, mint_defined_capability, static_init,
+};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use rv32i::csr;
 use rv32i::dma_fence::RiscvCoherentDmaFence;
@@ -53,23 +54,13 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>
 
 kernel::stack_size! {0x8000}
 
-kernel::declare_capability!(ProcessConsoleCap:
-    kernel::capabilities::ProcessManagementCapability,
-    kernel::capabilities::ProcessStartCapability
-);
+define_capability_type!(ProcessConsoleCap: capabilities::ProcessManagementCapability, capabilities::ProcessStartCapability);
+type ProcessConsoleDriver =
+    components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 pub struct QemuRv32VirtPlatform {
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
-        >,
-        ProcessConsoleCap,
-    >,
     console: &'static capsules_core::console::Console<'static>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
@@ -104,12 +95,6 @@ pub struct QemuRv32VirtPlatform {
             RiscvCoherentDmaFence,
         >,
     >,
-}
-
-impl QemuRv32VirtPlatform {
-    pub fn process_console_start(&self) -> Result<(), ErrorCode> {
-        self.pconsole.start()
-    }
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -197,6 +182,7 @@ pub unsafe fn start() -> (
         'static,
         QemuRv32VirtDefaultPeripherals<'static>,
     >,
+    &'static ProcessConsoleDriver,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -690,20 +676,6 @@ pub unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
-    // Initialize the kernel's process console.
-    let pconsole = components::process_console::ProcessConsoleComponent::new(
-        board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-        None,
-        ProcessConsoleCap,
-    )
-    .finalize(components::process_console_component_static!(
-        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
-        ProcessConsoleCap
-    ));
-
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -756,7 +728,6 @@ pub unsafe fn start() -> (
             ));
 
     let platform = QemuRv32VirtPlatform {
-        pconsole,
         console,
         alarm,
         lldb,
@@ -799,5 +770,26 @@ pub unsafe fn start() -> (
         debug!("- VirtIO Input device not found, disabling Input");
     }
 
-    (board_kernel, platform, chip)
+    // Create the process console, an interactive terminal for managing
+    // processes. This is left unstarted; it is up to the caller to start it
+    // once the rest of initialization, including the debug prints above,
+    // has completed. Starting the console arms an alarm that will
+    // (asynchronously) print its prompt and begin accepting input, so
+    // starting it too early could interleave its output with or precede the
+    // initialization messages above.
+    let process_console_cap = unsafe { mint_defined_capability!(ProcessConsoleCap) };
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        None,
+        process_console_cap,
+    )
+    .finalize(components::process_console_component_static!(
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
+        ProcessConsoleCap
+    ));
+
+    (board_kernel, platform, chip, pconsole)
 }

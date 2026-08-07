@@ -257,7 +257,7 @@ unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
-    kernel::declare_capability!(ProcessConsoleCap:
+    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
@@ -267,7 +267,7 @@ unsafe fn start() -> (
         mux_alarm,
         process_printer,
         None,
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         e310_g002::chip::E310xClint,

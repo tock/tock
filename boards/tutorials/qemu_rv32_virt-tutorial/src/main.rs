@@ -162,7 +162,7 @@ impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, base_platform, chip) = qemu_rv32_virt_lib::start();
+    let (board_kernel, base_platform, chip, pconsole) = qemu_rv32_virt_lib::start();
 
     //--------------------------------------------------------------------------
     // SCREEN
@@ -258,7 +258,7 @@ pub unsafe fn main() {
     };
 
     // Start the process console:
-    let _ = platform.base.process_console_start();
+    let _ = pconsole.start();
 
     //--------------------------------------------------------------------------
     // CREDENTIAL CHECKING

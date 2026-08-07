@@ -83,7 +83,10 @@ use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::cells::MapCell;
 #[allow(unused_imports)]
-use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
+use kernel::{
+    capabilities, create_capability, debug, debug_gpio, debug_verbose, define_capability_type,
+    mint_defined_capability, static_init,
+};
 use nrf52_components::{UartChannel, UartPins};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
@@ -185,12 +188,11 @@ type AnalogComparatorDriver =
     components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
 type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
 type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
-kernel::declare_capability!(ProcessConsoleCap:
-    kernel::capabilities::ProcessManagementCapability,
-    kernel::capabilities::ProcessStartCapability
-);
+
+define_capability_type!(ProcessConsoleCap: capabilities::ProcessManagementCapability, capabilities::ProcessStartCapability);
 type ProcessConsoleDriver =
     components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
+
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
 type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
 
@@ -217,8 +219,6 @@ pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<Radi
 /// Userspace EUI64 driver.
 pub type Eui64Driver = components::eui64::Eui64ComponentType;
 
-kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
-
 /// Userspace UDP driver.
 pub type UdpDriver = components::udp_driver::UDPDriverComponentType;
 
@@ -228,7 +228,6 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 pub struct Platform {
     ble_radio: &'static BleDriver,
     button: &'static ButtonDriver,
-    pconsole: &'static ProcessConsoleDriver,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
@@ -380,6 +379,7 @@ pub unsafe fn ieee802154_udp(
     ));
 
     // UDP driver initialization happens here
+    kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::driver::DRIVER_NUM,
@@ -387,7 +387,7 @@ pub unsafe fn ieee802154_udp(
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
-        UdpDriverCap,
+        udp_driver_cap,
         create_capability!(capabilities::MemoryAllocationCapability),
         create_capability!(capabilities::NetworkCapabilityCreationCapability),
     )
@@ -403,12 +403,15 @@ pub unsafe fn ieee802154_udp(
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-pub unsafe fn start_no_pconsole() -> (
+pub unsafe fn start_pconsole_optional(
+    start_pconsole: bool,
+) -> (
     &'static kernel::Kernel,
     Platform,
     &'static ChipHw,
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, AlarmHw>,
+    Option<&'static ProcessConsoleDriver>,
 ) {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
@@ -637,21 +640,6 @@ pub unsafe fn start_no_pconsole() -> (
     // Virtualize the UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
         .finalize(components::uart_mux_component_static!());
-
-    // Create the process console, an interactive terminal for managing
-    // processes.
-    let pconsole = components::process_console::ProcessConsoleComponent::new(
-        board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-        Some(cortexm4::support::reset),
-        ProcessConsoleCap,
-    )
-    .finalize(components::process_console_component_static!(
-        AlarmHw,
-        ProcessConsoleCap
-    ));
 
     // Setup the serial console for userspace.
     let console = components::console::ConsoleComponent::new(
@@ -935,7 +923,6 @@ pub unsafe fn start_no_pconsole() -> (
     let platform = Platform {
         button,
         ble_radio,
-        pconsole,
         console,
         led,
         gpio,
@@ -961,12 +948,36 @@ pub unsafe fn start_no_pconsole() -> (
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", ficr);
 
+    // Create the process console, an interactive terminal for managing
+    // processes. This is left unstarted; it is up to the caller to start it
+    // (or start it hibernated) once the rest of initialization, including
+    // the debug prints above, has completed. Starting the console arms an
+    // alarm that will (asynchronously) print its prompt and begin accepting
+    // input, so starting it too early could interleave its output with or
+    // precede the initialization messages above.
+    let pconsole = start_pconsole.then(|| {
+        let process_console_cap = unsafe { mint_defined_capability!(ProcessConsoleCap) };
+        components::process_console::ProcessConsoleComponent::new(
+            board_kernel,
+            uart_mux,
+            mux_alarm,
+            process_printer,
+            Some(cortexm4::support::reset),
+            process_console_cap,
+        )
+        .finalize(components::process_console_component_static!(
+            AlarmHw,
+            ProcessConsoleCap
+        ))
+    });
+
     (
         board_kernel,
         platform,
         chip,
         nrf52840_peripherals,
         mux_alarm,
+        pconsole,
     )
 }
 
@@ -981,7 +992,7 @@ pub unsafe fn start() -> (
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, AlarmHw>,
 ) {
-    let (kernel, platform, chip, peripherals, mux_alarm) = start_no_pconsole();
-    let _ = platform.pconsole.start();
+    let (kernel, platform, chip, peripherals, mux_alarm, pconsole) = start_pconsole_optional(true);
+    let _ = pconsole.unwrap().start();
     (kernel, platform, chip, peripherals, mux_alarm)
 }

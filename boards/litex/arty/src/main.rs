@@ -32,11 +32,6 @@ mod litex_generated_constants;
 // short name.
 use litex_generated_constants as socc;
 
-kernel::declare_capability!(ProcessConsoleCap:
-    kernel::capabilities::ProcessManagementCapability,
-    kernel::capabilities::ProcessStartCapability
-);
-
 /// Structure for dynamic interrupt mapping, depending on the SoC
 /// configuration
 ///
@@ -114,12 +109,6 @@ struct LiteXArty {
         4,
     >,
     console: &'static capsules_core::console::Console<'static>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        VirtualMuxAlarm<'static, AlarmHw>,
-        ProcessConsoleCap,
-    >,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
@@ -451,13 +440,17 @@ unsafe fn start() -> (
     chip.unmask_interrupts();
 
     // Setup the process console.
+    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         None,
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         AlarmHw,
@@ -498,7 +491,6 @@ unsafe fn start() -> (
 
     let litex_arty = LiteXArty {
         console,
-        pconsole,
         alarm,
         lldb,
         led_driver,
@@ -512,7 +504,7 @@ unsafe fn start() -> (
     };
 
     debug!("LiteX+VexRiscv on ArtyA7: initialization complete, entering main loop.");
-    let _ = litex_arty.pconsole.start();
+    let _ = pconsole.start();
 
     kernel::process::load_processes(
         board_kernel,
