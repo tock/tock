@@ -2460,6 +2460,13 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // We need to construct a capability with sufficient authority to cover all of a user's
         // code, with permissions to execute it. The entirety of flash is sufficient.
 
+        // SAFETY: It must be safe for a process to use the a pointer in the
+        // given memory range for the given permission. We use the process's
+        // flash region as the bounds, ensuring the pointer is contained to this
+        // new process. The capability pointer is only specified with execute
+        // permissions, and it is safe for the process to execute anywhere in
+        // its flash region. If `init_addr` is not actually within the range
+        // then this does not provide authority to dereference the pointer.
         let init_fn = unsafe {
             CapabilityPtr::new_with_authority(
                 init_addr as *const (),
