@@ -52,6 +52,10 @@ impl<'a, H: digest::Digest<'a, HMAC_MD5_DIGEST_LEN> + HmacMd5> TestHmacMd5<'a, H
             panic!("HmacMd5Test: failed to set key: {:?}", r);
         }
         let data = self.data.take().unwrap();
+        let r = self.hmac.preset_message_length(data.len());
+        if r.is_err() {
+            panic!("HmacMd5Test: failed to preset the length: {:?}", r);
+        }
         let buffer = SubSliceMut::new(data);
         let r = self.hmac.add_mut_data(buffer);
         if r.is_err() {
