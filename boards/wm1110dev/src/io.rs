@@ -19,23 +19,32 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_red_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_14);
     let led = &mut led::LedHigh::new(led_red_pin);
 
-    debug::panic::<_, nrf52840::uart::Uarte, _, _>(
-        &mut [led],
-        nrf52840::uart::UartPanicWriterConfig {
-            params: uart::Parameters {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-                width: uart::Width::Eight,
+    crate::PANIC_RESOURCES
+        .get()
+        .and_then(|r| r.custom.take())
+        .map_or_else(
+            || debug::panic_blink_forever(&mut [led]),
+            |uarte0_register_manager| {
+                debug::panic::<_, nrf52840::uart::Uarte, _, _, _>(
+                    &mut [led],
+                    nrf52840::uart::UartPanicWriterConfig {
+                        registers_manager: uarte0_register_manager,
+                        params: uart::Parameters {
+                            baud_rate: 115200,
+                            stop_bits: uart::StopBits::One,
+                            parity: uart::Parity::None,
+                            hw_flow_control: false,
+                            width: uart::Width::Eight,
+                        },
+                        txd: crate::UART_TX_PIN,
+                        rxd: crate::UART_RX_PIN,
+                        cts: None,
+                        rts: None,
+                    },
+                    pi,
+                    &cortexm4::support::nop,
+                    crate::PANIC_RESOURCES.get(),
+                )
             },
-            txd: crate::UART_TX_PIN,
-            rxd: crate::UART_RX_PIN,
-            cts: None,
-            rts: None,
-        },
-        pi,
-        &cortexm4::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+        )
 }

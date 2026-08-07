@@ -146,8 +146,9 @@ pub const NUM_PROCS: usize = 8;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
 /// Resources for when a board panics used by io.rs.
-static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinter>> =
-    SingleThreadValue::new();
+static PANIC_RESOURCES: SingleThreadValue<
+    PanicResources<ChipHw, ProcessPrinter, &nrf52840::uart::UarteRegistersManager>,
+> = SingleThreadValue::new();
 
 /// In-memory buffer used for the Segger Real Time Transfer (RTT) mechanism.
 static RTT_BUFFER: SingleThreadValue<MapCell<&'static segger::rtt::SeggerRttMemory<'static>>> =
@@ -439,10 +440,17 @@ pub unsafe fn start_no_pconsole() -> (
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let uarte0_registers_manager = static_init!(
+        nrf52840::uart::UarteRegistersManager,
+        nrf52840::uart::UarteRegistersManager::new_uarte0()
+    );
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.custom.put(uarte0_registers_manager);
+    });
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf, uarte0_registers_manager)
     );
 
     // Set up circular peripheral dependencies.

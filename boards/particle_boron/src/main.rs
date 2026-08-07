@@ -76,8 +76,9 @@ type ChipHw = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
-static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
-    SingleThreadValue::new();
+static PANIC_RESOURCES: SingleThreadValue<
+    PanicResources<ChipHw, ProcessPrinterInUse, &nrf52840::uart::UarteRegistersManager>,
+> = SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
 
@@ -196,10 +197,17 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let uarte0_registers_manager = static_init!(
+        nrf52840::uart::UarteRegistersManager,
+        nrf52840::uart::UarteRegistersManager::new_uarte0()
+    );
+    PANIC_RESOURCES.get().map(|resources| {
+        resources.custom.put(uarte0_registers_manager);
+    });
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf, uarte0_registers_manager)
     );
 
     nrf52840_peripherals
