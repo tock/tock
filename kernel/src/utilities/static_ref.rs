@@ -58,3 +58,61 @@ impl<T> Deref for StaticRef<T> {
         unsafe { self.ptr.as_ref() }
     }
 }
+
+#[derive(Debug)]
+pub struct MmioWithDmaRefUnlocked<T> {
+    ptr: NonNull<T>,
+}
+
+impl<T> MmioWithDmaRefUnlocked<T> {
+    /// Create a new [`MmioWithDmaRefUnlocked`].
+    ///
+    /// Internal use only.
+    const fn new(ptr: NonNull<T>) -> Self {
+        Self { ptr }
+    }
+}
+
+impl<T> Deref for MmioWithDmaRefUnlocked<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        // SAFETY: `ptr` is aligned and dereferencable for the program duration
+        // as promised by the caller of `StaticRef::new`.
+        unsafe { self.ptr.as_ref() }
+    }
+}
+
+#[derive(Debug)]
+pub struct MmioWithDmaRef<T> {
+    ptr: NonNull<T>,
+}
+
+impl<T> MmioWithDmaRef<T> {
+    /// Create a new [`MmioWithDmaRef`] from a raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// - `ptr` must be aligned, non-null, and dereferencable as `T`.
+    /// - `*ptr` must be valid for the program duration.
+    pub const unsafe fn new(ptr: *const T) -> Self {
+        // SAFETY: `ptr` is non-null as promised by the caller.
+        unsafe {
+            Self {
+                ptr: NonNull::new_unchecked(ptr.cast_mut()),
+            }
+        }
+    }
+
+    /// Get access to the internal `StaticRef`.
+    ///
+    /// This must only be called once! It is only valid to have a single
+    /// `MmioWithDmaRefUnlocked` for a given MMIO register map that has DMA
+    /// registers.
+    ///
+    /// # Safety
+    ///
+    /// This must only be called once.
+    pub unsafe fn unlock(&self) -> MmioWithDmaRefUnlocked<T> {
+        MmioWithDmaRefUnlocked::new(self.ptr)
+    }
+}

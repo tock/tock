@@ -24,6 +24,8 @@ pub mod storage_volume;
 pub mod streaming_process_slice;
 
 mod static_ref;
+pub use self::static_ref::MmioWithDmaRef;
+pub use self::static_ref::MmioWithDmaRefUnlocked;
 pub use self::static_ref::StaticRef;
 
 /// The Tock Register Interface.
