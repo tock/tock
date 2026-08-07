@@ -770,6 +770,19 @@ pub mod immutable_from_into_bytes {
     /// [zerocopy-frombytes]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.FromBytes.html
     /// [zerocopy-intobytes]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.IntoBytes.html
     /// [zerocopy-immutable]: https://docs.rs/zerocopy/0.8.42/zerocopy/trait.Immutable.html
+    ///
+    /// # Safety
+    ///
+    /// Types that implement `ImmutableFromIntoBytes` must:
+    ///
+    /// 1. no_uninit: Not contain any uninitialized bytes (such as padding)
+    /// 2. no_interior_mut: Not have any interior mutability
+    /// 3. any_init_pattern: Be valid for all initialized byte patterns of the
+    ///    correct length and alignment.
+    ///
+    /// These guarantees effectively allow `&mut [T]` references to be converted
+    /// into `&mut [u8]` references, mutated, and then converted back into `&mut
+    /// [T]` references.
     pub unsafe trait ImmutableFromIntoBytes: private::Sealed {}
 
     impl private::Sealed for u8 {}
