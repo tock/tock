@@ -364,9 +364,6 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, writer: &mut W) {
-    if chip.is_none() {
-        let _ = writer.write_str("\r\nChip Information is not available\r\n");
-    }
     unsafe {
         C::print_state(chip, writer);
     }
