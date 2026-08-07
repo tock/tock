@@ -55,5 +55,4 @@ pub mod cells {
     pub use tock_cells::numeric_cell_ext::NumericCellExt;
     pub use tock_cells::optional_cell::OptionalCell;
     pub use tock_cells::take_cell::TakeCell;
-    pub use tock_cells::volatile_cell::VolatileCell;
 }
