@@ -6,7 +6,7 @@
 use core::fmt::Write;
 use core::panic;
 
-use cortexm33::{CortexM33, CortexMVariant};
+use cortexm33::{CortexM33Secure, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -25,7 +25,7 @@ pub enum Processor {
 
 pub struct Lpc55s69<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
-    userspace_kernel_boundary: cortexm33::syscall::SysCall,
+    userspace_kernel_boundary: cortexm33::syscall::SysCallM33Secure,
     interrupt_service: &'a I,
 }
 
@@ -33,7 +33,7 @@ impl<'a, I: InterruptService> Lpc55s69<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm33::mpu::new(),
-            userspace_kernel_boundary: cortexm33::syscall::SysCall::new(),
+            userspace_kernel_boundary: cortexm33::syscall::SysCallM33Secure::new(),
             interrupt_service,
         }
     }
@@ -41,7 +41,7 @@ impl<'a, I: InterruptService> Lpc55s69<'a, I> {
 
 impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
     type MPU = cortexm33::mpu::MPU<8>;
-    type UserspaceKernelBoundary = cortexm33::syscall::SysCall;
+    type UserspaceKernelBoundary = cortexm33::syscall::SysCallM33Secure;
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
     fn init() {
@@ -100,7 +100,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
     }
 
     unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
-        CortexM33::print_cortexm_state(writer);
+        CortexM33Secure::print_cortexm_state(writer);
     }
 }
 

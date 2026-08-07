@@ -6,7 +6,7 @@
 
 pub use stm32u5xx::{adc, aes, chip, crc, dma, exti, gpio, hash, pwr, rcc, tim, usart};
 
-use cortexm33::{CortexM33, CortexMVariant};
+use cortexm33::{CortexM33Secure, CortexMVariant};
 
 pub mod rng;
 
@@ -17,4 +17,5 @@ pub mod rng;
 // https://www.st.com/resource/en/reference_manual/rm0456-stm32u5-series-armbased-32bit-mcus-stmicroelectronics.pdf
 // Link to the STM32U545RE datasheet confirming 141 maskable interrupt channels:
 // https://www.st.com/resource/en/datasheet/stm32u545re.pdf (Section 3.19.1)
-pub static IRQS: [unsafe extern "C" fn(); 141] = [<CortexM33 as CortexMVariant>::GENERIC_ISR; 141];
+pub static IRQS: [unsafe extern "C" fn(); 141] =
+    [<CortexM33Secure as CortexMVariant>::GENERIC_ISR; 141];

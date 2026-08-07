@@ -30,9 +30,25 @@ pub struct Scb<'a> {
 }
 
 impl Scb<'_> {
-    pub const fn new() -> Self {
+    pub const fn new_scb3() -> Self {
         Self {
             registers: regs::SCB3_BASE,
+
+            tx_client: OptionalCell::empty(),
+            tx_buffer: TakeCell::empty(),
+            tx_length: OptionalCell::empty(),
+            tx_position: Cell::new(0),
+
+            rx_client: OptionalCell::empty(),
+            rx_buffer: TakeCell::empty(),
+            rx_length: OptionalCell::empty(),
+            rx_position: Cell::new(0),
+        }
+    }
+
+    pub const fn new_scb0() -> Self {
+        Self {
+            registers: regs::SCB0_BASE,
 
             tx_client: OptionalCell::empty(),
             tx_buffer: TakeCell::empty(),
@@ -227,6 +243,18 @@ impl Scb<'_> {
                 .write(regs::TX_FIFO_WR::DATA.val(*byte as u32));
 
             while !self.uart_is_transmitter_done() {}
+        }
+    }
+
+    pub fn receive_uart_sync(&self, buffer: &mut [u8]) {
+        for byte in buffer.iter_mut() {
+            while self
+                .registers
+                .rx_fifo_status
+                .read(regs::RX_FIFO_STATUS::USED)
+                == 0
+            {}
+            *byte = self.registers.rx_fifo_rd.read(regs::RX_FIFO_RD::DATA) as u8;
         }
     }
 
@@ -432,7 +460,7 @@ impl kernel::platform::chip::PanicWriter for Scb<'_> {
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
         use kernel::hil::uart::Configure as _;
 
-        let scb = Scb::new();
+        let scb = Scb::new_scb3();
 
         scb.disable_scb();
         scb.set_standard_uart_mode();
