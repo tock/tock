@@ -278,6 +278,7 @@ pub trait DeviceProcedure {
 }
 
 /// This state enum describes the state of the transmission pipeline.
+///
 /// Conditionally-present state is also included as fields in the enum variants.
 /// We can view the transmission process as a state machine driven by the
 /// following events:

@@ -164,13 +164,13 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
         InterruptPoller::access(|poller| {
             while let Some(num) = poller.next_pending() {
                 let mut handled = true;
-                match unsafe { self.default_peripherals.service_interrupt(num) } {
+                match self.default_peripherals.service_interrupt(num) {
                     true => {}
                     false => {
                         // Convert back to physical interrupt line number before passing to
                         // board-specific handler
                         let phys_num = num - PIC1_OFFSET as u32;
-                        handled = unsafe { self.board_peripherals.service_interrupt(phys_num) };
+                        handled = self.board_peripherals.service_interrupt(phys_num);
                     }
                 }
                 poller.clear_pending(num);
@@ -341,7 +341,7 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
 }
 
 impl<const PR: u16> InterruptService for PcDefaultPeripherals<PR> {
-    unsafe fn service_interrupt(&self, num: u32) -> bool {
+    fn service_interrupt(&self, num: u32) -> bool {
         match num {
             interrupt::PIT => {
                 self.pit.handle_interrupt();

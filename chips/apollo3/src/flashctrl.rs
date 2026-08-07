@@ -58,6 +58,8 @@ impl AsMut<[u8]> for Apollo3Page {
     }
 }
 
+/// FFI function to read a word from flash.
+///
 /// This function can be used to read / write arbitrary flash memory, and thus
 /// arbitrary program code. As such, they are unsafe operations. We also can't
 /// confirm that the functions are safe in the context of Rust.
@@ -79,6 +81,8 @@ unsafe fn flash_util_read_word(addr: *mut u32) -> u32 {
     flash_util_read_word(addr)
 }
 
+/// FFI function to program multiple words in flash.
+///
 /// This function can be used to read / write arbitrary flash memory, and thus
 /// arbitrary program code. As such, they are unsafe operations. We also can't
 /// confirm that the functions are safe in the context of Rust.
@@ -119,6 +123,8 @@ unsafe fn flash_program_main(
     flash_program_main(program_key, src_addr, dst_addr, num_words)
 }
 
+/// FFI function to erase flash.
+///
 /// This function can be used to read / write arbitrary flash memory, and thus
 /// arbitrary program code. As such, they are unsafe operations. We also can't
 /// confirm that the functions are safe in the context of Rust.

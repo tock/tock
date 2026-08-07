@@ -31,7 +31,7 @@ impl<'a> Stm32f412gDefaultPeripherals<'a> {
     }
 }
 impl kernel::platform::chip::InterruptService for Stm32f412gDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             // put Stm32f412g specific interrupts here
             stm32f412g_nvic::RNG => {

@@ -9,7 +9,7 @@ use cortexm4f::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     Field, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
@@ -309,7 +309,7 @@ struct UsbdRegisters<'a> {
 mod detail {
     use super::{Amount, Count};
     use core::marker::PhantomData;
-    use kernel::utilities::cells::VolatileCell;
+    use kernel::utilities::registers::InMemoryRegister;
     use kernel::utilities::registers::interfaces::Writeable;
     use kernel::utilities::registers::{ReadOnly, ReadWrite};
 
@@ -325,7 +325,7 @@ mod detail {
     }
 
     impl<'a> EndpointRegisters<'a> {
-        pub fn set_buffer(&self, slice: &'a [VolatileCell<u8>]) {
+        pub fn set_buffer(&self, slice: &'a [InMemoryRegister<u8>]) {
             self.ptr.set(slice.as_ptr().cast::<u8>() as u32);
             self.maxcnt.write(Count::MAXCNT.val(slice.len() as u32));
         }
@@ -688,8 +688,8 @@ pub enum BulkOutState {
 }
 
 pub struct Endpoint<'a> {
-    slice_in: OptionalCell<&'a [VolatileCell<u8>]>,
-    slice_out: OptionalCell<&'a [VolatileCell<u8>]>,
+    slice_in: OptionalCell<&'a [InMemoryRegister<u8>]>,
+    slice_out: OptionalCell<&'a [InMemoryRegister<u8>]>,
     state: Cell<EndpointState>,
     // The USB controller can only process one DMA transfer at a time (over all endpoints). The
     // request_transmit_* bits allow to queue transfers until the DMA becomes available again.
@@ -1935,7 +1935,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
         self.client.set(client);
     }
 
-    fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_ctrl_buffer(&self, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             panic!("Endpoint buffer must be at least 8 bytes");
         }
@@ -1946,7 +1946,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
         self.descriptors[0].slice_out.set(buf);
     }
 
-    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             panic!("Endpoint buffer must be at least 8 bytes");
         }
@@ -1959,7 +1959,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbd<'a> {
         self.descriptors[endpoint].slice_in.set(buf);
     }
 
-    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             panic!("Endpoint buffer must be at least 8 bytes");
         }
@@ -2175,7 +2175,7 @@ fn inter_endepout(ep: usize) -> Field<u32, Interrupt::Register> {
 }
 
 // Debugging functions.
-fn packet_to_hex(packet: &[VolatileCell<u8>], packet_hex: &mut [u8]) {
+fn packet_to_hex(packet: &[InMemoryRegister<u8>], packet_hex: &mut [u8]) {
     let hex_char = |x: u8| {
         if x < 10 { b'0' + x } else { b'a' + x - 10 }
     };

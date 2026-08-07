@@ -26,7 +26,7 @@ impl Nrf52832DefaultPeripherals<'_> {
     }
 }
 impl kernel::platform::chip::InterruptService for Nrf52832DefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nrf52::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
             _ => return self.nrf52.service_interrupt(interrupt),

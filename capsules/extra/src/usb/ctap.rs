@@ -26,6 +26,7 @@ use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 /// Use 1 Interrupt transfer IN/OUT endpoint
 const ENDPOINT_NUM: usize = 1;
@@ -41,7 +42,8 @@ pub const MAX_CTRL_PACKET_SIZE: u8 = 64;
 
 const N_ENDPOINTS: usize = 2;
 
-/// The HID report descriptor for CTAP
+/// The HID report descriptor for CTAP.
+///
 /// This is a combination of:
 ///     - the CTAP spec, example 8
 ///     - USB HID spec examples

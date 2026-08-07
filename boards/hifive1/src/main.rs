@@ -118,6 +118,8 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     }
 }
 
+/// Load processes in its own function.
+///
 /// For the HiFive1, if load_process is inlined, it leads to really large stack utilization in
 /// main. By wrapping it in a non-inlined function, this reduces the stack utilization once
 /// processes are running.

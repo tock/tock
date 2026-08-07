@@ -28,7 +28,7 @@ impl<'a> Stm32f446reDefaultPeripherals<'a> {
     }
 }
 impl kernel::platform::chip::InterruptService for Stm32f446reDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         #[allow(clippy::match_single_binding)]
         match interrupt {
             // put Stm32f446re specific interrupts here

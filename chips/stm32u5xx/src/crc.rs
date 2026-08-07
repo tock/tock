@@ -35,6 +35,7 @@ pub const CRC_BASE: StaticRef<CrcRegisters> =
     unsafe { StaticRef::new(0x50023000 as *const CrcRegisters) };
 
 /// Byte-width alias into the CRC data register.
+///
 /// The STM32 CRC hardware supports sub-word writes.
 /// Byte-wide writes are required when input length isn't a multiple of 4,
 /// as writing full 32-bit words would pad with extra bytes and corrupt the

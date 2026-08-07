@@ -162,8 +162,10 @@ pub fn load_processes<C: Chip>(
 }
 
 /// Helper function to load processes from flash into an array of active
-/// processes. This is the default template for loading processes, but a board
-/// is able to create its own `load_processes()` function and use that instead.
+/// processes.
+///
+/// This is the default template for loading processes, but a board is able to
+/// create its own `load_processes()` function and use that instead.
 ///
 /// Processes are found in flash starting from the given address and iterating
 /// through Tock Binary Format (TBF) headers. Processes are given memory out of
@@ -353,9 +355,10 @@ fn discover_process_binary(
 }
 
 /// Load a process stored as a TBF process binary with `app_memory` as the RAM
-/// pool that its RAM should be allocated from. Returns `Ok` if the process
-/// object was created, `Err` with a relevant error if the process object could
-/// not be created.
+/// pool that its RAM should be allocated from.
+///
+/// Returns `Ok` if the process object was created, `Err` with a relevant error
+/// if the process object could not be created.
 fn load_process<C: Chip, D: ProcessStandardDebug>(
     kernel: &'static Kernel,
     chip: &'static C,

@@ -26,7 +26,8 @@ use kernel::hil::uart;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::InMemoryRegister;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 /// Identifying number for the endpoint when transferring data from us to the
 /// host.
@@ -319,7 +320,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
     }
 
     #[inline]
-    fn buffer(&'a self, i: usize) -> &'a [VolatileCell<u8>; 64] {
+    fn buffer(&'a self, i: usize) -> &'a [InMemoryRegister<u8>; 64] {
         &self.buffers[i - 1].buf
     }
 

@@ -16,7 +16,8 @@ use super::usbc_client_ctrl::ClientCtrl;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
-use kernel::utilities::cells::VolatileCell;
+use kernel::utilities::registers::InMemoryRegister;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 const VENDOR_ID: u16 = 0x6667;
 const PRODUCT_ID: u16 = 0xabcd;
@@ -135,7 +136,7 @@ impl<'a, C: hil::usb::UsbController<'a>> Client<'a, C> {
     }
 
     #[inline]
-    fn buffer(&'a self, i: usize) -> &'a [VolatileCell<u8>; 8] {
+    fn buffer(&'a self, i: usize) -> &'a [InMemoryRegister<u8>; 8] {
         &self.buffers[i - 1].buf
     }
 }

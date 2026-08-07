@@ -98,7 +98,7 @@ impl<CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
 impl<CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig> InterruptService
     for EarlGreyDefaultPeripherals<'_, CFG, PINMUX>
 {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0_TX_WATERMARK..=interrupts::UART0_RX_PARITYERR => {
                 self.uart0.handle_interrupt();
