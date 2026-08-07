@@ -432,7 +432,7 @@ pub struct SerialPortComponent {
 impl SerialPortComponent {
     /// Constructs and returns a new instance of `SerialPortComponent`.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// An 8250-compatible serial port must exist at the specified address. Otherwise we could end
     /// up spamming some unknown device with I/O operations.
@@ -481,7 +481,7 @@ pub struct BlockingSerialPort(u16);
 impl BlockingSerialPort {
     /// Creates and returns a new `BlockingSerialPort` instance.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// An 8250-compatible serial port must exist at the specified address. Otherwise we could end
     /// up spamming some unknown device with I/O operations.

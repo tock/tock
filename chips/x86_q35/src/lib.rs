@@ -4,7 +4,7 @@
 
 //! Support for traditional x86 PC hardware.
 //!
-//! ## Safety
+//! # Safety
 //!
 //! This crate inherits all of the same safety hazards as outlined by [`x86`].
 //!

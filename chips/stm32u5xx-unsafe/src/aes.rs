@@ -169,7 +169,7 @@ pub struct AesRegistersManager {
 }
 
 impl AesRegistersManager {
-    /// ### Safety
+    /// # Safety
     ///
     /// The caller must ensure that the provided `StaticRef` points to a valid
     /// memory-mapped AES peripheral and that no other part of the system is
@@ -327,7 +327,7 @@ impl AesDmaBuffers {
             reg.cr.modify(Control::DMAINEN::CLEAR);
         }
         self.dma_in_buf.take().map(|s| {
-            // ### Safety
+            // # Safety
             //
             // This creates a new DMA fence to ensure that all previous DMA
             // transfers have completed and memory is consistent before the
@@ -348,7 +348,7 @@ impl AesDmaBuffers {
             reg.cr.modify(Control::DMAINEN::CLEAR);
         }
         self.dma_out_buf.take().map(|s| {
-            // ### Safety
+            // # Safety
             //
             // This creates a new DMA fence to ensure that all previous DMA
             // transfers have completed and memory is consistent before the

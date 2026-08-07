@@ -99,7 +99,7 @@ pub struct Pc<'a, I1: InterruptService + 'a, I2: InterruptService + 'a, const PR
 impl<I2: InterruptService, const PR: u16> Pc<'static, PcDefaultPeripherals<PR>, I2, PR> {
     /// Construct `Pc` using a standard set of peripherals plus page tables.
     ///
-    /// ## Safety
+    /// # Safety
     /// - Must be called only once for the lifetime of the kernel.
     /// - `pd` and `pt` must be identity-mapped and unique.
     pub unsafe fn new(
@@ -269,7 +269,7 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
     ///
     /// The caller must provide statics through `x86_q35_peripherals_static!()`.
     ///
-    /// ## Safety
+    /// # Safety
     /// - Must be called only once per kernel lifetime.
     pub unsafe fn new(
         s: (

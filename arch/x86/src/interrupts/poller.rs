@@ -40,7 +40,7 @@ pub struct InterruptPoller {
 /// We use a `static mut` singleton so that the instance can be accessed directly from interrupt
 /// handler routines.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// As with any `static mut` item, the poller singleton must not be accessed concurrently. To
 /// enforce this restriction, this module exposes two constrained methods for accessing the
@@ -79,7 +79,7 @@ impl InterruptPoller {
 
     /// Marks that the specified interrupt as pending.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// Interrupts must be disabled when this function is called. This function is _intended_ to be
     /// called from within an ISR, so hopefully this is already true.

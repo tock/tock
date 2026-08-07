@@ -744,7 +744,7 @@ impl hil::pwm::Pwm for Pwm<'_> {
     /// + 100% duty cycle demand for low frequencies (close to or below threshold_freq)
     /// + very low frequencies
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// It is safe to call multiples times this method with different values while the pin is
     /// running.
@@ -766,7 +766,7 @@ impl hil::pwm::Pwm for Pwm<'_> {
     ///
     /// This method may never fail.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// It is safe to call this method multiple times on the same pin. If the pin is already
     /// stopped, then it does nothing.

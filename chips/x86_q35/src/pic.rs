@@ -52,7 +52,7 @@ const POST_PORT: u16 = 0x80;
 /// Initializes the system's primary and secondary PICs in a chained configuration and unmasks all
 /// interrupts.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// Calling this function will cause interrupts to start firing. This means the IDT must already be
 /// initialized with valid handlers for all possible interrupt numbers (i.e. by a call to
@@ -95,7 +95,7 @@ pub unsafe fn init() {
 ///
 /// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// This function must _only_ be called from an interrupt servicing routine. Calling this function
 /// from the normal kernel loop could interfere with this crate's interrupt handling logic.
@@ -114,7 +114,7 @@ pub(crate) unsafe fn eoi(num: u32) {
 ///
 /// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// Must be called with interrupts disabled or from within an interrupt handler to avoid race
 /// conditions updating the IMR.
@@ -136,7 +136,7 @@ pub(crate) unsafe fn mask(num: u32) {
 ///
 /// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// Must be called with interrupts disabled or from within an interrupt handler to avoid race
 /// conditions updating the IMR.
