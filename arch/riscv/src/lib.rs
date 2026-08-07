@@ -22,15 +22,16 @@ pub mod thread_id;
 /// `XLEN` is the width of an integer register in bits (either 32 or 64).
 pub const XLEN: usize = 1 << XLEN_LOG2;
 
-/// `XLEN_LOG2` is the log base 2 of XLEN.
-#[cfg(target_arch = "riscv32")]
+/// `XLEN_LOG2` is the log base 2 of [`XLEN`].
+///
+/// Actual value varies based on RISCV-32 vs. RISCV-64.
+// Use << operator to (somewhat) hide value in rustdocs.
+#[cfg(any(not(riscv), doc))]
+pub const XLEN_LOG2: usize = 3 << 1;
+#[cfg(all(target_arch = "riscv32", not(doc)))]
 pub const XLEN_LOG2: usize = 5;
-#[cfg(target_arch = "riscv64")]
+#[cfg(all(target_arch = "riscv64", not(doc)))]
 pub const XLEN_LOG2: usize = 6;
-// Default to 32 bit if no architecture is specified of if this is being
-// compiled for docs or testing on a different architecture.
-#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-pub const XLEN_LOG2: usize = 5;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
@@ -64,19 +65,13 @@ extern "C" {
 ///    any Rust code runs. See <https://github.com/tock/tock/issues/2222> for more
 ///    information.
 /// 3. Finally it calls `main()`, the main entry point for Tock boards.
-#[cfg(any(doc, any(target_arch = "riscv32", target_arch = "riscv64")))]
+#[cfg(any(riscv_bare_metal, doc))]
 // Only apply the `link_section` attribute when actually targeting bare-metal
 // RISC-V. Host builds (e.g. `doc`, tests, clippy on macOS, Windows, Linux,
 // ...) use object formats (Mach-O, PE, ...) that reject a bare section name
 // like this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
-#[cfg_attr(
-    any(
-        all(target_arch = "riscv32", target_os = "none"),
-        all(target_arch = "riscv64", target_os = "none")
-    ),
-    link_section = ".riscv.start"
-)]
+#[cfg_attr(riscv_bare_metal, link_section = ".riscv.start")]
 #[unsafe(naked)]
 // We don't want the function name symbol to be mangled in order to be able to refer to
 // it the linker script. It is not currently being used in the provided linker script
@@ -167,7 +162,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
+#[cfg(not(any(riscv_bare_metal, doc)))]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     unimplemented!()
 }
@@ -198,16 +193,6 @@ pub unsafe fn configure_trap_handler() {
         csr::mtvec::mtvec::trap_addr.val(_start_trap as extern "C" fn() -> ! as usize >> 2)
             + csr::mtvec::mtvec::mode::CLEAR,
     );
-}
-
-// Mock implementation for tests on Travis-CI.
-#[cfg(not(any(
-    doc,
-    all(target_arch = "riscv32", target_os = "none"),
-    all(target_arch = "riscv64", target_os = "none")
-)))]
-pub extern "C" fn _start_trap() -> ! {
-    unimplemented!()
 }
 
 /// This is the trap handler function. This code is called on all traps,
@@ -312,23 +297,13 @@ pub extern "C" fn _start_trap() -> ! {
 /// invoked, it may, for instance, choose to ignore a certain trap, access
 /// global state (subject to synchronization), etc. It must still abide to
 /// the contract as stated above.
-#[cfg(any(
-    doc,
-    all(target_arch = "riscv32", target_os = "none"),
-    all(target_arch = "riscv64", target_os = "none")
-))]
+#[cfg(any(riscv_bare_metal, doc))]
 // Only apply the `link_section` attribute when actually targeting bare-metal
 // RISC-V. Host builds (e.g. `doc`, tests, clippy on macOS, Windows, Linux,
 // ...) use object formats (Mach-O, PE, ...) that reject a bare section name
 // like this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
-#[cfg_attr(
-    any(
-        all(target_arch = "riscv32", target_os = "none"),
-        all(target_arch = "riscv64", target_os = "none")
-    ),
-    link_section = ".riscv.trap"
-)]
+#[cfg_attr(riscv_bare_metal, link_section = ".riscv.trap")]
 // We need the `_start_trap` function to be 256 byte aligned. The linker script
 // includes a check for whether a symbol named `_start_trap` exists. If it does,
 // it makes sure to align the `.riscv.trap` section on a 256 byte
@@ -480,6 +455,12 @@ pub extern "C" fn _start_trap() -> ! {
     );
 }
 
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(any(riscv_bare_metal, doc)))]
+pub extern "C" fn _start_trap() -> ! {
+    unimplemented!()
+}
+
 /// RISC-V semihosting needs three exact instructions in uncompressed form.
 ///
 /// See <https://github.com/riscv/riscv-semihosting-spec/blob/main/riscv-semihosting-spec.adoc#11-semihosting-trap-instruction-sequence>
@@ -491,7 +472,7 @@ pub extern "C" fn _start_trap() -> ! {
 /// <https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21>
 /// as suggested by the RISC-V developers:
 /// <https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ>
-#[cfg(any(doc, any(target_arch = "riscv32", target_arch = "riscv64")))]
+#[cfg(any(riscv_bare_metal, doc))]
 pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
     use core::arch::asm;
     let res;
@@ -515,7 +496,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"),)))]
+#[cfg(not(any(riscv_bare_metal, doc)))]
 pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }

@@ -18,10 +18,7 @@ pub enum RiscvThreadIdProvider {}
 //
 // The assembly (read `mhartid`, load the `_trap_handler_active` symbol address,
 // read a `usize`) is XLEN-agnostic, so the same code serves both rv32 and rv64.
-#[cfg(all(
-    any(target_arch = "riscv32", target_arch = "riscv64"),
-    target_os = "none"
-))]
+#[cfg(any(riscv_bare_metal, doc))]
 unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
     /// Return the current thread ID, computed using the `mhartid` (hardware thread
     /// ID), and a flag indicating whether the current hart is currently in a trap
@@ -86,10 +83,7 @@ unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
 }
 
 // Mock implementation for non-RISC-V (host / doc) target builds
-#[cfg(not(all(
-    any(target_arch = "riscv32", target_arch = "riscv64"),
-    target_os = "none"
-)))]
+#[cfg(not(any(riscv_bare_metal, doc)))]
 unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
     fn running_thread_id() -> usize {
         unimplemented!()
