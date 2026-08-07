@@ -39,6 +39,7 @@ use core::cmp::min;
 
 use kernel::hil;
 use kernel::hil::usb::TransferType;
+use kernel::utilities::registers::interfaces::Writeable;
 
 const DESCRIPTOR_BUFLEN: usize = 128;
 
