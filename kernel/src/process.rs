@@ -645,7 +645,7 @@ pub trait Process {
     /// process (thereby writable by the process itself) and the value was set,
     /// false otherwise.
     ///
-    /// ### Safety
+    /// # Safety
     ///
     /// This function verifies that the byte to be written is in the process's
     /// accessible memory. However, to avoid undefined behavior the caller needs
@@ -770,7 +770,7 @@ pub trait Process {
     /// grants are invalid and are not entered or not entered, and this function
     /// will do nothing.
     ///
-    /// ### Safety
+    /// # Safety
     ///
     /// The caller must ensure that no references to the memory inside the grant
     /// exist after calling `leave_grant()`. Otherwise, it would be possible to
