@@ -817,9 +817,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         });
 
         // Clear any grant regions this app has setup with any capsules.
-        unsafe {
-            self.grant_ptrs_reset();
-        }
+        self.grant_ptrs_reset();
 
         // Save the completion code.
         self.completion_code.set(completion_code);
@@ -2515,7 +2513,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     }
 
     /// Reset all `grant_ptr`s to NULL.
-    unsafe fn grant_ptrs_reset(&self) {
+    fn grant_ptrs_reset(&self) {
         self.grant_pointers.map(|grant_pointers| {
             for grant_entry in grant_pointers.iter_mut() {
                 grant_entry.driver_num = 0;
