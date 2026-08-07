@@ -118,7 +118,8 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.adc1.enable(AdcSamplingTime::ClockCycles20);
 
         // Registering the CRC deferred call
-        kernel::deferred_call::DeferredCallClient::register(&self.crc);
+        //kernel::deferred_call::DeferredCallClient::register(&self.crc);
+        self.crc.register();
 
         self.rcc.enable_dac1();
         self.rcc.enable_crc();
