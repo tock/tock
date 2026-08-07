@@ -783,20 +783,16 @@ pub mod immutable_from_into_bytes {
     ///
     /// # Safety
     ///
-    /// If `T: ImmutableFromIntoBytes`, then unsafe code may assume that it is
-    /// sound to produce a `T` whose bytes are initialized to any sequence of
-    /// valid u8s (in other words, any byte value which is not uninitialized).
-    /// Additionally, unsafe code may assume that it is sound to treat any `t:
-    /// T` as an immutable `[u8]` of length `size_of_val(t)`. If a type is
-    /// marked as `ImmutableFromIntoBytes` which violates this contract, it may
-    /// cause undefined behavior.
+    /// Types that implement `ImmutableFromIntoBytes` must:
     ///
-    /// Unsafe code outside of this crate must not make any assumptions about
-    /// `T` based on `T` not featuring interior mutability. We reserve the right
-    /// to relax the requirements for `ImmutableFromIntoBytes` in the future,
-    /// and if unsafe code outside of this crate makes assumptions based on not
-    /// featuring interior mutability, future relaxations may cause that code to
-    /// become unsound.
+    /// 1. no_uninit: Not contain any uninitialized bytes (such as padding)
+    /// 2. no_interior_mut: Not have any interior mutability
+    /// 3. any_init_pattern: Be valid for all initialized byte patterns of the
+    ///    correct length and alignment.
+    ///
+    /// These guarantees effectively allow `&mut [T]` references to be converted
+    /// into `&mut [u8]` references, mutated, and then converted back into `&mut
+    /// [T]` references.
     pub unsafe trait ImmutableFromIntoBytes: private::Sealed {}
 
     impl private::Sealed for u8 {}
