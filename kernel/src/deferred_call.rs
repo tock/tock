@@ -103,9 +103,11 @@ pub trait DeferredCallClient: Sized {
 }
 
 /// This struct serves as a lightweight alternative to the use of trait objects
-/// (e.g. `&dyn DeferredCall`). Using a trait object will include a 20 byte
-/// vtable per instance, but this alternative stores only the data and function
-/// pointers, 8 bytes per instance.
+/// (e.g. `&dyn DeferredCall`).
+///
+/// Using a trait object will include a 20 byte vtable per instance, but this
+/// alternative stores only the data and function pointers, 8 bytes per
+/// instance.
 #[derive(Copy, Clone)]
 struct DynDefCallRef<'a> {
     data: *const (),
@@ -152,9 +154,11 @@ impl DynDefCallRef<'_> {
 static CTR: SingleThreadValue<Cell<usize>> = SingleThreadValue::new();
 
 /// This bitmask tracks which of the up to 32 existing deferred calls have been
-/// scheduled. Any bit that is set in that mask indicates the deferred call with
-/// its [`DeferredCall::idx`] field set to the index of that bit has been
-/// scheduled and not yet serviced.
+/// scheduled.
+///
+/// Any bit that is set in that mask indicates the deferred call with its
+/// [`DeferredCall::idx`] field set to the index of that bit has been scheduled
+/// and not yet serviced.
 static BITMASK: SingleThreadValue<Cell<u32>> = SingleThreadValue::new();
 
 /// An array that stores references to up to 32 `DeferredCall`s via the low-cost

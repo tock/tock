@@ -122,9 +122,11 @@ register_bitfields![u32,
 const NVIC: StaticRef<NvicRegisters> =
     unsafe { StaticRef::new(0xe000e000 as *const NvicRegisters) };
 
-/// Number of valid NVIC_XXXX registers. Note this is a ceiling on the number
-/// of available interrupts (as this is the number of banks of 32), but the
-/// actual number may be less. See NVIC and ICTR documentation for more detail.
+/// Number of valid NVIC_XXXX registers.
+///
+/// Note this is a ceiling on the number of available interrupts (as this is the
+/// number of banks of 32), but the actual number may be less. See NVIC and ICTR
+/// documentation for more detail.
 fn number_of_nvic_registers() -> usize {
     (NVIC.ictr.read(InterruptControllerType::INTLINESNUM) + 1) as usize
 }

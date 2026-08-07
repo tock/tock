@@ -3,36 +3,38 @@
 // Copyright Tock Contributors 2022.
 
 //! This file contains structs, traits, and methods associated with the IP layer
-//! of the networking stack. This includes the declaration and methods for the
-//! IP6Header, IP6Packet, and IP6Payload structs. These methods implement the
-//! bulk of the functionality required for manipulating the fields of the
-//! IPv6 header. Additionally, the IP6Packet struct allows for multiple types
-//! of transport-level structures to be encapsulated within.
+//! of the networking stack.
+//!
+//! This includes the declaration and methods for the IP6Header, IP6Packet, and
+//! IP6Payload structs. These methods implement the bulk of the functionality
+//! required for manipulating the fields of the IPv6 header. Additionally, the
+//! IP6Packet struct allows for multiple types of transport-level structures to
+//! be encapsulated within.
 //!
 //! An implementation for the structure of an IPv6 packet is provided by this
 //! file, and a rough outline is given below:
 //!
 //! ```txt
-//!            ----------------------------------------------
-//!            |                 IP6Packet                  |
-//!            |--------------------------------------------|
-//!            |                 |         IPPayload        |
-//!            |    IP6Header    |--------------------------|
-//!            |                 |TransportHeader | Payload |
-//!            ----------------------------------------------
+//! ----------------------------------------------
+//! |                 IP6Packet                  |
+//! |--------------------------------------------|
+//! |                 |         IPPayload        |
+//! |    IP6Header    |--------------------------|
+//! |                 |TransportHeader | Payload |
+//! ----------------------------------------------
 //! ```
 //!
 //! The [IP6Packet](struct.IP6Packet.html) struct contains an
 //! [IP6Header](struct.IP6Header.html) struct and an
-//! [IPPayload](struct.IPPayload.html) struct, with the `IPPayload` struct
-//! also containing a [TransportHeader](enum.TransportHeader.html) enum and
-//! a `Payload` buffer. Note that transport-level headers are contained inside
-//! the `TransportHeader`.
+//! [IPPayload](struct.IPPayload.html) struct, with the `IPPayload` struct also
+//! containing a [TransportHeader](enum.TransportHeader.html) enum and a
+//! `Payload` buffer. Note that transport-level headers are contained inside the
+//! `TransportHeader`.
 //!
 //! For a client interested in using this interface, they first statically
-//! allocate an `IP6Packet` struct, then set the appropriate headers and
-//! payload using the functions defined for the different structs. These
-//! methods are described in greater detail below.
+//! allocate an `IP6Packet` struct, then set the appropriate headers and payload
+//! using the functions defined for the different structs. These methods are
+//! described in greater detail below.
 
 // Discussion of Design Decisions
 // ------------------------------
@@ -42,7 +44,7 @@
 // for the IPv6 layer was the design of the `IP6Packet` struct. We noticed
 // that the mutable payload buffer should always be associated with some type
 // of headers; that is, we noticed that the payload for an IP packet should
-// be perminantly owned by an instance of an IPv6 packet. This avoids runtime
+// be permanently owned by an instance of an IPv6 packet. This avoids runtime
 // checks, as Rust can guarantee that the payload for an IPv6 packet is always
 // there, as it cannot be moved. In order to facilitate this design while still
 // allowing for (somewhat) arbitrary transport-level headers, we needed to
@@ -59,16 +61,16 @@
 // IPPayload design makes sense and is properly layered, and 2) figuring out
 // and implementing a receive path that uses this encapsulation.
 //
-// One of the primary problems with the current encapsulation design is that
-// it is impossible to encode recursive headers - any subsequent headers (IPv6
-// or transport) must be serialized and carried in the raw payload. This may
-// be avoided with references and allocation, but since we do not have
-// a memory allocator we could not allocate all possible headers at compile
-// time. Additionally, we couldn't just allocate headers "as-needed" on the
-// stack, as the network send interface is asynchronous, so anything allocated
-// on the stack would eventually be popped/disappear. Although this is not
-// a major problem in general, it makes handling encapsulated IPv6 packets
-// (as required by 6LoWPAN) difficult.
+// One of the primary problems with the current encapsulation design is that it
+// is impossible to encode recursive headers - any subsequent headers (IPv6 or
+// transport) must be serialized and carried in the raw payload. This may be
+// avoided with references and allocation, but since we do not have a memory
+// allocator we could not allocate all possible headers at compile time.
+// Additionally, we couldn't just allocate headers "as-needed" on the stack, as
+// the network send interface is asynchronous, so anything allocated on the
+// stack would eventually be popped/disappear. Although this is not a major
+// problem in general, it makes handling encapsulated IPv6 packets (as required
+// by 6LoWPAN) difficult.
 
 use crate::net::icmpv6::ICMP6Header;
 use crate::net::ipv6::ip_utils::{IPAddr, compute_icmp_checksum, compute_udp_checksum, ip6_nh};
@@ -124,12 +126,12 @@ impl IP6Header {
     ///
     /// # Arguments
     ///
-    /// `buf` - The serialized version of an IPv6 header
+    /// - `buf` - The serialized version of an IPv6 header
     ///
     /// # Return Value
     ///
-    /// `SResult<IP6Header>` - The resulting decoded IP6Header struct wrapped
-    /// in an SResult
+    /// - `SResult<IP6Header>` - The resulting decoded IP6Header struct wrapped
+    ///   in an SResult
     pub fn decode(buf: &[u8]) -> SResult<IP6Header> {
         // TODO: Let size of header be a constant
         stream_len_cond!(buf, 40);
@@ -149,17 +151,17 @@ impl IP6Header {
         stream_done!(off, ip6_header);
     }
 
-    /// This function transforms the `self` instance of an IP6Header into a
-    /// byte array
+    /// This function transforms the `self` instance of an IP6Header into a byte
+    /// array
     ///
     /// # Arguments
     ///
-    /// `buf` - A mutable array where the serialized version of the IP6Header
-    /// struct is written to
+    /// - `buf` - A mutable array where the serialized version of the IP6Header
+    ///   struct is written to
     ///
     /// # Return Value
     ///
-    /// `SResult<usize>` - The offset wrapped in an SResult
+    /// - `SResult<usize>` - The offset wrapped in an SResult
     pub fn encode(&self, buf: &mut [u8]) -> SResult<usize> {
         stream_len_cond!(buf, 40);
 
@@ -263,9 +265,9 @@ impl IP6Header {
         self.hop_limit = new_hl;
     }
 
-    /// Utility function for verifying whether a transport layer checksum of a received
-    /// packet is correct. Is called on the assocaite IPv6 Header, and passed the buffer
-    /// containing the remainder of the packet.
+    /// Utility function for verifying whether a transport layer checksum of a
+    /// received packet is correct. Is called on the associated IPv6 Header, and
+    /// passed the buffer containing the remainder of the packet.
     pub fn check_transport_checksum(&self, buf: &[u8]) -> Result<(), ErrorCode> {
         match self.next_header {
             ip6_nh::UDP => {
@@ -308,12 +310,11 @@ impl IP6Header {
 
 /// This defines the currently supported `TransportHeader` types.
 ///
-/// The contents of each header is encapsulated by the enum type. Note
-/// that this definition of `TransportHeader`s means that recursive
-/// headers are not supported.  As of now, there is no support for
-/// sending raw IP packets without a transport header.  Currently we
-/// accept the overhead of copying these structs in/out of an
-/// OptionalCell in `udp_send.rs`.
+/// The contents of each header is encapsulated by the enum type. Note that this
+/// definition of `TransportHeader`s means that recursive headers are not
+/// supported.  As of now, there is no support for sending raw IP packets
+/// without a transport header.  Currently we accept the overhead of copying
+/// these structs in/out of an OptionalCell in `udp_send.rs`.
 #[derive(Copy, Clone)]
 pub enum TransportHeader {
     UDP(UDPHeader),
@@ -333,8 +334,8 @@ impl<'a> IPPayload<'a> {
     ///
     /// # Arguments
     ///
-    /// `header` - A `TransportHeader` for the `IPPayload`
-    /// `payload` - A reference to a mutable buffer for the raw payload
+    /// - `header` - A `TransportHeader` for the `IPPayload`
+    /// - `payload` - A reference to a mutable buffer for the raw payload
     pub fn new(header: TransportHeader, payload: &'a mut [u8]) -> IPPayload<'a> {
         IPPayload { header, payload }
     }
@@ -344,14 +345,14 @@ impl<'a> IPPayload<'a> {
     ///
     /// # Arguments
     ///
-    /// `transport_header` - The new `TransportHeader` header for the payload
-    /// `payload` - The payload to be copied into the `IPPayload`
+    /// - `transport_header` - The new `TransportHeader` header for the payload
+    /// - `payload` - The payload to be copied into the `IPPayload`
     ///
     /// # Return Value
     ///
-    /// `(u8, u16)` - Returns a tuple of the `ip6_nh` type of the
-    /// `transport_header` and the total length of the `IPPayload`
-    /// (when serialized)
+    /// - `(u8, u16)` - Returns a tuple of the `ip6_nh` type of the
+    /// - `transport_header` and the total length of the `IPPayload` (when
+    ///   serialized)
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
@@ -381,13 +382,13 @@ impl<'a> IPPayload<'a> {
     ///
     /// # Arguments
     ///
-    /// `buf` - SubSliceMut to write the serialized `IPPayload` to
-    /// `offset` - Current offset into the buffer
+    /// - `buf` - SubSliceMut to write the serialized `IPPayload` to
+    /// - `offset` - Current offset into the buffer
     ///
     /// # Return Value
     ///
-    /// `SResult<usize>` - The final offset into the buffer `buf` is returned
-    /// wrapped in an SResult
+    /// - `SResult<usize>` - The final offset into the buffer `buf` is returned
+    ///   wrapped in an SResult
     pub fn encode(&self, buf: &mut [u8], offset: usize) -> SResult<usize> {
         let (offset, _) = match self.header {
             TransportHeader::UDP(udp_header) => udp_header.encode(buf, offset).done().unwrap(),
@@ -434,7 +435,7 @@ impl<'a> IP6Packet<'a> {
     ///
     /// # Arguments
     ///
-    /// `payload` - The `IPPayload` struct for the `IP6Packet`
+    /// - `payload` - The `IPPayload` struct for the `IP6Packet`
     pub fn new(payload: IPPayload<'a>) -> IP6Packet<'a> {
         IP6Packet {
             header: IP6Header::default(),
@@ -490,20 +491,21 @@ impl<'a> IP6Packet<'a> {
         }
     }
 
-    /// This function should be the function used to set the payload for a
-    /// given `IP6Packet` object. It first calls the `IPPayload::set_payload`
-    /// method to set the transport header and transport payload, which then
-    /// returns the `ip6_nh` value for the `TransportHeader` and the length of
-    /// the serialized `IPPayload` region. This function then sets the
-    /// `IP6Header` next header field correctly. **Without using this function,
-    /// the `IP6Header.next_header` field may not agree with the actual
-    /// next header (`IP6Header.payload.header`)**
+    /// This function should be the function used to set the payload for a given
+    /// `IP6Packet` object. It first calls the `IPPayload::set_payload` method
+    /// to set the transport header and transport payload, which then returns
+    /// the `ip6_nh` value for the `TransportHeader` and the length of the
+    /// serialized `IPPayload` region. This function then sets the `IP6Header`
+    /// next header field correctly. **Without using this function, the
+    /// `IP6Header.next_header` field may not agree with the actual next header
+    /// (`IP6Header.payload.header`)**
     ///
     /// # Arguments
     ///
-    /// `transport_header` - The `TransportHeader` to be set as the next header
-    /// `payload` - The transport payload to be copied into the `IPPayload`
-    /// transport payload
+    /// - `transport_header` - The `TransportHeader` to be set as the next
+    ///   header
+    /// - `payload` - The transport payload to be copied into the `IPPayload`
+    ///   transport payload
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,

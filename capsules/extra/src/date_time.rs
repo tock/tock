@@ -158,7 +158,8 @@ fn date_from_u32_tuple(date: u32, time: u32) -> Result<date_time::DateTimeValues
     Ok(date_result)
 }
 
-/// Transforms DateTimeValues structure (year, month, dotm, dotw, hour, minute, seconds) into two u32 numbers
+/// Transforms DateTimeValues structure (year, month, dotm, dotw, hour, minute, seconds) into two u32 numbers.
+///
 /// Check file documentation for details on how the u32 numbers stores data
 /// The two u32 numbers are returned as a tuple
 fn date_as_u32_tuple(set_date: date_time::DateTimeValues) -> Result<(u32, u32), ErrorCode> {
