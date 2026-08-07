@@ -83,9 +83,11 @@ impl AesEcbRegistersManager {
     ///
     /// # Safety
     ///
-    /// This is only valid on an nrf5x-based MCU. This must only be called once
-    /// as having multiple interfaces to DMA registers is not safe. This must
-    /// be the only way the AES DMA registers are controlled.
+    /// This controls DMA hardware. As such, it must be unique. This requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - There must not be any other code that accesses the DMA buffer and
+    ///   length registers.
     pub unsafe fn new(regs: StaticRef<AesEcbRegisters>) -> Self {
         Self {
             registers: regs,

@@ -89,6 +89,8 @@ impl Nrf52DefaultPeripherals<'_> {
         // enforce this safety requirement.
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
+        let uarte0_registers = unsafe { crate::uart::UarteRegistersManager::new_uarte0() };
+
         Self {
             acomp: crate::acomp::Comparator::new(),
             ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
@@ -100,7 +102,7 @@ impl Nrf52DefaultPeripherals<'_> {
             timer0: crate::timer::TimerAlarm::new(TIMER0_BASE),
             timer1: crate::timer::TimerAlarm::new(TIMER1_BASE),
             timer2: crate::timer::Timer::new(TIMER2_BASE),
-            uarte0: crate::uart::Uarte::new(crate::uart::UARTE0_BASE),
+            uarte0: crate::uart::Uarte::new(uarte0_registers),
             spim0: crate::spi::SPIM::new(0),
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
