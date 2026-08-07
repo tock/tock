@@ -127,7 +127,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 
         // Deferred Calls
         self.usart1.register();
-        self.crc.register();
+        kernel::deferred_call::DeferredCallClient::register(&self.crc);
 
         // I2C
         self.rcc.enable_i2c1();
