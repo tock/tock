@@ -8,6 +8,7 @@
 #![no_main]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::ErrorCode;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
@@ -61,6 +62,7 @@ type ProcessConsoleDriver =
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 pub struct QemuRv32VirtPlatform {
+    pconsole: &'static ProcessConsoleDriver,
     console: &'static capsules_core::console::Console<'static>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
@@ -95,6 +97,12 @@ pub struct QemuRv32VirtPlatform {
             RiscvCoherentDmaFence,
         >,
     >,
+}
+
+impl QemuRv32VirtPlatform {
+    pub fn process_console_start(&self) -> Result<(), ErrorCode> {
+        self.pconsole.start()
+    }
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -182,7 +190,6 @@ pub unsafe fn start() -> (
         'static,
         QemuRv32VirtDefaultPeripherals<'static>,
     >,
-    &'static ProcessConsoleDriver,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -676,6 +683,21 @@ pub unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
+    // Initialize the kernel's process console.
+    let process_console_cap = unsafe { mint_defined_capability!(ProcessConsoleCap) };
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        None,
+        process_console_cap,
+    )
+    .finalize(components::process_console_component_static!(
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
+        ProcessConsoleCap
+    ));
+
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -728,6 +750,7 @@ pub unsafe fn start() -> (
             ));
 
     let platform = QemuRv32VirtPlatform {
+        pconsole,
         console,
         alarm,
         lldb,
@@ -770,26 +793,5 @@ pub unsafe fn start() -> (
         debug!("- VirtIO Input device not found, disabling Input");
     }
 
-    // Create the process console, an interactive terminal for managing
-    // processes. This is left unstarted; it is up to the caller to start it
-    // once the rest of initialization, including the debug prints above,
-    // has completed. Starting the console arms an alarm that will
-    // (asynchronously) print its prompt and begin accepting input, so
-    // starting it too early could interleave its output with or precede the
-    // initialization messages above.
-    let process_console_cap = unsafe { mint_defined_capability!(ProcessConsoleCap) };
-    let pconsole = components::process_console::ProcessConsoleComponent::new(
-        board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-        None,
-        process_console_cap,
-    )
-    .finalize(components::process_console_component_static!(
-        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
-        ProcessConsoleCap
-    ));
-
-    (board_kernel, platform, chip, pconsole)
+    (board_kernel, platform, chip)
 }
