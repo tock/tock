@@ -29,7 +29,7 @@ pub fn parse_tbf_header_lengths(
     // Version is the first 16 bits of the app TBF contents. We need this to
     // correctly parse the other lengths.
     //
-    // ## Safety
+    // # Safety
     // We trust that the version number has been checked prior to running this
     // parsing code. That is, whatever loaded this application has verified that
     // the version is valid and therefore we can trust it.
