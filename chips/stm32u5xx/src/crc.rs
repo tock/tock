@@ -264,6 +264,10 @@ impl<'a> Crc<'a> for CRC<'a> {
 }
 
 impl DeferredCallClient for CRC<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
     fn handle_deferred_call(&self) {
         let current_request = self.request.get();
         self.request.set(Request::None);
@@ -296,9 +300,5 @@ impl DeferredCallClient for CRC<'_> {
 
             Request::None => {}
         });
-    }
-
-    fn register(&'static self) {
-        self.deferred_call.register(self);
     }
 }
