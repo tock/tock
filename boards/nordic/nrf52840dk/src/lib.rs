@@ -228,6 +228,7 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 pub struct Platform {
     ble_radio: &'static BleDriver,
     button: &'static ButtonDriver,
+    pconsole: &'static ProcessConsoleDriver,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
@@ -403,15 +404,12 @@ pub unsafe fn ieee802154_udp(
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-pub unsafe fn start_pconsole_optional(
-    start_pconsole: bool,
-) -> (
+pub unsafe fn start_no_pconsole() -> (
     &'static kernel::Kernel,
     Platform,
     &'static ChipHw,
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, AlarmHw>,
-    Option<&'static ProcessConsoleDriver>,
 ) {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
@@ -658,6 +656,22 @@ pub unsafe fn start_pconsole_optional(
         create_capability!(capabilities::SetDebugWriterCapability),
     )
     .finalize(components::debug_writer_component_static!());
+
+    // Create the process console, an interactive terminal for managing
+    // processes.
+    let process_console_cap = unsafe { mint_defined_capability!(ProcessConsoleCap) };
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        Some(cortexm4::support::reset),
+        process_console_cap,
+    )
+    .finalize(components::process_console_component_static!(
+        AlarmHw,
+        ProcessConsoleCap
+    ));
 
     //--------------------------------------------------------------------------
     // BLE
@@ -923,6 +937,7 @@ pub unsafe fn start_pconsole_optional(
     let platform = Platform {
         button,
         ble_radio,
+        pconsole,
         console,
         led,
         gpio,
@@ -948,36 +963,12 @@ pub unsafe fn start_pconsole_optional(
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", ficr);
 
-    // Create the process console, an interactive terminal for managing
-    // processes. This is left unstarted; it is up to the caller to start it
-    // (or start it hibernated) once the rest of initialization, including
-    // the debug prints above, has completed. Starting the console arms an
-    // alarm that will (asynchronously) print its prompt and begin accepting
-    // input, so starting it too early could interleave its output with or
-    // precede the initialization messages above.
-    let pconsole = start_pconsole.then(|| {
-        let process_console_cap = unsafe { mint_defined_capability!(ProcessConsoleCap) };
-        components::process_console::ProcessConsoleComponent::new(
-            board_kernel,
-            uart_mux,
-            mux_alarm,
-            process_printer,
-            Some(cortexm4::support::reset),
-            process_console_cap,
-        )
-        .finalize(components::process_console_component_static!(
-            AlarmHw,
-            ProcessConsoleCap
-        ))
-    });
-
     (
         board_kernel,
         platform,
         chip,
         nrf52840_peripherals,
         mux_alarm,
-        pconsole,
     )
 }
 
@@ -992,7 +983,7 @@ pub unsafe fn start() -> (
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, AlarmHw>,
 ) {
-    let (kernel, platform, chip, peripherals, mux_alarm, pconsole) = start_pconsole_optional(true);
-    let _ = pconsole.unwrap().start();
+    let (kernel, platform, chip, peripherals, mux_alarm) = start_no_pconsole();
+    let _ = platform.pconsole.start();
     (kernel, platform, chip, peripherals, mux_alarm)
 }
