@@ -19,9 +19,16 @@ const USART1_TDR: u32 = USART1_BASE_ADDR + 0x28;
 
 const HASH_BASE_ADDR: u32 = 0x520c0400;
 const HASH_DIN: u32 = HASH_BASE_ADDR + 0x04;
+/// Base address for I2C1 in Secure Alias mode.
+const I2C1_BASE_ADDR: u32 = 0x50005400;
+/// I2C1 Transmit Data Register address
+const I2C1_TXDR: u32 = I2C1_BASE_ADDR + 0x28;
+/// I2C1 Receive Data Register address
+const I2C1_RXDR: u32 = I2C1_BASE_ADDR + 0x24;
 
 /// GPDMA Request Selection IDs (REQSEL)
-/// Found in the GPDMA request multiplexer table of the STM32U5 reference manual.
+/// These can be found in the STM32U5 Reference Manual
+/// at 17.3.3 GPDMA requests, Table 137, or starting from page 687
 const GPDMA_REQ_USART1_RX: u32 = 24;
 const GPDMA_REQ_USART1_TX: u32 = 25;
 const GPDMA_REQ_HASH_IN: u32 = 89;
@@ -34,6 +41,8 @@ const AES_BASE_ADDR: u32 = 0x520C0000;
 const AES_DINR: u32 = AES_BASE_ADDR + 0x08;
 /// AES Data Output Register (DOUTR) address.
 const AES_DOUTR: u32 = AES_BASE_ADDR + 0x0C;
+const GPDMA_REQ_I2C1_TX: u32 = 13;
+const GPDMA_REQ_I2C1_RX: u32 = 12;
 
 register_bitfields! [
     u32,
@@ -254,6 +263,8 @@ pub enum DmaPeripheral {
     AESIN,
     AESOUT,
     Hash,
+    I2c1Tx,
+    I2c1Rx,
 }
 
 pub enum DmaDataWidth {
@@ -408,6 +419,30 @@ impl DmaPeripheral {
                     HalfWordExchange::NoHalfWordExchange,
                 ),
                 PaddingAlignmentMode::PackedUnpacked,
+            ),
+            DmaPeripheral::I2c1Tx => (
+                I2C1_TXDR,
+                GPDMA_REQ_I2C1_TX,
+                DmaDirection::MemoryToPeripheral,
+                TransferSettings::Source(DmaDataWidth::Byte, ByteExchange::NoByteExchange),
+                TransferSettings::Destination(
+                    DmaDataWidth::Word,
+                    ByteExchange::NoByteExchange,
+                    HalfWordExchange::NoHalfWordExchange,
+                ),
+                PaddingAlignmentMode::PaddedLeftTruncated,
+            ),
+            DmaPeripheral::I2c1Rx => (
+                I2C1_RXDR,
+                GPDMA_REQ_I2C1_RX,
+                DmaDirection::PeripheralToMemory,
+                TransferSettings::Source(DmaDataWidth::Byte, ByteExchange::NoByteExchange),
+                TransferSettings::Destination(
+                    DmaDataWidth::Word,
+                    ByteExchange::NoByteExchange,
+                    HalfWordExchange::NoHalfWordExchange,
+                ),
+                PaddingAlignmentMode::PaddedLeftTruncated,
             ),
         }
     }
