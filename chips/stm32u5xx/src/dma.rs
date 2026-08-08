@@ -11,7 +11,7 @@ use kernel::utilities::registers::{
 };
 
 /// Base address for USART1 in Secure Alias mode.
-const USART1_BASE_ADDR: u32 = 0x50013800;
+const USART1_BASE_ADDR: u32 = 0x5001_3800;
 /// USART1 Receive Data Register (RDR) address.
 const USART1_RDR: u32 = USART1_BASE_ADDR + 0x24;
 /// USART1 Transmit Data Register (TDR) address.
@@ -19,6 +19,11 @@ const USART1_TDR: u32 = USART1_BASE_ADDR + 0x28;
 
 const HASH_BASE_ADDR: u32 = 0x520c0400;
 const HASH_DIN: u32 = HASH_BASE_ADDR + 0x04;
+
+/// Base address for SPI1 in Secure Alias mode.
+const SPI1_BASE_ADDR: u32 = 0x5001_3000;
+const SPI1_RXDR: u32 = SPI1_BASE_ADDR + 0x030;
+const SPI1_TXDR: u32 = SPI1_BASE_ADDR + 0x020;
 
 /// GPDMA Request Selection IDs (REQSEL)
 /// Found in the GPDMA request multiplexer table of the STM32U5 reference manual.
@@ -34,6 +39,8 @@ const AES_BASE_ADDR: u32 = 0x520C0000;
 const AES_DINR: u32 = AES_BASE_ADDR + 0x08;
 /// AES Data Output Register (DOUTR) address.
 const AES_DOUTR: u32 = AES_BASE_ADDR + 0x0C;
+const GPDMA_REQ_SPI1_RX: u32 = 6;
+const GPDMA_REQ_SPI1_TX: u32 = 7;
 
 register_bitfields! [
     u32,
@@ -254,6 +261,8 @@ pub enum DmaPeripheral {
     AESIN,
     AESOUT,
     Hash,
+    Spi1Tx,
+    Spi1Rx,
 }
 
 pub enum DmaDataWidth {
@@ -408,6 +417,30 @@ impl DmaPeripheral {
                     HalfWordExchange::NoHalfWordExchange,
                 ),
                 PaddingAlignmentMode::PackedUnpacked,
+            ),
+            DmaPeripheral::Spi1Tx => (
+                SPI1_TXDR,
+                GPDMA_REQ_SPI1_TX,
+                DmaDirection::MemoryToPeripheral,
+                TransferSettings::Source(DmaDataWidth::Byte, ByteExchange::NoByteExchange),
+                TransferSettings::Destination(
+                    DmaDataWidth::Byte,
+                    ByteExchange::NoByteExchange,
+                    HalfWordExchange::NoHalfWordExchange,
+                ),
+                PaddingAlignmentMode::PaddedLeftTruncated,
+            ),
+            DmaPeripheral::Spi1Rx => (
+                SPI1_RXDR,
+                GPDMA_REQ_SPI1_RX,
+                DmaDirection::PeripheralToMemory,
+                TransferSettings::Source(DmaDataWidth::Byte, ByteExchange::NoByteExchange),
+                TransferSettings::Destination(
+                    DmaDataWidth::Byte,
+                    ByteExchange::NoByteExchange,
+                    HalfWordExchange::NoHalfWordExchange,
+                ),
+                PaddingAlignmentMode::PaddedLeftTruncated,
             ),
         }
     }
