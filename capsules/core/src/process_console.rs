@@ -24,7 +24,7 @@ use kernel::debug;
 use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
-use kernel::process::{ProcessPrinter, ProcessPrinterContext, State};
+use kernel::process::{FaultReason, ProcessPrinter, ProcessPrinterContext, State};
 use kernel::utilities::binary_write::BinaryWrite;
 
 /// Buffer to hold outgoing data that is passed to the UART hardware.
@@ -840,7 +840,7 @@ impl<
                                     .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
-                                            proc.set_fault_state();
+                                            proc.set_faulting_state(FaultReason::ForcedRestart);
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(
                                                 &mut console_writer,
