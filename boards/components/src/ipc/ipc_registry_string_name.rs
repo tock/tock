@@ -32,14 +32,21 @@ pub struct IpcRegistryStringNameComponent<CAP: MemoryAllocationCapability> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     mem_cap: CAP,
+    validation: Option<capsules_core::ipc::ipc_registry_string_name::ValidationFunction>,
 }
 
 impl<CAP: MemoryAllocationCapability> IpcRegistryStringNameComponent<CAP> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, mem_cap: CAP) -> Self {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        mem_cap: CAP,
+        validation: Option<capsules_core::ipc::ipc_registry_string_name::ValidationFunction>,
+    ) -> Self {
         Self {
             board_kernel,
             driver_num,
             mem_cap,
+            validation,
         }
     }
 }
@@ -52,6 +59,7 @@ impl<CAP: MemoryAllocationCapability> Component for IpcRegistryStringNameCompone
         s.write(IpcRegistryStringName::new(
             self.board_kernel
                 .create_grant(self.driver_num, &self.mem_cap),
+            self.validation,
         ))
     }
 }

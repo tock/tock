@@ -15,6 +15,7 @@
 //! -----
 //!
 //! ```rust,ignore
+//! TODO
 //! pub struct PMCapability;
 //! unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
 //!
@@ -59,6 +60,20 @@ pub struct App {
     is_registered: bool,
 }
 
+/// Validation function signature
+///
+/// Arguments:
+///  * Process to be validated
+///  * Name it is attempting to register with
+///  * Function to call to complete validation which itself takes one argument:
+///    a boolean for whether registration is allowed
+///
+/// Return:
+///  * Result, which will be an error if validation cannot be performed
+//pub type ValidationFunction = fn(ProcessId, &[u8], F) -> Result<(), ErrorCode> where F: FnOnce();
+pub type ValidationFunction<C> =
+    fn(ProcessId, &[u8], &IpcRegistryPackageName<C>) -> Result<(), ErrorCode>;
+
 /// IPC Registry Package Name capsule
 ///
 /// This capsule allows for registration and discovery of IPC processes via the
@@ -78,6 +93,12 @@ pub struct IpcRegistryPackageName<C: ProcessManagementCapability> {
     /// This capsule needs to use potentially dangerous APIs related to
     /// processes, and requires a capability to access those APIs.
     capability: C,
+
+    /// Optional validation function. If this function is supplied it will be
+    /// called to determine if validation can succeed.
+    //validation: Option<fn(ProcessId, &[u8], &IpcRegistryPackageName<C>, &dyn Fn(&IpcRegistryPackageName<C>, ProcessId, bool)) -> Result<(), ErrorCode>>,
+    // validation: Option<fn(ProcessId, &[u8], &dyn FnOnce(bool)) -> Result<(), ErrorCode>>,
+    validation: Option<ValidationFunction<C>>,
 }
 
 impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
@@ -91,38 +112,64 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
         >,
         kernel: &'static Kernel,
         capability: C,
+        //validation: Option<fn(ProcessId, &[u8], &dyn FnOnce(bool)) -> Result<(), ErrorCode>>,
+        validation: Option<ValidationFunction<C>>,
     ) -> Self {
         Self {
             apps: grant,
             kernel,
             capability,
+            validation,
         }
     }
 
+    pub fn complete_registration(&self, processid: ProcessId, registration_allowed: bool) {
+        // Save registration state and upcall result. We're going to have to
+        // assume this works, as we can't signal issues to the process anymore
+        // at this point.
+        let _ = self.apps.enter(processid, |app, kerneldata| {
+            if registration_allowed {
+                app.is_registered = true;
+
+                // Schedule registration complete callback with success
+                // upcall arguments-> status: StatusCode
+                let _ = kerneldata.schedule_upcall(upcall::REGISTRATION_COMPLETE, (0, 0, 0));
+            } else {
+                app.is_registered = false;
+
+                // Schedule registration complete callback with failure
+                // upcall arguments-> status: StatusCode
+                let _ = kerneldata.schedule_upcall(
+                    upcall::REGISTRATION_COMPLETE,
+                    (ErrorCode::FAIL.into(), 0, 0),
+                );
+            }
+        });
+    }
+
     fn register(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        // If registration validation is desired, that would go here before
-        // saving the name
-
-        // Ensure that a package name field exists
-        if !self.kernel.process_map_or_external(
-            false,
+        // Check for valid package name and validate process
+        self.kernel.process_map_or_external(
+            Err(ErrorCode::NOMEM),
             processid,
-            |process| process.get_process_name() != "",
+            |process| {
+                if process.get_process_name() == "" {
+                    // Invalid Package Name
+                    Err(ErrorCode::NOMEM)
+                } else {
+                    // Valid package name
+                    if let Some(validator) = self.validation {
+                        // Call validation function, which must invoke our closure with true for success or false for failure
+                        validator(processid, process.get_process_name().as_bytes(), self)
+                    } else {
+                        // No validation installed. Complete registration now
+                        self.complete_registration(processid, true);
+                        Ok(())
+                    }
+                }
+            },
             &self.capability,
-        ) {
-            return Err(ErrorCode::NOMEM);
-        }
-
-        // Save registration state
-        self.apps.enter(processid, |app, kerneldata| {
-            app.is_registered = true;
-
-            // Schedule registration complete callback
-            // upcall arguments-> status: StatusCode
-            let _ = kerneldata.schedule_upcall(upcall::REGISTRATION_COMPLETE, (0, 0, 0));
-        })?;
-
-        Ok(())
+        )
     }
 
     fn compare_names(&self, clientid: ProcessId, serverid: ProcessId) -> bool {

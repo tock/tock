@@ -12,6 +12,7 @@
 //! -----
 //!
 //! ```rust,ignore
+//! TODO
 //! let ipc_registry_string_name = components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponent::new(
 //!     board_kernel,
 //!     capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
@@ -55,6 +56,19 @@ pub struct App {
     registered_name: [u8; MAX_STRING_LEN],
 }
 
+/// Validation function signature
+///
+/// Arguments:
+///  * Process to be validated
+///  * Name it is attempting to register with
+///  * Function to call to complete validation which itself takes one argument:
+///    a boolean for whether registration is allowed
+///
+/// Return:
+///  * Result, which will be an error if validation cannot be performed
+//pub type ValidationFunction = fn(ProcessId, &[u8], F) -> Result<(), ErrorCode> where F: FnOnce();
+pub type ValidationFunction = fn(ProcessId, &[u8], &IpcRegistryStringName) -> Result<(), ErrorCode>;
+
 /// IPC Registry String Name capsule
 ///
 /// This capsule allows for registration and discovery of IPC processes via a
@@ -67,6 +81,10 @@ pub struct IpcRegistryStringName {
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<0>,
     >,
+
+    /// Optional validation function. If this function is supplied it will be
+    /// called to determine if validation can succeed.
+    validation: Option<fn(ProcessId, &[u8], &IpcRegistryStringName) -> Result<(), ErrorCode>>,
 }
 
 impl IpcRegistryStringName {
@@ -78,8 +96,44 @@ impl IpcRegistryStringName {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
+        validation: Option<fn(ProcessId, &[u8], &IpcRegistryStringName) -> Result<(), ErrorCode>>,
     ) -> Self {
-        Self { apps: grant }
+        Self {
+            apps: grant,
+            validation,
+        }
+    }
+
+    pub fn complete_registration(
+        &self,
+        processid: ProcessId,
+        new_name: &[u8],
+        registration_allowed: bool,
+    ) {
+        // Save registration state and upcall result. We're going to have to
+        // assume this works, as we can't signal issues to the process anymore
+        // at this point.
+        let _ = self.apps.enter(processid, |app, kerneldata| {
+            if registration_allowed {
+                // Copy name into grant space
+                let n = core::cmp::min(new_name.len(), app.registered_name.len());
+                app.registered_name[0..n].copy_from_slice(&new_name[0..n]);
+
+                // Schedule registration complete callback with success
+                // upcall arguments-> status: StatusCode
+                let _ = kerneldata.schedule_upcall(upcall::REGISTRATION_COMPLETE, (0, 0, 0));
+            } else {
+                // Clear out name since registration failed
+                app.registered_name.fill(0);
+
+                // Schedule registration complete callback with failure
+                // upcall arguments-> status: StatusCode
+                let _ = kerneldata.schedule_upcall(
+                    upcall::REGISTRATION_COMPLETE,
+                    (ErrorCode::FAIL.into(), 0, 0),
+                );
+            }
+        });
     }
 
     fn register(&self, processid: ProcessId) -> Result<(), ErrorCode> {
@@ -123,18 +177,13 @@ impl IpcRegistryStringName {
             }
         }
 
-        // Save newly registered name
-        self.apps.enter(processid, |app, kerneldata| {
-            // Copy name into grant space
-            let n = core::cmp::min(new_name.len(), app.registered_name.len());
-            app.registered_name[0..n].copy_from_slice(&new_name[0..n]);
-
-            // Schedule registration complete callback
-            // upcall arguments-> status: StatusCode
-            let _ = kerneldata.schedule_upcall(upcall::REGISTRATION_COMPLETE, (0, 0, 0));
-        })?;
-
-        Ok(())
+        // Perform validation
+        if let Some(validator) = self.validation {
+            validator(processid, &new_name, self)
+        } else {
+            self.complete_registration(processid, &new_name, true);
+            Ok(())
+        }
     }
 
     fn discover(&self, processid: ProcessId) -> Result<(), ErrorCode> {

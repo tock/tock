@@ -46,6 +46,7 @@ pub struct IpcRegistryPackageNameComponent<
     driver_num: usize,
     capability: C,
     mem_cap: CAP,
+    validation: Option<capsules_core::ipc::ipc_registry_package_name::ValidationFunction<C>>,
 }
 
 impl<C: ProcessManagementCapability, CAP: MemoryAllocationCapability>
@@ -56,12 +57,14 @@ impl<C: ProcessManagementCapability, CAP: MemoryAllocationCapability>
         driver_num: usize,
         capability: C,
         mem_cap: CAP,
+        validation: Option<capsules_core::ipc::ipc_registry_package_name::ValidationFunction<C>>,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             capability,
             mem_cap,
+            validation,
         }
     }
 }
@@ -78,6 +81,7 @@ impl<C: ProcessManagementCapability + 'static, CAP: MemoryAllocationCapability> 
                 .create_grant(self.driver_num, &self.mem_cap),
             self.board_kernel,
             self.capability,
+            self.validation,
         ))
     }
 }
