@@ -196,38 +196,40 @@ impl<const N: usize> SyscallDriver for Registry<N> {
                 })
                 .into(),
 
-            (command::USERCALL_RETURN_FAILURE, errno, _r3) => {
+            (command::USERCALL_RETURN_FAILURE, errno, rv1) => {
+                // Inform the client that the operation completed in failure.
+                // Map the error number back into an ErrorCode.
+                let ec = match errno {
+                    1 => ErrorCode::FAIL,
+                    2 => ErrorCode::BUSY,
+                    3 => ErrorCode::ALREADY,
+                    4 => ErrorCode::OFF,
+                    5 => ErrorCode::RESERVE,
+                    6 => ErrorCode::INVAL,
+                    7 => ErrorCode::SIZE,
+                    8 => ErrorCode::CANCEL,
+                    9 => ErrorCode::NOMEM,
+                    10 => ErrorCode::NOSUPPORT,
+                    11 => ErrorCode::NODEVICE,
+                    12 => ErrorCode::UNINSTALLED,
+                    13 => ErrorCode::NOACK,
+
+                    _ => ErrorCode::FAIL,
+                };
+
                 self.userv_data
-                    .enter(pid, |ad, _kad| {
-                        // Inform the client that the operation completed in failure.
-                        // Map the error number back into an ErrorCode.
-                        let ec = match errno {
-                            1 => ErrorCode::FAIL,
-                            2 => ErrorCode::BUSY,
-                            3 => ErrorCode::ALREADY,
-                            4 => ErrorCode::OFF,
-                            5 => ErrorCode::RESERVE,
-                            6 => ErrorCode::INVAL,
-                            7 => ErrorCode::SIZE,
-                            8 => ErrorCode::CANCEL,
-                            9 => ErrorCode::NOMEM,
-                            10 => ErrorCode::NOSUPPORT,
-                            11 => ErrorCode::NODEVICE,
-                            12 => ErrorCode::UNINSTALLED,
-                            13 => ErrorCode::NOACK,
-
-                            _ => ErrorCode::FAIL,
-                        };
-
-                        if let ServiceState::Pending(client) = ad.op_state {
-                            client.usercall_done(Err(ec));
-                            ad.op_state = ServiceState::Idle;
-                        }
-
-                        Ok(())
-                    })
-                    .flatten()
+                    .enter(pid, |ad, _kad| mem::take(&mut ad.op_state))
                     .map_err(|_perr| ErrorCode::FAIL)
+                    .and_then(|service_state| {
+                        if let ServiceState::Pending(client) = service_state {
+                            let rv_reader = ReturnReader::new(errno, rv1, pid, &self.userv_data);
+                            client.usercall_done(Err((ec, rv_reader)));
+
+                            Ok(())
+                        } else {
+                            Err(ErrorCode::FAIL)
+                        }
+                    })
                     .into()
             }
 

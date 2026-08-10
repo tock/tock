@@ -75,18 +75,20 @@ impl<const L: usize> ServiceInterface<L> {
 }
 
 impl<const L: usize> UserspaceServiceClient for ServiceInterface<L> {
-    fn usercall_done(&self, return_data: Result<ReturnReader<'_>, ErrorCode>) {
+    fn usercall_done(&self, return_data: Result<ReturnReader<'_>, (ErrorCode, ReturnReader<'_>)>) {
         if let Some(op) = self.current_op.take() {
             match op {
                 // Provide the client with its buffer back.
                 Operation::AddData(data_slice) => {
+                    let res_to_client = return_data.map(|_reader| ()).map_err(|(ec, _rr)| ec);
                     self.data_client
-                        .map(|c| c.add_data_done(return_data.map(|_reader| ()), data_slice));
+                        .map(|c| c.add_data_done(res_to_client, data_slice));
                 }
 
                 Operation::AddMutData(data_slice) => {
+                    let res_to_client = return_data.map(|_reader| ()).map_err(|(ec, _rr)| ec);
                     self.data_client
-                        .map(|c| c.add_mut_data_done(return_data.map(|_reader| ()), data_slice));
+                        .map(|c| c.add_mut_data_done(res_to_client, data_slice));
                 }
 
                 // Copy the resulting hash into the caller's provided buffer and return it.
@@ -114,7 +116,9 @@ impl<const L: usize> UserspaceServiceClient for ServiceInterface<L> {
 
                 // Provide the digest output buffer back to the client along with the comparison result.
                 Operation::Verify(digest_buffer) => {
-                    let verify_result = return_data.map(|reader| reader.direct_rvals().0 == 1);
+                    let verify_result = return_data
+                        .map(|reader| reader.direct_rvals().0 == 1)
+                        .map_err(|(ec, _rr)| ec);
                     self.verify_client
                         .map(|c| c.verification_done(verify_result, digest_buffer));
                 }

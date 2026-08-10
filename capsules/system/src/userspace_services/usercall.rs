@@ -70,7 +70,7 @@ pub trait UserspaceServiceClient {
     /// Provides the client with the results of a usercall operation.
     /// The client accesses data the userspace service returns with the
     /// [`ReturnReader`] `args`.
-    fn usercall_done(&self, args: Result<ReturnReader<'_>, ErrorCode>);
+    fn usercall_done(&self, args: Result<ReturnReader<'_>, (ErrorCode, ReturnReader<'_>)>);
 }
 
 /// Put arguments into a userspace service's process buffers.
