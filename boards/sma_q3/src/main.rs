@@ -538,16 +538,16 @@ pub unsafe fn start() -> (
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
-    /// I split this out to be able to start applications with a delay
-    /// after the board is initialized.
-    /// The benefit to debugging is that if I want to print
-    /// some debug information while the board initalizes,
-    /// it won't be affected by an application that prints so much
-    /// that it overflows the output buffer.
-    ///
-    /// It's also useful for a future "fake off" functionality,
-    /// where if a button is pressed, processes are stopped,
-    /// but when pressed again, they are loaded anew.
+    // I split this out to be able to start applications with a delay
+    // after the board is initialized.
+    // The benefit to debugging is that if I want to print
+    // some debug information while the board initializes,
+    // it won't be affected by an application that prints so much
+    // that it overflows the output buffer.
+    //
+    // It's also useful for a future "fake off" functionality,
+    // where if a button is pressed, processes are stopped,
+    // but when pressed again, they are loaded anew.
     fn load_processes(
         board_kernel: &'static kernel::Kernel,
         chip: &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,

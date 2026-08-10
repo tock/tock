@@ -54,7 +54,7 @@ impl Default for VeeRDefaultPeripherals {
 }
 
 impl InterruptService for VeeRDefaultPeripherals {
-    unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
+    fn service_interrupt(&self, _interrupt: u32) -> bool {
         true
     }
 }

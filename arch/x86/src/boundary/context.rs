@@ -49,7 +49,7 @@ impl UserContext {
     ///
     /// Returns an `Err` if the new stack value would fall outside of valid memory.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// The memory region described by `accessible_memory_start` and `app_brk` must point to memory
     /// of the user process. This function will write to that memory.
@@ -84,7 +84,7 @@ impl UserContext {
     ///
     /// Returns an `Err` if the specified location falls outside of valid memory.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// The memory region described by `accessible_memory_start` and `app_brk` must point to memory
     /// of the user process. This function will read from that memory.
@@ -117,7 +117,7 @@ impl UserContext {
     ///
     /// Returns an `Err` if the specified location falls outside of valid memory.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// The memory region described by `accessible_memory_start` and `app_brk` must point to memory
     /// of the user process. This function will write to that memory.

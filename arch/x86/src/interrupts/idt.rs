@@ -57,7 +57,7 @@ const USER_ACCESSIBLE_INTERRUPTS: &[u8] = &[
 /// entry for every possible interrupt vector (see [`NUM_VECTORS`]) referencing the corresponding
 /// handler stub.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// Must not be called more than once, or the IDT created by this function may become corrupted.
 ///

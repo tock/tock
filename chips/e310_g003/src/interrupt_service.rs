@@ -22,7 +22,7 @@ impl E310G003DefaultPeripherals<'_> {
     }
 }
 impl kernel::platform::chip::InterruptService for E310G003DefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.e310x.uart0.handle_interrupt(),
             interrupts::UART1 => self.e310x.uart1.handle_interrupt(),

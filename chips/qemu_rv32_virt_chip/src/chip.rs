@@ -63,7 +63,7 @@ impl QemuRv32VirtDefaultPeripherals<'_> {
 }
 
 impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.uart0.handle_interrupt(),
             interrupts::VIRTIO_MMIO_0 => self.virtio_mmio[0].handle_interrupt(),

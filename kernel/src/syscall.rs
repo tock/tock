@@ -532,7 +532,7 @@ pub trait UserspaceKernelBoundary {
     /// example, if a process crashes and is to be restarted, this must be
     /// called. Or if the process is moved this may need to be called.
     ///
-    /// ### Safety
+    /// # Safety
     ///
     /// This function guarantees that it if needs to change process memory, it
     /// will only change memory starting at `accessible_memory_start` and before
@@ -554,7 +554,7 @@ pub trait UserspaceKernelBoundary {
     /// process so that when it resumes executing it knows the return value of
     /// the syscall it called.
     ///
-    /// ### Safety
+    /// # Safety
     ///
     /// This function guarantees that it if needs to change process memory, it
     /// will only change memory starting at `accessible_memory_start` and before
@@ -596,7 +596,7 @@ pub trait UserspaceKernelBoundary {
     /// process. Returns `Err(())` if the function was not, likely because there
     /// is insufficient memory available to do so.
     ///
-    /// ### Safety
+    /// # Safety
     ///
     /// This function guarantees that it if needs to change process memory, it
     /// will only change memory starting at `accessible_memory_start` and before
@@ -621,7 +621,7 @@ pub trait UserspaceKernelBoundary {
     ///    the process's stack pointer with process.rs users can inspect the
     ///    state and see the stack depth, which might be useful for debugging.
     ///
-    /// ### Safety
+    /// # Safety
     ///
     /// This function guarantees that it if needs to change process memory, it
     /// will only change memory starting at `accessible_memory_start` and before
@@ -637,7 +637,7 @@ pub trait UserspaceKernelBoundary {
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.
     ///
-    /// ### Safety
+    /// # Safety
     ///
     /// This function guarantees that it if needs to change process memory, it
     /// will only change memory starting at `accessible_memory_start` and before

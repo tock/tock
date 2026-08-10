@@ -25,7 +25,7 @@
 //! Apart from external interrupts, all other interrupt categories such as CPU exceptions or system
 //! calls are handled internally by this crate.
 //!
-//! ## Safety
+//! # Safety
 //!
 //! Some of the `unsafe` code in this crate relies on the blanket assumption that this code is being
 //! compiled into a Tock kernel for an x86 system. When calling code from this crate, the following
@@ -61,7 +61,7 @@ mod start;
 /// This function installs new segmentation and interrupt handling regimes which the rest of this
 /// crate needs to function properly.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// This function must never be executed more than once.
 ///

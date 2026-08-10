@@ -28,7 +28,7 @@ pub struct StaticRef<T> {
 impl<T> StaticRef<T> {
     /// Create a new [`StaticRef`] from a raw pointer
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// - `ptr` must be aligned, non-null, and dereferencable as `T`.
     /// - `*ptr` must be valid for the program duration.

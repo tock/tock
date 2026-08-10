@@ -139,7 +139,7 @@ struct VirtioDevices {
 }
 
 impl InterruptService for VirtioDevices {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         let mut handled = false;
 
         self.rng.map(|(int_line, dev)| {
