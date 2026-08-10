@@ -58,7 +58,10 @@ register_structs! {
         (0x0E4 => ccipr2: ReadWrite<u32, CCIPR1::Register>),
         /// Peripherals independent clock configuration register 3
         (0x0E8 => ccipr3: ReadWrite<u32, CCIPR3::Register>),
-        (0x0EC => @END),
+        (0x0EC => _reserved5: [u32; 1]),
+        /// RCC backup domain control register
+        (0x0F0 => bdcr: ReadWrite<u32, BDCR::Register>),
+        (0x0F4 => @END),
     }
 }
 
@@ -102,7 +105,9 @@ register_bitfields![u32,
         SPI1EN OFFSET(12) NUMBITS(1) []
     ],
     pub APB3ENR [
-        SYSCFGEN OFFSET(1) NUMBITS(1) []
+        SYSCFGEN OFFSET(1) NUMBITS(1) [],
+        PWREN OFFSET(2) NUMBITS(1) [],
+        RTCAPBEN OFFSET(21) NUMBITS(1) [],
     ],
     pub CCIPR1 [
         USART1SEL OFFSET(0) NUMBITS(2) [
@@ -133,6 +138,21 @@ register_bitfields![u32,
             LSI = 1
         ]
     ],
+    pub BDCR [
+        /// LSI oscillator enable
+        LSION OFFSET(26) NUMBITS(1) [],
+        /// LSI oscillator ready
+        LSIRDY OFFSET(27) NUMBITS(1) [],
+        /// RTC and TAMP clock enable
+        RTCEN OFFSET(15) NUMBITS(1) [],
+        /// RTC and TAMP clock source selection
+        RTCSEL OFFSET(8) NUMBITS(2) [
+            NO_CLK = 0,
+            LSE = 1,
+            LSI = 2,
+            HSE = 3,
+        ]
+    ]
 ];
 
 /// Base address for RCC in Nonsecure mode
@@ -239,5 +259,34 @@ impl Rcc {
     // I belive it is better to be explicit
     pub fn set_i2c1_source_pclk(&self) {
         self.registers.ccipr1.modify(CCIPR1::I2C1SEL::PCLK);
+    }
+
+    // Enable the APB3 bus clock for the RTC and TAMP peripherals
+    pub fn enable_apb3_bus_clk(&self) {
+        self.registers.apb3enr.modify(APB3ENR::RTCAPBEN::SET);
+    }
+    // Enabling the LSI oscillator
+    pub fn enable_lsi(&self) {
+        self.registers.bdcr.modify(BDCR::LSION::SET);
+    }
+    // Check if LSI is ready
+    fn is_lsi_ready(&self) -> bool {
+        self.registers.bdcr.is_set(BDCR::LSIRDY)
+    }
+    // Wait for the LSI oscillator to stabilize before it is used as a clock source
+    pub fn wait_for_lsi_ready(&self) {
+        // Magic number large enough to prevent kernel hanging if the oscillator fails to stabilize
+        let mut cycle_counter = 100000;
+        while !self.is_lsi_ready() && cycle_counter > 0 {
+            cycle_counter -= 1;
+        }
+    }
+    // Select LSI as the RTC clock source
+    pub fn select_rtc_source_lsi(&self) {
+        self.registers.bdcr.modify(BDCR::RTCSEL::LSI);
+    }
+    // Enable the RTC clock
+    pub fn enable_rtc(&self) {
+        self.registers.bdcr.modify(BDCR::RTCEN::SET);
     }
 }

@@ -20,6 +20,7 @@ use crate::nvic::{
 };
 use crate::pwr;
 use crate::rcc;
+use crate::rtc;
 use crate::spi;
 use crate::tim;
 use crate::usart;
@@ -41,6 +42,7 @@ pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
 
 pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rcc: rcc::Rcc,
+    pub rtc: rtc::Rtc<'a>,
     pub tim2: tim::Tim2<'a>,
     pub tim3: tim::Pwm<'a>,
     pub usart1: usart::Usart<'a>,
@@ -78,6 +80,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
     pub fn new(exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
+            rtc: rtc::Rtc::new(rtc::RTC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
             tim3: tim::Pwm::new(
                 tim::TIM3_BASE,
@@ -121,6 +124,17 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_hash();
         self.rcc.set_usart1_source_pclk();
 
+        // RTC
+        // The RTC lives in the backup domain, which is write protected on every start
+        self.pwr.disable_backup_domain();
+        // Clock the RTC registers so we can write to them.
+        self.rcc.enable_apb3_bus_clk();
+        self.rcc.enable_lsi();
+        // Only use the LSI once it is stable, but don't hang the kernel if it never is.
+        self.rcc.wait_for_lsi_ready();
+        self.rcc.select_rtc_source_lsi();
+        self.rcc.enable_rtc();
+
         let _ = self.spi1.init();
 
         // ADC
@@ -138,6 +152,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // Deferred Calls
         self.usart1.register();
         self.crc.register();
+        self.rtc.register();
 
         // I2C
         self.rcc.enable_i2c1();
@@ -179,6 +194,11 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         if let (Some(tx), Some(rx)) = (i2c1_channel_tx, i2c1_channel_rx) {
             i2c::I2c::set_dma(&self.i2c1, self.dma1, tx, rx);
         }
+
+        // Set up the RTC mode. (configure prescalers, 24h format, default date/time)
+        // This requires the RTC clock and backup domain to have been sucessfully
+        // initialized in the "Power and Wires" section above.
+        let _ = self.rtc.init_mode();
     }
 }
 
