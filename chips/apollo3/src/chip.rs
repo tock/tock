@@ -71,7 +71,7 @@ impl Apollo3DefaultPeripherals {
 }
 
 impl kernel::platform::chip::InterruptService for Apollo3DefaultPeripherals {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
             nvic::STIMER..=nvic::STIMER_CMPR7 => self.stimer.handle_interrupt(),
@@ -127,16 +127,14 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm4f::nvic::next_pending() {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt, {}", interrupt);
-                }
-
-                let n = cortexm4f::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        while let Some(interrupt) = cortexm4f::nvic::next_pending() {
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt, {}", interrupt);
             }
+
+            let n = cortexm4f::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -159,7 +157,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

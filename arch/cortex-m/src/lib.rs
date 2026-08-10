@@ -19,15 +19,6 @@ pub mod syscall;
 pub mod systick;
 pub mod thread_id;
 
-// These constants are defined in the linker script.
-extern "C" {
-    static _szero: *const u32;
-    static _ezero: *const u32;
-    static _etext: *const u32;
-    static _srelocate: *const u32;
-    static _erelocate: *const u32;
-}
-
 /// Trait to encapsulate differences in between Cortex-M variants
 ///
 /// This trait contains functions and other associated data (constants) which
@@ -119,13 +110,30 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
     // IPSR[8:0] holds the currently active interrupt
-    asm!(
-        "
+    //
+    // # Safety
+    //
+    // - INPUTS: This does not use the existing value of any registers.
+    // - OUTPUTS: This only writes `r0` which is marked as an output.
+    // - Options set:
+    //   - nomem: We do not read or write memory.
+    //   - nostack: This does not use the stack.
+    //   - preserves_flags: This does not change flags.
+    // - Options not set:
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on arm
+    //   - raw: not required
+    unsafe {
+        asm!(
+            "
     mrs r0, ipsr
-        ",
-        out("r0") interrupt_number,
-        options(nomem, nostack, preserves_flags),
-    );
+            ",
+            out("r0") interrupt_number,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
 
     interrupt_number &= 0x1ff;
 
@@ -138,10 +146,43 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 /// not valid to run Rust code without RAM initialized.
 ///
 /// See <https://github.com/tock/tock/issues/2222> for more information.
+///
+/// # Safety
+///
+/// ## `naked`
+///
+/// - INPUTS: This does not use the existing value of any registers.
+/// - OUTPUTS: This does not write any callee-saved registers, and only uses
+///   caller-saved registers.
+/// - This does not fall-through, it branches at the end.
+///
+/// ## `no_mangle`
+///
+/// We use `initialize_ram_jump_to_main` as a symbol in the linker file. This is
+/// the only user of the name `initialize_ram_jump_to_main` and no other symbol
+/// may use the same name.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
+    // These constants are defined in the linker script.
+    //
+    // # Safety
+    //
+    // Linker script symbols are value-less entities, a concept that does not
+    // map onto any actual Rust type (as of July 2026).  This method only uses
+    // these declarations to pass their address to the assembly. By declaring
+    // these variables within this naked fn, we ensure that no Rust code
+    // attempts to access them, and assert that the assembly will take only the
+    // address, which is well-defined.
+    unsafe extern "C" {
+        static _szero: u8;
+        static _ezero: u8;
+        static _etext: u8;
+        static _srelocate: u8;
+        static _erelocate: u8;
+    }
+
     use core::arch::naked_asm;
     naked_asm!(
         "

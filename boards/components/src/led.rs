@@ -41,7 +41,7 @@ macro_rules! led_component_static {
 
         let led = kernel::static_buf!( capsules_core::led::LedDriver<'static, $Led, NUM_LEDS>);
         (led, arr)
-    };};
+    }};
 }
 
 pub type LedsComponentType<L, const NUMLEDS: usize> = LedDriver<'static, L, NUMLEDS>;

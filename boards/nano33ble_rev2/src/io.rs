@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2023.
 
+use core::cell::Cell;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::ptr::{addr_of, addr_of_mut};
@@ -15,7 +16,6 @@ use kernel::utilities::io_write::IoWrite;
 use nrf52840::gpio::Pin;
 
 use kernel::hil::uart::Transmit;
-use kernel::utilities::cells::VolatileCell;
 
 struct Writer {
     initialized: bool,
@@ -34,11 +34,11 @@ const BUF_LEN: usize = 512;
 static mut STATIC_PANIC_BUF: [u8; BUF_LEN] = [0; BUF_LEN];
 
 static mut DUMMY: DummyUsbClient = DummyUsbClient {
-    fired: VolatileCell::new(false),
+    fired: Cell::new(false),
 };
 
 struct DummyUsbClient {
-    fired: VolatileCell<bool>,
+    fired: Cell<bool>,
 }
 
 impl uart::TransmitClient for DummyUsbClient {

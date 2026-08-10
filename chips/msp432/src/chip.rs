@@ -69,7 +69,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
 }
 
 impl kernel::platform::chip::InterruptService for Msp432DefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::ADC => self.adc.handle_interrupt(),
             nvic::DMA_INT0 => self.dma_channels.handle_interrupt(0),
@@ -117,10 +117,8 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
 
     fn service_pending_interrupts(&self) {
         while let Some(interrupt) = cortexm4::nvic::next_pending() {
-            unsafe {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
 
             let n = cortexm4::nvic::Nvic::new(interrupt);
@@ -147,7 +145,7 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

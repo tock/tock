@@ -7,7 +7,6 @@
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 
@@ -60,12 +59,12 @@ struct PwmRegisters {
     _reserved6: [u8; 16],
     seq1: PwmSeqRegisters,
     _reserved7: [u8; 16],
-    psel_out: [VolatileCell<nrf5x::pinmux::Pinmux>; 4],
+    psel_out: [ReadWrite<u32>; 4],
 }
 
 #[repr(C)]
 struct PwmSeqRegisters {
-    seq_ptr: VolatileCell<*const u16>,
+    seq_ptr: ReadWrite<u32>,
     seq_cnt: ReadWrite<u32, SEQ_CNT::Register>,
     seq_refresh: ReadWrite<u32, SEQ_REFRESH::Register>,
     seq_enddelay: ReadWrite<u32, SEQ_ENDDELAY::Register>,
@@ -169,6 +168,7 @@ const PWM0_BASE: StaticRef<PwmRegisters> =
     unsafe { StaticRef::new(0x4001C000 as *const PwmRegisters) };
 
 /// `DUTY_CYCLES` is a static array that must be passed to the PWM hardware.
+///
 /// The nRF52 hardware uses this static array in memory to enable switching
 /// between multiple duty cycles automatically while generating the PWM output.
 /// This isn't ideal from a Rust perspective, but the peripheral hardware must
@@ -210,7 +210,7 @@ impl Pwm {
         let dc_out = counter_top - ((3 * duty_cycle) / frequency_hz);
 
         // Configure the pin
-        self.registers.psel_out[0].set(*pin);
+        self.registers.psel_out[0].set((*pin).into());
 
         // Start by enabling the peripheral.
         self.registers.enable.write(ENABLE::ENABLE::SET);
@@ -235,7 +235,7 @@ impl Pwm {
         }
         let duty_cycles: *const [u16; 4] = core::ptr::addr_of!(DUTY_CYCLES);
         let duty_cycles: *const u16 = duty_cycles.cast();
-        self.registers.seq0.seq_ptr.set(duty_cycles);
+        self.registers.seq0.seq_ptr.set(duty_cycles as u32);
         self.registers.seq0.seq_cnt.write(SEQ_CNT::CNT.val(1));
         self.registers
             .seq0

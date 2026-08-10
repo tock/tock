@@ -54,7 +54,7 @@ impl Default for VeeRDefaultPeripherals {
 }
 
 impl InterruptService for VeeRDefaultPeripherals {
-    unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
+    fn service_interrupt(&self, _interrupt: u32) -> bool {
         true
     }
 }
@@ -141,7 +141,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

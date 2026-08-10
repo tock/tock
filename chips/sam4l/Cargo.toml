@@ -10,6 +10,7 @@ edition.workspace = true
 
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
 
 [lints]

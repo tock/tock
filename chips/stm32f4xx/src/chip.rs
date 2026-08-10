@@ -97,7 +97,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
 }
 
 impl<ChipSpecs: ChipSpecsTrait> InterruptService for Stm32f4xxDefaultPeripherals<'_, ChipSpecs> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::DMA1_Stream1 => self.dma1_streams
                 [dma::Dma1Peripheral::USART3_RX.get_stream_idx()]
@@ -174,16 +174,14 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm4f::nvic::next_pending() {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
-
-                let n = cortexm4f::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        while let Some(interrupt) = cortexm4f::nvic::next_pending() {
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
+
+            let n = cortexm4f::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -206,7 +204,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

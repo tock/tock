@@ -13,7 +13,7 @@ use super::pic;
 /// interrupt, then issues an EOI message to the system interrupt controller so that subsequent
 /// interrupts can be delivered.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// This function must only be called when handling an interrupt. It should _never_ be called by
 /// other Rust code.

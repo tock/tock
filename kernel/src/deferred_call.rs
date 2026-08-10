@@ -103,9 +103,11 @@ pub trait DeferredCallClient: Sized {
 }
 
 /// This struct serves as a lightweight alternative to the use of trait objects
-/// (e.g. `&dyn DeferredCall`). Using a trait object will include a 20 byte
-/// vtable per instance, but this alternative stores only the data and function
-/// pointers, 8 bytes per instance.
+/// (e.g. `&dyn DeferredCall`).
+///
+/// Using a trait object will include a 20 byte vtable per instance, but this
+/// alternative stores only the data and function pointers, 8 bytes per
+/// instance.
 #[derive(Copy, Clone)]
 struct DynDefCallRef<'a> {
     data: *const (),
@@ -114,18 +116,20 @@ struct DynDefCallRef<'a> {
 }
 
 impl<'a> DynDefCallRef<'a> {
-    // SAFETY: We define the callback function as being a closure which casts
-    // the passed pointer to be the appropriate type (a pointer to `T`) and then
-    // calls `T::handle_deferred_call()`. In practice, the closure is optimized
-    // away by LLVM when the ABI of the closure and the underlying function are
-    // identical, making this zero-cost, but saving us from having to trust that
-    // `fn(*const ())` and `fn handle_deferred_call(&self)` will always have the
-    // same calling convention for any type.
     fn new<T: DeferredCallClient>(x: &'a T) -> Self {
         let data: *const () = core::ptr::from_ref(x).cast();
         Self {
             data,
-            callback: |p| unsafe { T::handle_deferred_call(&*p.cast()) },
+            callback: |p| {
+                // SAFETY: We define the callback function as being a closure which casts
+                // the passed pointer to be the appropriate type (a pointer to `T`) and then
+                // calls `T::handle_deferred_call()`. In practice, the closure is optimized
+                // away by LLVM when the ABI of the closure and the underlying function are
+                // identical, making this zero-cost, but saving us from having to trust that
+                // `fn(*const ())` and `fn handle_deferred_call(&self)` will always have the
+                // same calling convention for any type.
+                unsafe { T::handle_deferred_call(&*p.cast()) }
+            },
             _lifetime: PhantomData,
         }
     }
@@ -150,9 +154,11 @@ impl DynDefCallRef<'_> {
 static CTR: SingleThreadValue<Cell<usize>> = SingleThreadValue::new();
 
 /// This bitmask tracks which of the up to 32 existing deferred calls have been
-/// scheduled. Any bit that is set in that mask indicates the deferred call with
-/// its [`DeferredCall::idx`] field set to the index of that bit has been
-/// scheduled and not yet serviced.
+/// scheduled.
+///
+/// Any bit that is set in that mask indicates the deferred call with its
+/// [`DeferredCall::idx`] field set to the index of that bit has been scheduled
+/// and not yet serviced.
 static BITMASK: SingleThreadValue<Cell<u32>> = SingleThreadValue::new();
 
 /// An array that stores references to up to 32 `DeferredCall`s via the low-cost
@@ -181,9 +187,7 @@ pub fn initialize_deferred_call_state<P: ThreadIdProvider>() {
 /// concurrently with calls to `initialize_deferred_call_state` or other calls
 /// to [`initialize_deferred_call_state_unsafe`].
 pub unsafe fn initialize_deferred_call_state_unsafe<P: ThreadIdProvider>() {
-    // # Safety
-    //
-    // See function safety description.
+    // SAFETY: See function safety description.
     unsafe {
         let _ = CTR.bind_to_thread_unsafe::<P>(Cell::new(0));
         let _ = BITMASK.bind_to_thread_unsafe::<P>(Cell::new(0));

@@ -117,7 +117,7 @@ impl Nrf52DefaultPeripherals<'_> {
     }
 }
 impl kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
             crate::peripheral_interrupts::ECB => self.ecb.handle_interrupt(),
@@ -173,15 +173,13 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = nvic::next_pending() {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
-                let n = nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        while let Some(interrupt) = nvic::next_pending() {
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
+            let n = nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -195,7 +193,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

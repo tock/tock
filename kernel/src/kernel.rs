@@ -358,51 +358,48 @@ impl Kernel {
         let scheduler = resources.scheduler();
 
         resources.watchdog().tickle();
-        unsafe {
-            // Ask the scheduler if we should do tasks inside of the kernel,
-            // such as handle interrupts. A scheduler may want to prioritize
-            // processes instead, or there may be no kernel work to do.
-            match scheduler.do_kernel_work_now(chip) {
-                true => {
-                    // Execute kernel work. This includes handling
-                    // interrupts and is how code in the chips/ and capsules
-                    // crates is able to execute.
-                    scheduler.execute_kernel_work(chip);
-                }
-                false => {
-                    // No kernel work ready, so ask scheduler for a process.
-                    match scheduler.next() {
-                        SchedulingDecision::RunProcess((processid, timeslice_us)) => {
-                            self.process_map_or((), processid, |process| {
-                                let (reason, time_executed) =
-                                    self.do_process(resources, chip, process, ipc, timeslice_us);
-                                scheduler.result(reason, time_executed);
+        // Ask the scheduler if we should do tasks inside of the kernel,
+        // such as handle interrupts. A scheduler may want to prioritize
+        // processes instead, or there may be no kernel work to do.
+        match scheduler.do_kernel_work_now(chip) {
+            true => {
+                // Execute kernel work. This includes handling
+                // interrupts and is how code in the chips/ and capsules
+                // crates is able to execute.
+                scheduler.execute_kernel_work(chip);
+            }
+            false => {
+                // No kernel work ready, so ask scheduler for a process.
+                match scheduler.next() {
+                    SchedulingDecision::RunProcess((processid, timeslice_us)) => {
+                        self.process_map_or((), processid, |process| {
+                            let (reason, time_executed) =
+                                self.do_process(resources, chip, process, ipc, timeslice_us);
+                            scheduler.result(reason, time_executed);
+                        });
+                    }
+                    SchedulingDecision::TrySleep => {
+                        // For testing, it may be helpful to
+                        // disable sleeping the chip in case
+                        // the running test does not generate
+                        // any interrupts.
+                        if !no_sleep {
+                            chip.with_interrupts_disabled(|| {
+                                // Cannot sleep if interrupts are pending,
+                                // as on most platforms unhandled interrupts
+                                // will wake the device. Also, if the only
+                                // pending interrupt occurred after the
+                                // scheduler decided to put the chip to
+                                // sleep, but before this atomic section
+                                // starts, the interrupt will not be
+                                // serviced and the chip will never wake
+                                // from sleep.
+                                if !chip.has_pending_interrupts() && !DeferredCall::has_tasks() {
+                                    resources.watchdog().suspend();
+                                    chip.sleep();
+                                    resources.watchdog().resume();
+                                }
                             });
-                        }
-                        SchedulingDecision::TrySleep => {
-                            // For testing, it may be helpful to
-                            // disable sleeping the chip in case
-                            // the running test does not generate
-                            // any interrupts.
-                            if !no_sleep {
-                                chip.with_interrupts_disabled(|| {
-                                    // Cannot sleep if interrupts are pending,
-                                    // as on most platforms unhandled interrupts
-                                    // will wake the device. Also, if the only
-                                    // pending interrupt occurred after the
-                                    // scheduler decided to put the chip to
-                                    // sleep, but before this atomic section
-                                    // starts, the interrupt will not be
-                                    // serviced and the chip will never wake
-                                    // from sleep.
-                                    if !chip.has_pending_interrupts() && !DeferredCall::has_tasks()
-                                    {
-                                        resources.watchdog().suspend();
-                                        chip.sleep();
-                                        resources.watchdog().resume();
-                                    }
-                                });
-                            }
                         }
                     }
                 }
@@ -554,9 +551,7 @@ impl Kernel {
                     // inaccessible to kernel mode if memory protection is
                     // active.
                     //
-                    // # Safety
-                    //
-                    // This function is unsafe, as calling it before switching
+                    // SAFETY: This function is unsafe, as calling it before switching
                     // to a process, without first re-enabling memory
                     // protection, could allow an application to access
                     // kernel-private memory. Invoking this function is safe
@@ -824,9 +819,7 @@ impl Kernel {
                         // Set the "did I trigger upcalls" flag.
                         // If address is invalid does nothing.
                         //
-                        // # Safety
-                        //
-                        // This is fine as long as no references to the
+                        // SAFETY: This is fine as long as no references to the
                         // process's memory exist. We do not have a reference,
                         // so we can safely call `set_byte()`.
                         unsafe {

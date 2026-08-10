@@ -74,7 +74,7 @@ static mut TSS_INSTANCE: TaskStateSegment = TaskStateSegment::new();
 
 /// Initializes the global TSS instance and returns a descriptor for it.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// Must never be called more than once, as this would cause the TSS to be reinitialized
 /// unexpectedly.
@@ -95,7 +95,7 @@ unsafe fn init_tss() -> Descriptor {
 
 /// Sets the stack pointer to use for handling interrupts from user mode.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// When handling interrupts that occur during user mode, the context switching logic has very
 /// specific expectations about the layout of the kernel's stack frame. See _return_from_user.rs_ for
@@ -115,7 +115,7 @@ pub unsafe extern "cdecl" fn set_tss_esp0(esp: u32) {
 
 /// Performs global initialization of memory segmentation.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// Memory must be identity-mapped before this function is called. Otherwise the kernel's code/data
 /// will suddenly be re-mapped to different addresses, likely resulting in a spectacular crash.

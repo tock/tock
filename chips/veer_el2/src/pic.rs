@@ -6,8 +6,9 @@
 /* Currently no peripheral that would generate interupts is defined in the reference
 testbench for VeeR EL2, so the Pic is not expected to handle any interrupts. */
 
+use core::cell::Cell;
+
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
     LocalRegisterCopy, ReadWrite, register_bitfields, register_structs,
@@ -94,7 +95,7 @@ register_bitfields![usize,
 #[allow(dead_code)]
 pub struct Pic {
     registers: StaticRef<PicRegisters>,
-    saved: [VolatileCell<LocalRegisterCopy<u32>>; 3],
+    saved: [Cell<LocalRegisterCopy<u32>>; 3],
     meivt: ReadWriteRiscvCsr<usize, MEIVT::Register, 0xBC8>,
     meipt: ReadWriteRiscvCsr<usize, MEIPT::Register, 0xBC9>,
     meicpct: ReadWriteRiscvCsr<usize, MEICPCT::Register, 0xBCA>,
@@ -108,9 +109,9 @@ impl Pic {
         Pic {
             registers: base,
             saved: [
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
-                VolatileCell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
+                Cell::new(LocalRegisterCopy::new(0)),
             ],
             meivt: ReadWriteRiscvCsr::new(),
             meipt: ReadWriteRiscvCsr::new(),

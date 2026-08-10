@@ -12,11 +12,13 @@
 //!
 //! Reference: *LPC55S6x/LPC55S2x/LPC552x User Manual* (NXP).
 
+use core::cell::Cell;
+
 use cortexm33::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
@@ -340,7 +342,7 @@ const CTIMER0_BASE: StaticRef<Ctimer0Registers> =
 pub struct LPCTimer<'a> {
     registers: StaticRef<Ctimer0Registers>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
-    armed: VolatileCell<bool>,
+    armed: Cell<bool>,
 }
 
 impl<'a> LPCTimer<'a> {
@@ -348,7 +350,7 @@ impl<'a> LPCTimer<'a> {
         LPCTimer {
             registers: CTIMER0_BASE,
             client: OptionalCell::empty(),
-            armed: VolatileCell::new(false),
+            armed: Cell::new(false),
         }
     }
 
@@ -386,12 +388,10 @@ impl<'a> LPCTimer<'a> {
     }
 
     fn enable_timer_interrupt(&self) {
-        unsafe {
-            with_interrupts_disabled(|| {
-                let n = cortexm33::nvic::Nvic::new(CTIMER0);
-                n.enable();
-            })
-        }
+        with_interrupts_disabled(|| {
+            let n = cortexm33::nvic::Nvic::new(CTIMER0);
+            n.enable();
+        })
     }
 
     #[allow(dead_code)]
@@ -459,11 +459,9 @@ impl<'a> Alarm<'a> for LPCTimer<'a> {
         self.disable_interrupt();
         self.armed.set(false);
 
-        unsafe {
-            with_interrupts_disabled(|| {
-                cortexm33::nvic::Nvic::new(CTIMER0).clear_pending();
-            });
-        }
+        with_interrupts_disabled(|| {
+            cortexm33::nvic::Nvic::new(CTIMER0).clear_pending();
+        });
 
         Ok(())
     }

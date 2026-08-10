@@ -12,13 +12,12 @@ use crate::pm;
 use crate::pm::{Clock, HSBClock, PBBClock, disable_clock, enable_clock};
 use crate::scif;
 use core::cell::Cell;
-use core::ptr;
 use core::slice;
 use kernel::debug as debugln;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
@@ -380,7 +379,7 @@ pub const fn new_endpoint() -> Endpoint {
 
 #[repr(C)]
 pub struct Bank {
-    addr: VolatileCell<*mut u8>,
+    addr: InMemoryRegister<u32>,
 
     // The following fields are not actually registers
     // (they may be placed anywhere in memory),
@@ -395,7 +394,7 @@ pub struct Bank {
 impl Bank {
     pub const fn new() -> Bank {
         Bank {
-            addr: VolatileCell::new(ptr::null_mut()),
+            addr: InMemoryRegister::new(0),
             packet_size: InMemoryRegister::new(0),
             control_status: InMemoryRegister::new(0),
             _reserved: 0,
@@ -403,7 +402,7 @@ impl Bank {
     }
 
     pub fn set_addr(&self, addr: *mut u8) {
-        self.addr.set(addr);
+        self.addr.set(addr as u32);
     }
 }
 
@@ -477,11 +476,11 @@ impl<'a> Usbc<'a> {
         &self,
         endpoint: EndpointIndex,
         bank: BankIndex,
-        buf: &[VolatileCell<u8>],
+        buf: &[InMemoryRegister<u8>],
     ) {
         let e: usize = From::from(endpoint);
         let b: usize = From::from(bank);
-        let p: *const VolatileCell<u8> = buf.as_ptr();
+        let p: *const InMemoryRegister<u8> = buf.as_ptr();
         let p: *mut u8 = p.cast_mut().cast();
 
         debug1!("Set Endpoint{}/Bank{} addr={:8?}", e, b, p);
@@ -1379,7 +1378,7 @@ impl<'a> Usbc<'a> {
     fn debug_show_d0(&self) {
         for bi in 0..1 {
             let b = &self.descriptors[0][bi];
-            let addr = b.addr.get();
+            let addr = b.addr.get() as *const u8;
             let _buf = if addr.is_null() {
                 None
             } else {
@@ -1444,7 +1443,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         self.client.set(client);
     }
 
-    fn endpoint_set_ctrl_buffer(&self, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_ctrl_buffer(&self, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }
@@ -1452,7 +1451,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         self.endpoint_bank_set_buffer(EndpointIndex::new(0), BankIndex::Bank0, buf);
     }
 
-    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }
@@ -1460,7 +1459,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         self.endpoint_bank_set_buffer(EndpointIndex::new(endpoint), BankIndex::Bank0, buf);
     }
 
-    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
+    fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [InMemoryRegister<u8>]) {
         if buf.len() < 8 {
             client_err!("Bad endpoint buffer size");
         }

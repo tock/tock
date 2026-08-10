@@ -76,22 +76,20 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            let mask = match self.sio.get_processor() {
-                Processor::Processor0 => self.processor0_interrupt_mask,
-                Processor::Processor1 => self.processor1_interrupt_mask,
-            };
-            while let Some(interrupt) = cortexm0p::nvic::next_pending_with_mask(mask) {
-                // ignore SIO_IRQ_PROC1 as it is intended for processor 1
-                // not able to unset its pending status
-                // probably only processor 1 can unset the pending by reading the fifo
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
-                let n = cortexm0p::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        let mask = match self.sio.get_processor() {
+            Processor::Processor0 => self.processor0_interrupt_mask,
+            Processor::Processor1 => self.processor1_interrupt_mask,
+        };
+        while let Some(interrupt) = cortexm0p::nvic::next_pending_with_mask(mask) {
+            // ignore SIO_IRQ_PROC1 as it is intended for processor 1
+            // not able to unset its pending status
+            // probably only processor 1 can unset the pending by reading the fifo
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
+            let n = cortexm0p::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -120,7 +118,7 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
@@ -184,7 +182,7 @@ impl Rp2040DefaultPeripherals<'_> {
 }
 
 impl InterruptService for Rp2040DefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::PIO0_IRQ_0 => {
                 self.pio0.handle_interrupt();

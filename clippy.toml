@@ -1,0 +1,16 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+# We want our internal API documentation to be as good as our public
+# documentation. Enable `check-private-items` to apply lints from
+# https://rust-lang.github.io/rust-clippy/master/?search=check-private-items to
+# our internal APIs.
+# 
+# As of July 2026, this includes:
+# - clippy::missing_errors_doc (allowed in Tock)
+# - clippy::missing_panics_doc (allowed in Tock)
+# - clippy::missing_safety_doc (allowed in Tock, except kernel)
+# - clippy::unnecessary_safety_doc (denied in Tock)
+# - clippy::too_long_first_doc_paragraph (denied in Tock)
+check-private-items = true

@@ -61,16 +61,14 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm33::nvic::next_pending() {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
-
-                let n = cortexm33::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        while let Some(interrupt) = cortexm33::nvic::next_pending() {
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
+
+            let n = cortexm33::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -92,7 +90,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
@@ -121,7 +119,7 @@ impl Lpc55s69DefaultPeripheral<'_> {
 }
 
 impl InterruptService for Lpc55s69DefaultPeripheral<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::GPIO_INT0_IRQ0 => {
                 self.pins.handle_interrupt();

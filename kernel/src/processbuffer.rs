@@ -67,9 +67,7 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
     // Transmute a slice reference over readable (read-only or read-write, and
     // potentially aliased) bytes into a `ReadableProcessSlice` reference.
     //
-    // # Safety
-    //
-    // This is sound, as `ReadableProcessSlice` is merely a
+    // SAFETY: This is sound, as `ReadableProcessSlice` is merely a
     // `#[repr(transparent)]` wrapper around `[ReadableProcessByte]`. However,
     // we cannot build this struct safely from an intermediate
     // `[ReadableProcessByte]` slice reference, as we cannot dereference this
@@ -138,9 +136,7 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
     // Transmute a slice reference over writeable and potentially aliased bytes
     // into a `WriteableProcessSlice` reference.
     //
-    // # Safety
-    //
-    // This is sound, as `WriteableProcessSlice` is merely a
+    // SAFETY: This is sound, as `WriteableProcessSlice` is merely a
     // `#[repr(transparent)]` wrapper around `[Cell<u8>]`. However, we cannot
     // build this struct safely from an intermediate `[WriteableProcessByte]`
     // slice reference, as we cannot dereference this unsized type.
@@ -346,7 +342,7 @@ impl ReadOnlyProcessBuffer {
     /// Construct a new [`ReadOnlyProcessBuffer`] over a given pointer and
     /// length.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
@@ -367,7 +363,7 @@ impl ReadOnlyProcessBuffer {
     /// [`Process`](crate::process::Process) trait outside of the
     /// `kernel` crate.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// If the length is `0`, an arbitrary pointer may be passed into
     /// `ptr`. It does not necessarily have to point to allocated
@@ -395,9 +391,7 @@ impl ReadOnlyProcessBuffer {
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
-        // # Safety
-        //
-        // See function description.
+        // SAFETY: See function description.
         unsafe { Self::new(ptr, len, process_id) }
     }
 
@@ -443,7 +437,7 @@ unsafe impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
             Some(pid) => pid
                 .kernel
                 .process_map_or(Err(process::Error::NoSuchApp), pid, |_| {
-                    // Safety: `kernel.process_map_or()` validates that
+                    // SAFETY: `kernel.process_map_or()` validates that
                     // the process still exists and its memory is still
                     // valid. In particular, `Process` tracks the "high water
                     // mark" of memory that the process has `allow`ed to the
@@ -488,16 +482,14 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// Construct a new [`ReadOnlyProcessBufferRef`] over a given pointer and
     /// length with a lifetime derived from the caller.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
     pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
-        // # Safety
-        //
-        // See function description.
+        // SAFETY: See function description.
         unsafe {
             Self {
                 buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
@@ -540,7 +532,7 @@ impl ReadWriteProcessBuffer {
     /// Construct a new [`ReadWriteProcessBuffer`] over a given
     /// pointer and length.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
@@ -561,7 +553,7 @@ impl ReadWriteProcessBuffer {
     /// [`Process`](crate::process::Process) trait outside of the
     /// `kernel` crate.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// If the length is `0`, an arbitrary pointer may be passed into
     /// `ptr`. It does not necessarily have to point to allocated
@@ -589,9 +581,7 @@ impl ReadWriteProcessBuffer {
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
-        // # Safety
-        //
-        // See function description.
+        // SAFETY: See function description.
         unsafe { Self::new(ptr, len, process_id) }
     }
 
@@ -658,7 +648,7 @@ unsafe impl ReadableProcessBuffer for ReadWriteProcessBuffer {
             Some(pid) => pid
                 .kernel
                 .process_map_or(Err(process::Error::NoSuchApp), pid, |_| {
-                    // Safety: `kernel.process_map_or()` validates that
+                    // SAFETY: `kernel.process_map_or()` validates that
                     // the process still exists and its memory is still
                     // valid. In particular, `Process` tracks the "high water
                     // mark" of memory that the process has `allow`ed to the
@@ -692,7 +682,7 @@ unsafe impl WriteableProcessBuffer for ReadWriteProcessBuffer {
             Some(pid) => pid
                 .kernel
                 .process_map_or(Err(process::Error::NoSuchApp), pid, |_| {
-                    // Safety: `kernel.process_map_or()` validates that
+                    // SAFETY: `kernel.process_map_or()` validates that
                     // the process still exists and its memory is still
                     // valid. In particular, `Process` tracks the "high water
                     // mark" of memory that the process has `allow`ed to the
@@ -733,16 +723,14 @@ impl ReadWriteProcessBufferRef<'_> {
     /// Construct a new [`ReadWriteProcessBufferRef`] over a given pointer and
     /// length with a lifetime derived from the caller.
     ///
-    /// # Safety requirements
+    /// # Safety
     ///
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
     pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
-        // # Safety
-        //
-        // See function description.
+        // SAFETY: See function description.
         unsafe {
             Self {
                 buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
@@ -855,9 +843,7 @@ fn cast_byte_slice_to_process_slice(byte_slice: &[ReadableProcessByte]) -> &Read
 // to be authored once and accept either [u8] or ReadableProcessSlice.
 impl<'a> From<&'a [u8]> for &'a ReadableProcessSlice {
     fn from(val: &'a [u8]) -> Self {
-        // # Safety
-        //
-        // The layout of a [u8] and ReadableProcessSlice are guaranteed to be
+        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be
         // the same. This also extends the lifetime of the buffer, so aliasing
         // rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }
@@ -869,9 +855,7 @@ impl<'a> From<&'a [u8]> for &'a ReadableProcessSlice {
 // ReadableProcessSlice.
 impl<'a> From<&'a mut [u8]> for &'a ReadableProcessSlice {
     fn from(val: &'a mut [u8]) -> Self {
-        // # Safety
-        //
-        // The layout of a [u8] and ReadableProcessSlice are guaranteed to be
+        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be
         // the same. This also extends the mutable lifetime of the buffer, so
         // aliasing rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }
@@ -1047,9 +1031,7 @@ pub struct WriteableProcessSlice {
 }
 
 fn cast_cell_slice_to_process_slice(cell_slice: &[Cell<u8>]) -> &WriteableProcessSlice {
-    // # Safety
-    //
-    // As WriteableProcessSlice is a transparent wrapper around its inner type,
+    // SAFETY: As WriteableProcessSlice is a transparent wrapper around its inner type,
     // [Cell<u8>], we can safely transmute a reference to the inner type as the
     // outer type with the same lifetime.
     unsafe { core::mem::transmute(cell_slice) }
@@ -1060,9 +1042,7 @@ fn cast_cell_slice_to_process_slice(cell_slice: &[Cell<u8>]) -> &WriteableProces
 // WriteableProcessSlice.
 impl<'a> From<&'a mut [u8]> for &'a WriteableProcessSlice {
     fn from(val: &'a mut [u8]) -> Self {
-        // # Safety
-        //
-        // The layout of a [u8] and WriteableProcessSlice are guaranteed to be
+        // SAFETY: The layout of a [u8] and WriteableProcessSlice are guaranteed to be
         // the same. This also extends the mutable lifetime of the buffer, so
         // aliasing rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }

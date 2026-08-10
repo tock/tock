@@ -29,7 +29,7 @@ pub fn parse_tbf_header_lengths(
     // Version is the first 16 bits of the app TBF contents. We need this to
     // correctly parse the other lengths.
     //
-    // ## Safety
+    // # Safety
     // We trust that the version number has been checked prior to running this
     // parsing code. That is, whatever loaded this application has verified that
     // the version is valid and therefore we can trust it.
@@ -83,11 +83,11 @@ pub fn parse_tbf_header(
             let mut checksum: u32 = 0;
 
             // Get an iterator across 4 byte fields in the header.
-            let header_iter = header.chunks_exact(4);
+            let (header_chunks, _remainder) = header.as_chunks::<4>();
 
             // Iterate all chunks and XOR the chunks to compute the checksum.
-            for (i, chunk) in header_iter.enumerate() {
-                let word = u32::from_le_bytes(chunk.try_into()?);
+            for (i, chunk) in header_chunks.iter().enumerate() {
+                let word = u32::from_le_bytes(*chunk);
                 if i == 3 {
                     // Skip the checksum field.
                 } else {

@@ -138,6 +138,7 @@ pub unsafe fn main() {
         mx25r6435f,
         0x40000,  // start address
         0x100000, // length
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::isolated_nonvolatile_storage_component_static!(
         Mx25r6435f,
@@ -220,6 +221,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        create_capability!(capabilities::ProcessManagementCapability),
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,

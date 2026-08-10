@@ -62,7 +62,7 @@ impl Imxrt10xxDefaultPeripherals {
 }
 
 impl InterruptService for Imxrt10xxDefaultPeripherals {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::LPUART1 => self.lpuart1.handle_interrupt(),
             nvic::LPUART2 => self.lpuart2.handle_interrupt(),
@@ -118,14 +118,12 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm7::nvic::next_pending() {
-                let handled = self.interrupt_service.service_interrupt(interrupt);
-                assert!(handled, "Unhandled interrupt number {}", interrupt);
-                let n = cortexm7::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
-            }
+        while let Some(interrupt) = cortexm7::nvic::next_pending() {
+            let handled = self.interrupt_service.service_interrupt(interrupt);
+            assert!(handled, "Unhandled interrupt number {}", interrupt);
+            let n = cortexm7::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -148,7 +146,7 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

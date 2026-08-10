@@ -26,7 +26,7 @@ impl<'a> Stm32wle5jcDefaultPeripherals<'a> {
     }
 }
 impl kernel::platform::chip::InterruptService for Stm32wle5jcDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         #[allow(clippy::match_single_binding)]
         match interrupt {
             // put Stm32wle5jc specific interrupts here

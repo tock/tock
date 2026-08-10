@@ -114,7 +114,7 @@ impl CapabilityPtr {
     /// Provenance note: may derive from a pointer other than the input to provide something with
     /// valid provenance to justify the other arguments.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// Constructing a [`CapabilityPtr`] with metadata may convey authority to
     /// dereference this pointer, such as in userspace. When these pointers

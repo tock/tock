@@ -47,7 +47,7 @@ macro_rules! cdc_acm_component_static {
         );
 
         (alarm, cdc)
-    };};
+    }};
 }
 
 pub struct CdcAcmComponent<

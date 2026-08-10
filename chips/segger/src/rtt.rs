@@ -90,8 +90,10 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::time::ConvertTicks;
 use kernel::hil::uart;
-use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::io_write::IoWrite;
+use kernel::utilities::registers::InMemoryRegister;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 /// Suggested length for the up buffer to pass to the Segger RTT capsule.
 pub const DEFAULT_UP_BUFFER_LENGTH: usize = 1024;
@@ -123,16 +125,16 @@ pub struct SeggerRttMemory<'a> {
 pub struct SeggerRttBuffer<'a> {
     name: *const u8, // Pointer to the name of this channel. Must be a 4 byte thin pointer.
     // These fields are marked as `pub` to allow access in the panic handler.
-    pub buffer: *const VolatileCell<u8>, // Pointer to the buffer for this channel.
+    pub buffer: *const InMemoryRegister<u8>, // Pointer to the buffer for this channel.
     pub length: u32,
-    pub write_position: VolatileCell<u32>,
-    read_position: VolatileCell<u32>,
+    pub write_position: InMemoryRegister<u32>,
+    read_position: InMemoryRegister<u32>,
     flags: u32,
     _lifetime: PhantomData<&'a ()>,
 }
 
 impl Index<usize> for SeggerRttBuffer<'_> {
-    type Output = VolatileCell<u8>;
+    type Output = InMemoryRegister<u8>;
 
     fn index(&self, index: usize) -> &Self::Output {
         let index = index as isize;
@@ -147,9 +149,9 @@ impl Index<usize> for SeggerRttBuffer<'_> {
 impl<'a> SeggerRttMemory<'a> {
     pub fn new_raw(
         up_buffer_name: &'a [u8],
-        up_buffer: &'a [VolatileCell<u8>],
+        up_buffer: &'a [InMemoryRegister<u8>],
         down_buffer_name: &'a [u8],
-        down_buffer: &'a [VolatileCell<u8>],
+        down_buffer: &'a [InMemoryRegister<u8>],
     ) -> SeggerRttMemory<'a> {
         SeggerRttMemory {
             // This field is a magic value that must be set to "SEGGER RTT" for the debugger to
@@ -166,8 +168,8 @@ impl<'a> SeggerRttMemory<'a> {
                 name: up_buffer_name.as_ptr(),
                 buffer: up_buffer.as_ptr(),
                 length: up_buffer.len() as u32,
-                write_position: VolatileCell::new(0),
-                read_position: VolatileCell::new(0),
+                write_position: InMemoryRegister::new(0),
+                read_position: InMemoryRegister::new(0),
                 flags: 0,
                 _lifetime: PhantomData,
             },
@@ -175,8 +177,8 @@ impl<'a> SeggerRttMemory<'a> {
                 name: down_buffer_name.as_ptr(),
                 buffer: down_buffer.as_ptr(),
                 length: down_buffer.len() as u32,
-                write_position: VolatileCell::new(0),
-                read_position: VolatileCell::new(0),
+                write_position: InMemoryRegister::new(0),
+                read_position: InMemoryRegister::new(0),
                 flags: 0,
                 _lifetime: PhantomData,
             },

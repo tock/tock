@@ -2,16 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! A SPI test which read/writes and expects MOSI to
-//! be loopbacked to MISO. It checks that what it writes
-//! is what it reads. The values put in the buffer are
-//! a circular ring of 8-bit values, starting with an
-//! initial value and incrementing by 1 on each write.
-//! So if the first write is [33, 34, ... , 32],
-//! the next write will be [34, 35, ..., 34]. You can set
-//! the speed of the operation to check that configurations
-//! are being set correctly: running two tests in parallel
-//! with different bit rates should see different clock
+//! A SPI test which read/writes and expects MOSI to be loopbacked to MISO.
+//!
+//! It checks that what it writes is what it reads. The values put in the buffer
+//! are a circular ring of 8-bit values, starting with an initial value and
+//! incrementing by 1 on each write. So if the first write is [33, 34, ...,
+//! 32], the next write will be [34, 35, ..., 34]. You can set the speed of the
+//! operation to check that configurations are being set correctly: running two
+//! tests in parallel with different bit rates should see different clock
 //! frequencies.
 
 use capsules_core::virtualizers::virtual_spi::MuxSpiMaster;

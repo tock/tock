@@ -577,7 +577,7 @@ enum AdcMode {
 /// This function converts a `&'static mut [u8]` slice reference to a
 /// `&'static mut [u16]` slice.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// It is a necessary condition for the passed buffer to have an even
 /// length, otherwise the function will panic because the conversion

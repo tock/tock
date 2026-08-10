@@ -38,14 +38,14 @@ pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
 }
 
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
-    pub uart0: crate::uart::Uart16550<'a>,
+    pub uart0: qemu_virt_chip::uart::Uart16550<'a>,
     pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
 impl QemuRv32VirtDefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
-            uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
+            uart0: qemu_virt_chip::uart::Uart16550::new(crate::uart::UART0_BASE),
             virtio_mmio: [
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_0_BASE),
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_1_BASE),
@@ -61,7 +61,7 @@ impl QemuRv32VirtDefaultPeripherals<'_> {
 }
 
 impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.uart0.handle_interrupt(),
             interrupts::VIRTIO_MMIO_0 => self.virtio_mmio[0].handle_interrupt(),
@@ -169,7 +169,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

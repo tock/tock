@@ -35,10 +35,14 @@ const BUTTON3_PIN: Pin = Pin::P0_24;
 const BUTTON4_PIN: Pin = Pin::P0_25;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const UART_RTS: Option<Pin> = Some(Pin::P0_05);
-const UART_TXD: Pin = Pin::P0_06;
-const UART_CTS: Option<Pin> = Some(Pin::P0_07);
-const UART_RXD: Pin = Pin::P0_08;
+/// UART RTS pin.
+pub const UART_RTS: Option<Pin> = Some(Pin::P0_05);
+/// UART transmit pin.
+pub const UART_TXD: Pin = Pin::P0_06;
+/// UART CTS pin.
+pub const UART_CTS: Option<Pin> = Some(Pin::P0_07);
+/// UART receive pin.
+pub const UART_RXD: Pin = Pin::P0_08;
 
 /// Debug Writer
 pub mod io;
@@ -278,6 +282,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
 
@@ -303,6 +308,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -315,15 +321,21 @@ pub unsafe fn main() {
 
     // Create the process console, an interactive terminal for managing
     // processes.
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        nrf52840::rtc::Rtc<'static>
+        nrf52840::rtc::Rtc<'static>,
+        ProcessConsoleCap
     ));
 
     // Create the debugger object that handles calls to `debug!()`.
@@ -365,6 +377,7 @@ pub unsafe fn main() {
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::button_component_static!(
         nrf52840::gpio::GPIOPin
@@ -390,6 +403,7 @@ pub unsafe fn main() {
         adc_channels,
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::adc_dedicated_component_static!(
         nrf52840::adc::Adc
@@ -460,6 +474,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        create_capability!(capabilities::ProcessManagementCapability),
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
@@ -489,6 +504,7 @@ pub unsafe fn main() {
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_binary_storage,
         dynamic_binary_storage,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,

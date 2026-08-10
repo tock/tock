@@ -161,7 +161,7 @@ impl Sam4lDefaultPeripherals {
     }
 }
 impl InterruptService for Sam4lDefaultPeripherals {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
             nvic::ASTALARM => self.ast.handle_interrupt(),
@@ -247,16 +247,14 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm4::nvic::next_pending() {
-                match self.interrupt_service.service_interrupt(interrupt) {
-                    true => {}
-                    false => panic!("unhandled interrupt"),
-                }
-                let n = cortexm4::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        while let Some(interrupt) = cortexm4::nvic::next_pending() {
+            match self.interrupt_service.service_interrupt(interrupt) {
+                true => {}
+                false => panic!("unhandled interrupt"),
             }
+            let n = cortexm4::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -288,7 +286,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

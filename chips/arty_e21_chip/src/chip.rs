@@ -49,7 +49,7 @@ impl ArtyExxDefaultPeripherals<'_> {
 }
 
 impl InterruptService for ArtyExxDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::MTIP => self.machinetimer.handle_interrupt(),
 
@@ -118,16 +118,14 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = self.clic.next_pending() {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    debug!("unhandled interrupt: {:?}", interrupt);
-                }
-
-                // Mark that we are done with this interrupt and the hardware
-                // can clear it.
-                self.clic.complete(interrupt);
+        while let Some(interrupt) = self.clic.next_pending() {
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                debug!("unhandled interrupt: {:?}", interrupt);
             }
+
+            // Mark that we are done with this interrupt and the hardware
+            // can clear it.
+            self.clic.complete(interrupt);
         }
     }
 
@@ -141,7 +139,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

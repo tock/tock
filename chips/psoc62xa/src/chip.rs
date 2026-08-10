@@ -44,7 +44,7 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
@@ -65,10 +65,8 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
 
     fn service_pending_interrupts(&self) {
         while let Some(interrupt) = cortexm0p::nvic::next_pending() {
-            unsafe {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
             let n = cortexm0p::nvic::Nvic::new(interrupt);
             n.clear_pending();
@@ -107,7 +105,7 @@ impl PsoC62xaDefaultPeripherals<'_> {
 }
 
 impl InterruptService for PsoC62xaDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             0 => {
                 self.scb.handle_interrupt();

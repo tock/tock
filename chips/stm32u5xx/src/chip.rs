@@ -4,25 +4,31 @@
 // Copyright OxidOS Automotive 2026.
 
 use crate::adc::{self, SamplingTime as AdcSamplingTime};
+use crate::aes::ecb;
+use crate::crc::{self, CRC_BASE};
 use crate::dma::{ChannelId, Dma};
 use crate::gpio;
+use crate::hash;
 use crate::nvic::{
-    ADC1_2_IRQ, EXTI0_IRQ, EXTI1_IRQ, EXTI2_IRQ, EXTI3_IRQ, EXTI4_IRQ, EXTI5_IRQ, EXTI6_IRQ,
-    EXTI7_IRQ, EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ, EXTI14_IRQ,
-    EXTI15_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ, GPDMA1_CH4_IRQ,
-    GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
+    ADC1_2_IRQ, AES_IRQ, EXTI0_IRQ, EXTI1_IRQ, EXTI2_IRQ, EXTI3_IRQ, EXTI4_IRQ, EXTI5_IRQ,
+    EXTI6_IRQ, EXTI7_IRQ, EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ,
+    EXTI14_IRQ, EXTI15_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
+    GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
     GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ,
-    GPDMA1_CH15_IRQ, PKA_IRQ, TIM2_IRQ, USART1_IRQ,
+    GPDMA1_CH15_IRQ, HASH_IRQ, PKA_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::pwr;
 use crate::rcc;
 use crate::tim;
 use crate::usart;
-use crate::{dac, exti, rsa};
+use crate::{aes, dac, exti, rsa};
 
 use core::fmt::Write;
+use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use stm32u5xx_unsafe::aes::AES_BASE;
 
 pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
@@ -33,7 +39,8 @@ pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
 pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rcc: rcc::Rcc,
     pub tim2: tim::Tim2<'a>,
-    pub usart1: &'a usart::Usart<'a>,
+    pub tim3: tim::Pwm<'a>,
+    pub usart1: usart::Usart<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub pwr: pwr::Pwr,
@@ -43,11 +50,18 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_c: gpio::Port<'a>,
     pub pka: rsa::Pka<'a>,
     pub dac: dac::Dac,
+    pub crc: crc::CRC<'a>,
+    pub hash: hash::hash::Hash<'a>,
+    pub aes: ecb::Aes<'a, AES256>,
 }
 
 fn enable_tim2_clock() {
     let rcc = rcc::Rcc::new(rcc::RCC_BASE);
     rcc.enable_tim2();
+}
+fn enable_tim3_clock() {
+    let rcc = rcc::Rcc::new(rcc::RCC_BASE);
+    rcc.enable_tim3();
 }
 
 fn enable_dac1_clock() {
@@ -56,11 +70,16 @@ fn enable_dac1_clock() {
 }
 
 impl<'a> Stm32u5xxDefaultPeripherals<'a> {
-    pub fn new(usart1: &'a usart::Usart<'a>, exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
+    pub fn new(exti: &'a exti::Exti<'a>, dma1: &'a Dma) -> Self {
         Self {
             rcc: rcc::Rcc::new(rcc::RCC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE, enable_tim2_clock),
-            usart1,
+            tim3: tim::Pwm::new(
+                tim::TIM3_BASE,
+                enable_tim3_clock,
+                tim::ClockSource::RESET_DEFAULT,
+            ),
+            usart1: usart::Usart::new(usart::USART1_BASE),
             exti,
             dma1,
             pwr: pwr::Pwr::new(),
@@ -70,6 +89,11 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
             pka: rsa::Pka::new(),
             dac: dac::Dac::new(dac::DAC_BASE, enable_dac1_clock),
+            crc: crc::CRC::new(CRC_BASE),
+            hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
+            aes: aes::ecb::Aes::new(stm32u5xx_unsafe::aes::AesRegistersManager {
+                registers: AES_BASE,
+            }),
         }
     }
 
@@ -79,11 +103,13 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_gpioa();
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
+        self.rcc.enable_aes();
         self.rcc.enable_syscfg();
         self.rcc.enable_trng();
         self.rcc.enable_pka();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
+        self.rcc.enable_hash();
         self.rcc.set_usart1_source_pclk();
 
         // ADC
@@ -95,18 +121,42 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // As explained in the driver, an application can't change the samplling time, so it's hardcoded here
         self.adc1.enable(AdcSamplingTime::ClockCycles20);
 
+        // Registering the CRC deferred call
+        kernel::deferred_call::DeferredCallClient::register(&self.crc);
+
         self.rcc.enable_dac1();
+        self.rcc.enable_crc();
+
+        // Deferred Calls
+        self.usart1.register();
+
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();
+
+        // Link DMA to HASH
+        let hash_channel = self.dma1.request_channel();
+        // Link DMA to AES
+        let aes_in_channel = self.dma1.request_channel();
+        let aes_out_channel = self.dma1.request_channel();
+
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
-            usart::Usart::set_dma(self.usart1, self.dma1, tx, rx);
+            usart::Usart::set_dma(&self.usart1, self.dma1, tx, rx);
+        }
+
+        if let Some(tx) = hash_channel {
+            hash::hash::Hash::set_dma(&self.hash, self.dma1, tx);
+        }
+
+        self.hash.register();
+        if let (Some(in_channel), Some(out_channel)) = (aes_in_channel, aes_out_channel) {
+            aes::ecb::Aes::set_dma(&self.aes, self.dma1, in_channel, out_channel);
         }
     }
 }
 
 impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             ADC1_2_IRQ => {
                 // ADC1
@@ -255,6 +305,13 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             PKA_IRQ => {
                 self.pka.handle_interrupt();
+            }
+            HASH_IRQ => {
+                self.hash.handle_interupts();
+                true
+            }
+            AES_IRQ => {
+                self.aes.handle_interrupt();
                 true
             }
             _ => false,
@@ -284,16 +341,14 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm33::nvic::next_pending() {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
-
-                let n = cortexm33::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        while let Some(interrupt) = cortexm33::nvic::next_pending() {
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
+
+            let n = cortexm33::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -316,7 +371,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

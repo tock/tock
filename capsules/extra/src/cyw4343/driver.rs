@@ -805,6 +805,7 @@ impl<'a, P: hil::gpio::Pin, A: hil::time::Alarm<'a>, B: bus::CYW4343xBus<'a>> bu
 }
 
 /// Configuring a WiFi functionality requires a set of IOCTL commands to be sent to the chip.
+///
 /// This module defines lists of IOCTL operations needed
 /// for each functionality required by the WiFi device interface.
 mod ioctl {

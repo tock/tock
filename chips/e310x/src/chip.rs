@@ -63,7 +63,7 @@ impl E310xDefaultPeripherals<'_> {
 }
 
 impl InterruptService for E310xDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
+    fn service_interrupt(&self, _interrupt: u32) -> bool {
         false
     }
 }
@@ -170,7 +170,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I>
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

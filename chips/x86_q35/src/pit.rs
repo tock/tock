@@ -119,7 +119,7 @@ pub struct Pit<'a, const R: u16> {
 impl<const R: u16> Pit<'_, R> {
     /// Creates a new PIT timer object.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// There must never be more than a single instance of `Pit` alive at any given time.
     pub unsafe fn new() -> Self {

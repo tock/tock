@@ -37,7 +37,7 @@ macro_rules! atecc508a_component_static {
             verify_key_buffer,
             atecc508a,
         )
-    };};
+    }};
 }
 
 pub struct Atecc508aComponent<I: 'static + i2c::I2CMaster<'static>> {

@@ -62,7 +62,7 @@ impl<'a> Stm32f3xxDefaultPeripherals<'a> {
 }
 
 impl InterruptService for Stm32f3xxDefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::USART1 => self.usart1.handle_interrupt(),
             nvic::USART2 => self.usart2.handle_interrupt(),
@@ -113,15 +113,13 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f3xx<'a, I> {
     }
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm4f::nvic::next_pending() {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
-                let n = cortexm4f::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        while let Some(interrupt) = cortexm4f::nvic::next_pending() {
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
+            let n = cortexm4f::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -144,7 +142,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f3xx<'a, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {

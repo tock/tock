@@ -35,7 +35,7 @@ macro_rules! bmm150_component_static {
         );
 
         (i2c_device, buffer, bmm150)
-    };};
+    }};
 }
 
 pub struct BMM150Component<I: 'static + i2c::I2CMaster<'static>> {

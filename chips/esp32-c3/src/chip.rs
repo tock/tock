@@ -62,7 +62,7 @@ impl Esp32C3DefaultPeripherals<'_> {
 }
 
 impl InterruptService for Esp32C3DefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::IRQ_UART0 => self.uart0.handle_interrupt(),
 
@@ -149,7 +149,7 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
@@ -303,7 +303,15 @@ pub extern "C" fn _start_trap_vectored() -> ! {
 }
 
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
-#[link_section = ".riscv.trap_vectored"]
+// Only apply the `link_section` attribute when actually targeting bare-metal
+// RISC-V. Some host builds (e.g. `doc`, tests, clippy on macOS, Windows,
+// ...) use object formats (Mach-O, PE, ...) that reject a bare section name
+// like this, yielding errors such as: `mach-o section specifier requires a
+// segment and section separated by a comma`.
+#[cfg_attr(
+    all(target_arch = "riscv32", target_os = "none"),
+    link_section = ".riscv.trap_vectored"
+)]
 #[unsafe(naked)]
 pub extern "C" fn _start_trap_vectored() -> ! {
     use core::arch::naked_asm;

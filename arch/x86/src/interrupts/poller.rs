@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
+use core::cell::Cell;
 use core::ptr;
 
-use tock_cells::volatile_cell::VolatileCell;
 use tock_registers::LocalRegisterCopy;
 
 use crate::support;
@@ -32,7 +32,7 @@ use super::NUM_VECTORS;
 /// directly. Instead, you must access the singleton instance using `InterruptPoller::access`.
 pub struct InterruptPoller {
     /// Tracks the pending status of each interrupt
-    pending: [VolatileCell<LocalRegisterCopy<u32>>; NUM_VECTORS / 32],
+    pending: [Cell<LocalRegisterCopy<u32>>; NUM_VECTORS / 32],
 }
 
 /// The singleton poller instance
@@ -40,21 +40,21 @@ pub struct InterruptPoller {
 /// We use a `static mut` singleton so that the instance can be accessed directly from interrupt
 /// handler routines.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// As with any `static mut` item, the poller singleton must not be accessed concurrently. To
 /// enforce this restriction, this module exposes two constrained methods for accessing the
 /// instance: `InterruptPoller::access` and `InterruptPoller::save`.
 static mut SINGLETON: InterruptPoller = InterruptPoller {
     pending: [
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
-        VolatileCell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
+        Cell::new(LocalRegisterCopy::new(0)),
     ],
 };
 
@@ -79,7 +79,7 @@ impl InterruptPoller {
 
     /// Marks that the specified interrupt as pending.
     ///
-    /// ## Safety
+    /// # Safety
     ///
     /// Interrupts must be disabled when this function is called. This function is _intended_ to be
     /// called from within an ISR, so hopefully this is already true.

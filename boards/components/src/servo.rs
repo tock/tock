@@ -34,7 +34,7 @@ macro_rules! servo_component_static {
 
         let servo = kernel::static_buf!( capsules_extra::servo::Servo<'static, SERVO_COUNT>);
         (servo, arr)
-    };};
+    }};
 }
 
 pub type ServosComponentType<const SERVO_COUNT: usize> = ServoDriver<'static, SERVO_COUNT>;

@@ -30,7 +30,7 @@ pub const IDT_RESERVED_EXCEPTIONS: u8 = 32;
 ///
 /// After calling this function, [`InterruptPoller`] can be used to poll for and handle interrupts.
 ///
-/// ## Safety
+/// # Safety
 ///
 /// This function must never be executed more than once.
 ///

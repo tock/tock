@@ -118,6 +118,8 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     }
 }
 
+/// Load processes in its own function.
+///
 /// For the HiFive1, if load_process is inlined, it leads to really large stack utilization in
 /// main. By wrapping it in a non-inlined function, this reduces the stack utilization once
 /// processes are running.
@@ -296,15 +298,21 @@ unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
+    kernel::declare_capability!(ProcessConsoleCap:
+        kernel::capabilities::ProcessManagementCapability,
+        kernel::capabilities::ProcessStartCapability
+    );
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         None,
+        ProcessConsoleCap,
     )
     .finalize(components::process_console_component_static!(
-        e310_g002::chip::E310xClint
+        e310_g002::chip::E310xClint,
+        ProcessConsoleCap
     ));
     let _ = process_console.start();
 
@@ -322,6 +330,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
@@ -338,6 +347,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::low_level_debug_component_static!());
 

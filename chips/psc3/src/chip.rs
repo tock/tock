@@ -112,15 +112,13 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
     fn service_pending_interrupts(&self) {
-        unsafe {
-            while let Some(interrupt) = cortexm33::nvic::next_pending() {
-                if !self.interrupt_service.service_interrupt(interrupt) {
-                    panic!("unhandled interrupt {}", interrupt);
-                }
-                let n = cortexm33::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
+        while let Some(interrupt) = cortexm33::nvic::next_pending() {
+            if !self.interrupt_service.service_interrupt(interrupt) {
+                panic!("unhandled interrupt {}", interrupt);
             }
+            let n = cortexm33::nvic::Nvic::new(interrupt);
+            n.clear_pending();
+            n.enable();
         }
     }
 
@@ -149,7 +147,7 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
         }
     }
 
-    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
+    fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
@@ -265,7 +263,7 @@ impl Psc3DefaultPeripherals<'_> {
 }
 
 impl InterruptService for Psc3DefaultPeripherals<'_> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
         // handle all GPIO interrupts
         if interrupt <= interrupts::IOSS_INTERRUPTS_SEC_GPIO_9 {
             self.gpio.handle_interrupt();

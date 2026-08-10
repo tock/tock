@@ -296,6 +296,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::console_component_static!());
 
@@ -313,6 +314,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(imxrt1060::gpt::Gpt1));
 
@@ -409,10 +411,12 @@ const FCB_SIZE: usize = core::mem::size_of::<fcb::FCB>();
 /// See justification for the `".stack_buffer"` section to understand why we need
 /// explicit padding for the FCB.
 ///
-/// When compiling for a macOS host, the `link_section` attribute is elided as
-/// it yields the following error: `mach-o section specifier requires a segment
-/// and section separated by a comma`.
-#[cfg_attr(not(target_os = "macos"), link_section = ".fcb_buffer")]
+/// This section attribute is only applied when targeting bare-metal
+/// (`target_os = "none"`). Host builds (e.g. tests, clippy, doc) use object
+/// formats (Mach-O, PE, ...) that reject a bare section name like this,
+/// yielding errors such as: `mach-o section specifier requires a segment and
+/// section separated by a comma`.
+#[cfg_attr(target_os = "none", link_section = ".fcb_buffer")]
 #[no_mangle]
 #[used]
 static mut FCB_BUFFER: [u8; 0x1000 - FCB_SIZE] = [0xFF; 0x1000 - FCB_SIZE];

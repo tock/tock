@@ -12,6 +12,7 @@ edition.workspace = true
 sifive = { path = "../sifive" }
 virtio = { path = "../virtio" }
 rv32i = { path = "../../arch/rv32i" }
+qemu_virt_chip = { path = "../qemu_virt_chip" }
 kernel = { path = "../../kernel" }
 
 [lints]

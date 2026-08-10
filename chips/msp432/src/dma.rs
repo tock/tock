@@ -36,10 +36,12 @@ static DMA_CONFIG: DmaConfigBlock = DmaConfigBlock([
     DmaChannelControl::const_default(),
 ]);
 
+/// Maximum usable DMA trigger sources.
+///
 /// Although there are 8bits reserved for selecting a source for the DMA trigger, the
 /// MSP432P4x family only supports numbers from 1 to 7. 0 doesn't cause an error, but it's
 /// marked as reserved. According to the device-specific datasheet 'reserved' can be used for
-/// transfering data from one location in the RAM to another one.
+/// transferring data from one location in the RAM to another one.
 const MAX_SRC_NR: u8 = 7;
 
 /// The MSP432 chips contain 8 DMA channels
@@ -482,6 +484,8 @@ register_bitfields![u32,
     ]
 ];
 
+/// DMA control structure in memory.
+///
 /// The uDMA of the MSP432 family don't offer own registers where the configuration of the
 /// individual DMA channels is stored, they require a pointer to a block of memory in the RAM
 /// where the actual configuration is stored. Within this block of memory the pointer to the
