@@ -187,55 +187,33 @@ impl IpcRelayRequest {
     }
 
     fn cancel_request(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        self.apps.enter(processid, |app, _| {
-            // Check if a client transaction is active, and fail if not
+        self.apps.enter(processid, |app, kerneldata| {
+            // Check if there is a transaction to cancel
             match app.transaction {
-                TransactionState::ClientTransaction(_) => Ok(()),
-                _ => Err(ErrorCode::ALREADY),
+                TransactionState::ClientTransaction(_) => {
+                    // Clear the transaction
+                    app.transaction = TransactionState::None;
+
+                    // Also send a response received upcall with an error condition
+                    // upcall arguments-> status: StatusCode
+                    let _ = kerneldata.schedule_upcall(
+                        upcall::CLIENT_RESPONSE_RECEIVED,
+                        (ErrorCode::CANCEL.into(), 0, 0),
+                    );
+
+                    // No need to clear any transaction in the server
+                    //
+                    // If the server doesn't have a transaction in progress with
+                    // this client, we're good anyways. When it tries to get the
+                    // request, it won't find one. If the client does have a
+                    // transaction in progress with this client, it'll receive
+                    // an error that the client isn't available when it tries to
+                    // send the response and it can move on.
+                    Ok(())
+                }
+                _ => Err(ErrorCode::INVAL),
             }
         })??;
-
-        // Remove any in-progress server transaction with this client
-        //
-        // Note: a server may end up with a spurious request-waiting upcall in
-        // this case, but that's not any different from getting an upcall for a
-        // process that then dies. In all cases there may be no request to get.
-        // Similarly, a server may end up sending a response that is no longer
-        // being waited for, in which case it'll just be dropped.
-        //
-        // Note: there may be no match if the server faulted after the request
-        // was started but before it was completed.
-        for cntr in self.apps.iter() {
-            // skip this process
-            if cntr.processid() != processid {
-                let mut found = false;
-                self.apps.enter(cntr.processid(), |app, _| {
-                    if let TransactionState::ServerTransaction(ipc_id) = app.transaction
-                        && ipc_id == IpcIdentifier::new_from_processid(processid)
-                    {
-                        app.transaction = TransactionState::None;
-                        found = true;
-                    }
-                })?;
-
-                // There won't be another match, so exit early
-                if found {
-                    break;
-                }
-            }
-        }
-
-        // Mark that no transaction is in progress, do this only if prior work succeeds
-        self.apps.enter(processid, |app, kerneldata| {
-            app.transaction = TransactionState::None;
-
-            // also send a response received upcall with an error condition
-            // upcall arguments-> status: StatusCode
-            let _ = kerneldata.schedule_upcall(
-                upcall::CLIENT_RESPONSE_RECEIVED,
-                (ErrorCode::CANCEL.into(), 0, 0),
-            );
-        })?;
 
         // Return status
         Ok(())
