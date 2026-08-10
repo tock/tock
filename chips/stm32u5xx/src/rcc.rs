@@ -173,10 +173,6 @@ impl Rcc {
         self.registers.ahb2enr1.modify(AHB2ENR1::ADC12EN::SET);
     }
 
-    pub fn enable_trng(&self) {
-        self.registers.ahb2enr1.modify(AHB2ENR1::TRNGEN::SET);
-    }
-
     pub fn set_usart1_source_pclk(&self) {
         self.registers.ccipr1.modify(CCIPR1::USART1SEL::PCLK);
     }

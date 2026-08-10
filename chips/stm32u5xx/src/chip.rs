@@ -305,6 +305,7 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             PKA_IRQ => {
                 self.pka.handle_interrupt();
+                true
             }
             HASH_IRQ => {
                 self.hash.handle_interupts();
