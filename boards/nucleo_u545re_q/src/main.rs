@@ -263,10 +263,11 @@ unsafe fn start() -> (
     })
     .finalize(components::debug_writer_component_static!());
 
-    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+    kernel::define_capability_type!(ProcessConsoleCap:
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let aes_driver = components::aes::AesDriverComponent::new(
         board_kernel,
         capsules_extra::symmetric_encryption::aes::DRIVER_NUM,

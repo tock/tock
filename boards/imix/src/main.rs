@@ -723,7 +723,8 @@ unsafe fn start() -> (
     ));
 
     // UDP driver initialization happens here
-    kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+    kernel::define_capability_type!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+    let udp_driver_cap = unsafe { kernel::mint_defined_capability!(UdpDriverCap) };
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::driver::DRIVER_NUM,
@@ -763,7 +764,8 @@ unsafe fn start() -> (
     // STORAGE PERMISSIONS
     //--------------------------------------------------------------------------
 
-    kernel::create_typed_capability!(app_store_cap, AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    kernel::define_capability_type!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    let app_store_cap = unsafe { kernel::mint_defined_capability!(AppStoreCap) };
     let storage_permissions_policy =
         components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
             app_store_cap,

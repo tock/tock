@@ -720,10 +720,11 @@ unsafe fn start() -> (
         resources.printer.put(process_printer);
     });
 
-    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+    kernel::define_capability_type!(ProcessConsoleCap:
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,

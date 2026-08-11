@@ -251,7 +251,8 @@ pub unsafe fn main() {
     // STORAGE PERMISSIONS
     //--------------------------------------------------------------------------
 
-    kernel::create_typed_capability!(app_store_cap, AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    kernel::define_capability_type!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    let app_store_cap = unsafe { kernel::mint_defined_capability!(AppStoreCap) };
     let storage_permissions_policy =
         components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
             app_store_cap,

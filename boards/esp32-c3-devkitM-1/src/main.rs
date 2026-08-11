@@ -349,10 +349,11 @@ unsafe fn setup() -> (
     // PROCESS CONSOLE
     //
 
-    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+    kernel::define_capability_type!(ProcessConsoleCap:
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,

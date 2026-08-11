@@ -10,7 +10,8 @@
 //! Usage
 //! -----
 //! ```rust
-//! kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+//! kernel::define_capability_type!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+//! let udp_driver_cap = unsafe { kernel::mint_defined_capability!(UdpDriverCap) };
 //! let udp_driver = UDPDriverComponent::new(
 //!     board_kernel,
 //!     udp_send_mux,

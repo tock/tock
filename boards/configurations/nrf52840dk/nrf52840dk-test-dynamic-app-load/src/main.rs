@@ -321,10 +321,11 @@ pub unsafe fn main() {
 
     // Create the process console, an interactive terminal for managing
     // processes.
-    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
+    kernel::define_capability_type!(ProcessConsoleCap:
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
