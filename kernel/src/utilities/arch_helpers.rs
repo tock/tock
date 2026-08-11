@@ -423,9 +423,9 @@ pub enum TRDRiscv64bitSyscallReturnVariant {
 
 /// System call return variants defined as defined in TRD-Riscv64bit.
 ///
-/// These are a strict subset of the variants defined in the core
-/// kernel's [`SyscallReturn`] enum. For documentation on the
-/// individual variants, refer to this type instead.
+/// These variants correspond to those defined in the core kernel's
+/// [`SyscallReturn`] enum. For documentation on the individual
+/// variants, refer to that type instead.
 #[derive(Copy, Clone, Debug)]
 pub enum TRDRiscv64bitSyscallReturn {
     Failure(ErrorCode),
