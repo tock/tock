@@ -1807,6 +1807,42 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
             subiter: self.kernel.get_process_iter(),
         }
     }
+
+    /// Get a rotated iterator over all processes and their active grant regions
+    /// for this particular grant.
+    ///
+    /// This is useful for implementing round-robin behavior where process
+    /// iteration can start wherever the prior iteration operation left off. To
+    /// do so, save the most-recently-returned "offset" value during iteration
+    /// and use it to call this function the next time an iterator is needed.
+    ///
+    /// This rotates the iterated contents such that the iterator starts at the
+    /// specified offset into the contents and continues, wrapping around, until
+    /// it reaches the item before the specified offset. For example, [a, b, c]
+    /// rotated with an offset of 1 becomes [b, c, a]. The offset does not have
+    /// to be less than the length of the contents. In the prior example,
+    /// offsets of 4 and 7 also produce [b, c, a].
+    ///
+    /// Calling this function when an [`ProcessGrant`] for a process is
+    /// currently entered will result in a panic.
+    pub fn rotated_iter(
+        &self,
+        offset: IterOffset,
+    ) -> RotatedIter<'_, T, Upcalls, AllowROs, AllowRWs> {
+        // Generates an enumerated iterator, with identical length and elements
+        // to the original iterator, except that a rotation has been applied by
+        // the offset.value amount modulus the array length.
+        RotatedIter {
+            grant: self,
+            subiter: self
+                .kernel
+                .get_process_iter()
+                .enumerate()
+                .cycle()
+                .skip(offset.value)
+                .take(self.kernel.get_process_iter().count()),
+        }
+    }
 }
 
 /// Type to iterate [`ProcessGrant`]s across processes.
@@ -1839,5 +1875,65 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         // this function again will start where we left off.
         self.subiter
             .find_map(|process| ProcessGrant::new_if_allocated(grant, process))
+    }
+}
+
+/// Type to encapsulate iteration offset for creating a RotatedIter.
+#[derive(Default, Clone, Copy)]
+pub struct IterOffset {
+    value: usize,
+}
+
+/// Type to iterate [`ProcessGrant`]s across processes, but with the iterator
+/// rotated by a fixed amount.
+pub struct RotatedIter<
+    'a,
+    T: 'a + Default,
+    Upcalls: UpcallSize,
+    AllowROs: AllowRoSize,
+    AllowRWs: AllowRwSize,
+> {
+    /// The grant type to use.
+    grant: &'a Grant<T, Upcalls, AllowROs, AllowRWs>,
+
+    /// Iterator over valid processes, already rotated.
+    subiter: core::iter::Take<
+        core::iter::Skip<
+            core::iter::Cycle<
+                core::iter::Enumerate<
+                    core::iter::FilterMap<
+                        core::slice::Iter<'a, ProcessSlot>,
+                        fn(&ProcessSlot) -> Option<&'static dyn Process>,
+                    >,
+                >,
+            >,
+        >,
+    >,
+}
+
+impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> Iterator
+    for RotatedIter<'a, T, Upcalls, AllowROs, AllowRWs>
+{
+    type Item = (IterOffset, ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>);
+
+    /// Get the next item from the iterator.
+    ///
+    /// Returns a tuple of "offset" and the current grant space. The "offset"
+    /// can be fed into future calls to `rotated_iter()` when creating a new
+    /// iterator to start off where this iterator ended.
+    fn next(&mut self) -> Option<Self::Item> {
+        let grant = self.grant;
+        // Get the next `ProcessId` from the kernel processes array that is
+        // setup to use this grant. Since the iterator itself is saved calling
+        // this function again will start where we left off.
+        self.subiter.find_map(|(index, process)| {
+            if let Some(value) = ProcessGrant::new_if_allocated(grant, process) {
+                // Provide the index incremented by one so it always represents
+                // the next offset in the process array
+                Some((IterOffset { value: index + 1 }, value))
+            } else {
+                None
+            }
+        })
     }
 }
