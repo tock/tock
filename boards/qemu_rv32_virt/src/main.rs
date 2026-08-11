@@ -90,7 +90,7 @@ impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, base_platform, chip) = qemu_rv32_virt_lib::start();
 
@@ -100,7 +100,7 @@ pub unsafe fn main() {
             capsules_extra::screen::screen::DRIVER_NUM,
             screen,
             None,
-            create_capability!(capabilities::MemoryAllocationCapability),
+            unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
         )
         .finalize(components::screen_component_static!(1032))
     });
@@ -136,7 +136,7 @@ pub unsafe fn main() {
         /// The end of the kernel / app RAM (Included only for kernel PMP)
         static _esram: u8;
     }
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+    let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
 
     kernel::process::load_processes(
         board_kernel,

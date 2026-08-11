@@ -86,7 +86,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
-        create_capability!(capabilities::ProcessManagementCapability),
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
@@ -98,7 +98,8 @@ pub unsafe fn main() {
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
-    let main_loop_capability = create_capability!(kernel::capabilities::MainLoopCapability);
+    let main_loop_capability =
+        unsafe { create_capability!(kernel::capabilities::MainLoopCapability) };
     board_kernel.kernel_loop(
         &platform,
         chip,

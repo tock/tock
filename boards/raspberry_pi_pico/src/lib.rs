@@ -323,7 +323,8 @@ pub unsafe fn setup(
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
         .finalize(components::alarm_mux_component_static!(RPTimer));
@@ -332,7 +333,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -379,13 +380,13 @@ pub unsafe fn setup(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
+        unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
                 <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
@@ -436,7 +437,7 @@ pub unsafe fn setup(
             // 28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             // 29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
@@ -466,7 +467,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_extra::date_time::DRIVER_NUM,
         &peripherals.rtc,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::date_time_component_static!(
         rp2040::rtc::Rtc<'static>
@@ -476,7 +477,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         temp_sensor,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(
         TemperatureRp2040Sensor
@@ -497,7 +498,7 @@ pub unsafe fn setup(
     let adc = components::adc::AdcVirtualComponent::new(
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_syscall_component_helper!(
         adc_channel_0,
@@ -594,7 +595,7 @@ pub unsafe fn setup(
             spi_chip_select,
         ),
         capsules_core::spi_controller::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(Spi));
 

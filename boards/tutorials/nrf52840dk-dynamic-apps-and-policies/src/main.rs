@@ -188,9 +188,9 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
 
         for (i, p) in self
             .board_kernel
-            .process_iter_capability(&create_capability!(
-                capabilities::ProcessManagementCapability
-            ))
+            .process_iter_capability(&unsafe {
+                create_capability!(capabilities::ProcessManagementCapability)
+            })
             .enumerate()
         {
             kernel::debug!("[{}] {}", i, p.get_process_name());
@@ -206,7 +206,7 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     // Create the base board:
     let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
@@ -272,7 +272,7 @@ pub unsafe fn main() {
         capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         apps_regions,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::screen_shared_component_static!(1032, Screen));
 
@@ -310,7 +310,7 @@ pub unsafe fn main() {
         virtual_flash_nvm,
         core::ptr::addr_of!(APP_STORAGE) as usize,
         APP_STORAGE.len(),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::isolated_nonvolatile_storage_component_static!(
         capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>,
@@ -325,7 +325,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::process_info_driver::DRIVER_NUM,
         PMCapability,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::process_info_component_static!(PMCapability));
 
@@ -495,7 +495,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
-        create_capability!(capabilities::ProcessManagementCapability),
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
@@ -525,7 +525,7 @@ pub unsafe fn main() {
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_binary_storage,
         dynamic_binary_storage,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,

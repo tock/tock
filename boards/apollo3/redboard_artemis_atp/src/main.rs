@@ -187,8 +187,9 @@ unsafe fn setup() -> (
     clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_cap =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -248,16 +249,15 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     // LEDs
@@ -276,7 +276,7 @@ unsafe fn setup() -> (
             0 => &peripherals.gpio_port[2],  // D2
             1 => &peripherals.gpio_port[8],  // D8
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
 
@@ -290,7 +290,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
     ALARM = Some(mux_alarm);
@@ -358,7 +358,7 @@ unsafe fn setup() -> (
             &peripherals.gpio_port[13], // A13
         ),
         capsules_core::spi_controller::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(
         apollo3::iom::Iom<'static>
@@ -378,7 +378,7 @@ unsafe fn setup() -> (
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &peripherals.ble,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ble_component_static!(
         apollo3::stimer::STimer,
@@ -466,7 +466,7 @@ pub unsafe fn main() {
     {
         let (board_kernel, esp32_c3_board, chip, _peripherals) = setup();
 
-        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+        let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
         board_kernel.kernel_loop(
             esp32_c3_board,
@@ -488,7 +488,7 @@ fn test_runner(tests: &[&dyn Fn()]) {
         BOARD = Some(board_kernel);
         PLATFORM = Some(&esp32_c3_board);
         PERIPHERALS = Some(peripherals);
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+        MAIN_CAP = Some(&unsafe { create_capability!(capabilities::MainLoopCapability) });
 
         PLATFORM.map(|p| {
             p.watchdog().setup();

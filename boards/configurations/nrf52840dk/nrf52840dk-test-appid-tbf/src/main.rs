@@ -30,7 +30,8 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loading_finished(&self) {
         kernel::debug!("Processes Loaded:");
 
-        let process_manage_cap = create_capability!(capabilities::ProcessManagementCapability);
+        let process_manage_cap =
+            unsafe { create_capability!(capabilities::ProcessManagementCapability) };
         for (i, proc) in self
             .kernel
             .process_iter_capability(&process_manage_cap)
@@ -78,10 +79,9 @@ pub unsafe fn main() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        mux_uart,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(mux_uart, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
@@ -147,7 +147,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
-        create_capability!(capabilities::ProcessManagementCapability),
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
@@ -169,7 +169,7 @@ pub unsafe fn main() {
 
     let _ = pconsole.start();
 
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
     board_kernel.kernel_loop(
         &base_platform,
         chip,

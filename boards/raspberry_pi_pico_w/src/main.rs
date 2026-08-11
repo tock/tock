@@ -161,7 +161,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::wifi::DRIVER_NUM,
         cyw4343_device,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::wifi_component_static!(CYW4343xHw));
 
@@ -180,7 +180,7 @@ pub unsafe fn start() -> (
     }
 
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
     kernel::process::load_processes(
         board_kernel,
         chip,
@@ -208,7 +208,7 @@ pub unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(

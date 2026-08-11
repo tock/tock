@@ -124,7 +124,7 @@ pub unsafe fn start() -> (
     }
 
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
     kernel::process::load_processes(
         board_kernel,
         chip,
@@ -152,7 +152,7 @@ pub unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();
 

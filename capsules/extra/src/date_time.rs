@@ -13,7 +13,7 @@
 //! -----
 //!
 //! ```rust,ignore
-//!  let grant_dt = create_capability!(capabilities::MemoryAllocationCapability);
+//!  let grant_dt = unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 //!  let grant_date_time = board_kernel.create_grant(capsules::date_time::DRIVER_NUM, &grant_dt);
 //!
 //!  let date_time = static_init!(

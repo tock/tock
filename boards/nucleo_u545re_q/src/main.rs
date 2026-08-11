@@ -252,16 +252,15 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
 
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
@@ -272,7 +271,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
         &periphs.aes,
-        create_capability!(MemoryAllocationCapability),
+        unsafe { create_capability!(MemoryAllocationCapability) },
     )
     .finalize(components::aes_driver_component_static!(
         stm32u545::aes::ecb::Aes<'static, AES256>,
@@ -298,7 +297,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         alarm_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
 
@@ -319,7 +318,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullDown
             )
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
@@ -333,7 +332,7 @@ unsafe fn start() -> (
     let pwm = components::pwm::PwmDriverComponent::new(
         board_kernel,
         capsules_extra::pwm::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::pwm_driver_component_helper!(tim3_pwm_pin));
     let adc_mux = components::adc::AdcMuxComponent::new(&periphs.adc1)
@@ -363,7 +362,7 @@ unsafe fn start() -> (
     let adc_syscall = components::adc::AdcVirtualComponent::new(
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_syscall_component_helper!(
         adc1_channel_5,
@@ -409,14 +408,14 @@ unsafe fn start() -> (
             25 => periphs.gpio_a.pin(PinId::Pin15), // CN7 pin 17
             26 => periphs.gpio_c.pin(PinId::Pin03), // CN7 pin 37
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(GpioHw));
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
         sha256,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(hmac_component_static!(
         stm32u545::hash::sha256::Sha256Adapter<'static>,
@@ -427,7 +426,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::crc::DRIVER_NUM,
         &periphs.crc,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::crc_component_static!(
         stm32u545::crc::CRC<'static>
@@ -488,7 +487,7 @@ unsafe fn start() -> (
         app_flash,
         app_memory,
         &capsules_system::process_policies::PanicFaultPolicy {},
-        &create_capability!(capabilities::ProcessManagementCapability),
+        &unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     );
 
     (board_kernel, platform, chip)
@@ -496,7 +495,7 @@ unsafe fn start() -> (
 
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();
     // Hand over control to the Tock Kernel Loop

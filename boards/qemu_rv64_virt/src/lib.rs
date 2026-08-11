@@ -268,7 +268,8 @@ pub unsafe fn start() -> (
     // rv64i::semihost_command(0x18, semihost_params.as_ptr() as usize, 0);
 
     // Acquire required capabilities
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let memory_allocation_cap =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     // Create a board kernel instance
 
@@ -719,23 +720,22 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::low_level_debug_component_static!());
 
@@ -747,7 +747,7 @@ pub unsafe fn start() -> (
             board_kernel,
             capsules_core::rng::DRIVER_NUM,
             rng,
-            create_capability!(capabilities::MemoryAllocationCapability),
+            unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
         )
         .finalize(components::rng_random_component_static!(
             qemu_rv64_virt_chip::virtio::devices::virtio_rng::VirtIORng<RiscvCoherentDmaFence>

@@ -178,7 +178,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(
         lpc55s6x::ctimer0::LPCTimer
@@ -255,7 +255,7 @@ unsafe fn start() -> (
             63 => peripherals.pins.get_pin(lpc55s6x::gpio::LPCPin::P1_30),
             64 => peripherals.pins.get_pin(lpc55s6x::gpio::LPCPin::P1_31),
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(lpc55s6x::gpio::GpioPin));
 
@@ -272,7 +272,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             ),
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(
         lpc55s6x::gpio::GpioPin
@@ -348,17 +348,16 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
 
     // Process console
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -411,7 +410,7 @@ unsafe fn start() -> (
     }
 
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
 
     kernel::process::load_processes(
         board_kernel,
@@ -437,7 +436,7 @@ unsafe fn start() -> (
 
 #[no_mangle]
 unsafe fn main() -> ! {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
     let (board_kernel, platform, chip) = start();
 
     board_kernel.kernel_loop(

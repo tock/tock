@@ -104,7 +104,7 @@ impl KernelResources<ChipHw> for Platform {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     // Create the base board:
     let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
@@ -126,7 +126,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
         &nrf52840_peripherals.ieee802154_radio,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ieee802154_raw_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -147,7 +147,7 @@ pub unsafe fn main() {
             aes_dst_buffer,
             board_kernel.create_grant(
                 capsules_extra::tutorials::encryption_oracle_chkpt5::DRIVER_NUM,
-                &create_capability!(capabilities::MemoryAllocationCapability)
+                &unsafe { create_capability!(capabilities::MemoryAllocationCapability) }
             )
         )
     );
@@ -192,7 +192,7 @@ pub unsafe fn main() {
         capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         None,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::screen_component_static!(1032));
 
@@ -211,7 +211,7 @@ pub unsafe fn main() {
         &nrf52840_peripherals.nrf52.nvmc,
         core::ptr::addr_of!(APP_STORAGE) as usize,
         APP_STORAGE.len(),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::isolated_nonvolatile_storage_component_static!(
         nrf52840::nvmc::Nvmc,
@@ -299,7 +299,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
-        create_capability!(capabilities::ProcessManagementCapability),
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,

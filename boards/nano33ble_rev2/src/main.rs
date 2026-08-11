@@ -304,8 +304,9 @@ pub unsafe fn start() -> (
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     //--------------------------------------------------------------------------
     // DEBUG GPIO
@@ -342,7 +343,7 @@ pub unsafe fn start() -> (
             9 => &nrf52840_peripherals.gpio_port[GPIO_D9],
             10 => &nrf52840_peripherals.gpio_port[GPIO_D10]
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
 
@@ -370,7 +371,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
 
@@ -439,16 +440,15 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
@@ -459,7 +459,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
@@ -474,7 +474,7 @@ pub unsafe fn start() -> (
     let adc_syscall = components::adc::AdcVirtualComponent::new(
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_syscall_component_helper!(
         // A0
@@ -551,7 +551,7 @@ pub unsafe fn start() -> (
         apds9960,
         board_kernel,
         capsules_extra::proximity::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::proximity_component_static!());
 
@@ -561,7 +561,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::pressure::DRIVER_NUM,
         lps22hb,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::pressure_component_static!(
         capsules_extra::lps22hb::Lps22hb<
@@ -576,14 +576,14 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         hs3003,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(HS3003Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         hs3003,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::humidity_component_static!(HS3003Sensor));
 
@@ -596,7 +596,7 @@ pub unsafe fn start() -> (
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
@@ -617,7 +617,7 @@ pub unsafe fn start() -> (
         PAN_ID,
         device_id_bottom_16,
         device_id,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -650,8 +650,8 @@ pub unsafe fn start() -> (
         MacAddress::Short(device_id_bottom_16),
         local_ip_ifaces,
         mux_alarm,
-        create_capability!(capabilities::NetworkCapabilityCreationCapability),
-        create_capability!(capabilities::CreatePortTableCapability),
+        unsafe { create_capability!(capabilities::NetworkCapabilityCreationCapability) },
+        unsafe { create_capability!(capabilities::CreatePortTableCapability) },
     )
     .finalize(components::udp_mux_component_static!(
         AlarmHw,
@@ -668,8 +668,8 @@ pub unsafe fn start() -> (
         udp_port_table,
         local_ip_ifaces,
         udp_driver_cap,
-        create_capability!(capabilities::MemoryAllocationCapability),
-        create_capability!(capabilities::NetworkCapabilityCreationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
+        unsafe { create_capability!(capabilities::NetworkCapabilityCreationCapability) },
     )
     .finalize(components::udp_driver_component_static!(
         AlarmHw,
@@ -782,7 +782,7 @@ pub unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);

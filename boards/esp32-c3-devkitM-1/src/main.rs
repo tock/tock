@@ -185,8 +185,9 @@ unsafe fn setup() -> (
         .use_pll_clock_source(PllFrequency::MHz320, CpuFrequency::MHz160);
 
     // initialise capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_cap =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     //
     // BOARD SETUP AND PROCESSES
@@ -215,13 +216,13 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
+        unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
                 <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
@@ -256,7 +257,7 @@ unsafe fn setup() -> (
             7 => &peripherals.gpio[7],
             8 => &peripherals.gpio[15]
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(esp32::gpio::GpioPin));
 
@@ -321,7 +322,7 @@ unsafe fn setup() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(GpioHw));
 
@@ -374,7 +375,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &peripherals.rng,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rng_component_static!(esp32_c3::rng::Rng));
 
@@ -469,7 +470,7 @@ pub unsafe fn main() {
     {
         let (board_kernel, esp32_c3_board, chip, _peripherals) = setup();
 
-        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+        let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
         board_kernel.kernel_loop(
             esp32_c3_board,
@@ -500,7 +501,7 @@ fn test_runner(tests: &[&dyn Fn()]) {
                 ProcessManagementCapabilityObj
             )),
         );
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+        MAIN_CAP = Some(&unsafe { create_capability!(capabilities::MainLoopCapability) });
 
         PLATFORM.map(|p| {
             p.watchdog().setup();

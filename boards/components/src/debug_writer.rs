@@ -13,13 +13,13 @@
 //! ```rust
 //! let debug_wrapper = components::debug_writer::DebugWriterComponent::new(
 //!     uart_mux,
-//!     create_capability!(kernel::capabilities::SetDebugWriterCapability),
+//!     unsafe { create_capability!(kernel::capabilities::SetDebugWriterCapability) },
 //! )
 //! .finalize(components::debug_writer_component_static!());
 //!
 //! let debug_wrapper = components::debug_writer::DebugWriterNoMuxComponent::new(
 //!     &nrf52::uart::UARTE0,
-//!     create_capability!(kernel::capabilities::SetDebugWriterCapability),
+//!     unsafe { create_capability!(kernel::capabilities::SetDebugWriterCapability) },
 //! )
 //! .finalize(components::debug_writer_no_mux_component_static!());
 //! ```

@@ -491,25 +491,25 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     // LEDs
@@ -596,7 +596,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(stm32f412g::gpio::Pin));
 
@@ -611,7 +611,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(stm32f412g::tim2::Tim2));
 
@@ -647,7 +647,7 @@ unsafe fn start() -> (
             // 19 => base_peripherals.gpio_ports.get_pin(stm32f412g::gpio::PinId::PC05).unwrap(), //A4
             // 20 => base_peripherals.gpio_ports.get_pin(stm32f412g::gpio::PinId::PB00).unwrap() //A5
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(stm32f412g::gpio::Pin));
 
@@ -656,7 +656,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rng_component_static!(stm32f412g::trng::Trng));
 
@@ -704,7 +704,7 @@ unsafe fn start() -> (
         capsules_extra::screen::screen::DRIVER_NUM,
         tft,
         Some(tft),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::screen_component_static!(1024));
 
@@ -714,7 +714,7 @@ unsafe fn start() -> (
         ft6x06,
         Some(ft6x06),
         Some(tft),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::touch_component_static!());
 
@@ -743,7 +743,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         temp_sensor,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(
         TemperatureSTMSensor
@@ -776,7 +776,7 @@ unsafe fn start() -> (
     let adc_syscall = components::adc::AdcVirtualComponent::new(
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_syscall_component_helper!(
         adc_channel_0,
@@ -899,7 +899,7 @@ unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);

@@ -127,8 +127,9 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     peripherals.init();
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_cap =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -211,13 +212,13 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
+        unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
                 <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
@@ -285,7 +286,7 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
 /// Accesses memory, memory-mapped registers and CSRs.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
     let (board_kernel, veer, chip) = start();
     board_kernel.kernel_loop(&veer, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
 }

@@ -90,7 +90,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::sha256_driver::DRIVER_NUM,
         sha,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::sha_driver_component_static!(
         Sha,
@@ -132,7 +132,7 @@ pub unsafe fn main() {
     );
 
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
     kernel::process::load_processes(
         board_kernel,
         chip,
@@ -150,7 +150,8 @@ pub unsafe fn main() {
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
-    let main_loop_capability = create_capability!(kernel::capabilities::MainLoopCapability);
+    let main_loop_capability =
+        unsafe { create_capability!(kernel::capabilities::MainLoopCapability) };
     board_kernel.kernel_loop(
         &platform,
         chip,

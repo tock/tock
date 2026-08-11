@@ -34,7 +34,7 @@
 //! apds9960_i2c.set_client(apds9960);
 //! nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
 //!
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_cap = unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 //!
 //! let proximity = static_init!(
 //!    capsules::proximity::ProximitySensor<'static>,

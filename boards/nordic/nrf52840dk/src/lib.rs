@@ -339,7 +339,7 @@ pub unsafe fn ieee802154_udp(
         PAN_ID,
         device_id_bottom_16,
         device_id,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ieee802154_component_static!(RadioHw, AesHw));
 
@@ -369,8 +369,8 @@ pub unsafe fn ieee802154_udp(
         MacAddress::Long(device_id),
         local_ip_ifaces,
         mux_alarm,
-        create_capability!(capabilities::NetworkCapabilityCreationCapability),
-        create_capability!(capabilities::CreatePortTableCapability),
+        unsafe { create_capability!(capabilities::NetworkCapabilityCreationCapability) },
+        unsafe { create_capability!(capabilities::CreatePortTableCapability) },
     )
     .finalize(components::udp_mux_component_static!(
         AlarmHw,
@@ -387,8 +387,8 @@ pub unsafe fn ieee802154_udp(
         udp_port_table,
         local_ip_ifaces,
         udp_driver_cap,
-        create_capability!(capabilities::MemoryAllocationCapability),
-        create_capability!(capabilities::NetworkCapabilityCreationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
+        unsafe { create_capability!(capabilities::NetworkCapabilityCreationCapability) },
     )
     .finalize(components::udp_driver_component_static!(
         AlarmHw,
@@ -516,7 +516,8 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
     let gpio_port = &nrf52840_peripherals.gpio_port;
 
     //--------------------------------------------------------------------------
@@ -549,7 +550,7 @@ pub unsafe fn start_no_pconsole() -> (
             12 => &nrf52840_peripherals.gpio_port[Pin::P1_14],
             13 => &nrf52840_peripherals.gpio_port[Pin::P1_15],
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(GpioHw));
 
@@ -583,7 +584,7 @@ pub unsafe fn start_no_pconsole() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(ButtonHw));
 
@@ -611,7 +612,7 @@ pub unsafe fn start_no_pconsole() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(AlarmHw));
 
@@ -658,17 +659,16 @@ pub unsafe fn start_no_pconsole() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
@@ -680,7 +680,7 @@ pub unsafe fn start_no_pconsole() -> (
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
@@ -692,7 +692,7 @@ pub unsafe fn start_no_pconsole() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(TemperatureHw));
 
@@ -704,7 +704,7 @@ pub unsafe fn start_no_pconsole() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rng_component_static!(RngHw));
 
@@ -728,7 +728,7 @@ pub unsafe fn start_no_pconsole() -> (
         adc_channels,
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_dedicated_component_static!(AdcHw));
 
@@ -747,7 +747,7 @@ pub unsafe fn start_no_pconsole() -> (
             &gpio_port[SPI_CS],
         ),
         capsules_core::spi_controller::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(SpiHw));
 
@@ -828,7 +828,7 @@ pub unsafe fn start_no_pconsole() -> (
         virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::kv_driver_component_static!(
         VirtualKVPermissions
@@ -842,7 +842,7 @@ pub unsafe fn start_no_pconsole() -> (
         board_kernel,
         capsules_core::i2c_master_slave_driver::DRIVER_NUM,
         &base_peripherals.twi1,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::i2c_master_slave_component_static!(I2cHw));
 
@@ -866,7 +866,7 @@ pub unsafe fn start_no_pconsole() -> (
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::analog_comparator_component_static!(
         AnalogComparatorHw

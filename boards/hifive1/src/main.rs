@@ -154,7 +154,7 @@ fn load_processes_not_inlined<C: kernel::platform::chip::Chip>(
         )
     };
 
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+    let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
     kernel::process::load_processes(
         board_kernel,
         chip,
@@ -271,7 +271,8 @@ unsafe fn start() -> (
     );
     virtual_alarm_user.setup();
 
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let memory_allocation_cap =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
     let alarm = static_init!(
         capsules_core::alarm::AlarmDriver<
             'static,
@@ -330,24 +331,23 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     const DEBUG_BUFFER_KB: usize = 1;
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!(DEBUG_BUFFER_KB));
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::low_level_debug_component_static!());
 
@@ -383,7 +383,7 @@ unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, board, chip) = start();
     board_kernel.kernel_loop(

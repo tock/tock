@@ -330,25 +330,25 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         lpuart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        lpuart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(lpuart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     // LEDs
@@ -371,7 +371,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullDown
             )
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(imxrt10xx::gpio::Pin));
 
@@ -385,7 +385,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(imxrt10xx::gpt::Gpt1));
 
@@ -399,7 +399,7 @@ unsafe fn start() -> (
             // The User Led
             0 => peripherals.ports.pin(imxrt10xx::gpio::PinId::AdB0_09)
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(
         imxrt10xx::gpio::Pin<'static>
@@ -477,7 +477,7 @@ unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ninedof_component_static!(fxos8700));
 
@@ -575,7 +575,7 @@ unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, board, chip) = start();
     board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);

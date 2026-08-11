@@ -245,9 +245,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
 
     // Clock to all GPIO Ports is enabled in `set_pin_primary_functions()`
     let gpio_ports = &base_peripherals.gpio_ports;
@@ -288,7 +288,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(stm32wle5jc::tim2::Tim2));
 
@@ -299,17 +299,16 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -346,7 +345,7 @@ pub unsafe fn main() {
         lora_spi_mux,
         chip_select,
         LORA_SPI_DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(
         stm32wle5jc::spi::Spi<'static>
@@ -382,7 +381,7 @@ pub unsafe fn main() {
             1 => lora_busy_pin,
             2 => lora_interrupt_pin,
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(
         stm32wle5jc::subghz_radio::SubGhzRadioVirtualGpio
@@ -406,7 +405,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::i2c_master::DRIVER_NUM,
         &base_peripherals.i2c2,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::i2c_master_driver_component_static!(
         stm32wle5jc::i2c::I2C

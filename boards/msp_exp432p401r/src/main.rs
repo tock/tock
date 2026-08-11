@@ -278,7 +278,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(msp432::gpio::IntPin));
 
@@ -342,15 +342,16 @@ unsafe fn start() -> (
             // 33 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P05_2 as usize], // A3
             34 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_6 as usize]
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(
         msp432::gpio::IntPin<'static>
     ));
 
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
 
     // Setup UART0
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
@@ -361,16 +362,15 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     // Setup alarm
@@ -382,7 +382,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(msp432::timer::TimerA));
 
@@ -423,7 +423,7 @@ unsafe fn start() -> (
         adc_channels,
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_dedicated_component_static!(
         msp432::adc::Adc
@@ -503,7 +503,7 @@ unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, board, chip) = start();
     board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);

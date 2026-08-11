@@ -307,9 +307,10 @@ unsafe extern "cdecl" fn main() {
     });
 
     // Acquire required capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+    let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_cap =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
+    let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -505,14 +506,14 @@ unsafe extern "cdecl" fn main() {
         board_kernel,
         console::DRIVER_NUM,
         console_uart_device,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
     DebugWriterComponent::new::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
         debug_uart_device,
-        create_capability!(capabilities::SetDebugWriterCapability),
+        unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
     )
     .finalize(components::debug_writer_component_static!());
 
@@ -520,7 +521,7 @@ unsafe extern "cdecl" fn main() {
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::low_level_debug_component_static!());
 
@@ -532,7 +533,7 @@ unsafe extern "cdecl" fn main() {
             board_kernel,
             capsules_core::rng::DRIVER_NUM,
             rng,
-            create_capability!(capabilities::MemoryAllocationCapability),
+            unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
         )
         .finalize(components::rng_random_component_static!(
             VirtIORng<X86DmaFence>

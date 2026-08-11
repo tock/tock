@@ -221,7 +221,7 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     //--------------------------------------------------------------------------
     // TIMER
@@ -252,10 +252,9 @@ pub unsafe fn main() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------

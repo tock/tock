@@ -295,7 +295,7 @@ unsafe fn setup_chirp_i2c_moisture(
         board_kernel,
         capsules_extra::moisture::DRIVER_NUM,
         chirp_moisture,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::moisture_component_static!(ChirpI2cMoistureType));
 
@@ -322,7 +322,7 @@ unsafe fn setup_dfrobot_i2c_rainfall(
         board_kernel,
         capsules_extra::rainfall::DRIVER_NUM,
         dfrobot_rainfall,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rainfall_component_static!(DFRobotRainFallType));
 
@@ -436,7 +436,8 @@ unsafe fn setup() -> (
     clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
 
     // initialize capabilities
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let memory_allocation_cap =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -493,16 +494,15 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     // LEDs
@@ -524,7 +524,7 @@ unsafe fn setup() -> (
             3 => &peripherals.gpio_port[35],  // A3
             4 => &peripherals.gpio_port[34],  // A4
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
 
@@ -538,7 +538,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
     ALARM = Some(mux_alarm);
@@ -586,14 +586,14 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         bme280,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(BME280Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         bme280,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::humidity_component_static!(BME280Sensor));
     BME280 = Some(bme280);
@@ -605,7 +605,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         ccs811,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::air_quality_component_static!());
     CCS811 = Some(ccs811);
@@ -650,7 +650,7 @@ unsafe fn setup() -> (
             &peripherals.gpio_port[11], // A5
         ),
         capsules_core::spi_controller::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(
         apollo3::iom::Iom<'static>
@@ -668,7 +668,7 @@ unsafe fn setup() -> (
             &peripherals.gpio_port[36], // H6 - SX1262 Slave Select
         ),
         LORA_SPI_DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(
         apollo3::iom::Iom<'static>
@@ -694,7 +694,7 @@ unsafe fn setup() -> (
             3 => &peripherals.gpio_port[47], // H9 - SX1262 Multipurpose digital I/O (DIO3)
             4 => &peripherals.gpio_port[44], // J7 - SX1262 Reset
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
 
@@ -806,7 +806,7 @@ unsafe fn setup() -> (
         virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::kv_driver_component_static!(
         capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<
@@ -988,7 +988,7 @@ unsafe fn setup() -> (
         storage_permissions_policy,
         app_flash,
         app_memory,
-        create_capability!(capabilities::ProcessManagementCapability),
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
         apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
@@ -1014,7 +1014,7 @@ pub unsafe fn main() {
     {
         let (board_kernel, sf_lora_thing_plus_board, chip) = setup();
 
-        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+        let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
         board_kernel.kernel_loop(
             sf_lora_thing_plus_board,
@@ -1035,7 +1035,7 @@ fn test_runner(tests: &[&dyn Fn()]) {
 
         BOARD = Some(board_kernel);
         PLATFORM = Some(&sf_lora_thing_plus_board);
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+        MAIN_CAP = Some(&unsafe { create_capability!(capabilities::MainLoopCapability) });
 
         PLATFORM.map(|p| {
             p.watchdog().setup();

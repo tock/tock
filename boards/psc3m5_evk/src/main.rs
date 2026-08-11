@@ -197,8 +197,9 @@ pub unsafe fn start() -> (
     let board_kernel = static_init!(Kernel, Kernel::new(processes.as_slice()));
 
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.tcpwm)
         .finalize(components::alarm_mux_component_static!(Tcpwm0));
@@ -207,7 +208,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(Tcpwm0));
 
@@ -219,17 +220,16 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     // PROCESS CONSOLE
@@ -308,7 +308,7 @@ pub unsafe fn start() -> (
             91 => peripherals.gpio.get_pin(gpio::PsocPin::P9_1), // Header J5.25
             93 => peripherals.gpio.get_pin(gpio::PsocPin::P9_3), // Header J24.3
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(gpio::GpioPin));
 
@@ -330,7 +330,7 @@ pub unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             ),
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(gpio::GpioPin));
 
@@ -383,7 +383,7 @@ pub unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);

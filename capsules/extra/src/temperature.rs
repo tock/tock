@@ -44,7 +44,7 @@
 //! ```rust,ignore
 //! # use kernel::static_init;
 //!
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_cap = unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 //! let grant_temperature = board_kernel.create_grant(&grant_cap);
 //!
 //! let temp = static_init!(

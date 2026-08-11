@@ -184,12 +184,12 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
+        unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
                 <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
@@ -210,7 +210,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(Tcpwm0));
 
@@ -280,7 +280,7 @@ pub unsafe fn main() {
             108 => peripherals.gpio.get_pin(psoc62xa::gpio::PsocPin::P13_4),
             110 => peripherals.gpio.get_pin(psoc62xa::gpio::PsocPin::P13_6),
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(psoc62xa::gpio::GpioPin));
 
@@ -301,7 +301,7 @@ pub unsafe fn main() {
                 kernel::hil::gpio::FloatingState::PullNone
             ),
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(GpioPin));
 
@@ -312,7 +312,7 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let cy8cproto0624343w = Cy8cproto0624343w {
         console,
@@ -349,7 +349,7 @@ pub unsafe fn main() {
     }
 
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
 
     kernel::process::load_processes(
         board_kernel,

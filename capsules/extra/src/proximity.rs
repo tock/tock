@@ -43,7 +43,7 @@
 //! ```rust,ignore
 //! # use kernel::static_init;
 //!
-//!let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//!let grant_cap = unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 //!
 //!let proximity = static_init!(
 //!   capsules::proximity::ProximitySensor<'static>,

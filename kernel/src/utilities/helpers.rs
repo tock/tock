@@ -14,38 +14,75 @@
 /// ```
 /// # use kernel::capabilities::{ProcessManagementCapability, MemoryAllocationCapability};
 /// # use kernel::create_capability;
-/// let process_mgmt_cap = create_capability!(ProcessManagementCapability);
-/// let unified_cap = create_capability!(ProcessManagementCapability, MemoryAllocationCapability);
+/// let process_mgmt_cap = unsafe { create_capability!(ProcessManagementCapability) };
+/// let unified_cap =
+///     unsafe { create_capability!(ProcessManagementCapability, MemoryAllocationCapability) };
 /// ```
 ///
-/// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates,
-/// and is used by trusted code to generate a capability that it can either use
-/// or pass to another module.
+/// This helper macro is used by trusted code to generate a capability that it
+/// can either use or pass to another module.
+///
+/// # Restrictions
+///
+/// This macro invokes an `unsafe` function. Callers must wrap use of this
+/// macro in `unsafe` to assert they are trusted to mint a capability. Because
+/// that `unsafe` block is written directly in the caller's own code (not
+/// hidden inside this macro), a caller under `#![deny(unsafe_code)]` must add
+/// a local `#[allow(unsafe_code)]` to use this macro, and a caller under
+/// `#![forbid(unsafe_code)]` cannot use it at all, since `forbid` cannot be
+/// overridden by any `allow`, local or otherwise.
 ///
 /// # Safety
 ///
-/// This macro can only be used in a context that is allowed to use
-/// `unsafe`. Specifically, an internal `allow(unsafe_code)` directive
-/// will conflict with any `forbid(unsafe_code)` at the crate or block
-/// level.
+/// This macro can only be used in a context that is allowed to use `unsafe`.
 ///
 /// ```compile_fail
 /// # use kernel::capabilities::ProcessManagementCapability;
 /// # use kernel::create_capability;
 /// #[forbid(unsafe_code)]
 /// fn untrusted_fn() {
-///     let process_mgmt_cap = create_capability!(ProcessManagementCapability);
+///     let process_mgmt_cap = unsafe { create_capability!(ProcessManagementCapability) };
+/// }
+/// ```
+///
+/// ```compile_fail
+/// # use kernel::capabilities::ProcessManagementCapability;
+/// # use kernel::create_capability;
+/// #[deny(unsafe_code)]
+/// fn untrusted_fn() {
+///     // Fails without a local `#[allow(unsafe_code)]` at this call site.
+///     let process_mgmt_cap = unsafe { create_capability!(ProcessManagementCapability) };
+/// }
+/// ```
+///
+/// ```
+/// # use kernel::capabilities::ProcessManagementCapability;
+/// # use kernel::create_capability;
+/// #[deny(unsafe_code)]
+/// fn trusted_fn() {
+///     #[allow(unsafe_code)]
+///     let process_mgmt_cap = unsafe { create_capability!(ProcessManagementCapability) };
 /// }
 /// ```
 #[macro_export]
 macro_rules! create_capability {
     ($($T:ty),+) => {{
-        #[allow(unsafe_code)]
         struct Cap(());
         $(
+            #[allow(unsafe_code)]
             unsafe impl $T for Cap {}
         )*
-        Cap(())
+        impl Cap {
+            // Mark the constructor unsafe to force the caller to wrap use of
+            // this macro in `unsafe`, making capability creation visible at
+            // the call site instead of hidden inside the macro.
+            #[doc(hidden)]
+            #[allow(unsafe_code)]
+            unsafe fn __macro_only_capability_creator() -> Self {
+                Cap(())
+            }
+        }
+        Cap::__macro_only_capability_creator()
     }};
 }
 

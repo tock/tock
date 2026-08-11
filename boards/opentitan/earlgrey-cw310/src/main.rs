@@ -392,8 +392,9 @@ unsafe fn setup() -> (
     BoardPinmuxLayout::setup();
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_cap =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
@@ -457,7 +458,7 @@ unsafe fn setup() -> (
             6 => &peripherals.gpio_port[6],
             7 => &peripherals.gpio_port[15]
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(
         earlgrey::gpio::GpioPin<earlgrey::pinmux::PadConfig>
@@ -525,13 +526,13 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
+        unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
                 <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
@@ -544,7 +545,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::low_level_debug_component_static!());
 
@@ -552,7 +553,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
         &peripherals.hmac,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::hmac_component_static!(lowrisc::hmac::Hmac, 32));
 
@@ -584,7 +585,7 @@ unsafe fn setup() -> (
         mux_spi,
         lowrisc::spi_host::CS(0),
         capsules_core::spi_controller::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(
         lowrisc::spi_host::SpiHost
@@ -746,7 +747,7 @@ unsafe fn setup() -> (
         virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::kv_driver_component_static!(
         capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<
@@ -847,7 +848,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
         gcm_client,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::aes_driver_component_static!(
         aes_gcm::Aes128Gcm<
@@ -939,7 +940,7 @@ pub unsafe fn main() {
     {
         let (board_kernel, earlgrey, chip, _peripherals) = setup();
 
-        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+        let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
         board_kernel.kernel_loop(earlgrey, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
     }
@@ -956,7 +957,7 @@ fn test_runner(tests: &[&dyn Fn()]) {
         BOARD = Some(board_kernel);
         PLATFORM = Some(&earlgrey);
         PERIPHERALS = Some(peripherals);
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+        MAIN_CAP = Some(&unsafe { create_capability!(capabilities::MainLoopCapability) });
 
         PLATFORM.map(|p| {
             p.watchdog().setup();

@@ -250,8 +250,9 @@ pub unsafe fn start_particle_boron() -> (
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     //--------------------------------------------------------------------------
     // DEBUG GPIO
@@ -324,7 +325,7 @@ pub unsafe fn start_particle_boron() -> (
             //D0
             19 => &nrf52840_peripherals.gpio_port[Pin::P0_26],
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(GpioHw));
 
@@ -343,7 +344,7 @@ pub unsafe fn start_particle_boron() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(GpioHw));
 
@@ -379,7 +380,7 @@ pub unsafe fn start_particle_boron() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(AlarmHw));
 
@@ -410,16 +411,15 @@ pub unsafe fn start_particle_boron() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!(132, 132));
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
@@ -431,7 +431,7 @@ pub unsafe fn start_particle_boron() -> (
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
@@ -446,7 +446,7 @@ pub unsafe fn start_particle_boron() -> (
         PAN_ID,
         SRC_MAC,
         DEFAULT_EXT_SRC_MAC,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -461,7 +461,7 @@ pub unsafe fn start_particle_boron() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(
         nrf52840::temperature::Temp
@@ -475,7 +475,7 @@ pub unsafe fn start_particle_boron() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
@@ -491,7 +491,7 @@ pub unsafe fn start_particle_boron() -> (
     let adc_syscall = components::adc::AdcVirtualComponent::new(
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_syscall_component_helper!(
         // BRD_A0
@@ -651,7 +651,7 @@ pub unsafe fn start_particle_boron() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start_particle_boron();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);

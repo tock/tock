@@ -312,8 +312,9 @@ pub unsafe fn main() {
     let board_kernel = static_init!(Kernel, Kernel::new(processes.as_slice()));
 
     let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+        unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    let memory_allocation_capability =
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer0)
         .finalize(components::alarm_mux_component_static!(RPTimer));
@@ -322,7 +323,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
@@ -334,7 +335,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
 
@@ -376,7 +377,7 @@ pub unsafe fn main() {
             28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
-        create_capability!(capabilities::MemoryAllocationCapability),
+        unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
@@ -388,10 +389,9 @@ pub unsafe fn main() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
-    >(
-        uart_mux,
-        create_capability!(capabilities::SetDebugWriterCapability),
-    )
+    >(uart_mux, unsafe {
+        create_capability!(capabilities::SetDebugWriterCapability)
+    })
     .finalize(components::debug_writer_component_static!());
 
     // PROCESS CONSOLE
@@ -469,7 +469,7 @@ pub unsafe fn main() {
         kernel::debug!("{:?}", err);
     });
 
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     board_kernel.kernel_loop(
         &raspberry_pi_pico,

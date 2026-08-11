@@ -26,7 +26,7 @@
 //!
 //! components::debug_writer::DebugWriterComponent::new(
 //!     uart_mux,
-//!     create_capability!(kernel::capabilities::SetDebugWriterCapability)
+//!     unsafe { create_capability!(kernel::capabilities::SetDebugWriterCapability) }
 //! )
 //! .finalize(components::debug_writer_component_static!());
 //! ```
@@ -79,7 +79,7 @@
 //!
 //! kernel::debug::set_debug_writer_wrapper(
 //!     debug_writer,
-//!     create_capability!(kernel::capabilities::SetDebugWriterCapability)
+//!     unsafe { create_capability!(kernel::capabilities::SetDebugWriterCapability) }
 //! );
 //! ```
 //!

@@ -12,7 +12,7 @@
 //! ```rust,ignore
 //! # use kernel::{hil, static_init};
 //!
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_cap = unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
 //! let ninedof = static_init!(

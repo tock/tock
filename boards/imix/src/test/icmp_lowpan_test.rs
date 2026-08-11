@@ -82,7 +82,7 @@ pub unsafe fn run(
     mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, Ieee802154MacDevice>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) {
-    let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+    let create_cap = unsafe { create_capability!(NetworkCapabilityCreationCapability) };
     let net_cap = static_init!(
         NetworkCapability,
         NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)
