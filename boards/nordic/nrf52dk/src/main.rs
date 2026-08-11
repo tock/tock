@@ -300,6 +300,7 @@ pub unsafe fn start() -> (
             10 => &nrf52832_peripherals.gpio_port[Pin::P0_02],
             11 => &nrf52832_peripherals.gpio_port[Pin::P0_25]
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(GpioHw));
@@ -330,6 +331,7 @@ pub unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             ) //16
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(GpioHw));
@@ -360,8 +362,10 @@ pub unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
+    // SAFETY: board init has authority to create capabilities
     let process_management_capability =
         unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    // SAFETY: board init has authority to create capabilities
     let memory_allocation_capability =
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
@@ -388,6 +392,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(AlarmHw));
@@ -409,6 +414,7 @@ pub unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -428,6 +434,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
@@ -435,6 +442,7 @@ pub unsafe fn start() -> (
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(uart_mux, unsafe {
+        // SAFETY: board init has authority to create capabilities
         create_capability!(capabilities::SetDebugWriterCapability)
     })
     .finalize(components::debug_writer_component_static!());
@@ -444,6 +452,7 @@ pub unsafe fn start() -> (
         capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ble_component_static!(AlarmHw, BleHw));
@@ -452,6 +461,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(
@@ -462,6 +472,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rng_component_static!(nrf52832::trng::Trng));
@@ -476,6 +487,7 @@ pub unsafe fn start() -> (
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::analog_comparator_component_static!(
@@ -548,6 +560,7 @@ pub unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();

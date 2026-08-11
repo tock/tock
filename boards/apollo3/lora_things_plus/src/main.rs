@@ -295,6 +295,7 @@ unsafe fn setup_chirp_i2c_moisture(
         board_kernel,
         capsules_extra::moisture::DRIVER_NUM,
         chirp_moisture,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::moisture_component_static!(ChirpI2cMoistureType));
@@ -322,6 +323,7 @@ unsafe fn setup_dfrobot_i2c_rainfall(
         board_kernel,
         capsules_extra::rainfall::DRIVER_NUM,
         dfrobot_rainfall,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rainfall_component_static!(DFRobotRainFallType));
@@ -436,6 +438,7 @@ unsafe fn setup() -> (
     clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
 
     // initialize capabilities
+    // SAFETY: board init has authority to create capabilities
     let memory_allocation_cap =
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
@@ -494,6 +497,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
@@ -501,6 +505,7 @@ unsafe fn setup() -> (
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(uart_mux, unsafe {
+        // SAFETY: board init has authority to create capabilities
         create_capability!(capabilities::SetDebugWriterCapability)
     })
     .finalize(components::debug_writer_component_static!());
@@ -524,6 +529,7 @@ unsafe fn setup() -> (
             3 => &peripherals.gpio_port[35],  // A3
             4 => &peripherals.gpio_port[34],  // A4
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
@@ -538,6 +544,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
@@ -586,6 +593,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         bme280,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(BME280Sensor));
@@ -593,6 +601,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         bme280,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::humidity_component_static!(BME280Sensor));
@@ -605,6 +614,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         ccs811,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::air_quality_component_static!());
@@ -650,6 +660,7 @@ unsafe fn setup() -> (
             &peripherals.gpio_port[11], // A5
         ),
         capsules_core::spi_controller::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(
@@ -668,6 +679,7 @@ unsafe fn setup() -> (
             &peripherals.gpio_port[36], // H6 - SX1262 Slave Select
         ),
         LORA_SPI_DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(
@@ -694,6 +706,7 @@ unsafe fn setup() -> (
             3 => &peripherals.gpio_port[47], // H9 - SX1262 Multipurpose digital I/O (DIO3)
             4 => &peripherals.gpio_port[44], // J7 - SX1262 Reset
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
@@ -806,6 +819,7 @@ unsafe fn setup() -> (
         virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::kv_driver_component_static!(
@@ -957,6 +971,7 @@ unsafe fn setup() -> (
         .finalize(components::process_checker_machine_component_static!());
 
     kernel::define_capability_type!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    // SAFETY: board init has authority to create capabilities
     let app_store_cap = unsafe { kernel::mint_defined_capability!(AppStoreCap) };
     let storage_permissions_policy =
         components::storage_permissions::tbf_header::StoragePermissionsTbfHeaderComponent::new(
@@ -989,6 +1004,7 @@ unsafe fn setup() -> (
         storage_permissions_policy,
         app_flash,
         app_memory,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
@@ -1015,6 +1031,7 @@ pub unsafe fn main() {
     {
         let (board_kernel, sf_lora_thing_plus_board, chip) = setup();
 
+        // SAFETY: board init has authority to create capabilities
         let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
         board_kernel.kernel_loop(
@@ -1036,6 +1053,7 @@ fn test_runner(tests: &[&dyn Fn()]) {
 
         BOARD = Some(board_kernel);
         PLATFORM = Some(&sf_lora_thing_plus_board);
+        // SAFETY: board init has authority to create capabilities
         MAIN_CAP = Some(&unsafe { create_capability!(capabilities::MainLoopCapability) });
 
         PLATFORM.map(|p| {

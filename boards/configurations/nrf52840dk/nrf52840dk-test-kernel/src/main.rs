@@ -221,6 +221,7 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     //--------------------------------------------------------------------------
@@ -253,6 +254,7 @@ pub unsafe fn main() {
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(uart_mux, unsafe {
+        // SAFETY: board init has authority to create capabilities
         create_capability!(capabilities::SetDebugWriterCapability)
     })
     .finalize(components::debug_writer_component_static!());

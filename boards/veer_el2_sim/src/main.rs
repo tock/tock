@@ -127,7 +127,9 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     peripherals.init();
 
     // initialize capabilities
+    // SAFETY: board init has authority to create capabilities
     let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    // SAFETY: board init has authority to create capabilities
     let memory_allocation_cap =
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
@@ -184,6 +186,7 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -213,12 +216,14 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
@@ -287,6 +292,7 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
 /// Accesses memory, memory-mapped registers and CSRs.
 #[no_mangle]
 pub unsafe fn main() {
+    // SAFETY: board init has authority to create capabilities
     let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
     let (board_kernel, veer, chip) = start();
     board_kernel.kernel_loop(&veer, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);

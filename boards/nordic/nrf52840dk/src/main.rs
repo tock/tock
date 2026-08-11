@@ -105,6 +105,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
+    // SAFETY: board init has authority to create capabilities
     let process_management_capability =
         unsafe { create_capability!(capabilities::ProcessManagementCapability) };
     kernel::process::load_processes(
@@ -126,6 +127,7 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
     board_kernel.kernel_loop(
         &platform,

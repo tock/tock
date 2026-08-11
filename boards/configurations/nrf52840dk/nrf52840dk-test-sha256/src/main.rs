@@ -90,6 +90,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::sha256_driver::DRIVER_NUM,
         sha,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::sha_driver_component_static!(
@@ -131,6 +132,7 @@ pub unsafe fn main() {
         core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
     );
 
+    // SAFETY: board init has authority to create capabilities
     let process_management_capability =
         unsafe { create_capability!(capabilities::ProcessManagementCapability) };
     kernel::process::load_processes(
@@ -150,6 +152,7 @@ pub unsafe fn main() {
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability =
         unsafe { create_capability!(kernel::capabilities::MainLoopCapability) };
     board_kernel.kernel_loop(

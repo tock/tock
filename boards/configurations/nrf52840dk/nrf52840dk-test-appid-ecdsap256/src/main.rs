@@ -189,6 +189,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
@@ -201,6 +202,7 @@ pub unsafe fn main() {
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability =
         unsafe { create_capability!(kernel::capabilities::MainLoopCapability) };
     board_kernel.kernel_loop(

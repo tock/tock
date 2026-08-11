@@ -323,6 +323,7 @@ pub unsafe fn setup(
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
+    // SAFETY: board init has authority to create capabilities
     let memory_allocation_capability =
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
@@ -333,6 +334,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(RPTimer));
@@ -380,12 +382,14 @@ pub unsafe fn setup(
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
@@ -437,6 +441,7 @@ pub unsafe fn setup(
             // 28 => peripherals.pins.get_pin(RPGpio::GPIO28),
             // 29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
@@ -467,6 +472,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_extra::date_time::DRIVER_NUM,
         &peripherals.rtc,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::date_time_component_static!(
@@ -477,6 +483,7 @@ pub unsafe fn setup(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         temp_sensor,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(
@@ -498,6 +505,7 @@ pub unsafe fn setup(
     let adc = components::adc::AdcVirtualComponent::new(
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_syscall_component_helper!(
@@ -518,6 +526,7 @@ pub unsafe fn setup(
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -596,6 +605,7 @@ pub unsafe fn setup(
             spi_chip_select,
         ),
         capsules_core::spi_controller::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(Spi));

@@ -138,6 +138,7 @@ pub unsafe fn main() {
         mx25r6435f,
         0x40000,  // start address
         0x100000, // length
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::isolated_nonvolatile_storage_component_static!(
@@ -221,6 +222,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
@@ -238,6 +240,7 @@ pub unsafe fn main() {
         invs,
     };
 
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
     board_kernel.kernel_loop(
         &platform,

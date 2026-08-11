@@ -363,6 +363,7 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
+    // SAFETY: board init has authority to create capabilities
     let grant_cap = unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
     power::configure_submodules(
@@ -408,10 +409,12 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(sam4l::ast::Ast));
 
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = ProcessConsoleComponent::new(
         board_kernel,
@@ -434,6 +437,7 @@ unsafe fn start() -> (
         200,
         5,
         5,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_ordered_component_static!(
@@ -441,6 +445,7 @@ unsafe fn start() -> (
     ));
     DebugWriterComponent::new::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
     )
     .finalize(components::debug_writer_component_static!());
@@ -452,6 +457,7 @@ unsafe fn start() -> (
         capsules_extra::nrf51822_serialization::DRIVER_NUM,
         &peripherals.usart2,
         &peripherals.pb[07],
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::nrf51822_component_static!());
@@ -471,6 +477,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::ambient_light::DRIVER_NUM,
         isl29035,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ambient_light_component_static!());
@@ -482,6 +489,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         si7021,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(SI7021Sensor));
@@ -489,6 +497,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         si7021,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::humidity_component_static!(SI7021Sensor));
@@ -501,6 +510,7 @@ unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ninedof_component_static!(fxos8700));
@@ -515,6 +525,7 @@ unsafe fn start() -> (
         mux_spi,
         sam4l::spi::Peripheral::Peripheral2,
         capsules_core::spi_controller::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::spi_syscall_component_static!(
@@ -552,6 +563,7 @@ unsafe fn start() -> (
         adc_channels,
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_dedicated_component_static!(sam4l::adc::Adc));
@@ -569,6 +581,7 @@ unsafe fn start() -> (
             5 => &peripherals.pc[26],
             6 => &peripherals.pa[20]
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(sam4l::gpio::GPIOPin));
@@ -589,6 +602,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(sam4l::gpio::GPIOPin));
@@ -597,6 +611,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::crc::DRIVER_NUM,
         &peripherals.crccu,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
@@ -612,6 +627,7 @@ unsafe fn start() -> (
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::analog_comparator_component_static!(
@@ -621,6 +637,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rng_component_static!(sam4l::trng::Trng));
@@ -650,6 +667,7 @@ unsafe fn start() -> (
         PAN_ID,
         serial_num_bottom_16,
         DEFAULT_EXT_SRC_MAC,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ieee802154_component_static!(
@@ -664,6 +682,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::usb::usb_user::DRIVER_NUM,
         &peripherals.usbc,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::usb_component_static!(sam4l::usbc::Usbc));
@@ -684,6 +703,7 @@ unsafe fn start() -> (
         0x20000, // Length of userspace accessible region
         core::ptr::addr_of!(_sstorage) as usize, //start address of kernel region
         core::ptr::addr_of!(_estorage) as usize - core::ptr::addr_of!(_sstorage) as usize, // length of kernel region
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::nonvolatile_storage_component_static!(
@@ -714,7 +734,9 @@ unsafe fn start() -> (
         //MacAddress::Short(49138), //comment in for dual rx test only
         local_ip_ifaces,
         mux_alarm,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::NetworkCapabilityCreationCapability) },
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::CreatePortTableCapability) },
     )
     .finalize(components::udp_mux_component_static!(
@@ -724,6 +746,7 @@ unsafe fn start() -> (
 
     // UDP driver initialization happens here
     kernel::define_capability_type!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+    // SAFETY: board init has authority to create capabilities
     let udp_driver_cap = unsafe { kernel::mint_defined_capability!(UdpDriverCap) };
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
@@ -733,7 +756,9 @@ unsafe fn start() -> (
         udp_port_table,
         local_ip_ifaces,
         udp_driver_cap,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::NetworkCapabilityCreationCapability) },
     )
     .finalize(components::udp_driver_component_static!(
@@ -765,6 +790,7 @@ unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     kernel::define_capability_type!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    // SAFETY: board init has authority to create capabilities
     let app_store_cap = unsafe { kernel::mint_defined_capability!(AppStoreCap) };
     let storage_permissions_policy =
         components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
@@ -813,6 +839,7 @@ unsafe fn start() -> (
         storage_permissions_policy,
         app_flash,
         app_memory,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
@@ -913,6 +940,7 @@ unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();

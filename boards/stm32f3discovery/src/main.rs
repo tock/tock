@@ -446,8 +446,10 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
+    // SAFETY: board init has authority to create capabilities
     let memory_allocation_capability =
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
+    // SAFETY: board init has authority to create capabilities
     let process_management_capability =
         unsafe { create_capability!(capabilities::ProcessManagementCapability) };
 
@@ -456,6 +458,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
@@ -463,6 +466,7 @@ unsafe fn start() -> (
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(uart_mux, unsafe {
+        // SAFETY: board init has authority to create capabilities
         create_capability!(capabilities::SetDebugWriterCapability)
     })
     .finalize(components::debug_writer_component_static!());
@@ -538,6 +542,7 @@ unsafe fn start() -> (
                 kernel::hil::gpio::FloatingState::PullNone
             )
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(
@@ -555,6 +560,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::alarm_component_static!(stm32f303xc::tim2::Tim2));
@@ -658,6 +664,7 @@ unsafe fn start() -> (
             85 => gpio_ports.get_pin(stm32f303xc::gpio::PinId::PA09).unwrap(),
             86 => gpio_ports.get_pin(stm32f303xc::gpio::PinId::PC09).unwrap()
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(
@@ -673,6 +680,7 @@ unsafe fn start() -> (
         gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
         board_kernel,
         capsules_extra::l3gd20::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::l3gd20_component_static!(
@@ -687,6 +695,7 @@ unsafe fn start() -> (
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
         l3gd20,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::temperature_component_static!(L3GD20Sensor));
@@ -702,6 +711,7 @@ unsafe fn start() -> (
         None,
         board_kernel,
         capsules_extra::lsm303dlhc::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::lsm303dlhc_component_static!(
@@ -723,6 +733,7 @@ unsafe fn start() -> (
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
         capsules_extra::ninedof::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::ninedof_component_static!(l3gd20, lsm303dlhc));
@@ -740,6 +751,7 @@ unsafe fn start() -> (
     //         // spi mux
     //         adc_mux
     //     ));
+    // SAFETY: board init has authority to create capabilities
     // let grant_cap = unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
     // let grant_temperature = board_kernel.create_grant(&grant_cap);
 
@@ -773,6 +785,7 @@ unsafe fn start() -> (
     let adc_syscall = components::adc::AdcVirtualComponent::new(
         board_kernel,
         capsules_core::adc::DRIVER_NUM,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::adc_syscall_component_helper!(
@@ -798,6 +811,7 @@ unsafe fn start() -> (
         0x8000,     // Length of userspace accesible region (16 pages)
         core::ptr::addr_of!(_sstorage) as usize,
         core::ptr::addr_of!(_estorage) as usize - core::ptr::addr_of!(_sstorage) as usize,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::nonvolatile_storage_component_static!(
@@ -815,6 +829,7 @@ unsafe fn start() -> (
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -909,6 +924,7 @@ unsafe fn start() -> (
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, platform, chip) = start();

@@ -307,9 +307,12 @@ unsafe extern "cdecl" fn main() {
     });
 
     // Acquire required capabilities
+    // SAFETY: board init has authority to create capabilities
     let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    // SAFETY: board init has authority to create capabilities
     let memory_allocation_cap =
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
+    // SAFETY: board init has authority to create capabilities
     let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     // Create an array to hold process references.
@@ -487,6 +490,7 @@ unsafe extern "cdecl" fn main() {
     let console_uart_device = uart_mux;
 
     // Initialize the kernel's process console.
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -506,6 +510,7 @@ unsafe extern "cdecl" fn main() {
         board_kernel,
         console::DRIVER_NUM,
         console_uart_device,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
@@ -513,6 +518,7 @@ unsafe extern "cdecl" fn main() {
     // Create the debugger object that handles calls to `debug!()`.
     DebugWriterComponent::new::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
         debug_uart_device,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
     )
     .finalize(components::debug_writer_component_static!());
@@ -521,6 +527,7 @@ unsafe extern "cdecl" fn main() {
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::low_level_debug_component_static!());
@@ -533,6 +540,7 @@ unsafe extern "cdecl" fn main() {
             board_kernel,
             capsules_core::rng::DRIVER_NUM,
             rng,
+            // SAFETY: board init has authority to create capabilities
             unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
         )
         .finalize(components::rng_random_component_static!(

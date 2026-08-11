@@ -30,6 +30,7 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loading_finished(&self) {
         kernel::debug!("Processes Loaded:");
 
+        // SAFETY: board init has authority to create capabilities
         let process_manage_cap =
             unsafe { create_capability!(capabilities::ProcessManagementCapability) };
         for (i, proc) in self
@@ -63,6 +64,7 @@ pub unsafe fn main() {
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -81,6 +83,7 @@ pub unsafe fn main() {
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(mux_uart, unsafe {
+        // SAFETY: board init has authority to create capabilities
         create_capability!(capabilities::SetDebugWriterCapability)
     })
     .finalize(components::debug_writer_component_static!());
@@ -148,6 +151,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
@@ -170,6 +174,7 @@ pub unsafe fn main() {
 
     let _ = pconsole.start();
 
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
     board_kernel.kernel_loop(
         &base_platform,

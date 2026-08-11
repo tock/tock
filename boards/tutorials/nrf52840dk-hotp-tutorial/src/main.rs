@@ -102,6 +102,7 @@ impl KernelResources<ChipHw> for Platform {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     // Create the base board:
@@ -123,6 +124,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
         hmac_sha256_sw,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::hmac_component_static!(HmacSha256Software, 32));
@@ -179,6 +181,7 @@ pub unsafe fn main() {
         capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         None,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::screen_component_static!(1032));
@@ -209,6 +212,7 @@ pub unsafe fn main() {
         0x1915, // Nordic Semiconductor
         0x503a,
         strings,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::keyboard_hid_component_static!(UsbHw));
@@ -221,6 +225,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     kernel::define_capability_type!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    // SAFETY: board init has authority to create capabilities
     let app_store_cap = unsafe { kernel::mint_defined_capability!(AppStoreCap) };
     let storage_permissions_policy =
         components::storage_permissions::tbf_header::StoragePermissionsTbfHeaderComponent::new(
@@ -269,6 +274,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(

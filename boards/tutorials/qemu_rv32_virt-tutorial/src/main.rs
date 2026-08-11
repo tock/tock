@@ -160,6 +160,7 @@ impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     let (board_kernel, base_platform, chip) = qemu_rv32_virt_lib::start();
@@ -192,6 +193,7 @@ pub unsafe fn main() {
                 capsules_extra::screen::screen::DRIVER_NUM,
                 screen_split_userspace,
                 None,
+                // SAFETY: board init has authority to create capabilities
                 unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
             )
             .finalize(components::screen_component_static!(1032));
@@ -245,6 +247,7 @@ pub unsafe fn main() {
             capsules_extra::button_keyboard::DRIVER_NUM,
             keyboard,
             key_mappings,
+            // SAFETY: board init has authority to create capabilities
             unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
         )
         .finalize(components::keyboard_button_component_static!())
@@ -415,6 +418,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(

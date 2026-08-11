@@ -268,6 +268,7 @@ pub unsafe fn start() -> (
     // rv64i::semihost_command(0x18, semihost_params.as_ptr() as usize, 0);
 
     // Acquire required capabilities
+    // SAFETY: board init has authority to create capabilities
     let memory_allocation_cap =
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
@@ -701,6 +702,7 @@ pub unsafe fn start() -> (
     });
 
     // Initialize the kernel's process console.
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -720,6 +722,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
@@ -727,6 +730,7 @@ pub unsafe fn start() -> (
     components::debug_writer::DebugWriterComponent::new::<
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >(uart_mux, unsafe {
+        // SAFETY: board init has authority to create capabilities
         create_capability!(capabilities::SetDebugWriterCapability)
     })
     .finalize(components::debug_writer_component_static!());
@@ -735,6 +739,7 @@ pub unsafe fn start() -> (
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::low_level_debug_component_static!());
@@ -747,6 +752,7 @@ pub unsafe fn start() -> (
             board_kernel,
             capsules_core::rng::DRIVER_NUM,
             rng,
+            // SAFETY: board init has authority to create capabilities
             unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
         )
         .finalize(components::rng_random_component_static!(

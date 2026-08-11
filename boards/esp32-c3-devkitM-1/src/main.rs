@@ -185,7 +185,9 @@ unsafe fn setup() -> (
         .use_pll_clock_source(PllFrequency::MHz320, CpuFrequency::MHz160);
 
     // initialise capabilities
+    // SAFETY: board init has authority to create capabilities
     let process_mgmt_cap = unsafe { create_capability!(capabilities::ProcessManagementCapability) };
+    // SAFETY: board init has authority to create capabilities
     let memory_allocation_cap =
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) };
 
@@ -216,12 +218,14 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::console::DRIVER_NUM,
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new_unsafe(
         uart_mux,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::SetDebugWriterCapability) },
         || unsafe {
             kernel::debug::initialize_debug_writer_wrapper_unsafe::<
@@ -257,6 +261,7 @@ unsafe fn setup() -> (
             7 => &peripherals.gpio[7],
             8 => &peripherals.gpio[15]
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::gpio_component_static!(esp32::gpio::GpioPin));
@@ -322,6 +327,7 @@ unsafe fn setup() -> (
                 kernel::hil::gpio::FloatingState::PullUp
             )
         ),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::button_component_static!(GpioHw));
@@ -353,6 +359,7 @@ unsafe fn setup() -> (
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
+    // SAFETY: board init has authority to create capabilities
     let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -376,6 +383,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &peripherals.rng,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::rng_component_static!(esp32_c3::rng::Rng));
@@ -471,6 +479,7 @@ pub unsafe fn main() {
     {
         let (board_kernel, esp32_c3_board, chip, _peripherals) = setup();
 
+        // SAFETY: board init has authority to create capabilities
         let main_loop_cap = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
         board_kernel.kernel_loop(
@@ -502,6 +511,7 @@ fn test_runner(tests: &[&dyn Fn()]) {
                 ProcessManagementCapabilityObj
             )),
         );
+        // SAFETY: board init has authority to create capabilities
         MAIN_CAP = Some(&unsafe { create_capability!(capabilities::MainLoopCapability) });
 
         PLATFORM.map(|p| {

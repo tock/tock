@@ -189,6 +189,7 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
         for (i, p) in self
             .board_kernel
             .process_iter_capability(&unsafe {
+                // SAFETY: board init has authority to create capabilities
                 create_capability!(capabilities::ProcessManagementCapability)
             })
             .enumerate()
@@ -206,6 +207,7 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    // SAFETY: board init has authority to create capabilities
     let main_loop_capability = unsafe { create_capability!(capabilities::MainLoopCapability) };
 
     // Create the base board:
@@ -272,6 +274,7 @@ pub unsafe fn main() {
         capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         apps_regions,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::screen_shared_component_static!(1032, Screen));
@@ -310,6 +313,7 @@ pub unsafe fn main() {
         virtual_flash_nvm,
         core::ptr::addr_of!(APP_STORAGE) as usize,
         APP_STORAGE.len(),
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::isolated_nonvolatile_storage_component_static!(
@@ -325,6 +329,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::process_info_driver::DRIVER_NUM,
         PMCapability,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::process_info_component_static!(PMCapability));
@@ -495,6 +500,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
         app_flash,
         app_memory,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::ProcessManagementCapability) },
     )
     .finalize(components::process_loader_sequential_component_static!(
@@ -525,6 +531,7 @@ pub unsafe fn main() {
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_binary_storage,
         dynamic_binary_storage,
+        // SAFETY: board init has authority to create capabilities
         unsafe { create_capability!(capabilities::MemoryAllocationCapability) },
     )
     .finalize(components::app_loader_component_static!(

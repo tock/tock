@@ -82,6 +82,7 @@ pub unsafe fn run(
     mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, Ieee802154MacDevice>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) {
+    // SAFETY: board init has authority to create capabilities
     let create_cap = unsafe { create_capability!(NetworkCapabilityCreationCapability) };
     let net_cap = static_init!(
         NetworkCapability,
