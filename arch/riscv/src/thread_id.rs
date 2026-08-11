@@ -82,7 +82,7 @@ unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
     }
 }
 
-// Mock implementation for non-RISC-V (host / doc) target builds
+// Mock implementation for non-RISC-V (host) target builds
 #[cfg(not(any(riscv_bare_metal, doc)))]
 unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
     fn running_thread_id() -> usize {

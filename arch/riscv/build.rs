@@ -13,8 +13,8 @@
 //! that is valid on any RISC-V platform, with or without an OS.
 //!
 //! Commonly, code that is Tock-specific and only makes sense on bare-metal
-//! platforms will be gated by the logic or of `riscv_bare_metal` and `doc`. For
-//! example:
+//! platforms will be gated by the logical OR of `riscv_bare_metal` and `doc`.
+//! For example:
 //!
 //! ```
 //! #[cfg(any(riscv_bare_metal, doc))]
