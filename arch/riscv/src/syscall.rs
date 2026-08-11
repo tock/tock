@@ -138,7 +138,7 @@ fn encode_syscall_return_helper(
     };
 
     kernel::utilities::arch_helpers::encode_syscall_return_trd104(
-        &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(return_value),
+        &return_value.into(),
         a0_u32,
         a1_u32,
         a2_u32,
@@ -168,9 +168,7 @@ fn encode_syscall_return_helper(
     };
 
     kernel::utilities::arch_helpers::encode_syscall_return_trd64bit(
-        &kernel::utilities::arch_helpers::TRDRiscv64bitSyscallReturn::from_syscall_return(
-            return_value,
-        ),
+        &return_value.into(),
         a0_u64,
         a1_u64,
         a2_u64,

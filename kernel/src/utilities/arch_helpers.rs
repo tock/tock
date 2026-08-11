@@ -225,11 +225,11 @@ pub enum TRD104SyscallReturn {
     YieldWaitFor(u32, u32, u32),
 }
 
-impl TRD104SyscallReturn {
+impl From<SyscallReturn> for TRD104SyscallReturn {
     /// Map from the kernel's [`SyscallReturn`] enum to the subset of return
     /// values specified in TRD104. This ensures backwards compatibility with
     /// architectures implementing the ABI as specified in TRD104.
-    pub fn from_syscall_return(syscall_return: SyscallReturn) -> Self {
+    fn from(syscall_return: SyscallReturn) -> Self {
         match syscall_return {
             // Identical variants:
             SyscallReturn::Failure(a) => TRD104SyscallReturn::Failure(a),
@@ -453,11 +453,11 @@ pub enum TRDRiscv64bitSyscallReturn {
     SuccessPtr(CapabilityPtr),
 }
 
-impl TRDRiscv64bitSyscallReturn {
+impl From<SyscallReturn> for TRDRiscv64bitSyscallReturn {
     /// Map from the kernel's [`SyscallReturn`] enum to the subset of return
     /// values specified in TRD-Riscv64bit. This ensures backwards compatibility with
     /// architectures implementing the ABI as specified in the TRD.
-    pub fn from_syscall_return(syscall_return: SyscallReturn) -> Self {
+    fn from(syscall_return: SyscallReturn) -> Self {
         match syscall_return {
             SyscallReturn::Failure(a) => TRDRiscv64bitSyscallReturn::Failure(a),
             SyscallReturn::FailureU32(a, b) => TRDRiscv64bitSyscallReturn::FailureU32(a, b),
