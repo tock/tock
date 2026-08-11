@@ -115,10 +115,18 @@ macro_rules! create_typed_capability {
         //
         // The implication of this design is that something in the same scope
         // of this macro _could_ write
-        //     unsafe { $type::new_only_for_use_in_macro() }
+        //     unsafe { $type::__new_only_for_use_in_macro() }
         // to mint another capability, but doing so requires both an unsafe
         // block and use of an obviously wrong method name.
         mod $var {
+            // Bring the invocation site's surrounding module into scope, so
+            // `$T` arguments can be given as bare names brought in by a
+            // local `use`, not just fully-qualified paths. This is often
+            // unused (most call sites already use fully-qualified paths),
+            // hence the `allow`.
+            #[allow(unused_imports)]
+            use super::*;
+
             // Prevent creation by anything external.
             pub struct $type(());
 
@@ -130,7 +138,8 @@ macro_rules! create_typed_capability {
 
             impl $type {
                 // Mark the constructor unsafe to prevent non-obvious use.
-                pub unsafe fn new_only_for_use_in_macro() -> Self {
+                #[doc(hidden)]
+                pub unsafe fn __new_only_for_use_in_macro() -> Self {
                     $type(())
                 }
             }
@@ -139,7 +148,102 @@ macro_rules! create_typed_capability {
         use $var::$type;
 
         // Create one instance of the capability.
-        let $var = unsafe { $type::new_only_for_use_in_macro() };
+        let $var = unsafe { $type::__new_only_for_use_in_macro() };
+    };
+}
+
+/// Define a struct type that implements the given capability traits.
+///
+/// Unlike [`create_capability!`] or [`create_typed_capability!`], this macro
+/// only defines a visibly named type, it does not create any instances.
+/// Use this when you need to name the capability type across scope boundaries.
+///
+/// Use [`mint_defined_capability!`] to create an instance. Note: You can only
+/// mint capabilities in the module that defines this type, or in a descendant
+/// of that module.
+///
+/// This macro is intended to be used at module level scope (i.e. not in a
+/// code block), since minting requires naming the type across a scope
+/// boundary.
+///
+/// # Usage Example
+///
+/// ```
+/// # use kernel::capabilities::ProcessManagementCapability;
+/// # use kernel::define_capability_type;
+///
+/// define_capability_type!(ProcCapForManager: ProcessManagementCapability);
+/// ```
+///
+/// # Restrictions
+///
+/// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates,
+/// and is used by trusted code to define a capability type.
+///
+/// # Safety
+///
+/// This macro can only be used in a context that is allowed to use `unsafe`.
+/// Specifically, an internal `allow(unsafe_code)` directive will conflict with
+/// any `forbid(unsafe_code)` at the crate or block level.
+#[macro_export]
+macro_rules! define_capability_type {
+    ($type:ident: $($T:path),+ $(,)?) => {
+        /// Publicly nameable type for capabilities.
+        pub struct $type {
+            // Make it obvious that this should not be directly constructed.
+            _not_for_public_construction: (),
+        }
+
+        // Implement specified capabilities.
+        $(
+            #[allow(unsafe_code)]
+            unsafe impl $T for $type {}
+        )*
+
+        impl $type {
+            // Mark the constructor unsafe to prevent non-obvious use.
+            //
+            // Must not be `pub` to prevent external users. Note this is not
+            // airtight: anything in the same module (or a descendant module)
+            // as this type definition _could_ write
+            //     unsafe { $type::__macro_only_capability_creator() }
+            // to mint another capability, but doing so requires both an
+            // unsafe block and use of an obviously-not-public method name.
+            #[doc(hidden)]
+            unsafe fn __macro_only_capability_creator() -> Self {
+                Self { _not_for_public_construction: () }
+            }
+        }
+    };
+}
+
+/// Create an instance of a capability type defined by [`define_capability_type!`].
+///
+/// Use this to create one instance of a capability previously declared via
+/// [`define_capability_type`]. Note: You can only mint capabilities in the
+/// module that defines this type, or in a descendant of that module.
+///
+/// # Usage Example
+///
+/// ```ignore
+/// # use kernel::mint_defined_capability;
+///
+/// let proc_cap = unsafe { mint_defined_capability!(ProcCapForManager) };
+/// ```
+///
+/// # Restrictions
+///
+/// This macro invokes an `unsafe` function. Callers must wrap use of this
+/// macro in `unsafe` to assert they are trusted to mint a capability.
+// Note: Ultimately, this is just a wrapper around a function call, and does
+// not _need_ to be in a macro per se. However, minting capabilities is a
+// highly sensitive operation, and encapsulating this in a macro helps code
+// review spot this directly as the creation of a capability, which may be less
+// apparent when just constructing an arbitrarily named struct.
+#[macro_export]
+macro_rules! mint_defined_capability {
+    ($type:ident) => {
+        $type::__macro_only_capability_creator()
     };
 }
 

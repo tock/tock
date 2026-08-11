@@ -127,7 +127,7 @@ fn init_virtio_dev(
     Some((int_line, dev))
 }
 
-kernel::declare_capability!(ProcessConsoleCap:
+kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
     kernel::capabilities::ProcessStartCapability
 );
@@ -486,13 +486,14 @@ unsafe extern "cdecl" fn main() {
     let console_uart_device = uart_mux;
 
     // Initialize the kernel's process console.
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         console_uart_device,
         mux_alarm,
         process_printer,
         None,
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         Pit<'static, RELOAD_1KHZ>,

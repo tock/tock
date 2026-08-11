@@ -124,7 +124,7 @@ type Ieee802154MacDevice =
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
-kernel::declare_capability!(ProcessConsoleCap:
+kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
     kernel::capabilities::ProcessStartCapability
 );
@@ -412,13 +412,14 @@ unsafe fn start() -> (
     )
     .finalize(components::alarm_component_static!(sam4l::ast::Ast));
 
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast,
