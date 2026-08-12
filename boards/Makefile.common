@@ -186,6 +186,13 @@ OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 # Set default flags for size.
 SIZE_FLAGS ?=
 
+# Additional flags passed to every `cargo` invocation that actually builds or
+# checks code. CI uses this to pass `--config <path>`, which merges (rather
+# than replaces, as the `RUSTFLAGS` environment variable would) with the
+# `rustflags` already set via `.cargo/config.toml`. See
+# `boards/cargo/deny_warnings.toml`.
+TOCK_CARGO_FLAGS ?=
+
 # Additional flags that can be passed to print_tock_memory_usage.py via an
 # environment variable. By default, pass an empty string.
 PTMU_ARGS ?=
@@ -252,7 +259,7 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)$(CARGO) check $(VERBOSE_FLAGS)
+	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(TOCK_CARGO_FLAGS)
 
 
 .PHONY: clean
@@ -318,10 +325,10 @@ $(TOCK_ROOT_DIRECTORY)tools/build/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)$(CARGO) rustc $(VERBOSE_FLAGS) --bin $(PLATFORM) --release
+	$(Q)$(CARGO) rustc $(VERBOSE_FLAGS) $(TOCK_CARGO_FLAGS) --bin $(PLATFORM) --release
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) --bin $(PLATFORM)
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(TOCK_CARGO_FLAGS) --bin $(PLATFORM)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
