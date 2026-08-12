@@ -43,6 +43,11 @@ macro_rules! create_capability {
         #[allow(unsafe_code)]
         struct Cap(());
         $(
+            // SAFETY: `$T`'s safety contract only requires that capabilities
+            // be created in a context permitted to use `unsafe`. The
+            // `#[allow(unsafe_code)]` above discharges that: it conflicts
+            // with any `forbid(unsafe_code)` at the crate or block level, so
+            // this expansion only compiles where `unsafe` is permitted.
             unsafe impl $T for Cap {}
         )*
         Cap(())
@@ -132,6 +137,11 @@ macro_rules! create_typed_capability {
 
             // Implement specified capabilities.
             $(
+                // SAFETY: `$T`'s safety contract only requires that
+                // capabilities be created in a context permitted to use
+                // `unsafe`. The `allow(unsafe_code)` below discharges that:
+                // it conflicts with any `forbid(unsafe_code)` at the crate
+                // or block level.
                 #[allow(unsafe_code)]
                 unsafe impl $T for $type {}
             )*
@@ -148,6 +158,9 @@ macro_rules! create_typed_capability {
         use $var::$type;
 
         // Create one instance of the capability.
+        //
+        // SAFETY: this is the macro's own single, controlled call to the
+        // gated constructor above.
         let $var = unsafe { $type::__new_only_for_use_in_macro() };
     };
 }
@@ -196,6 +209,10 @@ macro_rules! define_capability_type {
 
         // Implement specified capabilities.
         $(
+            // SAFETY: `$T`'s safety contract only requires that capabilities
+            // be created in a context permitted to use `unsafe`. The
+            // `allow(unsafe_code)` below discharges that: it conflicts with
+            // any `forbid(unsafe_code)` at the crate or block level.
             #[allow(unsafe_code)]
             unsafe impl $T for $type {}
         )*
