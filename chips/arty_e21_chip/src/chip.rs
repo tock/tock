@@ -156,7 +156,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
 // This needs to be chip specific because how the CLIC works is configured
 // when the trap handler address is specified in mtvec, and that is only
 // valid for platforms with a CLIC.
-#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 pub unsafe fn configure_trap_handler() {
     use core::arch::asm;
     asm!(
@@ -179,7 +179,7 @@ pub unsafe fn configure_trap_handler() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 pub unsafe fn configure_trap_handler() {
     unimplemented!()
 }
