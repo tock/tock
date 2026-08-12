@@ -13,25 +13,23 @@
 //! that is valid on any RISC-V platform, with or without an OS.
 //!
 //! Commonly, code that is Tock-specific and only makes sense on bare-metal
-//! platforms will be gated by the logical OR of `riscv_bare_metal` and `doc`.
-//! For example:
+//! platforms will be gated by `riscv_bare_metal`. For example:
 //!
 //! ```
-//! #[cfg(any(riscv_bare_metal, doc))]
+//! #[cfg(riscv_bare_metal)]
 //! pub extern "C" fn _start_trap() -> ! {
 //!     // trap handler code...
 //! }
 //! ```
 //!
 //! This ensures that this code is only compiled and tested when the target is
-//! bare metal RISC-V, or when building documentation so that any function
-//! comments will be included in the rustdocs. However, cargo often builds Tock
-//! code targeted for the host machine (which is likely not RISC-V), for example
-//! when running tests. Therefore, we also need to include a mock implementation
-//! so the symbol still exists:
+//! bare metal RISC-V. However, cargo often builds Tock code targeted for the
+//! host machine (which is likely not RISC-V), for example when running
+//! tests. Therefore, we also need to include a mock implementation so the
+//! symbol still exists:
 //!
 //! ```
-//! #[cfg(not(any(riscv_bare_metal, doc)))]
+//! #[cfg(not(riscv_bare_metal))]
 //! pub extern "C" fn _start_trap() -> ! {
 //!     unimplemented!()
 //! }
@@ -44,7 +42,7 @@
 //! example, a simple NOP instruction:
 //!
 //! ```
-//! #[cfg(any(riscv, doc))]
+//! #[cfg(riscv)]
 //! pub fn nop() {
 //!     unsafe { asm!("nop"); }
 //! }
@@ -55,17 +53,17 @@
 //! That can be gated on the specific `target_arch` like this:
 //!
 //! ```
-//! #[cfg(all(target_arch = "riscv32", not(doc)))]
+//! #[cfg(target_arch = "riscv32")]
 //! pub const XLEN: usize = 32;
-//! #[cfg(all(target_arch = "riscv64", not(doc)))]
+//! #[cfg(target_arch = "riscv64")]
 //! pub const XLEN: usize = 64;
 //! ```
 //!
 //! However, to make non-cross-compiled compilations still work (like `cargo
-//! test`), and for documentation, we still need the mock implementation:
+//! test`), we still need the mock implementation:
 //!
 //! ```
-//! #[cfg(any(not(riscv), doc))]
+//! #[cfg(not(riscv))]
 //! pub const XLEN: usize = 32;
 //! ```
 //!

@@ -355,7 +355,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         Ok(())
     }
 
-    #[cfg(any(riscv_bare_metal, doc))]
+    #[cfg(riscv_bare_metal)]
     unsafe fn switch_to_process(
         &self,
         _accessible_memory_start: *const u8,
@@ -809,7 +809,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     }
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(riscv_bare_metal, doc)))]
+    #[cfg(not(riscv_bare_metal))]
     unsafe fn switch_to_process(
         &self,
         _accessible_memory_start: *const u8,

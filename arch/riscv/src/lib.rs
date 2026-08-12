@@ -24,14 +24,17 @@ pub const XLEN: usize = 1 << XLEN_LOG2;
 
 /// `XLEN_LOG2` is the log base 2 of [`XLEN`].
 ///
-/// Actual value varies based on RISCV-32 vs. RISCV-64.
-// Use << operator to (somewhat) hide value in rustdocs.
-#[cfg(any(not(riscv), doc))]
-pub const XLEN_LOG2: usize = 3 << 1;
-#[cfg(all(target_arch = "riscv32", not(doc)))]
+/// This is `5` on RISCV-32 (`XLEN` = 32) and `6` on RISCV-64 (`XLEN` = 64).
+#[cfg(target_arch = "riscv32")]
 pub const XLEN_LOG2: usize = 5;
-#[cfg(all(target_arch = "riscv64", not(doc)))]
+/// `XLEN_LOG2` is the log base 2 of [`XLEN`].
+///
+/// This is `5` on RISCV-32 (`XLEN` = 32) and `6` on RISCV-64 (`XLEN` = 64).
+#[cfg(target_arch = "riscv64")]
 pub const XLEN_LOG2: usize = 6;
+// Mock implementation for tests on Travis-CI.
+#[cfg(not(riscv))]
+pub const XLEN_LOG2: usize = 5;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
@@ -65,11 +68,11 @@ extern "C" {
 ///    any Rust code runs. See <https://github.com/tock/tock/issues/2222> for more
 ///    information.
 /// 3. Finally it calls `main()`, the main entry point for Tock boards.
-#[cfg(any(riscv_bare_metal, doc))]
+#[cfg(riscv_bare_metal)]
 // Only apply the `link_section` attribute when actually targeting bare-metal
-// RISC-V. Host builds (e.g. `doc`, tests, clippy on macOS, Windows, Linux,
-// ...) use object formats (Mach-O, PE, ...) that reject a bare section name
-// like this, yielding errors such as: `mach-o section specifier requires a
+// RISC-V. Host builds (e.g. tests, clippy on macOS, Windows, Linux, ...) use
+// object formats (Mach-O, PE, ...) that reject a bare section name like
+// this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
 #[cfg_attr(riscv_bare_metal, link_section = ".riscv.start")]
 #[unsafe(naked)]
@@ -162,7 +165,7 @@ pub unsafe extern "C" fn initialize_ram_jump_to_main() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(riscv_bare_metal, doc)))]
+#[cfg(not(riscv_bare_metal))]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     unimplemented!()
 }
@@ -297,11 +300,11 @@ pub unsafe fn configure_trap_handler() {
 /// invoked, it may, for instance, choose to ignore a certain trap, access
 /// global state (subject to synchronization), etc. It must still abide to
 /// the contract as stated above.
-#[cfg(any(riscv_bare_metal, doc))]
+#[cfg(riscv_bare_metal)]
 // Only apply the `link_section` attribute when actually targeting bare-metal
-// RISC-V. Host builds (e.g. `doc`, tests, clippy on macOS, Windows, Linux,
-// ...) use object formats (Mach-O, PE, ...) that reject a bare section name
-// like this, yielding errors such as: `mach-o section specifier requires a
+// RISC-V. Host builds (e.g. tests, clippy on macOS, Windows, Linux, ...) use
+// object formats (Mach-O, PE, ...) that reject a bare section name like
+// this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
 #[cfg_attr(riscv_bare_metal, link_section = ".riscv.trap")]
 // We need the `_start_trap` function to be 256 byte aligned. The linker script
@@ -456,7 +459,7 @@ pub extern "C" fn _start_trap() -> ! {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(riscv_bare_metal, doc)))]
+#[cfg(not(riscv_bare_metal))]
 pub extern "C" fn _start_trap() -> ! {
     unimplemented!()
 }
@@ -472,7 +475,7 @@ pub extern "C" fn _start_trap() -> ! {
 /// <https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21>
 /// as suggested by the RISC-V developers:
 /// <https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ>
-#[cfg(any(riscv_bare_metal, doc))]
+#[cfg(riscv_bare_metal)]
 pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
     use core::arch::asm;
     let res;
@@ -496,7 +499,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(riscv_bare_metal, doc)))]
+#[cfg(not(riscv_bare_metal))]
 pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }

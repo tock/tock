@@ -37,11 +37,7 @@
 ///     "
 /// );
 /// ```
-#[cfg(any(not(riscv), doc))]
-#[macro_export]
-macro_rules! xlen_macros[() => [r""]];
-
-#[cfg(all(target_arch = "riscv32", not(doc)))]
+#[cfg(target_arch = "riscv32")]
 #[macro_export]
 macro_rules! xlen_macros[() => [r"
     .macro sx src, dest
@@ -52,7 +48,31 @@ macro_rules! xlen_macros[() => [r"
     .endm
 "]];
 
-#[cfg(all(target_arch = "riscv64", not(doc)))]
+/// Generate `asm!()` macros to create register-sized load and store
+/// instructions.
+///
+/// On RISCV-32 this creates two psuedoinstructions:
+/// 1. `sx` -> `sw`
+/// 2. `lx` -> `lw`
+///
+/// On RISCV-64 this creates two psuedoinstructions:
+/// 1. `sx` -> `sd`
+/// 2. `lx` -> `ld`
+///
+/// These apply globally, and so only need to be included once in the project.
+/// For example:
+///
+/// ```rust,ignore
+/// use core::arch::naked_asm;
+/// use riscv::xlen_macros;
+/// naked_asm!(
+///     xlen_macros!(),
+///     "
+///     ...asm code here...
+///     "
+/// );
+/// ```
+#[cfg(target_arch = "riscv64")]
 #[macro_export]
 macro_rules! xlen_macros[() => [r"
     .macro sx src, dest

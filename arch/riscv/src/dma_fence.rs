@@ -44,7 +44,7 @@ impl RiscvCoherentDmaFence {
     }
 }
 
-#[cfg(any(riscv, doc))]
+#[cfg(riscv)]
 unsafe impl DmaFence for RiscvCoherentDmaFence {
     /// Expose prior writes to in-memory buffers to subsequent DMA operations.
     ///
@@ -156,7 +156,7 @@ unsafe impl DmaFence for RiscvCoherentDmaFence {
     }
 }
 
-#[cfg(not(any(riscv_bare_metal, doc)))]
+#[cfg(not(riscv_bare_metal))]
 unsafe impl DmaFence for RiscvCoherentDmaFence {
     fn release<T>(self, _slice_ptr: *mut [T]) {
         // When building for another architecture, such as for tests or CI:
