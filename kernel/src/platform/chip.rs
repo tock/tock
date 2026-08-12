@@ -221,15 +221,8 @@ pub trait PanicWriter {
     ///
     /// # Safety
     ///
-    /// Implementors must ensure that the created writer is safe to construct,
-    /// particularly if the writer is based on using a hardware peripheral. The
-    /// panic writer may need to use the same hardware resources that the normal
-    /// kernel used, and the implementation must ensure that constructing a new
-    /// writer does not alias any memory or otherwise violate memory safety
-    /// requirements.
+    /// - This must ONLY be called from a panic context.
     ///
-    /// A particular issue is with writers that use DMA. Implementors must
-    /// ensure a second object that manages the same DMA hardware is not
-    /// created.
+    /// Implementations must not require more strict safety requirements.
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write;
 }
