@@ -104,7 +104,7 @@ pub trait CortexMVariant {
     unsafe fn print_cortexm_state(writer: &mut dyn Write);
 }
 
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     use core::arch::asm;
     let mut interrupt_number: u32;
@@ -161,7 +161,7 @@ pub unsafe extern "C" fn unhandled_interrupt() {
 /// We use `initialize_ram_jump_to_main` as a symbol in the linker file. This is
 /// the only user of the name `initialize_ram_jump_to_main` and no other symbol
 /// may use the same name.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
@@ -416,12 +416,12 @@ pub fn print_cortexm_state(writer: &mut dyn Write) {
 // ARM assembly since it will not compile.
 ///////////////////////////////////////////////////////////////////
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     unimplemented!()
 }

@@ -7,7 +7,7 @@
 use crate::scb;
 
 /// NOP instruction
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(always)]
 pub fn nop() {
     use core::arch::asm;
@@ -32,7 +32,7 @@ pub fn nop() {
 }
 
 /// WFI instruction
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(always)]
 pub unsafe fn wfi() {
     use core::arch::asm;
@@ -57,7 +57,7 @@ pub unsafe fn wfi() {
 }
 
 /// Single-core critical section operation
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub fn with_interrupts_disabled<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
@@ -109,19 +109,19 @@ where
 
 /// NOP instruction (mock)
 // Mock implementations for tests on Travis-CI.
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub fn nop() {
     unimplemented!()
 }
 
 /// WFI instruction (mock)
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn wfi() {
     unimplemented!()
 }
 
 /// Single-core critical section operation (mock)
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub fn with_interrupts_disabled<F, R>(_f: F) -> R
 where
     F: FnOnce() -> R,
@@ -145,7 +145,7 @@ pub fn reset() -> ! {
 ///
 /// Returns `true` if the CPU is executing in an interrupt handler. Returns
 /// `false` if the chip is executing in thread mode.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub fn is_interrupt_context() -> bool {
     use core::arch::asm;
     let mut interrupt_number: u32;
@@ -180,7 +180,7 @@ pub fn is_interrupt_context() -> bool {
     (interrupt_number & 0x1FF) != 0
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub fn is_interrupt_context() -> bool {
     unimplemented!()
 }
