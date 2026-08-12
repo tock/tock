@@ -9,6 +9,26 @@ use kernel::hil::time::{Ticks, Ticks64};
 use kernel::utilities::registers::ReadWrite;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
+/// A RISC-V machine timer, read/written as a single 64-bit MMIO access.
+///
+/// # Atomicity assumption
+///
+/// This driver assumes `compare` and `value` are backed by a genuinely
+/// 64-bit-wide MMIO register — i.e. that a single `u64` load/store to
+/// them is an atomic bus transaction, per RISC-V Privileged Architectures
+/// §3.1.15 ("Attempts to read the mtime register while an update is
+/// in progress do not cause the read to stall ... implementations must
+/// provide the appearance that writes to mtimecmp ... are atomic when
+/// naturally aligned").
+///
+/// This holds for a standard/reference CLINT (e.g. SiFive-style), which is
+/// what every RV64 board Tock currently supports uses. It is NOT universal:
+/// at least one shipping RV64 core (T-Head C9xx, used in Allwinner D1 /
+/// Sipeed Lichee RV / Nezha) only supports 32-bit-wide mtime/mtimecmp
+/// accesses and requires split reads/writes
+/// (see <https://github.com/riscv/riscv-isa-manual/issues/639> and the
+/// upstream Linux `timer-clint` T-Head quirk driver). If a board ever targets
+/// such a core, it must use the 32-bit driver instead for correctness.
 pub struct MachineTimer<'a> {
     compare: &'a ReadWrite<u64>,
     value: &'a ReadWrite<u64>,
