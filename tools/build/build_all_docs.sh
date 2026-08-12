@@ -62,14 +62,16 @@ CRATE_TARGETS=(
 )
 
 # Crates whose dependent boards/chips actually build for more than one real
-# target -- `riscv` serves both riscv32 and riscv64 boards, `cortexm` (and
-# its cortexv7m companion) serve both thumbv7em and thumbv8m.main boards.
-# Picking a single target here is a deliberate, somewhat arbitrary call,
-# not a fact about the crate the way CRATE_TARGETS' entries are -- called
-# out separately so that's obvious at a glance. Folded into CRATE_TARGETS
-# below; nothing past this point distinguishes the two.
+# target -- `riscv` (and its riscv-csr dependency) serve both riscv32 and
+# riscv64 boards; `cortexm` (and its cortexv7m companion) serve both
+# thumbv7em and thumbv8m.main boards. Picking a single target here is a
+# deliberate, somewhat arbitrary call, not a fact about the crate the way
+# CRATE_TARGETS' entries are -- called out separately so that's obvious at
+# a glance. Folded into CRATE_TARGETS below; nothing past this point
+# distinguishes the two.
 SHARED_CRATE_TARGETS=(
     "riscv:riscv32imac-unknown-none-elf"
+    "riscv-csr:riscv32imac-unknown-none-elf"
     "cortexm:thumbv7em-none-eabi"
     "cortexv7m:thumbv7em-none-eabi"
 )
