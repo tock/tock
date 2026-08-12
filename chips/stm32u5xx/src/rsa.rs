@@ -232,10 +232,15 @@ impl<'a> Pka<'a> {
     fn read_slice(&self, idx: usize, buffer: &mut [u8]) {
         let chunks = buffer.rchunks_mut(4);
         for (i, chunk) in chunks.enumerate() {
-            let semi_word = self.registers.ram[idx + i].get();
-            let bytes = semi_word.to_be_bytes();
-            let offset = 4 - chunk.len();
-            chunk.copy_from_slice(&bytes[offset..])
+            if let Some(data) = self.registers.ram.get(idx + i) {
+                let semi_word = data.get();
+                let bytes = semi_word.to_be_bytes();
+                let offset = 4 - chunk.len();
+                chunk.copy_from_slice(&bytes[offset..])
+            } else {
+                // Occurs only when buffer is longer then RAM
+                break;
+            }
         }
     }
 
