@@ -244,7 +244,7 @@ impl<'a> Fsmc<'a> {
         self.bank[bank as usize].map(|bank| bank.ram.get())
     }
 
-    #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
     #[inline]
     fn write_reg(&self, bank: FsmcBanks, addr: u16) {
         use kernel::utilities::registers::interfaces::Writeable;
@@ -255,7 +255,7 @@ impl<'a> Fsmc<'a> {
         }
     }
 
-    #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
     #[inline]
     fn write_data(&self, bank: FsmcBanks, data: u16) {
         use kernel::utilities::registers::interfaces::Writeable;
@@ -266,12 +266,12 @@ impl<'a> Fsmc<'a> {
         }
     }
 
-    #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     fn write_reg(&self, _bank: FsmcBanks, _addr: u16) {
         unimplemented!()
     }
 
-    #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     fn write_data(&self, _bank: FsmcBanks, _data: u16) {
         unimplemented!()
     }

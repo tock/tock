@@ -294,7 +294,7 @@ pub unsafe fn configure_trap_handler() {
 // Mock implementation for crate tests that does not include the section
 // specifier, as the test will not use our linker script, and the host
 // compilation environment may not allow the section name.
-#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 pub extern "C" fn _start_trap_vectored() -> ! {
     use core::hint::unreachable_unchecked;
     unsafe {
@@ -302,12 +302,12 @@ pub extern "C" fn _start_trap_vectored() -> ! {
     }
 }
 
-#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 // Only apply the `link_section` attribute when actually targeting bare-metal
-// RISC-V. Some host builds (e.g. `doc`, tests, clippy on macOS, Windows,
-// ...) use object formats (Mach-O, PE, ...) that reject a bare section name
-// like this, yielding errors such as: `mach-o section specifier requires a
-// segment and section separated by a comma`.
+// RISC-V (`target_os = "none"`). Non-bare-metal object formats (Mach-O, PE,
+// ...) reject a bare section name like this, yielding errors such as:
+// `mach-o section specifier requires a segment and section separated by a
+// comma`.
 #[cfg_attr(
     all(target_arch = "riscv32", target_os = "none"),
     link_section = ".riscv.trap_vectored"
