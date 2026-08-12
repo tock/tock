@@ -14,16 +14,11 @@ use riscv_csr::csr::ReadWriteRiscvCsr;
 
 /// Bitmap data structure to hold the interrupt number of pending interrupts.
 ///
-/// Holds interrupts numbers 0-31.
-pub static INTERRUPT_BITMAP1: AtomicU32 = AtomicU32::new(0);
-/// Bitmap data structure to hold the interrupt number of pending interrupts.
-///
-/// Holds interrupts numbers 32-63.
-pub static INTERRUPT_BITMAP2: AtomicU32 = AtomicU32::new(0);
-/// Bitmap data structure to hold the interrupt number of pending interrupts.
-///
-/// Holds interrupts numbers 64-95.
-pub static INTERRUPT_BITMAP3: AtomicU32 = AtomicU32::new(0);
+/// `INTERRUPT_BITMAPS[i]` holds interrupt numbers `[i*32, i*32+32)`. Interrupt
+/// numbers are claim IDs from `next_pending()`, which are 1-based (0 means no
+/// interrupt), so bit 0 of `INTERRUPT_BITMAPS[0]` is never set.
+static INTERRUPT_BITMAPS: [AtomicU32; 3] =
+    [AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)];
 
 register_structs! {
     pub PicRegisters {
@@ -190,40 +185,24 @@ impl Pic {
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
     pub fn save_interrupt(&self, index: u32) {
-        let irq = index % 32;
-        if index < 32 {
-            let bitmap = INTERRUPT_BITMAP1.load(Ordering::Relaxed);
-            INTERRUPT_BITMAP1.store(bitmap | (1 << irq), Ordering::Relaxed);
-        } else if index < 64 {
-            let bitmap = INTERRUPT_BITMAP2.load(Ordering::Relaxed);
-            INTERRUPT_BITMAP2.store(bitmap | (1 << irq), Ordering::Relaxed);
-        } else if index < 96 {
-            let bitmap = INTERRUPT_BITMAP3.load(Ordering::Relaxed);
-            INTERRUPT_BITMAP3.store(bitmap | (1 << irq), Ordering::Relaxed);
-        } else {
-            panic!("Unsupported index {}", index);
-        }
+        assert!(index < 96, "Unsupported index {}", index);
+        let bitmap = &INTERRUPT_BITMAPS[(index / 32) as usize];
+        bitmap.store(
+            bitmap.load(Ordering::Relaxed) | 1 << (index % 32),
+            Ordering::Relaxed,
+        );
     }
 
     /// The `next_pending()` function will only return enabled interrupts.
     /// This function will return a pending interrupt that has been disabled by
     /// `save_interrupt()`.
     pub fn get_saved_interrupts(&self) -> Option<u32> {
-        let bitmap = INTERRUPT_BITMAP1.load(Ordering::Relaxed);
-        if bitmap != 0 {
-            return Some(bitmap.trailing_zeros());
+        for (i, bitmap) in INTERRUPT_BITMAPS.iter().enumerate() {
+            let bitmap = bitmap.load(Ordering::Relaxed);
+            if bitmap != 0 {
+                return Some(bitmap.trailing_zeros() + ((i * 32) as u32));
+            }
         }
-
-        let bitmap = INTERRUPT_BITMAP2.load(Ordering::Relaxed);
-        if bitmap != 0 {
-            return Some(bitmap.trailing_zeros() + 32);
-        }
-
-        let bitmap = INTERRUPT_BITMAP3.load(Ordering::Relaxed);
-        if bitmap != 0 {
-            return Some(bitmap.trailing_zeros() + 64);
-        }
-
         None
     }
 
@@ -240,16 +219,11 @@ impl Pic {
         // Enable the interrupt
         self.registers.meie[index as usize - 1].write(MEIE::INTEN::ENABLE);
 
-        let irq = index % 32;
-        if index < 32 {
-            let bitmap = INTERRUPT_BITMAP1.load(Ordering::Relaxed);
-            INTERRUPT_BITMAP1.store(bitmap & !(1 << irq), Ordering::Relaxed);
-        } else if index < 64 {
-            let bitmap = INTERRUPT_BITMAP2.load(Ordering::Relaxed);
-            INTERRUPT_BITMAP2.store(bitmap & !(1 << irq), Ordering::Relaxed);
-        } else if index < 96 {
-            let bitmap = INTERRUPT_BITMAP3.load(Ordering::Relaxed);
-            INTERRUPT_BITMAP3.store(bitmap & !(1 << irq), Ordering::Relaxed);
-        }
+        assert!(index < 96, "Unsupported index {}", index);
+        let bitmap = &INTERRUPT_BITMAPS[(index / 32) as usize];
+        bitmap.store(
+            bitmap.load(Ordering::Relaxed) & !(1 << (index % 32)),
+            Ordering::Relaxed,
+        );
     }
 }
