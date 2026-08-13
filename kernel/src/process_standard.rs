@@ -1713,7 +1713,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     ///
     /// because of the error:
     ///
-    /// ```ignore
+    /// ```text
     /// error: generic `Self` types are currently not permitted in anonymous constants
     ///     --> kernel/src/process_standard.rs:1712:70
     ///      |
