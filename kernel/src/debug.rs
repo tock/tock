@@ -139,10 +139,10 @@ use crate::utilities::single_thread_value::SingleThreadValue;
 /// 3. Normal
 /// 4. Experimental
 ///
-/// # Code Level
+/// # Code Tiers
 ///
 /// - Assurance: Normal
-/// - Criticality: Widely Used
+/// - Importance: Widely Used
 pub struct PanicResources<C: Chip + 'static, PP: ProcessPrinter + 'static> {
     /// The array of process slots.
     pub processes: MapCell<&'static [ProcessSlot]>,

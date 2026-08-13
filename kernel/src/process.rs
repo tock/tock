@@ -68,10 +68,10 @@ pub use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull
 /// the `get_editable_flash_range()` function so they can safely allow an app to
 /// modify its own flash.
 ///
-/// # Code Level
+/// # Code Tiers
 ///
 /// - Assurance: Normal
-/// - Criticality: Critical
+/// - Importance: Critical
 #[derive(Clone, Copy)]
 pub struct ProcessId {
     /// Reference to the main kernel struct. This is needed for checking on
@@ -251,9 +251,9 @@ impl ProcessId {
 /// Specifically, an implementation of the `process_checker::Compress` trait
 /// assigns ShortIds.
 ///
-/// # Code Level
+/// # Code Tiers
 ///
-/// - Criticality: Critical
+/// - Importance: Critical
 #[derive(Clone, Copy)]
 pub enum ShortId {
     /// An abstract `ShortId` that is always guaranteed to be unique. As this is
@@ -340,10 +340,10 @@ impl BinaryVersion {
 /// This trait represents a generic process that the Tock scheduler can
 /// schedule.
 ///
-/// # Code Level
+/// # Code Tiers
 ///
 /// - Assurance: Normal
-/// - Criticality: Critical
+/// - Importance: Critical
 pub trait Process {
     /// Returns the process's identifier.
     fn processid(&self) -> ProcessId;

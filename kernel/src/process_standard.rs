@@ -425,10 +425,10 @@ struct GrantPointerEntry {
 ///   to store per-process debugging state can use the `()` type for this
 ///   parameter.
 ///
-/// # Code Level
+/// # Code Tiers
 ///
 /// - Assurance: Extensively Tested
-/// - Criticality: Critical
+/// - Importance: Critical
 pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDebug + Default> {
     /// Identifier of this process and the index of the process in the process
     /// table.
