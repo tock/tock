@@ -307,28 +307,21 @@ impl AdcRegistersManager {
     /// active buffer, writing `RESULT.MAXCNT` for it. The caller is
     /// responsible for re-triggering `TASKS_START`. Returns `true` if a
     /// queued buffer was promoted.
-    fn promote_queued_buffer(&self) -> Option<SubSliceMut<'static, u16>> {
+    ///
+    /// This must only be called once the previous active buffer has already
+    /// been reclaimed with `finish_buffer()` -- `dma_buf2`'s memory has never
+    /// been touched by EasyDMA (it only becomes live once promoted here), so
+    /// unlike `finish_buffer()` this does not need to wait on `EVENTS_END`.
+    fn promote_queued_buffer(&self) -> bool {
         match self.dma_buf2.take() {
             Some(dma_slice) => {
                 self.registers
                     .result_maxcnt
                     .write(RESULT_MAXCNT::MAXCNT.val(dma_slice.len() as u32));
-                let used_dma_slice = self.dma_buf1.replace(dma_slice);
-
-                match used_dma_slice.take() {
-                    Some(dma_slice) => {
-                        // To create a DmaFence we must trust the implementation.
-                        //
-                        // SAFETY: The architecture-provided version is correct for the nRF52.
-                        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
-
-                        Some(unsafe { dma_slice.take(fence) })
-                    }
-                    None => None,
-                }
+                self.dma_buf1.replace(dma_slice);
+                true
             }
-
-            None => None,
+            None => false,
         }
     }
 
@@ -342,28 +335,42 @@ impl AdcRegistersManager {
         self.registers.tasks_stop.write(TASK::TASK::SET);
     }
 
-    /// Reclaim the active buffer. Its `.len()` is the sample count it was
-    /// started with; `.take()` recovers the full, unwindowed buffer.
+    /// Reclaim the active buffer, once EasyDMA is confirmed to be done
+    /// writing to it. Its `.len()` is the sample count it was started with;
+    /// `.take()` recovers the full, unwindowed buffer.
     ///
-    /// Callers must only invoke this once they have observed, via
-    /// `EVENTS_END`, that EasyDMA is done writing to the buffer.
+    /// Per the nRF52 product specification, `EVENTS_END` ("The ADC has
+    /// filled up the Result buffer") is the only signal that it is sound to
+    /// reclaim this buffer from EasyDMA. This method checks (and clears)
+    /// that event itself, so the `unsafe` reclamation below is only ever
+    /// performed once that has actually been confirmed here -- rather than
+    /// relying on callers to have checked it first. Returns `None`, leaving
+    /// `dma_buf1` untouched, if `EVENTS_END` has not fired yet.
     fn finish_buffer(&self) -> Option<SubSliceMut<'static, u16>> {
+        if !self.registers.events_end.is_set(EVENT::EVENT) {
+            return None;
+        }
+        self.registers.events_end.write(EVENT::EVENT::CLEAR);
+
         self.dma_buf1.take().map(|dma_slice| {
             // To create a DmaFence we must trust the implementation.
             //
             // SAFETY: The architecture-provided version is correct for the nRF52.
             let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
-            // SAFETY: We only reclaim a buffer after observing, through `EVENTS_END`
-            // (or after sampling has stopped), that EasyDMA will not write to
-            // it further.
+            // SAFETY: We just observed `EVENTS_END`, above, confirming
+            // EasyDMA has finished writing to this buffer and will not
+            // access it further.
             unsafe { dma_slice.take(fence) }
         })
     }
 
     /// Reclaim the queued buffer, if any, without it ever having become
     /// active. Used to recover a buffer that was queued but never promoted,
-    /// e.g. when sampling is stopped.
+    /// e.g. when sampling is stopped. Since EasyDMA never accesses
+    /// `dma_buf2`'s memory (it only becomes live once promoted to
+    /// `dma_buf1` by `promote_queued_buffer()`), this does not need to wait
+    /// on any event.
     fn finish_queued_buffer(&self) -> Option<SubSliceMut<'static, u16>> {
         self.dma_buf2.take().map(|dma_slice| {
             // To create a DmaFence we must trust the implementation.
@@ -371,9 +378,9 @@ impl AdcRegistersManager {
             // SAFETY: The architecture-provided version is correct for the nRF52.
             let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
-            // SAFETY: We only reclaim a buffer after observing, through `EVENTS_END`
-            // (or after sampling has stopped), that EasyDMA will not write to
-            // it further.
+            // SAFETY: EasyDMA never wrote to this buffer, so no writes need
+            // to be acquired; we still route through the fence for
+            // consistency, which is harmless.
             unsafe { dma_slice.take(fence) }
         })
     }
@@ -596,30 +603,25 @@ impl Adc<'_> {
                         .write(EVENT::EVENT::CLEAR);
                     // ADC has started, now issue the sample.
                     self.registers.start_sample();
-                } else if self.registers.registers.events_end.is_set(EVENT::EVENT) {
-                    self.registers
-                        .registers
-                        .events_end
-                        .write(EVENT::EVENT::CLEAR);
+                } else if let Some(buf) = self.registers.finish_buffer() {
+                    // `finish_buffer()` is the only code that touches
+                    // `EVENTS_END`; reaching this branch means it observed
+                    // (and cleared) it, and reclaimed the buffer.
+                    let reading = buf[0] as i16 as usize;
 
-                    // Reading finished; EasyDMA is done writing the buffer.
-                    if let Some(buf) = self.registers.finish_buffer() {
-                        let reading = buf[0] as i16 as usize;
+                    // reading = val * (gain/ref) * 2^12
+                    //         = val * ((1/6)/0.6 V) * 2^12
+                    //         = val * 1/3600 mV * 2^12
+                    // val = (reading * 3600 mV) / 2^12
+                    let val = (reading * 3600) / (1 << 12);
 
-                        // reading = val * (gain/ref) * 2^12
-                        //         = val * ((1/6)/0.6 V) * 2^12
-                        //         = val * 1/3600 mV * 2^12
-                        // val = (reading * 3600 mV) / 2^12
-                        let val = (reading * 3600) / (1 << 12);
-
-                        // If the reading looks like it exists in a reasonable
-                        // range than save this as the reference.
-                        if val > 1000 && val < 5100 {
-                            self.reference.set(val);
-                        }
-
-                        self.single_sample_buffer.replace(buf.take());
+                    // If the reading looks like it exists in a reasonable
+                    // range than save this as the reference.
+                    if val > 1000 && val < 5100 {
+                        self.reference.set(val);
                     }
+
+                    self.single_sample_buffer.replace(buf.take());
 
                     // Turn off the ADC.
                     self.registers.stop_sample();
@@ -653,23 +655,18 @@ impl Adc<'_> {
                         .write(EVENT::EVENT::CLEAR);
                     // ADC has started, now issue the sample.
                     self.registers.start_sample();
-                } else if self.registers.registers.events_end.is_set(EVENT::EVENT) {
-                    self.registers
-                        .registers
-                        .events_end
-                        .write(EVENT::EVENT::CLEAR);
+                } else if let Some(buf) = self.registers.finish_buffer() {
+                    // `finish_buffer()` is the only code that touches
+                    // `EVENTS_END`; reaching this branch means it observed
+                    // (and cleared) it, and reclaimed the buffer.
+                    let val = buf[0] as i16;
 
-                    // Reading finished; EasyDMA is done writing the buffer.
-                    if let Some(buf) = self.registers.finish_buffer() {
-                        let val = buf[0] as i16;
+                    self.single_sample_buffer.replace(buf.take());
 
-                        self.single_sample_buffer.replace(buf.take());
-
-                        self.client.map(|client| {
-                            // shift left to meet the ADC HIL requirement
-                            client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
-                        });
-                    }
+                    self.client.map(|client| {
+                        // shift left to meet the ADC HIL requirement
+                        client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
+                    });
 
                     // Turn off the ADC.
                     self.registers.stop_sample();
@@ -708,13 +705,10 @@ impl Adc<'_> {
 
                     // Trigger sample task to start taking samples.
                     self.registers.start_sample();
-                } else if self.registers.registers.events_end.is_set(EVENT::EVENT) {
-                    self.registers
-                        .registers
-                        .events_end
-                        .write(EVENT::EVENT::CLEAR);
-
-                    let mut ret_buf = self.registers.finish_buffer().unwrap();
+                } else if let Some(mut ret_buf) = self.registers.finish_buffer() {
+                    // `finish_buffer()` is the only code that touches
+                    // `EVENTS_END`; reaching this branch means it observed
+                    // (and cleared) it, and reclaimed the buffer.
                     let length = ret_buf.len();
 
                     // Left shift all samples to the MSB. This handles
