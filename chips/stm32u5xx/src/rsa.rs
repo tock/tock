@@ -218,13 +218,18 @@ impl<'a> Pka<'a> {
         let chunks = data.rchunks(4);
 
         for (i, chunk) in chunks.enumerate() {
-            let mut slice = [0u8; 4];
-            let offset = 4 - chunk.len(); // in case chunk is less then 4 bytes
+            if let Some(ram_cell) = self.registers.ram.get(idx + i) {
+                let mut slice = [0u8; 4];
+                let offset = 4 - chunk.len(); // in case chunk is less then 4 bytes
 
-            slice[offset..].copy_from_slice(chunk);
+                slice[offset..].copy_from_slice(chunk);
 
-            let semi_word = u32::from_be_bytes(slice);
-            self.registers.ram[idx + i].set(semi_word);
+                let semi_word = u32::from_be_bytes(slice);
+                ram_cell.set(semi_word);
+            } else {
+                // Occurs only when buffer is longer then RAM
+                break;
+            }
         }
     }
 
@@ -232,8 +237,8 @@ impl<'a> Pka<'a> {
     fn read_slice(&self, idx: usize, buffer: &mut [u8]) {
         let chunks = buffer.rchunks_mut(4);
         for (i, chunk) in chunks.enumerate() {
-            if let Some(data) = self.registers.ram.get(idx + i) {
-                let semi_word = data.get();
+            if let Some(ram_cell) = self.registers.ram.get(idx + i) {
+                let semi_word = ram_cell.get();
                 let bytes = semi_word.to_be_bytes();
                 let offset = 4 - chunk.len();
                 chunk.copy_from_slice(&bytes[offset..])
