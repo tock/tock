@@ -816,8 +816,14 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             tasks.empty();
         });
 
-        // Clear any grant regions this app has setup with any capsules.
-        self.grant_ptrs_reset();
+        // Clear any grant regions this app has setup with any capsules by
+        // setting all `grant_ptr`s to NULL.
+        self.grant_pointers.map(|grant_pointers| {
+            for grant_entry in grant_pointers.iter_mut() {
+                grant_entry.driver_num = 0;
+                grant_entry.grant_ptr = ptr::null_mut();
+            }
+        });
 
         // Save the completion code.
         self.completion_code.set(completion_code);
@@ -2510,16 +2516,6 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         buf_end_addr >= buf_start_addr
             && buf_start_addr >= self.flash_non_protected_start()
             && buf_end_addr <= self.flash_end()
-    }
-
-    /// Reset all `grant_ptr`s to NULL.
-    fn grant_ptrs_reset(&self) {
-        self.grant_pointers.map(|grant_pointers| {
-            for grant_entry in grant_pointers.iter_mut() {
-                grant_entry.driver_num = 0;
-                grant_entry.grant_ptr = ptr::null_mut();
-            }
-        });
     }
 
     /// Allocate memory in a process's grant region.
