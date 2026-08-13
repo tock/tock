@@ -5,7 +5,7 @@
 use core::cell::Cell;
 
 /// Different deferred calls requested by and delivered to the
-/// [`VirtIOGPU`] driver.
+/// [`VirtIOGPU`](super::VirtIOGPU) driver.
 #[derive(Copy, Clone)]
 #[repr(usize)]
 pub enum PendingDeferredCall {
@@ -13,7 +13,7 @@ pub enum PendingDeferredCall {
 }
 
 /// Manager of the deferred calls requested by and delivered to the
-/// [`VirtIOGPU`] driver.
+/// [`VirtIOGPU`](super::VirtIOGPU) driver.
 pub struct PendingDeferredCallMask(Cell<usize>);
 
 impl PendingDeferredCallMask {

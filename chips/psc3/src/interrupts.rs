@@ -224,61 +224,61 @@ pub const TCPWM_0_MOTIF_INTERRUPT_65: u32 = 0x6B;
 pub const PASS_INTERRUPT_MCPASS: u32 = 0x6C;
 /// Combined SAR Entry and FIR results interrupt (dec: 109)
 pub const PASS_INTERRUPT_SAR_RESULTS: u32 = 0x6D;
-/// Individual SAR Entry result interrupts [0] (dec: 110)
+/// Individual SAR Entry result interrupts#0 (dec: 110)
 pub const PASS_INTERRUPT_SAR_ENTRY_DONE_0: u32 = 0x6E;
-/// Individual SAR Entry result interrupts [1] (dec: 111)
+/// Individual SAR Entry result interrupts#1 (dec: 111)
 pub const PASS_INTERRUPT_SAR_ENTRY_DONE_1: u32 = 0x6F;
-/// Individual SAR Entry result interrupts [2] (dec: 112)
+/// Individual SAR Entry result interrupts#2 (dec: 112)
 pub const PASS_INTERRUPT_SAR_ENTRY_DONE_2: u32 = 0x70;
-/// Individual SAR Entry result interrupts [3] (dec: 113)
+/// Individual SAR Entry result interrupts#3 (dec: 113)
 pub const PASS_INTERRUPT_SAR_ENTRY_DONE_3: u32 = 0x71;
-/// Individual SAR Entry result interrupts [4] (dec: 114)
+/// Individual SAR Entry result interrupts#4 (dec: 114)
 pub const PASS_INTERRUPT_SAR_ENTRY_DONE_4: u32 = 0x72;
-/// Individual SAR Entry result interrupts [5] (dec: 115)
+/// Individual SAR Entry result interrupts#5 (dec: 115)
 pub const PASS_INTERRUPT_SAR_ENTRY_DONE_5: u32 = 0x73;
-/// Individual SAR Entry result interrupts [6] (dec: 116)
+/// Individual SAR Entry result interrupts#6 (dec: 116)
 pub const PASS_INTERRUPT_SAR_ENTRY_DONE_6: u32 = 0x74;
-/// Individual SAR Entry result interrupts [7] (dec: 117)
+/// Individual SAR Entry result interrupts#7 (dec: 117)
 pub const PASS_INTERRUPT_SAR_ENTRY_DONE_7: u32 = 0x75;
-/// Individual FIR result interrupts[0] (dec: 118)
+/// Individual FIR result interrupts#0 (dec: 118)
 pub const PASS_INTERRUPT_SAR_FIR_DONE_0: u32 = 0x76;
-/// Individual FIR result interrupts[1] (dec: 119)
+/// Individual FIR result interrupts#1 (dec: 119)
 pub const PASS_INTERRUPT_SAR_FIR_DONE_1: u32 = 0x77;
 /// Combined SAR range interrupt (dec: 120)
 pub const PASS_INTERRUPT_SAR_RANGES: u32 = 0x78;
-/// Individual SAR range interrupts[0] (dec: 121)
+/// Individual SAR range interrupts#0 (dec: 121)
 pub const PASS_INTERRUPT_SAR_RANGE_0: u32 = 0x79;
-/// Individual SAR range interrupts[1] (dec: 122)
+/// Individual SAR range interrupts#1 (dec: 122)
 pub const PASS_INTERRUPT_SAR_RANGE_1: u32 = 0x7A;
-/// Individual SAR range interrupts[2] (dec: 123)
+/// Individual SAR range interrupts#2 (dec: 123)
 pub const PASS_INTERRUPT_SAR_RANGE_2: u32 = 0x7B;
-/// Individual SAR range interrupts[3] (dec: 124)
+/// Individual SAR range interrupts#3 (dec: 124)
 pub const PASS_INTERRUPT_SAR_RANGE_3: u32 = 0x7C;
-/// Individual SAR range interrupts[4] (dec: 125)
+/// Individual SAR range interrupts#4 (dec: 125)
 pub const PASS_INTERRUPT_SAR_RANGE_4: u32 = 0x7D;
-/// Individual SAR range interrupts[5] (dec: 126)
+/// Individual SAR range interrupts#5 (dec: 126)
 pub const PASS_INTERRUPT_SAR_RANGE_5: u32 = 0x7E;
-/// Individual SAR range interrupts[6] (dec: 127)
+/// Individual SAR range interrupts#6 (dec: 127)
 pub const PASS_INTERRUPT_SAR_RANGE_6: u32 = 0x7F;
-/// Individual SAR range interrupts[7] (dec: 128)
+/// Individual SAR range interrupts#7 (dec: 128)
 pub const PASS_INTERRUPT_SAR_RANGE_7: u32 = 0x80;
 /// Combined CSG DAC interrupt (dec: 129)
 pub const PASS_INTERRUPT_CSG_DACS: u32 = 0x81;
-/// Individual CSG DAC interrupts ( 5 in PSOC C3 )[0] (dec: 130)
+/// Individual CSG DAC interrupts ( 5 in PSOC C3 )#0 (dec: 130)
 pub const PASS_INTERRUPT_CSG_DAC_0: u32 = 0x82;
-/// Individual CSG DAC interrupts ( 5 in PSOC C3 )[1] (dec: 131)
+/// Individual CSG DAC interrupts ( 5 in PSOC C3 )#1 (dec: 131)
 pub const PASS_INTERRUPT_CSG_DAC_1: u32 = 0x83;
-/// Individual CSG DAC interrupts ( 5 in PSOC C3 )[2] (dec: 132)
+/// Individual CSG DAC interrupts ( 5 in PSOC C3 )#2 (dec: 132)
 pub const PASS_INTERRUPT_CSG_DAC_2: u32 = 0x84;
-/// Individual CSG DAC interrupts ( 5 in PSOC C3 )[3] (dec: 133)
+/// Individual CSG DAC interrupts ( 5 in PSOC C3 )#3 (dec: 133)
 pub const PASS_INTERRUPT_CSG_DAC_3: u32 = 0x85;
-/// Individual CSG DAC interrupts ( 5 in PSOC C3 )[4] (dec: 134)
+/// Individual CSG DAC interrupts ( 5 in PSOC C3 )#4 (dec: 134)
 pub const PASS_INTERRUPT_CSG_DAC_4: u32 = 0x86;
-/// Individual CSG DAC interrupts ( 5 in PSOC C3 )[5] (dec: 135)
+/// Individual CSG DAC interrupts ( 5 in PSOC C3 )#5 (dec: 135)
 pub const PASS_INTERRUPT_CSG_DAC_5: u32 = 0x87;
-/// Individual CSG DAC interrupts ( 5 in PSOC C3 )[6] (dec: 136)
+/// Individual CSG DAC interrupts ( 5 in PSOC C3 )#6 (dec: 136)
 pub const PASS_INTERRUPT_CSG_DAC_6: u32 = 0x88;
-/// Individual CSG DAC interrupts ( 5 in PSOC C3 )[7] (dec: 137)
+/// Individual CSG DAC interrupts ( 5 in PSOC C3 )#7 (dec: 137)
 pub const PASS_INTERRUPT_CSG_DAC_7: u32 = 0x89;
 /// Combined CSG CMP interrupts (dec: 138)
 pub const PASS_INTERRUPT_CSG_CMPS: u32 = 0x8A;
