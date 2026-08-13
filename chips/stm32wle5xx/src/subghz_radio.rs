@@ -14,7 +14,7 @@
 //! through the gpio capsule.
 //!
 //! Radiolib takes a similar approach in their stm32wle5xx port:
-//! https://github.com/jgromes/RadioLib/issues/588.
+//! <https://github.com/jgromes/RadioLib/issues/588>.
 
 use core::cell::Cell;
 

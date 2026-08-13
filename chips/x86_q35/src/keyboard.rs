@@ -10,9 +10,9 @@
 //! - Keyboard speaks simple command/ACK (0xFA) / RESEND (0xFE) protocol
 //!
 //! References:
-//! - OSDev: i8042 PS/2 Controller — https://wiki.osdev.org/I8042_PS/2_Controller
-//! - OSDev: PS/2 Keyboard — https://wiki.osdev.org/PS/2_Keyboard
-//! - OSDev: Keyboard / Scan Code Set 2 — https://wiki.osdev.org/Keyboard#Scan_Code_Set_2
+//! - OSDev: i8042 PS/2 Controller — <https://wiki.osdev.org/I8042_PS/2_Controller>
+//! - OSDev: PS/2 Keyboard — <https://wiki.osdev.org/PS/2_Keyboard>
+//! - OSDev: Keyboard / Scan Code Set 2 — <https://wiki.osdev.org/Keyboard#Scan_Code_Set_2>
 
 use crate::cmd_fifo::Fifo as CmdFifo;
 use crate::ps2::Ps2Client;
