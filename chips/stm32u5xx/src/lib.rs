@@ -18,6 +18,7 @@ pub mod nvic;
 pub mod pwr;
 pub mod rcc;
 pub mod rng;
+pub mod rsa;
 pub mod tim;
 pub mod usart;
 

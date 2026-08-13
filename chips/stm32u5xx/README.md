@@ -13,6 +13,7 @@ Currently supported peripherals:
 - USART (Universal Synchronous/Asynchronous Receiver Transmitter)
 - GPDMA (Global Programmable DMA)
 - TIM2 (Timer)
+- PKA (Public Key Accelerator)
 - PWM (Pulse Width Modulation)
 - TRNG (True Random Number Generator)
 - HASH (Hash processor)
