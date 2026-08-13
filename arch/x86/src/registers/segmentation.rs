@@ -491,10 +491,16 @@ pub unsafe fn load_gs(sel: SegmentSelector) {
 #[cfg(target_arch = "x86")]
 pub unsafe fn load_cs(sel: SegmentSelector) {
     unsafe {
-        asm!("pushl {0}; \
-            pushl $1f; \
-            lretl; \
-            1:", in(reg) sel.bits() as u32, options(att_syntax));
+        asm!(
+            "
+    pushl {0}
+    pushl $1f
+    lretl
+    1:
+            ",
+            in(reg) sel.bits() as u32,
+            options(att_syntax)
+        );
     }
 }
 

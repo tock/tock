@@ -83,7 +83,6 @@ pub extern "C" fn handler_entry() {
     # handle_kernel_exception should never return, but just in case...
 3:
     jmp     3b
-
-"
+        "
     );
 }
