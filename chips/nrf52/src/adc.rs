@@ -11,7 +11,8 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::utilities::dma_slice::DmaSliceMut;
+use kernel::utilities::dma_slice::DmaSubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 
@@ -250,12 +251,15 @@ register_bitfields![u32,
 struct AdcRegistersManager {
     /// MMIO registers for the ADC peripheral.
     registers: StaticRef<AdcRegisters>,
-    /// The buffer (and requested sample count) currently targeted by
-    /// `RESULT.PTR`/`RESULT.MAXCNT` that EasyDMA is actively filling.
-    dma_buf1: MapCell<(DmaSliceMut<'static, u16>, usize)>,
-    /// The buffer (and requested sample count) queued to become active the
-    /// next time sampling (re)starts.
-    dma_buf2: MapCell<(DmaSliceMut<'static, u16>, usize)>,
+    /// The buffer currently targeted by `RESULT.PTR`/`RESULT.MAXCNT` that
+    /// EasyDMA is actively filling. The requested sample count is carried as
+    /// the `DmaSubSliceMut`'s active window, so `.len()` on the buffer
+    /// returned from `finish_buffer()` gives back the count it was started
+    /// with.
+    dma_buf1: MapCell<DmaSubSliceMut<'static, u16>>,
+    /// The buffer queued to become active the next time sampling
+    /// (re)starts, windowed the same way as `dma_buf1`.
+    dma_buf2: MapCell<DmaSubSliceMut<'static, u16>>,
 }
 
 impl AdcRegistersManager {
@@ -267,54 +271,64 @@ impl AdcRegistersManager {
         }
     }
 
-    /// Point `RESULT.PTR`/`RESULT.MAXCNT` at `buf`, to sample `count` values
-    /// into it, and hold on to it until `finish_buffer()` is called.
-    fn start_buffer(&self, buf: &'static mut [u16], count: usize) {
+    /// Point `RESULT.PTR`/`RESULT.MAXCNT` at `buf`'s active window, sampling
+    /// that many values into it, and hold on to it until `finish_buffer()` is
+    /// called.
+    fn start_buffer(&self, buf: SubSliceMut<'static, u16>) {
         // To create a DmaFence we must trust the implementation.
         //
         // SAFETY: The architecture-provided version is correct for the nRF52.
         let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
-
-        // Create a DmaSlice for the result buffer. This ensures that we can
-        // soundly share it with the DMA hardware.
-        let dma_slice = DmaSliceMut::new_static(buf, fence);
+        let dma_slice = DmaSubSliceMut::new_static(buf, fence);
 
         self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
         self.registers
             .result_maxcnt
-            .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
+            .write(RESULT_MAXCNT::MAXCNT.val(dma_slice.len() as u32));
 
-        self.dma_buf1.replace((dma_slice, count));
+        self.dma_buf1.replace(dma_slice);
     }
 
-    /// Point `RESULT.PTR` at `buf`, queuing it to become the active buffer
-    /// once `promote_queued_buffer()` is called. `RESULT.MAXCNT` is left
-    /// alone; it is only written once the buffer is promoted.
-    fn queue_buffer(&self, buf: &'static mut [u16], count: usize) {
+    /// Point `RESULT.PTR` at `buf`'s active window, queuing it to become the
+    /// active buffer once `promote_queued_buffer()` is called. `RESULT.MAXCNT`
+    /// is left alone; it is only written once the buffer is promoted.
+    fn queue_buffer(&self, buf: SubSliceMut<'static, u16>) {
         let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
-        let dma_slice = DmaSliceMut::new_static(buf, fence);
+        let dma_slice = DmaSubSliceMut::new_static(buf, fence);
 
         // The underlying ADC hardware is double buffered, so we can set this in
         // the DMA hardware once we have started the previous DMA use.
         self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
 
-        self.dma_buf2.replace((dma_slice, count));
+        self.dma_buf2.replace(dma_slice);
     }
 
     /// Promote the buffer queued with `queue_buffer()`, if any, to be the
     /// active buffer, writing `RESULT.MAXCNT` for it. The caller is
     /// responsible for re-triggering `TASKS_START`. Returns `true` if a
     /// queued buffer was promoted.
-    fn promote_queued_buffer(&self) -> bool {
+    fn promote_queued_buffer(&self) -> Option<SubSliceMut<'static, u16>> {
         match self.dma_buf2.take() {
-            Some((dma_slice, count)) => {
+            Some(dma_slice) => {
                 self.registers
                     .result_maxcnt
-                    .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
-                self.dma_buf1.replace((dma_slice, count));
-                true
+                    .write(RESULT_MAXCNT::MAXCNT.val(dma_slice.len() as u32));
+                let used_dma_slice = self.dma_buf1.replace(dma_slice);
+
+                match used_dma_slice.take() {
+                    Some(dma_slice) => {
+                        // To create a DmaFence we must trust the implementation.
+                        //
+                        // SAFETY: The architecture-provided version is correct for the nRF52.
+                        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+                        Some(unsafe { dma_slice.take(fence) })
+                    }
+                    None => None,
+                }
             }
-            None => false,
+
+            None => None,
         }
     }
 
@@ -328,38 +342,39 @@ impl AdcRegistersManager {
         self.registers.tasks_stop.write(TASK::TASK::SET);
     }
 
-    /// Reclaim the active buffer and the sample count it was started with.
+    /// Reclaim the active buffer. Its `.len()` is the sample count it was
+    /// started with; `.take()` recovers the full, unwindowed buffer.
     ///
     /// Callers must only invoke this once they have observed, via
     /// `EVENTS_END`, that EasyDMA is done writing to the buffer.
-    fn finish_buffer(&self) -> Option<(&'static mut [u16], usize)> {
-        Self::take_and_fence(&self.dma_buf1)
-    }
-
-    /// Reclaim the queued buffer (and count), if any, without it ever having
-    /// become active. Used to recover a buffer that was queued but never
-    /// promoted, e.g. when sampling is stopped.
-    fn finish_queued_buffer(&self) -> Option<(&'static mut [u16], usize)> {
-        Self::take_and_fence(&self.dma_buf2)
-    }
-
-    fn take_and_fence(
-        cell: &MapCell<(DmaSliceMut<'static, u16>, usize)>,
-    ) -> Option<(&'static mut [u16], usize)> {
-        cell.take().map(|(dma_slice, count)| {
+    fn finish_buffer(&self) -> Option<SubSliceMut<'static, u16>> {
+        self.dma_buf1.take().map(|dma_slice| {
             // To create a DmaFence we must trust the implementation.
             //
-            // # Safety
-            //
-            // The architecture-provided version is correct for the nRF52.
+            // SAFETY: The architecture-provided version is correct for the nRF52.
             let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
-            // # Safety
-            //
-            // We only reclaim a buffer after observing, through `EVENTS_END`
+            // SAFETY: We only reclaim a buffer after observing, through `EVENTS_END`
             // (or after sampling has stopped), that EasyDMA will not write to
             // it further.
-            (unsafe { dma_slice.take(fence) }, count)
+            unsafe { dma_slice.take(fence) }
+        })
+    }
+
+    /// Reclaim the queued buffer, if any, without it ever having become
+    /// active. Used to recover a buffer that was queued but never promoted,
+    /// e.g. when sampling is stopped.
+    fn finish_queued_buffer(&self) -> Option<SubSliceMut<'static, u16>> {
+        self.dma_buf2.take().map(|dma_slice| {
+            // To create a DmaFence we must trust the implementation.
+            //
+            // SAFETY: The architecture-provided version is correct for the nRF52.
+            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+            // SAFETY: We only reclaim a buffer after observing, through `EVENTS_END`
+            // (or after sampling has stopped), that EasyDMA will not write to
+            // it further.
+            unsafe { dma_slice.take(fence) }
         })
     }
 }
@@ -553,7 +568,9 @@ impl Adc<'_> {
 
                     // Where to put the reading.
                     if let Some(buf) = self.single_sample_buffer.take() {
-                        self.registers.start_buffer(buf, 1);
+                        let mut sub_slice = SubSliceMut::new(buf);
+                        sub_slice.slice(0..1);
+                        self.registers.start_buffer(sub_slice);
                     }
 
                     // No automatic sampling, will trigger manually.
@@ -586,7 +603,7 @@ impl Adc<'_> {
                         .write(EVENT::EVENT::CLEAR);
 
                     // Reading finished; EasyDMA is done writing the buffer.
-                    if let Some((buf, _count)) = self.registers.finish_buffer() {
+                    if let Some(buf) = self.registers.finish_buffer() {
                         let reading = buf[0] as i16 as usize;
 
                         // reading = val * (gain/ref) * 2^12
@@ -601,7 +618,7 @@ impl Adc<'_> {
                             self.reference.set(val);
                         }
 
-                        self.single_sample_buffer.replace(buf);
+                        self.single_sample_buffer.replace(buf.take());
                     }
 
                     // Turn off the ADC.
@@ -643,10 +660,10 @@ impl Adc<'_> {
                         .write(EVENT::EVENT::CLEAR);
 
                     // Reading finished; EasyDMA is done writing the buffer.
-                    if let Some((buf, _count)) = self.registers.finish_buffer() {
+                    if let Some(buf) = self.registers.finish_buffer() {
                         let val = buf[0] as i16;
 
-                        self.single_sample_buffer.replace(buf);
+                        self.single_sample_buffer.replace(buf.take());
 
                         self.client.map(|client| {
                             // shift left to meet the ADC HIL requirement
@@ -680,7 +697,9 @@ impl Adc<'_> {
                         let length2 = self.next_length.get();
                         let dma_len = cmp::min(buf.len(), length2);
                         if dma_len > 0 {
-                            self.registers.queue_buffer(buf, length2);
+                            let mut sub_slice = SubSliceMut::new(buf);
+                            sub_slice.slice(0..length2);
+                            self.registers.queue_buffer(sub_slice);
                         } else {
                             // Nothing to sample into; keep it for later.
                             self.next_buffer.replace(buf);
@@ -695,7 +714,8 @@ impl Adc<'_> {
                         .events_end
                         .write(EVENT::EVENT::CLEAR);
 
-                    let (ret_buf, length) = self.registers.finish_buffer().unwrap();
+                    let mut ret_buf = self.registers.finish_buffer().unwrap();
+                    let length = ret_buf.len();
 
                     // Left shift all samples to the MSB. This handles
                     // differences in resolution between ADC chips and meets the
@@ -705,7 +725,7 @@ impl Adc<'_> {
                     }
 
                     self.highspeed_client.map(|client| {
-                        client.samples_ready(ret_buf, length);
+                        client.samples_ready(ret_buf.take(), length);
                     });
 
                     // If a buffer was queued (above, at the last
@@ -776,7 +796,9 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
         self.setup_resolution();
 
         // Do one measurement.
-        self.registers.start_buffer(buf, 1);
+        let mut sub_slice = SubSliceMut::new(buf);
+        sub_slice.slice(0..1);
+        self.registers.start_buffer(sub_slice);
 
         // No automatic sampling, will trigger manually.
         self.registers
@@ -849,7 +871,9 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
             self.setup_resolution();
 
             // Use EasyDMA to save the samples to our buffer.
-            self.registers.start_buffer(buffer1, length1);
+            let mut sub_slice = SubSliceMut::new(buffer1);
+            sub_slice.slice(0..length1);
+            self.registers.start_buffer(sub_slice);
 
             // Set the frequency best we can.
             self.setup_frequency(frequency);
@@ -892,11 +916,11 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
     fn retrieve_buffers(
         &self,
     ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode> {
-        let active = self.registers.finish_buffer().map(|(buf, _)| buf);
+        let active = self.registers.finish_buffer().map(|buf| buf.take());
         let queued = self
             .registers
             .finish_queued_buffer()
-            .map(|(buf, _)| buf)
+            .map(|buf| buf.take())
             .or_else(|| self.next_buffer.take());
         Ok((active, queued))
     }
