@@ -749,7 +749,7 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImm
 pub mod immutable_from_into_bytes {
     /// Sealing module for [`ImmutableFromIntoBytes`]
     mod private {
-        /// Sealing trait for [`ImmutableFromIntoBytes`]
+        /// Sealing trait for [`ImmutableFromIntoBytes`](super::ImmutableFromIntoBytes)
         pub trait Sealed {}
     }
 
