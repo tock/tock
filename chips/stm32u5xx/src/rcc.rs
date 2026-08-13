@@ -73,7 +73,8 @@ register_bitfields![u32,
     ],
     pub APB1ENR1 [
         TIM2EN OFFSET(0) NUMBITS(1) [],
-        TIM3EN OFFSET(1) NUMBITS(1) []
+        TIM3EN OFFSET(1) NUMBITS(1) [],
+        I2C1EN OFFSET(21) NUMBITS(1) []
     ],
     pub APB2ENR [
         USART1EN OFFSET(14) NUMBITS(1) []
@@ -87,6 +88,13 @@ register_bitfields![u32,
             SYSCLK = 1,
             HSI16 = 2,
             LSE = 3
+        ],
+        I2C1SEL OFFSET(10) NUMBITS(2) [
+            PCLK = 0,
+            SYSCLK = 1,
+            HSI16 = 2,
+            LSE = 3
+
         ]
     ],
     pub CCIPR3 [
@@ -130,6 +138,10 @@ impl Rcc {
         self.registers.ahb2enr1.modify(AHB2ENR1::GPIOAEN::SET);
     }
 
+    pub fn enable_gpiob(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::GPIOBEN::SET);
+    }
+
     pub fn enable_gpioc(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::GPIOCEN::SET);
     }
@@ -154,10 +166,6 @@ impl Rcc {
         self.registers.apb3enr.modify(APB3ENR::SYSCFGEN::SET);
     }
 
-    pub fn enable_trng(&self) {
-        self.registers.ahb2enr1.modify(AHB2ENR1::TRNGEN::SET);
-    }
-
     pub fn enable_pwr(&self) {
         self.registers.ahb3enr.modify(AHB3ENR::PWREN::SET);
     }
@@ -171,6 +179,14 @@ impl Rcc {
 
     pub fn enable_adc1(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::ADC12EN::SET);
+    }
+
+    pub fn enable_trng(&self) {
+        self.registers.ahb2enr1.modify(AHB2ENR1::TRNGEN::SET);
+    }
+
+    pub fn enable_i2c1(&self) {
+        self.registers.apb1enr1.modify(APB1ENR1::I2C1EN::SET);
     }
 
     pub fn set_usart1_source_pclk(&self) {
@@ -191,5 +207,11 @@ impl Rcc {
 
     pub fn enable_hash(&self) {
         self.registers.ahb2enr1.modify(AHB2ENR1::HASHEN::SET);
+    }
+
+    // While the default value for this bitfield is indeed PCLK
+    // I belive it is better to be explicit
+    pub fn set_i2c1_source_pclk(&self) {
+        self.registers.ccipr1.modify(CCIPR1::I2C1SEL::PCLK);
     }
 }

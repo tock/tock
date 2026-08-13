@@ -13,6 +13,7 @@ pub mod dma;
 pub mod exti;
 pub mod gpio;
 pub mod hash;
+pub mod i2c;
 pub mod nvic;
 pub mod pwr;
 pub mod rcc;

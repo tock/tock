@@ -72,6 +72,7 @@ struct NucleoU545RE {
         stm32u545::aes::ecb::Aes<'static, AES256>,
         AES256,
     >,
+    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, stm32u545::i2c::I2c<'static>>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -91,6 +92,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_extra::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
+            capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
             _ => f(None),
         }
     }
@@ -141,6 +143,34 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
     pin10.set_mode(stm32u545::gpio::Mode::AlternateFunction);
     pin10.set_alternate_function(7);
     pin10.set_speed_high();
+
+    // I2C1 Pins (PB6/PB7)
+    //
+    // Both pins are supposed to be open-drain
+    //      SCL for multi-master
+    //      SDA (intrinsically) such that the slave can use it as well
+    // Both pins are supposed to have AF4 as alternate function
+    //      as written in the STM32U5 Datasheet, Chapter 4.3 or page 138
+    // I2C specification states that both pins should be pulled up
+    //
+    // And in order to make I2C Fast-mode Plus work, we need to set them as high speed
+    //
+    // As for the choice of pin assigments, I want to keep the implementation
+    // consistent with the silkscreen on the board.
+    let pin_scl = periphs.gpio_b.pin(PinId::Pin06);
+    let pin_sda = periphs.gpio_b.pin(PinId::Pin07);
+
+    pin_scl.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    pin_scl.set_alternate_function(4);
+    pin_scl.set_open_drain();
+    pin_scl.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
+    pin_scl.set_speed_high();
+
+    pin_sda.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    pin_sda.set_alternate_function(4);
+    pin_sda.set_open_drain();
+    pin_sda.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
+    pin_sda.set_speed_high();
 
     // LED Pin (PA5)
     periphs.gpio_a.pin(PinId::Pin05).make_output();
@@ -200,6 +230,7 @@ unsafe fn start() -> (
         stm32u545::exti::Exti<'static>,
         stm32u545::exti::Exti::new(stm32u545::exti::EXTI_BASE)
     );
+
     let dma1 = static_init!(
         stm32u545::dma::Dma,
         stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
@@ -336,6 +367,7 @@ unsafe fn start() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::pwm_driver_component_helper!(tim3_pwm_pin));
+
     let adc_mux = components::adc::AdcMuxComponent::new(&periphs.adc1)
         .finalize(components::adc_mux_component_static!(stm32u545::adc::Adc));
 
@@ -373,8 +405,10 @@ unsafe fn start() -> (
         adc1_channel_2,
         adc1_channel_1,
     ));
+
     let dac = components::dac::DacComponent::new(&periphs.dac)
         .finalize(components::dac_component_static!());
+
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
@@ -412,6 +446,7 @@ unsafe fn start() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::gpio_component_static!(GpioHw));
+
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
@@ -433,6 +468,16 @@ unsafe fn start() -> (
         stm32u545::crc::CRC<'static>
     ));
 
+    let i2c = components::i2c::I2CMasterDriverComponent::new(
+        board_kernel,
+        capsules_core::i2c_master::DRIVER_NUM,
+        &periphs.i2c1,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::i2c_master_driver_component_static!(
+        stm32u545::i2c::I2c
+    ));
+
     // Platform and Interrupts
     let platform = static_init!(
         NucleoU545RE,
@@ -442,6 +487,7 @@ unsafe fn start() -> (
                 .finalize(components::round_robin_component_static!(NUM_PROCS)),
             systick: cortexm33::systick::SysTick::new(),
             led,
+            i2c,
             button,
             alarm,
             pwm,
