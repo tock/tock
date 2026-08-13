@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -785,14 +785,19 @@ fn dot_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-fn importance_color(code_level: &Option<CodeLevel>) -> &'static str {
+/// A valid Graphviz subgraph name derived from a module path: alphanumerics
+/// and underscores only.
+fn dot_identifier(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+/// Box fill color: green for a function that carries a `# Code Tier`
+/// annotation, neutral gray otherwise.
+fn node_fill_color(code_level: &Option<CodeLevel>) -> &'static str {
     match code_level {
-        Some(cl) => match cl.importance_rank {
-            1 => "#e57373",
-            2 => "#ffb74d",
-            3 => "#fff59d",
-            _ => "#c8e6c9",
-        },
+        Some(_) => "#81c784",
         None => "#eeeeee",
     }
 }
@@ -815,31 +820,68 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
         .flatten()
         .collect();
 
-    for f in nodes.iter().filter(|f| connected.contains(f.path.as_str())) {
-        let label = match &f.code_level {
-            Some(cl) => format!("{}\\n{} / {}", f.path, cl.assurance, cl.importance),
-            None => f.path.clone(),
-        };
-        out.push_str(&format!(
-            "  \"{}\" [label=\"{}\", fillcolor=\"{}\"];\n",
-            dot_escape(&f.path),
-            dot_escape(&label),
-            importance_color(&f.code_level)
-        ));
+    let mut by_path: HashMap<&str, &FunctionInfo> = HashMap::new();
+    for f in nodes {
+        by_path.insert(f.path.as_str(), f);
     }
-    out.push('\n');
+
+    // Group nodes by their enclosing module and draw each as a labeled
+    // Graphviz cluster, so `dot`'s layout keeps related functions together
+    // instead of scattering them across the whole graph.
+    let mut by_module: BTreeMap<&str, Vec<&FunctionInfo>> = BTreeMap::new();
+    for f in nodes.iter().filter(|f| connected.contains(f.path.as_str())) {
+        by_module.entry(f.module_path.as_str()).or_default().push(f);
+    }
+
+    for (i, (module_path, funcs)) in by_module.iter().enumerate() {
+        out.push_str(&format!(
+            "  subgraph cluster_{i}_{} {{\n    label=\"{}\";\n    style=dashed;\n    fontsize=10;\n",
+            dot_identifier(module_path),
+            dot_escape(module_path)
+        ));
+        for f in funcs {
+            let label = match &f.code_level {
+                Some(cl) => format!("{}\\n{} / {}", f.path, cl.assurance, cl.importance),
+                None => f.path.clone(),
+            };
+            out.push_str(&format!(
+                "    \"{}\" [label=\"{}\", fillcolor=\"{}\"];\n",
+                dot_escape(&f.path),
+                dot_escape(&label),
+                node_fill_color(&f.code_level)
+            ));
+        }
+        out.push_str("  }\n\n");
+    }
 
     // Ambiguous calls (multiple same-named candidates, no type info to
     // pick between them) are omitted rather than drawn to every candidate,
     // which would make the graph mostly noise.
     for e in edges {
-        if let Some(callee) = &e.callee {
-            out.push_str(&format!(
-                "  \"{}\" -> \"{}\";\n",
-                dot_escape(&e.caller),
-                dot_escape(callee)
-            ));
-        }
+        let Some(callee) = &e.callee else { continue };
+
+        // Flag a call into weaker assurance: a higher assurance_rank means
+        // a *weaker* guarantee (1 = Formally Verified, 4 = Normal), so the
+        // callee is a downgrade when its rank is numerically higher than
+        // the caller's. Only meaningful when both ends are annotated.
+        let weaker_assurance = by_path
+            .get(e.caller.as_str())
+            .zip(by_path.get(callee.as_str()))
+            .and_then(|(caller, callee)| {
+                Some((caller.code_level.as_ref()?, callee.code_level.as_ref()?))
+            })
+            .is_some_and(|(caller, callee)| callee.assurance_rank > caller.assurance_rank);
+
+        let attrs = if weaker_assurance {
+            " [color=\"#e53935\", penwidth=2]"
+        } else {
+            ""
+        };
+        out.push_str(&format!(
+            "  \"{}\" -> \"{}\"{attrs};\n",
+            dot_escape(&e.caller),
+            dot_escape(callee)
+        ));
     }
 
     out.push_str("}\n");
