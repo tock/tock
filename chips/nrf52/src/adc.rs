@@ -6,11 +6,12 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::dma_slice::DmaSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 
@@ -230,35 +231,45 @@ register_bitfields![u32,
     ]
 ];
 
-/// Wrapper for managing MMIO for ADC.
+/// Wrapper for managing MMIO for the ADC's EasyDMA result buffer.
+///
+/// This type encapsulates every access to the DMA-related `RESULT.PTR` and
+/// `RESULT.MAXCNT` registers, and to the `TASKS_SAMPLE` and `TASKS_STOP`
+/// tasks. A buffer is only ever handed to the hardware (by writing its
+/// address to `RESULT.PTR`) while it is held here, in `dma_buf1` or
+/// `dma_buf2`, which guarantees the buffer cannot be accessed from Rust while
+/// EasyDMA may be writing to it.
+///
+/// High-speed sampling double-buffers: `dma_buf1` holds the buffer actively
+/// being filled (matched to the most recent `TASKS_START`), while `dma_buf2`
+/// holds a second buffer already queued to replace it. Per the nRF52 product
+/// specification, `RESULT.PTR` may be safely repointed at the next buffer as
+/// soon as `EVENTS_STARTED` fires for the active buffer, without disturbing
+/// its in-progress transfer; `dma_buf2` exists to hold that next buffer
+/// between being queued and being promoted to active.
 struct AdcRegistersManager {
     /// MMIO registers for the ADC peripheral.
     registers: StaticRef<AdcRegisters>,
-    /// Holding place for a buffer while DMA in progress.
-    dma_buf1: MapCell<DmaSliceMut<'static, u8>>,
-    /// Holding place for a buffer while DMA in progress.
-    dma_buf2: MapCell<DmaSliceMut<'static, u8>>,
+    /// The buffer (and requested sample count) currently targeted by
+    /// `RESULT.PTR`/`RESULT.MAXCNT` that EasyDMA is actively filling.
+    dma_buf1: MapCell<(DmaSliceMut<'static, u16>, usize)>,
+    /// The buffer (and requested sample count) queued to become active the
+    /// next time sampling (re)starts.
+    dma_buf2: MapCell<(DmaSliceMut<'static, u16>, usize)>,
 }
 
 impl AdcRegistersManager {
-    pub fn new(regs: StaticRef<AdcRegisters>) -> Self {
+    fn new(registers: StaticRef<AdcRegisters>) -> Self {
         Self {
-            registers: regs,
-            dma_buf: MapCell::empty(),
+            registers,
+            dma_buf1: MapCell::empty(),
+            dma_buf2: MapCell::empty(),
         }
     }
 
-    /// Start a UART transmission with DMA.
-    ///
-    /// # Return
-    ///
-    /// `Ok(())` on successfully starting the DMA operation. `Err(())` if the
-    /// DMA is busy and the operation could not be started.
-    pub fn start_adc(&self, buf: SubSliceMut<'static, u16>) -> Result<(), ()> {
-        if self.dma_pending() {
-            return Err(());
-        }
-
+    /// Point `RESULT.PTR`/`RESULT.MAXCNT` at `buf`, to sample `count` values
+    /// into it, and hold on to it until `finish_buffer()` is called.
+    fn start_buffer(&self, buf: &'static mut [u16], count: usize) {
         // To create a DmaFence we must trust the implementation.
         //
         // # Safety
@@ -266,51 +277,76 @@ impl AdcRegistersManager {
         // The architecture-provided version is correct for the nRF52.
         let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
-        // Create DmaSlice for the TX buffer. This ensures that we can soundly
-        // share it with the DMA hardware.
-        let dma_slice = DmaSubSliceMut::new_static(buf, fence);
+        // Create a DmaSlice for the result buffer. This ensures that we can
+        // soundly share it with the DMA hardware.
+        let dma_slice = DmaSliceMut::new_static(buf, fence);
 
-        // Provide the DmaSlice buffer to the hardware DMA engine.
-        // self.registers.txd_ptr.set(tx_dma_slice.ptr_addr() as u32);
+        self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
+        self.registers
+            .result_maxcnt
+            .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
+
+        self.dma_buf1.replace((dma_slice, count));
+    }
+
+    /// Point `RESULT.PTR` at `buf`, queuing it to become the active buffer
+    /// once `promote_queued_buffer()` is called. `RESULT.MAXCNT` is left
+    /// alone; it is only written once the buffer is promoted.
+    fn queue_buffer(&self, buf: &'static mut [u16], count: usize) {
+        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+        let dma_slice = DmaSliceMut::new_static(buf, fence);
 
         self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
 
-        self.registers
-            .result_maxcnt
-            .write(RESULT_MAXCNT::MAXCNT.val(dma_slice.len() as u32));
-
-        // // Specify the length to transmit.
-        // self.registers
-        //     .txd_maxcnt
-        //     .write(Counter::COUNTER.val(tx_dma_slice.len() as u32));
-
-        // Save the DmaSlice while the DMA operation executes.
-        self.dma_buf1.replace(dma_slice);
-
-        // Start the TX DMA operation
-        // self.registers.task_starttx.write(Task::ENABLE::SET);
-
-        self.registers.tasks_start.write(TASK::TASK::SET);
-
-        Ok(())
+        self.dma_buf2.replace((dma_slice, count));
     }
 
-    pub fn start_sample(&self) {
+    /// Promote the buffer queued with `queue_buffer()`, if any, to be the
+    /// active buffer, writing `RESULT.MAXCNT` for it. The caller is
+    /// responsible for re-triggering `TASKS_START`. Returns `true` if a
+    /// queued buffer was promoted.
+    fn promote_queued_buffer(&self) -> bool {
+        match self.dma_buf2.take() {
+            Some((dma_slice, count)) => {
+                self.registers
+                    .result_maxcnt
+                    .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
+                self.dma_buf1.replace((dma_slice, count));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Trigger a single sample conversion.
+    fn start_sample(&self) {
         self.registers.tasks_sample.write(TASK::TASK::SET);
     }
 
-    pub fn stop_sample(&self) {
+    /// Stop any in-progress sample conversion.
+    fn stop_sample(&self) {
         self.registers.tasks_stop.write(TASK::TASK::SET);
     }
 
-    pub fn stop_adc(&self) -> Option<(SubSliceMut<'static, u8>, usize)> {
-        // End the DMA operation so it is safe to retrieve the buffer.
-        self.registers.event_endtx.write(Event::READY::CLEAR);
+    /// Reclaim the active buffer and the sample count it was started with.
+    ///
+    /// Callers must only invoke this once they have observed, via
+    /// `EVENTS_END`, that EasyDMA is done writing to the buffer.
+    fn finish_buffer(&self) -> Option<(&'static mut [u16], usize)> {
+        Self::take_and_fence(&self.dma_buf1)
+    }
 
-        // Disable ADC so we know the ADC is not using the buffer.
-        self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+    /// Reclaim the queued buffer (and count), if any, without it ever having
+    /// become active. Used to recover a buffer that was queued but never
+    /// promoted, e.g. when sampling is stopped.
+    fn finish_queued_buffer(&self) -> Option<(&'static mut [u16], usize)> {
+        Self::take_and_fence(&self.dma_buf2)
+    }
 
-        self.dma_buf1.take().map(|dma_slice| {
+    fn take_and_fence(
+        cell: &MapCell<(DmaSliceMut<'static, u16>, usize)>,
+    ) -> Option<(&'static mut [u16], usize)> {
+        cell.take().map(|(dma_slice, count)| {
             // To create a DmaFence we must trust the implementation.
             //
             // # Safety
@@ -320,19 +356,11 @@ impl AdcRegistersManager {
 
             // # Safety
             //
-            // We must ensure that the DMA hardware no longer has any access
-            // to this buffer. We ensure that by setting the `event_endtx`
-            // event before taking the dma slice back.
-            let buf = unsafe { dma_slice.take(fence) };
-
-            // let tx_bytes = self.registers.txd_amount.get() as usize;
-
-            (buf, 1)
+            // We only reclaim a buffer after observing, through `EVENTS_END`
+            // (or after sampling has stopped), that EasyDMA will not write to
+            // it further.
+            (unsafe { dma_slice.take(fence) }, count)
         })
-    }
-
-    pub fn tx_dma_pending(&self) -> bool {
-        self.tx_dma_buf.is_some()
     }
 }
 
@@ -442,28 +470,34 @@ enum AdcMode {
 }
 
 pub struct Adc<'a> {
-    registers: StaticRef<AdcRegisters>,
+    registers: AdcRegistersManager,
     reference: Cell<usize>,
     mode: Cell<AdcMode>,
     client: OptionalCell<&'a dyn hil::adc::Client>,
     highspeed_client: OptionalCell<&'a dyn hil::adc::HighSpeedClient>,
 
-    buffer: TakeCell<'static, [u16]>,
-    length: Cell<usize>,
+    /// Scratch buffer used for both offset calibration and single
+    /// (non-high-speed) samples, which only ever need to hold one `u16`.
+    single_sample_buffer: TakeCell<'static, [u16]>,
+
+    /// The second buffer provided for high-speed sampling, before its
+    /// address has been handed to `registers` (which happens at the
+    /// following `EVENTS_STARTED`, via `queue_buffer`).
     next_buffer: TakeCell<'static, [u16]>,
     next_length: Cell<usize>,
 }
 
 impl Adc<'_> {
-    pub const fn new(voltage_reference_in_mv: usize) -> Self {
+    pub fn new(voltage_reference_in_mv: usize) -> Self {
         Self {
-            registers: SAADC_BASE,
+            registers: AdcRegistersManager::new(SAADC_BASE),
             reference: Cell::new(voltage_reference_in_mv),
             mode: Cell::new(AdcMode::Idle),
             client: OptionalCell::empty(),
             highspeed_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
-            length: Cell::new(0),
+            // Safety: `SAMPLE` is only ever accessed through this reference,
+            // taken once here for the lifetime of the `Adc` instance.
+            single_sample_buffer: TakeCell::new(unsafe { &mut *addr_of_mut!(SAMPLE) }),
             next_buffer: TakeCell::empty(),
             next_length: Cell::new(0),
         }
@@ -474,25 +508,39 @@ impl Adc<'_> {
         self.mode.set(AdcMode::Calibrate);
 
         // Enable the ADC
-        self.registers.enable.write(ENABLE::ENABLE::SET);
-        self.registers.inten.write(INTEN::CALIBRATEDONE::SET);
-        self.registers.tasks_calibrateoffset.write(TASK::TASK::SET);
+        self.registers.registers.enable.write(ENABLE::ENABLE::SET);
+        self.registers
+            .registers
+            .inten
+            .write(INTEN::CALIBRATEDONE::SET);
+        self.registers
+            .registers
+            .tasks_calibrateoffset
+            .write(TASK::TASK::SET);
     }
 
     pub fn handle_interrupt(&self) {
         match self.mode.get() {
             AdcMode::Calibrate => {
-                if self.registers.events_calibratedone.is_set(EVENT::EVENT) {
+                if self
+                    .registers
+                    .registers
+                    .events_calibratedone
+                    .is_set(EVENT::EVENT)
+                {
                     self.registers
+                        .registers
                         .events_calibratedone
                         .write(EVENT::EVENT::CLEAR);
 
                     // After calibration, read VDD to set our voltage reference.
-                    self.registers.ch[0].pselp.write(PSEL::PSEL::VDD);
-                    self.registers.ch[0].pseln.write(PSEL::PSEL::NotConnected);
+                    self.registers.registers.ch[0].pselp.write(PSEL::PSEL::VDD);
+                    self.registers.registers.ch[0]
+                        .pseln
+                        .write(PSEL::PSEL::NotConnected);
 
                     // Configure the ADC for a single read.
-                    self.registers.ch[0].config.write(
+                    self.registers.registers.ch[0].config.write(
                         CONFIG::GAIN::Gain1_6
                             + CONFIG::REFSEL::Internal
                             + CONFIG::TACQ::us10
@@ -502,118 +550,156 @@ impl Adc<'_> {
                     );
 
                     self.setup_resolution();
-                    self.setup_sample_count(1);
 
                     // Where to put the reading.
-                    let sample: *const [u16; 1] = addr_of!(SAMPLE);
-                    let sample: *const u16 = sample.cast();
-                    self.registers.result_ptr.set(sample as u32);
+                    if let Some(buf) = self.single_sample_buffer.take() {
+                        self.registers.start_buffer(buf, 1);
+                    }
 
                     // No automatic sampling, will trigger manually.
-                    self.registers.samplerate.write(SAMPLERATE::MODE::Task);
+                    self.registers
+                        .registers
+                        .samplerate
+                        .write(SAMPLERATE::MODE::Task);
 
                     // Enable the ADC
-                    self.registers.enable.write(ENABLE::ENABLE::SET);
+                    self.registers.registers.enable.write(ENABLE::ENABLE::SET);
 
                     // Enable started, sample end, and stopped interrupts.
                     self.registers
+                        .registers
                         .inten
                         .write(INTEN::STARTED::SET + INTEN::END::SET + INTEN::STOPPED::SET);
 
-                    self.registers.tasks_start.write(TASK::TASK::SET);
-
-                    // self.registers.enable.write(ENABLE::ENABLE::CLEAR);
-                } else if self.registers.events_started.is_set(EVENT::EVENT) {
-                    self.registers.events_started.write(EVENT::EVENT::CLEAR);
+                    self.registers.registers.tasks_start.write(TASK::TASK::SET);
+                } else if self.registers.registers.events_started.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_started
+                        .write(EVENT::EVENT::CLEAR);
                     // ADC has started, now issue the sample.
-                    self.registers.tasks_sample.write(TASK::TASK::SET);
-                } else if self.registers.events_end.is_set(EVENT::EVENT) {
-                    self.registers.events_end.write(EVENT::EVENT::CLEAR);
-                    // Reading finished. Turn off the ADC.
-                    self.registers.tasks_stop.write(TASK::TASK::SET);
-                } else if self.registers.events_stopped.is_set(EVENT::EVENT) {
-                    self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
-                    // ADC is stopped. Disable and return value.
-                    self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+                    self.registers.start_sample();
+                } else if self.registers.registers.events_end.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_end
+                        .write(EVENT::EVENT::CLEAR);
 
-                    let reading = unsafe { SAMPLE[0] as i16 } as usize;
+                    // Reading finished; EasyDMA is done writing the buffer.
+                    if let Some((buf, _count)) = self.registers.finish_buffer() {
+                        let reading = buf[0] as i16 as usize;
 
-                    // reading = val * (gain/ref) * 2^12
-                    //         = val * ((1/6)/0.6 V) * 2^12
-                    //         = val * 1/3600 mV * 2^12
-                    // val = (reading * 3600 mV) / 2^12
-                    let val = (reading * 3600) / (1 << 12);
+                        // reading = val * (gain/ref) * 2^12
+                        //         = val * ((1/6)/0.6 V) * 2^12
+                        //         = val * 1/3600 mV * 2^12
+                        // val = (reading * 3600 mV) / 2^12
+                        let val = (reading * 3600) / (1 << 12);
 
-                    // If the reading looks like it exists in a reasonable range
-                    // than save this as the reference.
-                    if val > 1000 && val < 5100 {
-                        self.reference.set(val);
+                        // If the reading looks like it exists in a reasonable
+                        // range than save this as the reference.
+                        if val > 1000 && val < 5100 {
+                            self.reference.set(val);
+                        }
+
+                        self.single_sample_buffer.replace(buf);
                     }
+
+                    // Turn off the ADC.
+                    self.registers.stop_sample();
+                } else if self.registers.registers.events_stopped.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_stopped
+                        .write(EVENT::EVENT::CLEAR);
+                    // ADC is stopped. Disable it.
+                    self.registers.registers.enable.write(ENABLE::ENABLE::CLEAR);
                 }
             }
 
             AdcMode::Single => {
                 // Determine what event occurred.
-                if self.registers.events_calibratedone.is_set(EVENT::EVENT) {
+                if self
+                    .registers
+                    .registers
+                    .events_calibratedone
+                    .is_set(EVENT::EVENT)
+                {
                     self.registers
+                        .registers
                         .events_calibratedone
                         .write(EVENT::EVENT::CLEAR);
-                    self.registers.enable.write(ENABLE::ENABLE::CLEAR);
-                } else if self.registers.events_started.is_set(EVENT::EVENT) {
-                    self.registers.events_started.write(EVENT::EVENT::CLEAR);
+                    self.registers.registers.enable.write(ENABLE::ENABLE::CLEAR);
+                } else if self.registers.registers.events_started.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_started
+                        .write(EVENT::EVENT::CLEAR);
                     // ADC has started, now issue the sample.
-
                     self.registers.start_sample();
+                } else if self.registers.registers.events_end.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_end
+                        .write(EVENT::EVENT::CLEAR);
 
-                    // self.registers.tasks_sample.write(TASK::TASK::SET);
-                } else if self.registers.events_end.is_set(EVENT::EVENT) {
-                    self.registers.events_end.write(EVENT::EVENT::CLEAR);
-                    // Reading finished. Turn off the ADC.
-                    self.registers.stop_sample();
-                    // self.registers.tasks_stop.write(TASK::TASK::SET);
-                } else if self.registers.events_stopped.is_set(EVENT::EVENT) {
-                    self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
-                    // ADC is stopped. Disable and return value.
-                    if let Some((mut buf, transmitted_length)) = self.registers.stop_adc() {
-                        let val = buf[0];
+                    // Reading finished; EasyDMA is done writing the buffer.
+                    if let Some((buf, _count)) = self.registers.finish_buffer() {
+                        let val = buf[0] as i16;
+
                         self.single_sample_buffer.replace(buf);
 
-                        // self.registers.enable.write(ENABLE::ENABLE::CLEAR);
-
-                        // let val = unsafe { SAMPLE[0] as i16 };
                         self.client.map(|client| {
                             // shift left to meet the ADC HIL requirement
                             client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
                         });
                     }
+
+                    // Turn off the ADC.
+                    self.registers.stop_sample();
+                } else if self.registers.registers.events_stopped.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_stopped
+                        .write(EVENT::EVENT::CLEAR);
+                    // ADC is stopped. Disable it.
+                    self.registers.registers.enable.write(ENABLE::ENABLE::CLEAR);
                 }
             }
 
             AdcMode::HighSpeed => {
-                if self.registers.events_started.is_set(EVENT::EVENT) {
-                    self.registers.events_started.write(EVENT::EVENT::CLEAR);
+                if self.registers.registers.events_started.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_started
+                        .write(EVENT::EVENT::CLEAR);
 
                     // According to PS1.7 Section 6.23.4, we can set the new
-                    // buffer address after we get the start event.
-                    self.next_buffer.map(|buf| {
-                        // First determine the buffer's length in samples.
-                        let dma_len = cmp::min(buf.len(), self.next_length.get());
+                    // buffer address after we get the start event, without
+                    // disturbing the transfer already in progress.
+                    if let Some(buf) = self.next_buffer.take() {
+                        let length2 = self.next_length.get();
+                        let dma_len = cmp::min(buf.len(), length2);
                         if dma_len > 0 {
-                            self.registers.result_ptr.set(buf.as_ptr() as u32);
+                            self.registers.queue_buffer(buf, length2);
+                        } else {
+                            // Nothing to sample into; keep it for later.
+                            self.next_buffer.replace(buf);
                         }
-                    });
+                    }
 
                     // Trigger sample task to start taking samples.
-                    self.registers.tasks_sample.write(TASK::TASK::SET);
-                } else if self.registers.events_end.is_set(EVENT::EVENT) {
-                    self.registers.events_end.write(EVENT::EVENT::CLEAR);
+                    self.registers.start_sample();
+                } else if self.registers.registers.events_end.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_end
+                        .write(EVENT::EVENT::CLEAR);
 
-                    let ret_buf = self.buffer.take().unwrap();
+                    let (ret_buf, length) = self.registers.finish_buffer().unwrap();
 
                     // Left shift all samples to the MSB. This handles
                     // differences in resolution between ADC chips and meets the
                     // ADC HIL requirement.
-                    let length = self.length.get();
                     for i in 0..length {
                         ret_buf[i] <<= 4;
                     }
@@ -622,22 +708,17 @@ impl Adc<'_> {
                         client.samples_ready(ret_buf, length);
                     });
 
-                    // Optionally setup to continue reading. We already
-                    // configured the address if valid.
-                    let length2 = self.next_length.get();
-                    if length2 > 0 {
-                        self.length.set(length2);
-                        self.buffer.put(self.next_buffer.take());
-                        self.registers
-                            .result_maxcnt
-                            .write(RESULT_MAXCNT::MAXCNT.val(length2 as u32));
-                        kernel::debug!("len2 {}", length2);
-
-                        // self.registers.tasks_sample.write(TASK::TASK::SET);
-                        self.registers.tasks_start.write(TASK::TASK::SET);
+                    // If a buffer was queued (above, at the last
+                    // EVENTS_STARTED), promote it to active and resume
+                    // sampling.
+                    if self.registers.promote_queued_buffer() {
+                        self.registers.registers.tasks_start.write(TASK::TASK::SET);
                     }
-                } else if self.registers.events_stopped.is_set(EVENT::EVENT) {
-                    self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
+                } else if self.registers.registers.events_stopped.is_set(EVENT::EVENT) {
+                    self.registers
+                        .registers
+                        .events_stopped
+                        .write(EVENT::EVENT::CLEAR);
                 }
             }
 
@@ -647,13 +728,15 @@ impl Adc<'_> {
 
     fn setup_channel(&self, channel: &AdcChannelSetup) {
         // Positive goes to the channel passed in, negative not connected.
-        self.registers.ch[0]
+        self.registers.registers.ch[0]
             .pselp
             .write(PSEL::PSEL.val(channel.channel as u32));
-        self.registers.ch[0].pseln.write(PSEL::PSEL::NotConnected);
+        self.registers.registers.ch[0]
+            .pseln
+            .write(PSEL::PSEL::NotConnected);
 
         // Configure the ADC for a single read.
-        self.registers.ch[0].config.write(
+        self.registers.registers.ch[0].config.write(
             CONFIG::GAIN.val(channel.gain as u32)
                 + CONFIG::REFSEL::VDD1_4
                 + CONFIG::TACQ.val(channel.sampling_time as u32)
@@ -665,20 +748,18 @@ impl Adc<'_> {
 
     fn setup_resolution(&self) {
         // Set max resolution (with oversampling).
-        self.registers.resolution.write(RESOLUTION::VAL::bit12);
+        self.registers
+            .registers
+            .resolution
+            .write(RESOLUTION::VAL::bit12);
     }
-
-    // fn setup_sample_count(&self, count: usize) {
-    //     self.registers
-    //         .result_maxcnt
-    //         .write(RESULT_MAXCNT::MAXCNT.val(count as u32));
-    // }
 
     fn setup_frequency(&self, frequency: u32) {
         let raw_cc = 16000000 / frequency;
         let cc = raw_cc.clamp(80, 2047);
 
         self.registers
+            .registers
             .samplerate
             .write(SAMPLERATE::MODE::Timers + SAMPLERATE::CC.val(cc));
     }
@@ -689,37 +770,33 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     type Channel = AdcChannelSetup;
 
     fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
-        let buf = self.single_sample_buffer.take()?;
+        let buf = self.single_sample_buffer.take().ok_or(ErrorCode::BUSY)?;
 
         self.setup_channel(channel);
         self.setup_resolution();
 
         // Do one measurement.
-        // self.registers
-        //     .result_maxcnt
-        //     .write(RESULT_MAXCNT::MAXCNT.val(1));
-        // // Where to put the reading.
-        // let sample: *const [u16; 1] = addr_of!(SAMPLE);
-        // let sample: *const u16 = sample.cast();
-        // self.registers.result_ptr.set(sample as u32);
+        self.registers.start_buffer(buf, 1);
 
         // No automatic sampling, will trigger manually.
-        self.registers.samplerate.write(SAMPLERATE::MODE::Task);
+        self.registers
+            .registers
+            .samplerate
+            .write(SAMPLERATE::MODE::Task);
 
         // Enable the ADC
-        self.registers.enable.write(ENABLE::ENABLE::SET);
+        self.registers.registers.enable.write(ENABLE::ENABLE::SET);
 
         // Enable started, sample end, and stopped interrupts.
         self.registers
+            .registers
             .inten
             .write(INTEN::STARTED::SET + INTEN::END::SET + INTEN::STOPPED::SET);
 
         self.mode.set(AdcMode::Single);
 
         // Start the SAADC and wait for the started interrupt.
-        // self.registers.tasks_start.write(TASK::TASK::SET);
-
-        self.registers.start_adc(SubSliceMut::new(buf));
+        self.registers.registers.tasks_start.write(TASK::TASK::SET);
 
         Ok(())
     }
@@ -733,7 +810,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     }
 
     fn stop_sampling(&self) -> Result<(), ErrorCode> {
-        self.registers.tasks_stop.write(TASK::TASK::SET);
+        self.registers.stop_sample();
         Ok(())
     }
 
@@ -764,7 +841,7 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
             // At least need to take one sample.
             Err((ErrorCode::INVAL, buffer1, buffer2))
         } else {
-            // Store the second buffer for later use
+            // Store the second buffer for later use.
             self.next_buffer.replace(buffer2);
             self.next_length.set(length2);
 
@@ -772,30 +849,24 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
             self.setup_resolution();
 
             // Use EasyDMA to save the samples to our buffer.
-            self.registers.result_ptr.set(buffer1.as_ptr() as u32);
-
-            // Also need to save these to return to the caller.
-            self.buffer.replace(buffer1);
-            self.length.set(length1);
-
-            // Number of measurements.
-            self.setup_sample_count(length1);
+            self.registers.start_buffer(buffer1, length1);
 
             // Set the frequency best we can.
             self.setup_frequency(frequency);
 
             // Enable the ADC
-            self.registers.enable.write(ENABLE::ENABLE::SET);
+            self.registers.registers.enable.write(ENABLE::ENABLE::SET);
 
             // Enable started, sample end, and stopped interrupts.
             self.registers
+                .registers
                 .inten
                 .write(INTEN::STARTED::SET + INTEN::END::SET + INTEN::STOPPED::SET);
 
             self.mode.set(AdcMode::HighSpeed);
 
             // Start the SAADC and wait for the started interrupt.
-            self.registers.tasks_start.write(TASK::TASK::SET);
+            self.registers.registers.tasks_start.write(TASK::TASK::SET);
 
             Ok(())
         }
@@ -821,7 +892,13 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
     fn retrieve_buffers(
         &self,
     ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode> {
-        Ok((self.buffer.take(), self.next_buffer.take()))
+        let active = self.registers.finish_buffer().map(|(buf, _)| buf);
+        let queued = self
+            .registers
+            .finish_queued_buffer()
+            .map(|(buf, _)| buf)
+            .or_else(|| self.next_buffer.take());
+        Ok((active, queued))
     }
 
     fn set_highspeed_client(&self, client: &'a dyn hil::adc::HighSpeedClient) {
