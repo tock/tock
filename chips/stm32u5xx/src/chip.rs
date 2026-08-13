@@ -9,13 +9,14 @@ use crate::crc::{self, CRC_BASE};
 use crate::dma::{ChannelId, Dma};
 use crate::gpio;
 use crate::hash;
+use crate::i2c;
 use crate::nvic::{
     ADC1_2_IRQ, AES_IRQ, EXTI0_IRQ, EXTI1_IRQ, EXTI2_IRQ, EXTI3_IRQ, EXTI4_IRQ, EXTI5_IRQ,
     EXTI6_IRQ, EXTI7_IRQ, EXTI8_IRQ, EXTI9_IRQ, EXTI10_IRQ, EXTI11_IRQ, EXTI12_IRQ, EXTI13_IRQ,
     EXTI14_IRQ, EXTI15_IRQ, GPDMA1_CH0_IRQ, GPDMA1_CH1_IRQ, GPDMA1_CH2_IRQ, GPDMA1_CH3_IRQ,
     GPDMA1_CH4_IRQ, GPDMA1_CH5_IRQ, GPDMA1_CH6_IRQ, GPDMA1_CH7_IRQ, GPDMA1_CH8_IRQ, GPDMA1_CH9_IRQ,
     GPDMA1_CH10_IRQ, GPDMA1_CH11_IRQ, GPDMA1_CH12_IRQ, GPDMA1_CH13_IRQ, GPDMA1_CH14_IRQ,
-    GPDMA1_CH15_IRQ, HASH_IRQ, TIM2_IRQ, USART1_IRQ,
+    GPDMA1_CH15_IRQ, HASH_IRQ, I2C1_ER_IRQ, I2C1_EV_IRQ, TIM2_IRQ, USART1_IRQ,
 };
 use crate::pwr;
 use crate::rcc;
@@ -41,6 +42,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub tim2: tim::Tim2<'a>,
     pub tim3: tim::Pwm<'a>,
     pub usart1: usart::Usart<'a>,
+    pub i2c1: i2c::I2c<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub pwr: pwr::Pwr,
@@ -79,6 +81,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
                 tim::ClockSource::RESET_DEFAULT,
             ),
             usart1: usart::Usart::new(usart::USART1_BASE),
+            i2c1: i2c::I2c::new(i2c::I2C1_BASE),
             exti,
             dma1,
             pwr: pwr::Pwr::new(),
@@ -99,12 +102,14 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // Power and Wires
         self.rcc.enable_dma1();
         self.rcc.enable_gpioa();
+        self.rcc.enable_gpiob();
         self.rcc.enable_gpioc();
         self.rcc.enable_usart1();
         self.rcc.enable_aes();
         self.rcc.enable_syscfg();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();
+        self.rcc.enable_dac1();
         self.rcc.enable_hash();
         self.rcc.set_usart1_source_pclk();
 
@@ -117,34 +122,44 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // As explained in the driver, an application can't change the samplling time, so it's hardcoded here
         self.adc1.enable(AdcSamplingTime::ClockCycles20);
 
-        self.rcc.enable_dac1();
+        // CRC enabling
         self.rcc.enable_crc();
 
         // Deferred Calls
         self.usart1.register();
         self.crc.register();
 
+        // I2C
+        self.rcc.enable_i2c1();
+        self.rcc.set_i2c1_source_pclk();
+
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();
         let usart1_channel_rx = self.dma1.request_channel();
-
-        // Link DMA to HASH
-        let hash_channel = self.dma1.request_channel();
-        // Link DMA to AES
-        let aes_in_channel = self.dma1.request_channel();
-        let aes_out_channel = self.dma1.request_channel();
-
         if let (Some(tx), Some(rx)) = (usart1_channel_tx, usart1_channel_rx) {
             usart::Usart::set_dma(&self.usart1, self.dma1, tx, rx);
         }
 
+        // Link DMA to HASH
+        let hash_channel = self.dma1.request_channel();
         if let Some(tx) = hash_channel {
             hash::hash::Hash::set_dma(&self.hash, self.dma1, tx);
         }
-
         self.hash.register();
+
+        // Link DMA to AES
+        let aes_in_channel = self.dma1.request_channel();
+        let aes_out_channel = self.dma1.request_channel();
         if let (Some(in_channel), Some(out_channel)) = (aes_in_channel, aes_out_channel) {
             aes::ecb::Aes::set_dma(&self.aes, self.dma1, in_channel, out_channel);
+        }
+
+        // Link DMA to I2C1
+        let i2c1_channel_tx = self.dma1.request_channel();
+        let i2c1_channel_rx = self.dma1.request_channel();
+
+        if let (Some(tx), Some(rx)) = (i2c1_channel_tx, i2c1_channel_rx) {
+            i2c::I2c::set_dma(&self.i2c1, self.dma1, tx, rx);
         }
     }
 }
@@ -217,6 +232,14 @@ impl InterruptService for Stm32u5xxDefaultPeripherals<'_> {
             }
             EXTI12_IRQ => {
                 self.exti.handle_interrupt(crate::exti::LineId::Line12);
+                true
+            }
+            I2C1_EV_IRQ => {
+                self.i2c1.handle_interrupt();
+                true
+            }
+            I2C1_ER_IRQ => {
+                self.i2c1.handle_error();
                 true
             }
             EXTI13_IRQ => {
