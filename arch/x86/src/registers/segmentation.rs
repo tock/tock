@@ -493,9 +493,9 @@ pub unsafe fn load_cs(sel: SegmentSelector) {
     unsafe {
         asm!(
             "
-    pushl {0};
-    pushl $1f;
-    lretl;
+    pushl {0}
+    pushl $1f
+    lretl
     1:
             ",
             in(reg) sel.bits() as u32,
