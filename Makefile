@@ -670,7 +670,7 @@ ci-job-qemu-virt:
 .PHONY: ci-job-rustdoc
 ci-job-rustdoc:
 	$(call banner,CI-Job: Rustdoc Documentation)
-	@tools/build/build_all_docs.sh
+	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" tools/build/build_all_docs.sh
 
 ## End CI rules
 ##
