@@ -40,7 +40,7 @@ impl X86DmaFence {
     }
 }
 
-#[cfg(any(doc, target_arch = "x86"))]
+#[cfg(target_arch = "x86")]
 unsafe impl DmaFence for X86DmaFence {
     /// Expose prior writes to in-memory buffers to subsequent DMA operations.
     ///
@@ -116,7 +116,7 @@ unsafe impl DmaFence for X86DmaFence {
     }
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 unsafe impl DmaFence for X86DmaFence {
     fn release<T>(self, _slice_ptr: *mut [T]) {
         // When building for another architecture, such as for tests or CI:
