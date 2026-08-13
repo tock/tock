@@ -15,19 +15,18 @@ const ASSURANCE_LEVELS: &[&str] = &[
     "Normal",
 ];
 
-/// The named criticality (importance) levels, in order from most to least
-/// critical.
-const CRITICALITY_LEVELS: &[&str] = &["Critical", "Widely Used", "Normal", "Experimental"];
+/// The named importance levels, in order from most to least critical.
+const IMPORTANCE_LEVELS: &[&str] = &["Critical", "Widely Used", "Normal", "Experimental"];
 
-/// The assurance and criticality levels extracted from a `# Code Level`
+/// The assurance and importance levels extracted from a `# Code Tier`
 /// doc comment, along with each level's rank (1 is strongest/most
 /// critical) within its category.
 #[derive(Serialize, Clone)]
 struct CodeLevel {
     assurance: String,
     assurance_rank: u32,
-    criticality: String,
-    criticality_rank: u32,
+    importance: String,
+    importance_rank: u32,
 }
 
 /// The rank (1-based position) of `value` within `levels`, if it names one
@@ -40,7 +39,7 @@ fn level_rank(levels: &[&str], value: &str) -> Option<u32> {
 }
 
 /// One item in the crate (a file, module, function, struct, ...) that has
-/// a `# Code Level` doc comment.
+/// a `# Code Tier` doc comment.
 #[derive(Serialize)]
 struct Entry {
     file: String,
@@ -52,7 +51,7 @@ struct Entry {
 }
 
 /// A function-like item (`fn`, an `impl` method, or a `trait` method) found
-/// anywhere in the crate, whether or not it carries a `# Code Level`
+/// anywhere in the crate, whether or not it carries a `# Code Tier`
 /// annotation. These are the nodes of the call graph.
 struct FunctionInfo<'a> {
     /// Formal Rust path, e.g. `kernel::debug::PanicResources::fmt`.
@@ -78,8 +77,8 @@ struct Node {
     file: String,
     assurance: Option<String>,
     assurance_rank: Option<u32>,
-    criticality: Option<String>,
-    criticality_rank: Option<u32>,
+    importance: Option<String>,
+    importance_rank: Option<u32>,
 }
 
 /// A call graph edge: `caller` calls `raw` (the callee as written in
@@ -133,22 +132,22 @@ fn get_doc_string(attrs: &[syn::Attribute]) -> Option<String> {
     }
 }
 
-/// Look for a `# Code Level` markdown header in an item's doc comment and,
-/// if found, parse the `Assurance` and `Criticality` list items beneath it.
+/// Look for a `# Code Tier` markdown header in an item's doc comment and,
+/// if found, parse the `Assurance` and `Importance` list items beneath it.
 ///
 /// ```text
-/// /// # Code Level
+/// /// # Code Tier
 /// ///
 /// /// - Assurance: Normal
-/// /// - Criticality: Widely Used
+/// /// - Importance: Widely Used
 /// ```
 fn get_code_level(attrs: &[syn::Attribute]) -> Option<CodeLevel> {
     let doc = get_doc_string(attrs)?;
     let lines: Vec<&str> = doc.lines().map(|l| l.trim()).collect();
-    let header = lines.iter().position(|l| *l == "# Code Level")?;
+    let header = lines.iter().position(|l| *l == "# Code Tier")?;
 
     let mut assurance = None;
-    let mut criticality = None;
+    let mut importance = None;
     for line in &lines[header + 1..] {
         if line.is_empty() {
             continue;
@@ -163,22 +162,22 @@ fn get_code_level(attrs: &[syn::Attribute]) -> Option<CodeLevel> {
                 Some(rank) => assurance = Some((value.to_string(), rank)),
                 None => eprintln!("warning: unrecognized assurance level {value:?}"),
             }
-        } else if let Some(rest) = line.strip_prefix("- Criticality:") {
+        } else if let Some(rest) = line.strip_prefix("- Importance:") {
             let value = rest.trim();
-            match level_rank(CRITICALITY_LEVELS, value) {
-                Some(rank) => criticality = Some((value.to_string(), rank)),
-                None => eprintln!("warning: unrecognized criticality level {value:?}"),
+            match level_rank(IMPORTANCE_LEVELS, value) {
+                Some(rank) => importance = Some((value.to_string(), rank)),
+                None => eprintln!("warning: unrecognized importance level {value:?}"),
             }
         }
     }
 
-    match (assurance, criticality) {
-        (Some((assurance, assurance_rank)), Some((criticality, criticality_rank))) => {
+    match (assurance, importance) {
+        (Some((assurance, assurance_rank)), Some((importance, importance_rank))) => {
             Some(CodeLevel {
                 assurance,
                 assurance_rank,
-                criticality,
-                criticality_rank,
+                importance,
+                importance_rank,
             })
         }
         _ => None,
@@ -266,7 +265,7 @@ fn record(
 }
 
 /// Record a function-like item (`fn`, `impl` method, or `trait` method) as
-/// a call graph node, and -- if it carries a `# Code Level` annotation --
+/// a call graph node, and -- if it carries a `# Code Tier` annotation --
 /// also as an annotation entry, matching the behavior of `record` for
 /// other item kinds.
 #[allow(clippy::too_many_arguments)]
@@ -420,7 +419,7 @@ struct WalkState<'a> {
 }
 
 /// Recursively walk all items in a file (or module), recording any item
-/// whose doc comment has a `# Code Level` annotation, and registering
+/// whose doc comment has a `# Code Tier` annotation, and registering
 /// every function-like item as a call graph node. External module
 /// declarations (`mod foo;`) are followed into their own file using
 /// `state.files`, so that `module_path` always reflects the formal Rust
@@ -786,9 +785,9 @@ fn dot_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-fn criticality_color(code_level: &Option<CodeLevel>) -> &'static str {
+fn importance_color(code_level: &Option<CodeLevel>) -> &'static str {
     match code_level {
-        Some(cl) => match cl.criticality_rank {
+        Some(cl) => match cl.importance_rank {
             1 => "#e57373",
             2 => "#ffb74d",
             3 => "#fff59d",
@@ -818,14 +817,14 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
 
     for f in nodes.iter().filter(|f| connected.contains(f.path.as_str())) {
         let label = match &f.code_level {
-            Some(cl) => format!("{}\\n{} / {}", f.path, cl.assurance, cl.criticality),
+            Some(cl) => format!("{}\\n{} / {}", f.path, cl.assurance, cl.importance),
             None => f.path.clone(),
         };
         out.push_str(&format!(
             "  \"{}\" [label=\"{}\", fillcolor=\"{}\"];\n",
             dot_escape(&f.path),
             dot_escape(&label),
-            criticality_color(&f.code_level)
+            importance_color(&f.code_level)
         ));
     }
     out.push('\n');
@@ -1058,8 +1057,8 @@ fn main() {
             file: f.file.clone(),
             assurance: f.code_level.as_ref().map(|c| c.assurance.clone()),
             assurance_rank: f.code_level.as_ref().map(|c| c.assurance_rank),
-            criticality: f.code_level.as_ref().map(|c| c.criticality.clone()),
-            criticality_rank: f.code_level.as_ref().map(|c| c.criticality_rank),
+            importance: f.code_level.as_ref().map(|c| c.importance.clone()),
+            importance_rank: f.code_level.as_ref().map(|c| c.importance_rank),
         })
         .collect();
 
