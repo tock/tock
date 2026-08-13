@@ -73,14 +73,13 @@ impl<'a, I: InterruptService + 'a> VeeR<'a, I> {
         pic.enable_all();
     }
 
-    unsafe fn handle_pic_interrupts(&self, pic: &Pic) {
+    fn handle_pic_interrupts(&self, pic: &Pic) {
         while let Some(interrupt) = pic.get_saved_interrupts() {
             if !self.pic_interrupt_service.service_interrupt(interrupt) {
                 panic!("Unhandled interrupt {}", interrupt);
             }
-            self.with_interrupts_disabled(|_interrupts_disabled| {
-                // Safe as interrupts are disabled
-                pic.complete(interrupt);
+            self.with_interrupts_disabled(|interrupts_disabled| {
+                pic.complete(interrupt, interrupts_disabled);
             });
         }
     }
@@ -113,9 +112,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
                 self.mtimer.handle_interrupt();
             }
             if pic.get_saved_interrupts().is_some() {
-                unsafe {
-                    self.handle_pic_interrupts(&pic);
-                }
+                self.handle_pic_interrupts(&pic);
             }
 
             if !mip.any_matching_bits_set(mip::mtimer::SET) && pic.get_saved_interrupts().is_none()
@@ -175,7 +172,7 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
-unsafe fn handle_interrupt(intr: mcause::Interrupt) {
+fn handle_interrupt(intr: mcause::Interrupt, interrupts_disabled: &InterruptsDisabled) {
     match intr {
         mcause::Interrupt::UserSoft
         | mcause::Interrupt::UserTimer
@@ -209,8 +206,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 
                 match interrupt {
                     Some(irq) => {
-                        // Safe as interrupts are disabled
-                        pic.save_interrupt(irq);
+                        pic.save_interrupt(irq, interrupts_disabled);
                     }
                     None => {
                         // Enable generic interrupts
@@ -236,9 +232,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// Accesses CSRs.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
+    // Safety: we were just called via a trap, and RISC-V hardware clears
+    // `mstatus.MIE` on trap entry before any Rust code runs.
+    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
-            handle_interrupt(interrupt);
+            handle_interrupt(interrupt, &interrupts_disabled);
         }
         mcause::Trap::Exception(exception) => {
             handle_exception(exception);
@@ -252,10 +251,13 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
+    // Safety: we were just called via a trap, and RISC-V hardware clears
+    // `mstatus.MIE` on trap entry before any Rust code runs.
+    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
     match mcause::Trap::from(mcause_val as usize) {
-        mcause::Trap::Interrupt(interrupt) => unsafe {
-            handle_interrupt(interrupt);
-        },
+        mcause::Trap::Interrupt(interrupt) => {
+            handle_interrupt(interrupt, &interrupts_disabled);
+        }
         _ => {
             panic!("unexpected non-interrupt\n");
         }
