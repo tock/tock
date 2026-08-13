@@ -124,7 +124,7 @@ type Ieee802154MacDevice =
 
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
-kernel::declare_capability!(ProcessConsoleCap:
+kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
     kernel::capabilities::ProcessStartCapability
 );
@@ -412,13 +412,14 @@ unsafe fn start() -> (
     )
     .finalize(components::alarm_component_static!(sam4l::ast::Ast));
 
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast,
@@ -722,7 +723,7 @@ unsafe fn start() -> (
     ));
 
     // UDP driver initialization happens here
-    kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+    kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::driver::DRIVER_NUM,
@@ -730,7 +731,7 @@ unsafe fn start() -> (
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
-        UdpDriverCap,
+        udp_driver_cap,
         create_capability!(capabilities::MemoryAllocationCapability),
         create_capability!(capabilities::NetworkCapabilityCreationCapability),
     )
@@ -762,10 +763,10 @@ unsafe fn start() -> (
     // STORAGE PERMISSIONS
     //--------------------------------------------------------------------------
 
-    kernel::declare_capability!(AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    kernel::create_typed_capability!(app_store_cap, AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
     let storage_permissions_policy =
         components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
-            AppStoreCap,
+            app_store_cap,
         )
         .finalize(
             components::storage_permissions_individual_component_static!(

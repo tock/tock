@@ -513,7 +513,7 @@ pub unsafe fn setup(
         resources.printer.put(process_printer);
     });
 
-    kernel::declare_capability!(ProcessConsoleCap:
+    kernel::create_typed_capability!(process_console_cap, ProcessConsoleCap:
         kernel::capabilities::ProcessManagementCapability,
         kernel::capabilities::ProcessStartCapability
     );
@@ -523,7 +523,7 @@ pub unsafe fn setup(
         mux_alarm,
         process_printer,
         Some(cortexm0p::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         RPTimer,

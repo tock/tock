@@ -150,7 +150,7 @@ type ProcessConsoleDriver =
     components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type UdpDriver = components::udp_driver::UDPDriverComponentType;
 
-kernel::declare_capability!(ProcessConsoleCap:
+kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
     kernel::capabilities::ProcessStartCapability
 );
@@ -414,13 +414,14 @@ pub unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
         .finalize(components::uart_mux_component_static!());
 
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         nrf52::rtc::Rtc<'static>,
@@ -637,7 +638,7 @@ pub unsafe fn start() -> (
     ));
 
     // UDP driver initialization happens here
-    kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
+    kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::DRIVER_NUM,
@@ -645,7 +646,7 @@ pub unsafe fn start() -> (
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
-        UdpDriverCap,
+        udp_driver_cap,
         create_capability!(capabilities::MemoryAllocationCapability),
         create_capability!(capabilities::NetworkCapabilityCreationCapability),
     )

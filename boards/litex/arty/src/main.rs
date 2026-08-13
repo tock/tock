@@ -32,7 +32,7 @@ mod litex_generated_constants;
 // short name.
 use litex_generated_constants as socc;
 
-kernel::declare_capability!(ProcessConsoleCap:
+kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
     kernel::capabilities::ProcessStartCapability
 );
@@ -451,13 +451,14 @@ unsafe fn start() -> (
     chip.unmask_interrupts();
 
     // Setup the process console.
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         None,
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         AlarmHw,

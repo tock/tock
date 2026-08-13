@@ -185,7 +185,7 @@ type AnalogComparatorDriver =
     components::analog_comparator::AnalogComparatorComponentType<AnalogComparatorHw>;
 type I2CMasterSlaveDriver = components::i2c::I2CMasterSlaveDriverComponentType<I2cHw>;
 type SpiControllerDriver = components::spi::SpiSyscallComponentType<SpiHw>;
-kernel::declare_capability!(ProcessConsoleCap:
+kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
     kernel::capabilities::ProcessStartCapability
 );
@@ -216,8 +216,6 @@ pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<Radi
 
 /// Userspace EUI64 driver.
 pub type Eui64Driver = components::eui64::Eui64ComponentType;
-
-kernel::declare_capability!(UdpDriverCap: kernel::capabilities::UdpDriverCapability);
 
 /// Userspace UDP driver.
 pub type UdpDriver = components::udp_driver::UDPDriverComponentType;
@@ -380,6 +378,7 @@ pub unsafe fn ieee802154_udp(
     ));
 
     // UDP driver initialization happens here
+    kernel::create_typed_capability!(udp_driver_cap, UdpDriverCap: kernel::capabilities::UdpDriverCapability);
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
         capsules_extra::net::udp::driver::DRIVER_NUM,
@@ -387,7 +386,7 @@ pub unsafe fn ieee802154_udp(
         udp_recv_mux,
         udp_port_table,
         local_ip_ifaces,
-        UdpDriverCap,
+        udp_driver_cap,
         create_capability!(capabilities::MemoryAllocationCapability),
         create_capability!(capabilities::NetworkCapabilityCreationCapability),
     )
@@ -640,13 +639,14 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Create the process console, an interactive terminal for managing
     // processes.
+    let process_console_cap = unsafe { kernel::mint_defined_capability!(ProcessConsoleCap) };
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
         Some(cortexm4::support::reset),
-        ProcessConsoleCap,
+        process_console_cap,
     )
     .finalize(components::process_console_component_static!(
         AlarmHw,
