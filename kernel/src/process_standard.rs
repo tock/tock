@@ -425,7 +425,7 @@ struct GrantPointerEntry {
 ///   to store per-process debugging state can use the `()` type for this
 ///   parameter.
 ///
-/// # Code Tiers
+/// # Code Tier
 ///
 /// - Assurance: Extensively Tested
 /// - Importance: Critical

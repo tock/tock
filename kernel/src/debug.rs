@@ -139,7 +139,7 @@ use crate::utilities::single_thread_value::SingleThreadValue;
 /// 3. Normal
 /// 4. Experimental
 ///
-/// # Code Tiers
+/// # Code Tier
 ///
 /// - Assurance: Normal
 /// - Importance: Widely Used
