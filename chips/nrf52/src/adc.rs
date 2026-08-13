@@ -259,9 +259,9 @@ struct AdcRegistersManager {
 }
 
 impl AdcRegistersManager {
-    fn new(registers: StaticRef<AdcRegisters>) -> Self {
+    fn new_saadc() -> Self {
         Self {
-            registers,
+            registers: SAADC_BASE,
             dma_buf1: MapCell::empty(),
             dma_buf2: MapCell::empty(),
         }
@@ -272,9 +272,7 @@ impl AdcRegistersManager {
     fn start_buffer(&self, buf: &'static mut [u16], count: usize) {
         // To create a DmaFence we must trust the implementation.
         //
-        // # Safety
-        //
-        // The architecture-provided version is correct for the nRF52.
+        // SAFETY: The architecture-provided version is correct for the nRF52.
         let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
         // Create a DmaSlice for the result buffer. This ensures that we can
@@ -296,6 +294,8 @@ impl AdcRegistersManager {
         let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
         let dma_slice = DmaSliceMut::new_static(buf, fence);
 
+        // The underlying ADC hardware is double buffered, so we can set this in
+        // the DMA hardware once we have started the previous DMA use.
         self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
 
         self.dma_buf2.replace((dma_slice, count));
@@ -490,7 +490,7 @@ pub struct Adc<'a> {
 impl Adc<'_> {
     pub fn new(voltage_reference_in_mv: usize) -> Self {
         Self {
-            registers: AdcRegistersManager::new(SAADC_BASE),
+            registers: AdcRegistersManager::new_saadc(),
             reference: Cell::new(voltage_reference_in_mv),
             mode: Cell::new(AdcMode::Idle),
             client: OptionalCell::empty(),
