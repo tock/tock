@@ -32,6 +32,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use stm32u5xx_unsafe::aes::AES_BASE;
 
 pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
@@ -434,7 +435,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         cortexm33::support::with_interrupts_disabled(f)
     }

@@ -4,6 +4,7 @@
 
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 use crate::{cpuss, gpio, hsiom, peri, scb, srss, tcpwm};
 use cortexm0p::{CortexM0P, CortexMVariant};
@@ -46,7 +47,7 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         cortexm0p::support::with_interrupts_disabled(f)
     }

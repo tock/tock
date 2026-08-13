@@ -791,7 +791,7 @@ impl<'a> Usbd<'a> {
     /// USBD might not reach its active state.
     fn apply_errata_171(&self, val: u32) {
         if self.has_errata_171() {
-            with_interrupts_disabled(|| {
+            with_interrupts_disabled(|_interrupts_disabled| {
                 if USBERRATA_BASE.reg_c00.get() == 0 {
                     USBERRATA_BASE.reg_c00.set(0x9375);
                     USBERRATA_BASE.reg_c14.set(val);
@@ -806,7 +806,7 @@ impl<'a> Usbd<'a> {
     /// USB cannot be enabled
     fn apply_errata_187(&self, val: u32) {
         if self.has_errata_187() {
-            with_interrupts_disabled(|| {
+            with_interrupts_disabled(|_interrupts_disabled| {
                 if USBERRATA_BASE.reg_c00.get() == 0 {
                     USBERRATA_BASE.reg_c00.set(0x9375);
                     USBERRATA_BASE.reg_d14.set(val);

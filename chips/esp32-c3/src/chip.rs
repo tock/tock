@@ -8,6 +8,7 @@ use core::fmt::Write;
 use core::ptr::addr_of;
 
 use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 
@@ -100,7 +101,7 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
             if !self.pic_interrupt_service.service_interrupt(interrupt) {
                 panic!("Unhandled interrupt {}", interrupt);
             }
-            self.with_interrupts_disabled(|| {
+            self.with_interrupts_disabled(|_interrupts_disabled| {
                 // Safe as interrupts are disabled
                 self.intc.complete(interrupt);
             });
@@ -151,7 +152,7 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }

@@ -10,6 +10,7 @@ use core::ptr::addr_of;
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
@@ -104,7 +105,7 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
             if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
-            self.with_interrupts_disabled(|| {
+            self.with_interrupts_disabled(|_interrupts_disabled| {
                 self.plic.complete(interrupt);
             });
         }
@@ -171,7 +172,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }

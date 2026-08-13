@@ -8,6 +8,7 @@
 use crate::machine_timer::Clint;
 use core::fmt::Write;
 use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
@@ -77,8 +78,7 @@ impl<'a, I: InterruptService + 'a> VeeR<'a, I> {
             if !self.pic_interrupt_service.service_interrupt(interrupt) {
                 panic!("Unhandled interrupt {}", interrupt);
             }
-
-            self.with_interrupts_disabled(|| {
+            self.with_interrupts_disabled(|_interrupts_disabled| {
                 // Safe as interrupts are disabled
                 pic.complete(interrupt);
             });
@@ -143,7 +143,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }

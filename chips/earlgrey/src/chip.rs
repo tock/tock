@@ -8,6 +8,7 @@ use core::fmt::{Display, Write};
 use core::marker::PhantomData;
 use core::ptr::addr_of;
 use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{CSR, mcause, mie::mie, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, TORUserPMP};
@@ -196,7 +197,7 @@ impl<
                         // In order to stop an interrupt loop, we first disable the
                         // interrupt. `service_pending_interrupts()` will re-enable
                         // interrupts once they are all handled.
-                        self.with_interrupts_disabled(|| {
+                        self.with_interrupts_disabled(|_interrupts_disabled| {
                             // Safe as interrupts are disabled
                             self.plic.disable(interrupt);
                             self.plic.complete(interrupt);
@@ -211,7 +212,7 @@ impl<
             match interrupt {
                 interrupts::HMAC_HMACDONE..=interrupts::HMAC_HMACERR => {}
                 _ => {
-                    self.with_interrupts_disabled(|| {
+                    self.with_interrupts_disabled(|_interrupts_disabled| {
                         self.plic.complete(interrupt);
                     });
                 }
@@ -309,7 +310,7 @@ impl<
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }

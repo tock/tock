@@ -8,6 +8,7 @@ use core::fmt::Write;
 use cortexm4::{CortexM4, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 use crate::chip_specific::chip_specs::ChipSpecs as ChipSpecsTrait;
 use crate::nvic;
@@ -172,7 +173,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         cortexm4::support::with_interrupts_disabled(f)
     }

@@ -6,6 +6,7 @@
 
 #[cfg(any(doc, target_arch = "x86"))]
 use core::arch::asm;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 /// Execute closure without allowing any interrupts on the current core.
 ///
@@ -15,7 +16,7 @@ use core::arch::asm;
 #[cfg(any(doc, target_arch = "x86"))]
 pub fn with_interrupts_disabled<F, R>(f: F) -> R
 where
-    F: FnOnce() -> R,
+    F: FnOnce(&InterruptsDisabled) -> R,
 {
     use crate::registers::bits32::eflags::{self, EFLAGS};
     use crate::registers::irq;
@@ -31,7 +32,12 @@ where
             irq::disable();
         }
 
-        let res = f();
+        // Safety: interrupts are disabled at this point, either because we
+        // just disabled them above, or because they were already disabled
+        // when this function was called.
+        let interrupts_disabled = InterruptsDisabled::new_trusted();
+
+        let res = f(&interrupts_disabled);
 
         if enabled {
             irq::enable();
@@ -44,7 +50,7 @@ where
 #[cfg(not(any(doc, target_arch = "x86")))]
 pub fn with_interrupts_disabled<F, R>(_: F) -> R
 where
-    F: FnOnce() -> R,
+    F: FnOnce(&InterruptsDisabled) -> R,
 {
     unimplemented!()
 }

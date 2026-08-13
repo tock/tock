@@ -16,6 +16,7 @@ use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 use crate::plic::PLIC;
 use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use sifive::plic::Plic;
 
 pub type E310xClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
@@ -105,7 +106,7 @@ impl<'a, I: InterruptService + 'a> E310x<'a, I> {
             if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
-            self.with_interrupts_disabled(|| {
+            self.with_interrupts_disabled(|_interrupts_disabled| {
                 self.plic.complete(interrupt);
             });
         }
@@ -172,7 +173,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I>
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }

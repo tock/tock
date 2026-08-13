@@ -7,6 +7,7 @@
 use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 use crate::clocks::Clocks;
 use crate::gpio::{RPPins, SIO};
@@ -106,7 +107,7 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         cortexm33::support::with_interrupts_disabled(f)
     }

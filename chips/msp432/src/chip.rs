@@ -9,6 +9,7 @@ use kernel::platform::chip::Chip;
 use crate::nvic;
 use crate::wdt;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 pub struct Msp432<'a, I: InterruptService + 'a> {
     mpu: cortexm4::mpu::MPU,
@@ -147,7 +148,7 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         cortexm4::support::with_interrupts_disabled(f)
     }

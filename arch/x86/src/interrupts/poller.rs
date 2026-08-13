@@ -68,7 +68,7 @@ impl InterruptPoller {
     where
         F: FnOnce(&InterruptPoller) -> R,
     {
-        support::with_interrupts_disabled(|| {
+        support::with_interrupts_disabled(|_interrupts_disabled| {
             // Safety: Interrupts are disabled within this closure, so we can safely access the
             //         singleton without racing against interrupt handlers.
             let poller = unsafe { &*ptr::addr_of!(SINGLETON) };

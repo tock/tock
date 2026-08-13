@@ -8,6 +8,7 @@ use core::fmt::Write;
 use cortexm4f::{CortexM4F, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 use crate::dma;
 use crate::nvic;
@@ -206,7 +207,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         cortexm4f::support::with_interrupts_disabled(f)
     }

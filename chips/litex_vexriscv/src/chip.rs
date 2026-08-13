@@ -8,6 +8,7 @@ use core::fmt::Write;
 use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{CSR, mcause, mie::mie};
 use rv32i::pmp::{PMPUserMPU, kernel_protection::KernelProtectionPMP};
@@ -99,7 +100,7 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }

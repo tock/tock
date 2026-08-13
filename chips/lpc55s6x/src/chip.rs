@@ -9,6 +9,7 @@ use core::panic;
 use cortexm33::{CortexM33, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 use crate::clocks::Clock;
 use crate::ctimer0::LPCTimer;
@@ -92,7 +93,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabled) -> R,
     {
         cortexm33::support::with_interrupts_disabled(f)
     }
