@@ -116,7 +116,7 @@ impl core::convert::TryFrom<&[u8]> for RiscvStoredState {
 /// Helper function for encoding a syscall return into registers.
 ///
 /// This is a helper function to wrap the differences between rv32i and rv64i.
-#[cfg(any(doc, target_arch = "riscv32"))]
+#[cfg(any(target_arch = "riscv32", all(doc, not(target_arch = "riscv64"))))]
 fn encode_syscall_return_helper(
     return_value: kernel::syscall::SyscallReturn,
     a0: &mut usize,
@@ -190,7 +190,7 @@ fn encode_syscall_return_helper(
 /// Helper to convert registers to a [`Syscall`](kernel::syscall::Syscall).
 ///
 /// The helper wraps both rv32i and rv64i support.
-#[cfg(any(doc, target_arch = "riscv32"))]
+#[cfg(any(target_arch = "riscv32", all(doc, not(target_arch = "riscv64"))))]
 fn syscall_from_register_arguments_helper(
     syscall_number: usize,
     r0: usize,
@@ -227,7 +227,7 @@ fn syscall_from_register_arguments_helper(
 /// Helper to put upcall arguments into registers.
 ///
 /// The helper wraps both rv32i and rv64i support.
-#[cfg(any(doc, target_arch = "riscv32"))]
+#[cfg(any(target_arch = "riscv32", all(doc, not(target_arch = "riscv64"))))]
 fn encode_upcall_helper(
     upcall: &kernel::process::FunctionCall,
     a0: &mut usize,

@@ -662,6 +662,12 @@ ci-job-qemu: ci-setup-qemu
 ci-job-rustdoc:
 	$(call banner,CI-Job: Rustdoc Documentation)
 	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" tools/build/build_all_docs.sh
+	# `build_all_docs.sh` above builds the published doc site, but only for
+	# the host's native target: code gated on a board's real target (e.g.
+	# `#[cfg(target_arch = "arm", target_os = "none")]`) is never compiled,
+	# so rustdoc never checks it. `alldoc` builds each board's docs against
+	# its own real target/config, closing that gap.
+	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" $(MAKE) alldoc
 
 ## End CI rules
 ##

@@ -105,7 +105,7 @@ pub type StatusVal = LocalRegisterCopy<u16, Status::Register>;
 /// }
 /// ```
 ///
-/// Alternatively, you can use the [`iter`][crate::iter] function to enumerate all PCI devices in
+/// Alternatively, you can use the [`iter`][crate::iter()] function to enumerate all PCI devices in
 /// the system. This method automatically filters out non-existent devices, and it returns an
 /// iterator which can be chained like any other Rust iterator:
 ///
