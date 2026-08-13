@@ -8,7 +8,7 @@ Code Tiers
 **Author:** Brad Campbell, Amit Levy<br/>
 **Draft-Created:** 2025/12/15 <br/>
 **Draft-Modified:** 2025/12/15 <br/>
-**Draft-Version:** 1 <br/>
+**Draft-Version:** 2 <br/>
 **Draft-Discuss:** devel@lists.tockos.org<br/>
 
 Abstract
@@ -71,39 +71,78 @@ code should not call functions in experimental code.
 2 Tiers
 ===============================
 
-Tock code is grouped into five tiers, with higher numbered tiers denoting more
-important code.
+Tock code is tiered based on two dimensions:
 
-| Tier # | Tier         | Description                                                     |
-|--------|--------------|-----------------------------------------------------------------|
-| 5      | Validated    | Critical code that is formally verified or extensively tested   |
-| 4      | Critical     | High-priority code directly relevant to the Tock security model |
-| 3      | Priority     | Important, long-standing code with significant scrutiny         |
-| 2      | Normal       | Typical Tock code                                               |
-| 1      | Experimental | Explicitly experimental code likely to change                   |
+1. **Assurance**: How proven, tested, or verified the code is.
+2. **Importance**: How critical the code is to the Tock project or its threat
+   model.
 
-By default, all Tock code not otherwise categorized is considered "Normal".
+These dimensions capture the underlying significance of any piece of Tock code,
+revealing its relevance to the project and expectations for correctness.
 
-2.1 Tier Descriptions
+2.1 Assurance
 -------------------------------
 
-- **Validated**: This code meets the requirements of the Critical tier, but is
-  also extensively checked during CI beyond the normal CI run on all Tock code.
-  This includes checks by a static verification tool with the necessary
-  annotations and proofs included in the Tock source code. This also includes
-  code with extensive test cases, including on-hardware tests. Any changes must
-  include updated checks, such as the necessary annotations and proofs or new
-  tests.
+The assurance tier describes the status of how the code has been shown to be
+correct. This indicates to what extant the code should be considered working,
+and what the expectation is for edits to the code.
+
+| Tier # | Tier                | Description                                        |
+|--------|---------------------|----------------------------------------------------|
+| 1      | Formally Verified   | Code is checked by formal verification tools       |
+| 2      | Extensively Tested  | Code is tested in CI and extensively used          |
+| 3      | Functionally Tested | Code is tested in CI or other automated checks     |
+| 4      | Normal              | Code is tested for correctness when it was written |
+
+2.1.1 Assurance Tier Descriptions
+-------------------------------
+
+- **Formally Verified**: This code is checked by a static verification tool
+  with the necessary annotations and proofs included in the Tock source
+  code. This is likely accompanied by extensive test cases, including
+  on-hardware tests. Any changes must include updated checks, such as the
+  necessary annotations and proofs or new tests.
+
+- **Extensively Tested**: This code is tested with a combination of Rust unit
+  tests, integration tests, and automatic CI tests. The code is also widely
+  used over a significant time (i.e., multiple years) on multiple hardware
+  platforms by multiple users. This code is highly scrutinized during any
+  proposed changes. Extensive testing may be required to validate changes.
+
+- **Functionally Tested**: This code is tested with some combination of Rust
+  unit tests, integration tests, and automatic CI tests. Changes must pass
+  or update existing tests, and new tests may be required for any new
+  code.
+
+- **Normal**: This is the default tier for all Tock code not otherwise
+  classified into another tier. The code was tested by running it in an
+  appropriate context and verifying expected behavior.
+
+2.2 Importance
+-------------------------------
+
+The importance tier describes how important the code is within the Tock
+project and especially its threat model.
+
+| Tier # | Tier         | Description                                        |
+|--------|--------------|----------------------------------------------------|
+| 1      | Critical     | Code is central to Tock and its threat model       |
+| 2      | Widely Used  | Code is widely used in most Tock instances         |
+| 3      | Normal       | Code is a normal part of the Tock project          |
+| 4      | Experimental | Code is new, unfinished, and/or being designed     |
+
+2.2.1 Importance Tier Descriptions
+-------------------------------
 
 - **Critical**: This code is directly related to Tock's system-level security
   guarantees. Correctness is critical for Tock to uphold its threat model.
-  This code is highly scrutinized during any proposed changes. Changes often
-  require extensive discussions and careful audits.
+  This code is highly scrutinized during any proposed changes. Changes
+  often require extensive discussions and careful audits.
 
-- **Priority**: This code is not necessarily related to Tock's security model,
-  but is widely used and tested, is necessary for correct operation of many
-  platforms, and has been carefully implemented. Changes must be extensively
-  tested.
+- **Widely Used**: This code is not necessarily related to Tock's security
+  model, but is widely used and tested, is necessary for correct operation
+  of many platforms, and has been carefully implemented. Changes must be
+  extensively tested.
 
 - **Normal**: This is the default tier for all Tock code not otherwise
   classified into another tier.
@@ -114,17 +153,44 @@ By default, all Tock code not otherwise categorized is considered "Normal".
   contributions will not receive significant scrutiny to support rapid
   development.
 
-
 3 Annotation Mechanism
 ===============================
 
-Code is assigned a tier in Tock using...
+Code is assigned tiers in Tock using comments on the source code, leveraging
+the same infrastructure as doc comments and safety comments.
+
+Any code in Tock that can be commented with a doc comment can be annotated
+with tiers.
+
+The code's tier is specified with a top-level header `Code Tier`. Each tier is
+specified as a list with the tier name. The format is like this:
+
+```
+/// # Code Tier
+///
+/// - Assurance: <Assurance tier>
+/// - Importance: <Importance tier>
+///
+/// <Optional description or comments>
+```
+
+For example:
+
+```rust
+/// Create a new Tock process.
+///
+/// # Code Tier
+///
+/// - Assurance: Critical
+/// - Importance: Extensively Tested
+pub fn process_standard_create() -> ProcessStandard;
+```
 
 3.1 Default Tier
 -------------------------------
 
-If there is no annotation present code is, by default, in the Normal
-tier.
+If there is no annotation present code is, by default, in the Normal assurance
+tier and the Normal importance tier.
 
 4 Using the Code Tier Annotations
 ===============================
@@ -133,10 +199,12 @@ Annotating code tiers enables some automated processes to aid Tock development.
 This list is not comprehensive, but outlines some anticipated benefits of
 annotating code tiers.
 
-1. Detecting code which relies on a lower tier. Code in the highest tiers
-   (i.e., critical and verified) may have an implicit assumption that it only
-   uses or calls code in the same or higher tier. As an extreme example,
-   critical code should not rely on experimental code for normal operation. With
+1. Detecting code which relies on a lower tier. Code in the highest assurance
+   tiers(i.e., Formally Verified and Extensively Tested) may have an implicit
+   assumption that it only uses or calls code in the same or higher tier.
+   Similarly, code in a high importance tier may not expect to depend on code in
+   a low importance tier. As an extreme example, code in the Critical importance
+   tier should not rely on code in the Experimental importance tier. With
    annotated code, static analysis can determine if there are any possible
    execution paths where any code relies on lower-tier code.
 
