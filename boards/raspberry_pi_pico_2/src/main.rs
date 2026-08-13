@@ -158,6 +158,11 @@ extern "C" {
     fn jump_to_bootloader();
 }
 
+// Unlike arch/* and chips/*, board crates aren't cross-compiled against
+// their real target for docs (see CRATE_TARGETS in
+// tools/build/build_all_docs.sh), so `doc` is what makes the host-target
+// doc pass pick this real implementation over having no implementation
+// at all.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 core::arch::global_asm!(
     "
