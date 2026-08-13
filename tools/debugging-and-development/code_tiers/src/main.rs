@@ -915,19 +915,30 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
     for e in edges {
         let Some(callee) = &e.callee else { continue };
 
-        // Flag a call into weaker assurance: a higher assurance_rank means
-        // a *weaker* guarantee (1 = Formally Verified, 4 = Normal), so the
-        // callee is a downgrade when its rank is numerically higher than
-        // the caller's. Only meaningful when both ends are annotated.
-        let weaker_assurance = by_path
+        let levels = by_path
             .get(e.caller.as_str())
             .zip(by_path.get(callee.as_str()))
             .and_then(|(caller, callee)| {
                 Some((caller.code_level.as_ref()?, callee.code_level.as_ref()?))
-            })
-            .is_some_and(|(caller, callee)| callee.assurance_rank > caller.assurance_rank);
+            });
 
-        let attrs = if weaker_assurance {
+        // Flag a Critical caller reaching into Experimental code -- the
+        // sharpest possible importance drop -- ahead of a plain assurance
+        // downgrade, since it's the more alarming case.
+        let critical_to_experimental = levels.is_some_and(|(caller, callee)| {
+            caller.importance_rank == 1 && callee.importance_rank == 4
+        });
+
+        // Flag a call into weaker assurance: a higher assurance_rank means
+        // a *weaker* guarantee (1 = Formally Verified, 4 = Normal), so the
+        // callee is a downgrade when its rank is numerically higher than
+        // the caller's.
+        let weaker_assurance =
+            levels.is_some_and(|(caller, callee)| callee.assurance_rank > caller.assurance_rank);
+
+        let attrs = if critical_to_experimental {
+            " [color=\"#fb8c00\", penwidth=2]"
+        } else if weaker_assurance {
             " [color=\"#e53935\", penwidth=2]"
         } else {
             ""
