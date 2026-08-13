@@ -226,6 +226,11 @@ impl<const NUM: u8> AllowRwSize for AllowRwCount<NUM> {
 /// leave the grant. This protects against calling `grant.enter()` without
 /// calling the corresponding `grant.leave()`, perhaps due to accidentally using
 /// the `?` operator.
+///
+/// # Code Tier
+///
+/// - Assurance: Extensively Tested
+/// - Importance: Critical
 struct EnteredGrantKernelManagedLayout<'a> {
     /// Leaving a grant is handled through the process implementation, so must
     /// keep a reference to the relevant process.
@@ -274,6 +279,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// `EnteredGrantKernelManagedLayout` for the given `base_ptr` at the same
     /// time, otherwise multiple mutable references to the same upcall/allow
     /// slices could be created.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     unsafe fn read_from_base(
         base_ptr: NonNull<u8>,
         process: &'a dyn Process,
@@ -326,6 +336,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// not be any other `EnteredGrantKernelManagedLayout` for
     /// the given `base_ptr` at the same time, otherwise multiple mutable
     /// references to the same upcall/allow slices could be created.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     unsafe fn initialize_from_counts(
         base_ptr: NonNull<u8>,
         upcalls_num_val: UpcallItems,
@@ -381,6 +396,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Returns the entire grant size including the kernel owned memory,
     /// padding, and data for T. Requires that grant_t_align be a power of 2,
     /// which is guaranteed from align_of rust calls.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn grant_size(
         upcalls_num: UpcallItems,
         allow_ro_num: AllowRoItems,
@@ -405,6 +425,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
     /// Returns the alignment of the entire grant region based on the alignment
     /// of data T.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn grant_align(grant_t_align: GrantDataAlign) -> usize {
         // The kernel owned memory all aligned to usize. We need to use the
         // higher of the two alignment to ensure our padding calculations work
@@ -419,6 +444,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// The caller must ensure that the specified base pointer is aligned to at
     /// least the alignment of T and points to a grant that is of size
     /// grant_size bytes.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     unsafe fn offset_of_grant_data_t(
         base_ptr: NonNull<u8>,
         grant_size: usize,
@@ -437,6 +467,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
     /// Read an 8 bit value from the counter field offset by the specified
     /// number of bits. This is a helper function for reading the counter field.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn get_counter_offset(&self, offset_bits: usize) -> usize {
         // # Safety
         //
@@ -465,6 +500,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
     /// Return mutable access to the slice of stored upcalls for this grant.
     /// This is necessary for storing a new upcall.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn get_upcalls_slice(&mut self) -> &mut [SavedUpcall] {
         // # Safety
         //
@@ -475,6 +515,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
     /// Return mutable access to the slice of stored read-only allow buffers for
     /// this grant. This is necessary for storing a new read-only allow.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn get_allow_ro_slice(&mut self) -> &mut [SavedAllowRo] {
         // # Safety
         //
@@ -485,6 +530,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
     /// Return mutable access to the slice of stored read-write allow buffers
     /// for this grant. This is necessary for storing a new read-write allow.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn get_allow_rw_slice(&mut self) -> &mut [SavedAllowRw] {
         // # Safety
         //
@@ -496,6 +546,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Return slices to the kernel managed upcalls and allow buffers. This
     /// permits using upcalls and allow buffers when a capsule is accessing a
     /// grant.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn get_resource_slices(&self) -> (&[SavedUpcall], &[SavedAllowRo], &[SavedAllowRw]) {
         // # Safety
         //
@@ -524,6 +579,10 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
 // Ensure that we leave the grant once this goes out of scope.
 impl Drop for EnteredGrantKernelManagedLayout<'_> {
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn drop(&mut self) {
         // ### Safety
         //
@@ -928,6 +987,11 @@ pub(crate) fn subscribe(
 /// Stores the specified read-only process buffer in the kernel managed grant
 /// region for this process and driver. The previous read-only process buffer
 /// stored at the same allow_num id is returned.
+///
+/// # Code Tier
+///
+/// - Assurance: Extensively Tested
+/// - Importance: Critical
 pub(crate) fn allow_ro(
     process: &dyn Process,
     driver_num: usize,
@@ -976,6 +1040,11 @@ pub(crate) fn allow_ro(
 /// Stores the specified read-write process buffer in the kernel managed grant
 /// region for this process and driver. The previous read-write process buffer
 /// stored at the same allow_num id is returned.
+///
+/// # Code Tier
+///
+/// - Assurance: Extensively Tested
+/// - Importance: Critical
 pub(crate) fn allow_rw(
     process: &dyn Process,
     driver_num: usize,
@@ -1030,6 +1099,11 @@ pub(crate) fn allow_rw(
 ///
 /// This is created from a [`Grant`] when that grant is entered for a specific
 /// process.
+///
+/// # Code Tier
+///
+/// - Assurance: Extensively Tested
+/// - Importance: Critical
 pub struct ProcessGrant<
     'a,
     T: 'a,
@@ -1274,6 +1348,11 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
 
     /// Return the [`ProcessId`] of the process this [`ProcessGrant`] is
     /// associated with.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Normal
     pub fn processid(&self) -> ProcessId {
         self.process.processid()
     }
@@ -1288,6 +1367,11 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// Note, a grant can only be entered once at a time. Attempting to call
     /// `.enter()` on a grant while it is already entered will result in a
     /// `panic!()`. See the comment in `access_grant()` for more information.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     pub fn enter<F, R>(self, fun: F) -> R
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1371,6 +1455,11 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// Note, a grant can only be entered once at a time. Attempting to call
     /// `.enter()` on a grant while it is already entered will result in a
     /// panic!()`. See the comment in `access_grant()` for more information.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Experimental
     pub fn enter_with_allocator<F, R>(self, fun: F) -> R
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
@@ -1389,6 +1478,11 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
     /// already currently entered. If `panic_on_reenter` is `false`, this will
     /// return `None` if the grant region is entered and do nothing.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn access_grant<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1405,6 +1499,11 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
     /// already currently entered. If `panic_on_reenter` is `false`, this will
     /// return `None` if the grant region is entered and do nothing.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Experimental
     fn access_grant_with_allocator<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
