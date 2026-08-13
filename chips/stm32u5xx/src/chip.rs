@@ -109,7 +109,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_usart1();
         self.rcc.enable_aes();
         self.rcc.enable_syscfg();
-        self.rcc.enable_trng();
         self.rcc.enable_pka();
         self.rcc.enable_pwr();
         self.rcc.enable_adc1();

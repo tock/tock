@@ -537,8 +537,6 @@ unsafe fn start() -> (
         &create_capability!(capabilities::ProcessManagementCapability),
     );
 
-    trng.init();
-
     (board_kernel, platform, chip)
 }
 
