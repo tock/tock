@@ -34,7 +34,7 @@ pub unsafe fn stack_jmp(stack: *mut (), ip: *const ()) -> ! {
 
 //For CI only
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn stack_jmp(_stack: *mut (), _ip: *const ()) -> ! {
     unimplemented!()
 }

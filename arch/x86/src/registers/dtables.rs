@@ -146,32 +146,32 @@ pub unsafe fn sidt<T>(idt: &mut DescriptorTablePointer<T>) {
 
 //For CI only
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn lgdt<T>(_gdt: &DescriptorTablePointer<T>) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn sgdt<T>(_idt: &mut DescriptorTablePointer<T>) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn load_ldtr(_selector: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn ldtr() -> SegmentSelector {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn lidt<T>(_idt: &DescriptorTablePointer<T>) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn sidt<T>(_idt: &mut DescriptorTablePointer<T>) {
     unimplemented!()
 }

@@ -48,6 +48,10 @@ rm -f _COW _COW2
 # Each entry is "crate:target-triple". A plain indexed array (rather than
 # an associative array, i.e. `declare -A`) is used deliberately: macOS
 # ships bash 3.2, which predates associative arrays entirely.
+#
+# `x86` is the one entry using a path to a custom JSON target spec instead
+# of a builtin triple (no builtin i486 target exists); see the `.json`
+# branch in the per-crate build loop below for what that requires.
 CRATE_TARGETS=(
     "cortexm0:thumbv6m-none-eabi"
     "cortexm0p:thumbv6m-none-eabi"
@@ -59,6 +63,7 @@ CRATE_TARGETS=(
     "rp2040:thumbv6m-none-eabi"
     "rp2350:thumbv8m.main-none-eabi"
     "stm32f4xx:thumbv7em-none-eabi"
+    "x86:boards/qemu_i486_q35/i486-unknown-none.json"
 )
 
 # Crates whose dependent boards/chips actually build for more than one real
@@ -76,6 +81,15 @@ SHARED_CRATE_TARGETS=(
     "cortexv7m:thumbv7em-none-eabi"
 )
 CRATE_TARGETS+=("${SHARED_CRATE_TARGETS[@]}")
+
+# cargo/rustdoc name a target's output directory after its triple, or (for
+# a `--target path/to/name.json`) after just `name` -- strip any leading
+# path and `.json` suffix to get that directory name from a CRATE_TARGETS
+# target value.
+target_dir_name() {
+    local t="${1##*/}"
+    echo "${t%.json}"
+}
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -105,9 +119,22 @@ for entry in "${CRATE_TARGETS[@]}"; do
     crate="${entry%%:*}"
     target="${entry#*:}"
     echo "--- documenting $crate for $target ---"
-    CARGO_TARGET_DIR="$WORK" \
-        cargo rustdoc -p "$crate" --target "$target" -- \
-        -Z unstable-options --write-doc-meta-dir="$META/$crate"
+    if [ "${target%.json}" != "$target" ]; then
+        # A custom JSON target spec (no builtin triple exists) needs
+        # cargo's own -Z json-target-spec just to accept a `--target
+        # *.json` path, and -Z build-std since custom targets have no
+        # prebuilt std/core component to fall back on. All -Z flags have
+        # to be grouped together before the subcommand for cargo to
+        # accept them.
+        CARGO_TARGET_DIR="$WORK" \
+            cargo -Z json-target-spec -Z build-std=core,compiler_builtins -Z unstable-options \
+            rustdoc -p "$crate" --target "$target" -- \
+            --write-doc-meta-dir="$META/$crate"
+    else
+        CARGO_TARGET_DIR="$WORK" \
+            cargo rustdoc -p "$crate" --target "$target" -- \
+            -Z unstable-options --write-doc-meta-dir="$META/$crate"
+    fi
 done
 
 # 3. Finalize: a single bare `rustdoc` invocation (no cargo, and no
@@ -156,15 +183,15 @@ cp -r "$FINAL_DIR/search.index" "$OUT/search.index"
 cp -r "$FINAL_DIR/static.files" "$OUT/static.files"
 for entry in "${CRATE_TARGETS[@]}"; do
     crate="${entry%%:*}"
-    target="${entry#*:}"
+    target_dir=$(target_dir_name "${entry#*:}")
     # rustdoc substitutes '-' with '_' in output directory names, since
     # crate names there are Rust identifiers (e.g. package "esp32-c3" is
     # documented under a directory named "esp32_c3").
     docname="${crate//-/_}"
     rm -rf "$OUT/$docname" "$OUT/src/$docname"
-    cp -r "$WORK/$target/doc/$docname" "$OUT/$docname"
-    if [ -d "$WORK/$target/doc/src/$docname" ]; then
-        cp -r "$WORK/$target/doc/src/$docname" "$OUT/src/$docname"
+    cp -r "$WORK/$target_dir/doc/$docname" "$OUT/$docname"
+    if [ -d "$WORK/$target_dir/doc/src/$docname" ]; then
+        cp -r "$WORK/$target_dir/doc/src/$docname" "$OUT/src/$docname"
     fi
 done
 

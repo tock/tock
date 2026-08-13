@@ -4,7 +4,7 @@
 
 //! Miscellaneous low-level operations
 
-#[cfg(any(doc, target_arch = "x86"))]
+#[cfg(target_arch = "x86")]
 use core::arch::asm;
 
 /// Execute closure without allowing any interrupts on the current core.
@@ -12,7 +12,7 @@ use core::arch::asm;
 /// This function ensures interrupts are disabled before invoking the given
 /// closue `f`. This allows / you to safely perform single-core operations
 /// which would otherwise race against interrupt handlers.
-#[cfg(any(doc, target_arch = "x86"))]
+#[cfg(target_arch = "x86")]
 pub fn with_interrupts_disabled<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
@@ -41,7 +41,7 @@ where
     }
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub fn with_interrupts_disabled<F, R>(_: F) -> R
 where
     F: FnOnce() -> R,
@@ -50,7 +50,7 @@ where
 }
 
 /// Executes a single NOP instruction.
-#[cfg(any(doc, target_arch = "x86"))]
+#[cfg(target_arch = "x86")]
 #[inline(always)]
 pub fn nop() {
     unsafe {
@@ -58,7 +58,7 @@ pub fn nop() {
     }
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 #[inline(always)]
 pub fn nop() {
     unimplemented!()
