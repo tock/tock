@@ -253,6 +253,39 @@ macro_rules! init_uninit_struct {
     };
 }
 
+/// Reinterpret a `&mut usize` as a `&mut u32` (32-bit targets) or `&mut u64`
+/// (64-bit targets).
+///
+/// This is useful for architectures (e.g. RISC-V) that store syscall/upcall
+/// register arguments as `usize` so that a single struct definition can serve
+/// both 32-bit and 64-bit targets, but need to pass register-width-specific
+/// (`u32`/`u64`) references into TRD-defined encode/decode functions.
+///
+/// This is a plain function, not a macro, on purpose: the conversion is only
+/// sound behind a real function-call boundary.
+#[cfg(target_pointer_width = "32")]
+pub fn usize_as_native_mut(val: &mut usize) -> &mut u32 {
+    let ptr = core::ptr::from_mut::<usize>(val);
+    // SAFETY: We are guaranteed to be on a 32-bit platform, so a `usize` is
+    // the same size and alignment as a `u32`, and `val` is guaranteed to be
+    // initialized to some value.
+    unsafe { &mut *ptr.cast::<u32>() }
+}
+
+/// Reinterpret a `&mut usize` as a `&mut u32` (32-bit targets) or `&mut u64`
+/// (64-bit targets).
+///
+/// This is a plain function, not a macro, on purpose: the conversion is only
+/// sound behind a real function-call boundary.
+#[cfg(target_pointer_width = "64")]
+pub fn usize_as_native_mut(val: &mut usize) -> &mut u64 {
+    let ptr = core::ptr::from_mut::<usize>(val);
+    // SAFETY: We are guaranteed to be on a 64-bit platform, so a `usize` is
+    // the same size and alignment as a `u64`, and `val` is guaranteed to be
+    // initialized to some value.
+    unsafe { &mut *ptr.cast::<u64>() }
+}
+
 /// Compute a POSIX-style CRC32 checksum of a slice.
 ///
 /// Online calculator: <https://crccalc.com/>
