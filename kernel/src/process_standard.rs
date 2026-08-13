@@ -580,14 +580,26 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
 }
 
 impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_, C, D> {
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn processid(&self) -> ProcessId {
         self.process_id.get()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn short_app_id(&self) -> ShortId {
         self.app_id
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn binary_version(&self) -> Option<BinaryVersion> {
         let version = self.header.get_binary_version();
         match NonZeroU32::new(version) {
@@ -596,10 +608,18 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn get_credential(&self) -> Option<AcceptedCredential> {
         self.credential
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
@@ -644,6 +664,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         ret
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn ready(&self) -> bool {
         match self.state.get() {
             State::Running => true,
@@ -653,10 +677,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
-    // # Code Levels
-    //
-    // - Assurance: Extensively Tested
-    // - Importance: Critical
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize {
         self.tasks.map_or(0, |tasks| {
             let count_before = tasks.len();
@@ -683,6 +707,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn is_running(&self) -> bool {
         match self.state.get() {
             State::Running | State::Yielded | State::YieldedFor(_) | State::Stopped(_) => true,
@@ -690,16 +718,28 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn get_state(&self) -> State {
         self.state.get()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn set_yielded_state(&self) {
         if self.state.get() == State::Running {
             self.state.set(State::Yielded);
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Functionally Tested
+    /// - Importance: Critical
     fn set_yielded_for_state(&self, upcall_id: UpcallId) {
         if self.state.get() == State::Running {
             self.state.set(State::YieldedFor(upcall_id));
@@ -723,6 +763,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn stop(&self) {
         match self.state.get() {
             State::Running => self.state.set(State::Stopped(StoppedState::Running)),
@@ -739,6 +783,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn resume(&self) {
         if let State::Stopped(stopped_state) = self.state.get() {
             match stopped_state {
@@ -749,6 +797,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn set_fault_state(&self) {
         // Use the per-process fault policy to determine what action the kernel
         // should take since the process faulted.
@@ -774,6 +826,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Functionally Tested
+    /// - Importance: Critical
     fn start(&self, _cap: &dyn crate::capabilities::ProcessStartCapability) {
         // `start()` can only be called on a terminated process.
         if self.get_state() != State::Terminated {
@@ -786,6 +842,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Functionally Tested
+    /// - Importance: Critical
     fn try_restart(&self, completion_code: Option<u32>) {
         // `try_restart()` cannot be called if the process is terminated. Only
         // `start()` can start a terminated process.
@@ -807,6 +867,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         // want to reclaim the process resources.
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Functionally Tested
+    /// - Importance: Critical
     fn terminate(&self, completion_code: Option<u32>) {
         // A process can be terminated if it is running or in the `Faulted`
         // state. Otherwise, you cannot terminate it and this method return
@@ -835,18 +899,34 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         self.state.set(State::Terminated);
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn get_restart_count(&self) -> usize {
         self.restart_count.get()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn has_tasks(&self) -> bool {
         self.tasks.map_or(false, |tasks| tasks.has_elements())
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| tasks.dequeue())
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
             tasks.remove_first_matching(|task| match task {
@@ -860,26 +940,50 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn pending_tasks(&self) -> usize {
         self.tasks.map_or(0, |tasks| tasks.len())
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
         self.header.get_command_permissions(driver_num, offset)
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn get_storage_permissions(&self) -> StoragePermissions {
         self.storage_permissions.get()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn number_writeable_flash_regions(&self) -> usize {
         self.header.number_writeable_flash_regions()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn get_writeable_flash_region(&self, region_index: usize) -> (usize, usize) {
         self.header.get_writeable_flash_region(region_index)
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn update_stack_start_pointer(&self, stack_pointer: *const u8) {
         if stack_pointer >= self.mem_start() && stack_pointer < self.mem_end() {
             self.debug.set_app_stack_start_pointer(stack_pointer);
@@ -889,12 +993,20 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn update_heap_start_pointer(&self, heap_pointer: *const u8) {
         if heap_pointer >= self.mem_start() && heap_pointer < self.mem_end() {
             self.debug.set_app_heap_start_pointer(heap_pointer);
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
             // # Safety
@@ -914,6 +1026,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         });
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn add_mpu_region(
         &self,
         unallocated_memory_start: *const u8,
@@ -941,6 +1057,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode> {
         self.mpu_config.map_or(Err(ErrorCode::INVAL), |config| {
             // Find the existing mpu region that we are removing; it needs to match exactly.
@@ -960,6 +1080,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn sbrk(&self, increment: isize) -> Result<CapabilityPtr, Error> {
         // Do not modify an inactive process.
         if !self.is_running() {
@@ -970,6 +1094,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         self.brk(new_break)
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn brk(&self, new_break: *const u8) -> Result<CapabilityPtr, Error> {
         // Do not modify an inactive process.
         if !self.is_running() {
@@ -1052,6 +1180,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn build_readwrite_process_buffer(
         &self,
@@ -1118,6 +1250,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn build_readonly_process_buffer(
         &self,
@@ -1189,6 +1325,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Functionally Tested
+    /// - Importance: Normal
     unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
         if self.in_app_owned_memory(addr, 1) {
             // # Safety
@@ -1206,6 +1346,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn grant_is_allocated(&self, grant_num: usize) -> Option<bool> {
         // Do not modify an inactive process.
         if !self.is_running() {
@@ -1222,6 +1366,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn allocate_grant(
         &self,
         grant_num: usize,
@@ -1287,6 +1435,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Functionally Tested
+    /// - Importance: Normal
     fn allocate_custom_grant(
         &self,
         size: usize,
@@ -1311,6 +1463,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn enter_grant(&self, grant_num: usize) -> Result<NonNull<u8>, Error> {
         // Do not try to access the grant region of an inactive process.
         if !self.is_running() {
@@ -1351,6 +1507,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Functionally Tested
+    /// - Importance: Normal
     fn enter_custom_grant(
         &self,
         identifier: ProcessCustomGrantIdentifier,
@@ -1368,6 +1528,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         Ok(custom_grant_address as *mut u8)
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     unsafe fn leave_grant(&self, grant_num: usize) {
         // Do not modify an inactive process.
         if !self.is_running() {
@@ -1389,6 +1553,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         });
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Widely Used
     fn grant_allocated_count(&self) -> Option<usize> {
         // Do not modify an inactive process.
         if !self.is_running() {
@@ -1406,6 +1574,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn lookup_grant_from_driver_num(&self, driver_num: usize) -> Result<usize, Error> {
         self.grant_pointers
             .map_or(Err(Error::KernelError), |grant_pointers| {
@@ -1422,6 +1594,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             })
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn is_valid_upcall_function_pointer(&self, upcall_fn: *const ()) -> bool {
         let ptr: *const u8 = upcall_fn.cast();
         let size = mem::size_of::<*const u8>();
@@ -1430,14 +1606,26 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         self.in_app_flash_memory(ptr, size) || self.in_app_owned_memory(ptr, size)
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Normal
     fn get_process_name(&self) -> &'static str {
         self.header.get_package_name().unwrap_or("")
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Normal
     fn get_completion_code(&self) -> Option<Option<u32>> {
         self.completion_code.get()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| unsafe {
             // Actually set the return value for a particular process.
@@ -1485,6 +1673,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn set_process_function(&self, callback: FunctionCall) {
         // See if we can actually enqueue this function for this process.
         // Architecture-specific code handles actually doing this since the
@@ -1532,6 +1724,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         // Cannot switch to an invalid process
         if !self.is_running() {
@@ -1561,31 +1757,59 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         switch_reason
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn debug_syscall_count(&self) -> usize {
         self.debug.get_syscall_count()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn debug_dropped_upcall_count(&self) -> usize {
         self.debug.get_dropped_upcall_count()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn debug_timeslice_expiration_count(&self) -> usize {
         self.debug.get_timeslice_expiration_count()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn debug_timeslice_expired(&self) {
         self.debug.increment_timeslice_expiration_count();
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn debug_syscall_called(&self, last_syscall: Syscall) {
         self.debug.increment_syscall_count();
         self.debug.set_last_syscall(last_syscall);
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn debug_syscall_last(&self) -> Option<Syscall> {
         self.debug.get_last_syscall()
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn get_addresses(&self) -> ProcessAddresses {
         ProcessAddresses {
             flash_start: self.flash_start() as usize,
@@ -1604,6 +1828,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn get_sizes(&self) -> ProcessSizes {
         ProcessSizes {
             grant_pointers: mem::size_of::<GrantPointerEntry>()
@@ -1613,6 +1841,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
+    /// # Code Tier
+    ///
+    /// - Assurance: Normal
+    /// - Importance: Normal
     fn print_full_process(&self, writer: &mut dyn Write) {
         if !config::CONFIG.debug_panics {
             return;
@@ -1750,6 +1982,11 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     const PROCESS_STRUCT_ALIGNMENT: usize = mem::align_of::<ProcessStandard<C, D>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
+    ///
+    /// # Code Tier
+    ///
+    /// - Assurance: Extensively Tested
+    /// - Importance: Critical
     pub(crate) unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
