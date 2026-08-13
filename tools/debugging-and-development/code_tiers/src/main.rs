@@ -220,6 +220,18 @@ fn mod_path_attr(attrs: &[syn::Attribute]) -> Option<String> {
     None
 }
 
+/// Whether an item is gated behind `#[cfg(test)]` and should be excluded
+/// from the crate walk entirely -- it's test-only code, not part of the
+/// crate's real call graph.
+fn is_cfg_test(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("cfg")
+            && attr
+                .parse_args::<syn::Path>()
+                .is_ok_and(|p| p.is_ident("test"))
+    })
+}
+
 /// The directory that child modules of `file` live in, following normal
 /// Rust module-file conventions (`foo.rs` -> `foo/`, `mod.rs`/`lib.rs`/
 /// `main.rs` -> their own directory).
@@ -434,6 +446,9 @@ fn walk_items<'a>(
     for item in items {
         match item {
             syn::Item::Fn(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 record_function(
                     state,
                     &file_str,
@@ -447,6 +462,9 @@ fn walk_items<'a>(
                 );
             }
             syn::Item::Struct(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 record(
                     &mut state.results,
                     &file_str,
@@ -457,6 +475,9 @@ fn walk_items<'a>(
                 );
             }
             syn::Item::Enum(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 record(
                     &mut state.results,
                     &file_str,
@@ -467,6 +488,9 @@ fn walk_items<'a>(
                 );
             }
             syn::Item::Union(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 record(
                     &mut state.results,
                     &file_str,
@@ -477,6 +501,9 @@ fn walk_items<'a>(
                 );
             }
             syn::Item::Const(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 record(
                     &mut state.results,
                     &file_str,
@@ -487,6 +514,9 @@ fn walk_items<'a>(
                 );
             }
             syn::Item::Static(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 record(
                     &mut state.results,
                     &file_str,
@@ -497,6 +527,9 @@ fn walk_items<'a>(
                 );
             }
             syn::Item::Type(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 record(
                     &mut state.results,
                     &file_str,
@@ -507,6 +540,9 @@ fn walk_items<'a>(
                 );
             }
             syn::Item::Trait(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 let name = i.ident.to_string();
                 record(
                     &mut state.results,
@@ -518,7 +554,9 @@ fn walk_items<'a>(
                 );
                 let trait_path = join_path(module_path, &name);
                 for trait_item in &i.items {
-                    if let syn::TraitItem::Fn(f) = trait_item {
+                    if let syn::TraitItem::Fn(f) = trait_item
+                        && !is_cfg_test(&f.attrs)
+                    {
                         record_function(
                             state,
                             &file_str,
@@ -534,6 +572,9 @@ fn walk_items<'a>(
                 }
             }
             syn::Item::Impl(i) => {
+                if is_cfg_test(&i.attrs) {
+                    continue;
+                }
                 let self_ty = type_name(&i.self_ty);
                 record(
                     &mut state.results,
@@ -551,7 +592,9 @@ fn walk_items<'a>(
                 };
                 let impl_path = join_path(module_path, &self_context);
                 for impl_item in &i.items {
-                    if let syn::ImplItem::Fn(f) = impl_item {
+                    if let syn::ImplItem::Fn(f) = impl_item
+                        && !is_cfg_test(&f.attrs)
+                    {
                         record_function(
                             state,
                             &file_str,
@@ -568,6 +611,18 @@ fn walk_items<'a>(
             }
             syn::Item::Mod(i) => {
                 let name = i.ident.to_string();
+                if is_cfg_test(&i.attrs) {
+                    // Don't record or recurse into a test-only module, but
+                    // if it points at its own file, still mark that file
+                    // visited -- otherwise the "unreachable file" fallback
+                    // later would pick it up and include it anyway.
+                    if i.content.is_none()
+                        && let Some(sub_file) = resolve_mod_file(file, &name, &i.attrs)
+                    {
+                        state.visited.insert(sub_file);
+                    }
+                    continue;
+                }
                 record(
                     &mut state.results,
                     &file_str,
