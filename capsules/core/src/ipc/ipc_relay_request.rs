@@ -385,10 +385,8 @@ impl IpcRelayRequest {
         // processes. Each time this function is called by a server it continues
         // searching the process list from where it last left off.
         let mut client: Option<ProcessId> = None;
-        let mut end_offset = IterOffset::default();
-        for (offset, cntr) in self.apps.rotated_iter(start_offset) {
-            end_offset = offset;
-
+        let mut app_iterator = self.apps.rotated_iter(start_offset);
+        for cntr in app_iterator.by_ref() {
             // skip this process
             if cntr.processid() != processid {
                 self.apps.enter(cntr.processid(), |client_app, _| {
@@ -410,9 +408,10 @@ impl IpcRelayRequest {
 
         // Save iteration location for next time
         self.apps.enter(processid, |app, _| {
-            app.iteration_offset = end_offset;
+            app.iteration_offset = app_iterator.offset();
         })?;
 
+        // Check if we found a waiting request
         if let Some(client_processid) = client {
             // Found request. Attempt the data copy
             self.handle_request_copy(processid, client_processid)

@@ -1813,8 +1813,10 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// This is useful for implementing round-robin behavior where process
     /// iteration can start wherever the prior iteration operation left off. To
-    /// do so, save the most-recently-returned "offset" value during iteration
-    /// and use it to call this function the next time an iterator is needed.
+    /// do so, save the "offset" value when you've completed iteration and then
+    /// use it to call this function the next time an iterator is needed.
+    /// Initially, this can be called with an `IterOffset::default()` to start
+    /// at the beginning.
     ///
     /// This rotates the iterated contents such that the iterator starts at the
     /// specified offset into the contents and continues, wrapping around, until
@@ -1841,6 +1843,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
                 .cycle()
                 .skip(offset.value)
                 .take(self.kernel.get_process_iter().count()),
+            offset: offset.value,
         }
     }
 }
@@ -1909,18 +1912,32 @@ pub struct RotatedIter<
             >,
         >,
     >,
+
+    /// Track the current location within the iterator. This is the offset of
+    /// the _next_ element in the iterator, i.e. the first element that hasn't
+    /// been returned yet.
+    offset: usize,
+}
+
+impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>
+    RotatedIter<'_, T, Upcalls, AllowROs, AllowRWs>
+{
+    /// Get the current "offset" within the process list.
+    ///
+    /// This offset value can be fed into future calls to `rotated_iter()` when
+    /// creating a new iterator to start the new one off where this iterator
+    /// ended.
+    pub fn offset(&self) -> IterOffset {
+        IterOffset { value: self.offset }
+    }
 }
 
 impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> Iterator
     for RotatedIter<'a, T, Upcalls, AllowROs, AllowRWs>
 {
-    type Item = (IterOffset, ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>);
+    type Item = ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>;
 
-    /// Get the next item from the iterator.
-    ///
-    /// Returns a tuple of "offset" and the current grant space. The "offset"
-    /// can be fed into future calls to `rotated_iter()` when creating a new
-    /// iterator to start off where this iterator ended.
+    /// Get the next process's grant space from the iterator.
     fn next(&mut self) -> Option<Self::Item> {
         let grant = self.grant;
         // Get the next `ProcessId` from the kernel processes array that is
@@ -1928,9 +1945,10 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         // this function again will start where we left off.
         self.subiter.find_map(|(index, process)| {
             if let Some(value) = ProcessGrant::new_if_allocated(grant, process) {
-                // Provide the index incremented by one so it always represents
-                // the next offset in the process array
-                Some((IterOffset { value: index + 1 }, value))
+                // Save the index incremented by one so it always represents the
+                // next offset in the process array
+                self.offset = index + 1;
+                Some(value)
             } else {
                 None
             }
