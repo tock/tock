@@ -231,6 +231,12 @@ register_bitfields![u32,
     ]
 ];
 
+enum AdcDmaState {
+    Idle,
+    ReadyToStart,
+    Started(bool),
+}
+
 /// Wrapper for managing MMIO for the ADC's EasyDMA result buffer.
 ///
 /// This type encapsulates every access to the DMA-related `RESULT.PTR` and
@@ -280,12 +286,20 @@ impl AdcRegistersManager {
                     // STARTED event
                     self.registers.events_started.write(EVENT::EVENT::CLEAR);
 
-                    // Once we get the STARTED event we can set the double buffer. So, the first thing we do
-                    // is clear the double buffer flag.
-                    self.double_buffer_set.set(false);
+                    // // Once we get the STARTED event we can set the double buffer. So, the first thing we do
+                    // // is clear the double buffer flag.
+                    // self.double_buffer_set.set(false);
 
-                    // We can (try to) set the double buffer after this event.
-                    self.prep_queued_buffer();
+                    // See if we can set the next buffer in the DMA ptr register.
+                    let set = self.dma_buf2.map(|dma_slice| {
+                        // The underlying ADC hardware is double buffered, so we can set this in
+                        // the DMA hardware once we have started the previous DMA use.
+                        self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
+                    });
+                    self.state.set(AdcDmaState::Started(set.is_some()));
+
+                    // // We can (try to) set the double buffer after this event.
+                    // self.prep_queued_buffer();
                 }
             }
         }
@@ -295,11 +309,38 @@ impl AdcRegistersManager {
     /// that many values into it, and hold on to it until `finish_buffer()` is
     /// called.
     fn start_buffer(&self, buf: SubSliceMut<'static, u16>) {
+        let active_buffer_set = self.dma_buf1.is_some();
+        let queued_buffer_set = self.dma_buf2.is_some();
+
+        if queued_buffer_set {
+            // We have nowhere to store this buffer!
+            return;
+        }
+
         // To create a DmaFence we must trust the implementation.
         //
         // SAFETY: The architecture-provided version is correct for the nRF52.
         let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
         let dma_slice = DmaSubSliceMut::new_static(buf, fence);
+
+        if !active_buffer_set {
+            // Use the primary buffer slot.
+            self.dma_buf1.replace(dma_slice);
+        } else {
+            // use the queued buffer slot.
+
+            // It might be the case that we need to set this DMA buffer as the next buffer in the hardware.
+            if self.state.get() == AdcDmaState::Started(false) {
+                // The underlying ADC hardware is double buffered, so we can set this in
+                // the DMA hardware once we have started the previous DMA use.
+                self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
+
+                // We now have the next buffer enqueued, update our state.
+                self.state.set(AdcDmaState::Started(true));
+            }
+
+            self.dma_buf2.replace(dma_slice);
+        }
 
         self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
         self.registers
@@ -332,6 +373,26 @@ impl AdcRegistersManager {
 
                 self.double_buffer_set.set(true);
             });
+        }
+    }
+
+    fn start(&self) {
+        match self.state.get() {
+            AdcDmaState::Idle => {
+                self.dma_buf1.map(|dma_slice| {
+                    // The underlying ADC hardware is double buffered, so we can set this in
+                    // the DMA hardware once we have started the previous DMA use.
+                    self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
+                    self.registers
+                        .result_maxcnt
+                        .write(RESULT_MAXCNT::MAXCNT.val(dma_slice.len() as u32));
+                });
+
+                self.state.set(AdcDmaState::Starting);
+
+                // Start the SAADC and wait for the started interrupt.
+                self.registers.registers.tasks_start.write(TASK::TASK::SET);
+            }
         }
     }
 
