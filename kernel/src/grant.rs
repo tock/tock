@@ -1841,6 +1841,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
                 .cycle()
                 .skip(offset.value)
                 .take(self.kernel.get_process_iter().count()),
+            offset: offset,
         }
     }
 }
@@ -1909,6 +1910,16 @@ pub struct RotatedIter<
             >,
         >,
     >,
+
+    offset: IterOffset,
+}
+
+impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>
+    RotatedIter<'a, T, Upcalls, AllowROs, AllowRWs>
+{
+    pub fn offset(&self) -> IterOffset {
+        self.offset
+    }
 }
 
 impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> Iterator
@@ -1930,7 +1941,9 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             if let Some(value) = ProcessGrant::new_if_allocated(grant, process) {
                 // Provide the index incremented by one so it always represents
                 // the next offset in the process array
-                Some((IterOffset { value: index + 1 }, value))
+                let offset = IterOffset { value: index + 1 };
+                self.offset = offset;
+                Some((offset, value))
             } else {
                 None
             }
