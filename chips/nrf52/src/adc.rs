@@ -5,7 +5,6 @@
 //! ADC driver for the nRF52. Uses the SAADC peripheral.
 
 use core::cell::Cell;
-use core::cmp;
 use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 use kernel::hil;
@@ -260,6 +259,8 @@ struct AdcRegistersManager {
     /// The buffer queued to become active the next time sampling
     /// (re)starts, windowed the same way as `dma_buf1`.
     dma_buf2: MapCell<DmaSubSliceMut<'static, u16>>,
+
+    double_buffer_set: Cell<bool>,
 }
 
 impl AdcRegistersManager {
@@ -268,6 +269,25 @@ impl AdcRegistersManager {
             registers: SAADC_BASE,
             dma_buf1: MapCell::empty(),
             dma_buf2: MapCell::empty(),
+            double_buffer_set: Cell::new(true),
+        }
+    }
+
+    fn handle_interrupt(&self, mode: AdcMode) {
+        match mode {
+            AdcMode::HighSpeed => {
+                if self.registers.events_started.is_set(EVENT::EVENT) {
+                    // STARTED event
+                    self.registers.events_started.write(EVENT::EVENT::CLEAR);
+
+                    // Once we get the STARTED event we can set the double buffer. So, the first thing we do
+                    // is clear the double buffer flag.
+                    self.double_buffer_set.set(false);
+
+                    // We can (try to) set the double buffer after this event.
+                    self.prep_queued_buffer();
+                }
+            }
         }
     }
 
@@ -293,14 +313,26 @@ impl AdcRegistersManager {
     /// active buffer once `promote_queued_buffer()` is called. `RESULT.MAXCNT`
     /// is left alone; it is only written once the buffer is promoted.
     fn queue_buffer(&self, buf: SubSliceMut<'static, u16>) {
-        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
-        let dma_slice = DmaSubSliceMut::new_static(buf, fence);
+        if self.dma_buf2.is_none() {
+            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+            let dma_slice = DmaSubSliceMut::new_static(buf, fence);
 
-        // The underlying ADC hardware is double buffered, so we can set this in
-        // the DMA hardware once we have started the previous DMA use.
-        self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
+            self.dma_buf2.replace(dma_slice);
+        }
+    }
 
-        self.dma_buf2.replace(dma_slice);
+    fn prep_queued_buffer(&self) {
+        // If the double buffer hasn't already been set, we can try to set it if
+        // we have a double buffer ready.
+        if self.double_buffer_set.get() {
+            self.dma_buf2.map(|dma_slice| {
+                // The underlying ADC hardware is double buffered, so we can set this in
+                // the DMA hardware once we have started the previous DMA use.
+                self.registers.result_ptr.set(dma_slice.ptr_addr() as u32);
+
+                self.double_buffer_set.set(true);
+            });
+        }
     }
 
     /// Promote the buffer queued with `queue_buffer()`, if any, to be the
@@ -312,17 +344,22 @@ impl AdcRegistersManager {
     /// been reclaimed with `finish_buffer()` -- `dma_buf2`'s memory has never
     /// been touched by EasyDMA (it only becomes live once promoted here), so
     /// unlike `finish_buffer()` this does not need to wait on `EVENTS_END`.
-    fn promote_queued_buffer(&self) -> bool {
-        match self.dma_buf2.take() {
-            Some(dma_slice) => {
-                self.registers
-                    .result_maxcnt
-                    .write(RESULT_MAXCNT::MAXCNT.val(dma_slice.len() as u32));
-                self.dma_buf1.replace(dma_slice);
-                true
-            }
-            None => false,
-        }
+    fn promote_queued_buffer(&self) {
+        self.dma_buf2.take().map(|dma_slice| {
+            // Update the length of the next buffer.
+            self.registers
+                .result_maxcnt
+                .write(RESULT_MAXCNT::MAXCNT.val(dma_slice.len() as u32));
+            // Save the DMA slice in the active dma buf mapcell.
+            self.dma_buf1.replace(dma_slice);
+
+            // Start the next round of sampling into the new buffer.
+            self.registers.tasks_start.write(TASK::TASK::SET);
+        });
+    }
+
+    fn is_queued_buffer(&self) -> bool {
+        self.dma_buf2.is_some()
     }
 
     /// Trigger a single sample conversion.
@@ -501,12 +538,6 @@ pub struct Adc<'a> {
     /// Scratch buffer used for both offset calibration and single
     /// (non-high-speed) samples, which only ever need to hold one `u16`.
     single_sample_buffer: TakeCell<'static, [u16]>,
-
-    /// The second buffer provided for high-speed sampling, before its
-    /// address has been handed to `registers` (which happens at the
-    /// following `EVENTS_STARTED`, via `queue_buffer`).
-    next_buffer: TakeCell<'static, [u16]>,
-    next_length: Cell<usize>,
 }
 
 impl Adc<'_> {
@@ -520,8 +551,7 @@ impl Adc<'_> {
             // Safety: `SAMPLE` is only ever accessed through this reference,
             // taken once here for the lifetime of the `Adc` instance.
             single_sample_buffer: TakeCell::new(unsafe { &mut *addr_of_mut!(SAMPLE) }),
-            next_buffer: TakeCell::empty(),
-            next_length: Cell::new(0),
+            next_buffer: MapCell::empty(),
         }
     }
 
@@ -690,25 +720,15 @@ impl Adc<'_> {
                     // According to PS1.7 Section 6.23.4, we can set the new
                     // buffer address after we get the start event, without
                     // disturbing the transfer already in progress.
-                    if let Some(buf) = self.next_buffer.take() {
-                        let length2 = self.next_length.get();
-                        let dma_len = cmp::min(buf.len(), length2);
-                        if dma_len > 0 {
-                            let mut sub_slice = SubSliceMut::new(buf);
-                            sub_slice.slice(0..length2);
-                            self.registers.queue_buffer(sub_slice);
-                        } else {
-                            // Nothing to sample into; keep it for later.
-                            self.next_buffer.replace(buf);
-                        }
-                    }
+                    self.registers.prep_queued_buffer();
 
                     // Trigger sample task to start taking samples.
                     self.registers.start_sample();
                 } else if let Some(mut ret_buf) = self.registers.finish_buffer() {
-                    // `finish_buffer()` is the only code that touches
-                    // `EVENTS_END`; reaching this branch means it observed
-                    // (and cleared) it, and reclaimed the buffer.
+                    // We got the END event and were able to re-claim the buffer from the DMA hardware.
+                    // First, we are going to continue sampling into the queued buffer.
+                    self.registers.promote_queued_buffer();
+
                     let length = ret_buf.len();
 
                     // Left shift all samples to the MSB. This handles
@@ -725,9 +745,9 @@ impl Adc<'_> {
                     // If a buffer was queued (above, at the last
                     // EVENTS_STARTED), promote it to active and resume
                     // sampling.
-                    if self.registers.promote_queued_buffer() {
-                        self.registers.registers.tasks_start.write(TASK::TASK::SET);
-                    }
+                    // if self.registers.promote_queued_buffer() {
+                    //     self.registers.registers.tasks_start.write(TASK::TASK::SET);
+                    // }
                 } else if self.registers.registers.events_stopped.is_set(EVENT::EVENT) {
                     self.registers
                         .registers
@@ -853,13 +873,14 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
         buffer2: &'static mut [u16],
         length2: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u16], &'static mut [u16])> {
-        if length1 == 0 {
+        if length1 == 0 || length2 == 0 {
             // At least need to take one sample.
             Err((ErrorCode::INVAL, buffer1, buffer2))
         } else {
             // Store the second buffer for later use.
-            self.next_buffer.replace(buffer2);
-            self.next_length.set(length2);
+            let mut next_sub_slice = SubSliceMut::new(buffer2);
+            next_sub_slice.slice(0..length2);
+            self.next_buffer.replace(next_sub_slice);
 
             self.setup_channel(channel);
             self.setup_resolution();
@@ -895,13 +916,14 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
         buf: &'static mut [u16],
         length: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u16])> {
-        if self.next_buffer.is_some() {
+        if self.registers.is_queued_buffer() {
             // we've already got a second buffer, we don't need a third yet
             Err((ErrorCode::BUSY, buf))
         } else {
             // store the buffer for later use
-            self.next_buffer.replace(buf);
-            self.next_length.set(length);
+            let mut sub_slice = SubSliceMut::new(buf);
+            sub_slice.slice(0..length);
+            self.registers.queue_buffer(sub_slice);
 
             Ok(())
         }
@@ -915,7 +937,7 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
             .registers
             .finish_queued_buffer()
             .map(|buf| buf.take())
-            .or_else(|| self.next_buffer.take());
+            .or_else(|| self.next_buffer.take().map(|buf| buf.take()));
         Ok((active, queued))
     }
 
