@@ -16,11 +16,17 @@ set -e
 set -u
 set -x
 
-# Install rust stuff that we need
-curl https://sh.rustup.rs -sSf | sh -s -- -y
-
-# And fixup path for the newly installed rust stuff
+# Netlify automatically restores ~/.rustup, ~/.cargo/{registry,bin}, and
+# ./target from the previous build's cache when Cargo.toml/Cargo.lock are
+# present at the repo root (see run-build-functions.sh in
+# netlify/build-image), so put the cache's bin dir on PATH first and only
+# run the installer if that didn't already give us a cargo, instead of
+# unconditionally reinstalling over a cache hit every time.
 export PATH="$PATH:$HOME/.cargo/bin"
+
+if ! command -v cargo > /dev/null 2>&1; then
+    curl https://sh.rustup.rs -sSf | sh -s -- -y
+fi
 
 # Do the actual work
 make ci-runner-netlify
