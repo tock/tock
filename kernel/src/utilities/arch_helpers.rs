@@ -14,6 +14,7 @@ use crate::process::FunctionCall;
 use crate::syscall::SyscallReturn;
 use crate::syscall::YieldVariant;
 use crate::syscall::{Syscall, SyscallClass};
+use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
 
 /// Helper function to split a [`u64`] into a higher and lower [`u32`].
@@ -396,112 +397,229 @@ pub fn encode_syscall_return_trd104(
     }
 }
 
+/// Enumeration of the system call return type variant identifiers described in
+/// TRD-RISCV64bit.
+///
+/// Each variant is associated with the respective variant identifier that would
+/// be passed along with the return value to userspace.
+#[repr(u64)]
+#[derive(Copy, Clone, Debug)]
+pub enum TRDRiscv64bitSyscallReturnVariant {
+    Failure = 0,
+    FailureU32 = 1,
+    FailureU32U32 = 2,
+    FailureU64 = 3,
+    FailureFnptrOpaque = 4,
+    FailurePtrLen = 5,
+    Success = 128,
+    SuccessU32 = 129,
+    SuccessU32U32 = 130,
+    SuccessU64 = 131,
+    SuccessU32U32U32 = 132,
+    SuccessU32U64 = 133,
+    SuccessFnptrOpaque = 134,
+    SuccessPtrLen = 135,
+    SuccessPtr = 136,
+    SuccessAddr = 137,
+}
+
+/// System call return variants defined as defined in TRD-Riscv64bit.
+///
+/// These variants correspond to those defined in the core kernel's
+/// [`SyscallReturn`] enum. For documentation on the individual
+/// variants, refer to that type instead.
+#[derive(Copy, Clone, Debug)]
+pub enum TRDRiscv64bitSyscallReturn {
+    Failure(ErrorCode),
+    FailureU32(ErrorCode, u32),
+    FailureU32U32(ErrorCode, u32, u32),
+    FailureU64(ErrorCode, u64),
+    Success,
+    SuccessU32(u32),
+    SuccessU32U32(u32, u32),
+    SuccessU32U32U32(u32, u32, u32),
+    SuccessU64(u64),
+    SuccessU32U64(u32, u64),
+    AllowReadWriteSuccess(*mut u8, usize),
+    AllowReadWriteFailure(ErrorCode, *mut u8, usize),
+    UserspaceReadableAllowSuccess(*mut u8, usize),
+    UserspaceReadableAllowFailure(ErrorCode, *mut u8, usize),
+    AllowReadOnlySuccess(*const u8, usize),
+    AllowReadOnlyFailure(ErrorCode, *const u8, usize),
+    SubscribeSuccess(*const (), usize),
+    SubscribeFailure(ErrorCode, *const (), usize),
+    YieldWaitFor(u32, u32, u32),
+    SuccessAddr(usize),
+    SuccessPtr(CapabilityPtr),
+}
+
+impl TRDRiscv64bitSyscallReturn {
+    /// Map from the kernel's [`SyscallReturn`] enum to the subset of return
+    /// values specified in TRD-Riscv64bit. This ensures backwards compatibility with
+    /// architectures implementing the ABI as specified in the TRD.
+    pub fn from_syscall_return(syscall_return: SyscallReturn) -> Self {
+        match syscall_return {
+            SyscallReturn::Failure(a) => TRDRiscv64bitSyscallReturn::Failure(a),
+            SyscallReturn::FailureU32(a, b) => TRDRiscv64bitSyscallReturn::FailureU32(a, b),
+            SyscallReturn::FailureU32U32(a, b, c) => {
+                TRDRiscv64bitSyscallReturn::FailureU32U32(a, b, c)
+            }
+            SyscallReturn::FailureU64(a, b) => TRDRiscv64bitSyscallReturn::FailureU64(a, b),
+            SyscallReturn::Success => TRDRiscv64bitSyscallReturn::Success,
+            SyscallReturn::SuccessU32(a) => TRDRiscv64bitSyscallReturn::SuccessU32(a),
+            SyscallReturn::SuccessU32U32(a, b) => TRDRiscv64bitSyscallReturn::SuccessU32U32(a, b),
+            SyscallReturn::SuccessU32U32U32(a, b, c) => {
+                TRDRiscv64bitSyscallReturn::SuccessU32U32U32(a, b, c)
+            }
+            SyscallReturn::SuccessU64(a) => TRDRiscv64bitSyscallReturn::SuccessU64(a),
+            SyscallReturn::SuccessU32U64(a, b) => TRDRiscv64bitSyscallReturn::SuccessU32U64(a, b),
+            SyscallReturn::AllowReadWriteSuccess(a, b) => {
+                TRDRiscv64bitSyscallReturn::AllowReadWriteSuccess(a, b)
+            }
+            SyscallReturn::AllowReadWriteFailure(a, b, c) => {
+                TRDRiscv64bitSyscallReturn::AllowReadWriteFailure(a, b, c)
+            }
+            SyscallReturn::UserspaceReadableAllowSuccess(a, b) => {
+                TRDRiscv64bitSyscallReturn::UserspaceReadableAllowSuccess(a, b)
+            }
+            SyscallReturn::UserspaceReadableAllowFailure(a, b, c) => {
+                TRDRiscv64bitSyscallReturn::UserspaceReadableAllowFailure(a, b, c)
+            }
+            SyscallReturn::AllowReadOnlySuccess(a, b) => {
+                TRDRiscv64bitSyscallReturn::AllowReadOnlySuccess(a, b)
+            }
+            SyscallReturn::AllowReadOnlyFailure(a, b, c) => {
+                TRDRiscv64bitSyscallReturn::AllowReadOnlyFailure(a, b, c)
+            }
+            SyscallReturn::SubscribeSuccess(a, b) => {
+                TRDRiscv64bitSyscallReturn::SubscribeSuccess(a, b)
+            }
+            SyscallReturn::SubscribeFailure(a, b, c) => {
+                TRDRiscv64bitSyscallReturn::SubscribeFailure(a, b, c)
+            }
+            SyscallReturn::YieldWaitFor(a, b, c) => {
+                TRDRiscv64bitSyscallReturn::YieldWaitFor(a as u32, b as u32, c as u32)
+            }
+            SyscallReturn::SuccessAddr(a) => TRDRiscv64bitSyscallReturn::SuccessAddr(a),
+            SyscallReturn::SuccessPtr(a) => TRDRiscv64bitSyscallReturn::SuccessPtr(a),
+        }
+    }
+}
+
 /// Encode the system call return value into 4 registers.
 ///
-/// This follows the encoding specified in TRD-64bit.
+/// This follows the encoding specified in TRD-Riscv64bit.
 pub fn encode_syscall_return_trd64bit(
-    syscall_return: &TRD104SyscallReturn,
+    syscall_return: &TRDRiscv64bitSyscallReturn,
     a0: &mut u64,
     a1: &mut u64,
     a2: &mut u64,
     a3: &mut u64,
 ) {
     match *syscall_return {
-        TRD104SyscallReturn::Failure(e) => {
-            *a0 = TRD104SyscallReturnVariant::Failure as u32 as u64;
+        TRDRiscv64bitSyscallReturn::Failure(e) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::Failure as u64;
             *a1 = e as u64;
         }
-        TRD104SyscallReturn::FailureU32(e, data0) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::FailureU32(e, data0) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::FailureU32 as u64;
             *a1 = e as u64;
             *a2 = data0 as u64;
         }
-        TRD104SyscallReturn::FailureU32U32(e, data0, data1) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::FailureU32U32(e, data0, data1) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::FailureU32U32 as u64;
             *a1 = e as u64;
             *a2 = data0 as u64;
             *a3 = data1 as u64;
         }
-        TRD104SyscallReturn::FailureU64(e, data0) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU64 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::FailureU64(e, data0) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::FailureU64 as u64;
             *a1 = e as u64;
             *a2 = data0;
         }
-        TRD104SyscallReturn::Success => {
-            *a0 = TRD104SyscallReturnVariant::Success as u32 as u64;
+        TRDRiscv64bitSyscallReturn::Success => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::Success as u64;
         }
-        TRD104SyscallReturn::SuccessU32(data0) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::SuccessU32(data0) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessU32 as u64;
             *a1 = data0 as u64;
         }
-        TRD104SyscallReturn::SuccessU32U32(data0, data1) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::SuccessU32U32(data0, data1) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessU32U32 as u64;
             *a1 = data0 as u64;
             *a2 = data1 as u64;
         }
-        TRD104SyscallReturn::SuccessU32U32U32(data0, data1, data2) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::SuccessU32U32U32(data0, data1, data2) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessU32U32U32 as u64;
             *a1 = data0 as u64;
             *a2 = data1 as u64;
             *a3 = data2 as u64;
         }
-        TRD104SyscallReturn::SuccessU64(data0) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU64 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::SuccessU64(data0) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessU64 as u64;
             *a1 = data0;
         }
-        TRD104SyscallReturn::SuccessU32U64(data0, data1) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U64 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::SuccessU32U64(data0, data1) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessU32U64 as u64;
             *a1 = data0 as u64;
             *a2 = data1;
         }
-        TRD104SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::AllowReadWriteSuccess(ptr, len) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessPtrLen as u64;
             *a1 = ptr as u64;
             *a2 = len as u64;
         }
-        TRD104SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessPtrLen as u64;
             *a1 = ptr as u64;
             *a2 = len as u64;
         }
-        TRD104SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::FailurePtrLen as u64;
             *a1 = err as u64;
             *a2 = ptr as u64;
             *a3 = len as u64;
         }
-        TRD104SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::FailurePtrLen as u64;
             *a1 = err as u64;
             *a2 = ptr as u64;
             *a3 = len as u64;
         }
-        TRD104SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::AllowReadOnlySuccess(ptr, len) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessPtrLen as u64;
             *a1 = ptr as u64;
             *a2 = len as u64;
         }
-        TRD104SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::FailurePtrLen as u64;
             *a1 = err as u64;
             *a2 = ptr as u64;
             *a3 = len as u64;
         }
-        TRD104SyscallReturn::SubscribeSuccess(ptr, data) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::SubscribeSuccess(ptr, data) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessFnptrOpaque as u64;
             *a1 = ptr as u64;
             *a2 = data as u64;
         }
-        TRD104SyscallReturn::SubscribeFailure(err, ptr, data) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32 as u64;
+        TRDRiscv64bitSyscallReturn::SubscribeFailure(err, ptr, data) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::FailureFnptrOpaque as u64;
             *a1 = err as u64;
             *a2 = ptr as u64;
             *a3 = data as u64;
         }
-        TRD104SyscallReturn::YieldWaitFor(data0, data1, data2) => {
+        TRDRiscv64bitSyscallReturn::YieldWaitFor(data0, data1, data2) => {
             *a0 = data0 as u64;
             *a1 = data1 as u64;
             *a2 = data2 as u64;
+        }
+        TRDRiscv64bitSyscallReturn::SuccessAddr(addr) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessAddr as u64;
+            *a1 = addr as u64;
+        }
+        TRDRiscv64bitSyscallReturn::SuccessPtr(ptr) => {
+            *a0 = TRDRiscv64bitSyscallReturnVariant::SuccessPtr as u64;
+            *a1 = ptr.as_ptr::<()>() as u64;
         }
     }
 }
