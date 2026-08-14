@@ -10,6 +10,7 @@ use components::hmac_component_static;
 use kernel::capabilities::{self, MemoryAllocationCapability};
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::hil::gpio::{Configure, Output};
 use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -72,6 +73,13 @@ struct NucleoU545RE {
         stm32u545::aes::ecb::Aes<'static, AES256>,
         AES256,
     >,
+    spi: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            stm32u545::spi::Spi<'static>,
+        >,
+    >,
     i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, stm32u545::i2c::I2c<'static>>,
 }
 
@@ -92,6 +100,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_extra::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
             _ => f(None),
         }
@@ -172,8 +181,43 @@ unsafe fn set_pin_primary_functions(periphs: &stm32u545::chip::Stm32u5xxDefaultP
     pin_sda.set_floating_state(kernel::hil::gpio::FloatingState::PullUp);
     pin_sda.set_speed_high();
 
+    // Warning: PA5 is shared between SPI_CLOCK and the builtin LED.
+    // By default we route SPI_CLOCK to PB3 to keep the LED functionality
+    // To use PA5 for SPI instead, swap the commented blocks below
+
+    // Default Config
     // LED Pin (PA5)
     periphs.gpio_a.pin(PinId::Pin05).make_output();
+
+    // SPI_CLOCK (PB3)
+    let spi1_sck = periphs.gpio_b.pin(PinId::Pin03);
+    spi1_sck.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_sck.set_alternate_function(5);
+    spi1_sck.set_speed_high();
+
+    // Alternative Config
+    // SPI_CLOCK (PA5) and no LED support
+    // let spi1_sck = periphs.gpio_a.pin(PinId::Pin05);
+    // spi1_sck.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    // spi1_sck.set_alternate_function(5);
+    // spi1_sck.set_speed_high();
+
+    // SPI_MISO (PA6)
+    let spi1_miso = periphs.gpio_a.pin(PinId::Pin06);
+    spi1_miso.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_miso.set_alternate_function(5);
+    spi1_miso.set_speed_high();
+
+    // SPI_MOSI (PA7)
+    let spi1_mosi = periphs.gpio_a.pin(PinId::Pin07);
+    spi1_mosi.set_mode(stm32u545::gpio::Mode::AlternateFunction);
+    spi1_mosi.set_alternate_function(5);
+    spi1_mosi.set_speed_high();
+
+    // SPI1_CS (PC9)
+    let spi1_cs = periphs.gpio_c.pin(PinId::Pin09);
+    spi1_cs.set_mode(stm32u545::gpio::Mode::Output);
+    spi1_cs.set_speed_high();
 
     // Button Pin (PC13) - Hardware is Active High
     let btn = periphs.gpio_c.pin(PinId::Pin13);
@@ -274,6 +318,9 @@ unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(&periphs.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
 
+    let spi_mux = components::spi::SpiMuxComponent::new(&periphs.spi1)
+        .finalize(components::spi_mux_component_static!(stm32u545::spi::Spi));
+
     let alarm_mux = components::alarm::AlarmMuxComponent::new(&periphs.tim2).finalize(
         components::alarm_mux_component_static!(stm32u545::tim::Tim2),
     );
@@ -337,6 +384,25 @@ unsafe fn start() -> (
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
         kernel::hil::led::LedHigh::new(led_pin)
+    ));
+
+    let spi_cs = static_init!(
+        stm32u545::gpio::Pin<'static>,
+        periphs.gpio_c.pin(PinId::Pin09)
+    );
+
+    spi_cs.make_output();
+    spi_cs.set();
+
+    let spi = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        spi_mux,
+        spi_cs,
+        capsules_core::spi_controller::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::spi_syscall_component_static!(
+        stm32u545::spi::Spi<'static>
     ));
 
     let button = components::button::ButtonComponent::new(
@@ -497,6 +563,7 @@ unsafe fn start() -> (
             crc,
             hmac,
             aes: aes_driver,
+            spi,
         }
     );
 
