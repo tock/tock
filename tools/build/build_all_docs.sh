@@ -26,7 +26,14 @@ fi
 rm -f _COW _COW2
 
 # Make the documentation for all the boards, for the host's native target.
-cargo doc
+#
+# TOCK_CARGO_FLAGS is unset for everyday local use, so warnings are
+# non-fatal here, same as a local `cargo build`/`check`. CI (ci-job-rustdoc)
+# sets it to `--config boards/cargo/deny_warnings.toml`, which merges that
+# file's `rustdocflags` with whatever each package already sets, rather
+# than replacing it outright (which `RUSTDOCFLAGS` as an environment
+# variable would do), so doc warnings are treated as build failures there.
+cargo doc $TOCK_CARGO_FLAGS
 
 # Replace the default rust logo with our own Tock logo and the favicon with our
 # own favicon. Note, it is also possible to set this using a `#[doc]` attribute

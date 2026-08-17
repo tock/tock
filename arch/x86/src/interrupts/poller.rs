@@ -62,7 +62,7 @@ impl InterruptPoller {
     /// Provides safe access to the singleton instance of `InterruptPoller`.
     ///
     /// The given closure `f` is executed with interrupts disabled (using
-    /// [`support::with_interrupts_disabled`](crate::support::with_interrupts_disabled))
+    /// [`support::with_interrupts_disabled`])
     /// and  passed a reference to the singleton.
     pub fn access<F, R>(f: F) -> R
     where

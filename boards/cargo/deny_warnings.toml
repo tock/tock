@@ -2,13 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2026.
 
-# Deny warnings for board compilation. This is not included by boards'
-# `.cargo/config.toml` directly (which would make warnings fatal even for
-# everyday local development). Instead, CI passes this file via `cargo
-# --config <path>`, which merges its `rustflags` with the ones already
-# configured for the board rather than replacing them, unlike the
-# `RUSTFLAGS` environment variable. See `TOCK_CARGO_FLAGS` in
-# `boards/Makefile.common`.
+# Deny warnings for board compilation and doc builds. This is not included
+# by boards' `.cargo/config.toml` directly (which would make warnings fatal
+# even for everyday local development). Instead, CI passes this file via
+# `cargo --config <path>`, which merges its `rustflags`/`rustdocflags` with
+# whatever is already configured (e.g. a board's linker flags) rather than
+# replacing them, unlike the `RUSTFLAGS`/`RUSTDOCFLAGS` environment
+# variables. See `TOCK_CARGO_FLAGS` in `boards/Makefile.common` and
+# `tools/build/build_all_docs.sh`.
 
 [build]
 rustflags = ["-D", "warnings"]
+rustdocflags = ["-D", "warnings"]

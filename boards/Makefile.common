@@ -277,7 +277,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc:
-	$(Q)$(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
+	$(Q)$(CARGO) --color=always doc $(VERBOSE_FLAGS) $(TOCK_CARGO_FLAGS) --release --package $(PLATFORM)
 
 
 .PHONY: lst
