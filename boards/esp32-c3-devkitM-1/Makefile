@@ -18,7 +18,7 @@ init:
 
 # Write the kernel to the flash file with tockloader
 .PHONY: write-kernel
-write-kernel: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+write-kernel: $(TARGET_PATH)/release/$(PLATFORM).bin
 	tockloader flash --local-board --address 0x40380000 $<
 
 esp32_c3_devkitm1.bin: write-kernel

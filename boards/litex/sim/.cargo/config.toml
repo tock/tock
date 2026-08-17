@@ -9,5 +9,5 @@ include = [
 ]
 
 [build]
-target = "riscv32imc-unknown-none-elf"
+target = "../../cargo/riscv32imc-unknown-none-elf.json"
 

@@ -29,7 +29,7 @@ init:
 
 # Write the kernel to the flash file with tockloader
 .PHONY: install
-install: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+install: $(TARGET_PATH)/release/$(PLATFORM).bin
 	tockloader flash --address 0x80000000 $<
 
 qemu_rv32_virt_tutorial.bin: install
@@ -40,7 +40,7 @@ run: qemu_rv32_virt_tutorial.bin | install
 	@echo
 	@echo -e "Running $$($(QEMU_CMD) --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSIONS); known broken: $(BROKEN_QEMU_VERSIONS)) with\n"\
-          " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf"
+          " - kernel $(TARGET_PATH)/release/$(PLATFORM).elf"
 	@echo "To exit type C-a x"
 	@echo
 	$(QEMU_BASE_CMDLINE) -bios '$<'

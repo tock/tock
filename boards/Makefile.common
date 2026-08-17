@@ -73,7 +73,8 @@ $(call check_defined, TARGET)
 # Location of target-specific build.
 # Make sure we delete the ".json" extension if we are building a custom TARGET
 # defined in a JSON file as cargo defines the target folder without ".json".
-TARGET_PATH := $(TARGET_DIRECTORY)$(subst .json,,$(TARGET))
+# Also strip any path prefix since cargo uses only the filename stem.
+TARGET_PATH := $(TARGET_DIRECTORY)$(if $(filter %.json,$(TARGET)),$(basename $(notdir $(TARGET))),$(TARGET))
 
 # If environment variable V or VERBOSE is non-empty, be verbose.
 ifneq ($(V),)
@@ -122,6 +123,11 @@ endif
 # Verify that various required Rust components are installed. All of these steps
 # only have to be done once per Rust version, but will take some time when
 # compiling for the first time.
+#
+# Custom target JSON specs (TARGET ending in .json) are not managed by rustup
+# and do not appear in `rustup target list`; they are built from source via
+# -Zbuild-std and need no rustup registration, so skip the check for them.
+ifneq ($(suffix $(TARGET)),.json)
 ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
   $(info Request to compile for a missing TARGET: $(TARGET))
   $(info )
@@ -134,6 +140,7 @@ ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (
   $(info     $(RUSTUP) target add $(TARGET))
   $(info )
   $(error Missing required target: $(TARGET))
+endif
 endif
 
 # If the board the user is compiling is using the stable toolchain, verify that

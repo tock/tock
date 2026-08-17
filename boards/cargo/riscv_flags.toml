@@ -4,13 +4,13 @@
 
 # RISC-V-specific flags.
 
+[unstable]
+json-target-spec = true
+
 [build]
 rustflags = [
   # NOTE: This flag causes kernel panics on some ARM cores. Since the size
   # benefit is almost exclusively for RISC-V, we only apply it for those
   # targets.
   "-C", "force-frame-pointers=no",
-  # Ensure relocations generated is eligible for linker relaxation.
-  # This provides huge space savings.
-  "-C", "target-feature=+relax",
 ]

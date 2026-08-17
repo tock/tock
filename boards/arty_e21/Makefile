@@ -16,10 +16,10 @@ TOCKLOADER_OPENOCD_FLAGS = --openocd --board arty
 install: flash
 
 .PHONY: flash-tockloader
-flash-tockloader: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+flash-tockloader: $(TARGET_PATH)/release/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_OPENOCD_FLAGS) $<
 
-flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+flash: $(TARGET_PATH)/release/$(PLATFORM).bin
 	openocd -f openocd/arty-openocd-digilent.cfg \
 		-c "init; jtagspi_init 0 openocd/bscan_spi_xc7a100t.bit; jtagspi_program $< 0x400000; shutdown"
 

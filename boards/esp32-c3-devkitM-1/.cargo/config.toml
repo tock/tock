@@ -10,7 +10,7 @@ include = [
 ]
 
 [build]
-target = "riscv32imc-unknown-none-elf"
+target = "../cargo/riscv32imc-unknown-none-elf.json"
 
 [target.'cfg(target_arch = "riscv32")']
 runner = "./run.sh"

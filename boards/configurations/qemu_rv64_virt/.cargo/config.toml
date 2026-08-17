@@ -9,4 +9,4 @@ include = [
 ]
 
 [build]
-target = "riscv64imac-unknown-none-elf"
+target = "../../cargo/riscv64imac-unknown-none-elf.json"
