@@ -149,7 +149,7 @@ allboards boards:
 
 .PHONY: allcheck check
 allcheck check:
-	@cargo check
+	@cargo check $(TOCK_CARGO_FLAGS)
 
 .PHONY: alldoc doc
 alldoc doc:
@@ -380,7 +380,7 @@ ci-setup-markdown-toc:
 
 define ci_job_markdown_toc
 	$(call banner,CI-Job: Markdown Table of Contents Validation)
-	@NOWARNINGS=true PATH="node_modules/.bin:${PATH}" tools/ci/toc.sh
+	@PATH="node_modules/.bin:${PATH}" tools/ci/toc.sh
 endef
 
 .PHONY: ci-job-markdown-toc
@@ -420,15 +420,22 @@ ci-job-clippy:
 
 
 ### ci-runner-github-build jobs:
+# Path to a `.cargo/config.toml` fragment that denies warnings. Passed via
+# `cargo --config <path>` (see `TOCK_CARGO_FLAGS` above and in
+# `boards/Makefile.common`) rather than the `RUSTFLAGS` environment
+# variable, since the latter would entirely replace (not merge with) any
+# `rustflags` a crate already sets via its own `.cargo/config.toml`.
+DENY_WARNINGS_CARGO_CONFIG := $(CURDIR)/boards/cargo/deny_warnings.toml
+
 .PHONY: ci-job-syntax
 ci-job-syntax:
 	$(call banner,CI-Job: Syntax)
-	@NOWARNINGS=true $(MAKE) allcheck
+	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" $(MAKE) allcheck
 
 .PHONY: ci-job-compilation
 ci-job-compilation:
 	$(call banner,CI-Job: Compilation)
-	@NOWARNINGS=true $(MAKE) allboards
+	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" $(MAKE) allboards
 
 
 define ci_setup_msrv
@@ -461,9 +468,9 @@ ci-job-debug-support-targets:
 	# work, but don't build them for every board.
 	#
 	# The choice of building for the nrf52dk was chosen by random die roll.
-	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk lst
-	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk debug
-	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk debug-lst
+	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" $(MAKE) -C boards/nordic/nrf52dk lst
+	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" $(MAKE) -C boards/nordic/nrf52dk debug
+	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" $(MAKE) -C boards/nordic/nrf52dk debug-lst
 
 .PHONY: ci-job-collect-artifacts
 ci-job-collect-artifacts: ci-job-compilation
@@ -485,10 +492,10 @@ ci-job-collect-artifacts: ci-job-compilation
 .PHONY: ci-job-libraries
 ci-job-libraries:
 	$(call banner,CI-Job: Libraries)
-	@cd libraries/enum_primitive && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/riscv-csr && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tock-cells && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tickv && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/enum_primitive && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
+	@cd libraries/riscv-csr && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
+	@cd libraries/tock-cells && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
+	@cd libraries/tickv && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
 
 .PHONY: ci-job-archs
 ci-job-archs:
@@ -496,22 +503,22 @@ ci-job-archs:
 	@for arch in `./tools/build/list_archs.sh`;\
 		do echo "$$(tput bold)Test $$arch";\
 		cd arch/$$arch;\
-		NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test || exit 1;\
+		cargo test --config $(DENY_WARNINGS_CARGO_CONFIG) || exit 1;\
 		cd ../..;\
 		done
 
 .PHONY: ci-job-kernel
 ci-job-kernel:
 	$(call banner,CI-Job: Kernel)
-	@cd kernel && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
+	@cd kernel && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
 
 .PHONY: ci-job-capsules
 ci-job-capsules:
 	$(call banner,CI-Job: Capsules)
 	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
-	@cd capsules/core && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd capsules/extra && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd capsules/system && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
+	@cd capsules/core && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
+	@cd capsules/extra && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
+	@cd capsules/system && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
 
 .PHONY: ci-job-chips
 ci-job-chips:
@@ -519,7 +526,7 @@ ci-job-chips:
 	@for chip in `./tools/build/list_chips.sh`;\
 		do echo "$$(tput bold)Test $$chip";\
 		cd chips/$$chip;\
-		NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test || exit 1;\
+		cargo test --config $(DENY_WARNINGS_CARGO_CONFIG) || exit 1;\
 		cd ../..;\
 		done
 
@@ -551,8 +558,8 @@ ci-setup-tools:
 
 define ci_job_tools
 	$(call banner,CI-Job: Tools)
-	@NOWARNINGS=true RUSTFLAGS="-D warnings" \
-		cargo test --all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
+	@cargo test --config $(DENY_WARNINGS_CARGO_CONFIG) \
+		--all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
 endef
 
 .PHONY: ci-job-tools
@@ -566,12 +573,12 @@ ci-job-miri:
 	#
 	# Note: This is highly experimental and limited at the moment.
 	#
-	@cd kernel && NOWARNINGS=true cargo miri test
-	@for a in $$(tools/build/list_archs.sh); do cd arch/$$a && NOWARNINGS=true cargo miri test && cd ../..; done
-	@cd capsules/core && NOWARNINGS=true cargo miri test
-	@cd capsules/extra && NOWARNINGS=true cargo miri test
-	@cd capsules/system && NOWARNINGS=true cargo miri test
-	@for c in $$(tools/build/list_chips.sh); do cd chips/$$c && NOWARNINGS=true cargo miri test && cd ../..; done
+	@cd kernel && cargo miri test
+	@for a in $$(tools/build/list_archs.sh); do cd arch/$$a && cargo miri test && cd ../..; done
+	@cd capsules/core && cargo miri test
+	@cd capsules/extra && cargo miri test
+	@cd capsules/system && cargo miri test
+	@for c in $$(tools/build/list_chips.sh); do cd chips/$$c && cargo miri test && cd ../..; done
 
 
 .PHONY: ci-job-cargo-test-build
@@ -638,7 +645,7 @@ define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/ci/qemu-runner;\
 		PATH="$(shell pwd)/tools/ci/qemu/build/:${PATH}"\
-		NOWARNINGS=true cargo run
+		cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
 		PATH="$(shell pwd)/tools/ci/qemu/build/:${PATH}"\
 		make test
@@ -654,7 +661,7 @@ ci-job-qemu: ci-setup-qemu
 .PHONY: ci-job-rustdoc
 ci-job-rustdoc:
 	$(call banner,CI-Job: Rustdoc Documentation)
-	@NOWARNINGS=true tools/build/build_all_docs.sh
+	@tools/build/build_all_docs.sh
 
 ## End CI rules
 ##

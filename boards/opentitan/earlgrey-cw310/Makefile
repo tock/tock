@@ -21,22 +21,26 @@ include ../../Makefile.common
 
 # Pass OpenTitan board configuration option in `BOARD_CONFIGURATION` through
 # Cargo `--features`. Please see `Cargo.toml` for available options.
+#
+# Use `+=` rather than `=` so this extends (rather than clobbers) any
+# `TOCK_CARGO_FLAGS` already inherited from the environment, e.g. the
+# `--config` deny-warnings flag CI sets for `allboards`.
 ifneq ($(BOARD_CONFIGURATION),)
-	CARGO_FLAGS = --no-default-features --features=$(BOARD_CONFIGURATION)
+	TOCK_CARGO_FLAGS += --no-default-features --features=$(BOARD_CONFIGURATION)
 endif
 
 .PHONY: check
 check:
-	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(TOCK_CARGO_FLAGS)
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS) --release
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(TOCK_CARGO_FLAGS) --release
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(TOCK_CARGO_FLAGS)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: ot-check
@@ -110,10 +114,10 @@ test:
 ifneq ($(OPENTITAN_TREE),)
 	$(error "Running on QEMU, use test-hardware to run on hardware")
 endif
-	$(Q)TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} QEMU_ENTRY_POINT=${QEMU_ENTRY_POINT} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release
+	$(Q)TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} QEMU_ENTRY_POINT=${QEMU_ENTRY_POINT} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(TOCK_CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release
 
 test-hardware: ot-check
-	$(Q)OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
+	$(Q)OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(TOCK_CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
 
 test-verilator: ot-check
-	$(Q)VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests,sim_verilator
+	$(Q)VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(TOCK_CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests,sim_verilator
