@@ -26,7 +26,10 @@ fi
 rm -f _COW _COW2
 
 # Make the documentation for all the boards, for the host's native target.
-cargo doc
+#
+# `--no-deps` skips generating docs for third-party dependencies, which takes a
+# long time and we don't link to anyway.
+cargo doc --no-deps
 
 # Replace the default rust logo with our own Tock logo and the favicon with our
 # own favicon. Note, it is also possible to set this using a `#[doc]` attribute
