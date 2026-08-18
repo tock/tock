@@ -1015,10 +1015,11 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     // SAFETY: We know this will write to only process-accessible memory
                     // that has never been used to create any kernel data structures
                     // because of the checks at the beginning of this function. We also
-                    // know this is valid memory to write to. Because we are using `u8`,
-                    // we know `old_break_mut_ptr` is aligned. Since the process will
-                    // have access to this memory we know the kernel will not try to use
-                    // it for any data structures, avoiding any potential future memory
+                    // know this is valid memory to write to because we checked the
+                    // new_break is within process memory. Because we are using `u8`, we
+                    // know `old_break_mut_ptr` is aligned. Since the process will have
+                    // access to this memory we know the kernel will not try to use it
+                    // for any data structures, avoiding any potential future memory
                     // initialization error.
                     unsafe {
                         core::ptr::write_bytes(
