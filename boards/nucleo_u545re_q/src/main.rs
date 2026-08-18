@@ -81,6 +81,8 @@ struct NucleoU545RE {
         >,
     >,
     i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, stm32u545::i2c::I2c<'static>>,
+    date_time:
+        &'static capsules_extra::date_time::DateTimeCapsule<'static, stm32u545::rtc::Rtc<'static>>,
 }
 
 impl SyscallDriverLookup for NucleoU545RE {
@@ -102,6 +104,7 @@ impl SyscallDriverLookup for NucleoU545RE {
             capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
+            capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
     }
@@ -380,6 +383,16 @@ unsafe fn start() -> (
     )
     .finalize(components::alarm_component_static!(stm32u545::tim::Tim2));
 
+    let date_time = components::date_time::DateTimeComponent::new(
+        board_kernel,
+        capsules_extra::date_time::DRIVER_NUM,
+        &periphs.rtc,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::date_time_component_static!(
+        stm32u545::rtc::Rtc<'static>
+    ));
+
     let led_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin05));
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         kernel::hil::led::LedHigh<'static, stm32u545::gpio::Pin>,
@@ -564,6 +577,7 @@ unsafe fn start() -> (
             hmac,
             aes: aes_driver,
             spi,
+            date_time,
         }
     );
 

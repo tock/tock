@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2026.
 
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 register_structs! {
@@ -12,7 +12,10 @@ register_structs! {
         (0x000 => _reserved),
         /// PWR supply voltage monitoring control register
         (0x010 => pwr_svmcr: ReadWrite<u32, PWR_SVMCR::Register>),
-        (0x014 => @END),
+        (0x014 => _reserved1: [u32; 5]),
+        /// PWR disable backup domain register
+        (0x028 => pwr_dbpr: ReadWrite<u32, PWR_DBPR::Register>),
+        (0x02C => @END),
     }
 }
 register_bitfields![u32,
@@ -22,6 +25,10 @@ register_bitfields![u32,
         // If VDDA is not always present in the application, the VDDA voltage monitor can be used to determine whether this supply is ready or not.
         /// VDDA independent analog supply valid
         ASV OFFSET(30) NUMBITS(1) []
+    ],
+    PWR_DBPR [
+        /// Disable backup domain write protection
+        DBP OFFSET(0) NUMBITS(1) []
     ],
 ];
 const PWR_BASE: StaticRef<PwrRegisters> =
@@ -40,5 +47,20 @@ impl Pwr {
 
     pub fn validate_vdda(&self) {
         self.registers.pwr_svmcr.modify(PWR_SVMCR::ASV::SET);
+    }
+
+    /// Disable Backup Domain Write Protection
+    pub fn disable_backup_domain(&self) {
+        self.registers.pwr_dbpr.modify(PWR_DBPR::DBP::SET);
+        // Since the backup domain is behind a clock domain crossing the write
+        // takes a few cycles to take effect. Registers in that domain silently drop
+        // writes until it takes effect so we just poll for the bit to be activated before
+        // returning
+
+        // Magic number large enough to prevent kernel hanging if the write never takes effect
+        let mut cycle_counter = 100000;
+        while !self.registers.pwr_dbpr.is_set(PWR_DBPR::DBP) && cycle_counter > 0 {
+            cycle_counter -= 1;
+        }
     }
 }

@@ -8,6 +8,7 @@ microcontrollers from STMicroelectronics.
 Currently supported peripherals:
 
 - RCC (Reset and Clock Control)
+- RTC (Real Time Clock)
 - GPIO (General Purpose I/O)
 - EXTI (External Interrupts)
 - USART (Universal Synchronous/Asynchronous Receiver Transmitter)
