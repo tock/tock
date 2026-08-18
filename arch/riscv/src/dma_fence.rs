@@ -44,7 +44,7 @@ impl RiscvCoherentDmaFence {
     }
 }
 
-#[cfg(any(riscv_bare_metal, doc))]
+#[cfg(any(riscv, doc))]
 unsafe impl DmaFence for RiscvCoherentDmaFence {
     /// Expose prior writes to in-memory buffers to subsequent DMA operations.
     ///
