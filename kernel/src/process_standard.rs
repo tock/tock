@@ -1735,6 +1735,12 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     const PROCESS_STRUCT_ALIGNMENT: usize = mem::align_of::<ProcessStandard<C, D>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
+    ///
+    /// # Safety
+    ///
+    /// This function allocates memory from `remaining_memory` for use by the
+    /// process. There must not be any references to or other uses of
+    /// `remaining_memory` when calling this function.
     pub(crate) unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
