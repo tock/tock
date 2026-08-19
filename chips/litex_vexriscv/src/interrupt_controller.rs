@@ -4,7 +4,8 @@
 
 //! VexRiscv-specific interrupt controller implementation
 
-use core::cell::Cell;
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::utilities::interrupts_disabled_cell::InterruptsDisabledCell;
 
 /// Rust wrapper around the raw CSR-based VexRiscv interrupt
 /// controller
@@ -12,25 +13,25 @@ use core::cell::Cell;
 /// The wrapper supports saving all currently pending interrupts to an
 /// internal state, which can then be used for interrupt processing.
 pub struct VexRiscvInterruptController {
-    saved_interrupts: Cell<usize>,
+    saved_interrupts: InterruptsDisabledCell<usize>,
 }
 
 impl VexRiscvInterruptController {
     /// Construct a new VexRiscvInterruptController instance
     pub const fn new() -> Self {
         VexRiscvInterruptController {
-            saved_interrupts: Cell::new(0),
+            saved_interrupts: InterruptsDisabledCell::new(0),
         }
     }
 
     /// Save the currently pending interrupts in hardware to the
     /// internal state
-    ///
-    /// This should be accessed in an atomic context to ensure a
-    /// consistent view on the pending interrupts is saved.
-    pub unsafe fn save_pending(&self) -> bool {
-        let all_pending = vexriscv_irq_raw::irq_pending();
-        self.saved_interrupts.set(all_pending);
+    pub fn save_pending(&self, interrupts_disabled: &InterruptsDisabled) -> bool {
+        // Safety: irq_pending() is unsafe only because it is an inline-asm
+        // CSR read; a single read cannot race or tear, so no additional
+        // precondition is needed here.
+        let all_pending = unsafe { vexriscv_irq_raw::irq_pending() };
+        self.saved_interrupts.set(all_pending, interrupts_disabled);
 
         // return true if some interrupts were saved
         all_pending != 0
@@ -63,21 +64,31 @@ impl VexRiscvInterruptController {
     ///
     /// If all interrupts are marked as complete, `next_saved` will
     /// return `None`.
-    pub fn complete_saved(&self, idx: usize) {
+    pub fn complete_saved(&self, idx: usize, interrupts_disabled: &InterruptsDisabled) {
         self.saved_interrupts
-            .set(self.saved_interrupts.get() & !(1 << idx));
+            .update(|val| val & !(1 << idx), interrupts_disabled);
     }
 
     /// Suppress (mask) a specific interrupt source in the interrupt
     /// controller
-    pub unsafe fn mask_interrupt(idx: usize) {
-        vexriscv_irq_raw::irq_setmask(vexriscv_irq_raw::irq_getmask() & !(1 << idx));
+    pub fn mask_interrupt(idx: usize, _interrupts_disabled: &InterruptsDisabled) {
+        // Safety: interrupts are disabled (we have an InterruptsDisabled
+        // token), so this read-modify-write of the mask register cannot
+        // race a concurrent access.
+        unsafe {
+            vexriscv_irq_raw::irq_setmask(vexriscv_irq_raw::irq_getmask() & !(1 << idx));
+        }
     }
 
     /// Unsuppress (unmask) a specific interrupt source in the
     /// interrupt controller
-    pub unsafe fn unmask_interrupt(idx: usize) {
-        vexriscv_irq_raw::irq_setmask(vexriscv_irq_raw::irq_getmask() | (1 << idx));
+    pub fn unmask_interrupt(idx: usize, _interrupts_disabled: &InterruptsDisabled) {
+        // Safety: interrupts are disabled (we have an InterruptsDisabled
+        // token), so this read-modify-write of the mask register cannot
+        // race a concurrent access.
+        unsafe {
+            vexriscv_irq_raw::irq_setmask(vexriscv_irq_raw::irq_getmask() | (1 << idx));
+        }
     }
 
     /// Suppress (mask) all interrupts in the interrupt controller

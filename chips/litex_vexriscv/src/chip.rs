@@ -7,7 +7,7 @@
 use core::fmt::Write;
 use core::ptr::addr_of;
 use kernel::debug;
-use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::{Chip, InterruptService};
 use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{CSR, mcause, mie::mie};
@@ -50,12 +50,15 @@ impl<I: 'static + InterruptService> LiteXVexRiscv<I> {
         VexRiscvInterruptController::unmask_all_interrupts();
     }
 
-    unsafe fn handle_interrupts(&self) {
+    fn handle_interrupts(&self) {
         while let Some(interrupt) = self.interrupt_controller.next_saved() {
             if !self.interrupt_service.service_interrupt(interrupt as u32) {
                 debug!("Unknown interrupt: {}", interrupt);
             }
-            self.interrupt_controller.complete_saved(interrupt);
+            self.with_interrupts_disabled(|interrupts_disabled| {
+                self.interrupt_controller
+                    .complete_saved(interrupt, interrupts_disabled);
+            });
         }
     }
 }
@@ -77,9 +80,7 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
 
     fn service_pending_interrupts(&self) {
         while self.interrupt_controller.next_saved().is_some() {
-            unsafe {
-                self.handle_interrupts();
-            }
+            self.handle_interrupts();
         }
 
         // Re-enable all MIE interrupts that we care about. Since we
@@ -140,7 +141,7 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
-unsafe fn handle_interrupt(intr: mcause::Interrupt) {
+fn handle_interrupt(intr: mcause::Interrupt, interrupts_disabled: &InterruptsDisabled) {
     match intr {
         mcause::Interrupt::UserSoft
         | mcause::Interrupt::UserTimer
@@ -160,15 +161,22 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             CSR.mie.modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
-            // We received an interrupt, disable interrupts while we handle them
+            // Mask the external interrupt source so this (level-triggered)
+            // interrupt cannot re-trap before the bottom half drains and
+            // completes it.
             CSR.mie.modify(mie::mext::CLEAR);
+
+            // Safety: interrupts are disabled (we have an InterruptsDisabled
+            // token), so this cannot race a concurrent access to the
+            // interrupt controller.
+            let interrupt_controller_ref = unsafe { &*addr_of!(INTERRUPT_CONTROLLER) };
 
             // Save the interrupts and check whether at least one
             // interrupt is to be handled
             //
-            // If no interrupt was saved, reenable interrupts
-            // immediately
-            if !(*addr_of!(INTERRUPT_CONTROLLER)).save_pending() {
+            // If no interrupt was saved, unmask the external interrupt
+            // source immediately
+            if !interrupt_controller_ref.save_pending(interrupts_disabled) {
                 CSR.mie.modify(mie::mext::SET);
             }
         }
@@ -185,9 +193,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
+    // Safety: we were just called via a trap, and RISC-V hardware clears
+    // `mstatus.MIE` on trap entry before any Rust code runs.
+    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
-            handle_interrupt(interrupt);
+            handle_interrupt(interrupt, &interrupts_disabled);
         }
         mcause::Trap::Exception(exception) => {
             handle_exception(exception);
@@ -201,9 +212,12 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
+    // Safety: we were just called via a trap, and RISC-V hardware clears
+    // `mstatus.MIE` on trap entry before any Rust code runs.
+    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
     match mcause::Trap::from(mcause_val as usize) {
         mcause::Trap::Interrupt(interrupt) => {
-            handle_interrupt(interrupt);
+            handle_interrupt(interrupt, &interrupts_disabled);
         }
         _ => {
             panic!("unexpected non-interrupt\n");
