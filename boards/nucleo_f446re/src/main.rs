@@ -62,7 +62,6 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 /// capsules for this platform.
 struct NucleoF446RE {
     console: &'static capsules_core::console::Console<'static>,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, stm32f446re::gpio::Pin<'static>>,
@@ -96,7 +95,6 @@ impl SyscallDriverLookup for NucleoF446RE {
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -346,7 +344,6 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -535,11 +532,6 @@ unsafe fn start() -> (
 
     let nucleo_f446re = NucleoF446RE {
         console,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         led,
         button,
         adc: adc_syscall,
@@ -606,5 +598,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

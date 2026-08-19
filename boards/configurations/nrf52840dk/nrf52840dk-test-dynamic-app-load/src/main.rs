@@ -536,10 +536,5 @@ pub unsafe fn main() {
 
     let _ = pconsole.start();
 
-    board_kernel.kernel_loop(
-        platform,
-        chip,
-        None::<&kernel::ipc::IPC<0>>,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(platform, chip, &main_loop_capability);
 }

@@ -122,7 +122,6 @@ pub struct Platform {
     adc: &'static AdcDriver,
     rng: &'static RngDriver,
     temp: &'static TemperatureDriver,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     i2c_master_slave: &'static I2CMasterSlaveDriver,
     alarm: &'static AlarmDriver,
     scheduler: &'static SchedulerInUse,
@@ -145,7 +144,6 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             _ => f(None),
         }
@@ -590,11 +588,6 @@ pub unsafe fn start_particle_boron() -> (
         rng,
         temp,
         alarm,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         i2c_master_slave,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
@@ -654,5 +647,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start_particle_boron();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

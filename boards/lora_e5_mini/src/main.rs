@@ -490,10 +490,5 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(stm32f429zi::tim2::Tim2))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &lora_e5_mini,
-        chip,
-        None::<&kernel::ipc::IPC<2>>,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&lora_e5_mini, chip, &main_loop_capability);
 }

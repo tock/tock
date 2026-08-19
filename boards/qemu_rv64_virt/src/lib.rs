@@ -79,7 +79,6 @@ pub struct QemuRv64VirtPlatform {
         'static,
         VirtualMuxAlarm<'static, qemu_rv64_virt_chip::chip::QemuRv64VirtClint<'static>>,
     >,
-    pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     rng: Option<&'static RngDriver>,
@@ -137,7 +136,6 @@ impl SyscallDriverLookup for QemuRv64VirtPlatform {
                 }
             }
 
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -776,11 +774,6 @@ pub unsafe fn start() -> (
         virtio_ethernet_tap,
         virtio_gpu_screen,
         virtio_input_keyboard,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_cap,
-        ),
     };
 
     debug!("QEMU RISC-V 64-bit \"virt\" machine, initialization complete.");

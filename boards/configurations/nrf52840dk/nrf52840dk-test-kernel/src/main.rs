@@ -288,10 +288,5 @@ pub unsafe fn main() {
     // KERNEL LOOP
     //--------------------------------------------------------------------------
 
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        None::<&kernel::ipc::IPC<0>>,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

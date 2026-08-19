@@ -134,7 +134,6 @@ pub struct MicroBit {
     ninedof: &'static NineDofDriver,
     lsm303agr: &'static Lsm303agrDriver,
     temperature: &'static TemperatureDriver,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static AdcDriver,
     alarm: &'static AlarmDriver,
     buzzer_driver: &'static BuzzerDriver,
@@ -169,7 +168,6 @@ impl SyscallDriverLookup for MicroBit {
             capsules_extra::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -286,7 +284,6 @@ unsafe fn start() -> (
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     //--------------------------------------------------------------------------
     // DEBUG GPIO
@@ -743,11 +740,6 @@ unsafe fn start() -> (
         adc: adc_syscall,
         alarm,
         app_flash,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
 
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
@@ -807,5 +799,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, board, chip) = start();
-    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&board, chip, &main_loop_capability);
 }

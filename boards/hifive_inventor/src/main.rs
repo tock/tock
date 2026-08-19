@@ -334,10 +334,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, board, chip) = start();
-    board_kernel.kernel_loop(
-        &board,
-        chip,
-        None::<&kernel::ipc::IPC<0>>,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&board, chip, &main_loop_capability);
 }

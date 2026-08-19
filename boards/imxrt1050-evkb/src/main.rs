@@ -85,7 +85,6 @@ struct Imxrt1050EVKB {
     button: &'static capsules_core::button::Button<'static, imxrt10xx::gpio::Pin<'static>>,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, imxrt10xx::gpio::Pin<'static>>,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, imxrt10xx::gpio::Pin<'static>>,
@@ -108,7 +107,6 @@ impl SyscallDriverLookup for Imxrt1050EVKB {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             _ => f(None),
@@ -330,7 +328,6 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -486,11 +483,6 @@ unsafe fn start() -> (
 
     let imxrt1050 = Imxrt1050EVKB {
         console,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         led,
         button,
         ninedof,
@@ -578,5 +570,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, board, chip) = start();
-    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&board, chip, &main_loop_capability);
 }

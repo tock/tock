@@ -180,7 +180,6 @@ pub struct Platform {
     button: &'static ButtonDriver,
     screen: &'static ScreenDriver,
     rng: &'static RngDriver,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static AlarmDriver,
     buzzer: &'static BuzzerDriver,
     adc: &'static AdcDriver,
@@ -208,7 +207,6 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules_extra::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             _ => f(None),
@@ -316,7 +314,6 @@ unsafe fn start() -> (
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     //--------------------------------------------------------------------------
     // DEBUG GPIO
@@ -762,11 +759,6 @@ unsafe fn start() -> (
         rng,
         buzzer,
         alarm,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         temperature,
         humidity,
         scheduler,
@@ -834,5 +826,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, board, chip) = start();
-    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&board, chip, &main_loop_capability);
 }

@@ -164,7 +164,6 @@ struct Imix {
         'static,
         VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
     >,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     crc: &'static capsules_extra::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
@@ -205,7 +204,6 @@ impl SyscallDriverLookup for Imix {
                 f(Some(self.nonvolatile_storage))
             }
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -363,7 +361,6 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     power::configure_submodules(
         &peripherals.pa,
@@ -834,7 +831,6 @@ unsafe fn start() -> (
         analog_comparator,
         crc,
         spi: spi_syscalls,
-        ipc: kernel::ipc::IPC::new(board_kernel, kernel::ipc::DRIVER_NUM, &grant_cap),
         ninedof,
         udp_driver,
         usb_driver,
@@ -914,5 +910,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

@@ -66,7 +66,6 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 /// capsules for this platform.
 struct STM32F3Discovery {
     console: &'static capsules_core::console::Console<'static>,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
@@ -113,7 +112,6 @@ impl SyscallDriverLookup for STM32F3Discovery {
             capsules_extra::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
             capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(self.nonvolatile_storage))
@@ -446,7 +444,6 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -834,11 +831,6 @@ unsafe fn start() -> (
 
     let stm32f3discovery = STM32F3Discovery {
         console,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         gpio,
         led,
         button,
@@ -911,5 +903,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }
