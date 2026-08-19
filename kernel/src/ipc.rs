@@ -65,6 +65,20 @@ impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
 
     /// Schedule an IPC upcall for a process. This is called by the main
     /// scheduler loop if an IPC task was queued for the process.
+    ///
+    /// # Safety
+    ///
+    /// Scheduling the upcall is what causes a shared buffer to be shared with
+    /// the target (`schedule_on`) process. This causes an MPU region to be
+    /// created for the target process, giving it access to the shared buffer.
+    ///
+    /// The caller must ensure that source (`called_from`) process is not
+    /// deallocated/reclaimed while the buffer is still shared (i.e., the MPU
+    /// region is mapped). Failing to ensure this could potentially give the
+    /// original target process access to memory allocated for a new process.
+    /// More problematically, that memory could be used for the kernel's grant
+    /// region for a new process, and allowing a process to access that memory
+    /// violates memory safety for the kernel.
     pub(crate) unsafe fn schedule_upcall(
         &self,
         schedule_on: ProcessId,
