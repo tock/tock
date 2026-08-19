@@ -12,7 +12,6 @@ use core::str;
 
 use crate::capabilities;
 use crate::errorcode::ErrorCode;
-use crate::ipc;
 use crate::kernel::Kernel;
 use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -75,8 +74,7 @@ pub struct ProcessId {
     pub(crate) kernel: &'static Kernel,
 
     /// The index in the kernel.PROCESSES[] array where this app's state is
-    /// stored. This makes for fast lookup of the process and helps with
-    /// implementing IPC.
+    /// stored. This makes for fast lookup of the process.
     ///
     /// This value is crate visible to enable optimizations in sched.rs. Other
     /// users should call `.index()` instead.
@@ -351,10 +349,10 @@ pub trait Process {
     /// Returns how many times this process has been restarted.
     fn get_restart_count(&self) -> usize;
 
-    /// Get the name of the process. Used for IPC.
+    /// Get the name of the process.
     fn get_process_name(&self) -> &'static str;
 
-    /// Return if there are any Tasks (upcalls/IPC requests) enqueued for the
+    /// Return if there are any Tasks (upcalls) enqueued for the
     /// process.
     fn has_tasks(&self) -> bool;
 
@@ -364,7 +362,7 @@ pub trait Process {
 
     /// Queue a [`Task`] for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. [`Task`]s are some function the
-    /// process should run, for example a upcall or an IPC call.
+    /// process should run, for example a upcall.
     ///
     /// This function returns:
     /// - `Ok(())` if the [`Task`] was successfully enqueued.
@@ -1051,8 +1049,6 @@ pub enum Task {
     /// process without invoking any callbacks in userspace (e.g., in response
     /// to a YieldFor).
     ReturnValue(ReturnArguments),
-    /// An IPC operation that needs additional setup to configure memory access.
-    IPC((ProcessId, ipc::IPCUpcallType)),
 }
 
 /// Enumeration to identify whether a function call for a process comes directly

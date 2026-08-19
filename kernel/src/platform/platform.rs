@@ -85,7 +85,6 @@ pub trait KernelResources<C: Chip> {
 /// ```ignore
 /// struct Hail {
 ///     console: &'static capsules::console::Console<'static>,
-///     ipc: kernel::ipc::IPC,
 ///     dac: &'static capsules::dac::Dac<'static>,
 /// }
 ///
@@ -96,7 +95,6 @@ pub trait KernelResources<C: Chip> {
 ///     {
 ///         match driver_num {
 ///             capsules::console::DRIVER_NUM => f(Some(self.console)),
-///             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
 ///             capsules::dac::DRIVER_NUM => f(Some(self.dac)),
 ///
 ///             _ => f(None),
