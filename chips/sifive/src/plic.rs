@@ -4,9 +4,9 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
-use core::cell::Cell;
-
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::StaticRef;
+use kernel::utilities::interrupts_disabled_cell::InterruptsDisabledCell;
 use kernel::utilities::registers::LocalRegisterCopy;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
@@ -110,7 +110,7 @@ register_bitfields![u32,
 /// platforms implemented without the generic parameter.
 pub struct Plic<const TOTAL_INTS: usize = 51> {
     registers: RegsWrapper,
-    saved: [Cell<LocalRegisterCopy<u32>>; 2],
+    saved: [InterruptsDisabledCell<LocalRegisterCopy<u32>>; 2],
 }
 
 impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
@@ -118,8 +118,8 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
         Plic {
             registers: RegsWrapper::new(base, TOTAL_INTS),
             saved: [
-                Cell::new(LocalRegisterCopy::new(0)),
-                Cell::new(LocalRegisterCopy::new(0)),
+                InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
+                InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
             ],
         }
     }
@@ -211,18 +211,16 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
 
     /// Save the current interrupt to be handled later
     /// This will save the interrupt at index internally to be handled later.
-    /// Interrupts must be disabled before this is called.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub unsafe fn save_interrupt(&self, index: u32) {
+    pub fn save_interrupt(&self, index: u32, interrupts_disabled: &InterruptsDisabled) {
         let offset = usize::from(index >= 32);
         let irq = index % 32;
 
-        // OR the current saved state with the new value
-        let new_saved = self.saved[offset].get().get() | 1 << irq;
-
-        // Set the new state
-        self.saved[offset].set(LocalRegisterCopy::new(new_saved));
+        self.saved[offset].update(
+            |val| LocalRegisterCopy::new(val.get() | 1 << irq),
+            interrupts_disabled,
+        );
     }
 
     /// The `next_pending()` function will only return enabled interrupts.
@@ -241,18 +239,16 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
-    /// Interrupts must be disabled before this is called.
-    pub unsafe fn complete(&self, index: u32) {
+    pub fn complete(&self, index: u32, interrupts_disabled: &InterruptsDisabled) {
         self.registers.get_claim_reg().set(index);
 
         let offset = usize::from(index >= 32);
         let irq = index % 32;
 
-        // OR the current saved state with the new value
-        let new_saved = self.saved[offset].get().get() & !(1 << irq);
-
-        // Set the new state
-        self.saved[offset].set(LocalRegisterCopy::new(new_saved));
+        self.saved[offset].update(
+            |val| LocalRegisterCopy::new(val.get() & !(1 << irq)),
+            interrupts_disabled,
+        );
     }
 
     /// This is a generic implementation. There may be board specific versions as
