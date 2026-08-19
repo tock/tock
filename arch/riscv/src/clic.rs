@@ -4,6 +4,7 @@
 
 //! Core Local Interrupt Control peripheral driver.
 
+use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, register_bitfields};
@@ -285,7 +286,7 @@ impl Clic {
 ///
 /// This is outside of the `Clic` struct because it has to be called from the
 /// trap handler which does not have a reference to the CLIC object.
-pub unsafe fn disable_interrupt(index: u32) {
+pub fn disable_interrupt(index: u32, _interrupts_disabled: &InterruptsDisabled) {
     let regs: &ClicRegisters = &CLIC_BASE;
 
     match index {

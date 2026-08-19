@@ -192,6 +192,9 @@ pub unsafe fn configure_trap_handler() {
 /// disable it.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub extern "C" fn start_trap_rust() {
+    // Safety: we were just called via a trap, and RISC-V hardware clears
+    // `mstatus.MIE` on trap entry before any Rust code runs.
+    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
     let mcause = rv32i::csr::CSR.mcause.extract();
 
     match rv32i::csr::mcause::Trap::from(mcause) {
@@ -200,9 +203,7 @@ pub extern "C" fn start_trap_rust() {
             // index in the mcause register. The interrupt number is the lowest
             // 8 bits.
             let interrupt_index = mcause.read(rv32i::csr::mcause::mcause::reason) & 0xFF;
-            unsafe {
-                rv32i::clic::disable_interrupt(interrupt_index as u32);
-            }
+            rv32i::clic::disable_interrupt(interrupt_index as u32, &interrupts_disabled);
         }
 
         rv32i::csr::mcause::Trap::Exception(_exception) => {
@@ -218,12 +219,13 @@ pub extern "C" fn start_trap_rust() {
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub extern "C" fn disable_interrupt_trap_handler(mcause: u32) {
+    // Safety: we were just called via a trap, and RISC-V hardware clears
+    // `mstatus.MIE` on trap entry before any Rust code runs.
+    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
     // The interrupt number is then the lowest 8
     // bits.
     let interrupt_index = mcause & 0xFF;
-    unsafe {
-        rv32i::clic::disable_interrupt(interrupt_index);
-    }
+    rv32i::clic::disable_interrupt(interrupt_index, &interrupts_disabled);
 }
 
 /// Array used to track the "trap handler active" state per hart.
