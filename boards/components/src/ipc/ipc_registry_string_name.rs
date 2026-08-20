@@ -19,39 +19,63 @@ use capsules_core::ipc::ipc_registry_string_name::IpcRegistryStringName;
 use core::mem::MaybeUninit;
 use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
+use kernel::platform::registration::RegistrationFilter;
 
 #[macro_export]
 macro_rules! ipc_registry_string_name_component_static {
-    () => {{ kernel::static_buf!(capsules_core::ipc::ipc_registry_string_name::IpcRegistryStringName) }};
+    ($RF:ty $(,)?) => {{
+        kernel::static_buf!(
+            capsules_core::ipc::ipc_registry_string_name::IpcRegistryStringName<'static, $RF>
+        )
+    }};
 }
 
-pub type IpcRegistryStringNameComponentType =
-    capsules_core::ipc::ipc_registry_string_name::IpcRegistryStringName;
+pub type IpcRegistryStringNameComponentType<RF> =
+    capsules_core::ipc::ipc_registry_string_name::IpcRegistryStringName<'static, RF>;
 
-pub struct IpcRegistryStringNameComponent<CAP: MemoryAllocationCapability> {
+pub struct IpcRegistryStringNameComponent<
+    RF: RegistrationFilter + 'static,
+    CAP: MemoryAllocationCapability,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
+    registration_filter: &'static RF,
     mem_cap: CAP,
 }
 
-impl<CAP: MemoryAllocationCapability> IpcRegistryStringNameComponent<CAP> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, mem_cap: CAP) -> Self {
+impl<RF: RegistrationFilter, CAP: MemoryAllocationCapability>
+    IpcRegistryStringNameComponent<RF, CAP>
+{
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        registration_filter: &'static RF,
+        mem_cap: CAP,
+    ) -> Self {
         Self {
             board_kernel,
             driver_num,
+            registration_filter,
             mem_cap,
         }
     }
 }
 
-impl<CAP: MemoryAllocationCapability> Component for IpcRegistryStringNameComponent<CAP> {
-    type StaticInput = &'static mut MaybeUninit<IpcRegistryStringName>;
-    type Output = &'static IpcRegistryStringName;
+impl<
+    RF: RegistrationFilter<
+        RegistrationIdentifier = [u8; capsules_core::ipc::ipc_registry_string_name::MAX_STRING_LEN],
+    >,
+    CAP: MemoryAllocationCapability,
+> Component for IpcRegistryStringNameComponent<RF, CAP>
+{
+    type StaticInput = &'static mut MaybeUninit<IpcRegistryStringName<'static, RF>>;
+    type Output = &'static IpcRegistryStringName<'static, RF>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(IpcRegistryStringName::new(
             self.board_kernel
                 .create_grant(self.driver_num, &self.mem_cap),
+            self.registration_filter,
         ))
     }
 }
