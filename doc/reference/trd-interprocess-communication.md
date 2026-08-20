@@ -238,10 +238,10 @@ should not be used as proof that access has been previously validated.
 ### 2.2 Potential Alternative Designs
 
 One remaining challenge is that IPC Identifiers as implemented are insufficient
-as an access control mechanism. Nothing is stops an application from crafting
-their own identifier value to refer attempt to refer to another process. This is
-helpful for testing and debugging, but also means that access control of clients
-through a system like the IPC Registry capsules is insecure.
+as an access control mechanism. Nothing stops an application from crafting
+their own identifier value to attempt to refer to another process. This is
+helpful for testing and debugging, but also means that access control of
+clients through a system like the IPC Registry capsules is insecure.
 
 A secure implementation for client authentication would require some type of
 process descriptor, which is used to access a kernel-managed table of other
