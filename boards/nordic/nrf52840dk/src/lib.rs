@@ -193,8 +193,11 @@ type ProcessConsoleDriver =
     components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
 type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
+type IpcRegistryStringNameFilter = capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull;
 type IpcRegistryStringNameDriver =
-    components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponentType;
+    components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponentType<
+        IpcRegistryStringNameFilter,
+    >;
 type IpcRelayRequestDriver = components::ipc::ipc_relay_request::IpcRelayRequestComponentType;
 
 // TicKV
@@ -893,9 +896,12 @@ pub unsafe fn start_no_pconsole() -> (
         components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponent::new(
             board_kernel,
             capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
+            &capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull {},
             create_capability!(capabilities::MemoryAllocationCapability),
         )
-        .finalize(components::ipc_registry_string_name_component_static!());
+        .finalize(components::ipc_registry_string_name_component_static!(
+            IpcRegistryStringNameFilter
+        ));
 
     let ipc_relay_request = components::ipc::ipc_relay_request::IpcRelayRequestComponent::new(
         board_kernel,
