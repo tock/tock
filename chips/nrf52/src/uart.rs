@@ -6,7 +6,7 @@
 //!
 //! This is the legacy, non-EasyDMA UART peripheral. It shares the same
 //! peripheral instance (and MMIO address) as the UARTE peripheral
-//! ([`crate::uart::Uarte`]), so a chip can use one or the other but not both
+//! ([`crate::uarte::Uarte`]), so a chip can use one or the other but not both
 //! at the same time.
 //!
 //! This driver only implements a synchronous, polling transmit path, and does
