@@ -15,8 +15,9 @@
 //! let ipc_registry_string_name = components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponent::new(
 //!     board_kernel,
 //!     capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
+//!     &capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull {},
 //!     create_capability!(capabilities::MemoryAllocationCapability),
-//! ).finalize(components::ipc_registry_string_name_component_static!());
+//! ).finalize(components::ipc_registry_string_name_component_static!(capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull));
 //! ```
 
 use crate::ipc::ipc_identifier::IpcIdentifier;
@@ -92,9 +93,6 @@ impl<'a, RF: RegistrationFilter<RegistrationIdentifier = [u8; MAX_STRING_LEN]>>
     }
 
     fn register(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        // If registration validation is desired, that would go here before
-        // comparing or saving the name itself
-
         // Get allowed name to validate and later save
         let mut new_name: [u8; MAX_STRING_LEN] = [0; MAX_STRING_LEN];
         self.apps.enter(processid, |_, kerneldata| {
@@ -132,6 +130,7 @@ impl<'a, RF: RegistrationFilter<RegistrationIdentifier = [u8; MAX_STRING_LEN]>>
             }
         }
 
+        // Validate this registration attempt
         self.registration_filter
             .filter_registration(processid.short_app_id(), &new_name)?;
 
@@ -214,8 +213,8 @@ impl<'a, RF: RegistrationFilter<RegistrationIdentifier = [u8; MAX_STRING_LEN]>>
     }
 }
 
-impl<'a, RF: RegistrationFilter<RegistrationIdentifier = [u8; MAX_STRING_LEN]>> SyscallDriver
-    for IpcRegistryStringName<'a, RF>
+impl<RF: RegistrationFilter<RegistrationIdentifier = [u8; MAX_STRING_LEN]>> SyscallDriver
+    for IpcRegistryStringName<'_, RF>
 {
     /// Registration and discovery of IPC services
     ///
