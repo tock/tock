@@ -26,9 +26,16 @@
 //! `device-width = 2`), since it differs from the AMD-style command set
 //! (`0xAA`/`0x55` unlock, `0xA0` program) that QEMU's device tree /
 //! `cfi-flash` compatible string might otherwise suggest.
+//!
+//! This driver is generic over the device's total size (`WORDS`, in 32-bit
+//! words) and its erase-sector size (`PAGE_WORDS`), as well as the concrete
+//! [`hil::flash::Flash::Page`] type `P` used to hold one sector's worth of
+//! data (sized `PAGE_WORDS * 4` bytes). Chip crates should define concrete
+//! register and page types sized for their specific `pflash` instance and
+//! instantiate [`Pflash`] with them; see `qemu_rv32_virt_chip::pflash` for an
+//! example.
 
 use core::cell::Cell;
-use core::ops::{Index, IndexMut};
 
 use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -38,77 +45,12 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::ReadWrite;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
-/// Size, in bytes, of a single erase sector on this device.
-///
-/// This matches the `sector-length` QEMU configures for the `virt` machine's
-/// `pflash` devices (queryable at runtime through the CFI query mode, but
-/// hardcoded here as it is fixed for this platform).
-pub const SECTOR_SIZE: usize = 256 * 1024;
-const SECTOR_WORDS: usize = SECTOR_SIZE / 4;
-
 /// Intel/Sharp command set command values understood by QEMU's
 /// `pflash-cfi01` model.
 mod cmd {
     pub const PROGRAM: u32 = 0x40;
     pub const ERASE: u32 = 0x20;
     pub const READ_ARRAY: u32 = 0xFF;
-}
-
-/// MMIO representation of a `pflash` device, as a flat array of 32-bit-wide
-/// words. `WORDS` is the total device size in 32-bit words (e.g. `0x0200_0000
-/// / 4` for a 32 MiB bank).
-#[repr(C)]
-pub struct PflashRegisters<const WORDS: usize> {
-    data: [ReadWrite<u32>; WORDS],
-}
-
-/// A single erase-sector-sized page of flash, as required by
-/// [`hil::flash::Flash`].
-///
-/// An example instantiation looks like:
-///
-/// ```rust, ignore
-/// # use kernel::static_init;
-/// # use qemu_virt_chip::pflash::PflashPage;
-/// let pagebuffer = unsafe { static_init!(PflashPage, PflashPage::default()) };
-/// ```
-pub struct PflashPage(pub [u8; SECTOR_SIZE]);
-
-impl Default for PflashPage {
-    // A page here is sector-sized (256 KiB) to match this device's erase
-    // granularity, unlike most other `Flash` implementations' much smaller
-    // pages. This is only ever constructed once into `static` storage via
-    // `static_init!`, never actually placed on a live call stack.
-    #[allow(clippy::large_stack_arrays, clippy::large_stack_frames)]
-    fn default() -> Self {
-        Self([0; SECTOR_SIZE])
-    }
-}
-
-impl PflashPage {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-}
-
-impl Index<usize> for PflashPage {
-    type Output = u8;
-
-    fn index(&self, idx: usize) -> &u8 {
-        &self.0[idx]
-    }
-}
-
-impl IndexMut<usize> for PflashPage {
-    fn index_mut(&mut self, idx: usize) -> &mut u8 {
-        &mut self.0[idx]
-    }
-}
-
-impl AsMut<[u8]> for PflashPage {
-    fn as_mut(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
 }
 
 /// Tracks the current state and command of the flash, mirroring the
@@ -124,16 +66,25 @@ enum FlashState {
     Erase,
 }
 
-pub struct Pflash<'a, const WORDS: usize> {
-    registers: StaticRef<PflashRegisters<WORDS>>,
-    client: OptionalCell<&'a dyn hil::flash::Client<Pflash<'a, WORDS>>>,
-    buffer: TakeCell<'static, PflashPage>,
+/// Driver for a QEMU `pflash` device.
+///
+/// - `WORDS`: total device size, in 32-bit words.
+/// - `PAGE_WORDS`: erase-sector size, in 32-bit words. Must evenly divide
+///   `WORDS`.
+/// - `P`: the [`hil::flash::Flash::Page`] type used for this device, which
+///   must hold exactly `PAGE_WORDS * 4` bytes.
+pub struct Pflash<'a, const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default> {
+    registers: StaticRef<[ReadWrite<u32>; WORDS]>,
+    client: OptionalCell<&'a dyn hil::flash::Client<Pflash<'a, WORDS, PAGE_WORDS, P>>>,
+    buffer: TakeCell<'static, P>,
     state: Cell<FlashState>,
     deferred_call: DeferredCall,
 }
 
-impl<const WORDS: usize> Pflash<'_, WORDS> {
-    pub fn new(registers: StaticRef<PflashRegisters<WORDS>>) -> Self {
+impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[u8]>>
+    Pflash<'_, WORDS, PAGE_WORDS, P>
+{
+    pub fn new(registers: StaticRef<[ReadWrite<u32>; WORDS]>) -> Self {
         Self {
             registers,
             client: OptionalCell::empty(),
@@ -143,26 +94,13 @@ impl<const WORDS: usize> Pflash<'_, WORDS> {
         }
     }
 
-    /// Total device size, in 32-bit words.
-    fn num_words(&self) -> usize {
-        WORDS
-    }
-
     /// Number of erase sectors on this device.
     fn num_sectors(&self) -> usize {
-        self.num_words() / SECTOR_WORDS
+        WORDS / PAGE_WORDS
     }
 
-    /// Issue a command word, then wait for the device to leave its "busy"
-    /// (I/O access) mode.
-    ///
-    /// QEMU's model completes program/erase operations synchronously within
-    /// the write that triggers them, so this never actually spins, but
-    /// mirrors what a driver for real CFI hardware would need to do (poll
-    /// the status register until the "ready" bit is set) and keeps this
-    /// implementation robust if that assumption changes.
     fn command(&self, word_index: usize, value: u32) {
-        self.registers.data[word_index].set(value);
+        self.registers[word_index].set(value);
     }
 
     /// Return the device to normal "read array" mode. Necessary after every
@@ -174,12 +112,12 @@ impl<const WORDS: usize> Pflash<'_, WORDS> {
     }
 
     fn is_page_blank(&self, page_number: usize) -> bool {
-        let start = page_number * SECTOR_WORDS;
-        (start..start + SECTOR_WORDS).all(|i| self.registers.data[i].get() == 0xFFFF_FFFF)
+        let start = page_number * PAGE_WORDS;
+        (start..start + PAGE_WORDS).all(|i| self.registers[i].get() == 0xFFFF_FFFF)
     }
 
     fn erase_sector(&self, page_number: usize) {
-        let start = page_number * SECTOR_WORDS;
+        let start = page_number * PAGE_WORDS;
         self.command(start, cmd::ERASE);
         self.read_array_mode();
     }
@@ -193,20 +131,15 @@ impl<const WORDS: usize> Pflash<'_, WORDS> {
     fn read_range(
         &self,
         page_number: usize,
-        buffer: &'static mut PflashPage,
-    ) -> Result<(), (ErrorCode, &'static mut PflashPage)> {
+        buffer: &'static mut P,
+    ) -> Result<(), (ErrorCode, &'static mut P)> {
         if page_number >= self.num_sectors() {
             return Err((ErrorCode::INVAL, buffer));
         }
 
-        let start = page_number * SECTOR_WORDS;
-        for i in 0..(buffer.len() / 4) {
-            let word = self.registers.data[start + i].get();
-            let bytes = word.to_le_bytes();
-            buffer[i * 4] = bytes[0];
-            buffer[i * 4 + 1] = bytes[1];
-            buffer[i * 4 + 2] = bytes[2];
-            buffer[i * 4 + 3] = bytes[3];
+        let start = page_number * PAGE_WORDS;
+        for (i, word) in buffer.as_mut().as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            *word = self.registers[start + i].get().to_le_bytes();
         }
 
         self.buffer.replace(buffer);
@@ -219,8 +152,8 @@ impl<const WORDS: usize> Pflash<'_, WORDS> {
     fn write_page_impl(
         &self,
         page_number: usize,
-        data: &'static mut PflashPage,
-    ) -> Result<(), (ErrorCode, &'static mut PflashPage)> {
+        data: &'static mut P,
+    ) -> Result<(), (ErrorCode, &'static mut P)> {
         if page_number >= self.num_sectors() {
             return Err((ErrorCode::INVAL, data));
         }
@@ -229,15 +162,9 @@ impl<const WORDS: usize> Pflash<'_, WORDS> {
             self.erase_sector(page_number);
         }
 
-        let start = page_number * SECTOR_WORDS;
-        for i in 0..(data.len() / 4) {
-            let word = u32::from_le_bytes([
-                data[i * 4],
-                data[i * 4 + 1],
-                data[i * 4 + 2],
-                data[i * 4 + 3],
-            ]);
-            self.program_word(start + i, word);
+        let start = page_number * PAGE_WORDS;
+        for (i, word) in data.as_mut().as_chunks::<4>().0.iter().enumerate() {
+            self.program_word(start + i, u32::from_le_bytes(*word));
         }
 
         self.buffer.replace(data);
@@ -291,16 +218,23 @@ impl<const WORDS: usize> Pflash<'_, WORDS> {
     }
 }
 
-impl<'a, const WORDS: usize, C: hil::flash::Client<Pflash<'a, WORDS>>>
-    hil::flash::HasClient<'a, C> for Pflash<'a, WORDS>
+impl<
+    'a,
+    const WORDS: usize,
+    const PAGE_WORDS: usize,
+    P: 'static + Default + AsMut<[u8]>,
+    C: hil::flash::Client<Pflash<'a, WORDS, PAGE_WORDS, P>>,
+> hil::flash::HasClient<'a, C> for Pflash<'a, WORDS, PAGE_WORDS, P>
 {
     fn set_client(&'a self, client: &'a C) {
         self.client.set(client);
     }
 }
 
-impl<const WORDS: usize> hil::flash::Flash for Pflash<'_, WORDS> {
-    type Page = PflashPage;
+impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[u8]>>
+    hil::flash::Flash for Pflash<'_, WORDS, PAGE_WORDS, P>
+{
+    type Page = P;
 
     fn read_page(
         &self,
@@ -323,7 +257,9 @@ impl<const WORDS: usize> hil::flash::Flash for Pflash<'_, WORDS> {
     }
 }
 
-impl<const WORDS: usize> DeferredCallClient for Pflash<'_, WORDS> {
+impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[u8]>>
+    DeferredCallClient for Pflash<'_, WORDS, PAGE_WORDS, P>
+{
     fn handle_deferred_call(&self) {
         self.handle_interrupt();
     }

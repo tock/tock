@@ -12,6 +12,7 @@ use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
+use kernel::utilities::StaticRef;
 use kernel::{create_capability, debug, static_init};
 
 mod checker_credentials_not_required;
@@ -422,19 +423,34 @@ pub unsafe fn main() {
 
     debug!("Starting main abc.");
 
-    let a = unsafe { core::ptr::read_volatile(0x2000003c as *mut u8) };
-    let b: u8 = 7;
+    //--------------------------------------------------------------------------
+    // NONVOLATILE STORAGE
+    //--------------------------------------------------------------------------
 
-    debug!("byte {:?} {}", a, b);
+    let pflash = static_init!(
+        qemu_rv32_virt_chip::pflash::Pflash<'static>,
+        qemu_rv32_virt_chip::pflash::Pflash::new(unsafe {
+            StaticRef::new(
+                qemu_rv32_virt_chip::pflash::PFLASH_BASE
+                    as *const qemu_rv32_virt_chip::pflash::PflashRegisters,
+            )
+        })
+    );
+    pflash.register();
 
-    unsafe {
-        core::ptr::write_volatile(0x2000003c as *mut u8, b'c');
-    }
+    let pflash_pagebuffer = static_init!(
+        qemu_rv32_virt_chip::pflash::PflashPage,
+        qemu_rv32_virt_chip::pflash::PflashPage::default()
+    );
 
-    let a = unsafe { core::ptr::read_volatile(0x2000003c as *mut u8) };
-    let b: u8 = 7;
-
-    debug!("byte {:?} {}", a, b);
+    let nonvolatile_storage = static_init!(
+        capsules_extra::nonvolatile_to_pages::NonvolatileToPages<
+            'static,
+            qemu_rv32_virt_chip::pflash::Pflash<'static>,
+        >,
+        capsules_extra::nonvolatile_to_pages::NonvolatileToPages::new(pflash, pflash_pagebuffer)
+    );
+    kernel::hil::flash::HasClient::set_client(pflash, nonvolatile_storage);
 
     board_kernel.kernel_loop(
         &platform,

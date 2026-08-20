@@ -2161,11 +2161,11 @@ pub mod kernel_protection_mml_epmp {
     #[derive(Copy, Clone, Debug)]
     pub struct KernelTextRegion(pub TORRegionSpec);
 
-    /// An optional, additional read/write region, separate from the
-    /// combined kernel/app [`FlashRegion`], intended for platforms that
-    /// expose a dedicated MMIO-backed storage device (such as a QEMU
-    /// `pflash` device) for staging or storing application images at
-    /// runtime.
+    /// An additional read/write region, separate from [`FlashRegion`].
+    ///
+    /// Intended for platforms that expose a dedicated MMIO-backed storage
+    /// device (such as a QEMU `pflash` device) for staging or storing
+    /// application images at runtime.
     ///
     /// Unlike [`FlashRegion`], this region is read/write from the start,
     /// as it is not expected to hold directly-executed kernel or
