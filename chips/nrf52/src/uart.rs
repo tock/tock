@@ -869,8 +869,8 @@ mod tests {
 
     #[test]
     fn baud_rate_divider_calculation() {
-        let registers_manager = super::UarteRegistersManager::new_uarte0();
-        let u = super::Uarte::new(&registers_manager);
+        let registers_manager = unsafe { super::UarteRegistersManager::new_uarte0() };
+        let u = super::Uarte::new(registers_manager);
         assert_eq!(u.get_divider_for_baud(0), Err(ErrorCode::INVAL));
         assert_eq!(u.get_divider_for_baud(4_000_000), Err(ErrorCode::INVAL));
 
