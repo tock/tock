@@ -55,7 +55,7 @@ const STORED_STATE_SIZE: usize = size_of::<RiscvStoredState>();
 const TAG: [u8; 4] = *b"rv5i";
 #[cfg(target_arch = "riscv64")]
 const TAG: [u8; 8] = *b"rv64i___";
-#[cfg(not(any(doc, target_arch = "riscv32", target_arch = "riscv64")))]
+#[cfg(not(riscv))]
 const TAG: [u8; 8] = *b"noopnoop";
 const METADATA_LEN: usize = 3;
 
@@ -116,7 +116,7 @@ impl core::convert::TryFrom<&[u8]> for RiscvStoredState {
 /// Helper function for encoding a syscall return into registers.
 ///
 /// This is a helper function to wrap the differences between rv32i and rv64i.
-#[cfg(any(doc, target_arch = "riscv32"))]
+#[cfg(target_arch = "riscv32")]
 fn encode_syscall_return_helper(
     return_value: kernel::syscall::SyscallReturn,
     a0: &mut usize,
@@ -162,7 +162,7 @@ fn encode_syscall_return_helper(
     );
 }
 
-#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
+#[cfg(not(riscv))]
 fn encode_syscall_return_helper(
     _return_value: kernel::syscall::SyscallReturn,
     _a0: &mut usize,
@@ -176,7 +176,7 @@ fn encode_syscall_return_helper(
 /// Helper to convert registers to a [`Syscall`](kernel::syscall::Syscall).
 ///
 /// The helper wraps both rv32i and rv64i support.
-#[cfg(any(doc, target_arch = "riscv32"))]
+#[cfg(target_arch = "riscv32")]
 fn syscall_from_register_arguments_helper(
     syscall_number: usize,
     r0: usize,
@@ -213,7 +213,7 @@ fn syscall_from_register_arguments_helper(
 /// Helper to put upcall arguments into registers.
 ///
 /// The helper wraps both rv32i and rv64i support.
-#[cfg(any(doc, target_arch = "riscv32"))]
+#[cfg(target_arch = "riscv32")]
 fn encode_upcall_helper(
     upcall: &kernel::process::FunctionCall,
     a0: &mut usize,
@@ -247,7 +247,7 @@ fn encode_upcall_helper(
     kernel::utilities::arch_helpers::encode_upcall_trd64bit(upcall, a0_u64, a1_u64, a2_u64, a3_u64);
 }
 
-#[cfg(not(any(doc, any(target_arch = "riscv32", target_arch = "riscv64"))))]
+#[cfg(not(riscv))]
 fn encode_upcall_helper(
     _upcall: &kernel::process::FunctionCall,
     _a0: &mut usize,
@@ -355,29 +355,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         Ok(())
     }
 
-    // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(
-        doc,
-        all(target_arch = "riscv32", target_os = "none"),
-        all(target_arch = "riscv64", target_os = "none")
-    )))]
-    unsafe fn switch_to_process(
-        &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
-        _state: &mut RiscvStoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>) {
-        // Convince lint that 'mcause' and 'R_A4' are used during test build
-        let _cause = mcause::Trap::from(_state.mcause);
-        let _arg4 = _state.regs[R_A4];
-        unimplemented!()
-    }
-
-    #[cfg(any(
-        doc,
-        all(target_arch = "riscv32", target_os = "none"),
-        all(target_arch = "riscv64", target_os = "none")
-    ))]
+    #[cfg(any(riscv_bare_metal, doc))]
     unsafe fn switch_to_process(
         &self,
         _accessible_memory_start: *const u8,
@@ -828,6 +806,20 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         };
         let new_stack_pointer = state.regs[R_SP];
         (ret, Some(new_stack_pointer as *const u8))
+    }
+
+    // Mock implementation for tests on Travis-CI.
+    #[cfg(not(any(riscv_bare_metal, doc)))]
+    unsafe fn switch_to_process(
+        &self,
+        _accessible_memory_start: *const u8,
+        _app_brk: *const u8,
+        _state: &mut RiscvStoredState,
+    ) -> (ContextSwitchReason, Option<*const u8>) {
+        // Convince lint that 'mcause' and 'R_A4' are used during test build
+        let _cause = mcause::Trap::from(_state.mcause);
+        let _arg4 = _state.regs[R_A4];
+        unimplemented!()
     }
 
     unsafe fn print_context(
