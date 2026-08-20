@@ -396,10 +396,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let app_flash = core::slice::from_raw_parts(
-        core::ptr::addr_of!(_sapps),
-        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-    );
+    let app_flash = core::slice::from_raw_parts(0x20000000 as *const u8, 0x02000000);
     let app_memory = core::slice::from_raw_parts_mut(
         core::ptr::addr_of_mut!(_sappmem),
         core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
@@ -423,7 +420,21 @@ pub unsafe fn main() {
         NUM_PROCS
     ));
 
-    debug!("Starting main kernel loop.");
+    debug!("Starting main abc.");
+
+    let a = unsafe { core::ptr::read_volatile(0x2000003c as *mut u8) };
+    let b: u8 = 7;
+
+    debug!("byte {:?} {}", a, b);
+
+    unsafe {
+        core::ptr::write_volatile(0x2000003c as *mut u8, b'c');
+    }
+
+    let a = unsafe { core::ptr::read_volatile(0x2000003c as *mut u8) };
+    let b: u8 = 7;
+
+    debug!("byte {:?} {}", a, b);
 
     board_kernel.kernel_loop(
         &platform,

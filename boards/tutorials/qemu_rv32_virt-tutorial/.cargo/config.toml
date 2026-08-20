@@ -20,6 +20,9 @@ runner = ["qemu-system-riscv32",
           "-device", "virtio-rng-device",
           "-device", "virtio-keyboard-device",
           "-device", "virtio-gpu-device",
+          # Backing file for pflash unit 0 (0x2000_0000, 32 MiB); see the
+          # PFLASH_IMAGE rule in Makefile for how to create it.
+          "-drive", "if=pflash,unit=0,format=raw,file=pflash0.img",
           "-serial", "stdio",
           "-bios", "qemu_rv32_virt_tutorial.bin"]
 

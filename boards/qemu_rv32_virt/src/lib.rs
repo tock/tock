@@ -260,6 +260,20 @@ pub unsafe fn start() -> (
             )
             .unwrap(),
         ),
+        rv32i::pmp::kernel_protection_mml_epmp::PFlashRegion(
+            // QEMU's "virt" machine unconditionally reserves two 32 MiB
+            // `pflash` (CFI NOR flash) windows at 0x2000_0000 and
+            // 0x2200_0000, regardless of whether a `-drive if=pflash` is
+            // actually attached. We only make the first of these windows
+            // accessible to the kernel here, for use as separate,
+            // writable storage (e.g. for staging application images),
+            // distinct from the combined kernel/app `FlashRegion` above.
+            rv32i::pmp::NAPOTRegionSpec::from_start_size(
+                0x20000000 as *const u8, // start
+                0x02000000,              // size
+            )
+            .unwrap(),
+        ),
     )
     .unwrap();
 

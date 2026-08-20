@@ -10,7 +10,7 @@ build = "../../build.rs"
 edition.workspace = true
 
 [dependencies]
-kernel = { path = "../../../kernel" }
+kernel = { path = "../../../kernel",features=["debug_load_processes"]}
 
 components = { path = "../../components" }
 sifive = { path = "../../../chips/sifive" }

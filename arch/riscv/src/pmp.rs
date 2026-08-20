@@ -2161,6 +2161,20 @@ pub mod kernel_protection_mml_epmp {
     #[derive(Copy, Clone, Debug)]
     pub struct KernelTextRegion(pub TORRegionSpec);
 
+    /// An optional, additional read/write region, separate from the
+    /// combined kernel/app [`FlashRegion`], intended for platforms that
+    /// expose a dedicated MMIO-backed storage device (such as a QEMU
+    /// `pflash` device) for staging or storing application images at
+    /// runtime.
+    ///
+    /// Unlike [`FlashRegion`], this region is read/write from the start,
+    /// as it is not expected to hold directly-executed kernel or
+    /// application code.
+    ///
+    /// Configured in the PMP as a `NAPOT` region.
+    #[derive(Copy, Clone, Debug)]
+    pub struct PFlashRegion(pub NAPOTRegionSpec);
+
     /// A RISC-V ePMP implementation.
     ///
     /// Supports machine-mode (kernel) memory protection by using the
@@ -2195,7 +2209,9 @@ pub mod kernel_protection_mml_epmp {
     ///   |     5 | \ Userspace TOR region #1             / | TOR   |   | ????? |
     ///   |       |                                         |       |   |       |
     ///   | 6 ... | /                                     \ |       |   |       |
-    ///   | n - 4 | \ Userspace TOR region #x             / |       |   |       |
+    ///   | n - 5 | \ Userspace TOR region #x             / |       |   |       |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 4 | PFLASH (separate storage device)        | NAPOT | X | R/W   |
     ///   |       |                                         |       |   |       |
     ///   | n - 3 | FLASH (spanning kernel & apps)          | NAPOT | X | R     |
     ///   |       |                                         |       |   |       |
@@ -2226,6 +2242,7 @@ pub mod kernel_protection_mml_epmp {
             ram: RAMRegion,
             mmio: MMIORegion,
             kernel_text: KernelTextRegion,
+            pflash: PFlashRegion,
         ) -> Result<Self, ()> {
             for i in 0..AVAILABLE_ENTRIES {
                 // Read the entry's CSR:
@@ -2352,6 +2369,19 @@ pub mod kernel_protection_mml_epmp {
                 flash.0.pmpaddr(),
             );
 
+            // pflash (separate storage device, e.g. for staging app images)
+            // at n - 4:
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 4,
+                (pmpcfg_octet::a::NAPOT
+                    + pmpcfg_octet::r::SET
+                    + pmpcfg_octet::w::SET
+                    + pmpcfg_octet::x::CLEAR
+                    + pmpcfg_octet::l::SET)
+                    .into(),
+                pflash.0.pmpaddr(),
+            );
+
             // Finally, attempt to enable the MSECCFG security bits, and verify
             // that they have been set correctly. If they have not been set to
             // the written value, this means that this hardware either does not
@@ -2386,8 +2416,9 @@ pub mod kernel_protection_mml_epmp {
     {
         // Ensure that the MPU_REGIONS (starting at entry, and occupying two
         // entries per region) don't overflow the available entries, excluding
-        // the 7 entries used for implementing the kernel memory protection:
-        const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 5) / 2));
+        // the 6 entries used for implementing the kernel memory protection
+        // (kernel .text, pflash, flash, RAM and MMIO):
+        const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 6) / 2));
 
         fn available_regions(&self) -> usize {
             // Always assume to have `MPU_REGIONS` usable TOR regions. We don't
