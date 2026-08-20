@@ -72,6 +72,32 @@ unsafe impl capabilities::ProcessStartCapability for PMCapability {}
 
 type ProcessInfoDriver = capsules_extra::process_info_driver::ProcessInfo<PMCapability>;
 
+type IsolatedNonvolatileStorageDriver =
+    capsules_extra::isolated_nonvolatile_storage_driver::IsolatedNonvolatileStorage<
+        'static,
+        {
+            components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT
+        },
+    >;
+
+type FlashUser = capsules_core::virtualizers::virtual_flash::FlashUser<
+    'static,
+    qemu_rv32_virt_chip::pflash::Pflash<'static>,
+>;
+type NonVolatilePages = components::dynamic_binary_storage::NVPages<FlashUser>;
+
+type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+    'static,
+    'static,
+    qemu_rv32_virt_lib::ChipHw,
+    kernel::process::ProcessStandardDebugFull,
+    NonVolatilePages,
+>;
+type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
+    DynamicBinaryStorage<'static>,
+    DynamicBinaryStorage<'static>,
+>;
+
 type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
 type SignatureVerifyInMemoryKeys =
     components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponentType<
@@ -100,6 +126,8 @@ struct Platform {
     led: Option<&'static LedDriver>,
     buttons: Option<&'static ButtonDriver>,
     process_info: &'static ProcessInfoDriver,
+    nonvolatile_storage: &'static IsolatedNonvolatileStorageDriver,
+    dynamic_app_loader: &'static AppLoaderDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -130,6 +158,10 @@ impl SyscallDriverLookup for Platform {
                 }
             }
             capsules_extra::process_info_driver::DRIVER_NUM => f(Some(self.process_info)),
+            capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM => {
+                f(Some(self.nonvolatile_storage))
+            }
+            capsules_extra::app_loader::DRIVER_NUM => f(Some(self.dynamic_app_loader)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -301,6 +333,50 @@ pub unsafe fn main() {
     .finalize(components::process_info_component_static!(PMCapability));
 
     //--------------------------------------------------------------------------
+    // VIRTUAL FLASH
+    //--------------------------------------------------------------------------
+
+    let mux_flash = components::flash::FlashMuxComponent::new(&chip.peripherals().pflash)
+        .finalize(components::flash_mux_component_static!(
+            qemu_rv32_virt_chip::pflash::Pflash<'static>
+        ));
+
+    // Create a virtual flash user for dynamic binary storage.
+    let virtual_flash_dbs = components::flash::FlashUserComponent::new(mux_flash).finalize(
+        components::flash_user_component_static!(qemu_rv32_virt_chip::pflash::Pflash<'static>),
+    );
+
+    // Create a virtual flash user for (isolated) nonvolatile storage.
+    let virtual_flash_nvm = components::flash::FlashUserComponent::new(mux_flash).finalize(
+        components::flash_user_component_static!(qemu_rv32_virt_chip::pflash::Pflash<'static>),
+    );
+
+    //--------------------------------------------------------------------------
+    // NONVOLATILE STORAGE
+    //--------------------------------------------------------------------------
+
+    // Reserve the last sector of pflash for userspace-accessible isolated
+    // nonvolatile storage, leaving the rest of the device for (dynamically
+    // loaded) app images.
+    const ISOLATED_STORAGE_SIZE: usize = qemu_rv32_virt_chip::pflash::PFLASH_SECTOR_SIZE;
+    const ISOLATED_STORAGE_START: usize =
+        qemu_rv32_virt_chip::pflash::PFLASH_BASE + qemu_rv32_virt_chip::pflash::PFLASH_SIZE
+            - ISOLATED_STORAGE_SIZE;
+
+    let nonvolatile_storage = components::isolated_nonvolatile_storage::IsolatedNonvolatileStorageComponent::new(
+        board_kernel,
+        capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
+        virtual_flash_nvm,
+        ISOLATED_STORAGE_START,
+        ISOLATED_STORAGE_SIZE,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::isolated_nonvolatile_storage_component_static!(
+        FlashUser,
+        { components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT }
+    ));
+
+    //--------------------------------------------------------------------------
     // SYSTEM CALL FILTERING
     //--------------------------------------------------------------------------
 
@@ -439,19 +515,18 @@ pub unsafe fn main() {
 
     // These symbols are defined in the standard Tock linker script.
     extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
         /// Beginning of the RAM region for app memory.
         static mut _sappmem: u8;
         /// End of the RAM region for app memory.
         static _eappmem: u8;
     }
 
+    // App images live in pflash (the same writable device used for dynamic
+    // binary storage below), excluding the sector reserved for isolated
+    // nonvolatile storage at its tail.
     let app_flash = core::slice::from_raw_parts(
-        core::ptr::addr_of!(_sapps),
-        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+        qemu_rv32_virt_chip::pflash::PFLASH_BASE as *const u8,
+        qemu_rv32_virt_chip::pflash::PFLASH_SIZE - ISOLATED_STORAGE_SIZE,
     );
     let app_memory = core::slice::from_raw_parts_mut(
         core::ptr::addr_of_mut!(_sappmem),
@@ -477,6 +552,35 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // DYNAMIC PROCESS LOADING
+    //--------------------------------------------------------------------------
+
+    // Create the dynamic binary flasher.
+    let dynamic_binary_storage =
+        components::dynamic_binary_storage::SequentialBinaryStorageComponent::new(
+            virtual_flash_dbs,
+            loader,
+        )
+        .finalize(components::sequential_binary_storage_component_static!(
+            FlashUser,
+            qemu_rv32_virt_lib::ChipHw,
+            kernel::process::ProcessStandardDebugFull,
+        ));
+
+    // Create the dynamic app loader capsule.
+    let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
+        board_kernel,
+        capsules_extra::app_loader::DRIVER_NUM,
+        dynamic_binary_storage,
+        dynamic_binary_storage,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::app_loader_component_static!(
+        DynamicBinaryStorage<'static>,
+        DynamicBinaryStorage<'static>,
+    ));
+
+    //--------------------------------------------------------------------------
     // PLATFORM SETUP AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
@@ -490,6 +594,8 @@ pub unsafe fn main() {
             led,
             buttons,
             process_info,
+            nonvolatile_storage,
+            dynamic_app_loader,
         }
     );
     loader.set_client(platform);
