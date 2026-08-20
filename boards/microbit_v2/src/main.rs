@@ -10,13 +10,13 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use kernel::{ErrorCode, ProcessId, capabilities};
 
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
@@ -216,6 +216,12 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
+}
+
+// Validation example for IPC Registration
+fn validate_ipc_registration(_processid: ProcessId, _name: &[u8]) -> Result<(), ErrorCode> {
+    // Accept all validation requests
+    Ok(())
 }
 
 /// This is in a separate, inline(never) function so that its stack frame is
@@ -701,6 +707,7 @@ unsafe fn start() -> (
             board_kernel,
             capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
             create_capability!(capabilities::MemoryAllocationCapability),
+            Some(validate_ipc_registration),
         )
         .finalize(components::ipc_registry_string_name_component_static!());
 
