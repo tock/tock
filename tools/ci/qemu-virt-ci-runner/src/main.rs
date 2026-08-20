@@ -14,7 +14,7 @@ use nix::unistd::Pid;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-const BOARD_DIR: &str = "../../../boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci";
+mod boards;
 
 // Default libtock-c location: a sibling of the Tock repository root.
 // Override with --libtock-c <dir>.
@@ -171,7 +171,12 @@ fn wait_for_tcp(port: u16) -> Result<TcpStream, String> {
 }
 
 /// Install tockloader apps, start QEMU in the background, and run the test closure.
-fn run_with_apps<F>(app_names: &[&str], libtock_c_dir: &Path, test_fn: F) -> Result<(), String>
+fn run_with_apps<F>(
+    app_names: &[&str],
+    libtock_c_dir: &Path,
+    board_dir: &str,
+    test_fn: F,
+) -> Result<(), String>
 where
     F: FnOnce(&mut QmpConnection, &mut BufReader<TcpStream>, &mut TcpStream) -> Result<(), String>,
 {
@@ -203,7 +208,7 @@ where
     // Spawn `make run` with the extra QEMU flags that expose control sockets.
     println!("Starting QEMU via `make run`...");
     let child = Command::new("make")
-        .current_dir(BOARD_DIR)
+        .current_dir(board_dir)
         .arg("run")
         .env("QEMU_CMDLINE_EXTRA", QEMU_CMDLINE_EXTRA)
         .process_group(0)
@@ -217,7 +222,6 @@ where
     // establish both connections first.
     println!("Waiting for QMP socket on port {}...", QMP_PORT);
     let mut qmp = QmpConnection::connect().map_err(|e| format!("QMP connect failed: {}", e))?;
-    println!("QMP TCP connected.");
 
     println!("Waiting for serial socket on port {}...", SERIAL_PORT);
     let serial_stream =
@@ -226,69 +230,63 @@ where
         .try_clone()
         .map_err(|e| format!("failed to clone serial stream: {}", e))?;
     let mut serial = BufReader::new(serial_stream);
-    println!("Serial TCP connected.");
 
-    // Now that both clients are connected, QEMU will emit the QMP greeting.
+    // Now both TCP connections exist; negotiate the QMP protocol.
     qmp.handshake()
         .map_err(|e| format!("QMP handshake failed: {}", e))?;
-    println!("QMP ready.");
+    println!("QMP handshake complete.");
 
-    // Un-pause QEMU so the board actually starts running.
-    qmp.resume()
-        .map_err(|e| format!("QMP cont failed: {}", e))?;
-    println!("QEMU running.");
+    // Resume the CPU (QEMU starts paused with -S).
+    qmp.resume().map_err(|e| format!("QMP resume failed: {}", e))?;
+    println!("QEMU resumed.");
 
     let result = test_fn(&mut qmp, &mut serial, &mut serial_write);
 
+    // Always stop QEMU after the test, whether it passed or failed.
     qemu.kill();
+
     result
 }
 
-/// Read serial lines until the deadline, calling `check` after each line.
-/// `check` receives the full accumulated buffer and returns `true` when done.
+/// Read serial output until `done` returns `true` or `timeout` elapses.
 fn read_serial_until<F>(
     serial: &mut BufReader<TcpStream>,
     timeout: Duration,
-    mut check: F,
+    mut done: F,
 ) -> Result<(), String>
 where
     F: FnMut(&str) -> Result<bool, String>,
 {
-    serial
-        .get_ref()
-        .set_read_timeout(Some(timeout))
-        .map_err(|e| e.to_string())?;
-
     let deadline = Instant::now() + timeout;
     let mut buf = String::new();
-
     loop {
-        if Instant::now() >= deadline {
-            return Err(format!("serial timeout after {:?}", timeout));
-        }
         let mut line = String::new();
         match serial.read_line(&mut line) {
-            Ok(0) => return Err("serial connection closed unexpectedly".into()),
+            Ok(0) => {
+                // EOF; treat as timeout.
+                return Err(format!("serial EOF after {:?}", timeout));
+            }
             Ok(_) => {
                 print!("[serial] {}", line);
                 buf.push_str(&line);
-                if check(&buf)? {
+                if done(&buf)? {
                     return Ok(());
                 }
             }
-            Err(e)
+            Err(ref e)
                 if e.kind() == std::io::ErrorKind::WouldBlock
                     || e.kind() == std::io::ErrorKind::TimedOut =>
             {
-                return Err(format!("serial timeout after {:?}", timeout));
+                if Instant::now() >= deadline {
+                    return Err(format!("timeout after {:?}", timeout));
+                }
             }
-            Err(e) => return Err(format!("serial read error: {}", e)),
+            Err(e) => return Err(e.to_string()),
         }
     }
 }
 
-/// Wait until every needle has appeared somewhere in the serial output,
-/// in any order.
+/// Wait until every needle has appeared in the serial output, in any order.
 fn expect_serial_any_order(
     serial: &mut BufReader<TcpStream>,
     needles: &[&str],
@@ -352,12 +350,12 @@ fn screendump_hash(qmp: &mut QmpConnection) -> Result<String, String> {
 }
 
 // ---------------------------------------------------------------------------
-// Test definitions
+// Shared test types (referenced by board modules via `crate::TestCase`)
 // ---------------------------------------------------------------------------
 
 /// One action in an ordered test sequence.  Steps are executed in order after
 /// QEMU is running; serial waits and key presses may be freely interleaved.
-enum TestStep {
+pub(crate) enum TestStep {
     /// Wait until every needle has appeared in the serial output, in any order.
     /// Use this when the Tock scheduler may interleave output from multiple apps.
     WaitSerialAnyOrder {
@@ -383,191 +381,17 @@ enum TestStep {
     SendSerial(&'static str),
 }
 
-struct TestCase {
-    name: &'static str,
-    description: &'static str,
-    apps: &'static [&'static str],
+pub(crate) struct TestCase {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub apps: &'static [&'static str],
     /// Ordered sequence of actions to perform after QEMU is running.
-    steps: &'static [TestStep],
+    pub steps: &'static [TestStep],
     /// How long to wait after all steps before capturing the screenshot.
-    screenshot_delay: Duration,
+    pub screenshot_delay: Duration,
     /// Optional known-good screendump hash. `None` means skip the check.
-    expected_screen_hash: Option<&'static str>,
+    pub expected_screen_hash: Option<&'static str>,
 }
-
-const TESTS: &[TestCase] = &[
-    TestCase {
-        name: "c_hello",
-        description: "Run the c_hello app and verify it prints \"Hello World!\" over serial.",
-        apps: &["c_hello"],
-        steps: &[TestStep::WaitSerialInOrder {
-            needles: &["Hello World!"],
-            timeout: Duration::from_secs(30),
-        }],
-        screenshot_delay: Duration::from_millis(0),
-        // Set to Some("known_hash_here") once a baseline is established.
-        expected_screen_hash: None,
-    },
-    TestCase {
-        name: "led-odd",
-        description: "Run led-odd and verify the screen shows LEDs 1 and 3 on.",
-        apps: &["tests/led/led-odd"],
-        steps: &[TestStep::WaitSerialInOrder {
-            needles: &["Entering main loop."],
-            timeout: Duration::from_secs(30),
-        }],
-        screenshot_delay: Duration::from_millis(500),
-        expected_screen_hash: Some(
-            "c4d49a185592f23074ae5b83caa7d506967fbe8f93a547fa60de93bc2ddd282f",
-        ),
-    },
-    TestCase {
-        name: "tock-logo",
-        description: "Run the tock-logo u8g2 demo and verify the screen matches the expected logo.",
-        apps: &["tests/u8g2-demos/tock-logo"],
-        steps: &[TestStep::WaitSerialInOrder {
-            needles: &["Entering main loop."],
-            timeout: Duration::from_secs(30),
-        }],
-        screenshot_delay: Duration::from_millis(500),
-        expected_screen_hash: Some(
-            "4150b38c3cf468a388c0a09eb309ac8c480f692599cc0fc3e2684e0fafb5463d",
-        ),
-    },
-    TestCase {
-        name: "led-odd-logo",
-        description: "Run led-odd and tock-logo together and verify the combined screen output as the LEDs display on the screen.",
-        apps: &["tests/led/led-odd", "tests/u8g2-demos/tock-logo"],
-        steps: &[TestStep::WaitSerialInOrder {
-            needles: &["Entering main loop."],
-            timeout: Duration::from_secs(30),
-        }],
-        screenshot_delay: Duration::from_millis(500),
-        expected_screen_hash: Some(
-            "bfec0b5a3c5b72edb6128c7c9b6690b56d7ac93e1047d9ef45a22be0c9b4d4fa",
-        ),
-    },
-    TestCase {
-        name: "button_print",
-        description: "Use the keyboard to send the character up arrow, and ensure that is translated to button 0 being pressed for userspace.",
-        apps: &["tests/button_print"],
-        steps: &[
-            TestStep::Sleep(Duration::from_millis(500)),
-            TestStep::SendKey("up"),
-            TestStep::WaitSerialInOrder {
-                needles: &["Button Press! Button: 0 Status: 0"],
-                timeout: Duration::from_secs(30),
-            },
-        ],
-        screenshot_delay: Duration::from_millis(0),
-        expected_screen_hash: None,
-    },
-    TestCase {
-        name: "console",
-        description: "Send characters over serial and verify the console app echoes them back.",
-        apps: &["tests/console/console"],
-        steps: &[
-            TestStep::WaitSerialInOrder {
-                needles: &["Entering main loop."],
-                timeout: Duration::from_secs(30),
-            },
-            TestStep::Sleep(Duration::from_millis(30)),
-            TestStep::SendSerial("a"),
-            TestStep::WaitSerialInOrder {
-                needles: &["Got character: 'a'"],
-                timeout: Duration::from_secs(10),
-            },
-            TestStep::Sleep(Duration::from_millis(100)),
-            TestStep::SendSerial("R"),
-            TestStep::WaitSerialInOrder {
-                needles: &["Got character: 'R'"],
-                timeout: Duration::from_secs(10),
-            },
-        ],
-        screenshot_delay: Duration::from_millis(0),
-        expected_screen_hash: None,
-    },
-    TestCase {
-        name: "hello-pconsole",
-        description: "Run c_hello alongside the process console and verify both the app output and the tock$ prompt appear.",
-        apps: &["c_hello"],
-        steps: &[
-            TestStep::Sleep(Duration::from_millis(100)),
-            TestStep::SendSerial("\n\r"),
-            TestStep::WaitSerialAnyOrder {
-                needles: &["Hello World!", "tock$"],
-                timeout: Duration::from_secs(10),
-            },
-        ],
-        screenshot_delay: Duration::from_millis(0),
-        expected_screen_hash: None,
-    },
-    TestCase {
-        name: "pconsole-help",
-        description: "Send the 'help' command to the process console and verify the help output.",
-        apps: &[],
-        steps: &[
-            TestStep::Sleep(Duration::from_millis(500)),
-            TestStep::SendSerial("help\n\r"),
-            TestStep::WaitSerialInOrder {
-                needles: &[
-                    "Valid commands are: help status list stop start fault boot terminate process kernel reset panic console-start console-stop",
-                ],
-                timeout: Duration::from_secs(10),
-            },
-        ],
-        screenshot_delay: Duration::from_millis(0),
-        expected_screen_hash: None,
-    },
-    TestCase {
-        name: "pconsole-list",
-        description: "Run two apps and verify the process console 'list' command shows both, in any scheduler order.",
-        apps: &["c_hello", "blink"],
-        steps: &[
-            TestStep::Sleep(Duration::from_millis(500)),
-            TestStep::SendSerial("list\n\r"),
-            TestStep::WaitSerialAnyOrder {
-                needles: &["blink", "c_hello"],
-                timeout: Duration::from_secs(10),
-            },
-        ],
-        screenshot_delay: Duration::from_millis(0),
-        expected_screen_hash: None,
-    },
-    TestCase {
-        name: "exit",
-        description: "Run the exit app and confirm it shows as Terminated in the process list.",
-        apps: &["tests/exit"],
-        steps: &[
-            TestStep::WaitSerialInOrder {
-                needles: &["Testing exit.", "Exiting."],
-                timeout: Duration::from_secs(10),
-            },
-            TestStep::Sleep(Duration::from_millis(500)),
-            TestStep::SendSerial("list\n\r"),
-            TestStep::WaitSerialInOrder {
-                needles: &["exit", "Terminated"],
-                timeout: Duration::from_secs(10),
-            },
-        ],
-        screenshot_delay: Duration::from_millis(0),
-        expected_screen_hash: None,
-    },
-    TestCase {
-        name: "unexpected-rx",
-        description: "Send a serial byte before the app starts and verify the kernel handles unexpected RX without crashing.",
-        apps: &["c_hello"],
-        steps: &[
-            TestStep::SendSerial("a"),
-            TestStep::WaitSerialInOrder {
-                needles: &["Hello World!"],
-                timeout: Duration::from_secs(5),
-            },
-        ],
-        screenshot_delay: Duration::from_millis(0),
-        expected_screen_hash: None,
-    },
-];
 
 // ---------------------------------------------------------------------------
 
@@ -609,13 +433,13 @@ fn run_steps(
     Ok(())
 }
 
-fn run_test(tc: &TestCase, libtock_c_dir: &Path) -> Result<(), String> {
+fn run_test(tc: &TestCase, libtock_c_dir: &Path, board_dir: &str) -> Result<(), String> {
     println!();
     println!("{}", "=".repeat(70));
     println!("TEST: {}", tc.name);
     println!("{}", "=".repeat(70));
 
-    run_with_apps(tc.apps, libtock_c_dir, |qmp, serial, serial_write| {
+    run_with_apps(tc.apps, libtock_c_dir, board_dir, |qmp, serial, serial_write| {
         run_steps(tc.steps, qmp, serial, serial_write)?;
 
         // Wait for the display to settle before capturing.
@@ -650,14 +474,23 @@ fn run_test(tc: &TestCase, libtock_c_dir: &Path) -> Result<(), String> {
 /// (by satisfying its serial expectations if any), take a screendump, copy it
 /// to `dest`, and print the SHA-256 hash.  This is intended for establishing
 /// or inspecting the baseline hash that goes into `expected_screen_hash`.
-fn cmd_screenshot(test_name: &str, dest: &Path, libtock_c_dir: &Path) -> Result<(), String> {
-    let tc = TESTS.iter().find(|t| t.name == test_name).ok_or_else(|| {
-        format!(
-            "unknown test {:?}; available tests: {}",
-            test_name,
-            TESTS.iter().map(|t| t.name).collect::<Vec<_>>().join(", ")
-        )
-    })?;
+fn cmd_screenshot(
+    board: &boards::Board,
+    test_name: &str,
+    dest: &Path,
+    libtock_c_dir: &Path,
+) -> Result<(), String> {
+    let tc = board
+        .tests
+        .iter()
+        .find(|t| t.name == test_name)
+        .ok_or_else(|| {
+            format!(
+                "unknown test {:?}; available tests: {}",
+                test_name,
+                board.tests.iter().map(|t| t.name).collect::<Vec<_>>().join(", ")
+            )
+        })?;
 
     println!(
         "Screenshot mode: test={:?} dest={}",
@@ -665,46 +498,52 @@ fn cmd_screenshot(test_name: &str, dest: &Path, libtock_c_dir: &Path) -> Result<
         dest.display()
     );
 
-    run_with_apps(tc.apps, libtock_c_dir, |qmp, serial, serial_write| {
-        // Run all steps (serial waits, key presses, sleeps) so the board
-        // reaches a known state before the screenshot is captured.
-        run_steps(tc.steps, qmp, serial, serial_write)?;
+    run_with_apps(
+        tc.apps,
+        libtock_c_dir,
+        board.board_dir,
+        |qmp, serial, serial_write| {
+            // Run all steps (serial waits, key presses, sleeps) so the board
+            // reaches a known state before the screenshot is captured.
+            run_steps(tc.steps, qmp, serial, serial_write)?;
 
-        // Wait for the display to settle before capturing.
-        if !tc.screenshot_delay.is_zero() {
-            println!("Waiting {:?} before screenshot...", tc.screenshot_delay);
-            std::thread::sleep(tc.screenshot_delay);
-        }
+            // Wait for the display to settle before capturing.
+            if !tc.screenshot_delay.is_zero() {
+                println!("Waiting {:?} before screenshot...", tc.screenshot_delay);
+                std::thread::sleep(tc.screenshot_delay);
+            }
 
-        // Take the screendump into a temp file, then copy to dest.
-        let tmp = tempfile::Builder::new()
-            .suffix(".ppm")
-            .tempfile()
-            .map_err(|e| e.to_string())?;
-        qmp.screendump(tmp.path())?;
-        std::fs::copy(tmp.path(), dest)
-            .map_err(|e| format!("failed to copy screenshot to {}: {}", dest.display(), e))?;
+            // Take the screendump into a temp file, then copy to dest.
+            let tmp = tempfile::Builder::new()
+                .suffix(".ppm")
+                .tempfile()
+                .map_err(|e| e.to_string())?;
+            qmp.screendump(tmp.path())?;
+            std::fs::copy(tmp.path(), dest).map_err(|e| {
+                format!("failed to copy screenshot to {}: {}", dest.display(), e)
+            })?;
 
-        // Compute and print the hash so it can be pasted into expected_screen_hash.
-        let bytes = std::fs::read(dest).map_err(|e| e.to_string())?;
-        let hash = format!("{:x}", Sha256::digest(&bytes));
-        println!("Screenshot saved to:  {}", dest.display());
-        println!("SHA-256:              {}", hash);
-        println!();
-        println!(
-            "To verify from the command line:\n  shasum -a 256 {}",
-            dest.display()
-        );
+            // Compute and print the hash so it can be pasted into expected_screen_hash.
+            let bytes = std::fs::read(dest).map_err(|e| e.to_string())?;
+            let hash = format!("{:x}", Sha256::digest(&bytes));
+            println!("Screenshot saved to:  {}", dest.display());
+            println!("SHA-256:              {}", hash);
+            println!();
+            println!(
+                "To verify from the command line:\n  shasum -a 256 {}",
+                dest.display()
+            );
 
-        Ok(())
-    })
+            Ok(())
+        },
+    )
 }
 
-fn cmd_run_all(libtock_c_dir: &Path) -> Result<(), String> {
-    println!("qemu-virt CI runner starting...");
+fn cmd_run_all(board: &boards::Board, libtock_c_dir: &Path) -> Result<(), String> {
+    println!("qemu-virt CI runner starting (board: {})...", board.name);
 
-    for tc in TESTS {
-        run_test(tc, libtock_c_dir)?;
+    for tc in board.tests {
+        run_test(tc, libtock_c_dir, board.board_dir)?;
         println!("TEST PASSED: {}", tc.name);
         println!("{}", "-".repeat(70));
     }
@@ -712,8 +551,10 @@ fn cmd_run_all(libtock_c_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_list_tests() {
-    for tc in TESTS {
+fn cmd_list_tests(board: &boards::Board) {
+    println!("Board: {}", board.name);
+    println!();
+    for tc in board.tests {
         println!("{}", tc.name);
         println!("  {}", tc.description);
     }
@@ -722,35 +563,90 @@ fn cmd_list_tests() {
 fn usage(argv0: &str) {
     eprintln!("Usage:");
     eprintln!(
-        "  {} [--libtock-c <dir>]                            Run all tests",
+        "  {} [--board <board>] [--libtock-c <dir>]                            Run all tests",
         argv0
     );
     eprintln!(
-        "  {} [--libtock-c <dir>] --test <test>              Run a single named test",
+        "  {} [--board <board>] [--libtock-c <dir>] --test <test>              Run a single named test",
         argv0
     );
     eprintln!(
-        "  {} --tests                                         List all tests with descriptions",
+        "  {} [--board <board>] --tests                                         List all tests with descriptions",
         argv0
     );
     eprintln!(
-        "  {} [--libtock-c <dir>] --screenshot <test> <file> Boot <test>, save screenshot, print hash",
+        "  {} [--board <board>] [--libtock-c <dir>] --screenshot <test> <file> Boot <test>, save screenshot, print hash",
         argv0
     );
+    eprintln!("  {} --boards                                                           List all available boards", argv0);
     eprintln!();
     eprintln!("Options:");
+    eprintln!("  --board <name>      Select the target board.");
+    eprintln!(
+        "                      Default: {} (only board available)",
+        boards::BOARDS[0].name
+    );
     eprintln!("  --libtock-c <dir>   Path to the libtock-c repository root.");
     eprintln!("                      Default: {}", LIBTOCK_C_DIR_DEFAULT);
     eprintln!();
-    eprintln!("Available tests:");
-    for tc in TESTS {
-        eprintln!("  {}", tc.name);
+    eprintln!("Available boards:");
+    for b in boards::BOARDS {
+        eprintln!("  {}", b.name);
     }
+}
+
+fn select_board(name: &str) -> Option<&'static boards::Board> {
+    boards::BOARDS.iter().copied().find(|b| b.name == name)
 }
 
 fn main() {
     let mut args: Vec<String> = std::env::args().collect();
     let argv0 = args[0].clone();
+
+    // --boards: list available boards and exit.
+    if args.iter().any(|a| a == "--boards") {
+        for b in boards::BOARDS {
+            println!("{}", b.name);
+        }
+        std::process::exit(0);
+    }
+
+    // Extract --board <name> from args before dispatching.
+    let board: &boards::Board = if let Some(pos) = args.iter().position(|a| a == "--board") {
+        if pos + 1 >= args.len() {
+            eprintln!("error: --board requires a board name argument");
+            std::process::exit(2);
+        }
+        let name = args.remove(pos + 1);
+        args.remove(pos);
+        match select_board(&name) {
+            Some(b) => b,
+            None => {
+                eprintln!(
+                    "error: unknown board {:?}; available boards: {}",
+                    name,
+                    boards::BOARDS
+                        .iter()
+                        .map(|b| b.name)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                std::process::exit(2);
+            }
+        }
+    } else if boards::BOARDS.len() == 1 {
+        boards::BOARDS[0]
+    } else {
+        eprintln!(
+            "error: multiple boards available; specify one with --board <name>: {}",
+            boards::BOARDS
+                .iter()
+                .map(|b| b.name)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        std::process::exit(2);
+    };
 
     // Extract --libtock-c <dir> from args before dispatching, since it may
     // appear at any position.
@@ -768,19 +664,19 @@ fn main() {
 
     let result = match args.as_slice() {
         // Normal mode: run all tests.
-        [_] => cmd_run_all(&libtock_c_dir),
+        [_] => cmd_run_all(board, &libtock_c_dir),
 
         // List tests with descriptions (no libtock-c needed).
         [_, flag] if flag == "--tests" => {
-            cmd_list_tests();
+            cmd_list_tests(board);
             std::process::exit(0);
         }
 
         // Single-test mode.
         [_, flag, test_name] if flag == "--test" => {
-            match TESTS.iter().find(|t| t.name == test_name.as_str()) {
+            match board.tests.iter().find(|t| t.name == test_name.as_str()) {
                 Some(tc) => {
-                    let r = run_test(tc, &libtock_c_dir);
+                    let r = run_test(tc, &libtock_c_dir, board.board_dir);
                     if r.is_ok() {
                         println!("TEST PASSED: {}", tc.name);
                     }
@@ -790,7 +686,7 @@ fn main() {
                     eprintln!(
                         "unknown test {:?}; available tests: {}",
                         test_name,
-                        TESTS.iter().map(|t| t.name).collect::<Vec<_>>().join(", ")
+                        board.tests.iter().map(|t| t.name).collect::<Vec<_>>().join(", ")
                     );
                     std::process::exit(2);
                 }
@@ -799,7 +695,7 @@ fn main() {
 
         // Screenshot mode: boot one test and save a screendump.
         [_, flag, test_name, dest] if flag == "--screenshot" => {
-            cmd_screenshot(test_name, Path::new(dest), &libtock_c_dir)
+            cmd_screenshot(board, test_name, Path::new(dest), &libtock_c_dir)
         }
 
         _ => {
