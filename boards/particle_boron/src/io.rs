@@ -7,7 +7,7 @@ use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart;
 use nrf52840::gpio::Pin;
-use nrf52840::uart::{UartPanicWriterConfig, Uarte};
+use nrf52840::uart_legacy::{Uart, UartPanicWriterConfig};
 
 const LED2_R_PIN: Pin = Pin::P0_13;
 
@@ -19,7 +19,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let led_kernel_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(LED2_R_PIN);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    debug::panic::<_, Uarte, _, _>(
+    debug::panic::<_, Uart, _, _>(
         &mut [led],
         UartPanicWriterConfig {
             params: uart::Parameters {
