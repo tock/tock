@@ -17,6 +17,10 @@ provide different underlying implementations for registration and/or discovery.
 Current capsules allow for registration/discovery using string names or package
 names.
 
+Registration of a service can be validated at the board level by implementing
+and providing an
+[`IpcRegistrationValidationFunction`](ipc_registration_validation.rs).
+
 ## Relay
 
 **Relay** capsules provide a means for single-copy, allow-to-allow

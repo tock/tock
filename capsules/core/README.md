@@ -78,6 +78,7 @@ Interprocess Communication
 Interprocess Communication (IPC) mechanisms and related infrastructure.
 
 - **[IPC Identifier](src/ipc/ipc_identifier.rs)**: IPC Identifier type used in other IPC capsules.
+- **[IPC Registration Validation](src/ipc/ipc_registration_validation.rs)**: Function type for validating registration attempts.
 - **[IPC Registry String Name](src/ipc/ipc_registry_string_name.rs)**: Service registry and discovery based on process-specified string names.
 - **[IPC Registry Package Name](src/ipc/ipc_registry_package_name.rs)**: Service registry and discovery based on process package names.
 - **[IPC Relay Request](src/ipc/ipc_relay_request.rs)**: Single-copy communication via client-to-server requests and server-to-client responses.
