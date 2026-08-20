@@ -21,6 +21,7 @@
 
 use crate::ipc::ipc_identifier::IpcIdentifier;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::platform::registration::RegistrationFilter;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
@@ -46,7 +47,7 @@ mod upcall {
 }
 
 /// Maximum string length, with a value of 20 by default.
-const MAX_STRING_LEN: usize = 20;
+pub const MAX_STRING_LEN: usize = 20;
 
 /// Per-process metadata
 #[derive(Default)]
@@ -59,7 +60,7 @@ pub struct App {
 ///
 /// This capsule allows for registration and discovery of IPC processes via a
 /// string provided by the process.
-pub struct IpcRegistryStringName {
+pub struct IpcRegistryStringName<'a, RF: RegistrationFilter> {
     /// Grant memory
     apps: Grant<
         App,
@@ -67,9 +68,13 @@ pub struct IpcRegistryStringName {
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<0>,
     >,
+
+    registration_filter: &'a RF,
 }
 
-impl IpcRegistryStringName {
+impl<'a, RF: RegistrationFilter<RegistrationIdentifier = [u8; MAX_STRING_LEN]>>
+    IpcRegistryStringName<'a, RF>
+{
     // Create a new IPC Registry String Name capsule
     pub fn new(
         grant: Grant<
@@ -78,8 +83,12 @@ impl IpcRegistryStringName {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
+        registration_filter: &'a RF,
     ) -> Self {
-        Self { apps: grant }
+        Self {
+            apps: grant,
+            registration_filter,
+        }
     }
 
     fn register(&self, processid: ProcessId) -> Result<(), ErrorCode> {
@@ -122,6 +131,9 @@ impl IpcRegistryStringName {
                 return Err(ErrorCode::ALREADY);
             }
         }
+
+        self.registration_filter
+            .filter_registration(processid.short_app_id(), &new_name)?;
 
         // Save newly registered name
         self.apps.enter(processid, |app, kerneldata| {
@@ -202,7 +214,9 @@ impl IpcRegistryStringName {
     }
 }
 
-impl SyscallDriver for IpcRegistryStringName {
+impl<'a, RF: RegistrationFilter<RegistrationIdentifier = [u8; MAX_STRING_LEN]>> SyscallDriver
+    for IpcRegistryStringName<'a, RF>
+{
     /// Registration and discovery of IPC services
     ///
     /// Matches based on "names": length MAX_STRING_LEN arrays of u8.
