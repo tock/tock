@@ -16,10 +16,12 @@
 //!     board_kernel,
 //!     capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
 //!     create_capability!(capabilities::MemoryAllocationCapability),
+//!     None,
 //! ).finalize(components::ipc_registry_string_name_component_static!());
 //! ```
 
 use crate::ipc::ipc_identifier::IpcIdentifier;
+use crate::ipc::ipc_registration_validation::IpcRegistrationValidationFunction;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -67,6 +69,10 @@ pub struct IpcRegistryStringName {
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<0>,
     >,
+
+    /// Optional validation function. If this function is supplied it will be
+    /// called to determine if validation can succeed.
+    validation: Option<IpcRegistrationValidationFunction>,
 }
 
 impl IpcRegistryStringName {
@@ -78,14 +84,15 @@ impl IpcRegistryStringName {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
+        validation: Option<IpcRegistrationValidationFunction>,
     ) -> Self {
-        Self { apps: grant }
+        Self {
+            apps: grant,
+            validation,
+        }
     }
 
     fn register(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        // If registration validation is desired, that would go here before
-        // comparing or saving the name itself
-
         // Get allowed name to validate and later save
         let mut new_name: [u8; MAX_STRING_LEN] = [0; MAX_STRING_LEN];
         self.apps.enter(processid, |_, kerneldata| {
@@ -121,6 +128,11 @@ impl IpcRegistryStringName {
                 // we'll give an error to this second app. First-come-first-served.
                 return Err(ErrorCode::ALREADY);
             }
+        }
+
+        // Validate this registration attempt
+        if let Some(validator) = self.validation {
+            validator(processid, &new_name)?;
         }
 
         // Save newly registered name

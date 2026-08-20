@@ -890,6 +890,7 @@ pub unsafe fn start_no_pconsole() -> (
             board_kernel,
             capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
             create_capability!(capabilities::MemoryAllocationCapability),
+            None,
         )
         .finalize(components::ipc_registry_string_name_component_static!());
 
