@@ -34,9 +34,9 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     } else {
         // Use the nRF52 UART for panic output.
 
-        debug::panic::<_, nrf52840::uart_legacy::Uart, _, _>(
+        debug::panic::<_, nrf52840::uart::Uart, _, _>(
             &mut [led],
-            nrf52840::uart_legacy::UartPanicWriterConfig {
+            nrf52840::uart::UartPanicWriterConfig {
                 params: uart::Parameters {
                     baud_rate: 115200,
                     stop_bits: uart::StopBits::One,

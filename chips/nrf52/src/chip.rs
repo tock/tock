@@ -66,7 +66,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub timer0: crate::timer::TimerAlarm<'a>,
     pub timer1: crate::timer::TimerAlarm<'a>,
     pub timer2: crate::timer::Timer,
-    pub uarte0: crate::uart::Uarte<'a>,
+    pub uarte0: crate::uarte::Uarte<'a>,
     pub spim0: crate::spi::SPIM<'a>,
     pub twi1: crate::i2c::TWI<'a>,
     pub spim2: crate::spi::SPIM<'a>,
@@ -94,7 +94,7 @@ impl Nrf52DefaultPeripherals<'_> {
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
         // SAFETY: See function-level doc.
-        let uarte0_registers = unsafe { crate::uart::UarteRegistersManager::new_uarte0() };
+        let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new_uarte0() };
 
         Self {
             acomp: crate::acomp::Comparator::new(),
@@ -107,7 +107,7 @@ impl Nrf52DefaultPeripherals<'_> {
             timer0: crate::timer::TimerAlarm::new(TIMER0_BASE),
             timer1: crate::timer::TimerAlarm::new(TIMER1_BASE),
             timer2: crate::timer::Timer::new(TIMER2_BASE),
-            uarte0: crate::uart::Uarte::new(uarte0_registers),
+            uarte0: crate::uarte::Uarte::new(uarte0_registers),
             spim0: crate::spi::SPIM::new(0),
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
