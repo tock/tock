@@ -146,7 +146,7 @@ impl Uart {
     }
 
     fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
-        let divider = crate::uart::Uarte::get_divider_for_baud(baud_rate)?;
+        let divider = crate::uarte::Uarte::get_divider_for_baud(baud_rate)?;
         self.registers.baudrate.set(divider);
 
         Ok(())

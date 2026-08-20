@@ -20,7 +20,7 @@ pub mod ppi;
 pub mod pwm;
 pub mod spi;
 pub mod uart;
-pub mod uart_legacy;
+pub mod uarte;
 pub mod uicr;
 pub mod usbd;
 

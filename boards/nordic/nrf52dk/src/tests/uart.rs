@@ -4,7 +4,7 @@
 
 use kernel::hil::uart::Transmit;
 use kernel::static_init;
-use nrf52832::uart::Uarte;
+use nrf52832::uarte::Uarte;
 
 const BUFFER_SIZE_2048: usize = 2048;
 
