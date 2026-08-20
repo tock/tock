@@ -12,7 +12,6 @@ use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
-use kernel::utilities::StaticRef;
 use kernel::{create_capability, debug, static_init};
 
 mod checker_credentials_not_required;
@@ -427,16 +426,7 @@ pub unsafe fn main() {
     // NONVOLATILE STORAGE
     //--------------------------------------------------------------------------
 
-    let pflash = static_init!(
-        qemu_rv32_virt_chip::pflash::Pflash<'static>,
-        qemu_rv32_virt_chip::pflash::Pflash::new(unsafe {
-            StaticRef::new(
-                qemu_rv32_virt_chip::pflash::PFLASH_BASE
-                    as *const qemu_rv32_virt_chip::pflash::PflashRegisters,
-            )
-        })
-    );
-    pflash.register();
+    let pflash = &chip.peripherals().pflash;
 
     let pflash_pagebuffer = static_init!(
         qemu_rv32_virt_chip::pflash::PflashPage,

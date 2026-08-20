@@ -11,6 +11,7 @@ use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
 
+use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
@@ -40,6 +41,7 @@ pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
     pub uart0: qemu_virt_chip::uart::Uart16550<'a>,
     pub virtio_mmio: [VirtIOMMIODevice; 8],
+    pub pflash: crate::pflash::Pflash<'a>,
 }
 
 impl QemuRv32VirtDefaultPeripherals<'_> {
@@ -56,7 +58,14 @@ impl QemuRv32VirtDefaultPeripherals<'_> {
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_6_BASE),
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_7_BASE),
             ],
+            pflash: crate::pflash::Pflash::new(unsafe {
+                StaticRef::new(crate::pflash::PFLASH_BASE as *const crate::pflash::PflashRegisters)
+            }),
         }
+    }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.pflash);
     }
 }
 
@@ -97,6 +106,12 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
         self.plic.disable_all();
         self.plic.clear_all_pending();
         self.plic.enable_all();
+    }
+
+    /// The chip's peripherals (e.g. `uart0`, `pflash`), as passed to
+    /// [`QemuRv32VirtChip::new`].
+    pub fn peripherals(&self) -> &'a I {
+        self.plic_interrupt_service
     }
 
     unsafe fn handle_plic_interrupts(&self) {
