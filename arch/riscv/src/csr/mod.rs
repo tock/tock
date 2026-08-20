@@ -283,7 +283,11 @@ pub const CSR: &CSR = &CSR {
 };
 
 impl CSR {
-    // resets the cycle counter to 0
+    /// Resets the cycle counter (`mcycle`, and `mcycleh` on RISCV-32) to 0.
+    ///
+    /// On RISCV-32 the 64-bit cycle count is split across two 32-bit CSRs,
+    /// `mcycle` (low) and `mcycleh` (high); both are reset here. On
+    /// RISCV-64, `mcycle` alone holds the full 64-bit count.
     #[cfg(not(target_arch = "riscv64"))]
     pub fn reset_cycle_counter(&self) {
         // Write lower first so that we don't overflow before writing the upper
@@ -291,13 +295,22 @@ impl CSR {
         CSR.mcycleh.write(mcycle::mcycleh::mcycleh.val(0));
     }
 
-    // resets the cycle counter to 0
+    /// Resets the cycle counter (`mcycle`, and `mcycleh` on RISCV-32) to 0.
+    ///
+    /// On RISCV-32 the 64-bit cycle count is split across two 32-bit CSRs,
+    /// `mcycle` (low) and `mcycleh` (high); both are reset here. On
+    /// RISCV-64, `mcycle` alone holds the full 64-bit count.
     #[cfg(target_arch = "riscv64")]
     pub fn reset_cycle_counter(&self) {
         CSR.mcycle.write(mcycle::mcycle::mcycle.val(0));
     }
 
-    // reads the cycle counter
+    /// Reads the 64-bit cycle counter.
+    ///
+    /// On RISCV-32 the count is split across two 32-bit CSRs, `mcycle` (low)
+    /// and `mcycleh` (high); this reads both, retrying if a rollover is
+    /// detected between the two reads. On RISCV-64, `mcycle` alone holds the
+    /// full 64-bit count and is read directly.
     #[cfg(not(target_arch = "riscv64"))]
     pub fn read_cycle_counter(&self) -> u64 {
         let (mut top, mut bot): (usize, usize);
@@ -316,7 +329,12 @@ impl CSR {
         (top as u64).checked_shl(32).unwrap() + bot as u64
     }
 
-    // reads the cycle counter
+    /// Reads the 64-bit cycle counter.
+    ///
+    /// On RISCV-32 the count is split across two 32-bit CSRs, `mcycle` (low)
+    /// and `mcycleh` (high); this reads both, retrying if a rollover is
+    /// detected between the two reads. On RISCV-64, `mcycle` alone holds the
+    /// full 64-bit count and is read directly.
     #[cfg(target_arch = "riscv64")]
     pub fn read_cycle_counter(&self) -> u64 {
         // On RV64 `mcycle` is a single 64-bit CSR; `read` returns `usize`, which
