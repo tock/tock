@@ -623,7 +623,7 @@ pub unsafe fn start_no_pconsole() -> (
     let uart_channel = nrf52_components::UartChannelComponent::new(
         uart_channel,
         mux_alarm,
-        &base_peripherals.uarte0,
+        &base_peripherals.uarte1,
     )
     .finalize(nrf52_components::uart_channel_component_static!(AlarmHw));
 

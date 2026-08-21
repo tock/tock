@@ -24,8 +24,8 @@ use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: usize = 0xff;
 
-pub const UARTE0_BASE: StaticRef<UarteRegisters> =
-    unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
+pub const UARTE1_BASE: StaticRef<UarteRegisters> =
+    unsafe { StaticRef::new(0x40028000 as *const UarteRegisters) };
 
 #[repr(C)]
 pub struct UarteRegisters {

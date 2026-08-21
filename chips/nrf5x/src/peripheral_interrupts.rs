@@ -54,3 +54,5 @@ pub const RTC2: u32 = 36;
 pub const I2S: u32 = 37;
 #[cfg(feature = "nrf52")]
 pub const FPU: u32 = 38;
+#[cfg(feature = "nrf52")]
+pub const UARTE1: u32 = 40;

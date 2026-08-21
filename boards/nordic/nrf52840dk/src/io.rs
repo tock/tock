@@ -47,7 +47,7 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
                 txd: crate::UART_TXD,
                 rxd: crate::UART_RXD,
                 cts: crate::UART_CTS,
-                rts: crate::UART_CTS,
+                rts: crate::UART_RTS,
             },
             pi,
             &cortexm4::support::nop,
