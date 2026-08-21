@@ -6,7 +6,7 @@
 
 use core::cell::Cell;
 
-use crate::platform::interrupts_disabled::InterruptsDisabled;
+use crate::context_tokens::InterruptsDisabledContext;
 
 /// A `Cell<T>` that can be freely read, but can only be written while
 /// holding proof that interrupts are disabled on this core.
@@ -22,7 +22,7 @@ use crate::platform::interrupts_disabled::InterruptsDisabled;
 ///
 /// This type is deliberately not [`Sync`]: `Sync` would promise safe access
 /// from any hart with no further checking, which would not hold on genuine
-/// multi-hart hardware (the same reason [`InterruptsDisabled`] itself is
+/// multi-hart hardware (the same reason [`InterruptsDisabledContext`] itself is
 /// `!Send + !Sync`). Consequently, a struct embedding this type still needs
 /// to live behind a `static mut` (or equivalent) at the top level, just as
 /// it would with a plain `Cell`.
@@ -43,7 +43,7 @@ impl<T> InterruptsDisabledCell<T> {
     /// Requires proof that interrupts are disabled on this core, so this
     /// cannot race a concurrent read-modify-write from the other half of a
     /// top/bottom-half handler pair.
-    pub fn set(&self, val: T, _interrupts_disabled: &InterruptsDisabled) {
+    pub fn set(&self, val: T, _interrupts_disabled: &InterruptsDisabledContext) {
         self.value.set(val);
     }
 }
@@ -58,7 +58,11 @@ impl<T: Copy> InterruptsDisabledCell<T> {
     }
 
     /// Read the contained value, apply `f`, and store the result.
-    pub fn update(&self, f: impl FnOnce(T) -> T, interrupts_disabled: &InterruptsDisabled) -> T {
+    pub fn update(
+        &self,
+        f: impl FnOnce(T) -> T,
+        interrupts_disabled: &InterruptsDisabledContext,
+    ) -> T {
         let new = f(self.get());
         self.set(new, interrupts_disabled);
         new

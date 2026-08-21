@@ -5,7 +5,7 @@
 //! Core low-level operations.
 
 use crate::csr::{CSR, mstatus::mstatus};
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::context_tokens::InterruptsDisabledContext;
 
 #[cfg(any(doc, target_arch = "riscv32", target_arch = "riscv64"))]
 #[inline(always)]
@@ -28,7 +28,7 @@ pub unsafe fn wfi() {
 /// Single-core critical section operation
 pub fn with_interrupts_disabled<F, R>(f: F) -> R
 where
-    F: FnOnce(&InterruptsDisabled) -> R,
+    F: FnOnce(&InterruptsDisabledContext) -> R,
 {
     // Read the mstatus MIE field and disable machine mode interrupts
     // atomically
@@ -41,7 +41,7 @@ where
         & mstatus::mie.mask << mstatus::mie.shift;
 
     // Safety: we just disabled machine mode interrupts above.
-    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
+    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
 
     // Machine mode interrupts are disabled, execute the (uninterruptible)
     // function

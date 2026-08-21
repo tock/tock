@@ -7,8 +7,8 @@
 
 use crate::machine_timer::Clint;
 use core::fmt::Write;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::{Chip, InterruptService};
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
@@ -140,7 +140,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&InterruptsDisabled) -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }
@@ -172,7 +172,7 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
-fn handle_interrupt(intr: mcause::Interrupt, interrupts_disabled: &InterruptsDisabled) {
+fn handle_interrupt(intr: mcause::Interrupt, interrupts_disabled: &InterruptsDisabledContext) {
     match intr {
         mcause::Interrupt::UserSoft
         | mcause::Interrupt::UserTimer
@@ -234,7 +234,7 @@ fn handle_interrupt(intr: mcause::Interrupt, interrupts_disabled: &InterruptsDis
 pub unsafe extern "C" fn start_trap_rust() {
     // Safety: we were just called via a trap, and RISC-V hardware clears
     // `mstatus.MIE` on trap entry before any Rust code runs.
-    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
+    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt, &interrupts_disabled);
@@ -253,7 +253,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
     // Safety: we were just called via a trap, and RISC-V hardware clears
     // `mstatus.MIE` on trap entry before any Rust code runs.
-    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
+    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
     match mcause::Trap::from(mcause_val as usize) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt, &interrupts_disabled);

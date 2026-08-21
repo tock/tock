@@ -9,7 +9,7 @@
 //! * <https://wiki.osdev.org/8259_PIC>
 //! * <https://github.com/rust-osdev/pic8259>
 
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::context_tokens::InterruptsDisabledContext;
 use x86::IDT_RESERVED_EXCEPTIONS;
 use x86::registers::io;
 
@@ -97,10 +97,10 @@ pub unsafe fn init() {
 /// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
 ///
 /// This function must only be called from within the interrupt servicing routine actually
-/// handling `num`. Unlike `mask`/`unmask`, holding `&InterruptsDisabled` alone is not sufficient
+/// handling `num`. Unlike `mask`/`unmask`, holding `&InterruptsDisabledContext` alone is not sufficient
 /// here: sending EOI outside of real interrupt-service context -- even with interrupts disabled --
 /// can desynchronize the PIC's internal in-service state and corrupt future interrupt delivery.
-pub(crate) fn eoi(num: u32, _interrupts_disabled: &InterruptsDisabled) {
+pub(crate) fn eoi(num: u32, _interrupts_disabled: &InterruptsDisabledContext) {
     let _ = u8::try_from(num).map(|num| unsafe {
         if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&num) {
             io::outb(PIC1_CMD, PIC_CMD_EOI);
@@ -114,7 +114,7 @@ pub(crate) fn eoi(num: u32, _interrupts_disabled: &InterruptsDisabled) {
 /// Masks interrupt `num`, disabling its delivery to the CPU.
 ///
 /// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
-pub(crate) fn mask(num: u32, _interrupts_disabled: &InterruptsDisabled) {
+pub(crate) fn mask(num: u32, _interrupts_disabled: &InterruptsDisabledContext) {
     let _ = u8::try_from(num).map(|n| unsafe {
         if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&n) {
             let bit = n - PIC1_OFFSET; // 0-7
@@ -134,7 +134,7 @@ pub(crate) fn mask(num: u32, _interrupts_disabled: &InterruptsDisabled) {
 ///
 /// There must be an interrupt handler registered to properly handle `num`, as the interrupt may
 /// fire at any time once this function is called.
-pub(crate) fn unmask(num: u32, _interrupts_disabled: &InterruptsDisabled) {
+pub(crate) fn unmask(num: u32, _interrupts_disabled: &InterruptsDisabledContext) {
     let _ = u8::try_from(num).map(|n| unsafe {
         if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&n) {
             let bit = n - PIC1_OFFSET; // 0-7

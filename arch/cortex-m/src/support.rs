@@ -5,7 +5,7 @@
 //! Helper functions for the Cortex-M architecture.
 
 use crate::scb;
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::context_tokens::InterruptsDisabledContext;
 
 /// NOP instruction
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
@@ -61,7 +61,7 @@ pub unsafe fn wfi() {
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 pub fn with_interrupts_disabled<F, R>(f: F) -> R
 where
-    F: FnOnce(&InterruptsDisabled) -> R,
+    F: FnOnce(&InterruptsDisabledContext) -> R,
 {
     use core::arch::asm;
     // Set PRIMASK to disable interrupts.
@@ -85,7 +85,7 @@ where
     }
 
     // Safety: we just disabled interrupts (PRIMASK) above.
-    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
+    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
 
     let res = f(&interrupts_disabled);
 
@@ -128,7 +128,7 @@ pub unsafe fn wfi() {
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub fn with_interrupts_disabled<F, R>(_f: F) -> R
 where
-    F: FnOnce(&InterruptsDisabled) -> R,
+    F: FnOnce(&InterruptsDisabledContext) -> R,
 {
     unimplemented!()
 }

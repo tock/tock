@@ -5,7 +5,7 @@
 //! Platform Level Interrupt Control peripheral driver.
 
 use crate::interrupts;
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::utilities::StaticRef;
 use kernel::utilities::interrupts_disabled_cell::InterruptsDisabledCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -133,7 +133,7 @@ impl Intc {
     /// This will save the interrupt at index internally to be handled later.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub fn save_interrupt(&self, irq: u32, interrupts_disabled: &InterruptsDisabled) {
+    pub fn save_interrupt(&self, irq: u32, interrupts_disabled: &InterruptsDisabledContext) {
         self.saved.update(
             |val| LocalRegisterCopy::new(val.get() | 1 << irq),
             interrupts_disabled,
@@ -154,7 +154,7 @@ impl Intc {
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
-    pub fn complete(&self, irq: u32, interrupts_disabled: &InterruptsDisabled) {
+    pub fn complete(&self, irq: u32, interrupts_disabled: &InterruptsDisabledContext) {
         self.saved.update(
             |val| LocalRegisterCopy::new(val.get() & !(1 << irq)),
             interrupts_disabled,

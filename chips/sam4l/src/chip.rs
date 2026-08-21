@@ -8,8 +8,8 @@ use crate::pm;
 
 use core::fmt::Write;
 use cortexm4::{CortexM4, CortexMVariant};
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::{Chip, InterruptService};
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 pub struct Sam4l<I: InterruptService + 'static> {
     mpu: cortexm4::mpu::MPU,
@@ -289,7 +289,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&InterruptsDisabled) -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm4::support::with_interrupts_disabled(f)
     }

@@ -2,7 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
-//! A typed proof that interrupts are currently disabled on this core.
+//! Typed proofs for the current context code is executing in.
+//!
+//! This module provides zero-sized marker tokens that signify the current
+//! execution context. These are designed to provide compile-time assertions
+//! for code which is sensitive to execution context. E.g., when manipulating
+//! state that is shared across top-half and bottom-half interrupt handlers, it
+//! is important to ensure that interrupts are disabled.
+//!
+//! Enforcing context with comments is fragile and subject to user error. The
+//! `unsafe` keyword is overloaded here, as context-sensitive operations are
+//! not necessarily soundness concerns (though, being able to assert an
+//! execution context is often necessary to justify `unsafe` operations).
+//!
+//! Contexts are generally orthogonal. A core which is executing an interrupt
+//! service routine (in handler context) may or may not automatically be in an
+//! interrupt-disabled context---the details depend on the architecture. Code
+//! using contexts should be careful to specify exactly which context(s) they
+//! need and why.
 
 use core::marker::PhantomData;
 
@@ -15,12 +32,12 @@ use core::marker::PhantomData;
 ///
 /// This type is neither [`Send`] nor [`Sync`]: a token minted on one core
 /// must not be used to vouch for the interrupt state of another core.
-pub struct InterruptsDisabled {
+pub struct InterruptsDisabledContext {
     _not_send_sync: PhantomData<*const ()>,
 }
 
-impl InterruptsDisabled {
-    /// Mint a new [`InterruptsDisabled`] token.
+impl InterruptsDisabledContext {
+    /// Mint a new [`InterruptsDisabledContext`] token.
     ///
     /// This is only intended to be called from the small set of places that
     /// actually establish that interrupts are disabled on this core: the
@@ -35,7 +52,7 @@ impl InterruptsDisabled {
     /// this core for as long as any reference to the returned token is used.
     #[doc(hidden)]
     pub unsafe fn new_trusted() -> Self {
-        InterruptsDisabled {
+        InterruptsDisabledContext {
             _not_send_sync: PhantomData,
         }
     }

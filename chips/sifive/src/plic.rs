@@ -4,7 +4,7 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::utilities::StaticRef;
 use kernel::utilities::interrupts_disabled_cell::InterruptsDisabledCell;
 use kernel::utilities::registers::LocalRegisterCopy;
@@ -213,7 +213,7 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
     /// This will save the interrupt at index internally to be handled later.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub fn save_interrupt(&self, index: u32, interrupts_disabled: &InterruptsDisabled) {
+    pub fn save_interrupt(&self, index: u32, interrupts_disabled: &InterruptsDisabledContext) {
         let offset = usize::from(index >= 32);
         let irq = index % 32;
 
@@ -239,7 +239,7 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
-    pub fn complete(&self, index: u32, interrupts_disabled: &InterruptsDisabled) {
+    pub fn complete(&self, index: u32, interrupts_disabled: &InterruptsDisabledContext) {
         self.registers.get_claim_reg().set(index);
 
         let offset = usize::from(index >= 32);

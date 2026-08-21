@@ -5,9 +5,9 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
 
 use crate::adc;
 use crate::clocks::Clocks;
@@ -121,7 +121,7 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&InterruptsDisabled) -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm0p::support::with_interrupts_disabled(f)
     }

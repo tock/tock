@@ -3,10 +3,10 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::debug;
 use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
 use kernel::utilities::registers::interfaces::Readable;
 
 use crate::clint;
@@ -142,7 +142,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&InterruptsDisabled) -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }
@@ -194,7 +194,7 @@ pub unsafe fn configure_trap_handler() {
 pub extern "C" fn start_trap_rust() {
     // Safety: we were just called via a trap, and RISC-V hardware clears
     // `mstatus.MIE` on trap entry before any Rust code runs.
-    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
+    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
     let mcause = rv32i::csr::CSR.mcause.extract();
 
     match rv32i::csr::mcause::Trap::from(mcause) {
@@ -221,7 +221,7 @@ pub extern "C" fn start_trap_rust() {
 pub extern "C" fn disable_interrupt_trap_handler(mcause: u32) {
     // Safety: we were just called via a trap, and RISC-V hardware clears
     // `mstatus.MIE` on trap entry before any Rust code runs.
-    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
+    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
     // The interrupt number is then the lowest 8
     // bits.
     let interrupt_index = mcause & 0xFF;

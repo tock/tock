@@ -4,7 +4,7 @@
 
 //! VexRiscv-specific interrupt controller implementation
 
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::utilities::interrupts_disabled_cell::InterruptsDisabledCell;
 
 /// Rust wrapper around the raw CSR-based VexRiscv interrupt
@@ -26,7 +26,7 @@ impl VexRiscvInterruptController {
 
     /// Save the currently pending interrupts in hardware to the
     /// internal state
-    pub fn save_pending(&self, interrupts_disabled: &InterruptsDisabled) -> bool {
+    pub fn save_pending(&self, interrupts_disabled: &InterruptsDisabledContext) -> bool {
         // Safety: irq_pending() is unsafe only because it is an inline-asm
         // CSR read; a single read cannot race or tear, so no additional
         // precondition is needed here.
@@ -64,15 +64,15 @@ impl VexRiscvInterruptController {
     ///
     /// If all interrupts are marked as complete, `next_saved` will
     /// return `None`.
-    pub fn complete_saved(&self, idx: usize, interrupts_disabled: &InterruptsDisabled) {
+    pub fn complete_saved(&self, idx: usize, interrupts_disabled: &InterruptsDisabledContext) {
         self.saved_interrupts
             .update(|val| val & !(1 << idx), interrupts_disabled);
     }
 
     /// Suppress (mask) a specific interrupt source in the interrupt
     /// controller
-    pub fn mask_interrupt(idx: usize, _interrupts_disabled: &InterruptsDisabled) {
-        // Safety: interrupts are disabled (we have an InterruptsDisabled
+    pub fn mask_interrupt(idx: usize, _interrupts_disabled: &InterruptsDisabledContext) {
+        // Safety: interrupts are disabled (we have an InterruptsDisabledContext
         // token), so this read-modify-write of the mask register cannot
         // race a concurrent access.
         unsafe {
@@ -82,8 +82,8 @@ impl VexRiscvInterruptController {
 
     /// Unsuppress (unmask) a specific interrupt source in the
     /// interrupt controller
-    pub fn unmask_interrupt(idx: usize, _interrupts_disabled: &InterruptsDisabled) {
-        // Safety: interrupts are disabled (we have an InterruptsDisabled
+    pub fn unmask_interrupt(idx: usize, _interrupts_disabled: &InterruptsDisabledContext) {
+        // Safety: interrupts are disabled (we have an InterruptsDisabledContext
         // token), so this read-modify-write of the mask register cannot
         // race a concurrent access.
         unsafe {

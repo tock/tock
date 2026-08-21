@@ -5,7 +5,7 @@
 //! Platform Level Interrupt Control peripheral driver.
 
 use crate::registers::top_earlgrey::RV_PLIC_BASE_ADDR;
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::utilities::StaticRef;
 use kernel::utilities::interrupts_disabled_cell::InterruptsDisabledCell;
 use kernel::utilities::registers::LocalRegisterCopy;
@@ -121,7 +121,7 @@ impl Plic {
     /// This will save the interrupt at index internally to be handled later.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub fn save_interrupt(&self, index: u32, interrupts_disabled: &InterruptsDisabled) {
+    pub fn save_interrupt(&self, index: u32, interrupts_disabled: &InterruptsDisabledContext) {
         if index >= PLIC_IRQ_NUM as u32 {
             panic!("Invalid IRQ: {}", index)
         }
@@ -149,7 +149,7 @@ impl Plic {
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
-    pub fn complete(&self, index: u32, interrupts_disabled: &InterruptsDisabled) {
+    pub fn complete(&self, index: u32, interrupts_disabled: &InterruptsDisabledContext) {
         self.registers.claim.set(index);
         if index >= PLIC_IRQ_NUM as u32 {
             panic!("Invalid IRQ: {}", index)

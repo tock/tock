@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-use kernel::platform::interrupts_disabled::InterruptsDisabled;
+use kernel::context_tokens::InterruptsDisabledContext;
 use x86::InterruptPoller;
 
 use super::pic;
@@ -27,7 +27,7 @@ unsafe extern "cdecl" fn handle_external_interrupt(num: u32) {
     // Safety: we were just called via the IDT interrupt gate, and x86
     // hardware clears EFLAGS.IF on entry through an interrupt gate before
     // any handler code runs.
-    let interrupts_disabled = unsafe { InterruptsDisabled::new_trusted() };
+    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
     InterruptPoller::set_pending(num, &interrupts_disabled);
     pic::mask(num, &interrupts_disabled);
     pic::eoi(num, &interrupts_disabled);

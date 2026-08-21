@@ -4,7 +4,7 @@
 
 //! Interfaces for implementing microcontrollers in Tock.
 
-use crate::platform::interrupts_disabled::InterruptsDisabled;
+use crate::context_tokens::InterruptsDisabledContext;
 use crate::platform::mpu;
 use crate::syscall;
 use crate::utilities::io_write::IoWrite;
@@ -83,10 +83,10 @@ pub trait Chip {
     ///
     /// The passed-in function receives a proof that interrupts are disabled,
     /// which it can pass on to other functions that require it. See
-    /// [`InterruptsDisabled`].
+    /// [`InterruptsDisabledContext`].
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&InterruptsDisabled) -> R;
+        F: FnOnce(&InterruptsDisabledContext) -> R;
 
     /// Print out debug information about the current chip state (system
     /// registers, MPU configuration, etc.) to a supplied writer.

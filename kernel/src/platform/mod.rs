@@ -8,7 +8,6 @@
 
 pub mod chip;
 pub mod dma_fence;
-pub mod interrupts_disabled;
 pub mod mpu;
 pub mod scheduler_timer;
 pub mod watchdog;
