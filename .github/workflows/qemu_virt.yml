@@ -38,7 +38,7 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Checkout the current repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install elf2tab
         run: cargo install elf2tab
@@ -50,7 +50,7 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Checkout libtock-c
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: tock/libtock-c
           path: libtock-c
