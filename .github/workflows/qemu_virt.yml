@@ -1,0 +1,102 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+# This workflow runs the qemu-virt-ci-runner, which builds the qemu_rv64_virt
+# Tock kernel, installs libtock-c apps via tockloader, runs the board inside
+# qemu-system-riscv64, and verifies serial output and screen state.
+
+name: qemu-virt-ci
+env:
+  TERM: xterm
+
+on:
+  push:
+    branches-ignore:
+    - "gh-readonly-queue/**"
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  qemu-virt-ci:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:forky-slim
+
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl git make gcc gcc-riscv64-unknown-elf qemu-system-riscv python3-pip pipx bash wget file unzip xvfb
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Checkout the current repository
+        uses: actions/checkout@v7
+
+      - name: Install elf2tab
+        run: cargo install elf2tab
+
+      - name: Install tockloader
+        shell: bash
+        run: |
+          pipx install tockloader
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Checkout libtock-c
+        uses: actions/checkout@v7
+        with:
+          repository: tock/libtock-c
+          path: libtock-c
+
+      - name: Build libtock-c apps
+        shell: bash
+        run: |
+          export TOCK_TARGETS="\
+            rv64imac|rv64imac.0x80100080.0x80300000|0x80100080|0x80300000\
+            rv64imac|rv64imac.0x80110080.0x80310000|0x80110080|0x80310000\
+            rv64imac|rv64imac.0x80130080.0x80330000|0x80130080|0x80330000\
+            rv64imac|rv64imac.0x80180080.0x80380000|0x80180080|0x80380000"
+          pushd libtock-c/examples
+          make -C c_hello
+          make -C tests/led/led-odd
+          make -C tests/u8g2-demos/tock-logo
+          make -C tests/button_print
+          make -C tests/console/console
+          make -C blink
+          make -C tests/exit
+          popd
+
+      - name: Build the qemu_rv64_virt-test-ci kernel
+        shell: bash
+        run: |
+          pushd boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci
+          make
+          popd
+
+      - name: Initialize local board with kernel
+        shell: bash
+        run: |
+          pushd boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci
+          make init
+          make install
+          popd
+
+      - name: Start virtual framebuffer
+        run: |
+          Xvfb :99 -screen 0 1024x768x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Run qemu-virt CI tests
+        shell: bash
+        # libtock-c is checked out inside the tock workspace in CI (GitHub
+        # Actions requires checkouts to be under the workspace root).
+        # ../../../libtock-c is relative to tools/ci/qemu-virt-ci-runner/,
+        # which is the working directory when cargo run executes.
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--libtock-c ../../../libtock-c"
