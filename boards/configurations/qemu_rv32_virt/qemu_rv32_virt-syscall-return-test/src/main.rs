@@ -96,7 +96,7 @@ impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, base_platform, chip) = qemu_rv32_virt_lib::start();
+    let (board_kernel, base_platform, chip, _peripherals) = qemu_rv32_virt_lib::start();
 
     //--------------------------------------------------------------------------
     // SYSCALL RETURN TEST CAPSULE
