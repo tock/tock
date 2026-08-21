@@ -12,6 +12,13 @@ use nrf52840::gpio::Pin;
 #[panic_handler]
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
+    // UARTE1 is used as the normal runtime UART and may still have its pins
+    // (PSEL) connected. Disconnect them here so the legacy UART used below
+    // for panic output can drive the same physical pins without contention.
+    for psel in [0x40028508u32, 0x4002850C, 0x40028510, 0x40028514] {
+        core::ptr::write_volatile(psel as *mut u32, 0xFFFF_FFFF);
+    }
+
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
