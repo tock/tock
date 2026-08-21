@@ -22,17 +22,29 @@ PFLASH_SIZE  := 32M
 # $(PFLASH_IMAGE):
 # 	dd if=/dev/zero bs=$(PFLASH_SIZE) count=1 2>/dev/null  > $@
 
-# Host serial device to expose to the guest as a second UART (a virtio
-# console; see `qemu_rv32_virt_chip::virtio::devices::virtio_console`) so
-# the kernel can talk to real hardware attached to this computer. Override
-# on the command line, e.g.:
+# Host backend for the guest's second UART (a virtio console; see
+# `qemu_rv32_virt_chip::virtio::devices::virtio_console`). Two modes:
 #
-#     make run SERIAL_DEVICE=/dev/cu.usbserial-1420
+# - SERIAL_BACKEND=pty (default): QEMU allocates a pseudo-terminal and
+#   prints its path (e.g. "char device redirected to /dev/ttys003") on
+#   startup. Needs no real hardware; write to that path from another shell
+#   to send the guest data, e.g. `printf 'Hi' > /dev/ttys003`.
+# - SERIAL_BACKEND=serial: connects to a real host serial device, given by
+#   SERIAL_DEVICE. On Linux this is typically /dev/ttyUSB0 or
+#   /dev/ttyACM0; on macOS, /dev/cu.usbserial-XXXX or similar. `ls
+#   /dev/tty.*` / `ls /dev/cu.*` (macOS) or `ls /dev/ttyUSB* /dev/ttyACM*`
+#   (Linux) will list what's currently attached. Example:
 #
-# On Linux this is typically something like /dev/ttyUSB0. `ls /dev/tty.*` or
-# `ls /dev/cu.*` (macOS) / `ls /dev/ttyUSB* /dev/ttyACM*` (Linux) will list
-# what's currently attached.
-SERIAL_DEVICE ?= /dev/cu.usbserial
+#     make run SERIAL_BACKEND=serial SERIAL_DEVICE=/dev/cu.usbserial-1420
+#
+SERIAL_BACKEND ?= pty
+SERIAL_DEVICE  ?= /dev/cu.usbserial
+
+ifeq ($(SERIAL_BACKEND),serial)
+SERIAL_CHARDEV := serial,id=hostserial,path=$(SERIAL_DEVICE)
+else
+SERIAL_CHARDEV := pty,id=hostserial
+endif
 
 QEMU_BASE_CMDLINE := \
     $(QEMU_CMD) \
@@ -44,7 +56,7 @@ QEMU_BASE_CMDLINE := \
     -device virtio-keyboard-device \
     -device virtio-gpu-device \
     -drive if=pflash,unit=0,format=raw,file=$(PFLASH_IMAGE) \
-    -chardev serial,id=hostserial,path=$(SERIAL_DEVICE) \
+    -chardev $(SERIAL_CHARDEV) \
     -device virtio-serial-device \
     -device virtconsole,chardev=hostserial \
     $(QEMU_NETDEV_CMDLINE) \
