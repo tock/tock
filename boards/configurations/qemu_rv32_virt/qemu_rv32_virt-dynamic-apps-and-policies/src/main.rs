@@ -237,7 +237,12 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
             ))
             .enumerate()
         {
-            kernel::debug!("[{}] {} ShortId={}", i, p.get_process_name(), p.short_app_id());
+            kernel::debug!(
+                "[{}] {} ShortId={}",
+                i,
+                p.get_process_name(),
+                p.short_app_id()
+            );
         }
     }
 }
@@ -311,8 +316,7 @@ pub unsafe fn main() {
             tx_queue.set_client(virtio_console);
             rx_queue.set_client(virtio_console);
 
-            let mmio_queues =
-                static_init!([&'static dyn Virtqueue; 2], [rx_queue, tx_queue]);
+            let mmio_queues = static_init!([&'static dyn Virtqueue; 2], [rx_queue, tx_queue]);
             chip.peripherals().virtio_mmio[console_idx]
                 .initialize(virtio_console, mmio_queues)
                 .unwrap();
@@ -322,9 +326,8 @@ pub unsafe fn main() {
             // a `MuxUart`, even though this device currently has only one
             // user), just under a different driver number.
             let virtio_uart_mux =
-                components::console::UartMuxComponent::new(virtio_console, 115200).finalize(
-                    components::uart_mux_component_static!(),
-                );
+                components::console::UartMuxComponent::new(virtio_console, 115200)
+                    .finalize(components::uart_mux_component_static!());
 
             let console = components::console::ConsoleComponent::new(
                 board_kernel,
@@ -332,9 +335,12 @@ pub unsafe fn main() {
                 virtio_uart_mux,
                 create_capability!(capabilities::MemoryAllocationCapability),
             )
-            .finalize(components::console_component_static!());
+            .finalize(components::console_component_static!(2048, 2048));
 
-            debug!("Found VirtIO Console device, registered as console driver {:#x}", VIRTIO_CONSOLE_DRIVER_NUM);
+            debug!(
+                "Found VirtIO Console device, registered as console driver {:#x}",
+                VIRTIO_CONSOLE_DRIVER_NUM
+            );
 
             Some(console)
         } else {
@@ -445,10 +451,9 @@ pub unsafe fn main() {
     // VIRTUAL FLASH
     //--------------------------------------------------------------------------
 
-    let mux_flash = components::flash::FlashMuxComponent::new(&chip.peripherals().pflash)
-        .finalize(components::flash_mux_component_static!(
-            qemu_rv32_virt_chip::pflash::Pflash<'static>
-        ));
+    let mux_flash = components::flash::FlashMuxComponent::new(&chip.peripherals().pflash).finalize(
+        components::flash_mux_component_static!(qemu_rv32_virt_chip::pflash::Pflash<'static>),
+    );
 
     // Create a virtual flash user for dynamic binary storage.
     let virtual_flash_dbs = components::flash::FlashUserComponent::new(mux_flash).finalize(
@@ -469,8 +474,7 @@ pub unsafe fn main() {
     // loaded) app images.
     const ISOLATED_STORAGE_SIZE: usize = qemu_rv32_virt_chip::pflash::PFLASH_SECTOR_SIZE;
     const ISOLATED_STORAGE_START: usize =
-        qemu_rv32_virt_chip::pflash::PFLASH_BASE + qemu_rv32_virt_chip::pflash::PFLASH_SIZE
-            - ISOLATED_STORAGE_SIZE;
+        qemu_rv32_virt_chip::pflash::PFLASH_SIZE - ISOLATED_STORAGE_SIZE;
 
     let nonvolatile_storage = components::isolated_nonvolatile_storage::IsolatedNonvolatileStorageComponent::new(
         board_kernel,
@@ -610,11 +614,18 @@ pub unsafe fn main() {
     // STORAGE PERMISSIONS
     //--------------------------------------------------------------------------
 
+    kernel::declare_capability!(AppStoreCap:
+        kernel::capabilities::ApplicationStorageCapability
+    );
     let storage_permissions_policy =
-        components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
-            components::storage_permissions_null_component_static!(
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
+            AppStoreCap,
+        )
+        .finalize(
+            components::storage_permissions_individual_component_static!(
                 qemu_rv32_virt_lib::ChipHw,
                 kernel::process::ProcessStandardDebugFull,
+                AppStoreCap
             ),
         );
 
