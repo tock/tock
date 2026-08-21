@@ -1028,8 +1028,14 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
                 let base = self.mem_start() as usize;
                 let old_break_unit_ptr: *const () = old_break.cast();
-                // SAFETY: The passed range [base, new_break) exactly matches the process' memory range,
-                // and a process should have RW access to its own memory.
+                // SAFETY: It must be safe for this process to access the
+                // bounds+permission expressed here while assuming no other
+                // protection mechanism is active.
+                //  - A process should have Read+Write access to its memory.
+                //  - The function has established [base, new_break) as the
+                //    (new) valid bounds for process memory.
+                //  - We grant only Read+Write permissions.
+                //  - We only pass this pointer to this process.
                 let break_result = unsafe {
                     CapabilityPtr::new_with_authority(
                         old_break_unit_ptr,
@@ -2289,11 +2295,19 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let fn_len = process.flash.len();
 
         // We need to construct a capability with sufficient authority to cover
-        // all of a user's code, with permissions to execute it. The entirety of
-        // flash is sufficient.
+        // all of a user's code, with permissions to execute it. The entirety
+        // of this process's flash is sufficient.
         //
-        // SAFETY: TODO? I don't understand the `new_with_authority()` safety block as
-        // it doesn't define what the caller must do.
+        // SAFETY: It must be safe for this process to access the
+        // bounds+permission expressed here while assuming no other protection
+        // mechanism is active.
+        //  - It is valid under Tock's threat model for a process to try to
+        //  execute anything within process-owned flash.
+        //  - `process.flash` which we use to derive the bounds is defined as
+        //  process-owned flash for a well-formed process, which we trust is
+        //  the case here.
+        //  - We grant only execute permission.
+        //  - We only pass this pointer to this process.
         let init_fn = unsafe {
             CapabilityPtr::new_with_authority(
                 init_addr as *const (),
@@ -2470,9 +2484,20 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let init_addr =
             flash_start.wrapping_add(self.header.get_init_function_offset() as usize) as usize;
 
-        // We need to construct a capability with sufficient authority to cover all of a user's
-        // code, with permissions to execute it. The entirety of flash is sufficient.
-
+        // We need to construct a capability with sufficient authority to cover
+        // all of a user's code, with permissions to execute it. The entirety
+        // of this process's flash is sufficient.
+        //
+        // SAFETY: It must be safe for this process to access the
+        // bounds+permission expressed here while assuming no other protection
+        // mechanism is active.
+        //  - It is valid under Tock's threat model for a process to try to
+        //  execute anything within process-owned flash.
+        //  - `self.flash` which we use to derive the bounds is defined as
+        //  process-owned flash for a well-formed process, which we trust is
+        //  the case here.
+        //  - We grant only execute permission.
+        //  - We only pass this pointer to this process.
         let init_fn = unsafe {
             CapabilityPtr::new_with_authority(
                 init_addr as *const (),

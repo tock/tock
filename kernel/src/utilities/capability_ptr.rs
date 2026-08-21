@@ -108,23 +108,38 @@ impl CapabilityPtr {
         self.ptr.cast()
     }
 
-    /// Construct a [`CapabilityPtr`] from a raw pointer, with authority ranging over
-    /// [`base`, `base + length`) and permissions `perms`.
+    /// Construct a [`CapabilityPtr`] from a raw pointer, with authority
+    /// ranging over [`base`, `base + length`) and permissions `perms`.
     ///
-    /// Provenance note: may derive from a pointer other than the input to provide something with
-    /// valid provenance to justify the other arguments.
+    /// [`CapabilityPtr`]s can be the sole memory isolation primitive in the
+    /// system, thus great care must be taken with this method, as errors can
+    /// break Tock's isolation model.
+    ///
+    /// Provenance note: may derive from a pointer other than the input to
+    /// provide something with valid provenance to justify the other arguments.
     ///
     /// # Safety
     ///
-    /// Constructing a [`CapabilityPtr`] with metadata may convey authority to
-    /// dereference this pointer, such as in userspace. When these pointers
-    /// serve as the only memory isolation primitive in the system, this method
-    /// can thus break Tock's isolation model. As semi-trusted kernel code can
-    /// name this type and method, it is thus marked as `unsafe`.
+    /// NOTE: Hardware capability support is **experimental** in Tock. The
+    /// intent of this type is to capture semantics general to any hardware
+    /// capability implementation, however, there is no upstream support for
+    /// any such hardware today. As such, the exact safety conditions may
+    /// change in the future.
     ///
-    // TODO: Once Tock supports hardware that uses the [`CapabilityPtr`]'s
-    // metdata to convey authority, this comment should incorporate the exact
-    // safety conditions of this function.
+    /// Callers are responsible for ensuring that the authority conveyed by this
+    /// pointer does not violate Tock's isolation model, under an assumption
+    /// that hardware capabilities are the sole memory isolation mechanism.
+    ///
+    /// Authority is conveyed solely by the `base`, `length`, and `perms`.
+    /// The value in `ptr` may be freely changed by untrusted code. When
+    /// executing on a platform with hardware capability enforcement, callers
+    /// may assume that on any attempt to use `ptr`, hardware will verify that:
+    ///   - `ptr` is within the bounds [`base`, `base + length`).
+    ///   - The access type is allowed by `perms`.
+    ///
+    /// Callers are responsible for restricting access to this pointer, i.e.,
+    /// ensuring that a pointer which allows access to process memory is only
+    /// given to the *correct* process.
     #[inline]
     pub unsafe fn new_with_authority(
         ptr: *const (),
