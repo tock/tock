@@ -69,41 +69,41 @@ endif
 .PHONY: install
 install: flash
 
-qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+qemu: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(QEMU) -M opentitan -kernel $^ -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 
-qemu-gdb: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+qemu-gdb: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(QEMU) -s -S -M opentitan -kernel $^ -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 
-qemu-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+qemu-app: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(QEMU) -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 
-qemu-app-gdb : $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+qemu-app-gdb : $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(QEMU) -s -S -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 
-flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
-	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+flash: $(TARGET_PATH)/release/$(PLATFORM).bin
+	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TARGET_PATH)/release/$(PLATFORM).bin
 
-flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(RISC_PREFIX)-objcopy --set-section-flags .apps=LOAD,ALLOC $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
-	$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
-	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
-	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
+flash-app: $(TARGET_PATH)/release/$(PLATFORM).elf
+	$(RISC_PREFIX)-objcopy --set-section-flags .apps=LOAD,ALLOC $^ $(TARGET_PATH)/release/$(PLATFORM)-app.elf
+	$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TARGET_PATH)/release/$(PLATFORM)-app.elf
+	$(RISC_PREFIX)-objcopy --output-target=binary $(TARGET_PATH)/release/$(PLATFORM)-app.elf $(TARGET_PATH)/release/$(PLATFORM)-app.bin
+	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TARGET_PATH)/release/$(PLATFORM)-app.bin
 
-verilator: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+verilator: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(call check_defined, OPENTITAN_TREE)
 #	Make a copy so we dont modify the original elf when linkng apps
-	$(RISC_PREFIX)-objcopy $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
+	$(RISC_PREFIX)-objcopy $^ $(TARGET_PATH)/release/$(PLATFORM)_verilator.elf
 ifneq ($(APP),)
 		$(info [CW-130: Verilator]: Linking App)
-		$(RISC_PREFIX)-objcopy --set-section-flags .apps=LOAD,ALLOC $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
-		$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
+		$(RISC_PREFIX)-objcopy --set-section-flags .apps=LOAD,ALLOC $(TARGET_PATH)/release/$(PLATFORM)_verilator.elf $(TARGET_PATH)/release/$(PLATFORM)_verilator.elf
+		$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TARGET_PATH)/release/$(PLATFORM)_verilator.elf
 endif
 	$(info [CW-130: Verilator]: Starting)
-	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.bin
-	srec_cat $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.bin \
+	$(RISC_PREFIX)-objcopy --output-target=binary $(TARGET_PATH)/release/$(PLATFORM)_verilator.elf $(TARGET_PATH)/release/$(PLATFORM)_verilator.bin
+	srec_cat $(TARGET_PATH)/release/$(PLATFORM)_verilator.bin \
 		--binary --offset 0 --byte-swap 8 --fill 0xff \
-		-within $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.bin\
+		-within $(TARGET_PATH)/release/$(PLATFORM)_verilator.bin\
 		-binary -range-pad 8 --output binary.64.vmem --vmem 64
 	$(OPENTITAN_TREE)/bazel-out/k8-fastbuild/bin/hw/build.verilator_real/sim-verilator/Vchip_sim_tb \
 		--meminit=rom,$(OPENTITAN_TREE)/bazel-out/k8-fastbuild-ST-2cc462681f62/bin/sw/device/lib/testing/test_rom/test_rom_sim_verilator.39.scr.vmem \

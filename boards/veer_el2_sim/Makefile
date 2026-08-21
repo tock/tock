@@ -5,7 +5,6 @@
 
 # Makefile for building the tock kernel for the VeeR EL2 simulation platform
 
-TARGET=riscv32imc-unknown-none-elf
 PLATFORM=veer_el2_sim
 GNU_OBJCOPY ?= riscv64-unknown-elf-objcopy
 

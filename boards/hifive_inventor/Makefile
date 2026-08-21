@@ -18,5 +18,5 @@ KERNEL_ADDRESS = 0x20010000
 
 # upload kernel over JTAG
 .PHONY: flash-jlink
-flash-jlink: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+flash-jlink: $(TARGET_PATH)/release/$(PLATFORM).bin
 	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $(TOCKLOADER_JTAG_FLAGS) $<

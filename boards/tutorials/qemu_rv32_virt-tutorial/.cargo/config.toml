@@ -9,7 +9,7 @@ include = [
 ]
 
 [build]
-target = "riscv32imac-unknown-none-elf"
+target = "../../cargo/riscv32imac-unknown-none-elf.json"
 
 [target.riscv32imac-unknown-none-elf]
 runner = ["qemu-system-riscv32",
