@@ -22,6 +22,18 @@ PFLASH_SIZE  := 32M
 # $(PFLASH_IMAGE):
 # 	dd if=/dev/zero bs=$(PFLASH_SIZE) count=1 2>/dev/null  > $@
 
+# Host serial device to expose to the guest as a second UART (a virtio
+# console; see `qemu_rv32_virt_chip::virtio::devices::virtio_console`) so
+# the kernel can talk to real hardware attached to this computer. Override
+# on the command line, e.g.:
+#
+#     make run SERIAL_DEVICE=/dev/cu.usbserial-1420
+#
+# On Linux this is typically something like /dev/ttyUSB0. `ls /dev/tty.*` or
+# `ls /dev/cu.*` (macOS) / `ls /dev/ttyUSB* /dev/ttyACM*` (Linux) will list
+# what's currently attached.
+SERIAL_DEVICE ?= /dev/cu.usbserial
+
 QEMU_BASE_CMDLINE := \
     $(QEMU_CMD) \
     -machine virt \
@@ -32,6 +44,9 @@ QEMU_BASE_CMDLINE := \
     -device virtio-keyboard-device \
     -device virtio-gpu-device \
     -drive if=pflash,unit=0,format=raw,file=$(PFLASH_IMAGE) \
+    -chardev serial,id=hostserial,path=$(SERIAL_DEVICE) \
+    -device virtio-serial-device \
+    -device virtconsole,chardev=hostserial \
     $(QEMU_NETDEV_CMDLINE) \
     -serial stdio
 

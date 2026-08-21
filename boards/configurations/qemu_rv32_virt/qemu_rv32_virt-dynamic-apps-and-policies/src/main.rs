@@ -27,6 +27,7 @@ use kernel::{create_capability, debug, static_init};
 mod app_id_assigner_name_metadata;
 mod checker_credentials_not_required;
 mod system_call_filter;
+mod virtio_console_test_receiver;
 
 //------------------------------------------------------------------------------
 // BOARD CONSTANTS
@@ -233,6 +234,88 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, base_platform, chip) = qemu_rv32_virt_lib::start();
+
+    //--------------------------------------------------------------------------
+    // VIRTIO CONSOLE (second UART)
+    //--------------------------------------------------------------------------
+
+    // Look for a virtio console device (QEMU's `virtio-serial-device`) on
+    // one of the board's virtio-mmio slots. If found, wire it up as a
+    // second UART and start a test receiver that just prints whatever it
+    // reads.
+    {
+        use kernel::hil::uart::Receive;
+        use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
+        use qemu_rv32_virt_chip::virtio::devices::virtio_console::VirtIOConsole;
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+        use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
+        };
+        use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+        let console_idx = chip
+            .peripherals()
+            .virtio_mmio
+            .iter()
+            .position(|dev| matches!(dev.query(), Ok(VirtIODeviceType::Console)));
+
+        if let Some(console_idx) = console_idx {
+            let dma_fence = rv32i::dma_fence::RiscvCoherentDmaFence::new();
+
+            // Transmit queue (single-buffer chains: the whole tx_buffer is
+            // one descriptor, no header).
+            let tx_descriptors =
+                static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default());
+            let tx_available_ring =
+                static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default());
+            let tx_used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default());
+            let tx_queue = static_init!(
+                SplitVirtqueue<1, rv32i::dma_fence::RiscvCoherentDmaFence>,
+                SplitVirtqueue::new(tx_descriptors, tx_available_ring, tx_used_ring, dma_fence),
+            );
+            tx_queue.set_transport(&chip.peripherals().virtio_mmio[console_idx]);
+
+            // Receive queue (single one-byte buffer, re-posted for every
+            // received byte; see `virtio_console`'s module documentation).
+            let rx_descriptors =
+                static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default());
+            let rx_available_ring =
+                static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default());
+            let rx_used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default());
+            let rx_queue = static_init!(
+                SplitVirtqueue<1, rv32i::dma_fence::RiscvCoherentDmaFence>,
+                SplitVirtqueue::new(rx_descriptors, rx_available_ring, rx_used_ring, dma_fence),
+            );
+            rx_queue.set_transport(&chip.peripherals().virtio_mmio[console_idx]);
+
+            let rx_chunk = static_init!([u8; 1], [0; 1]);
+
+            let virtio_console = static_init!(
+                VirtIOConsole<'static, rv32i::dma_fence::RiscvCoherentDmaFence>,
+                VirtIOConsole::new(tx_queue, rx_queue, rx_chunk),
+            );
+            tx_queue.set_client(virtio_console);
+            rx_queue.set_client(virtio_console);
+
+            let mmio_queues =
+                static_init!([&'static dyn Virtqueue; 2], [rx_queue, tx_queue]);
+            chip.peripherals().virtio_mmio[console_idx]
+                .initialize(virtio_console, mmio_queues)
+                .unwrap();
+
+            let receiver = static_init!(
+                virtio_console_test_receiver::VirtioConsoleTestReceiver,
+                virtio_console_test_receiver::VirtioConsoleTestReceiver::new(),
+            );
+            virtio_console.set_receive_client(receiver);
+            let rx_buffer = static_init!([u8; 1], [0; 1]);
+            receiver.start(virtio_console, rx_buffer);
+
+            debug!("Found VirtIO Console device, listening for input");
+        } else {
+            debug!("VirtIO Console device not found, disabling test receiver");
+        }
+    }
 
     //--------------------------------------------------------------------------
     // SCREEN
