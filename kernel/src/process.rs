@@ -779,6 +779,8 @@ pub trait Process {
     /// requirements of grants.
     unsafe fn leave_grant(&self, grant_num: usize);
 
+    fn does_share_overlap_with_any_allow(&self, share_start: *const u8, share_len: usize) -> bool;
+
     /// Return the count of the number of allocated grant pointers if the
     /// process is active. This does not count custom grants. This is used to
     /// determine if a new grant has been allocated after a call to

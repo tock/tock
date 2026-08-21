@@ -1374,6 +1374,31 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         });
     }
 
+    fn does_share_overlap_with_any_allow(&self, share_start: *const u8, share_len: usize) -> bool {
+        self.grant_pointers
+            .map(|grant_pointers| {
+                for grant_entry in grant_pointers.iter() {
+                    if !grant_entry.grant_ptr.is_null() {
+                        // This driver_num has an allocated grant for this
+                        // process. Check grant for any overlaps
+                        if crate::grant::check_overlaps(
+                            self,
+                            grant_entry.driver_num,
+                            share_start as usize,
+                            share_len,
+                        ) {
+                            // Overlap detected
+                            return true;
+                        }
+                    }
+                }
+
+                // No overlaps for all drivers
+                false
+            })
+            .unwrap_or(false)
+    }
+
     fn grant_allocated_count(&self) -> Option<usize> {
         // Do not modify an inactive process.
         if !self.is_running() {

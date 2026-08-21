@@ -891,6 +891,43 @@ pub(crate) fn subscribe(
     }
 }
 
+pub(crate) fn check_overlaps(
+    process: &dyn Process,
+    driver_num: usize,
+    slice_start: usize,
+    slice_len: usize,
+) -> bool {
+    let slice_end = slice_start + slice_len;
+
+    if let Ok(mut layout) = enter_grant_kernel_managed(process, driver_num) {
+        for allow_ro in layout.get_allow_ro_slice() {
+            let allow_start = allow_ro.ptr as usize;
+            let allow_end = allow_start + allow_ro.len;
+            if slice_start < allow_end && allow_start < slice_end {
+                // Found an overlap
+                return true;
+            }
+        }
+        for allow_rw in layout.get_allow_rw_slice() {
+            let allow_start = allow_rw.ptr as usize;
+            let allow_end = allow_start + allow_rw.len;
+            if slice_start < allow_end && allow_start < slice_end {
+                // Found an overlap
+                return true;
+            }
+        }
+        for subscribe in layout.get_upcalls_slice() {
+            let subscribe_addr = subscribe.fn_ptr.addr();
+            if slice_start < subscribe_addr && slice_end > subscribe_addr {
+                return true;
+            }
+        }
+    }
+
+    // No found overlaps for all allows (ro and rw)
+    false
+}
+
 /// Stores the specified read-only process buffer in the kernel managed grant
 /// region for this process and driver. The previous read-only process buffer
 /// stored at the same allow_num id is returned.
