@@ -2457,16 +2457,20 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let init_addr =
             flash_start.wrapping_add(self.header.get_init_function_offset() as usize) as usize;
 
-        // We need to construct a capability with sufficient authority to cover all of a user's
-        // code, with permissions to execute it. The entirety of flash is sufficient.
-
-        // SAFETY: It must be safe for a process to use the a pointer in the
-        // given memory range for the given permission. We use the process's
-        // flash region as the bounds, ensuring the pointer is contained to this
-        // new process. The capability pointer is only specified with execute
-        // permissions, and it is safe for the process to execute anywhere in
-        // its flash region. If `init_addr` is not actually within the range
-        // then this does not provide authority to dereference the pointer.
+        // We need to construct a capability with sufficient authority to cover
+        // all of a user's code, with permissions to execute it. The entirety
+        // of this process's flash is sufficient.
+        //
+        // SAFETY: It must be safe for this process to access the
+        // bounds+permission expressed here while assuming no other protection
+        // mechanism is active.
+        //  - It is valid under Tock's threat model for a process to try to
+        //  execute anything within process-owned flash.
+        //  - `self.flash` which we use to derive the bounds is defined as
+        //  process-owned flash for a well-formed process, which we trust is
+        //  the case here.
+        //  - We grant only execute permission.
+        //  - We only pass this pointer to this process.
         let init_fn = unsafe {
             CapabilityPtr::new_with_authority(
                 init_addr as *const (),
