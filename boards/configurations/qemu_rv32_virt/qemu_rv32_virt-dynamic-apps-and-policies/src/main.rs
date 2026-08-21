@@ -27,13 +27,19 @@ use kernel::{create_capability, debug, static_init};
 mod app_id_assigner_name_metadata;
 mod checker_credentials_not_required;
 mod system_call_filter;
-mod virtio_console_test_receiver;
 
 //------------------------------------------------------------------------------
 // BOARD CONSTANTS
 //------------------------------------------------------------------------------
 
 pub const NUM_PROCS: usize = 4;
+
+/// Syscall driver number for the board's second console, backed by the
+/// virtio console device rather than UART0. This is a board-local number:
+/// it isn't part of the shared `capsules_core::driver::NUM` registry (which
+/// only has a slot for one, generic "the console"), since this board
+/// exposes two independent serial ports.
+const VIRTIO_CONSOLE_DRIVER_NUM: usize = 0xA0000;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -129,6 +135,7 @@ struct Platform {
     process_info: &'static ProcessInfoDriver,
     nonvolatile_storage: &'static IsolatedNonvolatileStorageDriver,
     dynamic_app_loader: &'static AppLoaderDriver,
+    virtio_console: Option<&'static capsules_core::console::Console<'static>>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -163,6 +170,13 @@ impl SyscallDriverLookup for Platform {
                 f(Some(self.nonvolatile_storage))
             }
             capsules_extra::app_loader::DRIVER_NUM => f(Some(self.dynamic_app_loader)),
+            VIRTIO_CONSOLE_DRIVER_NUM => {
+                if let Some(virtio_console) = self.virtio_console {
+                    f(Some(virtio_console))
+                } else {
+                    f(None)
+                }
+            }
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -241,10 +255,10 @@ pub unsafe fn main() {
 
     // Look for a virtio console device (QEMU's `virtio-serial-device`) on
     // one of the board's virtio-mmio slots. If found, wire it up as a
-    // second UART and start a test receiver that just prints whatever it
-    // reads.
-    {
-        use kernel::hil::uart::Receive;
+    // second syscall-facing console, under its own driver number (see
+    // `VIRTIO_CONSOLE_DRIVER_NUM`) since it's a separate serial port from
+    // the board's primary UART0 console.
+    let virtio_console_driver: Option<&'static capsules_core::console::Console<'static>> = {
         use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
         use qemu_rv32_virt_chip::virtio::devices::virtio_console::VirtIOConsole;
         use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
@@ -303,19 +317,31 @@ pub unsafe fn main() {
                 .initialize(virtio_console, mmio_queues)
                 .unwrap();
 
-            let receiver = static_init!(
-                virtio_console_test_receiver::VirtioConsoleTestReceiver,
-                virtio_console_test_receiver::VirtioConsoleTestReceiver::new(),
-            );
-            virtio_console.set_receive_client(receiver);
-            let rx_buffer = static_init!([u8; 1], [0; 1]);
-            receiver.start(virtio_console, rx_buffer);
+            // Wire the virtio console up as a syscall-facing console driver,
+            // the same way the board's primary UART0 console is set up (via
+            // a `MuxUart`, even though this device currently has only one
+            // user), just under a different driver number.
+            let virtio_uart_mux =
+                components::console::UartMuxComponent::new(virtio_console, 115200).finalize(
+                    components::uart_mux_component_static!(),
+                );
 
-            debug!("Found VirtIO Console device, listening for input");
+            let console = components::console::ConsoleComponent::new(
+                board_kernel,
+                VIRTIO_CONSOLE_DRIVER_NUM,
+                virtio_uart_mux,
+                create_capability!(capabilities::MemoryAllocationCapability),
+            )
+            .finalize(components::console_component_static!());
+
+            debug!("Found VirtIO Console device, registered as console driver {:#x}", VIRTIO_CONSOLE_DRIVER_NUM);
+
+            Some(console)
         } else {
-            debug!("VirtIO Console device not found, disabling test receiver");
+            debug!("VirtIO Console device not found");
+            None
         }
-    }
+    };
 
     //--------------------------------------------------------------------------
     // SCREEN
@@ -679,6 +705,7 @@ pub unsafe fn main() {
             process_info,
             nonvolatile_storage,
             dynamic_app_loader,
+            virtio_console: virtio_console_driver,
         }
     );
     loader.set_client(platform);
