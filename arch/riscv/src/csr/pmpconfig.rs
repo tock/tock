@@ -7,6 +7,13 @@ use kernel::utilities::registers::register_bitfields;
 // Default to 32 bit if compiling for debug/testing.
 #[cfg(not(target_arch = "riscv64"))]
 register_bitfields![usize,
+    /// The `pmpcfg` register bitfield.
+    ///
+    /// A `pmpcfgN` register is `XLEN` bits wide and holds one octet of
+    /// configuration per PMP entry. On RISCV-32 this is 4 entries (`r0`
+    /// through `l3`). On RISCV-64 it is 8 entries (`r0` through `l7`), since
+    /// each `pmpcfgN` register is twice as wide and packs twice as many
+    /// entries.
     pub pmpcfg [
         r0 OFFSET(0) NUMBITS(1) [],
         w0 OFFSET(1) NUMBITS(1) [],
@@ -56,6 +63,13 @@ register_bitfields![usize,
 
 #[cfg(target_arch = "riscv64")]
 register_bitfields![usize,
+    /// The `pmpcfg` register bitfield.
+    ///
+    /// A `pmpcfgN` register is `XLEN` bits wide and holds one octet of
+    /// configuration per PMP entry. On RISCV-32 this is 4 entries (`r0`
+    /// through `l3`). On RISCV-64 it is 8 entries (`r0` through `l7`), since
+    /// each `pmpcfgN` register is twice as wide and packs twice as many
+    /// entries.
     pub pmpcfg [
         r0 OFFSET(0) NUMBITS(1) [],
         w0 OFFSET(1) NUMBITS(1) [],

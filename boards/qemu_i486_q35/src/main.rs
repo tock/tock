@@ -5,9 +5,7 @@
 //! Board file for qemu-system-i486 "q35" machine type
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 
 use capsules_core::alarm;
 use capsules_core::console::{self, Console};

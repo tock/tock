@@ -102,12 +102,12 @@ mod vexriscv_irq_raw {
     /// defined in litex/soc/cores/cpu/vexriscv/csr-defs.h
     const CSR_IRQ_PENDING: usize = 0xFC0;
 
-    #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn irq_getmask() -> usize {
         0
     }
 
-    #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_getmask() -> usize {
         let mask: usize;
         use core::arch::asm;
@@ -115,21 +115,21 @@ mod vexriscv_irq_raw {
         mask
     }
 
-    #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn irq_setmask(_mask: usize) {}
 
-    #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_setmask(mask: usize) {
         use core::arch::asm;
         asm!("csrw {csr}, {mask}", csr = const CSR_IRQ_MASK, mask = in(reg) mask);
     }
 
-    #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn irq_pending() -> usize {
         0
     }
 
-    #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_pending() -> usize {
         let pending: usize;
         use core::arch::asm;

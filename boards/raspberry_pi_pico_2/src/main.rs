@@ -7,9 +7,7 @@
 //! It is based on RP2350SoC SoC (Cortex M33).
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
 use core::ptr::addr_of_mut;
@@ -160,6 +158,11 @@ extern "C" {
     fn jump_to_bootloader();
 }
 
+// Unlike arch/* and chips/*, board crates aren't cross-compiled against
+// their real target for docs (see CRATE_TARGETS in
+// tools/build/build_all_docs.sh), so `doc` is what makes the host-target
+// doc pass pick this real implementation over having no implementation
+// at all.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 core::arch::global_asm!(
     "

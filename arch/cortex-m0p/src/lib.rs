@@ -36,7 +36,7 @@ pub use cortexm::unhandled_interrupt;
 use cortexm0::CortexM0;
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
@@ -49,7 +49,7 @@ pub unsafe extern "C" fn svc_handler() {
 ///   - This writes to `r0`, a caller-saved register.
 ///   - This writes to `r1`, a caller-saved register.
 /// - This does not fall-through, it branches in both branches.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
@@ -97,7 +97,7 @@ impl cortexm::CortexMVariant for CortexM0P {
     const SVC_HANDLER: unsafe extern "C" fn() = svc_handler;
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = CortexM0::HARD_FAULT_HANDLER;
 
-    #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe fn switch_to_user(
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
@@ -105,7 +105,7 @@ impl cortexm::CortexMVariant for CortexM0P {
         unsafe { CortexM0::switch_to_user(user_stack, process_regs) }
     }
 
-    #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     unsafe fn switch_to_user(
         _user_stack: *const usize,
         _process_regs: &mut [usize; 8],

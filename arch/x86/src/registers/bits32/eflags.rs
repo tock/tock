@@ -107,12 +107,12 @@ pub unsafe fn set(val: EFlags) {
 
 //For CI only
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn read() -> EFlags {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn set(_val: EFlags) {
     unimplemented!()
 }
