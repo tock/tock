@@ -16,7 +16,7 @@ A CI test runner for the `qemu_rv64_virt` Tock board.  It installs
   ```sh
   cargo run -- --libtock-c /path/to/libtock-c
   ```
-- The `qemu_rv64_virt-test-ci` board built and initialized:
+- The target board built and initialized.  For `qemu_rv64_virt`:
   ```sh
   cd boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci
   make
@@ -26,22 +26,30 @@ A CI test runner for the `qemu_rv64_virt` Tock board.  It installs
 
 ## Usage
 
+### List all available boards
+
+```sh
+cargo run -- --boards
+```
+
 ### Run all tests
 
 ```sh
-cargo run
+cargo run -- [--board <board-name>]
 ```
+
+If only one board is registered, `--board` can be omitted.
 
 ### Run a single test
 
 ```sh
-cargo run -- --test <test-name>
+cargo run -- [--board <board-name>] --test <test-name>
 ```
 
 ### List all tests with descriptions
 
 ```sh
-cargo run -- --tests
+cargo run -- [--board <board-name>] --tests
 ```
 
 ### Capture a screenshot to establish a baseline hash
@@ -71,18 +79,26 @@ To verify from the command line:
   shasum -a 256 /tmp/led-odd.ppm
 ```
 
-Paste the hash into `expected_screen_hash` in `src/main.rs`:
+Paste the hash into `expected_screen_hash` in the board's test file:
 
 ```rust
 expected_screen_hash: Some("20867e9c50573728461a70c4421b86ea08e09b4693d172c54123937f8a2a455e"),
 ```
 
+## Adding a new board
+
+Create `src/boards/<board_name>.rs` defining a `pub static BOARD: super::Board`
+with the board directory and a `static TESTS: &[TestCase]` slice.  Then add the
+new module to `src/boards/mod.rs` (`pub mod <board_name>;`) and append
+`&<board_name>::BOARD` to the `BOARDS` slice.
+
 ## Adding a new test
 
-Add a `TestCase` entry to the `TESTS` slice in `src/main.rs`.  Each test has a
-name, a human-readable description, a list of apps to install, an ordered
-sequence of steps, an optional settle delay before the screenshot, and an
-optional expected screenshot hash.
+Add a `TestCase` entry to the `TESTS` slice in the appropriate board file
+(e.g. `src/boards/qemu_rv64_virt.rs`).  Each test has a name, a
+human-readable description, a list of apps to install, an ordered sequence of
+steps, an optional settle delay before the screenshot, and an optional expected
+screenshot hash.
 
 ```rust
 TestCase {
