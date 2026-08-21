@@ -32,7 +32,7 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v3
       - name:      ci-job-format
         run:  make ci-job-format
@@ -50,7 +50,7 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name:      ci-job-clippy
         run:  make ci-job-clippy
 
@@ -61,7 +61,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check that `Cargo.lock` is current
         run: |
@@ -155,7 +155,7 @@ jobs:
         run: |
           sudo apt install -q libudev-dev libzmq3-dev
         if: matrix.os == 'ubuntu-latest'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name:      ci-job-libraries
         run:  make ci-job-libraries
       - name:      ci-job-archs
@@ -185,7 +185,7 @@ jobs:
         continue-on-error: true
         run: |
           sudo apt install -q z3
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name:      ci-job-flux
         run:  make ci-job-flux
 
@@ -203,6 +203,6 @@ jobs:
         continue-on-error: true
         run: |
           sudo apt install -q meson libglib2.0-dev
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name:      ci-job-qemu
         run:  make ci-job-qemu

@@ -83,7 +83,7 @@ jobs:
 
     steps:
       - name: Checkout the tock/tock repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Checkout the repository at the commit that triggered the workflow
           repository: tock/tock
@@ -91,7 +91,7 @@ jobs:
           path: tock-tock
 
       - name: Checkout the tock-hardware-ci repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: tock/tock-hardware-ci
           # Change this in accordance with the two other `tock-hardware-ci` refs
