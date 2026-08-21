@@ -138,7 +138,13 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
         }
 
         let start = page_number * PAGE_WORDS;
-        for (i, word) in buffer.as_mut().as_chunks_mut::<4>().0.iter_mut().enumerate() {
+        for (i, word) in buffer
+            .as_mut()
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .enumerate()
+        {
             *word = self.registers[start + i].get().to_le_bytes();
         }
 
@@ -164,7 +170,12 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
 
         let start = page_number * PAGE_WORDS;
         for (i, word) in data.as_mut().as_chunks::<4>().0.iter().enumerate() {
-            self.program_word(start + i, u32::from_le_bytes(*word));
+            let value = u32::from_le_bytes(*word);
+            // Skip writing the default value. This is incredibly slow to write
+            // every word in the sector.
+            if value != 0xFFFFFFFF {
+                self.program_word(start + i, value);
+            }
         }
 
         self.buffer.replace(data);
