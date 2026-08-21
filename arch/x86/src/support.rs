@@ -32,10 +32,10 @@ where
             irq::disable();
         }
 
-        // Safety: interrupts are disabled at this point, either because we
-        // just disabled them above, or because they were already disabled
-        // when this function was called.
-        let interrupts_disabled = InterruptsDisabledContext::new_trusted();
+        // interrupts are disabled at this point, either because we just
+        // disabled them above, or because they were already disabled when
+        // this function was called.
+        let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
 
         let res = f(&interrupts_disabled);
 

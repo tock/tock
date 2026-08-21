@@ -39,6 +39,10 @@ pub struct InterruptsDisabledContext {
 impl InterruptsDisabledContext {
     /// Mint a new [`InterruptsDisabledContext`] token.
     ///
+    /// Prefer [`kernel::mint_interrupts_disabled_context!`](crate::mint_interrupts_disabled_context),
+    /// which wraps this in the required `unsafe` block, over calling this
+    /// directly.
+    ///
     /// This is only intended to be called from the small set of places that
     /// actually establish that interrupts are disabled on this core: the
     /// architecture-level `with_interrupts_disabled` primitives, and trap or

@@ -84,8 +84,8 @@ where
         asm!("cpsid i", options(nomem, nostack, preserves_flags));
     }
 
-    // Safety: we just disabled interrupts (PRIMASK) above.
-    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
+    // we just disabled interrupts (PRIMASK) above.
+    let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
 
     let res = f(&interrupts_disabled);
 

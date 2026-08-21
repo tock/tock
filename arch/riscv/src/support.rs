@@ -40,8 +40,8 @@ where
         .read_and_clear_bits(mstatus::mie.mask << mstatus::mie.shift)
         & mstatus::mie.mask << mstatus::mie.shift;
 
-    // Safety: we just disabled machine mode interrupts above.
-    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
+    // we just disabled machine mode interrupts above.
+    let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
 
     // Machine mode interrupts are disabled, execute the (uninterruptible)
     // function

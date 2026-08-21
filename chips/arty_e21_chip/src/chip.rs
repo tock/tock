@@ -192,9 +192,9 @@ pub unsafe fn configure_trap_handler() {
 /// disable it.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub extern "C" fn start_trap_rust() {
-    // Safety: we were just called via a trap, and RISC-V hardware clears
+    // we were just called via a trap, and RISC-V hardware clears
     // `mstatus.MIE` on trap entry before any Rust code runs.
-    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
+    let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
     let mcause = rv32i::csr::CSR.mcause.extract();
 
     match rv32i::csr::mcause::Trap::from(mcause) {
@@ -219,9 +219,9 @@ pub extern "C" fn start_trap_rust() {
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub extern "C" fn disable_interrupt_trap_handler(mcause: u32) {
-    // Safety: we were just called via a trap, and RISC-V hardware clears
+    // we were just called via a trap, and RISC-V hardware clears
     // `mstatus.MIE` on trap entry before any Rust code runs.
-    let interrupts_disabled = unsafe { InterruptsDisabledContext::new_trusted() };
+    let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
     // The interrupt number is then the lowest 8
     // bits.
     let interrupt_index = mcause & 0xFF;
