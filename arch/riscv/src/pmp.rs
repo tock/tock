@@ -2195,7 +2195,9 @@ pub mod kernel_protection_mml_epmp {
     ///   |     5 | \ Userspace TOR region #1             / | TOR   |   | ????? |
     ///   |       |                                         |       |   |       |
     ///   | 6 ... | /                                     \ |       |   |       |
-    ///   | n - 4 | \ Userspace TOR region #x             / |       |   |       |
+    ///   | n - 5 | \ Userspace TOR region #x             / |       |   |       |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 4 | FLASH2 (separate storage device)        | NAPOT | X | R/W   |
     ///   |       |                                         |       |   |       |
     ///   | n - 3 | FLASH (spanning kernel & apps)          | NAPOT | X | R     |
     ///   |       |                                         |       |   |       |
@@ -2226,6 +2228,7 @@ pub mod kernel_protection_mml_epmp {
             ram: RAMRegion,
             mmio: MMIORegion,
             kernel_text: KernelTextRegion,
+            flash2: Option<FlashRegion>,
         ) -> Result<Self, ()> {
             for i in 0..AVAILABLE_ENTRIES {
                 // Read the entry's CSR:
@@ -2352,6 +2355,20 @@ pub mod kernel_protection_mml_epmp {
                 flash.0.pmpaddr(),
             );
 
+            // flash2 (separate storage device) at n - 4:
+            flash2.map(|flash2| {
+                write_pmpaddr_pmpcfg(
+                    AVAILABLE_ENTRIES - 4,
+                    (pmpcfg_octet::a::NAPOT
+                        + pmpcfg_octet::r::SET
+                        + pmpcfg_octet::w::SET
+                        + pmpcfg_octet::x::CLEAR
+                        + pmpcfg_octet::l::SET)
+                        .into(),
+                    flash2.0.pmpaddr(),
+                );
+            });
+
             // Finally, attempt to enable the MSECCFG security bits, and verify
             // that they have been set correctly. If they have not been set to
             // the written value, this means that this hardware either does not
@@ -2386,8 +2403,9 @@ pub mod kernel_protection_mml_epmp {
     {
         // Ensure that the MPU_REGIONS (starting at entry, and occupying two
         // entries per region) don't overflow the available entries, excluding
-        // the 7 entries used for implementing the kernel memory protection:
-        const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 5) / 2));
+        // the 6 entries used for implementing the kernel memory protection
+        // (kernel .text, pflash, flash, RAM and MMIO):
+        const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 6) / 2));
 
         fn available_regions(&self) -> usize {
             // Always assume to have `MPU_REGIONS` usable TOR regions. We don't
