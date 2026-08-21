@@ -119,7 +119,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         let mut rcc_config = RccConfig {
             msis: Some(MsiRange::Range4mhz),
             msik: Some(MsiRange::Range4mhz),
-            hsi: true, // 16MHz oscillator enabled (for SYSCLK/ADC/DAC)
+            hsi16: true, // 16MHz oscillator enabled (for SYSCLK/ADC/DAC)
             hse: None,
             hsi48: false,
             lsi: true, // 32kHz oscillator enabled (for RTC)

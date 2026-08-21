@@ -46,8 +46,6 @@ pub enum MsiRange {
 #[repr(u32)]
 #[derive(Clone, Copy)]
 pub enum PllSource {
-    /// No clock sent to PLL
-    Disable = 0x0,
     /// MSIS clock selected as PLL clock entry
     Msis = 0x01,
     /// HSI clock selected as PLL clock entry

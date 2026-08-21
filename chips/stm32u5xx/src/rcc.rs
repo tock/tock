@@ -43,7 +43,7 @@ pub struct Clocks {
     pub rtc: Option<Hertz>,
     pub lsi: Option<Hertz>,
     pub hse: Option<Hertz>,
-    pub hsi: Option<Hertz>,
+    pub hsi16: Option<Hertz>,
     pub pll1_p: Option<Hertz>,
     pub pll1_q: Option<Hertz>,
     pub pll1_r: Option<Hertz>,
@@ -351,7 +351,7 @@ impl Rcc {
             Self::msirange_to_hertz(range)
         });
 
-        let hsi = config.hsi.then_some(Hertz(16_000_000));
+        let hsi16 = config.hsi16.then_some(Hertz(16_000_000));
 
         let hse = config.hse.map(|hse| {
             // Check frequency limits per RM456 § 11.4.10
@@ -397,7 +397,7 @@ impl Rcc {
         };
 
         let pll_input = PllInput {
-            hsi,
+            hsi16,
             hse,
             msi: msis,
         };
@@ -427,7 +427,7 @@ impl Rcc {
         // This ensures that, even in case of an error, the clock remains in a safe state
         let sys_clk = match config.sys {
             Sysclk::Hse => hse.unwrap(),
-            Sysclk::Hsi => hsi.unwrap(),
+            Sysclk::Hsi => hsi16.unwrap(),
             Sysclk::Msis => msis.unwrap(),
             Sysclk::Pll1R => pll1.r.unwrap(),
         };
@@ -496,7 +496,7 @@ impl Rcc {
             rtc,
             lsi,
             hse,
-            hsi,
+            hsi16,
             pll1_p: pll1.p,
             pll1_q: pll1.q,
             pll1_r: pll1.r,
@@ -574,9 +574,8 @@ impl Rcc {
         };
 
         let src_freq = match pll.source {
-            PllSource::Disable => panic!("must not select PLL source as DISABLE"),
             PllSource::Hse => input.hse.unwrap(),
-            PllSource::Hsi => input.hsi.unwrap(),
+            PllSource::Hsi => input.hsi16.unwrap(),
             PllSource::Msis => input.msi.unwrap(),
         };
 
