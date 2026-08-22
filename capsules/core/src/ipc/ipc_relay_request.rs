@@ -32,7 +32,7 @@
 //! ```
 
 use crate::ipc::ipc_identifier::IpcIdentifier;
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, IterOffset, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
@@ -76,8 +76,16 @@ enum TransactionState {
 /// Per-process metadata
 #[derive(Default)]
 pub struct App {
+    /// For clients and servers, holds the current state of any ongoing IPC
+    /// Relay Request transaction
     transaction: TransactionState,
+
+    /// For servers, tracks whether requests destined for this app are allowed
     requests_enabled: bool,
+
+    /// For servers, tracks offset in the process list for round-robin iteration
+    /// when getting the next response
+    iteration_offset: IterOffset,
 }
 
 /// IPC Relay Request capsule
@@ -363,17 +371,22 @@ impl IpcRelayRequest {
         processid: ProcessId,
     ) -> Result<Result<(u32, u64), (ErrorCode, u64)>, ErrorCode> {
         // Check if any transaction is active, and fail if so
-        self.apps
+        let start_offset = self
+            .apps
             .enter(processid, |app, _| match app.transaction {
-                TransactionState::None => Ok(()),
+                TransactionState::None => Ok(app.iteration_offset),
                 _ => Err(ErrorCode::ALREADY),
             })??;
 
         // Iterate client apps looking for a transaction in progress with this
-        // app as a server destination
-        // TODO: this should really be a round-robin iteration of clients for fairness... I have a design for that
+        // app as a server destination.
+        //
+        // This uses the rotated_iter function to fairly round-robin through
+        // processes. Each time this function is called by a server it continues
+        // searching the process list from where it last left off.
         let mut client: Option<ProcessId> = None;
-        for cntr in self.apps.iter() {
+        let mut app_iterator = self.apps.rotated_iter(start_offset);
+        for cntr in app_iterator.by_ref() {
             // skip this process
             if cntr.processid() != processid {
                 self.apps.enter(cntr.processid(), |client_app, _| {
@@ -385,9 +398,20 @@ impl IpcRelayRequest {
                         client = Some(cntr.processid());
                     }
                 })?;
+
+                // Stop looking if we found a client
+                if client.is_some() {
+                    break;
+                }
             }
         }
 
+        // Save iteration location for next time
+        self.apps.enter(processid, |app, _| {
+            app.iteration_offset = app_iterator.offset();
+        })?;
+
+        // Check if we found a waiting request
         if let Some(client_processid) = client {
             // Found request. Attempt the data copy
             self.handle_request_copy(processid, client_processid)
