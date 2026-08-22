@@ -5,12 +5,6 @@
 
 MEMORY
 {
-  /* uncomment this to boot from RAM */
-  /* reset (rx)  : ORIGIN = 0x20000000, LENGTH = 16K
-  rom (rx)  : ORIGIN = 0x20000100, LENGTH = 256K
-  prog (rx) : ORIGIN = 0x20040000, LENGTH = 1K
-  ram (rwx) : ORIGIN = 0x20004000, LENGTH = 240K */
-
   /* boot from Flash */
   rom (rx)  : ORIGIN = 0x10000000, LENGTH = 576K
   prog (rx) : ORIGIN = 0x10090000, LENGTH = 256K
