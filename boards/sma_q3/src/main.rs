@@ -121,7 +121,6 @@ pub struct Platform {
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
     rng: &'static RngDriver,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static AnalogComparatorDriver,
     alarm: &'static AlarmDriver,
     screen: &'static ScreenDriver,
@@ -146,7 +145,6 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules_extra::screen::screen::DRIVER_NUM => f(Some(self.screen)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -290,8 +288,6 @@ pub unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let gpio_port = &nrf52840_peripherals.gpio_port;
 
@@ -530,11 +526,6 @@ pub unsafe fn start() -> (
         alarm,
         analog_comparator,
         screen,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
@@ -603,5 +594,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

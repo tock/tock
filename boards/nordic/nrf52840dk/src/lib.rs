@@ -192,7 +192,6 @@ kernel::define_capability_type!(ProcessConsoleCap:
 type ProcessConsoleDriver =
     components::process_console::ProcessConsoleComponentType<AlarmHw, ProcessConsoleCap>;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
-type IpcDriver = kernel::ipc::IPC<{ NUM_PROCS as u8 }>;
 
 // TicKV
 type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<SpiHw, GpioHw, AlarmHw>;
@@ -234,7 +233,6 @@ pub struct Platform {
     adc: &'static AdcDriver,
     temp: &'static TemperatureDriver,
     /// The IPC driver.
-    pub ipc: IpcDriver,
     analog_comparator: &'static AnalogComparatorDriver,
     alarm: &'static AlarmDriver,
     i2c_master_slave: &'static I2CMasterSlaveDriver,
@@ -260,7 +258,6 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
@@ -516,7 +513,6 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let gpio_port = &nrf52840_peripherals.gpio_port;
 
     //--------------------------------------------------------------------------
@@ -944,11 +940,6 @@ pub unsafe fn start_no_pconsole() -> (
         temp,
         alarm,
         analog_comparator,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         i2c_master_slave,
         spi_controller,
         kv_driver,

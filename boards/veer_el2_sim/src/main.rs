@@ -287,5 +287,5 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
 pub unsafe fn main() {
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
     let (board_kernel, veer, chip) = start();
-    board_kernel.kernel_loop(&veer, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
+    board_kernel.kernel_loop(&veer, chip, &main_loop_cap);
 }

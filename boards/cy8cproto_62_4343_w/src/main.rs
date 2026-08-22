@@ -370,10 +370,5 @@ pub unsafe fn main() {
         kernel::debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &cy8cproto0624343w,
-        chip,
-        None::<kernel::ipc::IPC<{ NUM_PROCS as u8 }>>.as_ref(),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&cy8cproto0624343w, chip, &main_loop_capability);
 }

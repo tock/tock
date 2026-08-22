@@ -627,10 +627,5 @@ pub unsafe fn main() {
 
     let (board_kernel, platform, chip) = start();
     // Hand over control to the Tock Kernel Loop
-    board_kernel.kernel_loop::<NucleoU545RE, ChipHw, { NUM_PROCS as u8 }>(
-        platform,
-        chip,
-        None,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop::<NucleoU545RE, ChipHw>(platform, chip, &main_loop_capability);
 }

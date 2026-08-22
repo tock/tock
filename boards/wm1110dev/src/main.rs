@@ -120,7 +120,6 @@ pub struct Platform {
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
     rng: &'static RngDriver,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     nonvolatile_storage: &'static NonvolatileDriver,
     alarm: &'static AlarmDriver,
     temperature: &'static TemperatureDriver,
@@ -147,7 +146,6 @@ impl SyscallDriverLookup for Platform {
             }
             LORA_SPI_DRIVER_NUM => f(Some(self.lr1110_spi)),
             LORA_GPIO_DRIVER_NUM => f(Some(self.lr1110_gpio)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             _ => f(None),
@@ -253,7 +251,6 @@ pub unsafe fn start() -> (
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     //--------------------------------------------------------------------------
     // DEBUG GPIO
@@ -518,11 +515,6 @@ pub unsafe fn start() -> (
         rng,
         alarm,
         nonvolatile_storage,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
         temperature,
@@ -594,5 +586,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

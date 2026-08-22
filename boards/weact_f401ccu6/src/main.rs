@@ -52,7 +52,6 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 /// capsules for this platform.
 struct WeactF401CC {
     console: &'static capsules_core::console::Console<'static>,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, stm32f401cc::gpio::Pin<'static>>,
@@ -81,7 +80,6 @@ impl SyscallDriverLookup for WeactF401CC {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
@@ -302,7 +300,6 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -480,11 +477,6 @@ unsafe fn start() -> (
 
     let weact_f401cc = WeactF401CC {
         console,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         adc: adc_syscall,
         led,
         button,
@@ -543,5 +535,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

@@ -172,7 +172,6 @@ pub struct Platform {
     led: &'static LedDriver,
     rng: &'static RngDriver,
     temp: &'static TemperatureDriver,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static AnalogComparatorDriver,
     alarm: &'static AlarmDriver,
     scheduler: &'static SchedulerInUse,
@@ -194,7 +193,6 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -362,7 +360,6 @@ pub unsafe fn start() -> (
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let gpio_port = &nrf52832_peripherals.gpio_port;
     // Configure kernel debug gpios as early as possible
@@ -498,11 +495,6 @@ pub unsafe fn start() -> (
         temp,
         alarm,
         analog_comparator,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
@@ -551,5 +543,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

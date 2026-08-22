@@ -292,10 +292,5 @@ pub unsafe fn main() {
 
     loader.set_client(platform);
 
-    board_kernel.kernel_loop(
-        platform,
-        chip,
-        Some(&platform.base.ipc),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(platform, chip, &main_loop_capability);
 }

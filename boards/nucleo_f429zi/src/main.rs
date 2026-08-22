@@ -66,7 +66,6 @@ pub const NUCLEO_F429ZI_HSE_FREQUENCY_MHZ: usize = 8;
 /// capsules for this platform.
 struct NucleoF429ZI {
     console: &'static capsules_core::console::Console<'static>,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, stm32f429zi::gpio::Pin<'static>>,
@@ -105,7 +104,6 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
@@ -401,7 +399,6 @@ unsafe fn start() -> (
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -694,11 +691,6 @@ unsafe fn start() -> (
 
     let nucleo_f429zi = NucleoF429ZI {
         console,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         adc: adc_syscall,
         dac,
         led,
@@ -768,5 +760,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

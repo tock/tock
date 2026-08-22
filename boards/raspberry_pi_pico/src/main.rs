@@ -156,10 +156,5 @@ pub unsafe fn main() {
 
     let (board_kernel, platform, chip) = start();
 
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        Some(&platform.base.ipc),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

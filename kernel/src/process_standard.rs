@@ -852,7 +852,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     _ => false,
                 },
                 Task::ReturnValue(rv) => rv.upcall_id == upcall_id,
-                Task::IPC(_) => false,
             })
         })
     }

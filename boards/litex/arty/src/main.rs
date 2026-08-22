@@ -125,7 +125,6 @@ struct LiteXArty {
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
     alarm: &'static capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, AlarmHw>>,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
 }
@@ -141,7 +140,6 @@ impl SyscallDriverLookup for LiteXArty {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -505,11 +503,6 @@ unsafe fn start() -> (
         led_driver,
         scheduler,
         scheduler_timer,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_cap,
-        ),
     };
 
     debug!("LiteX+VexRiscv on ArtyA7: initialization complete, entering main loop.");
@@ -543,5 +536,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, board, chip) = start();
-    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&board, chip, &main_loop_capability);
 }

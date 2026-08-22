@@ -87,7 +87,6 @@ struct Hail {
     >,
     button: &'static capsules_core::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static RngDriver,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     crc: &'static capsules_extra::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules_extra::dac::Dac<'static>,
     scheduler: &'static SchedulerInUse,
@@ -121,7 +120,6 @@ impl SyscallDriverLookup for Hail {
 
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
 
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -270,7 +268,6 @@ unsafe fn start() -> (
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     // Configure kernel debug gpios as early as possible
     let debug_gpios = static_init!(
@@ -556,11 +553,6 @@ unsafe fn start() -> (
         led,
         button,
         rng,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         crc,
         dac,
         scheduler,
@@ -617,5 +609,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

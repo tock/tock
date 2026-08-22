@@ -49,7 +49,6 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct Psc3Plattform {
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     console: &'static capsules_core::console::Console<'static>,
     scheduler: &'static SchedulerInUse,
     systick: cortexm33::systick::SysTick,
@@ -74,7 +73,6 @@ impl SyscallDriverLookup for Psc3Plattform {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
@@ -198,7 +196,6 @@ pub unsafe fn start() -> (
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.tcpwm)
         .finalize(components::alarm_mux_component_static!(Tcpwm0));
@@ -342,11 +339,6 @@ pub unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let psc3_platform = Psc3Plattform {
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         console,
         alarm,
         scheduler,
@@ -386,5 +378,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }

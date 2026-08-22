@@ -373,10 +373,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }
