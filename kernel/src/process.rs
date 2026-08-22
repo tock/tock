@@ -494,7 +494,18 @@ pub trait Process {
     /// with `Some(u32)`. If the kernel is trying to restart the process and the
     /// process did not provide a completion code, then this should be called
     /// with `None`.
-    fn try_restart(&self, completion_code: Option<u32>);
+    ///
+    /// ### Safety
+    ///
+    /// This function must not be called from the context of handling a
+    /// command syscall or any instance where the kernel implicitly expects
+    /// the process to still be alive (e.g., calling `set_syscall_return_val`).
+    /// Violating these conditions will result in the kernel writing the
+    /// command syscall return value to the now invalid/freed UKB.
+    ///
+    /// The implementation must clear any Process state (e.g., via the
+    /// `Process` `terminate` method).
+    unsafe fn try_restart(&self, completion_code: Option<u32>);
 
     /// Stop and clear a process's state and put it into the
     /// [`Terminated`](State::Terminated) state.
@@ -853,6 +864,14 @@ pub trait Process {
     /// Print out the full state of the process: its memory map, its context,
     /// and the state of the memory protection unit (MPU).
     fn print_full_process(&self, writer: &mut dyn Write);
+
+    /// Reqest the kernel to restart this process.
+    ///
+    /// This is executed at the kernel's discretion and may result in a noop.
+    fn enqueue_process_restart(&self);
+
+    /// Read the current pending restart state.
+    fn has_pending_restart(&self) -> bool;
 
     // debug
 
