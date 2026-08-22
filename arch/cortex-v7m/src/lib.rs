@@ -27,14 +27,20 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
     // Use the CONTROL register to set the thread mode to privileged to switch
     // back to kernel mode.
     //
-    // CONTROL[1]: Stack status
-    //   0 = Default stack (MSP) is used
-    //   1 = Alternate stack is used
-    // CONTROL[0]: Mode
-    //   0 = Privileged in thread mode
+    // CONTROL[2]: FPCA (Floating-Point Context Active)
+    //   0 = No active floating-point context
+    //   1 = Floating-point context active (FPU registers saved on exception entry)
+    // CONTROL[1]: SPSEL (Stack Pointer Select)
+    //   0 = Main Stack Pointer (MSP) is used
+    //   1 = Process Stack Pointer (PSP) is used
+    // CONTROL[0]: nPriv (Priviledged Mode?)
+    //   0 = Privileged in thread mode <--------- set to this here
     //   1 = User state in thread mode
-    mov r0, #0                        // r0 = 0
-    msr CONTROL, r0                   // CONTROL = 0
+    //
+    // Do not change other CONTROL bits.
+    mrs r0, CONTROL                   // r0 = CONTROL
+    bic r0, r0, #1                    // r0 = r0 & ~0x1
+    msr CONTROL, r0                   // CONTROL.nPriv = 0
     // CONTROL writes must be followed by an Instruction Synchronization Barrier
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb                               // synchronization barrier
@@ -83,14 +89,20 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     // application. Use the CONTROL register to set the thread mode to
     // unprivileged to run the application.
     //
-    // CONTROL[1]: Stack status
-    //   0 = Default stack (MSP) is used
-    //   1 = Alternate stack is used
-    // CONTROL[0]: Mode
+    // CONTROL[2]: FPCA (Floating-Point Context Active)
+    //   0 = No active floating-point context
+    //   1 = Floating-point context active (FPU registers saved on exception entry)
+    // CONTROL[1]: SPSEL (Stack Pointer Select)
+    //   0 = Main Stack Pointer (MSP) is used
+    //   1 = Process Stack Pointer (PSP) is used
+    // CONTROL[0]: nPriv (Priviledged Mode?)
     //   0 = Privileged in thread mode
-    //   1 = User state in thread mode
-    mov r0, #1                        // r0 = 1
-    msr CONTROL, r0                   // CONTROL = 1
+    //   1 = User state in thread mode <--------- set to this here
+    //
+    // Do not change other CONTROL bits.
+    mrs r0, CONTROL                   // r0 = CONTROL
+    orr r0, #1                        // r0 = r0 | 0x1
+    msr CONTROL, r0                   // CONTROL.nPriv = 1
     // CONTROL writes must be followed by an Instruction Synchronization Barrier
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
@@ -115,14 +127,20 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     // Use the CONTROL register to set the thread mode to privileged to switch
     // back to kernel mode.
     //
-    // CONTROL[1]: Stack status
-    //   0 = Default stack (MSP) is used
-    //   1 = Alternate stack is used
-    // CONTROL[0]: Mode
-    //   0 = Privileged in thread mode
+    // CONTROL[2]: FPCA (Floating-Point Context Active)
+    //   0 = No active floating-point context
+    //   1 = Floating-point context active (FPU registers saved on exception entry)
+    // CONTROL[1]: SPSEL (Stack Pointer Select)
+    //   0 = Main Stack Pointer (MSP) is used
+    //   1 = Process Stack Pointer (PSP) is used
+    // CONTROL[0]: nPriv (Priviledged Mode?)
+    //   0 = Privileged in thread mode <--------- set to this here
     //   1 = User state in thread mode
-    mov r0, #0                        // r0 = 0
-    msr CONTROL, r0                   // CONTROL = 0
+    //
+    // Do not change other CONTROL bits.
+    mrs r0, CONTROL                   // r0 = CONTROL
+    bic r0, r0, #1                    // r0 = r0 & ~0x1
+    msr CONTROL, r0                   // CONTROL.nPriv = 0
     // CONTROL writes must be followed by an Instruction Synchronization Barrier
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
@@ -162,14 +180,20 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
     // we are executing as the kernel. This may be redundant if the interrupt
     // happened while the kernel code was executing.
     //
-    // CONTROL[1]: Stack status
-    //   0 = Default stack (MSP) is used
-    //   1 = Alternate stack is used
-    // CONTROL[0]: Mode
-    //   0 = Privileged in thread mode
+    // CONTROL[2]: FPCA (Floating-Point Context Active)
+    //   0 = No active floating-point context
+    //   1 = Floating-point context active (FPU registers saved on exception entry)
+    // CONTROL[1]: SPSEL (Stack Pointer Select)
+    //   0 = Main Stack Pointer (MSP) is used
+    //   1 = Process Stack Pointer (PSP) is used
+    // CONTROL[0]: nPriv (Priviledged Mode?)
+    //   0 = Privileged in thread mode <--------- set to this here
     //   1 = User state in thread mode
-    mov r0, #0                        // r0 = 0
-    msr CONTROL, r0                   // CONTROL = 0
+    //
+    // Do not change other CONTROL bits.
+    mrs r0, CONTROL                   // r0 = CONTROL
+    bic r0, r0, #1                    // r0 = r0 & ~0x1
+    msr CONTROL, r0                   // CONTROL.nPriv = 0
     // CONTROL writes must be followed by an Instruction Synchronization Barrier
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
@@ -626,8 +650,9 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     mov r1, #1               // r1 = 1
     str r1, [r0, #0]         // APP_HARD_FAULT = 1
 
-    // Set thread mode to privileged
-    mov r0, #0
+    // Set thread mode to privileged. Do not touch other CONTROL state.
+    mrs r0, CONTROL
+    bic r0, r0, #1
     msr CONTROL, r0
     // CONTROL writes must be followed by ISB
     // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html
