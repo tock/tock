@@ -33,7 +33,7 @@ jobs:
     steps:
       # On pushes we want to check whether any changes have been made
       # to the Tockbot code base. Disabled for now:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Dispatcher business logic:
       - name: Dispatch Tockbot Jobs
@@ -86,7 +86,7 @@ jobs:
 
     steps:
       # Requires a tock checkout to run from:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Setup Python and install dependencies:
       - uses: actions/setup-python@v5
@@ -120,7 +120,7 @@ jobs:
 
     steps:
       # Requires a tock checkout to run from:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Setup Python and install dependencies:
       - uses: actions/setup-python@v5
