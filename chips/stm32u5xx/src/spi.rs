@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2026.
 
 use crate::dma::{ChannelId, Dma};
-use crate::rcc::ClockSource;
+use crate::rcc::{Clocks, hertz::Hertz};
 use core::cell::Cell;
 use core::cmp;
 use cortexm33::dma_fence::CortexMDmaFence;
@@ -14,7 +14,7 @@ use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::dma_slice::DmaSubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
 
 register_structs! {
@@ -417,6 +417,7 @@ register_bitfields![u32,
 
 pub struct Spi<'a> {
     pub registers: StaticRef<SpiRegisters>,
+    clocks: OptionalCell<Clocks>,
     client: OptionalCell<&'a dyn spi::SpiMasterClient>,
     dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<Option<ChannelId>>,
@@ -433,6 +434,7 @@ impl<'a> Spi<'a> {
     pub fn new(base: StaticRef<SpiRegisters>) -> Self {
         Self {
             registers: base,
+            clocks: OptionalCell::empty(),
             client: OptionalCell::empty(),
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
@@ -443,6 +445,29 @@ impl<'a> Spi<'a> {
             transfers_in_progress: Cell::new(0),
             active_slave: OptionalCell::empty(),
             active_after: Cell::new(false),
+        }
+    }
+
+    pub fn set_clocks(&self, clocks: Clocks) {
+        self.clocks.set(clocks);
+    }
+
+    // Adapted from embassy-rs/embassy/embassy-stm32/src/spi/mod.rs
+    /// Try to find a divider value that approaces the desired rate as closely as possible
+    fn compute_baud_rate_prescaler(
+        clock_freq: Hertz,
+        spi_freq: Hertz,
+    ) -> (FieldValue<u32, CFG1::Register>, u16) {
+        match clock_freq.0 / spi_freq.0 {
+            0 => panic!("You are trying to reach a frequency higher than the clock"),
+            1..=2 => (CFG1::MBR::Div2, 2),
+            3..=5 => (CFG1::MBR::Div4, 4),
+            6..=11 => (CFG1::MBR::Div8, 8),
+            12..=23 => (CFG1::MBR::Div16, 16),
+            24..=39 => (CFG1::MBR::Div32, 32),
+            40..=95 => (CFG1::MBR::Div64, 64),
+            96..=191 => (CFG1::MBR::Div128, 128),
+            _ => (CFG1::MBR::Div256, 256),
         }
     }
 
@@ -580,34 +605,14 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
             return Err(kernel::ErrorCode::INVAL);
         }
 
-        // According to the datasheet we cannot set a specific baudrate, we can
-        // only prescale the clock entering SPI. By default SPI uses PCLK2. This
-        // function tries to find a divider value that gets us as close as
-        // possible to the desired rate
+        // It is not possible set a specific baudrate, we can only prescale the clock that feeds SPI
 
-        // PCLK2 is the reset-default MSIS frequency until the clock tree is
-        // configured explicitly.
-        let spi_clock_freq = ClockSource::RESET_DEFAULT.as_hz() as u32;
+        // Assume PCLK2 is the selected clock source
+        let clock_freq = self.clocks.get().unwrap().pclk2;
 
-        let divider = spi_clock_freq / rate;
-
-        let (mbr_val, actual_rate) = if divider <= 2 {
-            (CFG1::MBR::Div2, spi_clock_freq / 2)
-        } else if divider <= 4 {
-            (CFG1::MBR::Div4, spi_clock_freq / 4)
-        } else if divider <= 8 {
-            (CFG1::MBR::Div8, spi_clock_freq / 8)
-        } else if divider <= 16 {
-            (CFG1::MBR::Div16, spi_clock_freq / 16)
-        } else if divider <= 32 {
-            (CFG1::MBR::Div32, spi_clock_freq / 32)
-        } else if divider <= 64 {
-            (CFG1::MBR::Div64, spi_clock_freq / 64)
-        } else if divider <= 128 {
-            (CFG1::MBR::Div128, spi_clock_freq / 128)
-        } else {
-            (CFG1::MBR::Div256, spi_clock_freq / 256)
-        };
+        // Find the best prescaler
+        let (mbr_field_value, div) =
+            Spi::<'a>::compute_baud_rate_prescaler(clock_freq, Hertz(rate));
 
         // Before we can set the rate we need to disable the SPI.
         let spi_was_enabled = self.registers.cr1.is_set(CR1::SPE);
@@ -615,30 +620,34 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
             self.registers.cr1.modify(CR1::SPE::CLEAR);
         }
 
-        self.registers.cfg1.modify(mbr_val);
+        self.registers.cfg1.modify(mbr_field_value);
 
         if spi_was_enabled {
             self.registers.cr1.modify(CR1::SPE::SET);
         }
 
-        Ok(actual_rate)
+        // Return the actual frequency that was set
+        Ok((clock_freq / div).0)
     }
 
     fn get_rate(&self) -> u32 {
-        // SPI1 uses PCLK2. PCLK2 is the reset-default MSIS frequency until the
-        // clock tree is configured explicitly.
-        let spi_clock_freq = ClockSource::RESET_DEFAULT.as_hz() as u32;
+        // Assume PCLK2 is the selected clock source
+        let clock_freq = self.clocks.get().unwrap().pclk2;
 
-        match self.registers.cfg1.read_as_enum(CFG1::MBR) {
-            Some(CFG1::MBR::Value::Div2) => spi_clock_freq / 2,
-            Some(CFG1::MBR::Value::Div4) => spi_clock_freq / 4,
-            Some(CFG1::MBR::Value::Div8) => spi_clock_freq / 8,
-            Some(CFG1::MBR::Value::Div16) => spi_clock_freq / 16,
-            Some(CFG1::MBR::Value::Div32) => spi_clock_freq / 32,
-            Some(CFG1::MBR::Value::Div64) => spi_clock_freq / 64,
-            Some(CFG1::MBR::Value::Div128) => spi_clock_freq / 128,
-            _ => spi_clock_freq / 256,
-        }
+        // Read the configured prescaler
+        let div: u16 = match self.registers.cfg1.read_as_enum(CFG1::MBR) {
+            Some(CFG1::MBR::Value::Div2) => 2,
+            Some(CFG1::MBR::Value::Div4) => 4,
+            Some(CFG1::MBR::Value::Div8) => 8,
+            Some(CFG1::MBR::Value::Div16) => 16,
+            Some(CFG1::MBR::Value::Div32) => 32,
+            Some(CFG1::MBR::Value::Div64) => 64,
+            Some(CFG1::MBR::Value::Div128) => 128,
+            _ => 256,
+        };
+
+        // Divide the input frequency by the prescaler
+        (clock_freq / div).0
     }
 
     fn is_busy(&self) -> bool {
@@ -663,11 +672,17 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         // Disable SPI in order to change config bits
         regs.cr1.modify(CR1::SPE::CLEAR);
 
-        // Set baudrate prescaler to divide the reset-default PCLK2 (4MHz) by two -> 2MHz
+        // Assume PCLK2 is the selected clock source
+        let clock_freq = self.clocks.get().unwrap().pclk2;
+
+        // Find the best prescaler to set an SPI frequency of 2MHz
+        let (mbr_field_value, _) =
+            Spi::<'a>::compute_baud_rate_prescaler(clock_freq, Hertz(2_000_000));
+
         // Errata 2.18.1 Workaround: Explicitly force CRCSIZE to 0b00111 (8-bit) to prevent
         // RxFIFO data corruption when TSIZE > 0 and CRC is disabled
         regs.cfg1
-            .modify(CFG1::MBR::Div2 + CFG1::CRCSIZE.val(0b00111));
+            .modify(mbr_field_value + CFG1::CRCSIZE.val(0b00111));
 
         // Sets SPI to run as Master, in Full-Duplex mode, with Slave-Select managed by software
         regs.cfg2
