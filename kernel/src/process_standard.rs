@@ -1430,21 +1430,25 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
-        match self.stored_state.map(|stored_state| unsafe {
+        match self.stored_state.map(|stored_state| {
             // Actually set the return value for a particular process.
             //
-            // The UKB implementation uses the bounds of process-accessible
-            // memory to verify that any memory changes are valid. Here, the
-            // unsafe promise we are making is that the bounds passed to the UKB
-            // are correct.
-            self.chip
-                .userspace_kernel_boundary()
-                .set_syscall_return_value(
-                    self.mem_start(),
-                    self.app_break.get(),
-                    stored_state,
-                    return_value,
-                )
+            // SAFETY: The UKB implementation uses the bounds of
+            // process-accessible memory to verify that any memory changes are
+            // valid. Here, the unsafe promise we are making is that the bounds
+            // passed to the UKB are correct. Because we use the start of the
+            // process's memory, and the current `app_break`, we know that the
+            // memory in that range is accessible to the process.
+            unsafe {
+                self.chip
+                    .userspace_kernel_boundary()
+                    .set_syscall_return_value(
+                        self.mem_start(),
+                        self.app_break.get(),
+                        stored_state,
+                        return_value,
+                    )
+            }
         }) {
             Some(Ok(())) => {
                 // If we get an `Ok` we are all set.
@@ -1485,9 +1489,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         // remaining.
         match self.stored_state.map(|stored_state| {
             // Let the UKB implementation handle setting the process's PC so
-            // that the process executes the upcall function. We encapsulate
-            // unsafe here because we are guaranteeing that the memory bounds
-            // passed to `set_process_function` are correct.
+            // that the process executes the upcall function.
+            //
+            // SAFETY: We encapsulate unsafe here because we are guaranteeing
+            // that the memory bounds passed to `set_process_function` are
+            // correct. We know this because we use the start of process memory
+            // and the current `app_break`, and that range is accessible to the
+            // process.
             unsafe {
                 self.chip.userspace_kernel_boundary().set_process_function(
                     self.mem_start(),
@@ -1531,9 +1539,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
         let (switch_reason, stack_pointer) =
             self.stored_state.map_or((None, None), |stored_state| {
-                // Switch to the process. We guarantee that the memory pointers
-                // we pass are valid, ensuring this context switch is safe.
-                // Therefore we encapsulate the `unsafe`.
+                // Switch to the process.
+                //
+                // SAFETY: We guarantee that the memory pointers we pass are valid,
+                // ensuring this context switch is safe. We know this because we use
+                // the start of process memory and the current `app_break`, and that
+                // range is accessible to the process. Therefore we encapsulate the
+                // `unsafe`.
                 unsafe {
                     let (switch_reason, optional_stack_pointer) = self
                         .chip
@@ -1610,8 +1622,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
 
         self.stored_state.map(|stored_state| {
-            // We guarantee the memory bounds pointers provided to the UKB are
-            // correct.
+            // SAFETY: We guarantee the memory bounds pointers provided to the
+            // UKB are correct. We know this because we use the start of process
+            // memory and the current `app_break`, and that range is accessible
+            // to the process.
             unsafe {
                 self.chip.userspace_kernel_boundary().print_context(
                     self.mem_start(),
@@ -2453,12 +2467,18 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Handle any architecture-specific requirements for a process when it
         // first starts (as it would when it is new).
-        let ukb_init_process = self.stored_state.map_or(Err(()), |stored_state| unsafe {
-            self.chip.userspace_kernel_boundary().initialize_process(
-                app_mpu_mem_start,
-                app_brk,
-                stored_state,
-            )
+        let ukb_init_process = self.stored_state.map_or(Err(()), |stored_state| {
+            // SAFETY: The memory bounds must be valid for this process. We know
+            // this is true here because we use the start of process memory and
+            // the current `app_brk`, and that range is accessible to the
+            // process.
+            unsafe {
+                self.chip.userspace_kernel_boundary().initialize_process(
+                    app_mpu_mem_start,
+                    app_brk,
+                    stored_state,
+                )
+            }
         });
         match ukb_init_process {
             Ok(()) => {}
