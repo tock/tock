@@ -218,5 +218,11 @@ pub trait PanicWriter {
     ///
     /// The writer must implement [`IoWrite`] (which is just `std:io::Write`
     /// implemented for no_std).
+    ///
+    /// # Safety
+    ///
+    /// - This must ONLY be called from a panic context.
+    ///
+    /// Implementations must not require more strict safety requirements.
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write;
 }
