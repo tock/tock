@@ -130,6 +130,9 @@ pub struct ProcessBinary {
     /// set if the process is checked by a credential checker and a specific
     /// credential was used to approve this process. Otherwise this is `None`.
     pub credential: OptionalCell<AcceptedCredential>,
+
+    /// Credential to vaildate if the app needs to be loaded
+    pub valid_app: bool,
 }
 
 impl ProcessBinary {
@@ -148,6 +151,10 @@ impl ProcessBinary {
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, tbf_version)?;
 
+        // a flag to let process loaders know if this is an app to make a process out of,
+        // or if it is a disabled app that is stored in the storage, but otherwise not used
+        let valid_app: bool = tbf_header.enabled();
+
         // If this isn't an app (i.e. it is padding) then we can skip it and do
         // not create a `ProcessBinary` object.
         if !tbf_header.is_app() {
@@ -160,19 +167,6 @@ impl ProcessBinary {
             }
             // Return no process and the full memory slice we were given.
             return Err(ProcessBinaryError::Padding);
-        }
-
-        // If this is an app but it isn't enabled, then we can return an error.
-        if !tbf_header.enabled() {
-            if config::CONFIG.debug_load_processes {
-                debug!(
-                    "Process not enabled flash={:#010X}-{:#010X} process={:?}",
-                    app_flash.as_ptr() as usize,
-                    app_flash.as_ptr() as usize + app_flash.len() - 1,
-                    tbf_header.get_package_name().unwrap_or("(no name)")
-                );
-            }
-            return Err(ProcessBinaryError::NotEnabledProcess);
         }
 
         if let Some((major, minor)) = tbf_header.get_kernel_version() {
@@ -246,6 +240,7 @@ impl ProcessBinary {
             footers: footer_region,
             flash: app_flash,
             credential: OptionalCell::empty(),
+            valid_app,
         })
     }
 
