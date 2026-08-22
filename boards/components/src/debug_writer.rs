@@ -18,7 +18,7 @@
 //! .finalize(components::debug_writer_component_static!());
 //!
 //! let debug_wrapper = components::debug_writer::DebugWriterNoMuxComponent::new(
-//!     &nrf52::uart::UARTE0,
+//!     &nrf52::uarte::UARTE0,
 //!     create_capability!(kernel::capabilities::SetDebugWriterCapability),
 //! )
 //! .finalize(components::debug_writer_no_mux_component_static!());
