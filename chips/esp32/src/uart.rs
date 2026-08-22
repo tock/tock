@@ -513,7 +513,10 @@ pub struct UartPanicWriterConfig {
 impl kernel::platform::chip::PanicWriter for Uart<'_> {
     type Config = UartPanicWriterConfig;
 
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+    fn create_panic_writer(
+        config: Self::Config,
+        _panic: &core::panic::PanicInfo,
+    ) -> impl IoWrite + core::fmt::Write {
         use kernel::hil::uart::Configure as _;
 
         let uart = Uart::new(config.registers);
