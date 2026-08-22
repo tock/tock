@@ -77,17 +77,24 @@ pub struct Nrf52DefaultPeripherals<'a> {
 }
 
 impl Nrf52DefaultPeripherals<'_> {
-    pub fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
-        // # Safety
-        //
-        // This must only get constructed once.
-        //
-        // TODO: As of June 2026, we just assume peripherals are only created
-        // once and this is the only call to the AES manager constructor.
-        // However, once we have a strategy for enforcing the only-once
-        // constraint, we need to update this to use that so we can properly
-        // enforce this safety requirement.
+    /// Create default peripherals for an nRF52-based microcontroller.
+    ///
+    /// # Safety
+    ///
+    /// Some of these peripherals use DMA. As such, the default peripherals must
+    /// be unique. This requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - There must not be additional instances of the DMA-enabled peripheral
+    ///   drivers.
+    /// - There must not be any other code that accesses the DMA buffer and
+    ///   length registers of the DMA-enabled peripherals.
+    pub unsafe fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
+        // SAFETY: See function-level doc.
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
+
+        // SAFETY: See function-level doc.
+        let uarte0_registers = unsafe { crate::uart::UarteRegistersManager::new_uarte0() };
 
         Self {
             acomp: crate::acomp::Comparator::new(),
@@ -100,7 +107,7 @@ impl Nrf52DefaultPeripherals<'_> {
             timer0: crate::timer::TimerAlarm::new(TIMER0_BASE),
             timer1: crate::timer::TimerAlarm::new(TIMER1_BASE),
             timer2: crate::timer::Timer::new(TIMER2_BASE),
-            uarte0: crate::uart::Uarte::new(crate::uart::UARTE0_BASE),
+            uarte0: crate::uart::Uarte::new(uarte0_registers),
             spim0: crate::spi::SPIM::new(0),
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
