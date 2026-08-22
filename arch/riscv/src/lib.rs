@@ -24,14 +24,8 @@ pub const XLEN: usize = 1 << XLEN_LOG2;
 
 /// `XLEN_LOG2` is the log base 2 of [`XLEN`].
 ///
-/// Actual value varies based on RISCV-32 vs. RISCV-64.
-// Use << operator to (somewhat) hide value in rustdocs.
-#[cfg(any(not(riscv), doc))]
-pub const XLEN_LOG2: usize = 3 << 1;
-#[cfg(all(target_arch = "riscv32", not(doc)))]
-pub const XLEN_LOG2: usize = 5;
-#[cfg(all(target_arch = "riscv64", not(doc)))]
-pub const XLEN_LOG2: usize = 6;
+/// Value varies based on RISCV-32 (XLEN_LOG2=5) vs. RISCV-64 (XLEN_LOG2=6).
+pub const XLEN_LOG2: usize = usize::BITS.trailing_zeros() as usize;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
