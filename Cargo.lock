@@ -1307,6 +1307,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "qemu_rv32_virt-test-ci"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "ecdsa-sw",
+ "kernel",
+ "qemu_rv32_virt",
+ "qemu_rv32_virt_chip",
+ "rv32i",
+ "sifive",
+ "tock-tbf",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "qemu_rv32_virt-tutorial"
 version = "0.2.3-dev"
 dependencies = [
