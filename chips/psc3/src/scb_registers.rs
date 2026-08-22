@@ -1174,3 +1174,6 @@ pub INTR_RX_MASKED [
 ];
 pub const SCB3_BASE: StaticRef<ScbRegisters> =
     unsafe { StaticRef::new(0x42860000 as *const ScbRegisters) };
+
+pub const SCB0_BASE: StaticRef<ScbRegisters> =
+    unsafe { StaticRef::new(0x52820000 as *const ScbRegisters) };

@@ -1106,41 +1106,27 @@ FM_CTL_FM_MEM_ECC [
     ECC_PARITY OFFSET(0) NUMBITS(9) []
 ],
 ];
-const FLASHC_BASE: StaticRef<FlashcRegisters> =
+const FLASHC: StaticRef<FlashcRegisters> =
     unsafe { StaticRef::new(0x42150000 as *const FlashcRegisters) };
 
-pub struct FlashC {
-    registers: StaticRef<FlashcRegisters>,
-}
-
-impl FlashC {
-    pub const fn new() -> FlashC {
-        FlashC {
-            registers: FLASHC_BASE,
-        }
-    }
-
-    /// Set the number of flash wait states.
-    ///
-    /// This updates `FLASH_CTL.RBUS_WS`. Call this before increasing `HFClk0`.
-    ///
-    /// # Arguments
-    ///
-    /// - `ulp_mode`: Target power mode.
-    ///   - `true`: ULP mode (core regulator nominal `0.9V`).
-    ///   - `false`: LP mode (core regulator nominal `1.1V`).
-    /// - `clk_hf_mhz`: `HFClk0` frequency in `MHz`.
-    ///   Values above the supported maximum are treated as the maximum.
-    pub fn set_waitstates(&self, ulp_mode: bool, clk_hf_mhz: u32) {
-        const COEFFICIENT_ULP: u32 = 80;
-        const COEFFICIENT: u32 = 60;
-        let wait_states = if ulp_mode {
-            ((COEFFICIENT_ULP * clk_hf_mhz) / 1000) + 1
-        } else {
-            ((COEFFICIENT * clk_hf_mhz) / 1000) + 1
-        };
-        self.registers
-            .flash_ctl
-            .modify(FLASH_CTL::RBUS_WS.val(wait_states));
-    }
+/// Set the number of flash wait states.
+///
+/// This updates `FLASH_CTL.RBUS_WS`. Call this before increasing `HFClk0`.
+///
+/// # Arguments
+///
+/// - `ulp_mode`: Target power mode.
+///   - `true`: ULP mode (core regulator nominal `0.9V`).
+///   - `false`: LP mode (core regulator nominal `1.1V`).
+/// - `clk_hf_mhz`: `HFClk0` frequency in `MHz`.
+///   Values above the supported maximum are treated as the maximum.
+pub fn set_waitstates(ulp_mode: bool, clk_hf_mhz: u32) {
+    const COEFFICIENT_ULP: u32 = 80;
+    const COEFFICIENT: u32 = 60;
+    let wait_states = if ulp_mode {
+        ((COEFFICIENT_ULP * clk_hf_mhz) / 1000) + 1
+    } else {
+        ((COEFFICIENT * clk_hf_mhz) / 1000) + 1
+    };
+    FLASHC.flash_ctl.modify(FLASH_CTL::RBUS_WS.val(wait_states));
 }
