@@ -61,6 +61,12 @@ pub unsafe extern "C" fn svc_handler() {
 
     // If we get here, then this is a context switch from the kernel to the
     // application. Set thread mode to unprivileged to run the application.
+    //
+    // On v6m:
+    //  - CONTROL[0] is nPriv, which we want to set to 1 here
+    //  - CONTROL[1] is SPSEL, but **ignores writes in handler mode**
+    //  - CONTROL[2:31] are RAZ/WI ; UNK/SBZP (ARM DDI 0419E §B1.4.5)
+    // so it is safe to simply write the register without reading it first.
     movs r0, #1
     msr CONTROL, r0
     ldr r1, 200f // EXC_RETURN_PSP
@@ -71,6 +77,12 @@ pub unsafe extern "C" fn svc_handler() {
     movs r1, #1
     str r1, [r0, #0]
     // Set thread mode to privileged as we switch back to the kernel.
+    //
+    // On v6m:
+    //  - CONTROL[0] is nPriv, which we want to set to 0 here
+    //  - CONTROL[1] is SPSEL, but **ignores writes in handler mode**
+    //  - CONTROL[2:31] are RAZ/WI ; UNK/SBZP (ARM DDI 0419E §B1.4.5)
+    // so it is safe to simply write the register without reading it first.
     movs r0, #0
     msr CONTROL, r0
     ldr r1, 100f // EXC_RETURN_MSP
