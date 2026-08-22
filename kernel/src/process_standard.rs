@@ -1016,6 +1016,15 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     //    process-accessible memory region through the process
                     //    buffer infrastructure.
                     let old_break_mut_ptr: *mut u8 = old_break.cast_mut();
+                    // SAFETY: We know this will write to only process-accessible memory
+                    // that has never been used to create any kernel data structures
+                    // because of the checks at the beginning of this function. We also
+                    // know this is valid memory to write to because we checked the
+                    // new_break is within process memory. Because we are using `u8`, we
+                    // know `old_break_mut_ptr` is aligned. Since the process will have
+                    // access to this memory we know the kernel will not try to use it
+                    // for any data structures, avoiding any potential future memory
+                    // initialization error.
                     unsafe {
                         core::ptr::write_bytes(
                             old_break_mut_ptr,
