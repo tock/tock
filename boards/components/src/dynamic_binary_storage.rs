@@ -11,6 +11,7 @@
 //! # use kernel::static_init;
 //!
 //! let dynamic_binary_storage = components::dyn_binary_storage::SequentialBinaryStorageComponent::new(
+//!     board_kernel,
 //!     &base_peripherals.nvmc,
 //!     &loader,
 //! )
@@ -61,6 +62,7 @@ pub struct SequentialBinaryStorageComponent<
     C: Chip + 'static,
     D: ProcessStandardDebug + 'static,
 > {
+    board_kernel: &'static kernel::Kernel,
     nv_flash: &'static F,
     loader_driver: &'static SequentialProcessLoaderMachine<'static, C, D>,
 }
@@ -72,10 +74,12 @@ impl<
 > SequentialBinaryStorageComponent<F, C, D>
 {
     pub fn new(
+        board_kernel: &'static kernel::Kernel,
         nv_flash: &'static F,
         loader_driver: &'static SequentialProcessLoaderMachine<'static, C, D>,
     ) -> Self {
         Self {
+            board_kernel,
             nv_flash,
             loader_driver,
         }
@@ -119,6 +123,7 @@ impl<
         hil::flash::HasClient::set_client(self.nv_flash, nv_to_page);
 
         let dynamic_binary_storage = static_buffer.2.write(SequentialDynamicBinaryStorage::new(
+            self.board_kernel,
             nv_to_page,
             self.loader_driver,
             buffer,
