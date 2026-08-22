@@ -264,6 +264,48 @@ macro_rules! mint_defined_capability {
     };
 }
 
+/// Mint an [`InterruptsDisabledContext`](crate::context_tokens::InterruptsDisabledContext) token.
+///
+/// This is the `InterruptsDisabledContext` equivalent of [`create_capability!`]:
+/// it hides the `unsafe` keyword at the call site while still requiring that
+/// call site be in a crate permitted to use `unsafe` at all.
+///
+/// # Usage Example
+///
+/// ```ignore
+/// # use kernel::mint_interrupts_disabled_context;
+/// let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
+/// ```
+///
+/// # Restrictions
+///
+/// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates.
+/// It must only be invoked from a source location that has just established
+/// interrupts are genuinely disabled on this core: an architecture-level
+/// `with_interrupts_disabled` primitive, or a trap/interrupt handler on an
+/// architecture where hardware disables interrupts automatically on entry.
+/// Invoking this anywhere else compiles cleanly but produces a token that
+/// doesn't actually correspond to the current interrupt state, defeating its
+/// purpose.
+///
+/// # Safety
+///
+/// This macro can only be used in a context that is allowed to use `unsafe`.
+/// Specifically, an internal `allow(unsafe_code)` directive will conflict with
+/// any `forbid(unsafe_code)` at the crate or block level.
+#[macro_export]
+macro_rules! mint_interrupts_disabled_context {
+    () => {{
+        // SAFETY: this expansion only compiles in a crate permitted to use
+        // `unsafe` (see macro doc); by invoking this macro here, the caller
+        // asserts interrupts are genuinely disabled on this core.
+        #[allow(unsafe_code)]
+        unsafe {
+            $crate::context_tokens::InterruptsDisabledContext::new_trusted()
+        }
+    }};
+}
+
 /// Count the number of passed expressions.
 ///
 /// Useful for constructing variable sized arrays in other macros.

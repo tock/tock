@@ -384,7 +384,7 @@ impl Kernel {
                         // the running test does not generate
                         // any interrupts.
                         if !no_sleep {
-                            chip.with_interrupts_disabled(|| {
+                            chip.with_interrupts_disabled(|_interrupts_disabled| {
                                 // Cannot sleep if interrupts are pending,
                                 // as on most platforms unhandled interrupts
                                 // will wake the device. Also, if the only

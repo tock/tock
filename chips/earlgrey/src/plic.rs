@@ -4,10 +4,10 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
-use core::cell::Cell;
-
 use crate::registers::top_earlgrey::RV_PLIC_BASE_ADDR;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::utilities::StaticRef;
+use kernel::utilities::interrupts_disabled_cell::InterruptsDisabledCell;
 use kernel::utilities::registers::LocalRegisterCopy;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
@@ -52,7 +52,7 @@ register_bitfields![u32,
 
 pub struct Plic {
     registers: StaticRef<PlicRegisters>,
-    saved: [Cell<LocalRegisterCopy<u32>>; PLIC_REGS],
+    saved: [InterruptsDisabledCell<LocalRegisterCopy<u32>>; PLIC_REGS],
 }
 
 impl Plic {
@@ -60,12 +60,12 @@ impl Plic {
         Plic {
             registers: base,
             saved: [
-                Cell::new(LocalRegisterCopy::new(0)),
-                Cell::new(LocalRegisterCopy::new(0)),
-                Cell::new(LocalRegisterCopy::new(0)),
-                Cell::new(LocalRegisterCopy::new(0)),
-                Cell::new(LocalRegisterCopy::new(0)),
-                Cell::new(LocalRegisterCopy::new(0)),
+                InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
+                InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
+                InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
+                InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
+                InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
+                InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
             ],
         }
     }
@@ -119,21 +119,19 @@ impl Plic {
 
     /// Save the current interrupt to be handled later
     /// This will save the interrupt at index internally to be handled later.
-    /// Interrupts must be disabled before this is called.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub unsafe fn save_interrupt(&self, index: u32) {
+    pub fn save_interrupt(&self, index: u32, interrupts_disabled: &InterruptsDisabledContext) {
         if index >= PLIC_IRQ_NUM as u32 {
             panic!("Invalid IRQ: {}", index)
         }
         let offset = (index / 32) as usize;
         let mask = 1 << (index % 32);
 
-        // OR the current saved state with the new value
-        let new_saved = self.saved[offset].get().get() | mask;
-
-        // Set the new state
-        self.saved[offset].set(LocalRegisterCopy::new(new_saved));
+        self.saved[offset].update(
+            |val| LocalRegisterCopy::new(val.get() | mask),
+            interrupts_disabled,
+        );
     }
 
     /// The `next_pending()` function will only return enabled interrupts.
@@ -151,8 +149,7 @@ impl Plic {
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
-    /// Interrupts must be disabled before this is called.
-    pub unsafe fn complete(&self, index: u32) {
+    pub fn complete(&self, index: u32, interrupts_disabled: &InterruptsDisabledContext) {
         self.registers.claim.set(index);
         if index >= PLIC_IRQ_NUM as u32 {
             panic!("Invalid IRQ: {}", index)
@@ -160,10 +157,9 @@ impl Plic {
         let offset = (index / 32) as usize;
         let mask = !(1 << (index % 32));
 
-        // OR the current saved state with the new value
-        let new_saved = self.saved[offset].get().get() & mask;
-
-        // Set the new state
-        self.saved[offset].set(LocalRegisterCopy::new(new_saved));
+        self.saved[offset].update(
+            |val| LocalRegisterCopy::new(val.get() & mask),
+            interrupts_disabled,
+        );
     }
 }

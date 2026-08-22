@@ -4,10 +4,10 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
-use core::cell::Cell;
-
 use crate::interrupts;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::utilities::StaticRef;
+use kernel::utilities::interrupts_disabled_cell::InterruptsDisabledCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
     LocalRegisterCopy, ReadWrite, register_bitfields, register_structs,
@@ -58,14 +58,14 @@ register_bitfields![u32,
 
 pub struct Intc {
     registers: StaticRef<IntcRegisters>,
-    saved: Cell<LocalRegisterCopy<u32>>,
+    saved: InterruptsDisabledCell<LocalRegisterCopy<u32>>,
 }
 
 impl Intc {
     pub const fn new(base: StaticRef<IntcRegisters>) -> Self {
         Intc {
             registers: base,
-            saved: Cell::new(LocalRegisterCopy::new(0)),
+            saved: InterruptsDisabledCell::new(LocalRegisterCopy::new(0)),
         }
     }
 
@@ -131,15 +131,13 @@ impl Intc {
 
     /// Save the current interrupt to be handled later
     /// This will save the interrupt at index internally to be handled later.
-    /// Interrupts must be disabled before this is called.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub unsafe fn save_interrupt(&self, irq: u32) {
-        // OR the current saved state with the new value
-        let new_saved = self.saved.get().get() | 1 << irq;
-
-        // Set the new state
-        self.saved.set(LocalRegisterCopy::new(new_saved));
+    pub fn save_interrupt(&self, irq: u32, interrupts_disabled: &InterruptsDisabledContext) {
+        self.saved.update(
+            |val| LocalRegisterCopy::new(val.get() | 1 << irq),
+            interrupts_disabled,
+        );
     }
 
     /// The `next_pending()` function will only return enabled interrupts.
@@ -156,12 +154,10 @@ impl Intc {
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
-    /// Interrupts must be disabled before this is called.
-    pub unsafe fn complete(&self, irq: u32) {
-        // OR the current saved state with the new value
-        let new_saved = self.saved.get().get() & !(1 << irq);
-
-        // Set the new state
-        self.saved.set(LocalRegisterCopy::new(new_saved));
+    pub fn complete(&self, irq: u32, interrupts_disabled: &InterruptsDisabledContext) {
+        self.saved.update(
+            |val| LocalRegisterCopy::new(val.get() & !(1 << irq)),
+            interrupts_disabled,
+        );
     }
 }

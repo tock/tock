@@ -7,6 +7,7 @@ use core::fmt::Write;
 use core::panic;
 
 use cortexm33::{CortexM33, CortexMVariant};
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -92,7 +93,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm33::support::with_interrupts_disabled(f)
     }

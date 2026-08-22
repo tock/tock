@@ -23,9 +23,11 @@ use super::pic;
 #[allow(unsupported_calling_conventions)]
 #[no_mangle]
 unsafe extern "cdecl" fn handle_external_interrupt(num: u32) {
-    unsafe {
-        InterruptPoller::set_pending(num);
-        pic::mask(num);
-        pic::eoi(num);
-    }
+    // we were just called via the IDT interrupt gate, and x86 hardware
+    // clears EFLAGS.IF on entry through an interrupt gate before any handler
+    // code runs.
+    let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
+    InterruptPoller::set_pending(num, &interrupts_disabled);
+    pic::mask(num, &interrupts_disabled);
+    pic::eoi(num, &interrupts_disabled);
 }

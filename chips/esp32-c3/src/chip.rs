@@ -7,6 +7,7 @@
 use core::fmt::Write;
 use core::ptr::addr_of;
 
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -95,14 +96,13 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
         self.intc.enable_all();
     }
 
-    unsafe fn handle_pic_interrupts(&self) {
+    fn handle_pic_interrupts(&self) {
         while let Some(interrupt) = self.intc.get_saved_interrupts() {
             if !self.pic_interrupt_service.service_interrupt(interrupt) {
                 panic!("Unhandled interrupt {}", interrupt);
             }
-            self.with_interrupts_disabled(|| {
-                // Safe as interrupts are disabled
-                self.intc.complete(interrupt);
+            self.with_interrupts_disabled(|interrupts_disabled| {
+                self.intc.complete(interrupt, interrupts_disabled);
             });
         }
     }
@@ -118,9 +118,7 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
     fn service_pending_interrupts(&self) {
         loop {
             if self.intc.get_saved_interrupts().is_some() {
-                unsafe {
-                    self.handle_pic_interrupts();
-                }
+                self.handle_pic_interrupts();
             }
 
             if self.intc.get_saved_interrupts().is_none() {
@@ -151,7 +149,7 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         rv32i::support::with_interrupts_disabled(f)
     }
@@ -226,20 +224,23 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
-unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
+fn handle_interrupt(_intr: mcause::Interrupt, interrupts_disabled: &InterruptsDisabledContext) {
     CSR.mstatus.modify(csr::mstatus::mstatus::mie::CLEAR);
+
+    // Safety: interrupts are disabled (we have an InterruptsDisabledContext
+    // token), so this cannot race a concurrent access to the INTC.
+    let intc_ref = unsafe { &*addr_of!(INTC) };
 
     // Claim the interrupt, unwrap() as we know an interrupt exists
     // Once claimed this interrupt won't fire until it's completed
     // NOTE: The interrupt is no longer pending in the PLIC
     loop {
-        let interrupt = (*addr_of!(INTC)).next_pending();
+        let interrupt = intc_ref.next_pending();
 
         match interrupt {
             Some(irq) => {
-                // Safe as interrupts are disabled
-                (*addr_of!(INTC)).save_interrupt(irq);
-                (*addr_of!(INTC)).disable(irq);
+                intc_ref.save_interrupt(irq, interrupts_disabled);
+                intc_ref.disable(irq);
             }
             None => {
                 // Enable generic interrupts
@@ -256,9 +257,12 @@ unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
 /// in kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
+    // we were just called via a trap, and RISC-V hardware clears
+    // `mstatus.MIE` on trap entry before any Rust code runs.
+    let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
-            handle_interrupt(interrupt);
+            handle_interrupt(interrupt, &interrupts_disabled);
         }
         mcause::Trap::Exception(exception) => {
             handle_exception(exception);
@@ -272,9 +276,12 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
+    // we were just called via a trap, and RISC-V hardware clears
+    // `mstatus.MIE` on trap entry before any Rust code runs.
+    let interrupts_disabled = kernel::mint_interrupts_disabled_context!();
     match mcause::Trap::from(mcause_val as usize) {
         mcause::Trap::Interrupt(interrupt) => {
-            handle_interrupt(interrupt);
+            handle_interrupt(interrupt, &interrupts_disabled);
         }
         _ => {
             panic!("unexpected non-interrupt\n");

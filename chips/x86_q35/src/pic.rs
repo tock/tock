@@ -9,6 +9,7 @@
 //! * <https://wiki.osdev.org/8259_PIC>
 //! * <https://github.com/rust-osdev/pic8259>
 
+use kernel::context_tokens::InterruptsDisabledContext;
 use x86::IDT_RESERVED_EXCEPTIONS;
 use x86::registers::io;
 
@@ -95,11 +96,11 @@ pub unsafe fn init() {
 ///
 /// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
 ///
-/// # Safety
-///
-/// This function must _only_ be called from an interrupt servicing routine. Calling this function
-/// from the normal kernel loop could interfere with this crate's interrupt handling logic.
-pub(crate) unsafe fn eoi(num: u32) {
+/// This function must only be called from within the interrupt servicing routine actually
+/// handling `num`. Unlike `mask`/`unmask`, holding `&InterruptsDisabledContext` alone is not sufficient
+/// here: sending EOI outside of real interrupt-service context -- even with interrupts disabled --
+/// can desynchronize the PIC's internal in-service state and corrupt future interrupt delivery.
+pub(crate) fn eoi(num: u32, _interrupts_disabled: &InterruptsDisabledContext) {
     let _ = u8::try_from(num).map(|num| unsafe {
         if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&num) {
             io::outb(PIC1_CMD, PIC_CMD_EOI);
@@ -113,12 +114,7 @@ pub(crate) unsafe fn eoi(num: u32) {
 /// Masks interrupt `num`, disabling its delivery to the CPU.
 ///
 /// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
-///
-/// # Safety
-///
-/// Must be called with interrupts disabled or from within an interrupt handler to avoid race
-/// conditions updating the IMR.
-pub(crate) unsafe fn mask(num: u32) {
+pub(crate) fn mask(num: u32, _interrupts_disabled: &InterruptsDisabledContext) {
     let _ = u8::try_from(num).map(|n| unsafe {
         if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&n) {
             let bit = n - PIC1_OFFSET; // 0-7
@@ -136,14 +132,9 @@ pub(crate) unsafe fn mask(num: u32) {
 ///
 /// If `num` does not correspond to either the primary or secondary PIC, then no action is taken.
 ///
-/// # Safety
-///
-/// Must be called with interrupts disabled or from within an interrupt handler to avoid race
-/// conditions updating the IMR.
-///
 /// There must be an interrupt handler registered to properly handle `num`, as the interrupt may
 /// fire at any time once this function is called.
-pub(crate) unsafe fn unmask(num: u32) {
+pub(crate) fn unmask(num: u32, _interrupts_disabled: &InterruptsDisabledContext) {
     let _ = u8::try_from(num).map(|n| unsafe {
         if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&n) {
             let bit = n - PIC1_OFFSET; // 0-7

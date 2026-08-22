@@ -5,6 +5,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -106,7 +107,7 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm33::support::with_interrupts_disabled(f)
     }

@@ -5,6 +5,7 @@
 use core::fmt::Write;
 
 use kernel::component::Component;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::{Chip, InterruptService};
 use x86::mpu::PagingMPU;
 use x86::registers::bits32::paging::{PD, PT};
@@ -161,7 +162,7 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
     }
 
     fn service_pending_interrupts(&self) {
-        InterruptPoller::access(|poller| {
+        InterruptPoller::access(|poller, interrupts_disabled| {
             while let Some(num) = poller.next_pending() {
                 let mut handled = true;
                 match self.default_peripherals.service_interrupt(num) {
@@ -177,9 +178,7 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
 
                 // Unmask the interrupt so it can fire again, but only if we know how to handle it
                 if handled {
-                    unsafe {
-                        crate::pic::unmask(num);
-                    }
+                    crate::pic::unmask(num, interrupts_disabled);
                 } else {
                     kernel::debug!("Unhandled external interrupt {} left masked", num);
                 }
@@ -188,7 +187,7 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        InterruptPoller::access(|poller| poller.next_pending().is_some())
+        InterruptPoller::access(|poller, _interrupts_disabled| poller.next_pending().is_some())
     }
 
     #[cfg(target_arch = "x86")]
@@ -236,7 +235,7 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         support::with_interrupts_disabled(f)
     }
