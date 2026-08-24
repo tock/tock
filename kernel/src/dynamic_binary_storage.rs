@@ -399,16 +399,37 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                     let mut padding_slice = SubSliceMut::new(buffer);
                     padding_slice.slice(..PADDING_TBF_HEADER_LENGTH);
                     // We are only writing the header, so 16 bytes is enough.
-                    crate::debug!("write header");
-                    self.write_buffer(padding_slice, offset)
+                    crate::debug!(
+                        "dynamic_binary_storage: write_padding_app: writing {}-byte padding header at offset={:#x}",
+                        PADDING_TBF_HEADER_LENGTH,
+                        offset
+                    );
+                    // self.write_buffer(padding_slice, offset)
+                    //     .map_err(|(e, buf)| {
+                    //         crate::debug!(
+                    //             "dynamic_binary_storage: write_padding_app: padding header write failed: {:?}",
+                    //             e
+                    //         );
+                    //         self.buffer.replace(buf.take());
+                    //         e
+                    //     })
+                    let buffer = padding_slice.take();
+                    self.flash_driver
+                        .write(buffer, offset-0x2000_0000, buffer.len())
                         .map_err(|(e, buf)| {
-                            crate::debug!("write headerfail");
-                            self.buffer.replace(buf.take());
+                            crate::debug!(
+                                "dynamic_binary_storage: write_padding_app: flash_driver.write failed: {:?}",
+                                e
+                            );
+                            self.buffer.replace(buf);
                             e
                         })
                 }
                 false => {
-                    crate::debug!("no go");
+                    crate::debug!(
+                        "dynamic_binary_storage: write_padding_app: offset={:#x} not within flash bounds",
+                        offset
+                    );
                     Err(ErrorCode::NOMEM)
                 }
             }
