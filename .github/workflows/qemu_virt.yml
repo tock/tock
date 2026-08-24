@@ -24,6 +24,8 @@ jobs:
   qemu-virt-ci:
     runs-on: ubuntu-latest
     container:
+      # Need a version of debian that has (at least) GCC 15 for
+      # RISCV-64 support in libtock-c.
       image: debian:forky-slim
 
     steps:
