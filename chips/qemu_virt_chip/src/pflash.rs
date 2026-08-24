@@ -170,7 +170,22 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
             return Err((ErrorCode::INVAL, data));
         }
 
-        if !self.is_page_blank(page_number) {
+        let start = page_number * PAGE_WORDS;
+
+        let mut do_erase = false;
+        for (i, word) in data.as_mut().as_chunks::<4>().0.iter().enumerate() {
+            let value = u32::from_le_bytes(*word);
+
+            let existing_value = self.registers[start + i].get();
+
+            if existing_value != 0xFFFFFFFF && value != existing_value {
+                do_erase = true;
+                break;
+            }
+        }
+
+        // if !self.is_page_blank(page_number)  {
+        if do_erase {
             kernel::debug!(
                 "pflash: write_page: page_number={} not blank, erasing sector",
                 page_number
@@ -178,13 +193,15 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
             self.erase_sector(page_number);
         }
 
-        let start = page_number * PAGE_WORDS;
         let mut words_programmed = 0;
         for (i, word) in data.as_mut().as_chunks::<4>().0.iter().enumerate() {
             let value = u32::from_le_bytes(*word);
+
+            let existing_value = self.registers[start + i].get();
+
             // Skip writing the default value. This is incredibly slow to write
             // every word in the sector.
-            if value != 0xFFFFFFFF {
+            if value != 0xFFFFFFFF && value != existing_value {
                 self.program_word(start + i, value);
                 words_programmed += 1;
             }
@@ -271,7 +288,7 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
         page_number: usize,
         buf: &'static mut Self::Page,
     ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
-        self.read_range(page_number, buf)
+        self.read_range(page_number - 0x800, buf)
     }
 
     fn write_page(
@@ -279,11 +296,11 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
         page_number: usize,
         buf: &'static mut Self::Page,
     ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
-        self.write_page_impl(page_number, buf)
+        self.write_page_impl(page_number - 0x800, buf)
     }
 
     fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
-        self.erase_page_impl(page_number)
+        self.erase_page_impl(page_number - 0x800)
     }
 }
 
