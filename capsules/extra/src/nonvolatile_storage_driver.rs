@@ -333,9 +333,13 @@ impl<'a> NonvolatileStorage<'a> {
                                 NonvolatileCommand::KernelRead => {
                                     self.driver.read(kernel_buffer, offset, active_len)
                                 }
-                                NonvolatileCommand::KernelWrite => {
-                                    self.driver.write(kernel_buffer, offset, active_len)
-                                }
+                                NonvolatileCommand::KernelWrite => self
+                                    .driver
+                                    .write(kernel_buffer, offset, active_len)
+                                    .map_err(|(e, buf)| {
+                                        self.kernel_buffer.replace(buf);
+                                        e
+                                    }),
                                 _ => Err(ErrorCode::FAIL),
                             }
                         } else {
@@ -377,9 +381,13 @@ impl<'a> NonvolatileStorage<'a> {
                     NonvolatileCommand::UserspaceRead => {
                         self.driver.read(buffer, physical_address, active_len)
                     }
-                    NonvolatileCommand::UserspaceWrite => {
-                        self.driver.write(buffer, physical_address, active_len)
-                    }
+                    NonvolatileCommand::UserspaceWrite => self
+                        .driver
+                        .write(buffer, physical_address, active_len)
+                        .map_err(|(e, buf)| {
+                            self.buffer.replace(buf);
+                            e
+                        }),
                     _ => Err(ErrorCode::FAIL),
                 }
             })
@@ -398,11 +406,17 @@ impl<'a> NonvolatileStorage<'a> {
                         self.kernel_readwrite_address.get(),
                         self.kernel_readwrite_length.get(),
                     ),
-                    NonvolatileCommand::KernelWrite => self.driver.write(
-                        kernel_buffer,
-                        self.kernel_readwrite_address.get(),
-                        self.kernel_readwrite_length.get(),
-                    ),
+                    NonvolatileCommand::KernelWrite => self
+                        .driver
+                        .write(
+                            kernel_buffer,
+                            self.kernel_readwrite_address.get(),
+                            self.kernel_readwrite_length.get(),
+                        )
+                        .map_err(|(e, buf)| {
+                            self.kernel_buffer.replace(buf);
+                            e
+                        }),
                     _ => Err(ErrorCode::FAIL),
                 }
             });
@@ -519,9 +533,10 @@ impl<'a> hil::nonvolatile_storage::NonvolatileStorage<'a> for NonvolatileStorage
         buffer: &'static mut [u8],
         address: usize,
         length: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         self.kernel_buffer.replace(buffer);
         self.enqueue_command(NonvolatileCommand::KernelWrite, address, length, None)
+            .map_err(|e| (e, self.kernel_buffer.take().unwrap()))
     }
 }
 

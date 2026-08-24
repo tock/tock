@@ -127,7 +127,12 @@ impl<'a> AppFlash<'a> {
                                             *c = d[i].get();
                                         }
 
-                                        self.driver.write(buffer, flash_address, length)
+                                        self.driver.write(buffer, flash_address, length).map_err(
+                                            |(e, buf)| {
+                                                self.buffer.replace(buf);
+                                                e
+                                            },
+                                        )
                                     })
                             })
                         })
@@ -185,12 +190,12 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'_> {
                                             *c = d[i].get();
                                         }
 
-                                        if let Ok(()) =
-                                            self.driver.write(buffer, flash_address, length)
-                                        {
-                                            true
-                                        } else {
-                                            false
+                                        match self.driver.write(buffer, flash_address, length) {
+                                            Ok(()) => true,
+                                            Err((_e, buf)) => {
+                                                self.buffer.replace(buf);
+                                                false
+                                            }
                                         }
                                     }
                                 })

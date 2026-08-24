@@ -24,12 +24,15 @@ pub trait NonvolatileStorage<'a> {
     /// Write `length` bytes starting at address `address` from the provided
     /// buffer. The buffer must be at least `length` bytes long. This address
     /// must be in the address space of the physical storage.
+    ///
+    /// On error, the buffer is returned alongside the `ErrorCode` so the
+    /// caller does not lose ownership of it.
     fn write(
         &self,
         buffer: &'static mut [u8],
         address: usize,
         length: usize,
-    ) -> Result<(), ErrorCode>;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 }
 
 /// Client interface for nonvolatile storage.
