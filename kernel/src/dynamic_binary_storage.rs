@@ -78,7 +78,11 @@ pub trait DynamicBinaryStore {
     ///
     /// Returns an error if the write is outside of the permitted region or is
     /// writing an invalid header.
-    fn write(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode>;
+    fn write(
+        &self,
+        buffer: SubSliceMut<'static, u8>,
+        offset: usize,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)>;
 
     /// Signal to the kernel that the requesting process is done writing the new
     /// binary.
@@ -223,12 +227,12 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
         &self,
         user_buffer: SubSliceMut<'static, u8>,
         offset: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         let length = user_buffer.len();
-        // Take the buffer to perform tbf header validation and write with.
-        let buffer = user_buffer.take();
 
-        let physical_address = self.compute_address(offset, length)?;
+        let physical_address = self
+            .compute_address(offset, length)
+            .map_err(|e| (e, user_buffer))?;
 
         // The kernel needs to check if the app is trying to write/overwrite the
         // header. So the app can only write to the first 8 bytes if the app is
@@ -241,8 +245,11 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
         // set of 8 bytes which is used to determine if the header is valid. We
         // don't want apps to do this, so we return an error.
         if (offset == 0 && length < 8) || (offset != 0 && offset < 8) {
-            return Err(ErrorCode::INVAL);
+            return Err((ErrorCode::INVAL, user_buffer));
         }
+
+        // Take the buffer to perform tbf header validation and write with.
+        let buffer = user_buffer.take();
 
         // Check if we are writing the start of the TBF header.
         //
@@ -261,12 +268,12 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                     Ok((v, hl, el)) => (v, hl, el),
                     Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
                         // If we have an invalid header, so we return an error
-                        return Err(ErrorCode::INVAL);
+                        return Err((ErrorCode::INVAL, user_buffer));
                     }
                     Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
                         // If we could not parse the header, then that's an
                         // issue. We return an Error.
-                        return Err(ErrorCode::INVAL);
+                        return Err((ErrorCode::INVAL, user_buffer));
                     }
                 };
 
@@ -278,7 +285,7 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                 new_app_len = metadata.new_app_length;
             }
             if entry_length as usize != new_app_len {
-                return Err(ErrorCode::INVAL);
+                return Err((ErrorCode::INVAL, user_buffer));
             }
         }
         self.flash_driver.write(buffer, physical_address, length)
@@ -536,16 +543,20 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
         }
     }
 
-    fn write(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode> {
+    fn write(
+        &self,
+        buffer: SubSliceMut<'static, u8>,
+        offset: usize,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         match self.state.get() {
             State::AppWrite => {
                 let res = self.write_buffer(buffer, offset);
                 match res {
                     Ok(()) => Ok(()),
-                    Err(e) => {
+                    Err((e, buffer)) => {
                         // If we fail here, let us erase the app we just wrote.
                         self.state.set(State::Fail);
-                        Err(e)
+                        Err((e, buffer))
                     }
                 }
             }
@@ -553,7 +564,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 // We are in the wrong mode of operation. Ideally we should never reach
                 // here, but this error exists as a failsafe. The capsule should send
                 // a busy error out to the userland app.
-                Err(ErrorCode::INVAL)
+                Err((ErrorCode::INVAL, buffer))
             }
         }
     }

@@ -82,7 +82,7 @@ init:
 
 # Run the kernel inside a qemu-riscv32-system "virt" machine type simulation
 .PHONY: run
-run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin qemu_rv32_virt_dynamic_apps-kernel.bin qemu_rv32_virt_dynamic_apps-apps.bin
+run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin qemu_rv32_virt_dynamic_apps-apps.bin
 	@echo
 	@echo -e "Running $$($(QEMU_CMD) --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSIONS); known broken: $(BROKEN_QEMU_VERSIONS)) with\n"\

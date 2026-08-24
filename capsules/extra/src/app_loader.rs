@@ -184,7 +184,7 @@ impl<
             .enter(processid, |_app, kernel_data| {
                 let mut active_len = 0;
 
-                let result = kernel_data
+                kernel_data
                     .get_readonly_processbuffer(ro_allow::WRITE)
                     .and_then(|write| {
                         write.enter(|app_buffer| {
@@ -193,10 +193,10 @@ impl<
                                     // Get the length of the allowed buffer
                                     let allow_buf_len = app_buffer.len();
 
-                                    // Check that the buffer length is not zero
-                                    if allow_buf_len == 0 {
-                                        return Err(ErrorCode::RESERVE);
-                                    }
+                                    // // Check that the buffer length is not zero
+                                    // if allow_buf_len == 0 {
+                                    //     return Err(ErrorCode::RESERVE);
+                                    // }
 
                                     // Shorten the length if the application did not give us
                                     // enough bytes in the allowed buffer.
@@ -209,17 +209,21 @@ impl<
 
                                     Ok(())
                                 })
-                                .unwrap_or(Err(ErrorCode::RESERVE))
+                                .unwrap_or(Err(ErrorCode::NOMEM))
                         })
-                    });
+                    })?;
 
-                if result.is_err() {
-                    return Err(ErrorCode::RESERVE);
-                }
+                // if result.is_err() {
+                //     return Err(ErrorCode::RESERVE);
+                // }
 
-                self.buffer
-                    .take()
-                    .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                let k = self.buffer.take().map_or_else(
+                    || {
+                        kernel::debug!("no buf");
+                        Err(ErrorCode::RESERVE)
+                    },
+                    |buffer| {
+                        kernel::debug!("have buf");
                         let mut write_buffer = SubSliceMut::new(buffer);
                         // should be the length supported by the app
                         // (currently only powers of 2 work)
@@ -227,9 +231,15 @@ impl<
                         let res = self.storage_driver.write(write_buffer, offset);
                         match res {
                             Ok(()) => Ok(()),
-                            Err(e) => Err(e),
+                            Err((e, buffer)) => {
+                                self.buffer.replace(buffer);
+                                Err(e)
+                            }
                         }
-                    })
+                    },
+                );
+                kernel::debug!("start write {:?}", k);
+                k
             })
             .unwrap_or_else(|err| Err(err.into()))
     }
