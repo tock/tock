@@ -400,9 +400,13 @@ impl<
     ///
     /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Request kernel to setup for loading app.
+    ///  - `arg1`: the length of the app, in bytes.
+    ///  - `arg2`: a fixed flash address the app must be placed at, or `0` to
+    ///    let the kernel choose an address.
     ///  - Returns appsize if the kernel has available space
     ///  - Returns ErrorCode::FAIL if the kernel is unable to allocate space for
-    ///    the new app
+    ///    the new app, including when `arg2` is nonzero and that address is
+    ///    already occupied or the app would not fit in flash there
     /// - `2`: Request kernel to write app data to the nonvolatile_storage
     ///  - Returns Ok(()) when write is successful
     ///  - Returns ErrorCode::INVAL when the app is violating bounds
@@ -468,9 +472,16 @@ impl<
 
             1 => {
                 // Request kernel to allocate resources for
-                // an app with size passed via `arg1`.
-                kernel::debug!("app_loader: command: SETUP (1) app_length={}", arg1);
-                let res = self.storage_driver.setup(arg1);
+                // an app with size passed via `arg1`, optionally at the
+                // fixed flash address passed via `arg2` (0 means no fixed
+                // address).
+                let fixed_address = if arg2 == 0 { None } else { Some(arg2) };
+                kernel::debug!(
+                    "app_loader: command: SETUP (1) app_length={} fixed_address={:?}",
+                    arg1,
+                    fixed_address
+                );
+                let res = self.storage_driver.setup(arg1, fixed_address);
                 match res {
                     Ok(app_len) => {
                         self.new_app_length.set(app_len);

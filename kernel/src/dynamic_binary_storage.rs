@@ -59,13 +59,19 @@ pub trait DynamicBinaryStore {
     /// entire process binary. The kernel will try to find a suitable location
     /// in flash to store said process.
     ///
+    /// If `fixed_address` is `Some`, the process binary must be placed at
+    /// that exact address in flash rather than at a location chosen by the
+    /// kernel.
+    ///
     /// Return value:
     /// - `Ok(length)`: If there is a place to load the
     ///   process, the function will return `Ok()` with the size of the region
     ///   to store the process.
     /// - `Err(ErrorCode)`: If there is nowhere to store the process a suitable
-    ///   `ErrorCode` will be returned.
-    fn setup(&self, app_length: usize) -> Result<usize, ErrorCode>;
+    ///   `ErrorCode` will be returned. If `fixed_address` was provided, this
+    ///   includes the case where that address is already occupied or the
+    ///   process would not fit in flash starting at that address.
+    fn setup(&self, app_length: usize, fixed_address: Option<usize>) -> Result<usize, ErrorCode>;
 
     /// Instruct the kernel to write data to the flash.
     ///
@@ -578,12 +584,15 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
         self.storage_client.set(client);
     }
 
-    fn setup(&self, app_length: usize) -> Result<usize, ErrorCode> {
+    fn setup(&self, app_length: usize, fixed_address: Option<usize>) -> Result<usize, ErrorCode> {
         self.process_metadata.set(ProcessLoadMetadata::default());
 
         if self.state.get() == State::Idle {
             self.state.set(State::Setup);
-            match self.loader_driver.check_flash_for_new_address(app_length) {
+            match self
+                .loader_driver
+                .check_flash_for_new_address(app_length, fixed_address)
+            {
                 Ok((
                     new_app_start_address,
                     padding_requirement,

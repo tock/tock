@@ -1139,11 +1139,38 @@ impl<'a, C: Chip, D: ProcessStandardDebug, const MPU_ALIGNMENT: MpuAlignment>
         )
     }
 
+    /// Checks whether `address` is free to hold a new app of size `app_size`,
+    /// i.e. it does not overlap with any already-discovered process binary.
+    ///
+    /// `pb_start_address` and `pb_end_address` are the (possibly sparse,
+    /// zero-padded) arrays of existing process binary bounds as filled in by
+    /// [`Self::scan_flash_for_process_binaries`].
+    fn fixed_address_is_available(
+        &self,
+        address: usize,
+        app_size: usize,
+        pb_start_address: &[usize],
+        pb_end_address: &[usize],
+    ) -> bool {
+        let new_app_end = match address.checked_add(app_size) {
+            Some(end) => end,
+            None => return false,
+        };
+
+        !pb_start_address
+            .iter()
+            .zip(pb_end_address.iter())
+            .any(|(&start, &end)| start != 0 && end != 0 && address < end && start < new_app_end)
+    }
+
     /// This function scans flash, checks for, and returns an address that follows alignment rules given
-    /// an app size of `new_app_size`.
+    /// an app size of `new_app_size`. If `fixed_address` is `Some`, that
+    /// address is validated and used instead of computing one, and an error
+    /// is returned if it is already occupied or does not fit in flash.
     fn check_flash_for_valid_address(
         &self,
         new_app_size: usize,
+        fixed_address: Option<usize>,
         pb_start_address: &mut [usize],
         pb_end_address: &mut [usize],
     ) -> Result<usize, ProcessBinaryError> {
@@ -1156,11 +1183,27 @@ impl<'a, C: Chip, D: ProcessStandardDebug, const MPU_ALIGNMENT: MpuAlignment>
                 if config::CONFIG.debug_load_processes {
                     debug!("Successfully scanned flash");
                 }
-                let new_app_address = self.compute_new_process_binary_address(
-                    new_app_size,
-                    pb_start_address,
-                    pb_end_address,
-                );
+
+                let new_app_address = match fixed_address {
+                    Some(address) => {
+                        if address < total_flash_start
+                            || !self.fixed_address_is_available(
+                                address,
+                                new_app_size,
+                                pb_start_address,
+                                pb_end_address,
+                            )
+                        {
+                            return Err(ProcessBinaryError::NotEnoughFlash);
+                        }
+                        address
+                    }
+                    None => self.compute_new_process_binary_address(
+                        new_app_size,
+                        pb_start_address,
+                        pb_end_address,
+                    ),
+                };
 
                 debug!("new app address: {:#02x}", new_app_address);
 
@@ -1183,16 +1226,22 @@ impl<'a, C: Chip, D: ProcessStandardDebug, const MPU_ALIGNMENT: MpuAlignment>
         (flash_end - offset) >= length
     }
 
-    /// Function to compute an available address for the new application binary.
+    /// Function to compute an available address for the new application
+    /// binary. If `fixed_address` is `Some`, that address is used instead of
+    /// computing one, and an error is returned if it is unavailable (either
+    /// because it is already occupied by an existing process binary or
+    /// because the app would not fit within flash at that address).
     pub fn check_flash_for_new_address(
         &self,
         new_app_size: usize,
+        fixed_address: Option<usize>,
     ) -> Result<(usize, PaddingRequirement, usize, usize), ProcessBinaryError> {
         const MAX_PROCS: usize = 10;
         let mut pb_start_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
         let mut pb_end_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
         match self.check_flash_for_valid_address(
             new_app_size,
+            fixed_address,
             &mut pb_start_address,
             &mut pb_end_address,
         ) {
