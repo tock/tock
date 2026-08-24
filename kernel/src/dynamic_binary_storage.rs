@@ -29,7 +29,7 @@ pub const BUF_LEN: usize = 512;
 /// The number of bytes in the TBF header for a padding app.
 const PADDING_TBF_HEADER_LENGTH: usize = 16;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
     Idle,
     Setup,
@@ -229,10 +229,21 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
         offset: usize,
     ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         let length = user_buffer.len();
+        crate::debug!(
+            "dynamic_binary_storage: write_buffer: offset={} length={}",
+            offset,
+            length
+        );
 
         let physical_address = match self.compute_address(offset, length) {
             Ok(addr) => addr,
-            Err(e) => return Err((e, user_buffer)),
+            Err(e) => {
+                crate::debug!(
+                    "dynamic_binary_storage: write_buffer: compute_address failed: {:?}",
+                    e
+                );
+                return Err((e, user_buffer));
+            }
         };
 
         // The kernel needs to check if the app is trying to write/overwrite the
@@ -246,10 +257,13 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
         // set of 8 bytes which is used to determine if the header is valid. We
         // don't want apps to do this, so we return an error.
         if (offset == 0 && length < 8) || (offset != 0 && offset < 8) {
+            crate::debug!(
+                "dynamic_binary_storage: write_buffer: header write must be >= 8 bytes: offset={} length={}",
+                offset,
+                length
+            );
             return Err((ErrorCode::INVAL, user_buffer));
         }
-
-        crate::debug!("here1 {}", offset);
 
         // Check if we are writing the start of the TBF header.
         //
@@ -268,14 +282,18 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             let test_header_slice = match user_buffer.as_slice().get(0..8) {
                 Some(slice) => slice,
                 None => {
-                    crate::debug!("here5");
+                    crate::debug!(
+                        "dynamic_binary_storage: write_buffer: buffer shorter than 8-byte header"
+                    );
                     return Err((ErrorCode::INVAL, user_buffer));
                 }
             };
             let header = match test_header_slice.try_into() {
                 Ok(header) => header,
                 Err(_) => {
-                    crate::debug!("here4");
+                    crate::debug!(
+                        "dynamic_binary_storage: write_buffer: failed to convert header slice"
+                    );
                     return Err((ErrorCode::FAIL, user_buffer));
                 }
             };
@@ -283,14 +301,16 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                 match tock_tbf::parse::parse_tbf_header_lengths(header) {
                     Ok((v, hl, el)) => (v, hl, el),
                     Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
-                        crate::debug!("here2");
                         // If we have an invalid header, so we return an error
+                        crate::debug!("dynamic_binary_storage: write_buffer: invalid TBF header");
                         return Err((ErrorCode::INVAL, user_buffer));
                     }
                     Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                        crate::debug!("here3");
                         // If we could not parse the header, then that's an
                         // issue. We return an Error.
+                        crate::debug!(
+                            "dynamic_binary_storage: write_buffer: unable to parse TBF header"
+                        );
                         return Err((ErrorCode::INVAL, user_buffer));
                     }
                 };
@@ -303,23 +323,42 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                 new_app_len = metadata.new_app_length;
             }
             if entry_length as usize != new_app_len {
-                crate::debug!("here6 {} {}", entry_length, new_app_len);
+                crate::debug!(
+                    "dynamic_binary_storage: write_buffer: header entry_length={} does not match expected new_app_len={}",
+                    entry_length,
+                    new_app_len
+                );
                 return Err((ErrorCode::INVAL, user_buffer));
             }
         }
 
         // Take the buffer to write with.
         let buffer = user_buffer.take();
+        crate::debug!(
+            "dynamic_binary_storage: write_buffer: calling flash_driver.write: address={:#x} length={}",
+            physical_address,
+            length
+        );
         self.flash_driver
             .write(buffer, physical_address, length)
-            .map_err(|(e, buf)| (e, SubSliceMut::new(buf)))
+            .map_err(|(e, buf)| {
+                crate::debug!(
+                    "dynamic_binary_storage: write_buffer: flash_driver.write failed: {:?}",
+                    e
+                );
+                (e, SubSliceMut::new(buf))
+            })
     }
 
     /// Function to generate the padding header to append after the new app.
     /// This header is created and written to ensure the integrity of the
     /// processes linked list
     fn write_padding_app(&self, padding_app_length: usize, offset: usize) -> Result<(), ErrorCode> {
-        crate::debug!("write padding app {}, {:#02x}", padding_app_length, offset);
+        crate::debug!(
+            "dynamic_binary_storage: write_padding_app: padding_app_length={} offset={:#x}",
+            padding_app_length,
+            offset
+        );
         // Write the header into the array
         self.buffer.map(|buffer| {
             // First two bytes are the TBF version (2).
@@ -402,7 +441,11 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     }
 
     fn write_done(&self, buffer: &'static mut [u8], length: usize) {
-        crate::debug!("write_done");
+        crate::debug!(
+            "dynamic_binary_storage: write_done: state={:?} length={}",
+            self.state.get(),
+            length
+        );
         match self.state.get() {
             State::AppWrite => {
                 self.state.set(State::AppWrite);
@@ -413,12 +456,15 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 });
             }
             State::PaddingWrite => {
-                crate::debug!("pad write done");
+                crate::debug!("dynamic_binary_storage: write_done: padding write complete");
                 // Replace the buffer after the padding is written.
                 self.reset_process_loading_metadata();
                 self.buffer.replace(buffer);
             }
             State::Fail => {
+                crate::debug!(
+                    "dynamic_binary_storage: write_done: app write failed, writing padding to reclaim space"
+                );
                 // If we failed at any of writing, we want to set the state to
                 // PaddingWrite so that the callback after writing the padding
                 // app will get triggererd.
@@ -439,6 +485,9 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                         // Write padding header to the beginning of the new app address.
                         // This ensures that the linked list is not broken in the event of a
                         // powercycle before the app is fully written and loaded.
+                        crate::debug!(
+                            "dynamic_binary_storage: write_done: setup padding written, writing leading padding header"
+                        );
                         metadata.setup_padding = true;
                         let _ = self.write_padding_app(
                             metadata.new_app_length,
@@ -446,6 +495,9 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                         );
                         self.process_metadata.set(metadata);
                     } else {
+                        crate::debug!(
+                            "dynamic_binary_storage: write_done: setup complete, ready for app writes"
+                        );
                         self.state.set(State::AppWrite);
                         // Let the client know we are done setting up.
                         self.storage_client.map(|client| {
@@ -455,6 +507,9 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 }
             }
             State::Load => {
+                crate::debug!(
+                    "dynamic_binary_storage: write_done: pre-padding written, ready to load"
+                );
                 // We finished writing pre-padding and we need to Load the app.
                 self.buffer.replace(buffer);
                 self.storage_client.map(|client| {
@@ -462,6 +517,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 });
             }
             State::Abort => {
+                crate::debug!("dynamic_binary_storage: write_done: abort padding written");
                 self.buffer.replace(buffer);
                 // Reset metadata and let client know we are done aborting.
                 self.reset_process_loading_metadata();
@@ -587,21 +643,33 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         match self.state.get() {
             State::AppWrite => {
-                crate::debug!("DBS: write {}", offset);
+                crate::debug!(
+                    "dynamic_binary_storage: DynamicBinaryStore::write: offset={} length={}",
+                    offset,
+                    buffer.len()
+                );
                 let res = self.write_buffer(buffer, offset);
                 match res {
                     Ok(()) => Ok(()),
                     Err((e, buffer)) => {
+                        crate::debug!(
+                            "dynamic_binary_storage: DynamicBinaryStore::write: failed: {:?}",
+                            e
+                        );
                         // If we fail here, let us erase the app we just wrote.
                         self.state.set(State::Fail);
                         Err((e, buffer))
                     }
                 }
             }
-            _ => {
+            state => {
                 // We are in the wrong mode of operation. Ideally we should never reach
                 // here, but this error exists as a failsafe. The capsule should send
                 // a busy error out to the userland app.
+                crate::debug!(
+                    "dynamic_binary_storage: DynamicBinaryStore::write: wrong state={:?}",
+                    state
+                );
                 Err((ErrorCode::INVAL, buffer))
             }
         }

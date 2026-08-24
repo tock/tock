@@ -160,23 +160,41 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
         page_number: usize,
         data: &'static mut P,
     ) -> Result<(), (ErrorCode, &'static mut P)> {
+        kernel::debug!("pflash: write_page: page_number={}", page_number);
         if page_number >= self.num_sectors() {
+            kernel::debug!(
+                "pflash: write_page: page_number={} out of range (num_sectors={})",
+                page_number,
+                self.num_sectors()
+            );
             return Err((ErrorCode::INVAL, data));
         }
 
         if !self.is_page_blank(page_number) {
+            kernel::debug!(
+                "pflash: write_page: page_number={} not blank, erasing sector",
+                page_number
+            );
             self.erase_sector(page_number);
         }
 
         let start = page_number * PAGE_WORDS;
+        let mut words_programmed = 0;
         for (i, word) in data.as_mut().as_chunks::<4>().0.iter().enumerate() {
             let value = u32::from_le_bytes(*word);
             // Skip writing the default value. This is incredibly slow to write
             // every word in the sector.
             if value != 0xFFFFFFFF {
                 self.program_word(start + i, value);
+                words_programmed += 1;
             }
         }
+        kernel::debug!(
+            "pflash: write_page: page_number={} programmed {} of {} words",
+            page_number,
+            words_programmed,
+            PAGE_WORDS
+        );
 
         self.buffer.replace(data);
         self.state.set(FlashState::Write);
@@ -213,6 +231,7 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
                 });
             }
             FlashState::Write => {
+                kernel::debug!("pflash: handle_interrupt: write complete, calling write_complete");
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.write_complete(buffer, Ok(()));

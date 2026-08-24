@@ -141,11 +141,18 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
         address: usize,
         length: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        kernel::debug!(
+            "nonvolatile_to_pages: write: address={:#x} length={}",
+            address,
+            length
+        );
         if self.state.get() != State::Idle {
+            kernel::debug!("nonvolatile_to_pages: write: busy");
             return Err((ErrorCode::BUSY, buffer));
         }
 
         let Some(pagebuffer) = self.pagebuffer.take() else {
+            kernel::debug!("nonvolatile_to_pages: write: no pagebuffer available");
             return Err((ErrorCode::RESERVE, buffer));
         };
 
@@ -157,6 +164,10 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
         if address.is_multiple_of(page_size) && length >= page_size {
             // This write is aligned to a page and we are writing an entire
             // page or more.
+            kernel::debug!(
+                "nonvolatile_to_pages: write: page-aligned write, calling write_page({})",
+                address / page_size
+            );
 
             // Copy data into page buffer.
             pagebuffer.as_mut()[..page_size].copy_from_slice(&buffer[..page_size]);
@@ -169,6 +180,10 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
             match self.driver.write_page(address / page_size, pagebuffer) {
                 Ok(()) => Ok(()),
                 Err((error_code, pagebuffer)) => {
+                    kernel::debug!(
+                        "nonvolatile_to_pages: write: write_page failed: {:?}",
+                        error_code
+                    );
                     self.pagebuffer.replace(pagebuffer);
                     // We just stored the buffer above; reclaim it to return.
                     Err((error_code, self.buffer.take().unwrap()))
@@ -176,6 +191,10 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
             }
         } else {
             // Need to do a read first.
+            kernel::debug!(
+                "nonvolatile_to_pages: write: unaligned/partial write, calling read_page({}) first",
+                address / page_size
+            );
             self.buffer.replace(buffer);
             self.address.set(address);
             self.remaining_length.set(length);
@@ -184,6 +203,10 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
             match self.driver.read_page(address / page_size, pagebuffer) {
                 Ok(()) => Ok(()),
                 Err((error_code, pagebuffer)) => {
+                    kernel::debug!(
+                        "nonvolatile_to_pages: write: read_page failed: {:?}",
+                        error_code
+                    );
                     self.pagebuffer.replace(pagebuffer);
                     // We just stored the buffer above; reclaim it to return.
                     Err((error_code, self.buffer.take().unwrap()))
@@ -254,6 +277,10 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                     let buffer_index = self.buffer_index.get();
                     // Which page we read and which we are going to write back to.
                     let page_number = self.address.get() / page_size;
+                    kernel::debug!(
+                        "nonvolatile_to_pages: read_complete (Write): read-modify-write, writing back page {}",
+                        page_number
+                    );
 
                     // Copy what we read from the page buffer to the user buffer.
                     pagebuffer.as_mut()[page_index..(len + page_index)]
@@ -264,7 +291,13 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                     self.remaining_length.subtract(len);
                     self.address.add(len);
                     self.buffer_index.set(buffer_index + len);
-                    if let Err((_, pagebuffer)) = self.driver.write_page(page_number, pagebuffer) {
+                    if let Err((error_code, pagebuffer)) =
+                        self.driver.write_page(page_number, pagebuffer)
+                    {
+                        kernel::debug!(
+                            "nonvolatile_to_pages: read_complete (Write): write_page failed: {:?}",
+                            error_code
+                        );
                         self.pagebuffer.replace(pagebuffer);
                     }
                 });
@@ -278,6 +311,10 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
         pagebuffer: &'static mut F::Page,
         _result: Result<(), hil::flash::Error>,
     ) {
+        kernel::debug!(
+            "nonvolatile_to_pages: write_complete: remaining_length={}",
+            self.remaining_length.get()
+        );
         // After a write we could be done, need to do another write, or need to
         // do a read.
         self.buffer.take().map(move |buffer| {
@@ -285,6 +322,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
 
             if self.remaining_length.get() == 0 {
                 // Done!
+                kernel::debug!("nonvolatile_to_pages: write_complete: done, calling write_done");
                 self.pagebuffer.replace(pagebuffer);
                 self.state.set(State::Idle);
                 self.client
@@ -293,6 +331,10 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                 // Write an entire page!
                 let buffer_index = self.buffer_index.get();
                 let page_number = self.address.get() / page_size;
+                kernel::debug!(
+                    "nonvolatile_to_pages: write_complete: writing next full page {}",
+                    page_number
+                );
 
                 // Copy data into page buffer.
                 pagebuffer.as_mut()[..page_size]
@@ -302,16 +344,30 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                 self.remaining_length.subtract(page_size);
                 self.address.add(page_size);
                 self.buffer_index.set(buffer_index + page_size);
-                if let Err((_, pagebuffer)) = self.driver.write_page(page_number, pagebuffer) {
+                if let Err((error_code, pagebuffer)) =
+                    self.driver.write_page(page_number, pagebuffer)
+                {
+                    kernel::debug!(
+                        "nonvolatile_to_pages: write_complete: write_page failed: {:?}",
+                        error_code
+                    );
                     self.pagebuffer.replace(pagebuffer);
                 }
             } else {
                 // Write a partial page!
+                kernel::debug!(
+                    "nonvolatile_to_pages: write_complete: final partial page, reading page {} first",
+                    self.address.get() / page_size
+                );
                 self.buffer.replace(buffer);
-                if let Err((_, pagebuffer)) = self
+                if let Err((error_code, pagebuffer)) = self
                     .driver
                     .read_page(self.address.get() / page_size, pagebuffer)
                 {
+                    kernel::debug!(
+                        "nonvolatile_to_pages: write_complete: read_page failed: {:?}",
+                        error_code
+                    );
                     self.pagebuffer.replace(pagebuffer);
                 }
             }

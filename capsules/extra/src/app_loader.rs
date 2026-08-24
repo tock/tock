@@ -166,16 +166,28 @@ impl<
     /// Copy data from the shared buffer with app and request kernel to
     /// write the app data to flash.
     fn write(&self, offset: usize, length: usize, processid: ProcessId) -> Result<(), ErrorCode> {
+        kernel::debug!(
+            "app_loader: write: offset={} length={} processid={:?}",
+            offset,
+            length,
+            processid
+        );
         // Userspace sees memory that starts at address 0 even if it
         // is offset in the physical memory.
         match offset.checked_add(length) {
             Some(result) => {
                 if result > self.new_app_length.get() {
                     // this means the app is out of bounds
+                    kernel::debug!(
+                        "app_loader: write: out of bounds: offset+length={} new_app_length={}",
+                        result,
+                        self.new_app_length.get()
+                    );
                     return Err(ErrorCode::INVAL);
                 }
             }
             None => {
+                kernel::debug!("app_loader: write: offset+length overflow");
                 return Err(ErrorCode::INVAL);
             }
         }
@@ -219,11 +231,15 @@ impl<
 
                 let k = self.buffer.take().map_or_else(
                     || {
-                        kernel::debug!("no buf");
+                        kernel::debug!("app_loader: write: no kernel buffer available");
                         Err(ErrorCode::RESERVE)
                     },
                     |buffer| {
-                        kernel::debug!("have buf {}", offset);
+                        kernel::debug!(
+                            "app_loader: write: calling storage_driver.write: offset={} length={}",
+                            offset,
+                            length
+                        );
                         let mut write_buffer = SubSliceMut::new(buffer);
                         // should be the length supported by the app
                         // (currently only powers of 2 work)
@@ -232,13 +248,17 @@ impl<
                         match res {
                             Ok(()) => Ok(()),
                             Err((e, buffer)) => {
+                                kernel::debug!(
+                                    "app_loader: write: storage_driver.write failed: {:?}",
+                                    e
+                                );
                                 self.buffer.replace(buffer.take());
                                 Err(e)
                             }
                         }
                     },
                 );
-                kernel::debug!("start write {:?}", k);
+                kernel::debug!("app_loader: write: result={:?}", k);
                 k
             })
             .unwrap_or_else(|err| Err(err.into()))
@@ -265,6 +285,11 @@ impl<
 
     /// Let the app know we are done writing the block of data
     fn write_done(&self, result: Result<(), ErrorCode>, buffer: &'static mut [u8], length: usize) {
+        kernel::debug!(
+            "app_loader: write_done: result={:?} length={}",
+            result,
+            length
+        );
         // Switch on which user of this capsule generated this callback.
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |app, kernel_data| {
@@ -444,7 +469,7 @@ impl<
             1 => {
                 // Request kernel to allocate resources for
                 // an app with size passed via `arg1`.
-                kernel::debug!("CMD1 {}", arg1);
+                kernel::debug!("app_loader: command: SETUP (1) app_length={}", arg1);
                 let res = self.storage_driver.setup(arg1);
                 match res {
                     Ok(app_len) => {
@@ -461,7 +486,11 @@ impl<
 
             2 => {
                 // Request kernel to write app to flash.
-                kernel::debug!("CMD2 {} {}", arg1, arg2);
+                kernel::debug!(
+                    "app_loader: command: WRITE (2) offset={} length={}",
+                    arg1,
+                    arg2
+                );
                 let res = self.write(arg1, arg2, processid);
                 match res {
                     Ok(()) => CommandReturn::success(),
