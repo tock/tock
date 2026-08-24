@@ -31,6 +31,7 @@ pub use crate::process_checker::{ProcessCheckerMachine, ProcessCheckerMachineCli
 pub use crate::process_loading::ProcessLoadError;
 pub use crate::process_loading::SequentialProcessLoaderMachine;
 pub use crate::process_loading::load_processes;
+pub use crate::process_loading::{MPU_ALIGNMENT_CORTEX_M, MPU_ALIGNMENT_RISCV, MpuAlignment};
 pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
 pub use crate::process_policies::{ProcessFaultPolicy, ProcessStandardStoragePermissionsPolicy};
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext};

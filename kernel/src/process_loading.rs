@@ -487,14 +487,43 @@ pub enum PaddingRequirement {
     PreAndPostPad,
 }
 
+/// Selects, at compile time, how [`SequentialProcessLoaderMachine`] aligns
+/// new process binaries in flash to satisfy the platform's MPU/PMP
+/// addressing constraints.
+///
+/// This is used as a `const` generic parameter on
+/// [`SequentialProcessLoaderMachine`] so the correct alignment logic for a
+/// given board is selected at compile time, at no runtime cost.
+pub type MpuAlignment = usize;
+
+/// Align new process binaries to the next power-of-two multiple of their
+/// size.
+///
+/// Cortex-M MPU regions must be naturally aligned: the region's start
+/// address must be a multiple of the region's size, and the region size
+/// must be a power of two. Use this value for the `MPU_ALIGNMENT` parameter
+/// of [`SequentialProcessLoaderMachine`] on Cortex-M platforms.
+pub const MPU_ALIGNMENT_CORTEX_M: MpuAlignment = 0;
+
+/// Align new process binaries to a fixed 4 byte boundary.
+///
+/// RISC-V PMP does not require power-of-two sized or aligned regions, so
+/// word alignment is sufficient. Use this value for the `MPU_ALIGNMENT`
+/// parameter of [`SequentialProcessLoaderMachine`] on RISC-V platforms.
+pub const MPU_ALIGNMENT_RISCV: MpuAlignment = 4;
+
 /// A machine for loading processes stored sequentially in a region of flash.
 ///
 /// Load processes (stored as TBF objects in flash) into runnable process
 /// structures stored in the `procs` array. This machine scans the footers in
 /// the TBF for cryptographic credentials for binary integrity, passing them to
 /// the checker to decide whether the process has sufficient credentials to run.
-pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
-{
+pub struct SequentialProcessLoaderMachine<
+    'a,
+    C: Chip + 'static,
+    D: ProcessStandardDebug + 'static,
+    const MPU_ALIGNMENT: MpuAlignment = MPU_ALIGNMENT_CORTEX_M,
+> {
     /// Client to notify as processes are loaded and process loading finishes after boot.
     boot_client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Client to notify as processes are loaded and process loading finishes during runtime.
@@ -527,7 +556,9 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     run_mode: OptionalCell<SequentialProcessLoaderMachineRunMode>,
 }
 
-impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C, D> {
+impl<'a, C: Chip, D: ProcessStandardDebug, const MPU_ALIGNMENT: MpuAlignment>
+    SequentialProcessLoaderMachine<'a, C, D, MPU_ALIGNMENT>
+{
     /// This function is made `pub` so that board files can use it, but loading
     /// processes from slices of flash an memory is fundamentally unsafe.
     /// Therefore, we require the `ProcessManagementCapability` to call this
@@ -946,17 +977,27 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         .or(Err(()))
     }
 
-    /// Helper function to find the next potential aligned address for the
-    /// new app with size `app_length` assuming Cortex-M alignment rules.
-    fn find_next_cortex_m_aligned_address(&self, address: usize, app_length: usize) -> usize {
-        // let remaining = address % app_length;
-        // if remaining == 0 {
-        //     address
-        // } else {
-        //     address + (app_length - remaining)
-        // }
+    /// Helper function to find the next potential address for the new app
+    /// with size `app_length` that satisfies the MPU alignment rules
+    /// selected by the `MPU_ALIGNMENT` const generic parameter.
+    ///
+    /// - [`MPU_ALIGNMENT_CORTEX_M`]: align to the next power-of-two multiple
+    ///   of `app_length`, as required by the Cortex-M MPU.
+    /// - Any other value (e.g. [`MPU_ALIGNMENT_RISCV`]): align to that fixed
+    ///   number of bytes.
+    fn find_next_mpu_aligned_address(&self, address: usize, app_length: usize) -> usize {
+        let align = if MPU_ALIGNMENT == MPU_ALIGNMENT_CORTEX_M {
+            app_length.next_power_of_two()
+        } else {
+            MPU_ALIGNMENT
+        };
 
-        address
+        let remaining = address % align;
+        if remaining == 0 {
+            address
+        } else {
+            address + (align - remaining)
+        }
     }
 
     /// Function to compute the address for a new app with size `app_size`.
@@ -986,8 +1027,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
         // If there is only one application in flash:
         if start_count == 1 {
-            let potential_address = self
-                .find_next_cortex_m_aligned_address(process_binaries_end_addresses[0], app_size);
+            let potential_address =
+                self.find_next_mpu_aligned_address(process_binaries_end_addresses[0], app_size);
             return potential_address;
         }
 
@@ -1003,8 +1044,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
             // If there is a valid gap, i.e., (gap_end > gap_start), check alignment.
             if gap_end > gap_start {
-                let potential_address =
-                    self.find_next_cortex_m_aligned_address(gap_start, app_size);
+                let potential_address = self.find_next_mpu_aligned_address(gap_start, app_size);
                 if potential_address + app_size < gap_end {
                     return potential_address;
                 }
@@ -1012,7 +1052,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
         // If no gaps found, check after the last app.
         let last_app_end_address = process_binaries_end_addresses[end_count - 1];
-        self.find_next_cortex_m_aligned_address(last_app_end_address, app_size)
+        self.find_next_mpu_aligned_address(last_app_end_address, app_size)
     }
 
     /// This function checks if there is a need to pad either before or after
@@ -1239,8 +1279,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     }
 }
 
-impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
-    for SequentialProcessLoaderMachine<'a, C, D>
+impl<'a, C: Chip, D: ProcessStandardDebug, const MPU_ALIGNMENT: MpuAlignment>
+    ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a, C, D, MPU_ALIGNMENT>
 {
     fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
         self.boot_client.set(client);
@@ -1260,8 +1300,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
     }
 }
 
-impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
-    for SequentialProcessLoaderMachine<'_, C, D>
+impl<C: Chip, D: ProcessStandardDebug, const MPU_ALIGNMENT: MpuAlignment> DeferredCallClient
+    for SequentialProcessLoaderMachine<'_, C, D, MPU_ALIGNMENT>
 {
     fn handle_deferred_call(&self) {
         // We use deferred calls to start the operation in the async loop.
@@ -1291,8 +1331,9 @@ impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
     }
 }
 
-impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMachineClient
-    for SequentialProcessLoaderMachine<'_, C, D>
+impl<C: Chip, D: ProcessStandardDebug, const MPU_ALIGNMENT: MpuAlignment>
+    crate::process_checker::ProcessCheckerMachineClient
+    for SequentialProcessLoaderMachine<'_, C, D, MPU_ALIGNMENT>
 {
     fn done(
         &self,
