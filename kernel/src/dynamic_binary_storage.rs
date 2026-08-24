@@ -230,9 +230,10 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
     ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         let length = user_buffer.len();
 
-        let physical_address = self
-            .compute_address(offset, length)
-            .map_err(|e| (e, user_buffer))?;
+        let physical_address = match self.compute_address(offset, length) {
+            Ok(addr) => addr,
+            Err(e) => return Err((e, user_buffer)),
+        };
 
         // The kernel needs to check if the app is trying to write/overwrite the
         // header. So the app can only write to the first 8 bytes if the app is
@@ -248,8 +249,7 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             return Err((ErrorCode::INVAL, user_buffer));
         }
 
-        // Take the buffer to perform tbf header validation and write with.
-        let buffer = user_buffer.take();
+        crate::debug!("here1 {}", offset);
 
         // Check if we are writing the start of the TBF header.
         //
@@ -257,20 +257,38 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
         // it is trying to write at the very beginning of the promised flash
         // region, we require the app writes the entire 8 bytes of the header.
         // This header is then checked for validity.
+        //
+        // We validate through a borrow of `user_buffer` here (rather than
+        // consuming it via `take()`) so that we still own it and can return
+        // it back to the caller on every error path.
         if offset == 0 {
             // Pass the first eight bytes of the tbf header to parse out the
             // length of the header and app. We then use those values to see if
             // the app is going to be valid.
-            let test_header_slice = buffer.get(0..8).ok_or(ErrorCode::INVAL)?;
-            let header = test_header_slice.try_into().or(Err(ErrorCode::FAIL))?;
+            let test_header_slice = match user_buffer.as_slice().get(0..8) {
+                Some(slice) => slice,
+                None => {
+                    crate::debug!("here5");
+                    return Err((ErrorCode::INVAL, user_buffer));
+                }
+            };
+            let header = match test_header_slice.try_into() {
+                Ok(header) => header,
+                Err(_) => {
+                    crate::debug!("here4");
+                    return Err((ErrorCode::FAIL, user_buffer));
+                }
+            };
             let (_version, _header_length, entry_length) =
                 match tock_tbf::parse::parse_tbf_header_lengths(header) {
                     Ok((v, hl, el)) => (v, hl, el),
                     Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
+                        crate::debug!("here2");
                         // If we have an invalid header, so we return an error
                         return Err((ErrorCode::INVAL, user_buffer));
                     }
                     Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                        crate::debug!("here3");
                         // If we could not parse the header, then that's an
                         // issue. We return an Error.
                         return Err((ErrorCode::INVAL, user_buffer));
@@ -285,16 +303,23 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                 new_app_len = metadata.new_app_length;
             }
             if entry_length as usize != new_app_len {
+                crate::debug!("here6 {} {}", entry_length, new_app_len);
                 return Err((ErrorCode::INVAL, user_buffer));
             }
         }
-        self.flash_driver.write(buffer, physical_address, length)
+
+        // Take the buffer to write with.
+        let buffer = user_buffer.take();
+        self.flash_driver
+            .write(buffer, physical_address, length)
+            .map_err(|(e, buf)| (e, SubSliceMut::new(buf)))
     }
 
     /// Function to generate the padding header to append after the new app.
     /// This header is created and written to ensure the integrity of the
     /// processes linked list
     fn write_padding_app(&self, padding_app_length: usize, offset: usize) -> Result<(), ErrorCode> {
+        crate::debug!("write padding app {}, {:#02x}", padding_app_length, offset);
         // Write the header into the array
         self.buffer.map(|buffer| {
             // First two bytes are the TBF version (2).
@@ -335,9 +360,18 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                     let mut padding_slice = SubSliceMut::new(buffer);
                     padding_slice.slice(..PADDING_TBF_HEADER_LENGTH);
                     // We are only writing the header, so 16 bytes is enough.
+                    crate::debug!("write header");
                     self.write_buffer(padding_slice, offset)
+                        .map_err(|(e, buf)| {
+                            crate::debug!("write headerfail");
+                            self.buffer.replace(buf.take());
+                            e
+                        })
                 }
-                false => Err(ErrorCode::NOMEM),
+                false => {
+                    crate::debug!("no go");
+                    Err(ErrorCode::NOMEM)
+                }
             }
         })
     }
@@ -368,6 +402,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     }
 
     fn write_done(&self, buffer: &'static mut [u8], length: usize) {
+        crate::debug!("write_done");
         match self.state.get() {
             State::AppWrite => {
                 self.state.set(State::AppWrite);
@@ -378,6 +413,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 });
             }
             State::PaddingWrite => {
+                crate::debug!("pad write done");
                 // Replace the buffer after the padding is written.
                 self.reset_process_loading_metadata();
                 self.buffer.replace(buffer);
@@ -490,6 +526,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                         // If we decided we need to write a padding app after
                         // the new app, we go ahead and do it.
                         PaddingRequirement::PostPad | PaddingRequirement::PreAndPostPad => {
+                            crate::debug!("post pad or preandpost pad");
                             // Calculating the distance between our app and
                             // either the next app.
                             let new_app_end_address = new_app_start_address + app_length;
@@ -550,6 +587,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         match self.state.get() {
             State::AppWrite => {
+                crate::debug!("DBS: write {}", offset);
                 let res = self.write_buffer(buffer, offset);
                 match res {
                     Ok(()) => Ok(()),

@@ -140,33 +140,36 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
         address: u16,
         buffer: &'static mut [u8],
         len: u16,
-    ) -> Result<(), ErrorCode> {
-        self.configure_spi()?;
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if let Err(e) = self.configure_spi() {
+            return Err((e, buffer));
+        }
 
-        self.txbuffer
-            .take()
-            .map_or(Err(ErrorCode::RESERVE), move |mut txbuffer| {
-                let write_len = cmp::min(txbuffer.len(), len as usize);
+        let Some(mut txbuffer) = self.txbuffer.take() else {
+            return Err((ErrorCode::RESERVE, buffer));
+        };
 
-                // Need to save the buffer passed to us so we can give it back.
-                self.client_buffer.replace(buffer);
-                // Also save address and len for the actual write.
-                self.client_write_address.set(address);
-                self.client_write_len.set(write_len as u16);
+        let write_len = cmp::min(txbuffer.len(), len as usize);
 
-                self.state.set(State::WriteEnable);
-                txbuffer[0] = Opcodes::WriteEnable as u8;
-                txbuffer.slice(..1);
-                let res = self.spi.read_write_bytes(txbuffer, None);
+        // Need to save the buffer passed to us so we can give it back.
+        self.client_buffer.replace(buffer);
+        // Also save address and len for the actual write.
+        self.client_write_address.set(address);
+        self.client_write_len.set(write_len as u16);
 
-                match res {
-                    Ok(()) => Ok(()),
-                    Err((err, txbuffer, _)) => {
-                        self.txbuffer.replace(txbuffer);
-                        Err(err)
-                    }
-                }
-            })
+        self.state.set(State::WriteEnable);
+        txbuffer[0] = Opcodes::WriteEnable as u8;
+        txbuffer.slice(..1);
+        let res = self.spi.read_write_bytes(txbuffer, None);
+
+        match res {
+            Ok(()) => Ok(()),
+            Err((err, txbuffer, _)) => {
+                self.txbuffer.replace(txbuffer);
+                // We just stashed the buffer above; reclaim it to return.
+                Err((err, self.client_buffer.take().unwrap()))
+            }
+        }
     }
 
     pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) -> Result<(), ErrorCode> {
@@ -336,7 +339,7 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> hil::nonvolatile_storage::Nonvolatile
         buffer: &'static mut [u8],
         address: usize,
         length: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         self.write(address as u16, buffer, length as u16)
     }
 }

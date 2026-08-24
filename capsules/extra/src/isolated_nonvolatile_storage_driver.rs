@@ -536,6 +536,10 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
 
             self.driver
                 .write(buffer, region_header_address, REGION_HEADER_LEN)
+                .map_err(|(e, buf)| {
+                    self.buffer.replace(buf);
+                    e
+                })
         })
     }
 
@@ -566,7 +570,11 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
 
             self.driver
                 .write(buffer, offset, active_len)
-                .and(Ok((next_erase_start, remaining_len)))
+                .map(|()| (next_erase_start, remaining_len))
+                .map_err(|(e, buf)| {
+                    self.buffer.replace(buf);
+                    e
+                })
         })
     }
 
@@ -884,7 +892,10 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                             NvmCommand::Write { offset: _ } => self
                                 .driver
                                 .write(buffer, physical_address, active_len_buf)
-                                .or(Err(ErrorCode::FAIL)),
+                                .map_err(|(_e, buf)| {
+                                    self.buffer.replace(buf);
+                                    ErrorCode::FAIL
+                                }),
                             NvmCommand::GetSize => Err(ErrorCode::FAIL),
                         }
                     });

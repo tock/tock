@@ -949,12 +949,14 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     /// Helper function to find the next potential aligned address for the
     /// new app with size `app_length` assuming Cortex-M alignment rules.
     fn find_next_cortex_m_aligned_address(&self, address: usize, app_length: usize) -> usize {
-        let remaining = address % app_length;
-        if remaining == 0 {
-            address
-        } else {
-            address + (app_length - remaining)
-        }
+        // let remaining = address % app_length;
+        // if remaining == 0 {
+        //     address
+        // } else {
+        //     address + (app_length - remaining)
+        // }
+
+        address
     }
 
     /// Function to compute the address for a new app with size `app_size`.
@@ -1119,6 +1121,9 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                     pb_start_address,
                     pb_end_address,
                 );
+
+                debug!("new app address: {:#02x}", new_app_address);
+
                 if new_app_address + new_app_size - 1 > total_flash_end {
                     Err(ProcessBinaryError::NotEnoughFlash)
                 } else {

@@ -223,7 +223,7 @@ impl<
                         Err(ErrorCode::RESERVE)
                     },
                     |buffer| {
-                        kernel::debug!("have buf");
+                        kernel::debug!("have buf {}", offset);
                         let mut write_buffer = SubSliceMut::new(buffer);
                         // should be the length supported by the app
                         // (currently only powers of 2 work)
@@ -232,7 +232,7 @@ impl<
                         match res {
                             Ok(()) => Ok(()),
                             Err((e, buffer)) => {
-                                self.buffer.replace(buffer);
+                                self.buffer.replace(buffer.take());
                                 Err(e)
                             }
                         }
@@ -444,6 +444,7 @@ impl<
             1 => {
                 // Request kernel to allocate resources for
                 // an app with size passed via `arg1`.
+                kernel::debug!("CMD1 {}", arg1);
                 let res = self.storage_driver.setup(arg1);
                 match res {
                     Ok(app_len) => {
@@ -460,6 +461,7 @@ impl<
 
             2 => {
                 // Request kernel to write app to flash.
+                kernel::debug!("CMD2 {} {}", arg1, arg2);
                 let res = self.write(arg1, arg2, processid);
                 match res {
                     Ok(()) => CommandReturn::success(),
