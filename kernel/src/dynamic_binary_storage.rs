@@ -404,26 +404,26 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                         PADDING_TBF_HEADER_LENGTH,
                         offset
                     );
-                    // self.write_buffer(padding_slice, offset)
-                    //     .map_err(|(e, buf)| {
-                    //         crate::debug!(
-                    //             "dynamic_binary_storage: write_padding_app: padding header write failed: {:?}",
-                    //             e
-                    //         );
-                    //         self.buffer.replace(buf.take());
-                    //         e
-                    //     })
-                    let buffer = padding_slice.take();
-                    self.flash_driver
-                        .write(buffer, offset-0x2000_0000, buffer.len())
+                    self.write_buffer(padding_slice, offset)
                         .map_err(|(e, buf)| {
                             crate::debug!(
-                                "dynamic_binary_storage: write_padding_app: flash_driver.write failed: {:?}",
+                                "dynamic_binary_storage: write_padding_app: padding header write failed: {:?}",
                                 e
                             );
-                            self.buffer.replace(buf);
+                            self.buffer.replace(buf.take());
                             e
                         })
+                    // let buffer = padding_slice.take();
+                    // self.flash_driver
+                    //     .write(buffer, offset-0x2000_0000, buffer.len())
+                    //     .map_err(|(e, buf)| {
+                    //         crate::debug!(
+                    //             "dynamic_binary_storage: write_padding_app: flash_driver.write failed: {:?}",
+                    //             e
+                    //         );
+                    //         self.buffer.replace(buf);
+                    //         e
+                    //     })
                 }
                 false => {
                     crate::debug!(
