@@ -172,38 +172,47 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
         }
     }
 
-    pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) -> Result<(), ErrorCode> {
-        self.configure_spi()?;
+    pub fn read(
+        &self,
+        address: u16,
+        buffer: &'static mut [u8],
+        len: u16,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if let Err(e) = self.configure_spi() {
+            return Err((e, buffer));
+        }
 
-        self.txbuffer
-            .take()
-            .map_or(Err(ErrorCode::RESERVE), |mut txbuffer| {
-                self.rxbuffer
-                    .take()
-                    .map_or(Err(ErrorCode::RESERVE), move |mut rxbuffer| {
-                        txbuffer[0] = Opcodes::ReadMemory as u8;
-                        txbuffer[1] = ((address >> 8) & 0xFF) as u8;
-                        txbuffer[2] = (address & 0xFF) as u8;
+        let Some(mut txbuffer) = self.txbuffer.take() else {
+            return Err((ErrorCode::RESERVE, buffer));
+        };
 
-                        // Save the user buffer for later
-                        self.client_buffer.replace(buffer);
+        let Some(mut rxbuffer) = self.rxbuffer.take() else {
+            self.txbuffer.replace(txbuffer);
+            return Err((ErrorCode::RESERVE, buffer));
+        };
 
-                        rxbuffer.reset();
-                        let read_len = cmp::min(rxbuffer.len(), 3 + len as usize);
-                        rxbuffer.slice(..read_len);
+        txbuffer[0] = Opcodes::ReadMemory as u8;
+        txbuffer[1] = ((address >> 8) & 0xFF) as u8;
+        txbuffer[2] = (address & 0xFF) as u8;
 
-                        self.state.set(State::ReadMemory);
-                        let res = self.spi.read_write_bytes(txbuffer, Some(rxbuffer));
-                        match res {
-                            Ok(()) => Ok(()),
-                            Err((err, txbuffer, rxbuffer)) => {
-                                self.txbuffer.replace(txbuffer);
-                                self.rxbuffer.replace(rxbuffer.unwrap());
-                                Err(err)
-                            }
-                        }
-                    })
-            })
+        // Save the user buffer for later
+        self.client_buffer.replace(buffer);
+
+        rxbuffer.reset();
+        let read_len = cmp::min(rxbuffer.len(), 3 + len as usize);
+        rxbuffer.slice(..read_len);
+
+        self.state.set(State::ReadMemory);
+        let res = self.spi.read_write_bytes(txbuffer, Some(rxbuffer));
+        match res {
+            Ok(()) => Ok(()),
+            Err((err, txbuffer, rxbuffer)) => {
+                self.txbuffer.replace(txbuffer);
+                self.rxbuffer.replace(rxbuffer.unwrap());
+                // We just stashed the buffer above; reclaim it to return.
+                Err((err, self.client_buffer.take().unwrap()))
+            }
+        }
     }
 }
 
@@ -330,7 +339,7 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> hil::nonvolatile_storage::Nonvolatile
         buffer: &'static mut [u8],
         address: usize,
         length: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         self.read(address as u16, buffer, length as u16)
     }
 

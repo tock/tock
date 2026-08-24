@@ -508,6 +508,10 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.driver
                 .read(buffer, region_header_address, REGION_HEADER_LEN)
+                .map_err(|(e, buf)| {
+                    self.buffer.replace(buf);
+                    e
+                })
         })
     }
 
@@ -888,7 +892,10 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                             NvmCommand::Read { offset: _ } => self
                                 .driver
                                 .read(buffer, physical_address, active_len_buf)
-                                .or(Err(ErrorCode::FAIL)),
+                                .map_err(|(_e, buf)| {
+                                    self.buffer.replace(buf);
+                                    ErrorCode::FAIL
+                                }),
                             NvmCommand::Write { offset: _ } => self
                                 .driver
                                 .write(buffer, physical_address, active_len_buf)

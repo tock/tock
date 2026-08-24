@@ -106,33 +106,34 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
         buffer: &'static mut [u8],
         address: usize,
         length: usize,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.state.get() != State::Idle {
-            return Err(ErrorCode::BUSY);
+            return Err((ErrorCode::BUSY, buffer));
         }
 
-        self.pagebuffer
-            .take()
-            .map_or(Err(ErrorCode::RESERVE), move |pagebuffer| {
-                let page_size = pagebuffer.as_mut().len();
+        let Some(pagebuffer) = self.pagebuffer.take() else {
+            return Err((ErrorCode::RESERVE, buffer));
+        };
 
-                // Just start reading. We'll worry about how much of the page we
-                // want later.
-                self.state.set(State::Read);
-                self.buffer.replace(buffer);
-                self.address.set(address);
-                self.length.set(length);
-                self.remaining_length.set(length);
-                self.buffer_index.set(0);
+        let page_size = pagebuffer.as_mut().len();
 
-                match self.driver.read_page(address / page_size, pagebuffer) {
-                    Ok(()) => Ok(()),
-                    Err((error_code, pagebuffer)) => {
-                        self.pagebuffer.replace(pagebuffer);
-                        Err(error_code)
-                    }
-                }
-            })
+        // Just start reading. We'll worry about how much of the page we
+        // want later.
+        self.state.set(State::Read);
+        self.buffer.replace(buffer);
+        self.address.set(address);
+        self.length.set(length);
+        self.remaining_length.set(length);
+        self.buffer_index.set(0);
+
+        match self.driver.read_page(address / page_size, pagebuffer) {
+            Ok(()) => Ok(()),
+            Err((error_code, pagebuffer)) => {
+                self.pagebuffer.replace(pagebuffer);
+                // We just stored the buffer above; reclaim it to return.
+                Err((error_code, self.buffer.take().unwrap()))
+            }
+        }
     }
 
     fn write(
