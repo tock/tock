@@ -4,11 +4,13 @@
 
 MEMORY
 {
-  /* uncomment this to boot from RAM */
-  /* reset (rx)  : ORIGIN = 0x20000000, LENGTH = 16K
-  rom (rx)  : ORIGIN = 0x20000100, LENGTH = 256K
-  prog (rx) : ORIGIN = 0x20040000, LENGTH = 1K
-  ram (rwx) : ORIGIN = 0x20004000, LENGTH = 240K */
+  /* To boot from RAM, uncomment this block and comment out the flash block
+     below; the two cannot both be defined. The regions partition the 264K of
+     SRAM, and ram is the largest because it holds the kernel stack, kernel
+     data and all process RAM. */
+  /* rom (rx)  : ORIGIN = 0x20000000, LENGTH = 128K
+  prog (rx) : ORIGIN = 0x20020000, LENGTH = 4K
+  ram (rwx) : ORIGIN = 0x20021000, LENGTH = 132K */
 
   /* boot from Flash */
   rom (rx)  : ORIGIN = 0x10000000, LENGTH = 256K
