@@ -238,7 +238,10 @@ impl<
                         let res = self.storage_driver.write(write_buffer, offset);
                         match res {
                             Ok(()) => Ok(()),
-                            Err(e) => Err(e),
+                            Err((e, buffer)) => {
+                                self.buffer.replace(buffer.take());
+                                Err(e)
+                            }
                         }
                     })
             })
