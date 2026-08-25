@@ -328,7 +328,7 @@ impl syn::parse::Parse for DriverDef {
 }
 
 #[proc_macro]
-pub fn syscall_driver(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn commands(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let driver_def = syn::parse_macro_input!(item as DriverDef);
     let struct_name = &driver_def.struct_name;
     let commands = driver_def.commands.values();
@@ -410,7 +410,7 @@ impl syn::parse::Parse for SubscribesDef {
 }
 
 /// Generates the grant type alias and `UPCALL_*` constants for a
-/// driver's subscribe numbers. Kept separate from `syscall_driver!` so
+/// driver's subscribe numbers. Kept separate from `commands!` so
 /// the upcall count and grant type (needed by the struct definition and
 /// by code outside the `SyscallDriver` impl, such as callback methods)
 /// don't depend on where the `command` dispatch is generated.

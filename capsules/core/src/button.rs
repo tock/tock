@@ -191,7 +191,7 @@ auto::allow!(Button<'a, P: gpio::InterruptPin<'a>> {
 });
 
 impl<'a, P: gpio::InterruptPin<'a>> kernel::syscall::SyscallDriver for Button<'a, P> {
-    auto::syscall_driver!(Button<'a, P: gpio::InterruptPin<'a>> {
+    auto::commands!(Button<'a, P: gpio::InterruptPin<'a>> {
         commands {
         /// return button count
         /// TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
