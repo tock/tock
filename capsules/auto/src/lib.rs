@@ -28,6 +28,72 @@ struct Sig {
     inputs: Vec<syn::Ident>,
 }
 
+/// The specific [`kernel::syscall::CommandReturn`] success constructor a
+/// command number is declared to use. A command may still fail with any
+/// [`ErrorCode`](kernel::ErrorCode)-carrying variant, but every success
+/// path it takes must produce this exact variant: TRD104 requires a given
+/// command number to always encode its success payload the same way, since
+/// userspace decodes it according to a fixed, per-command schema.
+#[derive(Clone, Copy, Debug)]
+enum ReturnVariant {
+    Success,
+    SuccessU32,
+    SuccessU32U32,
+    SuccessU32U32U32,
+    SuccessU64,
+    SuccessU32U64,
+}
+
+impl ReturnVariant {
+    /// The `CommandReturn::is_*` predicate that checks for this variant.
+    fn is_variant_method(self) -> syn::Ident {
+        let name = match self {
+            ReturnVariant::Success => "is_success",
+            ReturnVariant::SuccessU32 => "is_success_u32",
+            ReturnVariant::SuccessU32U32 => "is_success_2_u32",
+            ReturnVariant::SuccessU32U32U32 => "is_success_3_u32",
+            ReturnVariant::SuccessU64 => "is_success_u64",
+            ReturnVariant::SuccessU32U64 => "is_success_u32_u64",
+        };
+        quote::format_ident!("{}", name)
+    }
+
+    /// The DSL spelling of this variant, as used in `-> <variant>` and in
+    /// the generated documentation.
+    fn label(self) -> &'static str {
+        match self {
+            ReturnVariant::Success => "success",
+            ReturnVariant::SuccessU32 => "success_u32",
+            ReturnVariant::SuccessU32U32 => "success_u32_u32",
+            ReturnVariant::SuccessU32U32U32 => "success_u32_u32_u32",
+            ReturnVariant::SuccessU64 => "success_u64",
+            ReturnVariant::SuccessU32U64 => "success_u32_u64",
+        }
+    }
+}
+
+impl syn::parse::Parse for ReturnVariant {
+    fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
+        let ident: syn::Ident = input.parse()?;
+        match ident.to_string().as_str() {
+            "success" => Ok(ReturnVariant::Success),
+            "success_u32" => Ok(ReturnVariant::SuccessU32),
+            "success_u32_u32" => Ok(ReturnVariant::SuccessU32U32),
+            "success_u32_u32_u32" => Ok(ReturnVariant::SuccessU32U32U32),
+            "success_u64" => Ok(ReturnVariant::SuccessU64),
+            "success_u32_u64" => Ok(ReturnVariant::SuccessU32U64),
+            other => Err(syn::Error::new(
+                ident.span(),
+                format!(
+                    "unknown success return variant `{other}`; expected one of: \
+                     success, success_u32, success_u32_u32, success_u32_u32_u32, \
+                     success_u64, success_u32_u64"
+                ),
+            )),
+        }
+    }
+}
+
 impl syn::parse::Parse for Sig {
     fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
         let ident = input.parse()?;
@@ -47,6 +113,7 @@ struct CommandMapper {
     comment: Option<String>,
     num: usize,
     signature: Sig,
+    return_variant: ReturnVariant,
     block: syn::Expr,
 }
 
@@ -60,10 +127,26 @@ impl quote::ToTokens for CommandMapper {
             let #ident = #arg_ident;
             }
         });
+        let is_variant = self.return_variant.is_variant_method();
+        let assert_message = format!(
+            "command {} (`{}`) must always return CommandReturn::{}(..) on success",
+            self.num,
+            self.signature.ident,
+            self.return_variant.label(),
+        );
         quote::quote! {
             #num => {
             #(#inputs),*
-            #block
+            let __auto_command_return: kernel::syscall::CommandReturn = #block;
+            debug_assert!(
+                __auto_command_return.is_failure()
+                    || __auto_command_return.is_failure_u32()
+                    || __auto_command_return.is_failure_2_u32()
+                    || __auto_command_return.is_failure_u64()
+                    || __auto_command_return.#is_variant(),
+                #assert_message
+            );
+            __auto_command_return
             }
         }
         .to_tokens(tokens);
@@ -91,6 +174,8 @@ impl syn::parse::Parse for CommandMapper {
         let num = lit.base10_parse::<usize>()?;
         input.parse::<Token![:]>()?;
         let signature = input.parse()?;
+        input.parse::<Token![->]>()?;
+        let return_variant = input.parse()?;
         input.parse::<Token![=>]>()?;
         let block = input.parse()?;
 
@@ -98,6 +183,7 @@ impl syn::parse::Parse for CommandMapper {
             comment,
             num,
             signature,
+            return_variant,
             block,
         })
     }
@@ -269,6 +355,12 @@ pub fn syscall_driver(item: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 .iter()
                 .map(|p| p.to_string())
                 .collect::<Vec<String>>()
+        )
+        .unwrap();
+        writeln!(
+            extractor,
+            "  - Success return: {}",
+            command.return_variant.label()
         )
         .unwrap();
     }

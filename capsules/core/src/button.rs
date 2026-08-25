@@ -197,15 +197,15 @@ impl<'a, P: gpio::InterruptPin<'a>> kernel::syscall::SyscallDriver for Button<'a
         /// TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
         /// but this driver is unchanged since it has been stabilized. It will be brought into
         /// compliance as part of the next major release of Tock. See #3375.
-        0: num() => self.num(),
+        0: num() -> success_u32 => self.num(),
         /// Enable interrupts for a given button. This will enable both press
         /// and depress events.
-        1: enable_interrupt(pin_num) => self.enable_interrupt(pin_num, processid),
+        1: enable_interrupt(pin_num) -> success => self.enable_interrupt(pin_num, processid),
         /// Disable interrupts for a button. No affect or reliance on
         /// registered callback.
-        2: disable_interrupt(pin_num) => self.disable_interrupt(pin_num, processid),
+        2: disable_interrupt(pin_num) -> success => self.disable_interrupt(pin_num, processid),
         /// Read the current state of the button.
-        3: read(pin_num) => self.read(pin_num),
+        3: read(pin_num) -> success_u32 => self.read(pin_num),
         },
     });
 
