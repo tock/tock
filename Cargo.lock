@@ -36,6 +36,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "auto"
+version = "0.2.3-dev"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -64,6 +73,7 @@ dependencies = [
 name = "capsules-core"
 version = "0.2.3-dev"
 dependencies = [
+ "auto",
  "enum_primitive",
  "kernel",
  "tickv",

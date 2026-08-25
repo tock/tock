@@ -9,7 +9,9 @@ use syn::{parenthesized, punctuated::Punctuated, Token};
 
 mod sections {
     syn::custom_keyword!(commands);
-    syn::custom_keyword!(subscribes);
+}
+
+mod allow_sections {
     syn::custom_keyword!(allow_ro);
     syn::custom_keyword!(allow_rw);
 }
@@ -17,9 +19,6 @@ mod sections {
 #[derive(Clone, Debug)]
 enum Section {
     Commands { commands: Vec<CommandMapper> },
-    Subscribes { subscribes: Vec<SubscribeMapper> },
-    AllowRO {},
-    AllowRW {},
 }
 
 #[derive(Clone, Debug)]
@@ -170,25 +169,31 @@ impl syn::parse::Parse for Section {
             Ok(Section::Commands {
                 commands: commands.iter().map(Clone::clone).collect(),
             })
-        } else if lookahead.peek(sections::subscribes) {
-            input.parse::<sections::subscribes>()?;
-            let content;
-            syn::braced!(content in input);
-            let subscribes: Punctuated<SubscribeMapper, Token![,]> =
-                Punctuated::parse_terminated(&content)?;
-            Ok(Section::Subscribes {
-                subscribes: subscribes.iter().map(Clone::clone).collect(),
-            })
-        } else if lookahead.peek(sections::allow_ro) {
-            input.parse::<sections::allow_ro>()?;
+        } else {
+            Err(lookahead.error())
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+enum AllowSection {
+    AllowRO {},
+    AllowRW {},
+}
+
+impl syn::parse::Parse for AllowSection {
+    fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(allow_sections::allow_ro) {
+            input.parse::<allow_sections::allow_ro>()?;
             let _content;
             syn::braced!(_content in input);
-            Ok(Section::AllowRO {})
-        } else if lookahead.peek(sections::allow_rw) {
-            input.parse::<sections::allow_rw>()?;
+            Ok(AllowSection::AllowRO {})
+        } else if lookahead.peek(allow_sections::allow_rw) {
+            input.parse::<allow_sections::allow_rw>()?;
             let _content;
             syn::braced!(_content in input);
-            Ok(Section::AllowRW {})
+            Ok(AllowSection::AllowRW {})
         } else {
             Err(lookahead.error())
         }
@@ -198,10 +203,9 @@ impl syn::parse::Parse for Section {
 #[derive(Debug)]
 struct DriverDef {
     struct_name: syn::Ident,
+    #[allow(dead_code)]
     generics: syn::Generics,
     commands: BTreeMap<usize, CommandMapper>,
-    subscribes: BTreeMap<usize, SubscribeMapper>,
-    allocate_grant: syn::ItemFn,
 }
 
 impl syn::parse::Parse for DriverDef {
@@ -215,13 +219,7 @@ impl syn::parse::Parse for DriverDef {
         let mut commands = BTreeMap::new();
         let command_sections: Vec<&Vec<CommandMapper>> = sections
             .iter()
-            .filter_map(|s| {
-                if let Section::Commands { commands } = s {
-                    Some(commands)
-                } else {
-                    None
-                }
-            })
+            .map(|Section::Commands { commands }| commands)
             .collect();
         if command_sections.len() > 1 {
             return Err(syn::Error::new(
@@ -235,36 +233,10 @@ impl syn::parse::Parse for DriverDef {
             }
         }
 
-        let mut subscribes = BTreeMap::new();
-        let subscribe_sections: Vec<&Vec<SubscribeMapper>> = sections
-            .iter()
-            .filter_map(|s| {
-                if let Section::Subscribes { subscribes } = s {
-                    Some(subscribes)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        if subscribe_sections.len() > 1 {
-            return Err(syn::Error::new(
-                content.span(),
-                "Only one subscribe section allowed",
-            ));
-        }
-        if let Some(subscribe_section) = subscribe_sections.first() {
-            for subscribe_mapper in subscribe_section.iter() {
-                subscribes.insert(subscribe_mapper.num, subscribe_mapper.clone());
-            }
-        }
-
-        let allocate_grant = input.parse()?;
         Ok(DriverDef {
             struct_name,
             generics,
             commands,
-            subscribes,
-            allocate_grant,
         })
     }
 }
@@ -273,21 +245,8 @@ impl syn::parse::Parse for DriverDef {
 pub fn syscall_driver(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let driver_def = syn::parse_macro_input!(item as DriverDef);
     let struct_name = &driver_def.struct_name;
-    let allocate_grant = driver_def.allocate_grant;
-    let (impl_generics, ty_generics, where_clause) = driver_def.generics.split_for_impl();
-    let grant_name = quote::format_ident!("{}Grant", driver_def.struct_name);
     let commands = driver_def.commands.values();
-    let upcalls = driver_def.subscribes.values().map(|s| Upcall(s.clone()));
 
-    let num_subscribes = driver_def
-        .subscribes
-        .keys()
-        .max()
-        .map_or(0, |x| (x + 1) as u8);
-    let num_allow_ro = 0u8;
-    let num_allow_rw = 0u8;
-
-    let api_var_name = quote::format_ident!("__{}API", struct_name);
     use std::fmt::Write;
     let mut extractor = String::new();
     writeln!(extractor, "# {}", struct_name).unwrap();
@@ -314,33 +273,70 @@ pub fn syscall_driver(item: proc_macro::TokenStream) -> proc_macro::TokenStream 
         .unwrap();
     }
 
-    writeln!(extractor, "## Subscribes").unwrap();
-    for subscribe in driver_def.subscribes.values() {
-        writeln!(extractor, "- {}:", subscribe.num).unwrap();
-        writeln!(
-            extractor,
-            "  - Comment: {}",
-            subscribe.comment.clone().unwrap_or_default().trim()
-        )
-        .unwrap();
-        writeln!(
-            extractor,
-            "  - Callback name: {}",
-            subscribe.signature.ident
-        )
-        .unwrap();
-        writeln!(
-            extractor,
-            "  - Callback args: {:?}",
-            subscribe
-                .signature
-                .inputs
-                .iter()
-                .map(|p| p.to_string())
-                .collect::<Vec<String>>()
-        )
-        .unwrap();
+    let tokens = quote::quote! {
+        #[doc = #extractor]
+        fn command(&self, command_num: usize, arg0: usize, arg1: usize, processid: kernel::ProcessId)
+               -> kernel::syscall::CommandReturn {
+            match command_num {
+                #(#commands),*
+                // default
+                _ => kernel::syscall::CommandReturn::failure(ErrorCode::NOSUPPORT),
+            }
+        }
+    };
+    tokens.into()
+}
+
+#[derive(Debug)]
+struct SubscribesDef {
+    struct_name: syn::Ident,
+    #[allow(dead_code)]
+    generics: syn::Generics,
+    subscribes: BTreeMap<usize, SubscribeMapper>,
+}
+
+impl syn::parse::Parse for SubscribesDef {
+    fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
+        let struct_name: syn::Ident = input.parse()?;
+        let generics: syn::Generics = input.parse()?;
+        let content: syn::parse::ParseBuffer;
+        syn::braced!(content in input);
+        let entries: Punctuated<SubscribeMapper, Token![,]> =
+            Punctuated::parse_terminated(&content)?;
+
+        let mut subscribes = BTreeMap::new();
+        for subscribe_mapper in entries {
+            subscribes.insert(subscribe_mapper.num, subscribe_mapper);
+        }
+
+        Ok(SubscribesDef {
+            struct_name,
+            generics,
+            subscribes,
+        })
     }
+}
+
+/// Generates the grant type alias and `UPCALL_*` constants for a
+/// driver's subscribe numbers. Kept separate from `syscall_driver!` so
+/// the upcall count and grant type (needed by the struct definition and
+/// by code outside the `SyscallDriver` impl, such as callback methods)
+/// don't depend on where the `command` dispatch is generated.
+#[proc_macro]
+pub fn subscribes(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let subscribes_def = syn::parse_macro_input!(item as SubscribesDef);
+    let struct_name = &subscribes_def.struct_name;
+    let grant_name = quote::format_ident!("{}Grant", struct_name);
+    let upcalls = subscribes_def.subscribes.values().map(|s| Upcall(s.clone()));
+
+    let num_subscribes = subscribes_def
+        .subscribes
+        .keys()
+        .max()
+        .map_or(0, |x| (x + 1) as u8);
+    let num_allow_ro = 0u8;
+    let num_allow_rw = 0u8;
+
     let tokens = quote::quote! {
     type #grant_name<A> =
         kernel::grant::Grant<
@@ -351,24 +347,39 @@ pub fn syscall_driver(item: proc_macro::TokenStream) -> proc_macro::TokenStream 
         AllowRwCount<#num_allow_rw>>;
 
     #(#upcalls)*
-
-    #[doc = #extractor]
-    impl #impl_generics kernel::syscall::SyscallDriver for #struct_name #ty_generics #where_clause {
-        fn command(&self, command_num: usize, arg0: usize, arg1: usize, processid: kernel::ProcessId)
-               -> kernel::syscall::CommandReturn {
-        match command_num {
-            #(#commands),*
-            // default
-            _ => kernel::syscall::CommandReturn::failure(ErrorCode::NOSUPPORT),
-        }
-        }
-
-        #allocate_grant
-
-    }
-
-    #[allow(non_upper_case_globals)]
-    pub const #api_var_name: &str = #extractor;
         };
     tokens.into()
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+struct AllowDef {
+    struct_name: syn::Ident,
+    generics: syn::Generics,
+}
+
+impl syn::parse::Parse for AllowDef {
+    fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
+        let struct_name: syn::Ident = input.parse()?;
+        let generics: syn::Generics = input.parse()?;
+        let content: syn::parse::ParseBuffer;
+        syn::braced!(content in input);
+        let _sections: Punctuated<AllowSection, Token![,]> = Punctuated::parse_terminated(&content)?;
+
+        Ok(AllowDef {
+            struct_name,
+            generics,
+        })
+    }
+}
+
+/// Parses a driver's `allow_ro`/`allow_rw` sections. Neither section
+/// carries any buffer entries yet (they're still `{}` placeholders), so
+/// this currently just validates the syntax and generates nothing. Once
+/// allow buffers are supported, this is where their `ALLOW_RO_*`/
+/// `ALLOW_RW_*` constants and counts would be generated.
+#[proc_macro]
+pub fn allow(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let _allow_def = syn::parse_macro_input!(item as AllowDef);
+    quote::quote! {}.into()
 }
