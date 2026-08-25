@@ -4,9 +4,9 @@
 
 //! Chip trait setup.
 
-use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWrite;
 
 use crate::clocks::Clocks;
 use crate::gpio::{RPPins, SIO};
@@ -111,7 +111,7 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
         cortexm33::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state(_this: Option<&Self>, writer: &mut dyn PanicWrite) {
         CortexM33::print_cortexm_state(writer);
     }
 }

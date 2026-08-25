@@ -3,12 +3,12 @@
 // Copyright Tock Contributors 2025.
 
 //! Chip trait setup.
-use core::fmt::Write;
 use core::panic;
 
 use cortexm33::{CortexM33, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWrite;
 
 use crate::clocks::Clock;
 use crate::ctimer0::LPCTimer;
@@ -97,7 +97,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
         cortexm33::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state(_this: Option<&Self>, writer: &mut dyn PanicWrite) {
         CortexM33::print_cortexm_state(writer);
     }
 }

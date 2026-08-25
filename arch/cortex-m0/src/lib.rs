@@ -6,7 +6,7 @@
 
 #![no_std]
 
-use core::fmt::Write;
+use kernel::platform::chip::PanicWrite;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m0.
@@ -548,7 +548,7 @@ impl cortexm::CortexMVariant for CortexM0 {
     }
 
     #[inline]
-    unsafe fn print_cortexm_state(writer: &mut dyn Write) {
+    fn print_cortexm_state(writer: &mut dyn PanicWrite) {
         cortexm::print_cortexm_state(writer)
     }
 }

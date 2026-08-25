@@ -4,6 +4,7 @@
 
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWrite;
 
 use crate::{cpuss, gpio, hsiom, peri, scb, srss, tcpwm};
 use cortexm0p::{CortexM0P, CortexMVariant};
@@ -51,7 +52,7 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
         cortexm0p::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn core::fmt::Write) {
+    fn print_state(_this: Option<&Self>, writer: &mut dyn PanicWrite) {
         CortexM0P::print_cortexm_state(writer);
     }
 

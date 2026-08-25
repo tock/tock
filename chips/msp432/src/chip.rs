@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use core::fmt::Write;
 use cortexm4::{CortexM4, CortexMVariant};
 use kernel::platform::chip::Chip;
+use kernel::platform::chip::PanicWrite;
 
 use crate::nvic;
 use crate::wdt;
@@ -152,7 +152,7 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
         cortexm4::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
+    fn print_state(_this: Option<&Self>, write: &mut dyn PanicWrite) {
         CortexM4::print_cortexm_state(write);
     }
 }

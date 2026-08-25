@@ -4,9 +4,9 @@
 
 //! Top-level chip definition for the nRF52 microcontroller.
 
-use core::fmt::Write;
 use cortexm4f::{CortexM4F, CortexMVariant, nvic};
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWrite;
 use kernel::utilities::StaticRef;
 
 //
@@ -200,7 +200,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         cortexm4f::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
+    fn print_state(_this: Option<&Self>, write: &mut dyn PanicWrite) {
         CortexM4F::print_cortexm_state(write);
     }
 }

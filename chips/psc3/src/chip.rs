@@ -4,10 +4,10 @@
 
 //! Chip trait setup and default peripheral initialization.
 
-use core::fmt::Write;
 use kernel::hil::gpio::Configure;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWrite;
 
 use crate::cpuss_ppu;
 use crate::flashc;
@@ -154,7 +154,7 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
         cortexm33::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state(_this: Option<&Self>, writer: &mut dyn PanicWrite) {
         CortexM33::print_cortexm_state(writer);
     }
 }

@@ -5,8 +5,11 @@
 use crate::dma::{ChannelId, Dma, DmaPeripheral};
 use core::cell::Cell;
 use cortexm33::dma_fence::CortexMDmaFence;
+use kernel::context_tokens::PanicContext;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{self};
+use kernel::platform::chip::PanicWrite;
+use kernel::platform::chip::PanicWriteProof;
 use kernel::platform::chip::PanicWriter;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::MapCell;
@@ -519,7 +522,7 @@ pub struct UsartPanicWriterConfig {
 
 impl PanicWriter for Usart<'_> {
     type Config = UsartPanicWriterConfig;
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+    fn create_panic_writer(config: Self::Config, panic_context: &PanicContext) -> impl PanicWrite {
         let writer = UsartPanicWriter {
             registers: config.base,
         };
@@ -530,6 +533,6 @@ impl PanicWriter for Usart<'_> {
         regs.brr.write(BRR::BRR.val(35));
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
 
-        writer
+        PanicWriteProof::new(writer, panic_context)
     }
 }

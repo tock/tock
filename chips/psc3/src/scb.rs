@@ -429,7 +429,10 @@ pub struct ScbPanicWriterConfig {
 impl kernel::platform::chip::PanicWriter for Scb<'_> {
     type Config = ScbPanicWriterConfig;
 
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+    fn create_panic_writer(
+        config: Self::Config,
+        panic_context: &kernel::context_tokens::PanicContext,
+    ) -> impl kernel::platform::chip::PanicWrite {
         use kernel::hil::uart::Configure as _;
 
         let scb = Scb::new();
@@ -442,6 +445,6 @@ impl kernel::platform::chip::PanicWriter for Scb<'_> {
 
         scb.enable_scb();
 
-        ScbPanicWriter { scb }
+        kernel::platform::chip::PanicWriteProof::new(ScbPanicWriter { scb }, panic_context)
     }
 }

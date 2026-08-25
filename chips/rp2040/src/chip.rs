@@ -4,9 +4,9 @@
 
 //! Chip trait setup.
 
-use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWrite;
 
 use crate::adc;
 use crate::clocks::Clocks;
@@ -125,7 +125,7 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
         cortexm0p::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state(_this: Option<&Self>, writer: &mut dyn PanicWrite) {
         CortexM0P::print_cortexm_state(writer);
     }
 }

@@ -4,10 +4,10 @@
 
 //! High-level setup and interrupt mapping for the chip.
 
-use core::fmt::{Display, Write};
+use core::fmt::Display;
 use core::marker::PhantomData;
 use core::ptr::addr_of;
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, InterruptService, PanicWrite};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{CSR, mcause, mie::mie, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, TORUserPMP};
@@ -314,7 +314,7 @@ impl<
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state(this: Option<&Self>, writer: &mut dyn PanicWrite) {
         let _ = writer.write_fmt(format_args!(
             "\r\n---| OpenTitan Earlgrey configuration for {} |---",
             CFG::NAME

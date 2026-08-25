@@ -491,7 +491,10 @@ pub struct UartPanicWriterConfig {
 impl kernel::platform::chip::PanicWriter for Uart<'_> {
     type Config = UartPanicWriterConfig;
 
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+    fn create_panic_writer(
+        config: Self::Config,
+        panic_context: &kernel::context_tokens::PanicContext,
+    ) -> impl kernel::platform::chip::PanicWrite {
         use kernel::hil::uart::Configure as _;
 
         let uart = Uart::new(config.registers, config.clock_frequency);
@@ -499,6 +502,6 @@ impl kernel::platform::chip::PanicWriter for Uart<'_> {
         // Configure the UART correctly for panics.
         let _ = uart.configure(config.params);
 
-        UartPanicWriter { uart }
+        kernel::platform::chip::PanicWriteProof::new(UartPanicWriter { uart }, panic_context)
     }
 }

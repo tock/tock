@@ -7,6 +7,7 @@
 #![no_std]
 
 use core::fmt::Write;
+use kernel::platform::chip::PanicWrite;
 
 pub mod dcb;
 pub mod dma_fence;
@@ -101,7 +102,7 @@ pub trait CortexMVariant {
     /// Format and display architecture-specific state useful for debugging.
     ///
     /// This is generally used after a `panic!()` to aid debugging.
-    unsafe fn print_cortexm_state(writer: &mut dyn Write);
+    fn print_cortexm_state(writer: &mut dyn PanicWrite);
 }
 
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]

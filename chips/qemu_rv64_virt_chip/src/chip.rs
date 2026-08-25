@@ -4,12 +4,11 @@
 
 //! High-level setup and interrupt mapping for the chip.
 
-use core::fmt::Write;
 use core::ptr::addr_of;
 
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, InterruptService, PanicWrite};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
@@ -173,7 +172,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv64VirtChip<'a, I> {
         rv64i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state(this: Option<&Self>, writer: &mut dyn PanicWrite) {
         rv64i::print_riscv_state(writer);
         if let Some(t) = this {
             let _ = writer.write_fmt(format_args!("{}", t.pmp.pmp));
