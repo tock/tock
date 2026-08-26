@@ -792,14 +792,14 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
 ///
 /// For boards that want to use the UART to display panic messages, this
 /// provides an implementation of
-/// [`PanicWrite`](kernel::platform::chip::PanicWrite) with synchronous
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
 /// output.
 ///
 /// This is only to be used by panic messages and is not used within the normal
 /// operation of the Tock kernel.
 ///
 /// TODO: Validate this [`UartPanicWriter`] is always sound to create.
-struct UartPanicWriter<'a> {
+pub struct UartPanicWriter<'a> {
     inner: Uarte<'a>,
 }
 
@@ -834,13 +834,14 @@ pub struct UartPanicWriterConfig {
     pub rts: Option<Pin>,
 }
 
-impl kernel::platform::chip::PanicWriterFactory for Uarte<'_> {
+impl<'a> kernel::platform::chip::PanicWriterFactory for Uarte<'a> {
     type Config = UartPanicWriterConfig;
+    type Writer = UartPanicWriter<'a>;
 
     fn create_panic_writer(
         config: Self::Config,
         panic_context: &kernel::context_tokens::PanicContext,
-    ) -> impl kernel::platform::chip::PanicWrite {
+    ) -> kernel::platform::chip::PanicWriter<Self::Writer> {
         use uart::Configure as _;
 
         let inner = Uarte::new(UARTE0_BASE);

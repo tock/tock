@@ -5,10 +5,11 @@
 //! Chip trait setup.
 use core::panic;
 
+use core::fmt::Write;
 use cortexm33::{CortexM33, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
-use kernel::platform::chip::PanicWrite;
+use kernel::platform::chip::PanicWriter;
 
 use crate::clocks::Clock;
 use crate::ctimer0::LPCTimer;
@@ -97,7 +98,7 @@ impl<I: InterruptService> Chip for Lpc55s69<'_, I> {
         cortexm33::support::with_interrupts_disabled(f)
     }
 
-    fn print_state(_this: Option<&Self>, writer: &mut dyn PanicWrite) {
+    fn print_state<W: Write>(_this: Option<&Self>, writer: &mut PanicWriter<W>) {
         CortexM33::print_cortexm_state(writer);
     }
 }

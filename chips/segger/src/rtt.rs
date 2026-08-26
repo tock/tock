@@ -376,14 +376,14 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
 ///
 /// For boards that want to use RTT to display panic messages, this
 /// provides an implementation of
-/// [`PanicWrite`](kernel::platform::chip::PanicWrite) with synchronous
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
 /// output.
 ///
 /// This is only to be used by panic messages and is not used within the normal
 /// operation of the Tock kernel.
 ///
 /// TODO: Validate this [`RttPanicWriter`] is always sound to create.
-struct RttPanicWriter<'a> {
+pub struct RttPanicWriter<'a> {
     inner: &'a SeggerRttMemory<'a>,
 }
 
@@ -403,11 +403,12 @@ impl core::fmt::Write for RttPanicWriter<'_> {
 
 impl<'a> kernel::platform::chip::PanicWriterFactory for SeggerRttMemory<'a> {
     type Config = &'a SeggerRttMemory<'a>;
+    type Writer = RttPanicWriter<'a>;
 
     fn create_panic_writer(
         config: Self::Config,
         panic_context: &kernel::context_tokens::PanicContext,
-    ) -> impl kernel::platform::chip::PanicWrite {
+    ) -> kernel::platform::chip::PanicWriter<Self::Writer> {
         kernel::platform::chip::PanicWriter::new(RttPanicWriter { inner: config }, panic_context)
     }
 }

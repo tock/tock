@@ -96,7 +96,7 @@ pub trait Chip {
     /// `None`. The implementation of `print_state` may not print certain
     /// information if it depends on runtime-accessible state in `Self`, but
     /// that reference is not provided.
-    fn print_state(this: Option<&Self>, writer: &mut dyn PanicWrite);
+    fn print_state<W: Write>(this: Option<&Self>, writer: &mut PanicWriter<W>);
 }
 
 /// Interface for retrieving the currently executing thread.
@@ -200,35 +200,17 @@ impl ClockInterface for NoClockControl {
 /// `ClockInterface` objects.
 pub const NO_CLOCK_CONTROL: NoClockControl = NoClockControl {};
 
-/// Marker for a writer that is only valid to use from within a panic.
+/// Wraps a plain writer, given proof (a [`PanicContext`]) that a panic is
+/// genuinely underway.
 ///
-/// A type implementing [`PanicWrite`] asserts, by virtue of being
-/// constructible at all, that any instance was created in a context where it
-/// is sound to perform synchronous I/O outside of the normal asynchronous
-/// kernel flow (e.g. because the system is already tearing down after a
-/// panic). Consumers that only accept `&dyn PanicWrite` (rather than a plain
-/// [`IoWrite`] or [`core::fmt::Write`]) can therefore rely on that assertion
-/// having already been made, and do not need to be `unsafe` themselves.
-///
-/// This trait is `unsafe` to implement. Rather than implementing it
-/// per-writer-type (which would require every chip and board to add its own
-/// `unsafe impl`), prefer wrapping a plain writer in [`PanicWriter`], which
-/// implements this trait generically given proof (a [`PanicContext`]) that a
-/// panic is genuinely underway.
-///
-/// # Safety
-///
-/// Implementors must ensure that values of the implementing type are only
-/// constructed in contexts where synchronous, panic-time I/O is sound (i.e.
-/// while panicking).
-pub unsafe trait PanicWrite: IoWrite + Write {}
-
-/// Wraps a plain writer as [`PanicWrite`], given proof a panic is underway.
-///
-/// This is the sole general-purpose implementor of [`PanicWrite`]: rather
-/// than every panic-writer type across every chip and board declaring its
-/// own `unsafe impl PanicWrite`, holding a [`PanicContext`] token is enough
-/// to soundly treat any [`IoWrite`] + [`Write`] writer as a `PanicWrite`.
+/// A writer only becomes a [`PanicWriter`] by being wrapped here, and this is
+/// only constructible by presenting a [`PanicContext`]. Holding a
+/// `&mut PanicWriter<W>` is therefore itself proof that it is sound to
+/// perform synchronous I/O outside of the normal asynchronous kernel flow
+/// (e.g. because the system is already tearing down after a panic):
+/// consumers that accept a `&mut PanicWriter<W>` (rather than a plain
+/// [`IoWrite`] or [`core::fmt::Write`]) can rely on that assertion having
+/// already been made, and do not need to be `unsafe` themselves.
 ///
 /// `W` may be an owned writer (e.g. for
 /// [`PanicWriterFactory::create_panic_writer`] implementations, which
@@ -240,7 +222,7 @@ pub struct PanicWriter<W> {
     inner: W,
 }
 
-impl<W: IoWrite + Write> PanicWriter<W> {
+impl<W: Write> PanicWriter<W> {
     /// Wrap `inner`, proven sound by `_panic_context`.
     pub fn new(inner: W, _panic_context: &PanicContext) -> Self {
         PanicWriter { inner }
@@ -259,16 +241,12 @@ impl<W: Write> Write for PanicWriter<W> {
     }
 }
 
-// SAFETY: `PanicWriter` can only be constructed by presenting a
-// `PanicContext`, which is itself only mintable while panicking.
-unsafe impl<W: IoWrite + Write> PanicWrite for PanicWriter<W> {}
-
 /// Interface for chips to create a synchronous writer for panics.
 ///
 /// Any mechanism that can output a panic message during a panic must implement
 /// [`PanicWriterFactory`] to enable the `panic()` functions to write the
 /// output. This requires the mechanism to provide a new constructor for the
-/// writer that creates a synchronous writer that implements [`PanicWrite`].
+/// writer that creates a synchronous [`PanicWriter`].
 ///
 /// This is a dedicated trait because synchronous I/O is only used for panic
 /// handling. This allows chips to clearly separate synchronous implementations
@@ -278,10 +256,15 @@ pub trait PanicWriterFactory {
     /// panic output.
     type Config;
 
+    /// The concrete synchronous writer this mechanism constructs.
+    type Writer: IoWrite + Write;
+
     /// Create a new synchronous writer capable of sending panic messages.
     ///
     /// The `panic_context` proves this is only ever called while panicking,
-    /// which is what makes it sound to return a [`PanicWrite`] (typically by
-    /// building the concrete writer and wrapping it in [`PanicWriter`]).
-    fn create_panic_writer(config: Self::Config, panic_context: &PanicContext) -> impl PanicWrite;
+    /// which is what makes it sound to return a [`PanicWriter`].
+    fn create_panic_writer(
+        config: Self::Config,
+        panic_context: &PanicContext,
+    ) -> PanicWriter<Self::Writer>;
 }

@@ -4,9 +4,10 @@
 
 //! Chip trait setup.
 
+use core::fmt::Write;
 use cortexm7::{CortexM7, CortexMVariant};
 use kernel::debug;
-use kernel::platform::chip::{Chip, InterruptService, PanicWrite};
+use kernel::platform::chip::{Chip, InterruptService, PanicWriter};
 
 use crate::nvic;
 
@@ -152,7 +153,7 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
         cortexm7::support::with_interrupts_disabled(f)
     }
 
-    fn print_state(_this: Option<&Self>, write: &mut dyn PanicWrite) {
+    fn print_state<W: Write>(_this: Option<&Self>, write: &mut PanicWriter<W>) {
         CortexM7::print_cortexm_state(write);
     }
 }

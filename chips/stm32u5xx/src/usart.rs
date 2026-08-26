@@ -8,7 +8,6 @@ use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::context_tokens::PanicContext;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{self};
-use kernel::platform::chip::PanicWrite;
 use kernel::platform::chip::PanicWriter;
 use kernel::platform::chip::PanicWriterFactory;
 use kernel::utilities::StaticRef;
@@ -493,7 +492,7 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     }
 }
 
-struct UsartPanicWriter {
+pub struct UsartPanicWriter {
     registers: StaticRef<UsartRegisters>,
 }
 
@@ -522,7 +521,11 @@ pub struct UsartPanicWriterConfig {
 
 impl PanicWriterFactory for Usart<'_> {
     type Config = UsartPanicWriterConfig;
-    fn create_panic_writer(config: Self::Config, panic_context: &PanicContext) -> impl PanicWrite {
+    type Writer = UsartPanicWriter;
+    fn create_panic_writer(
+        config: Self::Config,
+        panic_context: &PanicContext,
+    ) -> PanicWriter<Self::Writer> {
         let writer = UsartPanicWriter {
             registers: config.base,
         };

@@ -112,7 +112,6 @@ use crate::capabilities::SetDebugWriterCapability;
 use crate::context_tokens::PanicContext;
 use crate::hil;
 use crate::platform::chip::Chip;
-use crate::platform::chip::PanicWrite;
 use crate::platform::chip::PanicWriter;
 use crate::platform::chip::PanicWriterFactory;
 use crate::platform::chip::ThreadIdProvider;
@@ -238,9 +237,9 @@ pub fn panic_print_old<W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
 ) {
     // We are executing inside the panic handler's call graph, so this proves
     // everything below is only ever reached while panicking. This is what
-    // lets us treat `writer` (a plain writer the board constructed with no
-    // special marker) as a `PanicWrite`, without every board needing its own
-    // `unsafe impl PanicWrite`.
+    // lets us wrap `writer` (a plain writer the board constructed with no
+    // special marker) in a `PanicWriter`, without every board needing to
+    // construct one itself.
     let panic_context = crate::mint_panic_context!(panic_info);
     let mut writer = PanicWriter::new(writer, &panic_context);
     let writer = &mut writer;
@@ -304,7 +303,7 @@ pub fn panic_begin(nop: &dyn Fn(), _panic_context: &PanicContext) {
 }
 
 /// Lightweight prints about the current panic and kernel version.
-pub fn panic_banner<W: PanicWrite>(writer: &mut W, panic_info: &PanicInfo) {
+pub fn panic_banner<W: Write>(writer: &mut PanicWriter<W>, panic_info: &PanicInfo) {
     // Expand `PanicInfo` manually rather than using its `Display`
     // implementation. The `Display` implementation inserts bare LFs
     // between the location line and the message body, rather than a
@@ -341,15 +340,15 @@ pub fn panic_banner<W: PanicWrite>(writer: &mut W, panic_info: &PanicInfo) {
 }
 
 /// Print current machine (CPU) state.
-pub fn panic_cpu_state<W: PanicWrite, C: Chip>(chip: Option<&'static C>, writer: &mut W) {
+pub fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, writer: &mut PanicWriter<W>) {
     C::print_state(chip, writer);
 }
 
 /// More detailed prints about all processes.
-pub fn panic_process_info<PP: ProcessPrinter, W: PanicWrite>(
+pub fn panic_process_info<PP: ProcessPrinter, W: Write>(
     processes: &'static [ProcessSlot],
     process_printer: Option<&'static PP>,
-    writer: &mut W,
+    writer: &mut PanicWriter<W>,
 ) {
     process_printer.map(|printer| {
         // print data about each process
@@ -738,7 +737,7 @@ macro_rules! debug_expr {
 }
 
 /// Flush any stored messages to the output writer.
-fn flush<W: PanicWrite>(writer: &mut W) {
+fn flush<W: IoWrite + Write>(writer: &mut PanicWriter<W>) {
     try_get_debug_writer(|debug_writer|{
         if debug_writer.to_write_len() > 0 {
             let _ = writer.write_str(

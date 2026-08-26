@@ -453,14 +453,14 @@ use kernel::utilities::io_write::IoWrite;
 ///
 /// For boards that want to use the UART to display panic messages, this
 /// provides an implementation of
-/// [`PanicWrite`](kernel::platform::chip::PanicWrite) with synchronous
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
 /// output.
 ///
 /// This is only to be used by panic messages and is not used within the normal
 /// operation of the Tock kernel.
 ///
 /// TODO: Validate this [`UartPanicWriter`] is always sound to create.
-struct UartPanicWriter<'a> {
+pub struct UartPanicWriter<'a> {
     uart: Uart<'a>,
 }
 
@@ -488,13 +488,14 @@ pub struct UartPanicWriterConfig {
     pub params: kernel::hil::uart::Parameters,
 }
 
-impl kernel::platform::chip::PanicWriterFactory for Uart<'_> {
+impl<'a> kernel::platform::chip::PanicWriterFactory for Uart<'a> {
     type Config = UartPanicWriterConfig;
+    type Writer = UartPanicWriter<'a>;
 
     fn create_panic_writer(
         config: Self::Config,
         panic_context: &kernel::context_tokens::PanicContext,
-    ) -> impl kernel::platform::chip::PanicWrite {
+    ) -> kernel::platform::chip::PanicWriter<Self::Writer> {
         use kernel::hil::uart::Configure as _;
 
         let uart = Uart::new(config.registers, config.clock_frequency);

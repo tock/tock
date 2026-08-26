@@ -8,7 +8,7 @@
 
 use core::fmt::Write;
 
-use kernel::platform::chip::PanicWrite;
+use kernel::platform::chip::PanicWriter;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub mod clic;
@@ -534,7 +534,7 @@ pub fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
 
 /// Prints out RISCV machine state, including basic system registers
 /// (mcause, mstatus, mtvec, mepc, mtval, interrupt status).
-pub fn print_riscv_state(writer: &mut dyn PanicWrite) {
+pub fn print_riscv_state<W: Write>(writer: &mut PanicWriter<W>) {
     let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
     let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
     let _ = writer.write_fmt(format_args!("Last cause (mcause): "));

@@ -4,10 +4,11 @@
 
 //! High-level setup and interrupt mapping for the chip.
 
+use core::fmt::Write;
 use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::Chip;
-use kernel::platform::chip::PanicWrite;
+use kernel::platform::chip::PanicWriter;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr;
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
@@ -177,7 +178,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I>
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    fn print_state(_this: Option<&Self>, writer: &mut dyn PanicWrite) {
+    fn print_state<W: Write>(_this: Option<&Self>, writer: &mut PanicWriter<W>) {
         rv32i::print_riscv_state(writer);
     }
 }

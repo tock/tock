@@ -4,9 +4,10 @@
 
 //! High-level setup and interrupt mapping for the chip.
 
+use core::fmt::Write;
 use core::ptr::addr_of;
 
-use kernel::platform::chip::{Chip, InterruptService, PanicWrite};
+use kernel::platform::chip::{Chip, InterruptService, PanicWriter};
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 
@@ -155,7 +156,7 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    fn print_state(_this: Option<&Self>, writer: &mut dyn PanicWrite) {
+    fn print_state<W: Write>(_this: Option<&Self>, writer: &mut PanicWriter<W>) {
         let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
         let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
         let _ = writer.write_fmt(format_args!("Last cause (mcause): "));

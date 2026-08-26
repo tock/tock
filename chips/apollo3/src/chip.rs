@@ -4,10 +4,11 @@
 
 //! Chip trait setup.
 
+use core::fmt::Write;
 use cortexm4f::{CortexM4F, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
-use kernel::platform::chip::PanicWrite;
+use kernel::platform::chip::PanicWriter;
 
 pub struct Apollo3<I: InterruptService + 'static> {
     mpu: cortexm4f::mpu::MPU,
@@ -164,7 +165,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
         cortexm4f::support::with_interrupts_disabled(f)
     }
 
-    fn print_state(_this: Option<&Self>, write: &mut dyn PanicWrite) {
+    fn print_state<W: Write>(_this: Option<&Self>, write: &mut PanicWriter<W>) {
         CortexM4F::print_cortexm_state(write);
     }
 }

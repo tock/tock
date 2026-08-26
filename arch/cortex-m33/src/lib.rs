@@ -6,7 +6,8 @@
 
 #![no_std]
 
-use kernel::platform::chip::PanicWrite;
+use core::fmt::Write;
+use kernel::platform::chip::PanicWriter;
 
 pub mod mpu_v8m;
 
@@ -64,7 +65,7 @@ impl cortexm::CortexMVariant for CortexM33 {
     }
 
     #[inline]
-    fn print_cortexm_state(writer: &mut dyn PanicWrite) {
+    fn print_cortexm_state<W: Write>(writer: &mut PanicWriter<W>) {
         cortexm::print_cortexm_state(writer)
     }
 }
