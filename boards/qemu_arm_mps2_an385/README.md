@@ -17,6 +17,10 @@ Currently supported peripherals:
   simulated LEDs.
 - One PL022 SPI controller (the "Shield0" instance), run in hardware
   loopback mode — see the note below.
+- The CMSDK APB Watchdog, backing the kernel's `WatchDog` resource — see
+  `chips/qemu_arm_mps2_chip/src/watchdog.rs`'s module docs. Unlike GPIO,
+  this is a real, non-stub peripheral: it genuinely counts down and
+  genuinely resets the machine.
 
 Not supported, and not planned for this machine specifically:
 
@@ -141,3 +145,30 @@ Running an application
    2      Unique     c_hello             238836         8         0   0/ 3   Terminated
   tock$
   ```
+
+Watchdog
+--------
+
+`kernel::platform::watchdog::WatchDog::tickle()` is called once per
+scheduling decision (i.e. very frequently), so a well-behaved kernel never
+comes close to the ~2 second reload margin. That means the only way to
+prove the watchdog actually works is to fake a hang, which a normal
+userspace app can't legitimately do — process isolation exists precisely
+so an app can't hang the kernel. So this was checked in two parts:
+
+- **Negative test (the userspace-facing one)**: ran `c_hello`, `blink`,
+  and `spi_loopback_test` together for ~18 seconds (about 9x the reload
+  period) and confirmed the boot banner printed exactly once — no spurious
+  reset, proving `tickle()` integration doesn't false-positive under real
+  interrupt/scheduling load.
+- **Positive test (kernel-side, one-off, not shipped)**: temporarily
+  commented out the `tickle()` call in `kernel/src/kernel.rs` (and, since
+  every idle sleep/wake cycle *also* reloads the watchdog as an
+  unavoidable property of this hardware, temporarily neutralized
+  `suspend()`/`resume()` in `watchdog.rs` too) and reran. Result: NMI
+  fired almost exactly on schedule (`panicked at arch/cortex-m/src/lib.rs:
+  ...: Unhandled Interrupt. ISR 2 is active.`), and since the panic loop
+  doesn't kick the dog either, QEMU genuinely reset the machine — the boot
+  banner reprinted — roughly one reload period later, repeating in a
+  clean cycle. Both changes were reverted immediately after (confirmed via
+  an identical post-revert binary hash before moving on).

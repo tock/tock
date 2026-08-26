@@ -12,6 +12,7 @@ pub mod led;
 pub mod spi;
 pub mod timer;
 pub mod uart;
+pub mod watchdog;
 
 #[cfg(feature = "cortex-m3")]
 pub mod vectors_m3;
@@ -36,6 +37,7 @@ pub struct Mps2DefaultPeripherals<'a> {
     pub timer0: timer::Timer<'a>,
     pub fpgaio: led::Fpgaio,
     pub spi_shield0: spi::Spi<'a>,
+    pub watchdog: watchdog::Watchdog,
 }
 
 impl Mps2DefaultPeripherals<'_> {
@@ -45,6 +47,7 @@ impl Mps2DefaultPeripherals<'_> {
             timer0: timer::Timer::new(timer::TIMER0_BASE),
             fpgaio: led::Fpgaio::new(led::FPGAIO_BASE),
             spi_shield0: spi::Spi::new(spi::SPI_SHIELD0_BASE),
+            watchdog: watchdog::Watchdog::new(watchdog::WATCHDOG_BASE),
         }
     }
 }

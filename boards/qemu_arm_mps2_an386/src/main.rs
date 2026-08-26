@@ -62,6 +62,7 @@ struct QemuArmMps2An386 {
             qemu_arm_mps2_chip::spi::Spi<'static>,
         >,
     >,
+    watchdog: &'static qemu_arm_mps2_chip::watchdog::Watchdog,
 }
 
 impl SyscallDriverLookup for QemuArmMps2An386 {
@@ -85,7 +86,7 @@ impl KernelResources<ChipHw> for QemuArmMps2An386 {
     type ProcessFault = ();
     type Scheduler = SchedulerInUse;
     type SchedulerTimer = cortexm4::systick::SysTick;
-    type WatchDog = ();
+    type WatchDog = qemu_arm_mps2_chip::watchdog::Watchdog;
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
@@ -104,7 +105,7 @@ impl KernelResources<ChipHw> for QemuArmMps2An386 {
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
-        &()
+        self.watchdog
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
@@ -224,6 +225,7 @@ unsafe fn start() -> (
             led,
             alarm,
             spi,
+            watchdog: &peripherals.watchdog,
         }
     );
 
