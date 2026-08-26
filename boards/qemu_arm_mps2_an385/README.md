@@ -71,9 +71,8 @@ device on this machine to show regardless).
   tock$
   ```
 
-With the default linker script, this board loads processes from
-flash=0x00040000-0x0007FFFF into ram=0x21004000-0x2101FFFF (RAM above the
-kernel's own static allocations).
+See `qemu_arm_mps2_lib`'s crate docs for the memory layout (shared by both
+this board and `qemu_arm_mps2_an386`).
 
 Running an application
 -----------------------

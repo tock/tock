@@ -188,21 +188,31 @@ pub fn is_interrupt_context() -> bool {
 /// Issue an ARM semihosting call.
 ///
 /// `operation` is the semihosting operation number (e.g. `0x18` for
-/// `SYS_EXIT`) and `parameter` is its operation-specific argument. Only
-/// meaningful when running under a semihosting host (e.g. QEMU started with
-/// `-semihosting`, or an attached debug probe); otherwise the `bkpt`
-/// instruction traps with no host to service it.
+/// `SYS_EXIT`) and `parameter` is its operation-specific argument.
+///
+/// Not exposed outside this module: it's a general, unrestricted semihosting
+/// interface, whereas callers should only need specific, narrow operations
+/// (e.g. [`semihost_terminate`]) that are safe to expose more broadly.
+///
+/// # Safety
+///
+/// Only meaningful when running under a semihosting host (e.g. QEMU started
+/// with `-semihosting`, or an attached debug probe); otherwise the `bkpt`
+/// instruction traps with no host to service it, so the caller must not
+/// assume this call takes effect. Depending on `operation`, the host may
+/// dereference `parameter` as a pointer (e.g. `SYS_WRITEC`) -- the caller is
+/// responsible for passing a value valid for whichever `operation` it
+/// selects.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[inline(always)]
-pub unsafe fn semihost_command(operation: u32, parameter: u32) -> u32 {
+unsafe fn semihost_command(operation: u32, parameter: u32) -> u32 {
     use core::arch::asm;
     let result;
 
-    // # Safety
-    //
-    // - INPUTS: r0/r1 are set to `operation`/`parameter`, per the ABI ARM
-    //   semihosting defines (ARM's "Semihosting for AArch32 and AArch64"
-    //   specification).
+    // SAFETY: r0/r1 are set to `operation`/`parameter`, per the ABI ARM
+    // semihosting defines (ARM's "Semihosting for AArch32 and AArch64"
+    // specification); the caller is responsible for those being valid for
+    // the chosen `operation`, per this function's own `# Safety` doc above.
     // - OUTPUTS: r0 is overwritten with the semihosting call's result.
     // - Options set:
     //   - nostack: This does not use the stack.
@@ -226,8 +236,35 @@ pub unsafe fn semihost_command(operation: u32, parameter: u32) -> u32 {
     result
 }
 
+/// Ask a semihosting host to terminate execution, reporting an abnormal
+/// exit.
+///
+/// Issues ARM semihosting's `SYS_EXIT` (`0x18`) with reason
+/// `ADP_Stopped_ApplicationExit` (`0x20026`). Intended for use from an
+/// already-unrecoverable state, such as a panic handler.
+///
+/// # Safety
+///
+/// Only meaningful when running under a semihosting host (e.g. QEMU started
+/// with `-semihosting`, or an attached debug probe); otherwise this falls
+/// through with no effect. This does not itself diverge -- the caller must
+/// not rely on it halting execution, and must not resume normal operation
+/// afterwards regardless of whether a host was present to service the call.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[inline(always)]
+pub unsafe fn semihost_terminate() {
+    const SYS_EXIT: u32 = 0x18;
+    const ADP_STOPPED_APPLICATION_EXIT: u32 = 0x20026;
+    // SAFETY: fixed, well-formed arguments per `semihost_command`'s safety
+    // doc above -- `ADP_STOPPED_APPLICATION_EXIT` is a plain reason code,
+    // not a pointer, so nothing here is dereferenced.
+    unsafe {
+        semihost_command(SYS_EXIT, ADP_STOPPED_APPLICATION_EXIT);
+    }
+}
+
 /// Mock implementation for tests on Travis-CI.
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe fn semihost_command(_operation: u32, _parameter: u32) -> u32 {
+pub unsafe fn semihost_terminate() {
     unimplemented!()
 }

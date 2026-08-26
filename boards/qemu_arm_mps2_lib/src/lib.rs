@@ -8,14 +8,24 @@
 //! The two boards are identical other than their CPU core, so this crate is
 //! generic over the [`CortexMVariant`] and provides everything that
 //! genericity allows to be shared: the `Platform` syscall driver lookup, the
-//! `ChipHw` type, and the process/capsule setup in [`start()`]. What can't
-//! be made generic stays in each board's own `main.rs`/`io.rs`:
-//! - The `#[panic_handler]` function and its `PANIC_RESOURCES` static, since
-//!   a `static` can't be generic and `#[panic_handler]` requires a concrete,
-//!   non-generic function.
+//! `ChipHw` type, and the process/capsule setup in [`early_init()`] /
+//! [`finish_start()`]. What can't be made generic stays in each board's own
+//! `main.rs`/`io.rs`:
+//! - The `static_init!(ChipHw<C>, ...)` allocation in between those two
+//!   calls, since a `static` can't reference a generic function's own type
+//!   parameter.
+//! - The `#[panic_handler]` function and its `PANIC_RESOURCES` static, for
+//!   the same reason (plus `#[panic_handler]` itself requires a concrete,
+//!   non-generic function).
 //! - `kernel::stack_size!`, an item-position macro that can't be invoked
 //!   from inside a generic function body.
 //! - The board name used in the boot banner.
+//!
+//! Both boards use the same memory layout (identical addresses; only the
+//! two linker scripts' `MEMORY` blocks are duplicated, since each board
+//! crate needs its own): with the default linker script, a board loads
+//! processes from flash=0x00040000-0x0007FFFF into ram=0x21004000-
+//! 0x2101FFFF (RAM above the kernel's own static allocations).
 
 #![no_std]
 
@@ -111,7 +121,8 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
     }
 }
 
-/// Peripherals and kernel state ready for [`chip()`] and [`finish_start()`].
+/// Peripherals and kernel state ready for allocating the chip and calling
+/// [`finish_start()`].
 pub struct EarlyInit {
     pub peripherals: &'static qemu_arm_mps2_chip::Mps2DefaultPeripherals<'static>,
     pub processes: &'static kernel::process::ProcessArray<NUM_PROCS>,
@@ -129,6 +140,15 @@ pub struct EarlyInit {
 ///
 /// `panic_resources` is board-owned for the same reason but filled in here
 /// so both boards only have to declare it, not populate it.
+///
+/// # Safety
+///
+/// Must be called exactly once, before any other access to the chip's
+/// peripherals or kernel state, from the board's `main()` entry point --
+/// this performs one-time hardware init and allocates `'static` state via
+/// `static_init!()`, which does not itself guard against being called more
+/// than once. `C` must be the actual `CortexMVariant` of the CPU this is
+/// running on.
 #[inline(never)]
 pub unsafe fn early_init<C: CortexMVariant>(
     panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
@@ -162,6 +182,14 @@ pub unsafe fn early_init<C: CortexMVariant>(
 /// `chip` must have been allocated by the caller via
 /// `static_init!(ChipHw<C>, ChipHw::<C>::new(early_init.peripherals))`
 /// after [`early_init()`] — see its docs for why.
+///
+/// # Safety
+///
+/// Must be called exactly once, immediately after the [`early_init()`] call
+/// that produced `early` and the `static_init!()` that produced `chip` (both
+/// from the same boot, same `C`) -- this allocates more `'static` state and
+/// starts loading processes from the linker-defined app regions, neither of
+/// which is safe to repeat.
 #[inline(never)]
 pub unsafe fn finish_start<C: CortexMVariant>(
     early: EarlyInit,

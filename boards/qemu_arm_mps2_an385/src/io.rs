@@ -39,12 +39,14 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         PANIC_RESOURCES.get(),
     );
 
-    // The system is no longer in a well-defined state. Ask QEMU (started
-    // with `-semihosting`) to exit; SYS_EXIT (0x18) with
-    // ADP_Stopped_ApplicationExit reports the target exited abnormally.
-    // Only takes effect under a semihosting host -- on real hardware, or
-    // QEMU without `-semihosting`, this falls through to the loop below.
-    cortexm3::support::semihost_command(0x18, 0x20026);
+    // SAFETY: the system is no longer in a well-defined state (we're in the
+    // panic handler), so falling through if there's no semihosting host to
+    // service this (e.g. real hardware, or QEMU without `-semihosting`) is
+    // fine -- we don't resume normal execution either way, per the loop
+    // below.
+    unsafe {
+        cortexm3::support::semihost_terminate();
+    }
 
     loop {}
 }

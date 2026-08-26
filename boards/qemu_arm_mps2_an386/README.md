@@ -36,5 +36,5 @@ Running QEMU
 - **`run-app`**: same as `qemu_arm_mps2_an385`'s (`make run-app
   APP=$PATH_TO_APP.tbf`).
 
-See `qemu_arm_mps2_an385/README.md` for the memory layout (identical
-addresses on both machines).
+See `qemu_arm_mps2_lib`'s crate docs for the memory layout (shared by both
+this board and `qemu_arm_mps2_an385`).

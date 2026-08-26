@@ -28,7 +28,12 @@ kernel::stack_size! {0x2000}
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let early = qemu_arm_mps2_lib::early_init::<cortexm4::CortexM4>(&io::PANIC_RESOURCES);
+    // SAFETY: `main` is only ever invoked once, by the reset handler, before
+    // anything else touches the chip's peripherals or kernel state -- see
+    // `qemu_arm_mps2_lib::early_init()`'s safety doc. `CortexM4` is this
+    // board's actual CPU core.
+    let early =
+        unsafe { qemu_arm_mps2_lib::early_init::<cortexm4::CortexM4>(&io::PANIC_RESOURCES) };
 
     // Must be allocated here, not inside `qemu_arm_mps2_lib`: a `static`
     // can't reference a generic function's own type parameter, so this one
@@ -39,7 +44,10 @@ pub unsafe fn main() {
         qemu_arm_mps2_lib::ChipHw::<cortexm4::CortexM4>::new(early.peripherals)
     );
 
-    let (board_kernel, platform, chip) = qemu_arm_mps2_lib::finish_start(early, chip);
+    // SAFETY: called immediately after the `early_init()`/`static_init!()`
+    // pair above, from the same boot, same `C` -- see
+    // `qemu_arm_mps2_lib::finish_start()`'s safety doc.
+    let (board_kernel, platform, chip) = unsafe { qemu_arm_mps2_lib::finish_start(early, chip) };
 
     kernel::debug!("QEMU MPS2 AN386 (Cortex-M4) initialization complete.");
     kernel::debug!("Entering main loop.");
