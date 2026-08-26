@@ -67,3 +67,41 @@ QEMU's hard 4 MiB cap for code at address 0 (`armv7m_load_kernel(..., 0,
 0x400000)` in `hw/arm/mps2.c`); RAM is a modest slice of the 16 MiB QEMU
 always backs at 0x21000000 regardless of what a board's linker script
 claims.
+
+Running an application
+-----------------------
+
+- **`run-app`**: Start Tock with one or more apps loaded at
+  `APP_ADDRESS` (0x00040000):
+
+  ```
+  $ make run-app APP=$PATH_TO_APP.tbf
+  ```
+
+  Verified end-to-end with `libtock-c`'s `c_hello` and `blink` examples,
+  built for `TOCK_TARGETS=cortex-m3` and loaded **at the same time**:
+
+  ```
+  $ cd $LIBTOCK_C/examples/c_hello && TOCK_TARGETS=cortex-m3 make
+  $ cd $LIBTOCK_C/examples/blink && TOCK_TARGETS=cortex-m3 make
+  $ cat $LIBTOCK_C/examples/blink/build/cortex-m3/cortex-m3.tbf \
+        $LIBTOCK_C/examples/c_hello/build/cortex-m3/cortex-m3.tbf \
+        > apps.bin
+  $ make run-app APP=$PWD/apps.bin
+  [...]
+  QEMU MPS2 AN385 (Cortex-M3) initialization complete.
+  Entering main loop.
+  tock$ list
+  Hello World!
+  list
+   PID    ShortID    Name                Quanta  Syscalls  Restarts  Grants  State
+   0      Unique     blink               183303         7         0   1/ 2   Running
+   1      Unique     c_hello             131473         8         0   0/ 2   Terminated
+  tock$
+  ```
+
+  `blink`'s LED toggling was confirmed for real by reading the `FPGAIO`
+  `LED0` register directly (`0x40028000`) through the QEMU monitor
+  (`C-a c` to switch from the serial console, then `xp/1xw 0x40028000`)
+  while it ran, observing the value change between `0x00000000` and
+  `0x00000002`.

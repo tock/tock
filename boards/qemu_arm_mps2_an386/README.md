@@ -33,5 +33,9 @@ Running QEMU
   tock$
   ```
 
+- **`run-app`**: same as `qemu_arm_mps2_an385`'s (`make run-app
+  APP=$PATH_TO_APP.tbf`), also verified end-to-end with `c_hello` and
+  `blink` (built with `TOCK_TARGETS=cortex-m4`) loaded at the same time.
+
 See `qemu_arm_mps2_an385/README.md` for the memory layout (identical
-addresses on both machines) and app-loading details.
+addresses on both machines).
