@@ -1,0 +1,30 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2026.
+
+use core::panic::PanicInfo;
+
+use kernel::debug;
+use kernel::hil::uart;
+
+/// Panic handler.
+#[panic_handler]
+pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
+    debug::panic_print::<qemu_arm_mps2_chip::uart::UartPanicWriter, _, _>(
+        qemu_arm_mps2_chip::uart::UartPanicWriterConfig {
+            base: qemu_arm_mps2_chip::uart::UART0_BASE,
+            params: uart::Parameters {
+                baud_rate: 115200,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+                width: uart::Width::Eight,
+            },
+        },
+        info,
+        &cortexm4::support::nop,
+        crate::PANIC_RESOURCES.get(),
+    );
+
+    loop {}
+}

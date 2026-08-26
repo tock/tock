@@ -1,0 +1,30 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "qemu_arm_mps2_chip"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+cortexm = { path = "../../arch/cortex-m" }
+cortexm3 = { path = "../../arch/cortex-m3", optional = true }
+cortexm4 = { path = "../../arch/cortex-m4", optional = true }
+kernel = { path = "../../kernel" }
+
+[features]
+# Selects which concrete vector table (`vectors_m3`/`vectors_m4`) this chip
+# crate provides. Kept out of the generic `chip::QemuArmMps2Chip` (which
+# stays generic over the CortexMVariant so both boards can share it): the
+# vector table's `_estack` reference must be a function-typed `extern "C"`
+# declaration, fully resolved within this crate, so it never ends up
+# monomorphized into a board crate that also (via
+# `components::process_console`) declares `_estack` as a data symbol —
+# mixing the two in one compilation unit trips LTO's symbol merging.
+cortex-m3 = ["dep:cortexm3"]
+cortex-m4 = ["dep:cortexm4"]
+
+[lints]
+workspace = true
