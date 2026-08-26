@@ -126,45 +126,44 @@ impl From<Error> for ErrorCode {
     }
 }
 
-/// The Scale Bits structure defines the 2 possible widths
-/// of the filter bank
+/// Mode of one of the filter elements.
+///
+/// This most closely resembles Bosch MCAN as it is the most prevalent CAN peripheral
+/// Some drivers of other CAN peripherals(like bxCAN) can return no support on some of these modes
+/// Most, if not all CAN peripherals should support mask mode
 #[derive(Debug, Copy, Clone)]
-pub enum ScaleBits {
-    Bits16,
-    Bits32,
-}
-
-/// The filter can be configured to filter the messages by matching
-/// an identifier or by bitwise matching multiple identifiers.
-#[derive(Debug, Copy, Clone)]
-pub enum IdentifierMode {
-    /// A mask is used to filter the messages
-    List,
-    /// The value of the identifier is used to filter the messages
-    Mask,
+pub enum Mode<'a> {
+    /// A list of allowed IDs composes the element.
+    /// Keep in mind that these may vary. For example, bxCAN can have 4 standard filters/element while MCAN can only have 2
+    /// Trying to create a list filter with more than the max supported amount will return an error
+    List(&'a [Id]),
+    /// An ID and a bitmask compose the filter element.
+    /// The true bits in the bitmask must match in order for the message to be received.
+    /// This mode should be supported on almost all CAN peripherals.
+    /// It goes without saying that you cannot apply an extended ID bitmask to a standard ID or vice versa.
+    Mask { value: Id, bitmask: Id },
+    /// Range mode is composed of two IDs
+    /// The IDs must both be standard or extended
+    /// All IDs in the range will pass through the filter
+    /// May be unsupported on some CAN peripherals, in this case it will return a NOSUPPORT error
+    Range(Id, Id),
 }
 
 /// The identifier can be standard (11 bits) or extended (29 bits)
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub enum Id {
     Standard(u16),
     Extended(u32),
 }
 
 /// This structure defines the parameters to configure a filter bank
+///
+/// This is thought to most closely resemble the Bosch MCAN peripheral found on most modern MCUs
+/// For chips using older or different peripheral some modes may return nosupport or invalid error
 #[derive(Copy, Clone)]
-pub struct FilterParameters {
-    /// The filter Id
-    ///
-    /// This value is dependent on the peripheral used and identifies
-    /// the filter bank that will be used
-    pub number: u32,
-
-    /// The width of the filter bank
-    pub scale_bits: ScaleBits,
-
+pub struct FilterParameters<'a> {
     /// The way in which the message Ids will be filtered.
-    pub identifier_mode: IdentifierMode,
+    pub mode: Mode<'a>,
 
     /// The receive FIFO Id that the filter will be applied to
     pub fifo_number: usize,
@@ -545,11 +544,8 @@ pub trait ConfigureFd: Configure {
     fn get_frame_size() -> usize;
 }
 
-/// The `Filter` trait is used to enable and disable a filter bank.
-///
-/// When the receiving process starts by calling the `start_receiving_process`
-/// in the `Receive` trait, there MUST be no filter enabled.
-pub trait Filter {
+/// The `Filters` trait is used to enable and disable a filter bank.
+pub trait Filters {
     /// Enables a filter for message reception.
     ///
     /// # Arguments:
@@ -557,28 +553,46 @@ pub trait Filter {
     /// * `filter` - A FilterParameters structure to define the filter
     ///   configuration
     ///
+    /// * 'number' = The filter Id to identify the filter bank to enable, will return inval if bigger than `filter_count()`
+    ///
     /// # Return values:
     ///
     /// * `Ok()` - The filter was successfully configured.
     /// * `Err(ErrorCode)` - indicates the error because of which the request
     ///   cannot be completed
-    fn enable_filter(&self, filter: FilterParameters) -> Result<(), ErrorCode>;
+    fn enable_filter(&self, number: usize, filter: &FilterParameters) -> Result<(), ErrorCode>;
 
     /// Disables a filter.
     ///
     /// # Arguments:
     ///
-    /// * `number` - The filter Id to identify the filter bank to disable
+    /// * `number` - The filter Id to identify the filter bank to disable, will return INVAL if bigger than `filter_count()`
     ///
     /// # Return values:
     ///
     /// * `Ok()` - The filter was successfully disabled.
     /// * `Err(ErrorCode)` - indicates the error because of which the request
     ///   cannot be completed
-    fn disable_filter(&self, number: u32) -> Result<(), ErrorCode>;
+    fn disable_filter(&self, number: usize) -> Result<(), ErrorCode>;
+
+    /// Returns whether the filter bank with the provided number is enabled
+    fn is_enabled(&self, number: usize) -> Result<bool, ErrorCode>;
 
     /// Returns the number of filters the peripheral provides
     fn filter_count(&self) -> usize;
+
+    /// Returns the theoretical max number of standard filters, could be smaller if extended filters are also used
+    fn filter_count_std(&self) -> usize;
+
+    /// Returns the theoretical max number of active extended filters, could be smaller if standard filters are also used
+    fn filter_count_ext(&self) -> usize;
+
+    /// Maximum number of identifiers accepted in a single `Mode::List` filter.
+    ///
+    /// `has_extended` must be true if *any* identifier in the intended list is
+    /// extended, since a peripheral may be forced into a wider filter layout by
+    /// a single extended identifier.
+    fn id_list_max_len(&self, has_extended: bool) -> usize;
 }
 
 /// The `Controller` trait is used to enable and disable the CAN peripheral.
@@ -684,9 +698,10 @@ pub trait Receive<const PACKET_SIZE: usize> {
     /// Start receiving messaged on the CAN bus.
     ///
     /// In most cases, this function should be called after the peripheral was
-    /// previously configured. When calling this function, there MUST be
-    /// no filters enabled by the user. The implementation of this function
-    /// MUST permit receiving frames on all available receiving FIFOs.
+    /// previously configured. If the peripheral requires a filter to receive messages and no filter is already set on number 0,
+    /// this function will create a pass all filter on slot 0. The user must disable or overwrite this filter if they
+    /// wish to only allow specific messages to be received.
+    /// The implementation of this function MUST permit receiving frames on all available receiving FIFOs.
     ///
     /// # Arguments:
     ///

@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022
+// Copyright Tock Contributors 2026
 // Copyright OxidOS Automotive SRL 2022
 //
 // Author: Teona Severin <teona.severin@oxidos.io>
@@ -8,15 +8,16 @@
 //! Low-level CAN driver for STM32F4XX chips
 //!
 
-use crate::clocks::{Stm32f4Clocks, phclk};
+use crate::clocks::{phclk, Stm32f4Clocks};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::can::{self, StandardBitTiming};
+use kernel::hil::can::{Filters, Mode};
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::StaticRef;
 
 pub const BRP_MIN_STM32: u32 = 0;
 pub const BRP_MAX_STM32: u32 = 1023;
@@ -549,14 +550,18 @@ impl<'a> Can<'a> {
         self.registers.can_mcr.modify(CAN_MCR::TXFP::CLEAR);
 
         match self.automatic_retransmission.get() {
+            true => self.registers.can_mcr.modify(CAN_MCR::NART::CLEAR),
+            false => self.registers.can_mcr.modify(CAN_MCR::NART::SET),
+        }
+
+        match self.automatic_wake_up.get() {
             true => self.registers.can_mcr.modify(CAN_MCR::AWUM::SET),
             false => self.registers.can_mcr.modify(CAN_MCR::AWUM::CLEAR),
         }
 
-        match self.automatic_wake_up.get() {
-            true => self.registers.can_mcr.modify(CAN_MCR::NART::CLEAR),
-            false => self.registers.can_mcr.modify(CAN_MCR::NART::SET),
-        }
+        // clear before setting, in case the mode is already set due to a previous configuration with no reset inbetween
+        self.registers.can_btr.modify(CAN_BTR::LBKM::CLEAR);
+        self.registers.can_btr.modify(CAN_BTR::SILM::CLEAR);
 
         if let Some(operating_mode_settings) = self.operating_mode.get() {
             match operating_mode_settings {
@@ -589,47 +594,193 @@ impl<'a> Can<'a> {
         Ok(())
     }
 
+    fn gracefully_exit_filter_cfg(&self, was_filter_on: bool, filter_number: u32) {
+        // to gracefully exit we need to both clear init and make sure the filter is as it was before
+        if was_filter_on {
+            self.registers.can_fa1r.modify(
+                CAN_FA1R::FACT.val(self.registers.can_fa1r.read(CAN_FA1R::FACT) | filter_number),
+            );
+        }
+        self.registers.can_fmr.modify(CAN_FMR::FINIT::CLEAR);
+    }
+
+    // std ids are 11 bits, extended ids are 29 bits but we get u16 and u32. this means if we dont use this function, we will silently accept invalid ids
+    // and that could lead to unexpected behavior
+    fn check_id(id: &can::Id) -> bool {
+        match id {
+            can::Id::Standard(val) if *val > 0x7ff => false,
+            can::Id::Extended(val) if *val > 0x1fff_ffff => false,
+            _ => true,
+        }
+    }
+
     /// Configure a filter to receive messages
-    pub fn config_filter(&self, filter_info: can::FilterParameters, enable: bool) {
+    /// Maps the HIL's filter modes onto bxCAN filter banks (RM0090 §32.7.4).
+    ///
+    /// - `Mode::Mask` → 32-bit mask mode, one bank per filter. IDE and RTR are
+    ///   forced to must-match so a standard filter cannot alias an extended frame
+    ///   whose top 11 bits coincide, and remote frames are never accepted.
+    /// - `Mode::List` → identifier list mode. Mixed IDs use 32-bit scale (so only one or two ids per filter);
+    ///   If we have all-standard IDs we use dual 16-bit scale(up to 4 per filter). Unused
+    ///   slots are padded with the last ID rather than zero, since 0x000 is a valid
+    ///   identifier and could cause issues
+    /// - `Mode::Range` → `NOSUPPORT`; bxCAN has no range filter.
+    ///
+    /// `number` is a filter bank index (0–27).
+    pub fn config_filter(
+        &self,
+        filter_info: &can::FilterParameters,
+        number: usize,
+    ) -> Result<(), kernel::ErrorCode> {
+        if number >= 28 {
+            return Err(kernel::ErrorCode::INVAL);
+        }
+
         // get position of the filter number
-        let filter_number = 1 << filter_info.number;
+        let filter_number = 1 << number;
 
         // start filter configuration
         self.registers.can_fmr.modify(CAN_FMR::FINIT::SET);
+
+        // remember if filter was on for graceful exit
+        let was_filter_on = self.registers.can_fa1r.read(CAN_FA1R::FACT) & filter_number != 0;
 
         // request filter number filter_number
         self.registers.can_fa1r.modify(
             CAN_FA1R::FACT.val(self.registers.can_fa1r.read(CAN_FA1R::FACT) & !filter_number),
         );
 
-        // request filter width to be 32 or 16 bits
-        match filter_info.scale_bits {
-            can::ScaleBits::Bits16 => {
+        // for more info on how these work check rm0090 32.7.4
+        // tldr is we match this bxCAN driver to MCAN functionality as much as possible
+        match filter_info.mode {
+            Mode::List(list) => {
+                for id in list {
+                    if !Self::check_id(id) {
+                        self.gracefully_exit_filter_cfg(was_filter_on, filter_number);
+                        return Err(kernel::ErrorCode::INVAL);
+                    }
+                }
+
+                let has_ext = list.iter().any(|id| matches!(id, can::Id::Extended(_)));
+                if has_ext {
+                    if list.len() > 2 {
+                        self.gracefully_exit_filter_cfg(was_filter_on, filter_number);
+                        return Err(kernel::ErrorCode::INVAL);
+                    }
+
+                    self.registers.can_fs1r.modify(
+                        CAN_FS1R::FSC
+                            .val(self.registers.can_fs1r.read(CAN_FS1R::FSC) | filter_number),
+                    );
+
+                    self.registers.can_fm1r.modify(
+                        CAN_FM1R::FBM
+                            .val(self.registers.can_fm1r.read(CAN_FM1R::FBM) | filter_number),
+                    );
+
+                    let fir1 = match list[0] {
+                        can::Id::Standard(val) => (val as u32) << 21,
+                        can::Id::Extended(val) => val << 3 | (1 << 2),
+                    };
+
+                    let fir2 = if list.len() == 2 {
+                        match list[1] {
+                            can::Id::Standard(val) => (val as u32) << 21,
+                            can::Id::Extended(val) => val << 3 | (1 << 2),
+                        }
+                    } else {
+                        // we pad the second one with the first result if its empty
+                        fir1
+                    };
+
+                    self.registers.can_firx[number * 2].modify(CAN_FiRx::FB.val(fir1));
+                    self.registers.can_firx[number * 2 + 1].modify(CAN_FiRx::FB.val(fir2));
+                } else {
+                    if list.len() > 4 || list.is_empty() {
+                        self.gracefully_exit_filter_cfg(was_filter_on, filter_number);
+                        return Err(kernel::ErrorCode::INVAL);
+                    }
+                    self.registers.can_fs1r.modify(
+                        CAN_FS1R::FSC
+                            .val(self.registers.can_fs1r.read(CAN_FS1R::FSC) & !filter_number),
+                    );
+
+                    self.registers.can_fm1r.modify(
+                        CAN_FM1R::FBM
+                            .val(self.registers.can_fm1r.read(CAN_FM1R::FBM) | filter_number),
+                    );
+
+                    // we iterate over the given ids, as we know by now they are all standard
+                    // we put them into the filter banks and then we pad the leftover unused filter ids with the last id because 0x000 is a valid can id and can potentially cause trouble
+
+                    let fir: u32 = match list[list.len() - 1] {
+                        can::Id::Standard(val) => (val << 5) as u32,
+                        can::Id::Extended(_) => {
+                            self.gracefully_exit_filter_cfg(was_filter_on, filter_number);
+                            return Err(kernel::ErrorCode::INVAL); // this will never be reached, as we dont have any extended IDs on this branch
+                        }
+                    };
+
+                    // we init with the last id for padding purposes, again 0 is a valid id and may mess things up
+                    let mut ids = [fir; 4];
+
+                    // we fill array
+                    for (count, id) in list.iter().enumerate() {
+                        if let can::Id::Standard(val) = id {
+                            ids[count] = (*val << 5) as u32;
+                        }
+                    }
+
+                    // we know we have maximum 4 ids(padded if we received less) so we can use hardcoded indices.
+                    self.registers.can_firx[number * 2]
+                        .modify(CAN_FiRx::FB.val(ids[0] | (ids[1] << 16)));
+                    self.registers.can_firx[number * 2 + 1]
+                        .modify(CAN_FiRx::FB.val(ids[2] | (ids[3] << 16)));
+                }
+            }
+
+            Mode::Mask { value, bitmask } => {
+                if !Self::check_id(&value) || !Self::check_id(&bitmask) {
+                    self.gracefully_exit_filter_cfg(was_filter_on, filter_number);
+                    return Err(kernel::ErrorCode::INVAL);
+                }
+                // we set filter scale to 32 bits as we use 32 bit mode for both ext and std ids
                 self.registers.can_fs1r.modify(
                     CAN_FS1R::FSC.val(self.registers.can_fs1r.read(CAN_FS1R::FSC) | filter_number),
                 );
-            }
-            can::ScaleBits::Bits32 => {
-                self.registers.can_fs1r.modify(
-                    CAN_FS1R::FSC.val(self.registers.can_fs1r.read(CAN_FS1R::FSC) & !filter_number),
-                );
-            }
-        }
 
-        self.registers.can_firx[(filter_info.number as usize) * 2].modify(CAN_FiRx::FB.val(0));
-        self.registers.can_firx[(filter_info.number as usize) * 2 + 1].modify(CAN_FiRx::FB.val(0));
-
-        // request filter mode to be mask or list
-        match filter_info.identifier_mode {
-            can::IdentifierMode::List => {
-                self.registers.can_fm1r.modify(
-                    CAN_FM1R::FBM.val(self.registers.can_fm1r.read(CAN_FM1R::FBM) | filter_number),
-                );
-            }
-            can::IdentifierMode::Mask => {
+                // set mask
                 self.registers.can_fm1r.modify(
                     CAN_FM1R::FBM.val(self.registers.can_fm1r.read(CAN_FM1R::FBM) & !filter_number),
                 );
+
+                // for simplicity, even if we could have 2 masks and 2 ids/filter, we only do 1 as mask mode should be the most widely supported mode
+                match (value, bitmask) {
+                    (can::Id::Standard(v), can::Id::Standard(m)) => {
+                        // set value
+                        self.registers.can_firx[number * 2]
+                            .modify(CAN_FiRx::FB.val((v as u32) << 21));
+                        self.registers.can_firx[number * 2 + 1]
+                            .modify(CAN_FiRx::FB.val(((m as u32) << 21) | (1 << 2) | (1 << 1)));
+                        // the or's are because we need to match the RTR and IDE bits
+                    }
+                    (can::Id::Extended(v), can::Id::Extended(m)) => {
+                        // set value
+                        self.registers.can_firx[number * 2]
+                            .modify(CAN_FiRx::FB.val((v << 3) | (1 << 2))); //we need to set IDE so std ids dont get matched to extended filters
+                        self.registers.can_firx[number * 2 + 1]
+                            .modify(CAN_FiRx::FB.val((m << 3) | (1 << 2) | (1 << 1)));
+                        // the or's are because we need to match the RTR and IDE bits
+                    }
+                    _ => {
+                        self.gracefully_exit_filter_cfg(was_filter_on, filter_number);
+                        return Err(kernel::ErrorCode::INVAL);
+                    }
+                }
+            }
+            Mode::Range(..) => {
+                self.gracefully_exit_filter_cfg(was_filter_on, filter_number);
+                return Err(kernel::ErrorCode::NOSUPPORT);
             }
         }
 
@@ -644,15 +795,13 @@ impl<'a> Can<'a> {
             );
         }
 
-        if enable {
-            self.registers.can_fa1r.modify(
-                CAN_FA1R::FACT.val(self.registers.can_fa1r.read(CAN_FA1R::FACT) | filter_number),
-            );
-        } else {
-            self.registers.can_fa1r.modify(
-                CAN_FA1R::FACT.val(self.registers.can_fa1r.read(CAN_FA1R::FACT) & !filter_number),
-            );
-        }
+        self.registers.can_fa1r.modify(
+            CAN_FA1R::FACT.val(self.registers.can_fa1r.read(CAN_FA1R::FACT) | filter_number),
+        );
+
+        // clear filter init bit
+        self.registers.can_fmr.modify(CAN_FMR::FINIT::CLEAR);
+        Ok(())
     }
 
     pub fn enable_filter_config(&self) {
@@ -701,7 +850,7 @@ impl<'a> Can<'a> {
                             .modify(CAN_TIxR::IDE::CLEAR);
                         self.registers.can_tx_mailbox[tx_mailbox]
                             .can_tir
-                            .modify(CAN_TIxR::STID.val(id as u32 & 0xeff));
+                            .modify(CAN_TIxR::STID.val(id as u32 & 0x7ff));
                         self.registers.can_tx_mailbox[tx_mailbox]
                             .can_tir
                             .modify(CAN_TIxR::EXID.val(0));
@@ -712,7 +861,7 @@ impl<'a> Can<'a> {
                             .modify(CAN_TIxR::IDE::SET);
                         self.registers.can_tx_mailbox[tx_mailbox]
                             .can_tir
-                            .modify(CAN_TIxR::STID.val((id & 0xffc0000) >> 18));
+                            .modify(CAN_TIxR::STID.val((id >> 18) & 0x7ff));
                         self.registers.can_tx_mailbox[tx_mailbox]
                             .can_tir
                             .modify(CAN_TIxR::EXID.val(id & 0x003fffff));
@@ -883,8 +1032,8 @@ impl<'a> Can<'a> {
         let message_length = self.registers.can_rx_mailbox[rx_mailbox]
             .can_rdtr
             .read(CAN_RDTxR::DLC) as usize;
-        let recv: u64 = ((self.registers.can_rx_mailbox[0].can_rdhr.get() as u64) << 32)
-            | (self.registers.can_rx_mailbox[0].can_rdlr.get() as u64);
+        let recv: u64 = ((self.registers.can_rx_mailbox[rx_mailbox].can_rdhr.get() as u64) << 32)
+            | (self.registers.can_rx_mailbox[rx_mailbox].can_rdlr.get() as u64);
         let rx_buf = recv.to_le_bytes();
         self.rx_buffer.map(|rx| {
             rx[..8].copy_from_slice(&rx_buf[..8]);
@@ -902,7 +1051,7 @@ impl<'a> Can<'a> {
             self.registers.can_rf0r.modify(CAN_RF0R::FOVR0::SET);
         }
 
-        if self.registers.can_rf0r.read(CAN_RF0R::FMP0) != 0 {
+        while self.registers.can_rf0r.read(CAN_RF0R::FMP0) != 0 {
             let (message_id, message_length, mut rx_buf) = self.process_received_message(0);
 
             self.receive_client.map(|receive_client| {
@@ -925,7 +1074,7 @@ impl<'a> Can<'a> {
             self.registers.can_rf1r.modify(CAN_RF1R::FOVR1::SET);
         }
 
-        if self.registers.can_rf1r.read(CAN_RF1R::FMP1) != 0 {
+        while self.registers.can_rf1r.read(CAN_RF1R::FMP1) != 0 {
             self.fifo1_interrupt_counter
                 .replace(self.fifo1_interrupt_counter.get() + 1);
             let (message_id, message_length, mut rx_buf) = self.process_received_message(1);
@@ -967,19 +1116,19 @@ impl<'a> Can<'a> {
         }
         // Last Error Code
         match self.registers.can_esr.read(CAN_ESR::LEC) {
-            0x001 => self
+            0b001 => self
                 .can_state
                 .set(CanState::RunningError(can::Error::Stuff)),
-            0x010 => self.can_state.set(CanState::RunningError(can::Error::Form)),
-            0x011 => self.can_state.set(CanState::RunningError(can::Error::Ack)),
-            0x100 => self
+            0b010 => self.can_state.set(CanState::RunningError(can::Error::Form)),
+            0b011 => self.can_state.set(CanState::RunningError(can::Error::Ack)),
+            0b100 => self
                 .can_state
                 .set(CanState::RunningError(can::Error::BitRecessive)),
-            0x101 => self
+            0b101 => self
                 .can_state
                 .set(CanState::RunningError(can::Error::BitDominant)),
-            0x110 => self.can_state.set(CanState::RunningError(can::Error::Crc)),
-            0x111 => self
+            0b110 => self.can_state.set(CanState::RunningError(can::Error::Crc)),
+            0b111 => self
                 .can_state
                 .set(CanState::RunningError(can::Error::SetBySoftware)),
             _ => {}
@@ -987,6 +1136,12 @@ impl<'a> Can<'a> {
 
         self.error_interrupt_counter
             .replace(self.error_interrupt_counter.get() + 1);
+
+        // clear ERRI (rc_w1), use set instead of modify to avoid clear by read
+        self.registers.can_msr.set(CAN_MSR::ERRI::SET.value);
+
+        // clear LEC
+        self.registers.can_esr.modify(CAN_ESR::LEC.val(0b111));
 
         if let CanState::RunningError(err) = self.can_state.get() {
             self.controller_client.map(|controller_client| {
@@ -1078,6 +1233,7 @@ impl DeferredCallClient for Can<'_> {
                             controller_client.state_changed(self.can_state.get().into());
                             controller_client.enabled(Err(enable_err));
                         });
+                        return;
                     }
                     self.controller_client.map(|controller_client| {
                         controller_client.state_changed(can::State::Running);
@@ -1352,24 +1508,27 @@ impl can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
         match self.can_state.get() {
             CanState::Normal | CanState::RunningError(_) => {
                 self.can_state.set(CanState::Normal);
-                self.config_filter(
-                    can::FilterParameters {
-                        number: 0,
-                        scale_bits: can::ScaleBits::Bits32,
-                        identifier_mode: can::IdentifierMode::Mask,
-                        fifo_number: 0,
-                    },
-                    true,
-                );
-                self.config_filter(
-                    can::FilterParameters {
-                        number: 1,
-                        scale_bits: can::ScaleBits::Bits32,
-                        identifier_mode: can::IdentifierMode::Mask,
-                        fifo_number: 1,
-                    },
-                    true,
-                );
+                if !self.is_enabled(0).unwrap_or(false) {
+                    let _ = self.config_filter(
+                        &can::FilterParameters {
+                            mode: can::Mode::Mask {
+                                value: can::Id::Standard(0),
+                                bitmask: can::Id::Standard(0),
+                            },
+                            fifo_number: 1,
+                        },
+                        0,
+                    );
+                    // we also want extended to pass thru the initial filter
+                    // because the HIL specifies it to have to be ID0, we have to manually override the IDE bit of this filter
+                    // to make it pass through both standard and extended frames, its easier to set it like so
+                    // this also sets RTR to don't care, which setting a filter thru config_filter can't do
+                    self.registers.can_fmr.modify(CAN_FMR::FINIT::SET);
+                    self.registers.can_firx[0].modify(CAN_FiRx::FB.val(0));
+                    self.registers.can_firx[1].modify(CAN_FiRx::FB.val(0));
+                    self.registers.can_fmr.modify(CAN_FMR::FINIT::CLEAR);
+                }
+
                 self.enable_filter_config();
                 self.enable_irq(CanInterruptMode::Fifo0Interrupt);
                 self.enable_irq(CanInterruptMode::Fifo1Interrupt);
@@ -1384,24 +1543,6 @@ impl can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
         match self.can_state.get() {
             CanState::Normal | CanState::RunningError(_) => {
                 self.can_state.set(CanState::Normal);
-                self.config_filter(
-                    can::FilterParameters {
-                        number: 0,
-                        scale_bits: can::ScaleBits::Bits32,
-                        identifier_mode: can::IdentifierMode::Mask,
-                        fifo_number: 0,
-                    },
-                    false,
-                );
-                self.config_filter(
-                    can::FilterParameters {
-                        number: 1,
-                        scale_bits: can::ScaleBits::Bits32,
-                        identifier_mode: can::IdentifierMode::Mask,
-                        fifo_number: 1,
-                    },
-                    false,
-                );
                 self.enable_filter_config();
                 self.disable_irq(CanInterruptMode::Fifo0Interrupt);
                 self.disable_irq(CanInterruptMode::Fifo1Interrupt);
@@ -1419,6 +1560,55 @@ impl can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
                 }
             }
             CanState::Sleep | CanState::Initialization => Err(kernel::ErrorCode::OFF),
+        }
+    }
+}
+
+impl can::Filters for Can<'_> {
+    fn enable_filter(
+        &self,
+        number: usize,
+        filter: &can::FilterParameters,
+    ) -> Result<(), kernel::ErrorCode> {
+        self.config_filter(filter, number)
+    }
+
+    fn disable_filter(&self, number: usize) -> Result<(), kernel::ErrorCode> {
+        if number >= 28 {
+            return Err(kernel::ErrorCode::INVAL);
+        }
+        // according to 32.9.4 we can clear this with finit cleared
+        self.registers.can_fa1r.modify(
+            CAN_FA1R::FACT.val(self.registers.can_fa1r.read(CAN_FA1R::FACT) & !(1 << number)),
+        );
+        Ok(())
+    }
+
+    fn is_enabled(&self, number: usize) -> Result<bool, kernel::ErrorCode> {
+        if number >= 28 {
+            return Err(kernel::ErrorCode::INVAL);
+        }
+        Ok(self.registers.can_fa1r.read(CAN_FA1R::FACT) & (1 << number) != 0)
+    }
+
+    // all 3 counts are the same because on bxcan you can have either ext, std or both in the same filter
+    fn filter_count(&self) -> usize {
+        28
+    }
+
+    fn filter_count_std(&self) -> usize {
+        28
+    }
+
+    fn filter_count_ext(&self) -> usize {
+        28
+    }
+
+    fn id_list_max_len(&self, has_extended: bool) -> usize {
+        if has_extended {
+            2
+        } else {
+            4
         }
     }
 }
