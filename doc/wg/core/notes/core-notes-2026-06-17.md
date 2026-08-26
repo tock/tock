@@ -81,7 +81,7 @@
 * Leon: Something that stuck out to me: understanding how register structs use array suboptimally now. I don't think this is viable for a port, but for just understanding LLMs are good at extracting semantic patterns.
 * Johnathan: I thought about that, but I was worried that it would switch all PRs to "I used LLMs on this" and track that. An LLM would be helpful for understanding though.
 * Leon: Makes sense, I can see the taint issue.
-* Johnathan: So release 0.11 on crates.io. Then add tock-registers-v0 workspace-wide pointing at 0.11. Migrate all crates to that version. Delete the kernel exports. Then add a new dependency that's the new tock registers that points at main on the new tock registers, tagged to a commit.
+* Johnathan: So release 0.11 on crates.io. Then add tock-registers-v0 workspace-wide pointing at 0.11. Migrate all crates to that version. Delete the kernel exports. Remove the old APIs from tock-registers. Then add a new workspace dependency to tock that points at main on the new tock registers, pinned to a commit. Migrate some drivers to the new APIs. Once the new APIs have stabilized, release tock-registers 2.0.
 * Johnathan: Question, do we immediately remove the old APIs from main after releasing 0.11?
 * Brad: Yes
 * Leon: Did we decide on a 0.11 not a 1.0? (general agreement)
