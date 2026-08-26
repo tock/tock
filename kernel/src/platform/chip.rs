@@ -212,9 +212,9 @@ pub const NO_CLOCK_CONTROL: NoClockControl = NoClockControl {};
 ///
 /// This trait is `unsafe` to implement. Rather than implementing it
 /// per-writer-type (which would require every chip and board to add its own
-/// `unsafe impl`), prefer wrapping a plain writer in [`PanicWriteProof`],
-/// which implements this trait generically given proof (a [`PanicContext`])
-/// that a panic is genuinely underway.
+/// `unsafe impl`), prefer wrapping a plain writer in [`PanicWriter`], which
+/// implements this trait generically given proof (a [`PanicContext`]) that a
+/// panic is genuinely underway.
 ///
 /// # Safety
 ///
@@ -230,49 +230,50 @@ pub unsafe trait PanicWrite: IoWrite + Write {}
 /// own `unsafe impl PanicWrite`, holding a [`PanicContext`] token is enough
 /// to soundly treat any [`IoWrite`] + [`Write`] writer as a `PanicWrite`.
 ///
-/// `W` may be an owned writer (e.g. for [`PanicWriter::create_panic_writer`]
-/// implementations, which construct a fresh writer and return it by value)
-/// or a mutable reference to an existing one (e.g. for boards with a
-/// long-lived `static mut` writer, which only need to prove the *use* of
-/// that writer happens during a panic).
-pub struct PanicWriteProof<W> {
+/// `W` may be an owned writer (e.g. for
+/// [`PanicWriterFactory::create_panic_writer`] implementations, which
+/// construct a fresh writer and return it by value) or a mutable reference
+/// to an existing one (e.g. for boards with a long-lived `static mut`
+/// writer, which only need to prove the *use* of that writer happens during
+/// a panic).
+pub struct PanicWriter<W> {
     inner: W,
 }
 
-impl<W: IoWrite + Write> PanicWriteProof<W> {
+impl<W: IoWrite + Write> PanicWriter<W> {
     /// Wrap `inner`, proven sound by `_panic_context`.
     pub fn new(inner: W, _panic_context: &PanicContext) -> Self {
-        PanicWriteProof { inner }
+        PanicWriter { inner }
     }
 }
 
-impl<W: IoWrite> IoWrite for PanicWriteProof<W> {
+impl<W: IoWrite> IoWrite for PanicWriter<W> {
     fn write(&mut self, buf: &[u8]) -> usize {
         self.inner.write(buf)
     }
 }
 
-impl<W: Write> Write for PanicWriteProof<W> {
+impl<W: Write> Write for PanicWriter<W> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.inner.write_str(s)
     }
 }
 
-// SAFETY: `PanicWriteProof` can only be constructed by presenting a
+// SAFETY: `PanicWriter` can only be constructed by presenting a
 // `PanicContext`, which is itself only mintable while panicking.
-unsafe impl<W: IoWrite + Write> PanicWrite for PanicWriteProof<W> {}
+unsafe impl<W: IoWrite + Write> PanicWrite for PanicWriter<W> {}
 
 /// Interface for chips to create a synchronous writer for panics.
 ///
 /// Any mechanism that can output a panic message during a panic must implement
-/// [`PanicWriter`] to enable the `panic()` functions to write the output. This
-/// requires the mechanism to provide a new constructor for the writer that
-/// creates a synchronous writer that implements [`PanicWrite`].
+/// [`PanicWriterFactory`] to enable the `panic()` functions to write the
+/// output. This requires the mechanism to provide a new constructor for the
+/// writer that creates a synchronous writer that implements [`PanicWrite`].
 ///
 /// This is a dedicated trait because synchronous I/O is only used for panic
 /// handling. This allows chips to clearly separate synchronous implementations
 /// that are a special case only for panics.
-pub trait PanicWriter {
+pub trait PanicWriterFactory {
     /// The configuration data the mechanism needs to configure the writer for
     /// panic output.
     type Config;
@@ -281,6 +282,6 @@ pub trait PanicWriter {
     ///
     /// The `panic_context` proves this is only ever called while panicking,
     /// which is what makes it sound to return a [`PanicWrite`] (typically by
-    /// building the concrete writer and wrapping it in [`PanicWriteProof`]).
+    /// building the concrete writer and wrapping it in [`PanicWriter`]).
     fn create_panic_writer(config: Self::Config, panic_context: &PanicContext) -> impl PanicWrite;
 }

@@ -35,11 +35,11 @@ pub trait IoWrite {
 }
 
 // This blanket impl (mirroring the one `core::fmt::Write` already has for
-// `&mut W`) only exists so `PanicWriteProof<W>` (see
-// `kernel::platform::chip`) can wrap a `&mut W` as well as an owned `W`.
-// That's needed for the legacy `panic_old`/`panic_print_old` path, where
-// boards hand in a reference to an existing writer rather than constructing
-// one via `PanicWriter::create_panic_writer`. Once every board is converted
+// `&mut W`) only exists so `PanicWriter<W>` (see `kernel::platform::chip`)
+// can wrap a `&mut W` as well as an owned `W`. That's needed for the legacy
+// `panic_old`/`panic_print_old` path, where boards hand in a reference to an
+// existing writer rather than constructing one via
+// `PanicWriterFactory::create_panic_writer`. Once every board is converted
 // to `create_panic_writer`, `panic_old`/`panic_print_old` (and this impl)
 // can be removed.
 impl<T: IoWrite + ?Sized> IoWrite for &mut T {

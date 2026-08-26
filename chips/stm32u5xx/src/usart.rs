@@ -9,8 +9,8 @@ use kernel::context_tokens::PanicContext;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{self};
 use kernel::platform::chip::PanicWrite;
-use kernel::platform::chip::PanicWriteProof;
 use kernel::platform::chip::PanicWriter;
+use kernel::platform::chip::PanicWriterFactory;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
@@ -520,7 +520,7 @@ pub struct UsartPanicWriterConfig {
     pub base: StaticRef<UsartRegisters>,
 }
 
-impl PanicWriter for Usart<'_> {
+impl PanicWriterFactory for Usart<'_> {
     type Config = UsartPanicWriterConfig;
     fn create_panic_writer(config: Self::Config, panic_context: &PanicContext) -> impl PanicWrite {
         let writer = UsartPanicWriter {
@@ -533,6 +533,6 @@ impl PanicWriter for Usart<'_> {
         regs.brr.write(BRR::BRR.val(35));
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
 
-        PanicWriteProof::new(writer, panic_context)
+        PanicWriter::new(writer, panic_context)
     }
 }

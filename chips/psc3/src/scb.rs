@@ -426,7 +426,7 @@ pub struct ScbPanicWriterConfig {
     pub params: kernel::hil::uart::Parameters,
 }
 
-impl kernel::platform::chip::PanicWriter for Scb<'_> {
+impl kernel::platform::chip::PanicWriterFactory for Scb<'_> {
     type Config = ScbPanicWriterConfig;
 
     fn create_panic_writer(
@@ -445,6 +445,6 @@ impl kernel::platform::chip::PanicWriter for Scb<'_> {
 
         scb.enable_scb();
 
-        kernel::platform::chip::PanicWriteProof::new(ScbPanicWriter { scb }, panic_context)
+        kernel::platform::chip::PanicWriter::new(ScbPanicWriter { scb }, panic_context)
     }
 }

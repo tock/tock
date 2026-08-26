@@ -17,7 +17,7 @@ pub const UART0_BASE: StaticRef<Uart16550Registers> =
 ///
 /// For boards that want to use the UART to display panic messages, this
 /// provides an implementation of
-/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// [`PanicWrite`](kernel::platform::chip::PanicWrite) with synchronous
 /// output.
 ///
 /// This is only to be used by panic messages and is not used within the normal
@@ -50,7 +50,7 @@ pub struct UartPanicWriterConfig {
     pub params: hil::uart::Parameters,
 }
 
-impl kernel::platform::chip::PanicWriter for UartPanicWriter<'_> {
+impl kernel::platform::chip::PanicWriterFactory for UartPanicWriter<'_> {
     type Config = UartPanicWriterConfig;
 
     fn create_panic_writer(
@@ -61,6 +61,6 @@ impl kernel::platform::chip::PanicWriter for UartPanicWriter<'_> {
 
         let inner = Uart16550::new(UART0_BASE);
         let _ = inner.configure(config.params);
-        kernel::platform::chip::PanicWriteProof::new(UartPanicWriter { inner }, panic_context)
+        kernel::platform::chip::PanicWriter::new(UartPanicWriter { inner }, panic_context)
     }
 }

@@ -113,8 +113,8 @@ use crate::context_tokens::PanicContext;
 use crate::hil;
 use crate::platform::chip::Chip;
 use crate::platform::chip::PanicWrite;
-use crate::platform::chip::PanicWriteProof;
 use crate::platform::chip::PanicWriter;
+use crate::platform::chip::PanicWriterFactory;
 use crate::platform::chip::ThreadIdProvider;
 use crate::process::ProcessPrinter;
 use crate::process::ProcessSlot;
@@ -160,7 +160,7 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+pub fn panic_print<PW: PanicWriterFactory, C: Chip, PP: ProcessPrinter>(
     writer_config: PW::Config,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
@@ -201,7 +201,7 @@ pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+pub fn panic<L: hil::led::Led, PW: PanicWriterFactory, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer_config: PW::Config,
     panic_info: &PanicInfo,
@@ -242,7 +242,7 @@ pub fn panic_print_old<W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
     // special marker) as a `PanicWrite`, without every board needing its own
     // `unsafe impl PanicWrite`.
     let panic_context = crate::mint_panic_context!(panic_info);
-    let mut writer = PanicWriteProof::new(writer, &panic_context);
+    let mut writer = PanicWriter::new(writer, &panic_context);
     let writer = &mut writer;
 
     panic_begin(nop, &panic_context);
