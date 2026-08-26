@@ -109,6 +109,7 @@ use core::panic::PanicInfo;
 use core::str;
 
 use crate::capabilities::SetDebugWriterCapability;
+use crate::context_tokens::PanicContext;
 use crate::hil;
 use crate::platform::chip::Chip;
 use crate::platform::chip::PanicWrite;
@@ -159,7 +160,7 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
     writer_config: PW::Config,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
@@ -172,11 +173,7 @@ pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
     // Create the synchronous writer we can use to output the panic message.
     let mut writer = PW::create_panic_writer(writer_config, &panic_context);
 
-    // SAFETY: we are panicking (see `panic_context` above), so it is sound
-    // to busy-wait here to let outstanding DMA finish.
-    unsafe {
-        panic_begin(nop);
-    }
+    panic_begin(nop, &panic_context);
     // Flush debug buffer if needed
     flush(&mut writer);
     panic_banner(&mut writer, panic_info);
@@ -207,24 +204,22 @@ pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
+pub fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer_config: PW::Config,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     panic_resources: Option<&PanicResources<C, PP>>,
 ) -> ! {
-    unsafe {
-        // Call `panic_print` first which will print out the panic information and
-        // return
-        panic_print::<PW, C, PP>(writer_config, panic_info, nop, panic_resources);
+    // Call `panic_print` first which will print out the panic information and
+    // return
+    panic_print::<PW, C, PP>(writer_config, panic_info, nop, panic_resources);
 
-        // The system is no longer in a well-defined state, we cannot
-        // allow this function to return
-        //
-        // Forever blink LEDs in an infinite loop
-        panic_blink_forever(leds)
-    }
+    // The system is no longer in a well-defined state, we cannot
+    // allow this function to return
+    //
+    // Forever blink LEDs in an infinite loop
+    panic_blink_forever(leds)
 }
 
 /// Tock panic routine, without the infinite LED-blinking loop.
@@ -238,7 +233,7 @@ pub unsafe fn panic<L: hil::led::Led, PW: PanicWriter, C: Chip, PP: ProcessPrint
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print_old<W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
+pub fn panic_print_old<W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
@@ -253,11 +248,7 @@ pub unsafe fn panic_print_old<W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
     let mut writer = PanicWriteProof::new(writer, &panic_context);
     let writer = &mut writer;
 
-    // SAFETY: we are panicking (see `panic_context` above), so it is sound
-    // to busy-wait here to let outstanding DMA finish.
-    unsafe {
-        panic_begin(nop);
-    }
+    panic_begin(nop, &panic_context);
     // Flush debug buffer if needed
     flush(writer);
     panic_banner(writer, panic_info);
@@ -288,24 +279,22 @@ pub unsafe fn panic_print_old<W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic_old<L: hil::led::Led, W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
+pub fn panic_old<L: hil::led::Led, W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     panic_resources: Option<&PanicResources<C, PP>>,
 ) -> ! {
-    unsafe {
-        // Call `panic_print` first which will print out the panic information and
-        // return
-        panic_print_old(writer, panic_info, nop, panic_resources);
+    // Call `panic_print` first which will print out the panic information and
+    // return
+    panic_print_old(writer, panic_info, nop, panic_resources);
 
-        // The system is no longer in a well-defined state, we cannot
-        // allow this function to return
-        //
-        // Forever blink LEDs in an infinite loop
-        panic_blink_forever(leds)
-    }
+    // The system is no longer in a well-defined state, we cannot
+    // allow this function to return
+    //
+    // Forever blink LEDs in an infinite loop
+    panic_blink_forever(leds)
 }
 
 /// Generic panic entry.
@@ -313,7 +302,7 @@ pub unsafe fn panic_old<L: hil::led::Led, W: IoWrite + Write, C: Chip, PP: Proce
 /// This opaque method should always be called at the beginning of a board's
 /// panic method to allow hooks for any core kernel cleanups that may be
 /// appropriate.
-pub unsafe fn panic_begin(nop: &dyn Fn()) {
+pub fn panic_begin(nop: &dyn Fn(), _panic_context: &PanicContext) {
     // Let any outstanding uart DMA's finish
     for _ in 0..200000 {
         nop();
