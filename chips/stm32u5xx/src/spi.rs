@@ -417,6 +417,10 @@ register_bitfields![u32,
 
 pub struct Spi<'a> {
     pub registers: StaticRef<SpiRegisters>,
+
+    /// SPI peripheral number, needed for choosing its corresponding clock frequency
+    index: u8,
+
     clocks: OptionalCell<Clocks>,
     client: OptionalCell<&'a dyn spi::SpiMasterClient>,
     dma: OptionalCell<&'a Dma>,
@@ -431,9 +435,10 @@ pub struct Spi<'a> {
 }
 
 impl<'a> Spi<'a> {
-    pub fn new(base: StaticRef<SpiRegisters>) -> Self {
+    pub fn new(base: StaticRef<SpiRegisters>, spi_index: u8) -> Self {
         Self {
             registers: base,
+            index: spi_index,
             clocks: OptionalCell::empty(),
             client: OptionalCell::empty(),
             dma: OptionalCell::empty(),
@@ -450,6 +455,27 @@ impl<'a> Spi<'a> {
 
     pub fn set_clocks(&self, clocks: Clocks) {
         self.clocks.set(clocks);
+    }
+
+    pub fn get_kernel_clock_frequency(&self) -> Result<Hertz, ()> {
+        // The clock frequencies must have been provided with `set_clocks` at this point
+        let Some(clocks) = &self.clocks.get() else {
+            return Err(());
+        };
+
+        // Get the clock frequency feeding this SPI
+        let clock_frequency_option = match self.index {
+            1 => clocks.spi1,
+            // Other SPIs are not yet supported
+            _ => return Err(()),
+        };
+
+        // Ensure the input clock is valid
+        let Some(clock_frequency) = clock_frequency_option else {
+            return Err(());
+        };
+
+        Ok(clock_frequency)
     }
 
     // Adapted from embassy-rs/embassy/embassy-stm32/src/spi/mod.rs
@@ -605,14 +631,19 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
             return Err(kernel::ErrorCode::INVAL);
         }
 
-        // It is not possible set a specific baudrate, we can only prescale the clock that feeds SPI
+        // Get the frequency of the clock feeding this peripheral
+        let clock_frequency_result = self.get_kernel_clock_frequency();
 
-        // Assume PCLK2 is the selected clock source
-        let clock_freq = self.clocks.get().unwrap().pclk2;
+        // The frequency must have been retrieved successfully
+        let Ok(clock_frequency) = clock_frequency_result else {
+            return Err(kernel::ErrorCode::FAIL);
+        };
+
+        // It is not possible set a specific baudrate, we can only prescale the clock that feeds SPI
 
         // Find the best prescaler
         let (mbr_field_value, div) =
-            Spi::<'a>::compute_baud_rate_prescaler(clock_freq, Hertz(rate));
+            Spi::<'a>::compute_baud_rate_prescaler(clock_frequency, Hertz(rate));
 
         // Before we can set the rate we need to disable the SPI.
         let spi_was_enabled = self.registers.cr1.is_set(CR1::SPE);
@@ -627,12 +658,17 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         }
 
         // Return the actual frequency that was set
-        Ok((clock_freq / div).0)
+        Ok((clock_frequency / div).0)
     }
 
     fn get_rate(&self) -> u32 {
-        // Assume PCLK2 is the selected clock source
-        let clock_freq = self.clocks.get().unwrap().pclk2;
+        // Get the frequency of the clock feeding this peripheral
+        let clock_frequency_result = self.get_kernel_clock_frequency();
+
+        // The frequency must have been retrieved successfully
+        let Ok(clock_frequency) = clock_frequency_result else {
+            return 0;
+        };
 
         // Read the configured prescaler
         let div: u16 = match self.registers.cfg1.read_as_enum(CFG1::MBR) {
@@ -647,7 +683,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         };
 
         // Divide the input frequency by the prescaler
-        (clock_freq / div).0
+        (clock_frequency / div).0
     }
 
     fn is_busy(&self) -> bool {
@@ -667,17 +703,22 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     }
 
     fn init(&self) -> Result<(), kernel::ErrorCode> {
+        // Get the frequency of the clock feeding this peripheral
+        let clock_frequency_result = self.get_kernel_clock_frequency();
+
+        // The frequency must have been retrieved successfully
+        let Ok(clock_frequency) = clock_frequency_result else {
+            return Err(kernel::ErrorCode::FAIL);
+        };
+
         let regs = &*self.registers;
 
         // Disable SPI in order to change config bits
         regs.cr1.modify(CR1::SPE::CLEAR);
 
-        // Assume PCLK2 is the selected clock source
-        let clock_freq = self.clocks.get().unwrap().pclk2;
-
         // Find the best prescaler to set an SPI frequency of 2MHz
         let (mbr_field_value, _) =
-            Spi::<'a>::compute_baud_rate_prescaler(clock_freq, Hertz(2_000_000));
+            Spi::<'a>::compute_baud_rate_prescaler(clock_frequency, Hertz(2_000_000));
 
         // Errata 2.18.1 Workaround: Explicitly force CRCSIZE to 0b00111 (8-bit) to prevent
         // RxFIFO data corruption when TSIZE > 0 and CRC is disabled

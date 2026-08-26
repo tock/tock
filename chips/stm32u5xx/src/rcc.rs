@@ -17,9 +17,10 @@ use config::{HseMode, Pll, PllInput, RccConfig};
 // Enumerations for some RCC fields
 pub mod values;
 use values::{
-    Adcdacsel, Adfsel, Dacsel, Fdcansel, I2c3sel, I2csel, Iclksel, Lptim2sel, Lptimsel, Lpusartsel,
-    MsiRange, Octospisel, PllDiv, PllMboost, PllSource, Pllrge, Rngsel, Rtcsel, Saessel, Saisel,
-    Sdmmcsel, Spi1sel, Spi2sel, Spi3sel, Sysclk, Usart1sel, Usartsel,
+    AHBPrescaler, Adcdacsel, Adfsel, Dacsel, Fdcansel, I2c3sel, I2csel, Iclksel, Lptim2sel,
+    Lptimsel, Lpusartsel, MsiRange, Octospisel, PllDiv, PllMboost, PllMul, PllPreDiv, PllSource,
+    Pllrge, Rngsel, Rtcsel, Saessel, Saisel, Sdmmcsel, Spi1sel, Spi2sel, Spi3sel, Sysclk,
+    Usart1sel, Usartsel,
 };
 
 // Helper for frequencies
@@ -40,10 +41,9 @@ pub struct Clocks {
     pub pclk2_tim: Hertz,
     pub msik: Option<Hertz>,
     pub hsi48: Option<Hertz>,
-    pub rtc: Option<Hertz>,
     pub lsi: Option<Hertz>,
     pub hse: Option<Hertz>,
-    pub hsi16: Option<Hertz>,
+    pub hsi16: Hertz,
     pub pll1_p: Option<Hertz>,
     pub pll1_q: Option<Hertz>,
     pub pll1_r: Option<Hertz>,
@@ -53,6 +53,12 @@ pub struct Clocks {
     pub pll3_p: Option<Hertz>,
     pub pll3_q: Option<Hertz>,
     pub pll3_r: Option<Hertz>,
+
+    // Peripheral clocks
+    pub usart1: Option<Hertz>,
+    pub i2c1: Option<Hertz>,
+    pub spi1: Option<Hertz>,
+    pub rtc: Option<Hertz>,
 }
 
 // Registers and fields
@@ -294,17 +300,24 @@ impl Rcc {
 
     /// Configure and start all necessary clocks
     // Adapted from embassy-rs/embassy/embassy-stm32/src/rcc/u5.rs
-    pub fn init(&self, config: RccConfig, pwr: &Pwr) -> Clocks {
+    pub fn init(&self, config: RccConfig, pwr: &Pwr) -> (Clocks, bool) {
+        // If a invalid configuration is specified (which can be solved by a fallback), this keeps track if any configuration parameter was overridden
+        let mut was_fallback_applied = false;
+
         // Configure the clock to a safe default state before starting configuration:
         // power range 1 (most powerful), HSI as SYSCLK source (16MHz)
         pwr.set_voltage_scaling(VoltageScale::Range1);
         self.enable_hsi16();
         self.set_sysclk_source(Sysclk::Hsi);
 
-        let msis = config.msis.map(|range| {
+        let msis = config.msis.map(|mut range| {
             // Check MSI output per RM0456 § 11.4.10
             if let VoltageScale::Range4 = config.voltage_range {
-                assert!(Self::msirange_to_hertz(range).0 <= 24_000_000);
+                // Cap MSIS to 24MHz in voltage range 4
+                if Self::msirange_to_hertz(range).0 > 24_000_000 {
+                    range = MsiRange::Range24mhz;
+                    was_fallback_applied = true;
+                }
             }
 
             // RM0456 § 11.8.2: spin until MSIS is off or MSIS is ready before setting its range
@@ -328,9 +341,14 @@ impl Rcc {
             Self::msirange_to_hertz(range)
         });
 
-        let msik = config.msik.map(|range| {
+        let msik = config.msik.map(|mut range| {
+            // Check MSI output per RM0456 § 11.4.10
             if let VoltageScale::Range4 = config.voltage_range {
-                assert!(Self::msirange_to_hertz(range).0 <= 24_000_000);
+                // Cap MSIK to 24MHz in voltage range 4
+                if Self::msirange_to_hertz(range).0 > 24_000_000 {
+                    range = MsiRange::Range24mhz;
+                    was_fallback_applied = true;
+                }
             }
 
             loop {
@@ -351,16 +369,24 @@ impl Rcc {
             Self::msirange_to_hertz(range)
         });
 
-        let hsi16 = config.hsi16.then_some(Hertz(16_000_000));
+        let hsi16 = Hertz(16_000_000);
 
-        let hse = config.hse.map(|hse| {
+        let hse = config.hse.map(|mut hse| {
             // Check frequency limits per RM456 § 11.4.10
             match config.voltage_range {
                 VoltageScale::Range1 | VoltageScale::Range2 | VoltageScale::Range3 => {
-                    assert!(hse.freq.0 <= 50_000_000);
+                    // Cap HSE to 50MHz in voltage range 1/2/3
+                    if hse.freq.0 > 50_000_000 {
+                        hse.freq = Hertz(50_000_000);
+                        was_fallback_applied = true;
+                    }
                 }
                 VoltageScale::Range4 => {
-                    assert!(hse.freq.0 <= 25_000_000);
+                    // Cap HSE to 25MHz in voltage range 4
+                    if hse.freq.0 > 25_000_000 {
+                        hse.freq = Hertz(25_000_000);
+                        was_fallback_applied = true;
+                    }
                 }
             }
 
@@ -401,38 +427,65 @@ impl Rcc {
             hse,
             msi: msis,
         };
-        let pll1 = config.pll1.map_or_else(
+        let (pll1, was_pll_fallback_applied) = config.pll1.map_or_else(
             || {
                 self.change_pll_enable(PllInstance::Pll1, false);
-                PllOutput::default()
+                (PllOutput::default(), false)
             },
             |c| self.init_pll(PllInstance::Pll1, Some(c), &pll_input, config.voltage_range),
         );
-        let pll2 = config.pll2.map_or_else(
+        if was_pll_fallback_applied {
+            was_fallback_applied = true;
+        }
+        let (pll2, was_pll_fallback_applied) = config.pll2.map_or_else(
             || {
                 self.change_pll_enable(PllInstance::Pll2, false);
-                PllOutput::default()
+                (PllOutput::default(), false)
             },
             |c| self.init_pll(PllInstance::Pll2, Some(c), &pll_input, config.voltage_range),
         );
-        let pll3 = config.pll3.map_or_else(
+        if was_pll_fallback_applied {
+            was_fallback_applied = true;
+        }
+        let (pll3, was_pll_fallback_applied) = config.pll3.map_or_else(
             || {
                 self.change_pll_enable(PllInstance::Pll3, false);
-                PllOutput::default()
+                (PllOutput::default(), false)
             },
             |c| self.init_pll(PllInstance::Pll3, Some(c), &pll_input, config.voltage_range),
         );
+        if was_pll_fallback_applied {
+            was_fallback_applied = true;
+        }
 
-        // Verify that sysclk is valid before attempting to change the clock source
-        // This ensures that, even in case of an error, the clock remains in a safe state
-        let sys_clk = match config.sys {
+        // Check if the selected SYSCLK source is available
+        let is_sysclk_source_valid = match config.sys {
+            Sysclk::Hse => hse.is_some(),
+            // HSI16 is always enabled
+            Sysclk::Hsi => true,
+            Sysclk::Msis => msis.is_some(),
+            Sysclk::Pll1R => pll1.r.is_some(),
+        };
+
+        // Fall back to HSI16 if the configured SYSCLK source is invalid
+        let sysclk_source = if is_sysclk_source_valid {
+            config.sys
+        } else {
+            was_fallback_applied = true;
+            Sysclk::Hsi
+        };
+
+        // Get the numeric value for the SYSCLK frequency
+        // Using `unwrap` is safe here, since `is_some` was checked above
+        let sys = match sysclk_source {
             Sysclk::Hse => hse.unwrap(),
-            Sysclk::Hsi => hsi16.unwrap(),
+            Sysclk::Hsi => hsi16,
             Sysclk::Msis => msis.unwrap(),
             Sysclk::Pll1R => pll1.r.unwrap(),
         };
 
-        let hclk = sys_clk / config.ahb_pre;
+        let mut ahb_pre = config.ahb_pre;
+        let mut hclk = sys / ahb_pre;
 
         let hclk_max = match config.voltage_range {
             VoltageScale::Range1 => Hertz::mhz(160),
@@ -440,10 +493,17 @@ impl Rcc {
             VoltageScale::Range3 => Hertz::mhz(55),
             VoltageScale::Range4 => Hertz::mhz(25),
         };
-        assert!(hclk <= hclk_max);
+
+        // If the resulting HCLK frequency exceeds the maximum for the selected voltage range, fall back to the highest divider
+        if hclk > hclk_max {
+            ahb_pre = AHBPrescaler::Div512;
+            hclk = sys / ahb_pre;
+
+            was_fallback_applied = true;
+        }
 
         // If needed, enable the EPOD booster to reach the target clock speed, per § 10.5.4
-        if sys_clk >= Hertz::mhz(55) {
+        if sys >= Hertz::mhz(55) {
             pwr.enable_epod_booster();
         }
 
@@ -452,7 +512,7 @@ impl Rcc {
 
         // Configure the bus prescalers
         self.registers.cfgr2.modify(
-            CFGR2::HPRE.val(config.ahb_pre as u32)
+            CFGR2::HPRE.val(ahb_pre as u32)
                 + CFGR2::PPRE1.val(config.apb1_pre as u32)
                 + CFGR2::PPRE2.val(config.apb2_pre as u32),
         );
@@ -461,7 +521,7 @@ impl Rcc {
             .modify(CFGR3::PPRE3.val(config.apb3_pre as u32));
 
         // Switch the clock source
-        self.set_sysclk_source(config.sys);
+        self.set_sysclk_source(sysclk_source);
 
         let (pclk1, pclk1_tim) = Self::calc_pclk(hclk, config.apb1_pre);
         let (pclk2, pclk2_tim) = Self::calc_pclk(hclk, config.apb2_pre);
@@ -469,10 +529,7 @@ impl Rcc {
 
         let rtc = match config.mux.rtcsel {
             Rtcsel::Disable => None,
-            Rtcsel::Lsi => {
-                assert!(config.lsi);
-                lsi
-            }
+            Rtcsel::Lsi => lsi,
             Rtcsel::Lse => None, // not implemented
             Rtcsel::Hse => None, // not implemented
         };
@@ -480,33 +537,62 @@ impl Rcc {
         // Set clock sources according to the mux configuration
         config.mux.init(self);
 
+        // Calculate the clocks used by peripherals, based on their clock source selected in `config.mux`
+        let usart1 = match config.mux.usart1sel {
+            Usart1sel::Pclk2 => Some(pclk2),
+            Usart1sel::Sys => Some(sys),
+            Usart1sel::Hsi => Some(hsi16),
+            // LSE is not supported yet
+            Usart1sel::Lse => None,
+        };
+        let i2c1 = match config.mux.i2c1sel {
+            I2csel::Pclk1 => Some(pclk1),
+            I2csel::Sys => Some(sys),
+            I2csel::Hsi => Some(hsi16),
+            I2csel::Msik => msik,
+        };
+        let spi1 = match config.mux.spi1sel {
+            Spi1sel::Pclk2 => Some(pclk2),
+            Spi1sel::Sys => Some(sys),
+            Spi1sel::Hsi => Some(hsi16),
+            Spi1sel::Msik => msik,
+        };
+
         // Return a structure containing all effective clock frequencies
-        Clocks {
-            sys: sys_clk,
-            hclk1: hclk,
-            hclk2: hclk,
-            hclk3: hclk,
-            pclk1,
-            pclk2,
-            pclk3,
-            pclk1_tim,
-            pclk2_tim,
-            msik,
-            hsi48,
-            rtc,
-            lsi,
-            hse,
-            hsi16,
-            pll1_p: pll1.p,
-            pll1_q: pll1.q,
-            pll1_r: pll1.r,
-            pll2_p: pll2.p,
-            pll2_q: pll2.q,
-            pll2_r: pll2.r,
-            pll3_p: pll3.p,
-            pll3_q: pll3.q,
-            pll3_r: pll3.r,
-        }
+        (
+            Clocks {
+                sys,
+                hclk1: hclk,
+                hclk2: hclk,
+                hclk3: hclk,
+                pclk1,
+                pclk2,
+                pclk3,
+                pclk1_tim,
+                pclk2_tim,
+                msik,
+                hsi48,
+                lsi,
+                hse,
+                hsi16,
+                pll1_p: pll1.p,
+                pll1_q: pll1.q,
+                pll1_r: pll1.r,
+                pll2_p: pll2.p,
+                pll2_q: pll2.q,
+                pll2_r: pll2.r,
+                pll3_p: pll3.p,
+                pll3_q: pll3.q,
+                pll3_r: pll3.r,
+
+                // Peripheral clocks
+                usart1,
+                i2c1,
+                spi1,
+                rtc,
+            },
+            was_fallback_applied,
+        )
     }
 
     /// Start the 16MHz internal oscillator
@@ -565,45 +651,126 @@ impl Rcc {
         config: Option<Pll>,
         input: &PllInput,
         voltage_range: VoltageScale,
-    ) -> PllOutput {
+    ) -> (PllOutput, bool) {
+        // If a invalid configuration is specified (which can be solved by a fallback), this keeps track if any configuration parameter was overridden
+        let mut was_fallback_applied = false;
+
         // Disable PLL
         self.change_pll_enable(instance, false);
 
         let Some(pll) = config else {
-            return PllOutput::default();
+            return (PllOutput::default(), false);
         };
 
-        let src_freq = match pll.source {
+        // Check if the selected input source is available
+        let is_input_source_valid = match pll.source {
+            PllSource::Hse => input.hse.is_some(),
+            // HSI16 is always enabled
+            PllSource::Hsi => true,
+            PllSource::Msis => input.msi.is_some(),
+        };
+
+        // Fall back to HSI16 if the configured input source is invalid
+        let mut input_source = if is_input_source_valid {
+            pll.source
+        } else {
+            was_fallback_applied = true;
+            PllSource::Hsi
+        };
+
+        // Get the numeric value for the input frequency
+        // Using `unwrap` is safe here, since `is_some` was checked above
+        let mut src_freq = match input_source {
             PllSource::Hse => input.hse.unwrap(),
-            PllSource::Hsi => input.hsi16.unwrap(),
+            PllSource::Hsi => input.hsi16,
             PllSource::Msis => input.msi.unwrap(),
         };
 
         // Calculate the reference clock, which is the source divided by m
-        let ref_freq = src_freq / pll.prediv;
+        let mut pll_prediv = pll.prediv;
+        let mut ref_freq = src_freq / pll_prediv;
 
         // Check limits per RM0456 § 11.4.6
-        assert!(Hertz::mhz(4) <= ref_freq && ref_freq <= Hertz::mhz(16));
+        // If the resulting reference frequency is invalid, fall back to HSI16 with a divider of 4 (so 4MHz)
+        if ref_freq < Hertz::mhz(4) || ref_freq > Hertz::mhz(16) {
+            input_source = PllSource::Hsi;
+            src_freq = input.hsi16;
+
+            pll_prediv = PllPreDiv::Div4;
+            ref_freq = src_freq / pll_prediv;
+
+            was_fallback_applied = true;
+        }
 
         // Check PLL clocks per RM0456 § 11.4.10
         let (vco_min, vco_max, out_max) = match voltage_range {
             VoltageScale::Range1 => (Hertz::mhz(128), Hertz::mhz(544), Hertz::mhz(208)),
             VoltageScale::Range2 => (Hertz::mhz(128), Hertz::mhz(544), Hertz::mhz(110)),
             VoltageScale::Range3 => (Hertz::mhz(128), Hertz::mhz(330), Hertz::mhz(55)),
-            VoltageScale::Range4 => panic!("PLL is unavailable in voltage range 4"),
+            // PLL is unavailable in voltage range 4
+            VoltageScale::Range4 => {
+                return (
+                    PllOutput {
+                        p: None,
+                        q: None,
+                        r: None,
+                    },
+                    true,
+                );
+            }
         };
 
         // Calculate the PLL VCO clock
-        let vco_freq = ref_freq * pll.mul;
-        assert!(vco_freq >= vco_min && vco_freq <= vco_max);
+        let mut pll_mul = pll.mul;
+        let mut vco_freq = ref_freq * pll_mul;
+
+        // If the resulting VCO frequency is invalid, fall back to HSI16 with a divider of 4 and multiplier of 32 (so 128MHz)
+        if vco_freq < vco_min || vco_freq > vco_max {
+            input_source = PllSource::Hsi;
+            src_freq = input.hsi16;
+            pll_prediv = PllPreDiv::Div4;
+            ref_freq = src_freq / pll_prediv;
+
+            pll_mul = PllMul::Mul32;
+            vco_freq = ref_freq * pll_mul;
+
+            was_fallback_applied = true;
+        }
+
+        // The configuration parameters may get overriden if they result in an invalid frequency
+        let mut pll_divp = pll.divp;
+        let mut pll_divq = pll.divq;
+        let mut pll_divr = pll.divr;
 
         // Calculate output clocks
-        let p = pll.divp.map(|div| vco_freq / div);
-        let q = pll.divq.map(|div| vco_freq / div);
-        let r = pll.divr.map(|div| vco_freq / div);
-        for freq in [p, q, r] {
-            if let Some(freq) = freq {
-                assert!(freq <= out_max);
+        let mut p = pll_divp.map(|div| vco_freq / div);
+        let mut q = pll_divq.map(|div| vco_freq / div);
+        let mut r = pll_divr.map(|div| vco_freq / div);
+
+        // If any output exceeds the maximum frequency, fall back to HSI16 with a divider of 4, a multiplier of 32, and a final divider of 4 (so 32MHz)
+        for freq_option in [p, q, r] {
+            if let Some(freq) = freq_option {
+                if freq > out_max {
+                    input_source = PllSource::Hsi;
+                    src_freq = input.hsi16;
+                    pll_prediv = PllPreDiv::Div4;
+                    ref_freq = src_freq / pll_prediv;
+                    pll_mul = PllMul::Mul32;
+                    vco_freq = ref_freq * pll_mul;
+
+                    was_fallback_applied = true;
+
+                    // If any of them is invalid, change all three
+                    for (div, freq) in [
+                        (&mut pll_divp, &mut p),
+                        (&mut pll_divq, &mut q),
+                        (&mut pll_divr, &mut r),
+                    ] {
+                        *div = Some(PllDiv::Div4);
+                        *freq = Some(vco_freq / PllDiv::Div4);
+                    }
+                    break;
+                }
             }
         }
 
@@ -613,10 +780,10 @@ impl Rcc {
             PllInstance::Pll3 => &self.registers.pll3divr,
         };
         divr.write(
-            PLLxDIVR::PLLxN.val(pll.mul as u32)
-                + PLLxDIVR::PLLxP.val(pll.divp.unwrap_or(PllDiv::Div1) as u32)
-                + PLLxDIVR::PLLxQ.val(pll.divq.unwrap_or(PllDiv::Div1) as u32)
-                + PLLxDIVR::PLLxR.val(pll.divr.unwrap_or(PllDiv::Div1) as u32),
+            PLLxDIVR::PLLxN.val(pll_mul as u32)
+                + PLLxDIVR::PLLxP.val(pll_divp.unwrap_or(PllDiv::Div1) as u32)
+                + PLLxDIVR::PLLxQ.val(pll_divq.unwrap_or(PllDiv::Div1) as u32)
+                + PLLxDIVR::PLLxR.val(pll_divr.unwrap_or(PllDiv::Div1) as u32),
         );
 
         let input_range = match ref_freq.0 {
@@ -626,14 +793,18 @@ impl Rcc {
 
         let (pllxcfgr, mboost) = match instance {
             PllInstance::Pll1 => {
-                // § 10.5.4: if we're targeting >= 55 MHz, we must configure PLL1MBOOST to a prescaler
-                // value that results in an output between 4 and 16 MHz for the PWR EPOD boost
-                let mboost = if r.unwrap() >= Hertz::mhz(55) {
-                    // source_clk can be up to 50 MHz, so there's just a few cases:
-                    match src_freq.0 {
-                        ..=16_000_000 => PllMboost::Div1, // Bypass, giving EPOD 4-16 MHz
-                        16_000_001..=32_000_000 => PllMboost::Div2, // Divide by 2, giving EPOD 8-16 MHz
-                        _ => PllMboost::Div4, // Divide by 4, giving EPOD 8-12.5 MHz
+                let mboost = if let Some(r) = r {
+                    // § 10.5.4: if we're targeting >= 55 MHz, we must configure PLL1MBOOST to a prescaler
+                    // value that results in an output between 4 and 16 MHz for the PWR EPOD boost
+                    if r >= Hertz::mhz(55) {
+                        // source_clk can be up to 50 MHz, so there's just a few cases:
+                        match src_freq.0 {
+                            ..=16_000_000 => PllMboost::Div1, // Bypass, giving EPOD 4-16 MHz
+                            16_000_001..=32_000_000 => PllMboost::Div2, // Divide by 2, giving EPOD 8-16 MHz
+                            _ => PllMboost::Div4, // Divide by 4, giving EPOD 8-12.5 MHz
+                        }
+                    } else {
+                        PllMboost::Div1
                     }
                 } else {
                     PllMboost::Div1
@@ -647,19 +818,18 @@ impl Rcc {
 
         pllxcfgr.write(
             PLLxCFGR::PLLxMBOOST.val(mboost as u32)
-                + PLLxCFGR::PLLxPEN.val(pll.divp.is_some() as u32)
-                + PLLxCFGR::PLLxQEN.val(pll.divq.is_some() as u32)
-                + PLLxCFGR::PLLxREN.val(pll.divr.is_some() as u32)
-                + PLLxCFGR::PLLxM.val(pll.prediv as u32)
-                + PLLxCFGR::PLLxSRC.val(pll.prediv as u32)
-                + PLLxCFGR::PLLxSRC.val(pll.source as u32)
+                + PLLxCFGR::PLLxPEN.val(pll_divp.is_some() as u32)
+                + PLLxCFGR::PLLxQEN.val(pll_divq.is_some() as u32)
+                + PLLxCFGR::PLLxREN.val(pll_divr.is_some() as u32)
+                + PLLxCFGR::PLLxM.val(pll_prediv as u32)
+                + PLLxCFGR::PLLxSRC.val(input_source as u32)
                 + PLLxCFGR::PLLxRGE.val(input_range as u32),
         );
 
         // Enable PLL
         self.change_pll_enable(instance, true);
 
-        PllOutput { p, q, r }
+        (PllOutput { p, q, r }, was_fallback_applied)
     }
 
     /// Set the clock source for various peripherals

@@ -279,6 +279,7 @@ register_bitfields![u32,
     ],
 ];
 
+#[derive(Copy, Clone)]
 pub enum I2cSpeed {
     Speed100k = 100_000,
     Speed400k = 400_000,
@@ -448,6 +449,17 @@ pub struct I2c<'a> {
     pub registers: StaticRef<I2cRegisters>,
     clocks: OptionalCell<Clocks>,
 
+    /// I2C peripheral number, needed for choosing its corresponding clock frequency
+    index: u8,
+
+    initialized: Cell<bool>,
+    enabled: Cell<bool>,
+
+    /// The I2C speed cannot be chosen through the HIL yet, so it's provided by `new`
+    ///
+    /// It is possible to change through `enable`/`set_speed`, if the HIL will support this in the future
+    speed: Cell<I2cSpeed>,
+
     // DMA reference, buffer, and TX/RX channels
     dma: OptionalCell<&'a Dma>,
     dma_buf: MapCell<DmaSubSliceMut<'static, u8>>,
@@ -477,10 +489,17 @@ pub struct I2c<'a> {
 }
 
 impl<'a> I2c<'a> {
-    pub fn new(base: StaticRef<I2cRegisters>) -> Self {
+    pub fn new(base: StaticRef<I2cRegisters>, i2c_index: u8, speed: I2cSpeed) -> Self {
         Self {
             registers: base,
             clocks: OptionalCell::empty(),
+
+            index: i2c_index,
+
+            initialized: Cell::new(false),
+            enabled: Cell::new(false),
+
+            speed: Cell::new(speed),
 
             dma: OptionalCell::empty(),
             dma_channel_tx: OptionalCell::empty(),
@@ -516,14 +535,31 @@ impl<'a> I2c<'a> {
         dma.set_client(rx_channel, i2c);
     }
 
-    pub fn set_speed(&self, speed: I2cSpeed) {
+    pub fn set_speed(&self, speed: I2cSpeed) -> Result<(), ()> {
+        // The clock frequencies must have been provided with `set_clocks` at this point
+        let Some(clocks) = &self.clocks.get() else {
+            return Err(());
+        };
+
+        // Get the clock frequency feeding this I2C
+        let clock_frequency_option = match self.index {
+            1 => clocks.i2c1,
+            // Other I2Cs are not yet supported
+            _ => return Err(()),
+        };
+
+        // Ensure the input clock is valid
+        let Some(clock_frequency) = clock_frequency_option else {
+            return Err(());
+        };
+
+        // The peripheral must be disabled in order to change the speed
+        // Disable it, but remember if it was enabled
+        let was_enabled = self.enabled.get();
         self.disable();
 
-        // Assume PCLK1 is the selected clock source
-        let clock_freq = self.clocks.get().unwrap().pclk1;
-
         // Calculate the values to write into the TIMINGR register
-        let timings = Timings::new(clock_freq, Hertz(speed as u32));
+        let timings = Timings::new(clock_frequency, Hertz(speed as u32));
 
         self.registers.timingr.write(
             TIMINGR::PRESC.val(timings.prescale as u32)
@@ -533,34 +569,64 @@ impl<'a> I2c<'a> {
                 + TIMINGR::SCLDEL.val(timings.scldel as u32),
         );
 
-        self.enable();
+        // If the peripheral was originally enabled, enable it again
+        if was_enabled {
+            self.enable(None);
+        }
+
+        // Store the current speed
+        self.speed.set(speed);
+
+        Ok(())
     }
 
-    pub fn enable(&self) {
-        // Fast-mode Plus drive enable
-        // Even if the Board integrator has not chosen to use Fm+,
-        // It's a good default.
-        self.registers.cr1.modify(CR1::FMP::SET);
+    /// Initialize and enable the peripheral, and/or set its speed
+    ///
+    /// This can fail if the configured clock source is invalid (only possible by selecting `MSIK` as the source and not enabling it)
+    /// - The effect is that every HIL function will return `Error::NotSupported`, as if the peripheral was not enabled
+    pub fn enable(&self, speed: Option<I2cSpeed>) {
+        if !self.initialized.get() {
+            // Fast-mode Plus drive enable
+            // Even if the Board integrator has not chosen to use Fm+,
+            // It's a good default.
+            self.registers.cr1.modify(CR1::FMP::SET);
 
-        // Turning AUTOEND completely off: all end operations are handled in software
-        self.registers.cr2.modify(CR2::AUTOEND::CLEAR);
+            // Turning AUTOEND completely off: all end operations are handled in software
+            self.registers.cr2.modify(CR2::AUTOEND::CLEAR);
 
-        // Allowing several interrupts
-        self.registers.cr1.modify(
-            CR1::ERRIE::SET
-                + CR1::STOPIE::SET
-                + CR1::NACKIE::SET
-                + CR1::ADDRIE::SET
-                + CR1::TCIE::SET,
-        );
+            // Allowing several interrupts
+            self.registers.cr1.modify(
+                CR1::ERRIE::SET
+                    + CR1::STOPIE::SET
+                    + CR1::NACKIE::SET
+                    + CR1::ADDRIE::SET
+                    + CR1::TCIE::SET,
+            );
 
-        // Setting the peripheral enable
-        self.registers.cr1.modify(CR1::PE::SET);
+            // Avoid redoing the initialization step on subsequent calls
+            self.initialized.set(true);
+        }
+
+        // Change the speed to what was provided, if it's not None
+        let speed_set_ok = if let Some(speed) = speed {
+            // This can fail if the configured clock source is invalid, as described above
+            !self.set_speed(speed).is_err()
+        } else {
+            true
+        };
+
+        // Only enable the peripheral if the speed was set successfully (meaning the clock source is valid)
+        if speed_set_ok {
+            // Setting the peripheral enable
+            self.registers.cr1.modify(CR1::PE::SET);
+            self.enabled.set(speed_set_ok);
+        }
     }
 
     pub fn disable(&self) {
         // Clearing the peripheral enable
         self.registers.cr1.modify(CR1::PE::CLEAR);
+        self.enabled.set(false);
     }
 
     fn reset(&self) {
@@ -584,7 +650,7 @@ impl<'a> I2c<'a> {
         //      Enable the peripheral
         self.disable();
         self.registers.cr1.get();
-        self.enable();
+        self.enable(None);
     }
 
     /// (More information about NBYTES and RELOAD can be found
@@ -925,7 +991,8 @@ impl<'a> I2CMaster<'a> for I2c<'a> {
     }
 
     fn enable(&self) {
-        self.enable();
+        // Since the HIL cannot select an I2C speed, it is provided through the driver's `new`
+        self.enable(Some(self.speed.get()));
     }
 
     fn disable(&self) {
@@ -939,6 +1006,11 @@ impl<'a> I2CMaster<'a> for I2c<'a> {
         write_len: usize,
         read_len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
+        // Ensure the driver is enabled (which implies it's also initialized)
+        if !self.enabled.get() {
+            return Err((Error::NotSupported, data));
+        }
+
         if self.status.get() == I2cStatus::Idle {
             self.reset();
             self.status.set(I2cStatus::WritingReading);
@@ -965,6 +1037,11 @@ impl<'a> I2CMaster<'a> for I2c<'a> {
         data: &'static mut [u8],
         len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
+        // Ensure the driver is enabled (which implies it's also initialized)
+        if !self.enabled.get() {
+            return Err((Error::NotSupported, data));
+        }
+
         if self.status.get() == I2cStatus::Idle {
             self.reset();
             self.status.set(I2cStatus::Writing);
@@ -990,6 +1067,11 @@ impl<'a> I2CMaster<'a> for I2c<'a> {
         data: &'static mut [u8],
         len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
+        // Ensure the driver is enabled (which implies it's also initialized)
+        if !self.enabled.get() {
+            return Err((Error::NotSupported, data));
+        }
+
         if self.status.get() == I2cStatus::Idle {
             self.reset();
             self.status.set(I2cStatus::Reading);

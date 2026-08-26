@@ -572,6 +572,19 @@ impl<'a> Rtc<'a> {
         Ok(())
     }
     pub fn init_mode(&self) -> Result<(), ErrorCode> {
+        // The clock frequencies must have been provided with `set_clocks` at this point
+        let Some(clocks) = &self.clocks.get() else {
+            return Err(ErrorCode::FAIL);
+        };
+
+        // Get the clock frequency feeding the RTC
+        let clock_frequency_option = clocks.rtc;
+
+        // Ensure the input clock is valid
+        let Some(clock_frequency) = clock_frequency_option else {
+            return Err(kernel::ErrorCode::FAIL);
+        };
+
         // The calendar lives in the backup domain, so it keeps running across a
         // system reset (and across power loss when VBAT is present).
         // INITS is set by hardware once the calendar has been programmed and is reset
@@ -582,9 +595,6 @@ impl<'a> Rtc<'a> {
         }
 
         self.enter_init_mode()?;
-
-        // Get the clock frequency that feeds the RTC
-        let clock_frequency = self.clocks.get().unwrap().rtc.unwrap();
 
         // Set the sub-second counter frequency to 256 Hz
         let subsecond_frequency = Hertz(256);

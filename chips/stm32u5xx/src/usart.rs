@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
 
-use crate::dma::{ChannelId, Dma, DmaPeripheral};
+use crate::{
+    dma::{ChannelId, Dma, DmaPeripheral},
+    rcc::{Clocks, hertz::Hertz},
+};
 use core::cell::Cell;
 use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -19,8 +22,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
-
-use crate::rcc::Clocks;
 
 register_structs! {
     pub UsartRegisters {
@@ -176,6 +177,10 @@ register_bitfields![u32,
 /// captured correctly.
 pub struct Usart<'a> {
     pub registers: StaticRef<UsartRegisters>,
+
+    /// USART peripheral number, needed for choosing its corresponding clock frequency
+    index: u8,
+
     clocks: OptionalCell<Clocks>,
     dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<Option<ChannelId>>,
@@ -192,9 +197,10 @@ pub struct Usart<'a> {
 }
 
 impl<'a> Usart<'a> {
-    pub fn new(base: StaticRef<UsartRegisters>) -> Self {
+    pub fn new(base: StaticRef<UsartRegisters>, usart_index: u8) -> Self {
         Self {
             registers: base,
+            index: usart_index,
             clocks: OptionalCell::empty(),
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
@@ -232,7 +238,11 @@ impl<'a> Usart<'a> {
     }
 
     // Adapted from embassy-rs/embassy/embassy-stm32/src/uart/mod.rs
-    fn find_and_set_baudrate(&self, baudrate: u32) -> Result<(), BaudrateError> {
+    fn find_and_set_baudrate(
+        &self,
+        baudrate: u32,
+        kernel_clock: Hertz,
+    ) -> Result<(), BaudrateError> {
         const DIVS: [(u16, FieldValue<u32, PRESC::Register>); 12] = [
             (1, PRESC::PRESCALER::DIV1),
             (2, PRESC::PRESCALER::DIV2),
@@ -247,9 +257,6 @@ impl<'a> Usart<'a> {
             (128, PRESC::PRESCALER::DIV128),
             (256, PRESC::PRESCALER::DIV256),
         ];
-
-        // USART1 is fed by clock PCKL2
-        let kernel_clock = self.clocks.get().unwrap().pclk2;
 
         let (mul, brr_min, brr_max) = (1, 0x10, 0x1_0000);
 
@@ -520,16 +527,31 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
 
 impl uart::Configure for Usart<'_> {
     fn configure(&self, params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
-        // The clock frequencies must be known at this point
-        if self.clocks.get().is_none() {
+        // The clock frequencies must have been provided with `set_clocks` at this point
+        let Some(clocks) = &self.clocks.get() else {
             return Err(kernel::ErrorCode::FAIL);
-        }
+        };
+
+        // Get the clock frequency feeding this USART
+        let clock_frequency_option = match self.index {
+            1 => clocks.usart1,
+            // Other USARTs are not yet supported
+            _ => return Err(kernel::ErrorCode::FAIL),
+        };
+
+        // Ensure the input clock is valid
+        let Some(clock_frequency) = clock_frequency_option else {
+            return Err(kernel::ErrorCode::FAIL);
+        };
 
         let regs = &*self.registers;
         regs.cr1.modify(CR1::UE::CLEAR);
 
         // Set the baud rate
-        if self.find_and_set_baudrate(params.baud_rate).is_err() {
+        if self
+            .find_and_set_baudrate(params.baud_rate, clock_frequency)
+            .is_err()
+        {
             return Err(kernel::ErrorCode::INVAL);
         }
 

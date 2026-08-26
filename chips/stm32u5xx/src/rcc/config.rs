@@ -16,6 +16,9 @@ use super::{
 };
 use crate::pwr::VoltageScale;
 
+/// Configuration structure for the RCC
+///
+/// Note: HSI16 (16Mhz oscillator) is always enabled, as a safe fallback for SYSCLK/PLLs in case of a wrong configuration
 #[derive(Copy, Clone)]
 pub struct RccConfig {
     /// The voltage range influences the maximum clock frequencies for different parts of the device
@@ -37,11 +40,6 @@ pub struct RccConfig {
     /// - Configure as `None` to disable MSIK
     /// - Configure as `Some(MsiRange)` to enable MSIK with a specific frequency range
     pub msik: Option<MsiRange>,
-    /// HSI16 is generated from an internal RC oscillator, fixed at 16 MHz
-    ///
-    /// - Configure as `false` to disable HSI16
-    /// - Configure as `true` to enable HSI16
-    pub hsi16: bool,
     /// HSE can be generated from an external crystal/ceramic resonator or external clock
     ///
     /// - Configure as `None` to disable HSE
@@ -77,8 +75,14 @@ pub struct RccConfig {
 
     // SYSCLK, buses (see RM0456 § 11.4, Figure 38 for the clock tree)
     /// Selects which clock source drives the system clock
+    ///
+    /// Note: in case the selected source is not available (wasn't enabled/configured), `sys` will be overridden by `Sysclk::Hsi`,
+    /// since HSI16 is always enabled
     pub sys: Sysclk,
     /// Selects a prescaler, to divide SYSCLK into HCLK
+    ///
+    /// Note: the `voltage_range` restricts the maximum value of HCLK
+    /// - In case the resulting HCLK is too high, `ahb_pre` will be overridden by `AHBPrescaler::Div512`
     pub ahb_pre: AHBPrescaler,
     /// Selects a prescaler, to divide HCLK into PCLK1
     pub apb1_pre: APBPrescaler,
@@ -178,36 +182,48 @@ pub enum HseMode {
 #[derive(Clone, Copy)]
 pub struct Pll {
     /// The clock source for the PLL.
-    pub source: PllSource,
-    /// The PLL pre-divider.
     ///
-    /// The clock speed of the `source` divided by `m` must be between 4 and 16 MHz.
+    /// Note: in case the selected source is not available (wasn't enabled/configured), `source` will be overridden by `PllSource::Hsi` (since HSI16 is always enabled)
+    pub source: PllSource,
+    /// The PLL pre-divider
+    ///
+    /// Note: `source` divided by `m` (the reference frequency) must be between 4 and 16 MHz
+    /// - in case the resulting frequency is invalid (not between 4-16MHz), `source` will be overridden by `PllSource::Hsi` (since HSI16 is always enabled)
+    ///   and `prediv` by `PllPreDiv::Div4`, forcing the reference frequency to 4MHz
     pub prediv: PllPreDiv,
     /// The PLL multiplier.
     ///
-    /// The multiplied clock – `source` divided by `m` times `n` – must be between 128 and 544
-    /// MHz. The upper limit may be lower depending on the `Config { voltage_range }`.
+    /// Note: the `voltage_range` restricts the maximum VCO frequency
+    /// - in case the resulting frequency is invalid, `source` will be overridden by `PllSource::Hsi` (since HSI16 is always enabled), `prediv` by `PllPreDiv::Div4`
+    ///   and `mul` by `PllMul::Mul32`, forcing the VCO frequency to 128MHz
     pub mul: PllMul,
     /// The divider for the P output.
     ///
-    /// The P output is one of several options
-    /// that can be used to feed the SAI/MDF/ADF Clock mux's.
+    /// The P output is one of several options that can be used to feed the SAI/MDF/ADF Clock mux's.
+    ///
+    /// Note: the `voltage_range` restricts the maximum output frequency
+    /// - in case `divp` is not `None` and the resulting frequency is invalid, `source` will be overridden by `PllSource::Hsi` (since HSI16 is always enabled),
+    ///   `prediv` by `PllPreDiv::Div4`, `mul` by `PllMul::Mul32` and `divp` by `Some(PllDiv::Div4)`, forcing the output frequency to 32MHz
     pub divp: Option<PllDiv>,
     /// The divider for the Q output.
     ///
     /// The Q ouput is one of severals options that can be used to feed the 48MHz clocks
     /// and the OCTOSPI clock. It may also be used on the MDF/ADF clock mux's.
+    ///
+    /// Note: the `voltage_range` restricts the maximum output frequency
+    /// - in case `divq` is not `None` and the resulting frequency is invalid, `source` will be overridden by `PllSource::Hsi` (since HSI16 is always enabled),
+    ///   `prediv` by `PllPreDiv::Div4`, `mul` by `PllMul::Mul32` and `divq` by `Some(PllDiv::Div4)`, forcing the output frequency to 32MHz
     pub divq: Option<PllDiv>,
     /// The divider for the R output.
     ///
-    /// When used to drive the system clock, `source` divided by `m` times `n` divided by `r`
-    /// must not exceed 160 MHz. System clocks above 55 MHz require a non-default
-    /// `Config { voltage_range }`.
+    /// Note: the `voltage_range` restricts the maximum output frequency
+    /// - in case `divr` is not `None` and the resulting frequency is invalid, `source` will be overridden by `PllSource::Hsi` (since HSI16 is always enabled),
+    ///   `prediv` by `PllPreDiv::Div4`, `mul` by `PllMul::Mul32` and `divr` by `Some(PllDiv::Div4)`, forcing the output frequency to 32MHz
     pub divr: Option<PllDiv>,
 }
 
 pub struct PllInput {
-    pub hsi16: Option<Hertz>,
+    pub hsi16: Hertz,
     pub hse: Option<Hertz>,
     pub msi: Option<Hertz>,
 }

@@ -73,9 +73,9 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             rtc: rtc::Rtc::new(rtc::RTC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE),
             tim3: tim::Pwm::new(tim::TIM3_BASE),
-            usart1: usart::Usart::new(usart::USART1_BASE),
-            spi1: spi::Spi::new(spi::SPI1_BASE),
-            i2c1: i2c::I2c::new(i2c::I2C1_BASE),
+            usart1: usart::Usart::new(usart::USART1_BASE, 1),
+            spi1: spi::Spi::new(spi::SPI1_BASE, 1),
+            i2c1: i2c::I2c::new(i2c::I2C1_BASE, 1, I2cSpeed::Speed100k),
             exti,
             dma1,
             pwr: pwr::Pwr::new(pwr::PWR_BASE),
@@ -116,10 +116,10 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.rcc.enable_rtc_apb();
 
         // Select which clocks to enable, and how to configure them
+        // The 16MHz oscillator (HSI16) is always enabled (used for SYSCLK/ADC/DAC)
         let mut rcc_config = RccConfig {
             msis: Some(MsiRange::Range4mhz),
             msik: Some(MsiRange::Range4mhz),
-            hsi16: true, // 16MHz oscillator enabled (for SYSCLK/ADC/DAC)
             hse: None,
             hsi48: false,
             lsi: true, // 32kHz oscillator enabled (for RTC)
@@ -155,7 +155,8 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 
         // Initialize the RCC
         // This returns a structure containing the effective calculated frequency for all clocks in the clock tree
-        let clocks = self.rcc.init(rcc_config, &self.pwr);
+        // It also returns whether some values from `RccConfig` were overridden for being invalid, but it's unused here
+        let (clocks, _) = self.rcc.init(rcc_config, &self.pwr);
 
         // Provide a copy of that structure to each peripheral that needs it
         self.usart1.set_clocks(clocks);
@@ -217,10 +218,6 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 
         // Initialize SPI1
         let _ = self.spi1.init();
-
-        // Enable I2C1 and configure it at 100kHz
-        self.i2c1.enable();
-        self.i2c1.set_speed(I2cSpeed::Speed100k);
     }
 }
 
