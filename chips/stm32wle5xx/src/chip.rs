@@ -8,6 +8,7 @@ use core::fmt::Write;
 use cortexm4::{CortexM4, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWriter;
 
 use crate::chip_specific::chip_specs::ChipSpecs as ChipSpecsTrait;
 use crate::nvic;
@@ -184,7 +185,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
         }
     }
 
-    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
+    fn print_state<W: Write>(_this: Option<&Self>, write: &mut PanicWriter<W>) {
         CortexM4::print_cortexm_state(write);
     }
 }

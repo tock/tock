@@ -7,6 +7,7 @@
 #![no_std]
 
 use core::fmt::Write;
+use kernel::platform::chip::PanicWriter;
 
 pub mod mpu {
     use kernel::utilities::StaticRef;
@@ -59,7 +60,7 @@ impl cortexm::CortexMVariant for CortexM3 {
     }
 
     #[inline]
-    unsafe fn print_cortexm_state(writer: &mut dyn Write) {
+    fn print_cortexm_state<W: Write>(writer: &mut PanicWriter<W>) {
         cortexm::print_cortexm_state(writer)
     }
 }

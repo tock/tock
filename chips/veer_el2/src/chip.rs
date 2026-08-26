@@ -7,7 +7,7 @@
 
 use crate::machine_timer::Clint;
 use core::fmt::Write;
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, InterruptService, PanicWriter};
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{CSR, mcause, mie::mie, mip::mip};
@@ -148,7 +148,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state<W: Write>(_this: Option<&Self>, writer: &mut PanicWriter<W>) {
         rv32i::print_riscv_state(writer);
     }
 }

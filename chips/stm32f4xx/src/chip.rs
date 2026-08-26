@@ -8,6 +8,7 @@ use core::fmt::Write;
 use cortexm4f::{CortexM4F, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWriter;
 
 use crate::dma;
 use crate::nvic;
@@ -211,7 +212,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
         cortexm4f::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
+    fn print_state<W: Write>(_this: Option<&Self>, write: &mut PanicWriter<W>) {
         CortexM4F::print_cortexm_state(write);
     }
 }

@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025 SRL.
 
+use core::fmt::Write;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWriter;
 
 use crate::{cpuss, gpio, hsiom, peri, scb, srss, tcpwm};
 use cortexm0p::{CortexM0P, CortexMVariant};
@@ -51,7 +53,7 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
         cortexm0p::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn core::fmt::Write) {
+    fn print_state<W: Write>(_this: Option<&Self>, writer: &mut PanicWriter<W>) {
         CortexM0P::print_cortexm_state(writer);
     }
 

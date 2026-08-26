@@ -50,14 +50,18 @@ pub struct UartPanicWriterConfig {
     pub params: hil::uart::Parameters,
 }
 
-impl kernel::platform::chip::PanicWriter for UartPanicWriter<'_> {
+impl<'a> kernel::platform::chip::PanicWriterFactory for UartPanicWriter<'a> {
     type Config = UartPanicWriterConfig;
+    type Writer = UartPanicWriter<'a>;
 
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+    fn create_panic_writer(
+        config: Self::Config,
+        panic_context: &kernel::context_tokens::PanicContext,
+    ) -> kernel::platform::chip::PanicWriter<Self::Writer> {
         use hil::uart::Configure as _;
 
         let inner = Uart16550::new(UART0_BASE);
         let _ = inner.configure(config.params);
-        UartPanicWriter { inner }
+        kernel::platform::chip::PanicWriter::new(UartPanicWriter { inner }, panic_context)
     }
 }

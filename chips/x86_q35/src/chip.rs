@@ -3,9 +3,8 @@
 // Copyright Tock Contributors 2024.
 
 use core::fmt::Write;
-
 use kernel::component::Component;
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, InterruptService, PanicWriter};
 use x86::mpu::PagingMPU;
 use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
@@ -241,7 +240,7 @@ impl<'a, I1: InterruptService, I2: InterruptService, const PR: u16> Chip for Pc<
         support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state<W: Write>(_this: Option<&Self>, writer: &mut PanicWriter<W>) {
         let _ = writeln!(writer);
         let _ = writeln!(writer, "---| PC State |---");
         let _ = writeln!(writer);
