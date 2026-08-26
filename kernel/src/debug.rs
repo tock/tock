@@ -187,10 +187,7 @@ pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
             // making application memory inaccessible. However, printing process
             // information will attempt to access memory. If we are provided a chip
             // reference, attempt to disable userspace memory protection first:
-            use crate::platform::mpu::MPU;
-            // SAFETY: we are panicking (see `panic_context` above) and the
-            // system is tearing down; disabling the MPU here is sound.
-            unsafe { c.mpu().disable_app_mpu() }
+            crate::platform::mpu::mpu_disable_panic(c.mpu(), &panic_context)
         });
         pr.processes.take().map(|p| {
             panic_process_info(p, pr.printer.take(), &mut writer);
@@ -262,10 +259,7 @@ pub fn panic_print_old<W: IoWrite + Write, C: Chip, PP: ProcessPrinter>(
             // making application memory inaccessible. However, printing process
             // information will attempt to access memory. If we are provided a chip
             // reference, attempt to disable userspace memory protection first:
-            use crate::platform::mpu::MPU;
-            // SAFETY: we are panicking (see `panic_context` above) and the
-            // system is tearing down; disabling the MPU here is sound.
-            unsafe { c.mpu().disable_app_mpu() }
+            crate::platform::mpu::mpu_disable_panic(c.mpu(), &panic_context)
         });
         pr.processes.take().map(|p| {
             panic_process_info(p, pr.printer.take(), writer);
