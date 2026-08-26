@@ -9,6 +9,7 @@
 pub mod chip;
 pub mod interrupts;
 pub mod led;
+pub mod spi;
 pub mod timer;
 pub mod uart;
 
@@ -26,12 +27,15 @@ pub const SYSCLK_FRQ: u32 = 25_000_000;
 
 /// Instantiates the peripherals this chip crate drives.
 ///
-/// Only UART0 and Timer0 are wired up as the console and alarm backing;
-/// UART1-4 and Timer1 exist on the real memory map but are unused here.
+/// Only UART0, Timer0, and the "Shield0" PL022 are wired up (console/alarm
+/// backing, and the syscall-facing SPI controller); UART1-4, Timer1, and
+/// the other four PL022 instances exist on the real memory map but are
+/// unused here.
 pub struct Mps2DefaultPeripherals<'a> {
     pub uart0: uart::Uart<'a>,
     pub timer0: timer::Timer<'a>,
     pub fpgaio: led::Fpgaio,
+    pub spi_shield0: spi::Spi<'a>,
 }
 
 impl Mps2DefaultPeripherals<'_> {
@@ -40,6 +44,7 @@ impl Mps2DefaultPeripherals<'_> {
             uart0: uart::Uart::new(uart::UART0_BASE),
             timer0: timer::Timer::new(timer::TIMER0_BASE),
             fpgaio: led::Fpgaio::new(led::FPGAIO_BASE),
+            spi_shield0: spi::Spi::new(spi::SPI_SHIELD0_BASE),
         }
     }
 }
@@ -55,6 +60,7 @@ impl InterruptService for Mps2DefaultPeripherals<'_> {
         match interrupt {
             interrupts::UART0_RX | interrupts::UART0_TX => self.uart0.handle_interrupt(),
             interrupts::TIMER0 => self.timer0.handle_interrupt(),
+            interrupts::SPI_SHIELD => self.spi_shield0.handle_interrupt(),
             _ => return false,
         }
         true

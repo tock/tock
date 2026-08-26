@@ -55,6 +55,13 @@ struct QemuArmMps2An385 {
             qemu_arm_mps2_chip::timer::Timer<'static>,
         >,
     >,
+    spi: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            qemu_arm_mps2_chip::spi::Spi<'static>,
+        >,
+    >,
 }
 
 impl SyscallDriverLookup for QemuArmMps2An385 {
@@ -66,6 +73,7 @@ impl SyscallDriverLookup for QemuArmMps2An385 {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
             _ => f(None),
         }
     }
@@ -183,6 +191,21 @@ unsafe fn start() -> (
     ));
     let _ = process_console.start();
 
+    let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi_shield0).finalize(
+        components::spi_mux_component_static!(qemu_arm_mps2_chip::spi::Spi),
+    );
+
+    let spi = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        spi_mux,
+        qemu_arm_mps2_chip::spi::ChipSelect,
+        capsules_core::spi_controller::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::spi_syscall_component_static!(
+        qemu_arm_mps2_chip::spi::Spi
+    ));
+
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         qemu_arm_mps2_chip::led::Led<'static>,
         peripherals.fpgaio.led(0),
@@ -200,6 +223,7 @@ unsafe fn start() -> (
             systick: cortexm3::systick::SysTick::new(),
             led,
             alarm,
+            spi,
         }
     );
 

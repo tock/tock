@@ -34,8 +34,9 @@ Running QEMU
   ```
 
 - **`run-app`**: same as `qemu_arm_mps2_an385`'s (`make run-app
-  APP=$PATH_TO_APP.tbf`), also verified end-to-end with `c_hello` and
-  `blink` (built with `TOCK_TARGETS=cortex-m4`) loaded at the same time.
+  APP=$PATH_TO_APP.tbf`), also verified end-to-end with `c_hello`, `blink`,
+  and a SPI loopback test app (built with `TOCK_TARGETS=cortex-m4`) loaded
+  at the same time — including `SPI PASS` from the loopback test.
 
 See `qemu_arm_mps2_an385/README.md` for the memory layout (identical
 addresses on both machines).

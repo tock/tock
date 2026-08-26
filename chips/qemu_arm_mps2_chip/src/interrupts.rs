@@ -6,8 +6,9 @@
 //!
 //! Taken from QEMU's `hw/arm/mps2.c` (`mps2_common_init`), which is shared
 //! by both FPGA images. Only the peripherals this chip crate actually
-//! drives are listed; the MPS2 image wires up several more (SPI, I2C,
-//! Ethernet) that are out of scope here.
+//! drives are listed; the MPS2 image wires up several more (I2C, Ethernet)
+//! that are out of scope here. The watchdog is NMI-driven, not a normal
+//! NVIC line, so it has no entry here.
 
 pub const UART0_RX: u32 = 0;
 pub const UART0_TX: u32 = 1;
@@ -18,6 +19,9 @@ pub const UART2_TX: u32 = 5;
 pub const TIMER0: u32 = 8;
 pub const TIMER1: u32 = 9;
 pub const DUALTIMER: u32 = 10;
+/// Shared by the Shield0 and Shield1 PL022 instances via an OR-gate; only
+/// Shield0 is driven by this chip crate.
+pub const SPI_SHIELD: u32 = 24;
 pub const UART3_RX: u32 = 18;
 pub const UART3_TX: u32 = 19;
 pub const UART4_RX: u32 = 20;

@@ -15,6 +15,8 @@ Currently supported peripherals:
 - One CMSDK APB Timer, backing the kernel's `Alarm`/`Time` HIL.
 - The `FPGAIO` block's `LED0` register, exposing the machine's two
   simulated LEDs.
+- One PL022 SPI controller (the "Shield0" instance), run in hardware
+  loopback mode — see the note below.
 
 Not supported, and not planned for this machine specifically:
 
@@ -26,8 +28,20 @@ Not supported, and not planned for this machine specifically:
   under this QEMU machine, so this board does not implement a GPIO capsule.
   LEDs are wired to the separate, genuinely-emulated `FPGAIO` register
   instead (see `chips/qemu_arm_mps2_chip/src/led.rs`).
-- SPI, I2C, and the machine's LAN9118 Ethernet controller: present on the
-  memory map but not driven by this chip crate.
+- I2C and the machine's LAN9118 Ethernet controller: present on the memory
+  map but not driven by this chip crate.
+
+**SPI note**: none of the machine's five PL022 instances have an SSI slave
+device attached in QEMU, so a non-loopback transfer just reads back
+whatever the empty bus's default is, not meaningful data. The driver
+therefore always enables `CR1.LBM` (loopback) — see
+`chips/qemu_arm_mps2_chip/src/spi.rs`'s module docs. Chip select is a
+zero-sized placeholder for the same reason GPIO is unavailable: there's no
+functional GPIO pin to toggle for it, and no real device to select in the
+first place. Separately, Tock's own `capsules_core::spi_controller` capsule
+has never implemented the "set chip select" command on any board (it's a
+hard-coded `NOSUPPORT`, unrelated to this board) — see the comment in
+`capsules/core/src/spi_controller.rs`.
 
 See also `qemu_arm_mps2_an386`, the Cortex-M4 sibling of this board: same
 peripheral map (an385/an386 differ only in CPU core), sharing this same
@@ -105,3 +119,25 @@ Running an application
   (`C-a c` to switch from the serial console, then `xp/1xw 0x40028000`)
   while it ran, observing the value change between `0x00000000` and
   `0x00000002`.
+
+  SPI was verified the same way, alongside `c_hello` and `blink`, with a
+  small loopback test app (write a known pattern, read it back over
+  `libtock_spi_controller_read_write`, `memcmp` the result, print
+  `SPI PASS`/`SPI FAIL`) — not currently part of `libtock-c`, since none of
+  its existing SPI examples build against the current
+  `libtock/peripherals/spi_controller.h` API. Loading it alongside the
+  other two confirmed three concurrently-scheduled processes all get
+  correctly serviced through this chip crate's UART, Timer, and SPI
+  drivers at once:
+
+  ```
+  tock$ list
+  Hello World!
+  SPI PASS
+  list
+   PID    ShortID    Name                Quanta  Syscalls  Restarts  Grants  State
+   0      Unique     blink               470841       171         0   1/ 3   Running
+   1      Unique     spi_loopback_test   272451        18         0   0/ 3   Terminated
+   2      Unique     c_hello             238836         8         0   0/ 3   Terminated
+  tock$
+  ```
