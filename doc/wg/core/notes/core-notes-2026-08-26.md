@@ -161,7 +161,7 @@ choice:
  - Branden: If no one else has opinions, I am convinced by "have Rust, use trait"
  - Alexandru: +1
  - Pat: Haven't looked yet (and taking notes today)
- - Johnathan: The Rusty-ier approach likely to be more sustainable long term; won't need global variable for kernel access, etc
+ - Johnathan: The Rusty-ier approach likely to be more unit testable; won't need global variable for kernel access, etc
  - Branden: I'll probably just close #5097 then.
  - Branden: Sounds good; last ask is for IPC reviews when you get a chance.
 
