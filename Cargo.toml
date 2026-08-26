@@ -59,6 +59,7 @@ members = [
     "boards/nano33ble_rev2",
     "boards/qemu_arm_mps2_an385",
     "boards/qemu_arm_mps2_an386",
+    "boards/qemu_arm_mps2_lib",
     "boards/qemu_i486_q35",
     "boards/qemu_rv32_virt",
     "boards/qemu_rv64_virt",

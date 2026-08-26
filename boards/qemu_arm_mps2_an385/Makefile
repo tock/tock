@@ -17,7 +17,8 @@ APP_ADDRESS := 0x00040000
 QEMU_BASE_CMDLINE := \
   $(QEMU_CMD) \
     -machine mps2-an385 \
-    -nographic
+    -nographic \
+    -semihosting
 
 # Run the kernel inside a qemu-system-arm "mps2-an385" machine simulation.
 .PHONY: run

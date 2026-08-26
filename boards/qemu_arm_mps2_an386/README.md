@@ -34,12 +34,7 @@ Running QEMU
   ```
 
 - **`run-app`**: same as `qemu_arm_mps2_an385`'s (`make run-app
-  APP=$PATH_TO_APP.tbf`), also verified end-to-end with `c_hello`, `blink`,
-  and a SPI loopback test app (built with `TOCK_TARGETS=cortex-m4`) loaded
-  at the same time — including `SPI PASS` from the loopback test, and the
-  same negative watchdog check (no spurious reset over ~9 reload periods).
+  APP=$PATH_TO_APP.tbf`).
 
 See `qemu_arm_mps2_an385/README.md` for the memory layout (identical
-addresses on both machines) and the watchdog positive-test methodology
-(only run once, on an385, since the peripheral and kernel logic are
-identical on both boards).
+addresses on both machines).

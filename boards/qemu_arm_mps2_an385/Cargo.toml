@@ -10,15 +10,10 @@ build = "../build.rs"
 edition.workspace = true
 
 [dependencies]
-components = { path = "../components" }
-cortexm = { path = "../../arch/cortex-m" }
 cortexm3 = { path = "../../arch/cortex-m3" }
 kernel = { path = "../../kernel" }
 qemu_arm_mps2_chip = { path = "../../chips/qemu_arm_mps2_chip", features = ["cortex-m3"] }
-
-capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
-capsules-system = { path = "../../capsules/system" }
+qemu_arm_mps2_lib = { path = "../qemu_arm_mps2_lib" }
 
 [build-dependencies]
 tock_build_scripts = { path = "../build_scripts" }

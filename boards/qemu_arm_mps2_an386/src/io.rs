@@ -5,7 +5,20 @@
 use core::panic::PanicInfo;
 
 use kernel::debug;
+use kernel::debug::PanicResources;
 use kernel::hil::uart;
+use kernel::utilities::single_thread_value::SingleThreadValue;
+
+/// Board-owned panic-time resources.
+///
+/// This can't live in `qemu_arm_mps2_lib` since a `static` can't be generic
+/// over the `CortexMVariant` the way `qemu_arm_mps2_lib::start()` is.
+pub(crate) static PANIC_RESOURCES: SingleThreadValue<
+    PanicResources<
+        qemu_arm_mps2_lib::ChipHw<cortexm4::CortexM4>,
+        qemu_arm_mps2_lib::ProcessPrinterInUse,
+    >,
+> = SingleThreadValue::new();
 
 /// Panic handler.
 #[panic_handler]
@@ -23,8 +36,15 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         },
         info,
         &cortexm4::support::nop,
-        crate::PANIC_RESOURCES.get(),
+        PANIC_RESOURCES.get(),
     );
+
+    // The system is no longer in a well-defined state. Ask QEMU (started
+    // with `-semihosting`) to exit; SYS_EXIT (0x18) with
+    // ADP_Stopped_ApplicationExit reports the target exited abnormally.
+    // Only takes effect under a semihosting host -- on real hardware, or
+    // QEMU without `-semihosting`, this falls through to the loop below.
+    cortexm4::support::semihost_command(0x18, 0x20026);
 
     loop {}
 }

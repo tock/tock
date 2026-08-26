@@ -8,7 +8,7 @@
 //! Of the five PL022 instances on this machine, only the "Shield0" one
 //! (`0x40026000`) is driven here.
 //!
-//! Two real limitations of this QEMU model shape this driver:
+//! Limitations of this QEMU model shape this driver:
 //!
 //! - **No SSI slave device is attached to any of the five PL022 instances**
 //!   in QEMU (`hw/arm/mps2.c` creates bare `TYPE_PL022` controllers with no

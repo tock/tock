@@ -5,12 +5,12 @@
 //! ARM CMSDK APB Watchdog (SP805-style), as found on the MPS2 AN385/AN386
 //! FPGA images.
 //!
-//! Unlike GPIO, this is a real, non-stub QEMU peripheral: it genuinely
-//! counts down and genuinely resets the machine. The interrupt line is
-//! wired to NMI, not a normal NVIC line (`hw/arm/mps2.c`), so it is not
-//! dispatched through [`kernel::platform::chip::InterruptService`] the way
-//! the other peripherals in this crate are — this driver only ever pokes
-//! registers, it never installs an NMI handler of its own.
+//! This is a real, non-stub QEMU peripheral: it counts down and resets the
+//! machine. The interrupt line is wired to NMI, not a normal NVIC line
+//! (`hw/arm/mps2.c`), so it is not dispatched through
+//! [`kernel::platform::chip::InterruptService`] the way the other
+//! peripherals in this crate are — this driver only ever pokes registers,
+//! it never installs an NMI handler of its own.
 //!
 //! Hardware behavior: the first countdown-to-zero with `INTEN` set raises
 //! the (non-maskable) interrupt; if nobody kicks the watchdog
@@ -20,7 +20,10 @@
 //! handler does. This board's vector table maps NMI to `unhandled_interrupt`
 //! (a panic), so in practice that panic — not the hardware reset — is what
 //! happens on a first missed kick; the reset only fires if something
-//! prevents that panic from halting execution first.
+//! prevents that panic from halting execution first. In practice this
+//! happens quickly regardless: the panic handler loops forever without
+//! kicking the watchdog, so the second countdown-to-zero (and the reset it
+//! triggers) follows shortly after.
 
 use kernel::platform::watchdog::WatchDog;
 use kernel::utilities::StaticRef;

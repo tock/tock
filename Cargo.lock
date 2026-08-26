@@ -1278,14 +1278,10 @@ dependencies = [
 name = "qemu_arm_mps2_an385"
 version = "0.2.3-dev"
 dependencies = [
- "capsules-core",
- "capsules-extra",
- "capsules-system",
- "components",
- "cortexm",
  "cortexm3",
  "kernel",
  "qemu_arm_mps2_chip",
+ "qemu_arm_mps2_lib",
  "tock_build_scripts",
 ]
 
@@ -1293,14 +1289,10 @@ dependencies = [
 name = "qemu_arm_mps2_an386"
 version = "0.2.3-dev"
 dependencies = [
- "capsules-core",
- "capsules-extra",
- "capsules-system",
- "components",
- "cortexm",
  "cortexm4",
  "kernel",
  "qemu_arm_mps2_chip",
+ "qemu_arm_mps2_lib",
  "tock_build_scripts",
 ]
 
@@ -1312,6 +1304,19 @@ dependencies = [
  "cortexm3",
  "cortexm4",
  "kernel",
+]
+
+[[package]]
+name = "qemu_arm_mps2_lib"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm",
+ "kernel",
+ "qemu_arm_mps2_chip",
 ]
 
 [[package]]

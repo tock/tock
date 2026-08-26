@@ -14,13 +14,13 @@ Currently supported peripherals:
   console/debug UART.
 - One CMSDK APB Timer, backing the kernel's `Alarm`/`Time` HIL.
 - The `FPGAIO` block's `LED0` register, exposing the machine's two
-  simulated LEDs.
+  simulated LEDs. There's no display on this `-nographic` machine to show
+  them; observe their state by reading the register directly through the
+  QEMU monitor (`C-a c` to switch from the serial console, then `xp/1xw
+  0x40028000`).
 - One PL022 SPI controller (the "Shield0" instance), run in hardware
   loopback mode — see the note below.
-- The CMSDK APB Watchdog, backing the kernel's `WatchDog` resource — see
-  `chips/qemu_arm_mps2_chip/src/watchdog.rs`'s module docs. Unlike GPIO,
-  this is a real, non-stub peripheral: it genuinely counts down and
-  genuinely resets the machine.
+- The CMSDK APB Watchdog, backing the kernel's `WatchDog` resource.
 
 Not supported, and not planned for this machine specifically:
 
@@ -42,14 +42,7 @@ therefore always enables `CR1.LBM` (loopback) — see
 `chips/qemu_arm_mps2_chip/src/spi.rs`'s module docs. Chip select is a
 zero-sized placeholder for the same reason GPIO is unavailable: there's no
 functional GPIO pin to toggle for it, and no real device to select in the
-first place. Separately, Tock's own `capsules_core::spi_controller` capsule
-has never implemented the "set chip select" command on any board (it's a
-hard-coded `NOSUPPORT`, unrelated to this board) — see the comment in
-`capsules/core/src/spi_controller.rs`.
-
-See also `qemu_arm_mps2_an386`, the Cortex-M4 sibling of this board: same
-peripheral map (an385/an386 differ only in CPU core), sharing this same
-`qemu_arm_mps2_chip` crate.
+first place.
 
 Running QEMU
 ------------
@@ -80,11 +73,7 @@ device on this machine to show regardless).
 
 With the default linker script, this board loads processes from
 flash=0x00040000-0x0007FFFF into ram=0x21004000-0x2101FFFF (RAM above the
-kernel's own static allocations). Kernel and app flash are both well within
-QEMU's hard 4 MiB cap for code at address 0 (`armv7m_load_kernel(..., 0,
-0x400000)` in `hw/arm/mps2.c`); RAM is a modest slice of the 16 MiB QEMU
-always backs at 0x21000000 regardless of what a board's linker script
-claims.
+kernel's own static allocations).
 
 Running an application
 -----------------------
@@ -96,79 +85,7 @@ Running an application
   $ make run-app APP=$PATH_TO_APP.tbf
   ```
 
-  Verified end-to-end with `libtock-c`'s `c_hello` and `blink` examples,
-  built for `TOCK_TARGETS=cortex-m3` and loaded **at the same time**:
-
-  ```
-  $ cd $LIBTOCK_C/examples/c_hello && TOCK_TARGETS=cortex-m3 make
-  $ cd $LIBTOCK_C/examples/blink && TOCK_TARGETS=cortex-m3 make
-  $ cat $LIBTOCK_C/examples/blink/build/cortex-m3/cortex-m3.tbf \
-        $LIBTOCK_C/examples/c_hello/build/cortex-m3/cortex-m3.tbf \
-        > apps.bin
-  $ make run-app APP=$PWD/apps.bin
-  [...]
-  QEMU MPS2 AN385 (Cortex-M3) initialization complete.
-  Entering main loop.
-  tock$ list
-  Hello World!
-  list
-   PID    ShortID    Name                Quanta  Syscalls  Restarts  Grants  State
-   0      Unique     blink               183303         7         0   1/ 2   Running
-   1      Unique     c_hello             131473         8         0   0/ 2   Terminated
-  tock$
-  ```
-
-  `blink`'s LED toggling was confirmed for real by reading the `FPGAIO`
-  `LED0` register directly (`0x40028000`) through the QEMU monitor
-  (`C-a c` to switch from the serial console, then `xp/1xw 0x40028000`)
-  while it ran, observing the value change between `0x00000000` and
-  `0x00000002`.
-
-  SPI was verified the same way, alongside `c_hello` and `blink`, with a
-  small loopback test app (write a known pattern, read it back over
-  `libtock_spi_controller_read_write`, `memcmp` the result, print
-  `SPI PASS`/`SPI FAIL`) — not currently part of `libtock-c`, since none of
-  its existing SPI examples build against the current
-  `libtock/peripherals/spi_controller.h` API. Loading it alongside the
-  other two confirmed three concurrently-scheduled processes all get
-  correctly serviced through this chip crate's UART, Timer, and SPI
-  drivers at once:
-
-  ```
-  tock$ list
-  Hello World!
-  SPI PASS
-  list
-   PID    ShortID    Name                Quanta  Syscalls  Restarts  Grants  State
-   0      Unique     blink               470841       171         0   1/ 3   Running
-   1      Unique     spi_loopback_test   272451        18         0   0/ 3   Terminated
-   2      Unique     c_hello             238836         8         0   0/ 3   Terminated
-  tock$
-  ```
-
-Watchdog
---------
-
-`kernel::platform::watchdog::WatchDog::tickle()` is called once per
-scheduling decision (i.e. very frequently), so a well-behaved kernel never
-comes close to the ~2 second reload margin. That means the only way to
-prove the watchdog actually works is to fake a hang, which a normal
-userspace app can't legitimately do — process isolation exists precisely
-so an app can't hang the kernel. So this was checked in two parts:
-
-- **Negative test (the userspace-facing one)**: ran `c_hello`, `blink`,
-  and `spi_loopback_test` together for ~18 seconds (about 9x the reload
-  period) and confirmed the boot banner printed exactly once — no spurious
-  reset, proving `tickle()` integration doesn't false-positive under real
-  interrupt/scheduling load.
-- **Positive test (kernel-side, one-off, not shipped)**: temporarily
-  commented out the `tickle()` call in `kernel/src/kernel.rs` (and, since
-  every idle sleep/wake cycle *also* reloads the watchdog as an
-  unavoidable property of this hardware, temporarily neutralized
-  `suspend()`/`resume()` in `watchdog.rs` too) and reran. Result: NMI
-  fired almost exactly on schedule (`panicked at arch/cortex-m/src/lib.rs:
-  ...: Unhandled Interrupt. ISR 2 is active.`), and since the panic loop
-  doesn't kick the dog either, QEMU genuinely reset the machine — the boot
-  banner reprinted — roughly one reload period later, repeating in a
-  clean cycle. Both changes were reverted immediately after (confirmed via
-  an identical post-revert binary hash before moving on).
+  To load more than one app at once, concatenate their `.tbf` files (e.g.
+  `cat app1.tbf app2.tbf > apps.bin`) largest-first: `elf2tab` pads each
+  `.tbf` to a power-of-two size for MPU alignment, and the loader assumes
+  that ordering.
