@@ -582,7 +582,7 @@ impl<'a> Rtc<'a> {
 
         // Ensure the input clock is valid
         let Some(clock_frequency) = clock_frequency_option else {
-            return Err(kernel::ErrorCode::FAIL);
+            return Err(kernel::ErrorCode::INVAL);
         };
 
         // The calendar lives in the backup domain, so it keeps running across a

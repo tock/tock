@@ -415,12 +415,8 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct Spi<'a> {
+pub struct Spi<'a, const INDEX: usize> {
     pub registers: StaticRef<SpiRegisters>,
-
-    /// SPI peripheral number, needed for choosing its corresponding clock frequency
-    index: u8,
-
     clocks: OptionalCell<Clocks>,
     client: OptionalCell<&'a dyn spi::SpiMasterClient>,
     dma: OptionalCell<&'a Dma>,
@@ -434,11 +430,13 @@ pub struct Spi<'a> {
     active_after: Cell<bool>,
 }
 
-impl<'a> Spi<'a> {
-    pub fn new(base: StaticRef<SpiRegisters>, spi_index: u8) -> Self {
+impl<'a, const INDEX: usize> Spi<'a, INDEX> {
+    // Ensure a valid peripheral index was provided
+    const _INDEX_CHECK: () = assert!(INDEX == 1, "Only SPI1 is currently supported");
+
+    pub fn new(base: StaticRef<SpiRegisters>) -> Self {
         Self {
             registers: base,
-            index: spi_index,
             clocks: OptionalCell::empty(),
             client: OptionalCell::empty(),
             dma: OptionalCell::empty(),
@@ -457,22 +455,22 @@ impl<'a> Spi<'a> {
         self.clocks.set(clocks);
     }
 
-    pub fn get_kernel_clock_frequency(&self) -> Result<Hertz, ()> {
+    pub fn get_kernel_clock_frequency(&self) -> Result<Hertz, kernel::ErrorCode> {
         // The clock frequencies must have been provided with `set_clocks` at this point
         let Some(clocks) = &self.clocks.get() else {
-            return Err(());
+            return Err(kernel::ErrorCode::FAIL);
         };
 
         // Get the clock frequency that feeds this SPI
-        let clock_frequency_option = match self.index {
+        let clock_frequency_option = match INDEX {
             1 => clocks.spi1,
-            // Other SPIs are not yet supported
-            _ => return Err(()),
+            // Other SPIs are not yet supported (this is unreachable due to the compile-time assert)
+            _ => return Err(kernel::ErrorCode::FAIL),
         };
 
         // Ensure the input clock is valid
         let Some(clock_frequency) = clock_frequency_option else {
-            return Err(());
+            return Err(kernel::ErrorCode::INVAL);
         };
 
         Ok(clock_frequency)
@@ -582,7 +580,7 @@ impl<'a> Spi<'a> {
     }
 }
 
-impl<'a> spi::SpiMaster<'a> for Spi<'a> {
+impl<'a, const INDEX: usize> spi::SpiMaster<'a> for Spi<'a, INDEX> {
     type ChipSelect = &'a crate::gpio::Pin<'a>;
 
     fn set_phase(&self, phase: ClockPhase) -> Result<(), kernel::ErrorCode> {
@@ -643,7 +641,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
 
         // Find the best prescaler
         let (mbr_field_value, div) =
-            Spi::<'a>::compute_baud_rate_prescaler(clock_frequency, Hertz(rate));
+            Spi::<'a, INDEX>::compute_baud_rate_prescaler(clock_frequency, Hertz(rate));
 
         // Before we can set the rate we need to disable the SPI.
         let spi_was_enabled = self.registers.cr1.is_set(CR1::SPE);
@@ -718,7 +716,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
 
         // Find the best prescaler to set an SPI frequency of 2MHz
         let (mbr_field_value, _) =
-            Spi::<'a>::compute_baud_rate_prescaler(clock_frequency, Hertz(2_000_000));
+            Spi::<'a, INDEX>::compute_baud_rate_prescaler(clock_frequency, Hertz(2_000_000));
 
         // Errata 2.18.1 Workaround: Explicitly force CRCSIZE to 0b00111 (8-bit) to prevent
         // RxFIFO data corruption when TSIZE > 0 and CRC is disabled
@@ -922,7 +920,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     }
 }
 
-impl crate::dma::DmaClient for Spi<'_> {
+impl<const INDEX: usize> crate::dma::DmaClient for Spi<'_, INDEX> {
     /// Callback triggered by the DMA controller hardware interrupt when a
     /// DMA channel finishes moving its assigned number of bytes.
     fn transfer_done(&self, channel: ChannelId) {

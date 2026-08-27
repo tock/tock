@@ -175,12 +175,8 @@ register_bitfields![u32,
 /// for both transmitting and receiving data, which provides high efficiency and
 /// ensures that fast data bursts (such as arrow key escape sequences) are
 /// captured correctly.
-pub struct Usart<'a> {
+pub struct Usart<'a, const INDEX: usize> {
     pub registers: StaticRef<UsartRegisters>,
-
-    /// USART peripheral number, needed for choosing its corresponding clock frequency
-    index: u8,
-
     clocks: OptionalCell<Clocks>,
     dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<Option<ChannelId>>,
@@ -196,11 +192,13 @@ pub struct Usart<'a> {
     rx_deferred: Cell<bool>,
 }
 
-impl<'a> Usart<'a> {
-    pub fn new(base: StaticRef<UsartRegisters>, usart_index: u8) -> Self {
+impl<'a, const INDEX: usize> Usart<'a, INDEX> {
+    // Ensure a valid peripheral index was provided
+    const _INDEX_CHECK: () = assert!(INDEX == 1, "Only USART1 is currently supported");
+
+    pub fn new(base: StaticRef<UsartRegisters>) -> Self {
         Self {
             registers: base,
-            index: usart_index,
             clocks: OptionalCell::empty(),
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
@@ -404,7 +402,7 @@ enum BaudrateError {
     TooLow,
 }
 
-impl DeferredCallClient for Usart<'_> {
+impl<const INDEX: usize> DeferredCallClient for Usart<'_, INDEX> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
@@ -440,7 +438,7 @@ impl DeferredCallClient for Usart<'_> {
     }
 }
 
-impl crate::dma::DmaClient for Usart<'_> {
+impl<const INDEX: usize> crate::dma::DmaClient for Usart<'_, INDEX> {
     fn transfer_done(&self, channel: ChannelId) {
         if let Some(tx_ch) = self.dma_channel_tx.get() {
             if channel == tx_ch {
@@ -456,7 +454,7 @@ impl crate::dma::DmaClient for Usart<'_> {
     }
 }
 
-impl<'a> uart::Transmit<'a> for Usart<'a> {
+impl<'a, const INDEX: usize> uart::Transmit<'a> for Usart<'a, INDEX> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -525,7 +523,7 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
     }
 }
 
-impl uart::Configure for Usart<'_> {
+impl<const INDEX: usize> uart::Configure for Usart<'_, INDEX> {
     fn configure(&self, params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
         // The clock frequencies must have been provided with `set_clocks` at this point
         let Some(clocks) = &self.clocks.get() else {
@@ -533,15 +531,15 @@ impl uart::Configure for Usart<'_> {
         };
 
         // Get the clock frequency that feeds this USART
-        let clock_frequency_option = match self.index {
+        let clock_frequency_option = match INDEX {
             1 => clocks.usart1,
-            // Other USARTs are not yet supported
+            // Other USARTs are not yet supported (this is unreachable due to the compile-time assert)
             _ => return Err(kernel::ErrorCode::FAIL),
         };
 
         // Ensure the input clock is valid
         let Some(clock_frequency) = clock_frequency_option else {
-            return Err(kernel::ErrorCode::FAIL);
+            return Err(kernel::ErrorCode::INVAL);
         };
 
         let regs = &*self.registers;
@@ -566,7 +564,7 @@ impl uart::Configure for Usart<'_> {
     }
 }
 
-impl<'a> uart::Receive<'a> for Usart<'a> {
+impl<'a, const INDEX: usize> uart::Receive<'a> for Usart<'a, INDEX> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -655,7 +653,7 @@ pub struct UsartPanicWriterConfig {
     pub base: StaticRef<UsartRegisters>,
 }
 
-impl PanicWriter for Usart<'_> {
+impl<const INDEX: usize> PanicWriter for Usart<'_, INDEX> {
     type Config = UsartPanicWriterConfig;
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
         let writer = UsartPanicWriter {
