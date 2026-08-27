@@ -1,0 +1,23 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "mps2-an385"
+version.workspace = true
+authors.workspace = true
+build = "../../build.rs"
+edition.workspace = true
+
+[dependencies]
+cortexm3 = { path = "../../../arch/cortex-m3" }
+kernel = { path = "../../../kernel" }
+qemu_arm_mps2 = { path = "../../../chips/qemu_arm_mps2" }
+qemu_arm_mps2_an385 = { path = "../../../chips/qemu_arm_mps2_an385" }
+mps2_base = { path = "../mps2_base" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
+
+[lints]
+workspace = true
