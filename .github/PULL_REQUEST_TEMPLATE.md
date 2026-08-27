@@ -30,6 +30,4 @@ This pull request still needs...
 - [ ] No AI was used in this PR.
 - [ ] AI was used in this PR. I have read [Tock's AI policy](https://github.com/tock/tock/blob/master/.github/CONTRIBUTING.md#ai-policy) and have properly disclosed my AI use below. This PR comment, and any subsequent PR interactions must not be generated using AI, except for under a `<details>` drawer.
 
-Details of AI use:
-
 <!-- Include details of AI use here, if you used any -->
