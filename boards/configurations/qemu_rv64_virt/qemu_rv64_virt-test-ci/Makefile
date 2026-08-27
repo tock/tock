@@ -17,7 +17,6 @@ QEMU_CMDLINE_EXTRA ?= \
 
 QEMU_CMDLINE := \
     $(QEMU_CMD) \
-    $(QEMU_CMDLINE_EXTRA) \
     -machine virt \
     -semihosting \
     -global driver=riscv-cpu,property=smepmp,value=true \
@@ -25,6 +24,7 @@ QEMU_CMDLINE := \
     -device virtio-rng-device \
     -device virtio-keyboard-device \
     -device virtio-gpu-device \
+    $(QEMU_CMDLINE_EXTRA)
     
 
 # Set this as the default local board to write apps to with tockloader
