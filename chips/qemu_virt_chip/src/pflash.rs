@@ -134,16 +134,36 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
             return Err((ErrorCode::INVAL, data));
         }
 
-        if !self.is_page_blank(page_number) {
+        let start = page_number * PAGE_WORDS;
+
+        // First, check if anything we want to write will need to change a 0 bit
+        // to a 1 in flash. If so, we need to do a erase first (like normal
+        // flash). However, if we are only writing data that is already erased,
+        // don't first do an erase. Writing data on the QEMU pflash is VERY
+        // slow. So avoiding extra writes is very worthwhile.
+        let mut do_erase = false;
+        for (i, word) in data.as_mut().as_chunks::<4>().0.iter().enumerate() {
+            let value = u32::from_le_bytes(*word);
+            let existing_value = self.registers[start + i].get();
+
+            if (value & !existing_value) != 0 {
+                do_erase = true;
+                break;
+            }
+        }
+
+        if do_erase {
             self.erase_sector(page_number);
         }
 
-        let start = page_number * PAGE_WORDS;
         for (i, word) in data.as_mut().as_chunks::<4>().0.iter().enumerate() {
             let value = u32::from_le_bytes(*word);
-            // Skip writing the default value. This is incredibly slow to write
-            // every word in the sector.
-            if value != 0xFFFFFFFF {
+            let existing_value = self.registers[start + i].get();
+
+            // Skip writing the default value. Also, skip writing values that
+            // are already in flash. It is incredibly slow to write every word
+            // in the sector.
+            if value != 0xFFFFFFFF && value != existing_value {
                 self.program_word(start + i, value);
             }
         }
