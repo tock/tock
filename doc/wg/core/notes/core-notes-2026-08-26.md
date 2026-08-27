@@ -41,7 +41,7 @@ Let's release a version
  - Alexandru: The reason I really want this chip is becuase it's an ARMv8, with the new MPU; and it's the only STM with equal-sized flash pages
  - Alexandru: Plus it only costs 10 euro, and it has an on-board debugger — it's great for any tutorial; the board is super sturdy; students haven't fried one yet :)
  - Branden: Which board is this exactly?
- - Alexandru: STM Nucleo U54QRREQ (ish) ( https://www.digikey.com/en/products/detail/stmicroelectronics/NUCLEO-U545RE-Q/22106570 )
+ - Alexandru: STM32 Nucleo-U545RE-Q ( https://www.digikey.com/en/products/detail/stmicroelectronics/NUCLEO-U545RE-Q/22106570 )
  - Johnathan: Candidate Plan: Alexandru and team focuses on STM32U, we run parallel branches ...
  - Pat: We need to answer Branden's QEMU before we make a plan
  - Branden: What's the motivation for QEMU?
