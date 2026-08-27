@@ -1,0 +1,12 @@
+[package]
+name = "tier-extractor"
+version = "0.1.0"
+authors.workspace = true
+edition = "2024"
+
+[dependencies]
+ignore = "0.4"
+quote = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+syn = { version = "2.0.114", features = ["full", "extra-traits"] }

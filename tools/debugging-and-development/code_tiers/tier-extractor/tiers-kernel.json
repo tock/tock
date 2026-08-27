@@ -1,0 +1,1094 @@
+[
+  {
+    "file": "kernel/src/debug.rs",
+    "path": "kernel::debug::PanicResources",
+    "kind": "struct",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Widely Used",
+      "rank": 2
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout",
+    "kind": "struct",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::read_from_base",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::initialize_from_counts",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::grant_size",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::grant_align",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::offset_of_grant_data_t",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::get_counter_offset",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::get_upcalls_slice",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::get_allow_ro_slice",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::get_allow_rw_slice",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::EnteredGrantKernelManagedLayout < 'a >::get_resource_slices",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::<EnteredGrantKernelManagedLayout < '_ > as Drop>::drop",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::allow_ro",
+    "kind": "fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::allow_rw",
+    "kind": "fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::ProcessGrant",
+    "kind": "struct",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::ProcessGrant < 'a , T , Upcalls , AllowROs , AllowRWs >::processid",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::ProcessGrant < 'a , T , Upcalls , AllowROs , AllowRWs >::enter",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::ProcessGrant < 'a , T , Upcalls , AllowROs , AllowRWs >::enter_with_allocator",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Experimental",
+      "rank": 4
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::ProcessGrant < 'a , T , Upcalls , AllowROs , AllowRWs >::access_grant",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/grant.rs",
+    "path": "kernel::grant::ProcessGrant < 'a , T , Upcalls , AllowROs , AllowRWs >::access_grant_with_allocator",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Experimental",
+      "rank": 4
+    }
+  },
+  {
+    "file": "kernel/src/process.rs",
+    "path": "kernel::process::ProcessId",
+    "kind": "struct",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process.rs",
+    "path": "kernel::process::Process",
+    "kind": "trait",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::ProcessStandard",
+    "kind": "struct",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::processid",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::short_app_id",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::binary_version",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_credential",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::enqueue_task",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::ready",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::remove_pending_upcalls",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::is_running",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_state",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::set_yielded_state",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::set_yielded_for_state",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Functionally Tested",
+      "rank": 3
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::stop",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::resume",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::set_fault_state",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::start",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Functionally Tested",
+      "rank": 3
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::try_restart",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Functionally Tested",
+      "rank": 3
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::terminate",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Functionally Tested",
+      "rank": 3
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_restart_count",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::has_tasks",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::dequeue_task",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::remove_upcall",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::pending_tasks",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_command_permissions",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_storage_permissions",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::number_writeable_flash_regions",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_writeable_flash_region",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::update_stack_start_pointer",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::update_heap_start_pointer",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::setup_mpu",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::add_mpu_region",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::remove_mpu_region",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::sbrk",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::brk",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::build_readwrite_process_buffer",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::build_readonly_process_buffer",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::set_byte",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Functionally Tested",
+      "rank": 3
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::grant_is_allocated",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::allocate_grant",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::allocate_custom_grant",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Functionally Tested",
+      "rank": 3
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::enter_grant",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::enter_custom_grant",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Functionally Tested",
+      "rank": 3
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::leave_grant",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::grant_allocated_count",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Widely Used",
+      "rank": 2
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::lookup_grant_from_driver_num",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::is_valid_upcall_function_pointer",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_process_name",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_completion_code",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::set_syscall_return_value",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::set_process_function",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::switch_to",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::debug_syscall_count",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::debug_dropped_upcall_count",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::debug_timeslice_expiration_count",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::debug_timeslice_expired",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::debug_syscall_called",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::debug_syscall_last",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_addresses",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::get_sizes",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::<ProcessStandard < '_ , C , D > as Process>::print_full_process",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Normal",
+      "rank": 4
+    },
+    "importance": {
+      "tier": "Normal",
+      "rank": 3
+    }
+  },
+  {
+    "file": "kernel/src/process_standard.rs",
+    "path": "kernel::process_standard::ProcessStandard < '_ , C , D >::create",
+    "kind": "impl_fn",
+    "assurance": {
+      "tier": "Extensively Tested",
+      "rank": 2
+    },
+    "importance": {
+      "tier": "Critical",
+      "rank": 1
+    }
+  }
+]

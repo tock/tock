@@ -1,5 +1,5 @@
 [package]
-name = "code_tiers"
+name = "tier-checker"
 version = "0.1.0"
 authors.workspace = true
 edition = "2024"

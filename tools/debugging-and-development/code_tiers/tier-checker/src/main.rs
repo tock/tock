@@ -1,65 +1,50 @@
+//! Builds a call graph for a Rust crate -- every function, method, and
+//! trait method as a node, with an edge for each call this tool can
+//! resolve -- and cross-references it against the JSON produced by
+//! `tier-extractor` to flag interesting mismatches (e.g. a Critical
+//! function calling into Experimental code). This tool does not look at
+//! doc comments itself; it only knows about `# Code Tier` levels that
+//! were already extracted into the `--tiers` file.
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use syn::visit::Visit;
 
-/// The named assurance levels, in order from strongest to weakest guarantee.
-const ASSURANCE_LEVELS: &[&str] = &[
-    "Formally Verified",
-    "Extensively Tested",
-    "Functionally Tested",
-    "Normal",
-];
+/// A named level (e.g. "Extensively Tested") and its 1-based rank within
+/// its category (1 is strongest/most critical).
+#[derive(Deserialize, Clone)]
+struct Level {
+    tier: String,
+    rank: u32,
+}
 
-/// The named importance levels, in order from most to least critical.
-const IMPORTANCE_LEVELS: &[&str] = &["Critical", "Widely Used", "Normal", "Experimental"];
-
-/// The assurance and importance levels extracted from a `# Code Tier`
-/// doc comment, along with each level's rank (1 is strongest/most
-/// critical) within its category.
-#[derive(Serialize, Clone)]
+/// The assurance and importance levels for one code element, as produced
+/// by `tier-extractor`. Extra fields in that JSON (`file`, `kind`, ...)
+/// are ignored.
+#[derive(Deserialize, Clone)]
 struct CodeLevel {
-    assurance: String,
-    assurance_rank: u32,
-    importance: String,
-    importance_rank: u32,
-}
-
-/// The rank (1-based position) of `value` within `levels`, if it names one
-/// of the known levels.
-fn level_rank(levels: &[&str], value: &str) -> Option<u32> {
-    levels
-        .iter()
-        .position(|level| *level == value)
-        .map(|i| i as u32 + 1)
-}
-
-/// One item in the crate (a file, module, function, struct, ...) that has
-/// a `# Code Tier` doc comment.
-#[derive(Serialize)]
-struct Entry {
-    file: String,
-    /// The formal Rust path to the item, e.g. `kernel::debug::PanicResources`.
+    #[serde(default)]
     path: String,
-    kind: String,
-    #[serde(flatten)]
-    code_level: CodeLevel,
+    assurance: Level,
+    importance: Level,
 }
 
 /// A function-like item (`fn`, an `impl` method, or a `trait` method) found
-/// anywhere in the crate, whether or not it carries a `# Code Tier`
-/// annotation. These are the nodes of the call graph.
+/// anywhere in the crate. These are the nodes of the call graph; most
+/// won't have a `code_level` (only elements annotated with `# Code Tier`
+/// and present in the `--tiers` file do).
 struct FunctionInfo<'a> {
     /// Formal Rust path, e.g. `kernel::debug::PanicResources::fmt`.
     path: String,
     kind: &'static str,
     file: String,
     /// The module the function is declared in (not including its `impl`/
-    /// `trait` container, if any) -- this is the scope bare and `self::`/
+    /// `trait` container, if any) -- this is the scope bare `self::`/
     /// `super::` calls in its body are resolved against.
     module_path: String,
     /// For `impl` methods, the bare `Self` type name, used to resolve
@@ -101,87 +86,6 @@ struct Edge {
 struct CallGraph {
     nodes: Vec<Node>,
     edges: Vec<Edge>,
-}
-
-#[derive(Serialize)]
-struct Output {
-    annotations: Vec<Entry>,
-    call_graph: CallGraph,
-}
-
-/// Concatenate all `#[doc = "..."]` attributes (i.e. `///` and `//!`
-/// comments) attached to an item into a single string, one line per
-/// attribute.
-fn get_doc_string(attrs: &[syn::Attribute]) -> Option<String> {
-    let mut lines = Vec::new();
-    for attr in attrs {
-        if let syn::Meta::NameValue(syn::MetaNameValue { path, value, .. }) = &attr.meta
-            && path.is_ident("doc")
-            && let syn::Expr::Lit(syn::ExprLit {
-                lit: syn::Lit::Str(s),
-                ..
-            }) = value
-        {
-            lines.push(s.value());
-        }
-    }
-    if lines.is_empty() {
-        None
-    } else {
-        Some(lines.join("\n"))
-    }
-}
-
-/// Look for a `# Code Tier` markdown header in an item's doc comment and,
-/// if found, parse the `Assurance` and `Importance` list items beneath it.
-///
-/// ```text
-/// /// # Code Tier
-/// ///
-/// /// - Assurance: Normal
-/// /// - Importance: Widely Used
-/// ```
-fn get_code_level(attrs: &[syn::Attribute]) -> Option<CodeLevel> {
-    let doc = get_doc_string(attrs)?;
-    let lines: Vec<&str> = doc.lines().map(|l| l.trim()).collect();
-    let header = lines.iter().position(|l| *l == "# Code Tier")?;
-
-    let mut assurance = None;
-    let mut importance = None;
-    for line in &lines[header + 1..] {
-        if line.is_empty() {
-            continue;
-        }
-        // Stop at the next markdown header.
-        if line.starts_with('#') {
-            break;
-        }
-        if let Some(rest) = line.strip_prefix("- Assurance:") {
-            let value = rest.trim();
-            match level_rank(ASSURANCE_LEVELS, value) {
-                Some(rank) => assurance = Some((value.to_string(), rank)),
-                None => eprintln!("warning: unrecognized assurance level {value:?}"),
-            }
-        } else if let Some(rest) = line.strip_prefix("- Importance:") {
-            let value = rest.trim();
-            match level_rank(IMPORTANCE_LEVELS, value) {
-                Some(rank) => importance = Some((value.to_string(), rank)),
-                None => eprintln!("warning: unrecognized importance level {value:?}"),
-            }
-        }
-    }
-
-    match (assurance, importance) {
-        (Some((assurance, assurance_rank)), Some((importance, importance_rank))) => {
-            Some(CodeLevel {
-                assurance,
-                assurance_rank,
-                importance,
-                importance_rank,
-            })
-        }
-        _ => None,
-    }
 }
 
 /// Join a module path and an item name into a single `::`-separated path.
@@ -258,59 +162,26 @@ fn resolve_mod_file(file: &Path, name: &str, attrs: &[syn::Attribute]) -> Option
         .or_else(|| dir.join(name).join("mod.rs").canonicalize().ok())
 }
 
-fn record(
-    results: &mut Vec<Entry>,
-    file: &str,
-    module_path: &str,
-    name: &str,
-    kind: &str,
-    attrs: &[syn::Attribute],
-) {
-    if let Some(code_level) = get_code_level(attrs) {
-        results.push(Entry {
-            file: file.to_string(),
-            path: join_path(module_path, name),
-            kind: kind.to_string(),
-            code_level,
-        });
+/// Best-effort extraction of the `name` field from a `[package]` table in
+/// a `Cargo.toml` file, without pulling in a full TOML parser.
+fn crate_name_from_cargo_toml(cargo_toml: &Path) -> Option<String> {
+    let content = fs::read_to_string(cargo_toml).ok()?;
+    let mut in_package = false;
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_package = line == "[package]";
+            continue;
+        }
+        if in_package
+            && let Some(rest) = line.strip_prefix("name")
+            && let Some(rest) = rest.trim_start().strip_prefix('=')
+        {
+            let value = rest.trim().trim_matches('"');
+            return Some(value.to_string());
+        }
     }
-}
-
-/// Record a function-like item (`fn`, `impl` method, or `trait` method) as
-/// a call graph node, and -- if it carries a `# Code Tier` annotation --
-/// also as an annotation entry, matching the behavior of `record` for
-/// other item kinds.
-#[allow(clippy::too_many_arguments)]
-fn record_function<'a>(
-    state: &mut WalkState<'a>,
-    file_str: &str,
-    container_path: &str,
-    module_path: &str,
-    name: &str,
-    kind: &'static str,
-    self_type_bare: Option<String>,
-    attrs: &[syn::Attribute],
-    body: Option<&'a syn::Block>,
-) {
-    let path = join_path(container_path, name);
-    let code_level = get_code_level(attrs);
-    if let Some(level) = code_level.clone() {
-        state.results.push(Entry {
-            file: file_str.to_string(),
-            path: path.clone(),
-            kind: kind.to_string(),
-            code_level: level,
-        });
-    }
-    state.functions.push(FunctionInfo {
-        path,
-        kind,
-        file: file_str.to_string(),
-        module_path: module_path.to_string(),
-        self_type_bare,
-        body,
-        code_level,
-    });
+    None
 }
 
 /// A `::`-joined suffix built from path segments, e.g. `["foo", "bar"]` ->
@@ -396,46 +267,46 @@ fn flatten_use_tree(
     }
 }
 
-/// Best-effort extraction of the `name` field from a `[package]` table in
-/// a `Cargo.toml` file, without pulling in a full TOML parser.
-fn crate_name_from_cargo_toml(cargo_toml: &Path) -> Option<String> {
-    let content = fs::read_to_string(cargo_toml).ok()?;
-    let mut in_package = false;
-    for line in content.lines() {
-        let line = line.trim();
-        if line.starts_with('[') {
-            in_package = line == "[package]";
-            continue;
-        }
-        if in_package
-            && let Some(rest) = line.strip_prefix("name")
-            && let Some(rest) = rest.trim_start().strip_prefix('=')
-        {
-            let value = rest.trim().trim_matches('"');
-            return Some(value.to_string());
-        }
-    }
-    None
-}
-
 /// Mutable state threaded through the crate walk: the parsed source files
 /// (immutable, borrowed for `'a`), and the accumulators the walk fills in.
 struct WalkState<'a> {
     files: &'a HashMap<PathBuf, syn::File>,
     crate_name: String,
     visited: HashSet<PathBuf>,
-    results: Vec<Entry>,
     functions: Vec<FunctionInfo<'a>>,
     /// Per-file map of locally-bound `use` names to their formal path.
     use_imports: HashMap<String, HashMap<String, String>>,
 }
 
-/// Recursively walk all items in a file (or module), recording any item
-/// whose doc comment has a `# Code Tier` annotation, and registering
-/// every function-like item as a call graph node. External module
-/// declarations (`mod foo;`) are followed into their own file using
-/// `state.files`, so that `module_path` always reflects the formal Rust
-/// path to each item.
+#[allow(clippy::too_many_arguments)]
+fn record_function<'a>(
+    state: &mut WalkState<'a>,
+    file_str: &str,
+    container_path: &str,
+    module_path: &str,
+    name: &str,
+    kind: &'static str,
+    self_type_bare: Option<String>,
+    body: Option<&'a syn::Block>,
+) {
+    state.functions.push(FunctionInfo {
+        path: join_path(container_path, name),
+        kind,
+        file: file_str.to_string(),
+        module_path: module_path.to_string(),
+        self_type_bare,
+        body,
+        code_level: None,
+    });
+}
+
+/// Recursively walk all items in a file (or module), registering every
+/// function-like item as a call graph node. External module declarations
+/// (`mod foo;`) are followed into their own file using `state.files`, so
+/// that `module_path` always reflects the formal Rust path to each item.
+/// Item kinds that can't call anything or contain a function (structs,
+/// consts, ...) are skipped entirely -- this tool only cares about the
+/// call graph.
 fn walk_items<'a>(
     items: &'a [syn::Item],
     file: &Path,
@@ -457,102 +328,14 @@ fn walk_items<'a>(
                     &i.sig.ident.to_string(),
                     "fn",
                     None,
-                    &i.attrs,
                     Some(&i.block),
-                );
-            }
-            syn::Item::Struct(i) => {
-                if is_cfg_test(&i.attrs) {
-                    continue;
-                }
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &i.ident.to_string(),
-                    "struct",
-                    &i.attrs,
-                );
-            }
-            syn::Item::Enum(i) => {
-                if is_cfg_test(&i.attrs) {
-                    continue;
-                }
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &i.ident.to_string(),
-                    "enum",
-                    &i.attrs,
-                );
-            }
-            syn::Item::Union(i) => {
-                if is_cfg_test(&i.attrs) {
-                    continue;
-                }
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &i.ident.to_string(),
-                    "union",
-                    &i.attrs,
-                );
-            }
-            syn::Item::Const(i) => {
-                if is_cfg_test(&i.attrs) {
-                    continue;
-                }
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &i.ident.to_string(),
-                    "const",
-                    &i.attrs,
-                );
-            }
-            syn::Item::Static(i) => {
-                if is_cfg_test(&i.attrs) {
-                    continue;
-                }
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &i.ident.to_string(),
-                    "static",
-                    &i.attrs,
-                );
-            }
-            syn::Item::Type(i) => {
-                if is_cfg_test(&i.attrs) {
-                    continue;
-                }
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &i.ident.to_string(),
-                    "type",
-                    &i.attrs,
                 );
             }
             syn::Item::Trait(i) => {
                 if is_cfg_test(&i.attrs) {
                     continue;
                 }
-                let name = i.ident.to_string();
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &name,
-                    "trait",
-                    &i.attrs,
-                );
-                let trait_path = join_path(module_path, &name);
+                let trait_path = join_path(module_path, &i.ident.to_string());
                 for trait_item in &i.items {
                     if let syn::TraitItem::Fn(f) = trait_item
                         && !is_cfg_test(&f.attrs)
@@ -565,7 +348,6 @@ fn walk_items<'a>(
                             &f.sig.ident.to_string(),
                             "trait_fn",
                             None,
-                            &f.attrs,
                             f.default.as_ref(),
                         );
                     }
@@ -576,14 +358,6 @@ fn walk_items<'a>(
                     continue;
                 }
                 let self_ty = type_name(&i.self_ty);
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &self_ty,
-                    "impl",
-                    &i.attrs,
-                );
                 let self_context = match &i.trait_ {
                     Some((_, trait_path, _)) => {
                         format!("<{self_ty} as {}>", quote::quote!(#trait_path))
@@ -603,7 +377,6 @@ fn walk_items<'a>(
                             &f.sig.ident.to_string(),
                             "impl_fn",
                             Some(self_ty.clone()),
-                            &f.attrs,
                             Some(&f.block),
                         );
                     }
@@ -612,8 +385,8 @@ fn walk_items<'a>(
             syn::Item::Mod(i) => {
                 let name = i.ident.to_string();
                 if is_cfg_test(&i.attrs) {
-                    // Don't record or recurse into a test-only module, but
-                    // if it points at its own file, still mark that file
+                    // Don't recurse into a test-only module, but if it
+                    // points at its own file, still mark that file
                     // visited -- otherwise the "unreachable file" fallback
                     // later would pick it up and include it anyway.
                     if i.content.is_none()
@@ -623,33 +396,16 @@ fn walk_items<'a>(
                     }
                     continue;
                 }
-                record(
-                    &mut state.results,
-                    &file_str,
-                    module_path,
-                    &name,
-                    "mod",
-                    &i.attrs,
-                );
                 let mod_path = join_path(module_path, &name);
                 if let Some((_, sub_items)) = &i.content {
                     // Inline module: `mod foo { ... }`.
                     walk_items(sub_items, file, &mod_path, state);
-                } else if let Some(sub_file) = resolve_mod_file(file, &name, &i.attrs) {
+                } else if let Some(sub_file) = resolve_mod_file(file, &name, &i.attrs)
+                    && state.visited.insert(sub_file.clone())
+                    && let Some(sub_ast) = state.files.get(&sub_file)
+                {
                     // External module: `mod foo;`, defined in its own file.
-                    if state.visited.insert(sub_file.clone())
-                        && let Some(sub_ast) = state.files.get(&sub_file)
-                    {
-                        record(
-                            &mut state.results,
-                            &sub_file.to_string_lossy(),
-                            "",
-                            &mod_path,
-                            "file",
-                            &sub_ast.attrs,
-                        );
-                        walk_items(&sub_ast.items, &sub_file, &mod_path, state);
-                    }
+                    walk_items(&sub_ast.items, &sub_file, &mod_path, state);
                 }
             }
             syn::Item::Use(u) => {
@@ -662,26 +418,16 @@ fn walk_items<'a>(
 }
 
 /// Walk a crate root starting at `entry_file` (e.g. `src/lib.rs`), whose
-/// formal module path is `crate_name`, following `mod` declarations into
+/// formal module path is `module_name`, following `mod` declarations into
 /// their files as they're encountered.
 fn walk_crate_root<'a>(entry_file: &Path, module_name: &str, state: &mut WalkState<'a>) {
     let Some(entry_file) = entry_file.canonicalize().ok() else {
         return;
     };
-    let Some(ast) = state.files.get(&entry_file) else {
-        return;
-    };
-    if !state.visited.insert(entry_file.clone()) {
+    if state.files.get(&entry_file).is_none() || !state.visited.insert(entry_file.clone()) {
         return;
     }
-    record(
-        &mut state.results,
-        &entry_file.to_string_lossy(),
-        "",
-        module_name,
-        "file",
-        &ast.attrs,
-    );
+    let ast = &state.files[&entry_file];
     walk_items(&ast.items, &entry_file, module_name, state);
 }
 
@@ -896,7 +642,10 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
         ));
         for f in funcs {
             let label = match &f.code_level {
-                Some(cl) => format!("{}\\n{} / {}", f.path, cl.assurance, cl.importance),
+                Some(cl) => format!(
+                    "{}\\n{} / {}",
+                    f.path, cl.assurance.tier, cl.importance.tier
+                ),
                 None => f.path.clone(),
             };
             out.push_str(&format!(
@@ -926,15 +675,15 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
         // sharpest possible importance drop -- ahead of a plain assurance
         // downgrade, since it's the more alarming case.
         let critical_to_experimental = levels.is_some_and(|(caller, callee)| {
-            caller.importance_rank == 1 && callee.importance_rank == 4
+            caller.importance.rank == 1 && callee.importance.rank == 4
         });
 
-        // Flag a call into weaker assurance: a higher assurance_rank means
+        // Flag a call into weaker assurance: a higher assurance rank means
         // a *weaker* guarantee (1 = Formally Verified, 4 = Normal), so the
         // callee is a downgrade when its rank is numerically higher than
         // the caller's.
         let weaker_assurance =
-            levels.is_some_and(|(caller, callee)| callee.assurance_rank > caller.assurance_rank);
+            levels.is_some_and(|(caller, callee)| callee.assurance.rank > caller.assurance.rank);
 
         let attrs = if critical_to_experimental {
             " [color=\"#fb8c00\", penwidth=2]"
@@ -954,24 +703,65 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
     fs::write(path, out)
 }
 
+/// Load the JSON produced by `tier-extractor` and index it by formal path.
+fn load_tiers(path: &Path) -> HashMap<String, CodeLevel> {
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(err) => {
+            eprintln!(
+                "warning: failed to read tiers file {}: {err}",
+                path.display()
+            );
+            return HashMap::new();
+        }
+    };
+    let entries: Vec<CodeLevel> = match serde_json::from_str(&content) {
+        Ok(entries) => entries,
+        Err(err) => {
+            eprintln!(
+                "warning: failed to parse tiers file {}: {err}",
+                path.display()
+            );
+            return HashMap::new();
+        }
+    };
+    entries.into_iter().map(|e| (e.path.clone(), e)).collect()
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        panic!("must specify path to the crate to check");
+        panic!("usage: tier-checker <path to crate> [--tiers <tiers.json>] [--dot <output.dot>]");
     }
 
     let root = Path::new(&args[1]);
     let mut dot_path: Option<&str> = None;
+    let mut tiers_path: Option<&str> = None;
     let mut i = 2;
     while i < args.len() {
-        if args[i] == "--dot" && i + 1 < args.len() {
-            dot_path = Some(&args[i + 1]);
-            i += 2;
-        } else {
-            i += 1;
+        match args[i].as_str() {
+            "--dot" if i + 1 < args.len() => {
+                dot_path = Some(&args[i + 1]);
+                i += 2;
+            }
+            "--tiers" if i + 1 < args.len() => {
+                tiers_path = Some(&args[i + 1]);
+                i += 2;
+            }
+            _ => i += 1,
         }
     }
+
+    let tiers = match tiers_path {
+        Some(p) => load_tiers(Path::new(p)),
+        None => {
+            eprintln!(
+                "warning: no --tiers file given; nodes will have no assurance/importance data"
+            );
+            HashMap::new()
+        }
+    };
 
     let crate_name = crate_name_from_cargo_toml(&root.join("Cargo.toml")).unwrap_or_else(|| {
         root.file_name()
@@ -1013,7 +803,6 @@ fn main() {
         files: &files,
         crate_name: crate_name.clone(),
         visited: HashSet::new(),
-        results: Vec::new(),
         functions: Vec::new(),
         use_imports: HashMap::new(),
     };
@@ -1067,23 +856,20 @@ fn main() {
             .collect::<Vec<_>>()
             .join("::");
         let ast = &files[&path];
-        record(
-            &mut state.results,
-            &path.to_string_lossy(),
-            "",
-            &guessed_path,
-            "file",
-            &ast.attrs,
-        );
         walk_items(&ast.items, &path, &guessed_path, &mut state);
     }
 
     let WalkState {
-        results,
-        functions,
+        mut functions,
         use_imports,
         ..
     } = state;
+
+    // Attach the assurance/importance data extracted separately by
+    // tier-extractor to any node whose formal path matches.
+    for f in &mut functions {
+        f.code_level = tiers.get(&f.path).cloned();
+    }
 
     // Build lookup indices over every function-like item in the crate.
     let mut by_full_path: HashMap<String, usize> = HashMap::new();
@@ -1163,17 +949,13 @@ fn main() {
             path: f.path.clone(),
             kind: f.kind.to_string(),
             file: f.file.clone(),
-            assurance: f.code_level.as_ref().map(|c| c.assurance.clone()),
-            assurance_rank: f.code_level.as_ref().map(|c| c.assurance_rank),
-            importance: f.code_level.as_ref().map(|c| c.importance.clone()),
-            importance_rank: f.code_level.as_ref().map(|c| c.importance_rank),
+            assurance: f.code_level.as_ref().map(|c| c.assurance.tier.clone()),
+            assurance_rank: f.code_level.as_ref().map(|c| c.assurance.rank),
+            importance: f.code_level.as_ref().map(|c| c.importance.tier.clone()),
+            importance_rank: f.code_level.as_ref().map(|c| c.importance.rank),
         })
         .collect();
 
-    let output = Output {
-        annotations: results,
-        call_graph: CallGraph { nodes, edges },
-    };
-
-    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    let call_graph = CallGraph { nodes, edges };
+    println!("{}", serde_json::to_string_pretty(&call_graph).unwrap());
 }
