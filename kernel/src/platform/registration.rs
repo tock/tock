@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2026.
 
 use crate::errorcode::ErrorCode;
-use crate::process::ShortId;
+use crate::process::ProcessId;
 
 /// Filter policy abstraction for userspace registration interfaces.
 ///
@@ -42,18 +42,7 @@ pub trait RegistrationFilter {
     /// [`ErrorCode::FAIL`] is recommended.
     fn filter_registration(
         &self,
-        appid: ShortId,
+        processid: ProcessId,
         registrationid: &Self::RegistrationIdentifier,
     ) -> Result<(), ErrorCode>;
-}
-
-impl RegistrationFilter for () {
-    type RegistrationIdentifier = ();
-    fn filter_registration(
-        &self,
-        _appid: ShortId,
-        _registrationid: &Self::RegistrationIdentifier,
-    ) -> Result<(), ErrorCode> {
-        Ok(())
-    }
 }

@@ -4,7 +4,7 @@
 
 use kernel::errorcode::ErrorCode;
 use kernel::platform::registration::RegistrationFilter;
-use kernel::process::ShortId;
+use kernel::process::ProcessId;
 
 /// Null filter for [`IpcRegistryStringName`].
 ///
@@ -15,7 +15,7 @@ impl RegistrationFilter for IpcStringNameRegistrationFilterNull {
     type RegistrationIdentifier = [u8; super::ipc_registry_string_name::MAX_STRING_LEN];
     fn filter_registration(
         &self,
-        _appid: ShortId,
+        _processid: ProcessId,
         _registrationid: &Self::RegistrationIdentifier,
     ) -> Result<(), ErrorCode> {
         Ok(())

@@ -132,7 +132,7 @@ impl<'a, RF: RegistrationFilter<RegistrationIdentifier = [u8; MAX_STRING_LEN]>>
 
         // Validate this registration attempt
         self.registration_filter
-            .filter_registration(processid.short_app_id(), &new_name)?;
+            .filter_registration(processid, &new_name)?;
 
         // Save newly registered name
         self.apps.enter(processid, |app, kerneldata| {
