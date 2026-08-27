@@ -7,6 +7,38 @@ code size and memory.
 New files should attempt to follow the coding style established by existing examples of similar
 functionality and should adhere to the rules in the [Tock Style Guide](./doc/Style.md).
 
+## Human-Facing Communication (Issues, PRs, Comments)
+
+Tock's [AI Policy](./.github/CONTRIBUTING.md#ai-policy) permits AI-assisted code, but not
+AI-written prose addressed to humans. If you are an AI coding assistant working in this repository:
+
+- Do not write or rewrite the prose of issue descriptions, pull request descriptions, PR/issue
+  comments, or code review replies. That text must be the human contributor's own words.
+  (Exception: tools used specifically for accessibility or translation.)
+- Summarizing a diff, explaining reasoning, or listing technical points for the human to write up
+  themselves is fine. Handing them finished, ready-to-paste prose is not -- that is the same
+  violation with an extra step.
+- Posting text the human wrote themselves (e.g. via `gh`) is fine. The restriction is on
+  authorship, not on the mechanical act of posting.
+- AI-generated content may appear in a PR only inside a collapsed
+  [`<details>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/details)
+  drawer, and only as supplement -- the PR must stand on its own without it.
+- The PR description must disclose which AI tool was used, what portion of the patch it produced,
+  and how that output was reviewed. You cannot write that disclosure, so state those three things
+  plainly to the user and let them write it up.
+
+## Commit Attribution
+
+Commit messages are *not* covered by the restriction above; they may be AI-assisted, but must then
+carry attribution as a trailer, e.g.:
+
+    Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+
+Name the specific tool and model actually used, not a generic placeholder.
+A human remains the commit's `Author`. AI is credited only via this trailer.
+Preserve these trailers when squashing or rebasing before merge; squashing drops them by default.
+This is in addition to, not a substitute for, the PR description's AI-use disclosure.
+
 ## Rust Code
 - All rust code (except in `tools/`) is embedded Rust code and limited to use of the core library
   (e.g. `use core::cell:Cell`). The std library (e.g. use `std::x`) is not allowed.
