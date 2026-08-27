@@ -104,6 +104,6 @@ pub enum NUM {
     Servo                 = 0x90009,
 
     // Testing
-    SyscallReturnTest     = 0xA0000,
+    SyscallReturnTest     = 0xB0000,
 }
 }
