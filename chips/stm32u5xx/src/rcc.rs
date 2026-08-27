@@ -458,30 +458,35 @@ impl Rcc {
             was_fallback_applied = true;
         }
 
-        // Check if the selected SYSCLK source is available
-        let is_sysclk_source_valid = match config.sys {
-            Sysclk::Hse => hse.is_some(),
-            // HSI16 is always enabled
-            Sysclk::Hsi => true,
-            Sysclk::Msis => msis.is_some(),
-            Sysclk::Pll1R => pll1.r.is_some(),
-        };
-
-        // Fall back to HSI16 if the configured SYSCLK source is invalid
-        let sysclk_source = if is_sysclk_source_valid {
-            config.sys
-        } else {
-            was_fallback_applied = true;
-            Sysclk::Hsi
-        };
-
         // Get the numeric value for the SYSCLK frequency
-        // Using `unwrap` is safe here, since `is_some` was checked above
-        let sys = match sysclk_source {
-            Sysclk::Hse => hse.unwrap(),
-            Sysclk::Hsi => hsi16,
-            Sysclk::Msis => msis.unwrap(),
-            Sysclk::Pll1R => pll1.r.unwrap(),
+        // Fall back to HSI16 if the configured SYSCLK source is invalid
+        let (sysclk_source, sys) = match config.sys {
+            Sysclk::Hse => {
+                if let Some(hse) = hse {
+                    (Sysclk::Hse, hse)
+                } else {
+                    was_fallback_applied = true;
+                    (Sysclk::Hsi, hsi16)
+                }
+            }
+            // HSI16 is always enabled
+            Sysclk::Hsi => (Sysclk::Hsi, hsi16),
+            Sysclk::Msis => {
+                if let Some(msis) = msis {
+                    (Sysclk::Msis, msis)
+                } else {
+                    was_fallback_applied = true;
+                    (Sysclk::Hsi, hsi16)
+                }
+            }
+            Sysclk::Pll1R => {
+                if let Some(r) = pll1.r {
+                    (Sysclk::Pll1R, r)
+                } else {
+                    was_fallback_applied = true;
+                    (Sysclk::Hsi, hsi16)
+                }
+            }
         };
 
         let mut ahb_pre = config.ahb_pre;
@@ -662,28 +667,27 @@ impl Rcc {
             return (PllOutput::default(), false);
         };
 
-        // Check if the selected input source is available
-        let is_input_source_valid = match pll.source {
-            PllSource::Hse => input.hse.is_some(),
-            // HSI16 is always enabled
-            PllSource::Hsi => true,
-            PllSource::Msis => input.msi.is_some(),
-        };
-
-        // Fall back to HSI16 if the configured input source is invalid
-        let mut input_source = if is_input_source_valid {
-            pll.source
-        } else {
-            was_fallback_applied = true;
-            PllSource::Hsi
-        };
-
         // Get the numeric value for the input frequency
-        // Using `unwrap` is safe here, since `is_some` was checked above
-        let mut src_freq = match input_source {
-            PllSource::Hse => input.hse.unwrap(),
-            PllSource::Hsi => input.hsi16,
-            PllSource::Msis => input.msi.unwrap(),
+        // Fall back to HSI16 if the configured input source is invalid
+        let (mut input_source, mut src_freq) = match pll.source {
+            PllSource::Hse => {
+                if let Some(hse) = input.hse {
+                    (PllSource::Hse, hse)
+                } else {
+                    was_fallback_applied = true;
+                    (PllSource::Hsi, input.hsi16)
+                }
+            }
+            // HSI16 is always enabled
+            PllSource::Hsi => (PllSource::Hsi, input.hsi16),
+            PllSource::Msis => {
+                if let Some(msi) = input.msi {
+                    (PllSource::Msis, msi)
+                } else {
+                    was_fallback_applied = true;
+                    (PllSource::Hsi, input.hsi16)
+                }
+            }
         };
 
         // Calculate the reference clock, which is the source divided by m
