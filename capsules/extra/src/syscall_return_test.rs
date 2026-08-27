@@ -22,14 +22,14 @@
 //!
 //!  - 0:  Success (driver presence check)
 //!  - 1:  Failure(ErrorCode::FAIL)
-//!  - 2:  FailureU32(ErrorCode::BUSY, 0x10000001)
-//!  - 3:  FailureU32U32(ErrorCode::NOMEM, 0x20000001, 0x20000002)
+//!  - 2:  FailureU32(ErrorCode::BUSY, 0x20000001)
+//!  - 3:  FailureU32U32(ErrorCode::NOMEM, 0x30000001, 0x30000002)
 //!  - 4:  FailureU64(ErrorCode::INVAL, 0x4000000000000001)
 //!  - 5:  Success
 //!  - 6:  SuccessU32(0x60000001)
 //!  - 7:  SuccessU32U32(0x70000001, 0x70000002)
-//!  - 8:  SuccessU32U32U32(0x80000001, 0x80000002, 0x80000003)
-//!  - 9:  SuccessU64(0x9000000000000001)
+//!  - 8:  SuccessU64(0x8000000000000001)
+//!  - 9:  SuccessU32U32U32(0x90000001, 0x90000002, 0x90000003)
 //!  - 10: SuccessU32U64(0xA0000001, 0xA000000000000002)
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
@@ -68,14 +68,14 @@ impl SyscallDriver for SyscallReturnTest {
         match command_num {
             0 => CommandReturn::success(),
             1 => CommandReturn::failure(ErrorCode::FAIL),
-            2 => CommandReturn::failure_u32(ErrorCode::BUSY, 0x1000_0001),
-            3 => CommandReturn::failure_u32_u32(ErrorCode::NOMEM, 0x2000_0001, 0x2000_0002),
+            2 => CommandReturn::failure_u32(ErrorCode::BUSY, 0x2000_0001),
+            3 => CommandReturn::failure_u32_u32(ErrorCode::NOMEM, 0x3000_0001, 0x3000_0002),
             4 => CommandReturn::failure_u64(ErrorCode::INVAL, 0x4000_0000_0000_0001),
             5 => CommandReturn::success(),
             6 => CommandReturn::success_u32(0x6000_0001),
             7 => CommandReturn::success_u32_u32(0x7000_0001, 0x7000_0002),
-            8 => CommandReturn::success_u32_u32_u32(0x8000_0001, 0x8000_0002, 0x8000_0003),
-            9 => CommandReturn::success_u64(0x9000_0000_0000_0001),
+            8 => CommandReturn::success_u64(0x8000_0000_0000_0001),
+            9 => CommandReturn::success_u32_u32_u32(0x9000_0001, 0x9000_0002, 0x9000_0003),
             10 => CommandReturn::success_u32_u64(0xA000_0001, 0xA000_0000_0000_0002),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
