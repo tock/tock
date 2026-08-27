@@ -11,6 +11,7 @@ use kernel::platform::chip::InterruptService;
 use crate::clocks::Clocks;
 use crate::gpio::{RPPins, SIO};
 use crate::interrupts;
+use crate::spi;
 use crate::ticks::Ticks;
 use crate::timer::RPTimer;
 use crate::uart::Uart;
@@ -119,6 +120,7 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
 pub struct Rp2350DefaultPeripherals<'a> {
     pub pins: RPPins<'a>,
     pub sio: SIO,
+    pub spi0: spi::Spi<'a>,
     pub ticks: Ticks,
     pub timer0: RPTimer<'a>,
     pub uart0: Uart<'a>,
@@ -131,6 +133,7 @@ impl Rp2350DefaultPeripherals<'_> {
         Self {
             pins: RPPins::new(),
             sio: SIO::new(),
+            spi0: spi::new_spi0(clocks),
             ticks: Ticks::new(),
             timer0: RPTimer::new_timer0(),
             uart0: Uart::new_uart0(clocks),
@@ -156,6 +159,10 @@ impl InterruptService for Rp2350DefaultPeripherals<'_> {
             }
             interrupts::SIO_IRQ_FIFO => {
                 self.sio.handle_proc_interrupt(self.sio.get_processor());
+                true
+            }
+            interrupts::SPI0_IRQ => {
+                self.spi0.handle_interrupt();
                 true
             }
             interrupts::UART0_IRQ => {
