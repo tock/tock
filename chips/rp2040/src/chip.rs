@@ -161,7 +161,7 @@ impl Rp2040DefaultPeripherals<'_> {
             pio1: Pio::new_pio1(),
             pwm: pwm::Pwm::new(clocks),
             sio: SIO::new(),
-            spi0: spi::Spi::new_spi0(clocks),
+            spi0: spi::new_spi0(clocks),
             sysinfo: sysinfo::SysInfo::new(),
             timer: RPTimer::new(),
             uart0: Uart::new_uart0(clocks),

@@ -1,0 +1,638 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
+//! SPI controller for the Arm PL022 PrimeCell, as fitted to the RP2040 and the
+//! RP2350.
+//!
+//! Both chips carry the same PL022 with the same register layout, so the driver
+//! lives here and each chip crate supplies the two things that genuinely differ:
+//! the base addresses, and how to reach the peripheral clock.
+
+use crate::PeripheralClock;
+use core::cell::Cell;
+use core::cmp;
+use kernel::ErrorCode;
+use kernel::hil;
+use kernel::hil::spi::SpiMaster;
+use kernel::hil::spi::SpiMasterClient;
+use kernel::hil::spi::cs::ChipSelectPolar;
+use kernel::hil::spi::{ClockPhase, ClockPolarity};
+use kernel::utilities::StaticRef;
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+
+// It is assumed that the state values are represented uniquely by a single bit
+const SPI_READ_IN_PROGRESS: u8 = 0b001;
+const SPI_WRITE_IN_PROGRESS: u8 = 0b010;
+const SPI_IN_PROGRESS: u8 = 0b100;
+const SPI_IDLE: u8 = 0b000;
+
+register_structs! {
+    /// controls SPI port
+    pub SpiRegisters {
+        /// Control register 0, SSPCR0 on page 3-4
+        (0x000 => sspcr0: ReadWrite<u32, SSPCR0::Register>),
+        /// Control register 1, SSPCR1 on page 3-5
+        (0x004 => sspcr1: ReadWrite<u32, SSPCR1::Register>),
+        /// Data register, SSPDR on page 3-6
+        (0x008 => sspdr: ReadWrite<u32, SSPDR::Register>),
+        /// Status register, SSPSR on page 3-7
+        (0x00C => sspsr: ReadOnly<u32, SSPSR::Register>),
+        /// Clock prescale register, SSPCPSR on page 3-8
+        (0x010 => sspcpsr: ReadWrite<u32, SSPCPSR::Register>),
+        /// Interrupt mask set or clear register, SSPIMSC on page 3-9
+        (0x014 => sspimsc: ReadWrite<u32, SSPIMSC::Register>),
+        /// Raw interrupt status register, SSPRIS on page 3-10
+        (0x018 => sspris: ReadOnly<u32, SSPRIS::Register>),
+        /// Masked interrupt status register, SSPMIS on page 3-11
+        (0x01C => sspmis: ReadOnly<u32, SSPMIS::Register>),
+        /// Interrupt clear register, SSPICR on page 3-11
+        (0x020 => sspicr: ReadWrite<u32, SSPICR::Register>),
+        /// DMA control register, SSPDMACR on page 3-12
+        (0x024 => sspdmacr: ReadWrite<u32, SSPDMACR::Register>),
+        (0x028 => _reserved0),
+        /// Peripheral identification registers
+        (0xFE0 => sspperiphid0: ReadOnly<u32, SSPPERIPHID0::Register>),
+        /// Peripheral identification registers
+        (0xFE4 => sspperiphid1: ReadOnly<u32, SSPPERIPHID1::Register>),
+        /// Peripheral identification registers
+        (0xFE8 => sspperiphid2: ReadOnly<u32, SSPPERIPHID2::Register>),
+        /// Peripheral identification registers
+        (0xFEC => sspperiphid3: ReadOnly<u32, SSPPERIPHID3::Register>),
+        /// PrimeCell identification registers
+        (0xFF0 => ssppcellid0: ReadOnly<u32, SSPPCELLID0::Register>),
+        /// PrimeCell identification registers
+        (0xFF4 => ssppcellid1: ReadOnly<u32, SSPPCELLID1::Register>),
+        /// PrimeCell identification registers
+        (0xFF8 => ssppcellid2: ReadOnly<u32, SSPPCELLID2::Register>),
+        /// PrimeCell identification registers
+        (0xFFC => ssppcellid3: ReadOnly<u32, SSPPCELLID3::Register>),
+        (0x1000 => @END),
+    }
+}
+
+register_bitfields![u32,
+    /// Control register 0
+    SSPCR0 [
+        /// Serial clock rate.
+        SCR OFFSET(8) NUMBITS(8) [],
+        /// SSPCLKOUT phase
+        SPH OFFSET(7) NUMBITS(1) [],
+        /// SSPCLKOUT polarity
+        SPO OFFSET(6) NUMBITS(1) [],
+        /// Frame format
+        FRF OFFSET(4) NUMBITS(2) [
+            MOTOROLA_SPI = 0b00,
+            TI_SINC_SERIAL = 0b01,
+            NAT_MICROWIRE = 0b10,
+            RESERVED = 0b11
+        ],
+        /// Data Size Select
+        DSS OFFSET(0) NUMBITS(4) [
+            RESERVED_0 = 0b0000,
+            RESERVED_1 = 0b0001,
+            RESERVED_2 = 0b0010,
+            DATA_4_BIT = 0b0011,
+            DATA_5_BIT = 0b0100,
+            DATA_6_BIT = 0b0101,
+            DATA_7_BIT = 0b0110,
+            DATA_8_BIT = 0b0111,
+            DATA_9_BIT = 0b1000,
+            DATA_10_BIT = 0b1001,
+            DATA_11_BIT = 0b1010,
+            DATA_12_BIT = 0b1011,
+            DATA_13_BIT = 0b1100,
+            DATA_14_BIT = 0b1101,
+            DATA_15_BIT = 0b1110,
+            DATA_16_BIT = 0b1111
+        ]
+    ],
+    /// Control register 1
+    SSPCR1 [
+        /// Slave-mode output disable
+        SOD OFFSET(3) NUMBITS(1) [],
+        /// Master or slave mode select
+        MS OFFSET(2) NUMBITS(1) [],
+        /// Synchronous serial port enable
+        SSE OFFSET(1) NUMBITS(1) [],
+        /// Loop back mode
+        LBM OFFSET(0) NUMBITS(1) []
+    ],
+    /// Data register
+    SSPDR [
+        /// Transmit/Receive FIFO: Read Receive FIFO. Write Transmit FIFO.
+        DATA OFFSET(0) NUMBITS(16) []
+    ],
+    /// Status register
+    SSPSR [
+        /// PrimeCell SSP busy flag
+        BSY OFFSET(4) NUMBITS(1) [],
+        /// Receive FIFO full, RO
+        RFF OFFSET(3) NUMBITS(1) [],
+        /// Receive FIFO not empty
+        RNE OFFSET(2) NUMBITS(1) [],
+        /// Transmit FIFO not full
+        TNF OFFSET(1) NUMBITS(1) [],
+        /// Transmit FIFO empty
+        TFE OFFSET(0) NUMBITS(1) []
+    ],
+    /// Clock prescale register
+    SSPCPSR [
+        /// Clock prescale divisor
+        CPSDVSR OFFSET(0) NUMBITS(8) []
+    ],
+    /// Interrupt mask set or clear register
+    SSPIMSC [
+        /// Transmit FIFO interrupt mask
+        TXIM OFFSET(3) NUMBITS(1) [],
+        /// Receive FIFO interrupt mask
+        RXIM OFFSET(2) NUMBITS(1) [],
+        /// Receive timeout interrupt mask
+        RTIM OFFSET(1) NUMBITS(1) [],
+        /// Receive overrun interrupt mask
+        RORIM OFFSET(0) NUMBITS(1) []
+    ],
+    /// Raw interrupt status register
+    SSPRIS [
+        /// Gives the raw interrupt state, prior to masking, of the SSPTXINTR interrupt
+        TXRIS OFFSET(3) NUMBITS(1) [],
+        /// Gives the raw interrupt state, prior to masking, of the SSPRXINTR interrupt
+        RXRIS OFFSET(2) NUMBITS(1) [],
+        /// Gives the raw interrupt state, prior to masking, of the SSPRTINTR interrupt
+        RTRIS OFFSET(1) NUMBITS(1) [],
+        /// Gives the raw interrupt state, prior to masking, of the SSPRORINTR interrupt
+        RORRIS OFFSET(0) NUMBITS(1) []
+    ],
+    /// Masked interrupt status register
+    SSPMIS [
+        /// Gives the transmit FIFO masked interrupt state, after masking, of the SSPTXINTR
+        TXMIS OFFSET(3) NUMBITS(1) [],
+        /// Gives the receive FIFO masked interrupt state, after masking, of the SSPRXINTR i
+        RXMIS OFFSET(2) NUMBITS(1) [],
+        /// Gives the receive timeout masked interrupt state, after masking, of the SSPRTINT
+        RTMIS OFFSET(1) NUMBITS(1) [],
+        /// Gives the receive over run masked interrupt status, after masking, of the SSPROR
+        RORMIS OFFSET(0) NUMBITS(1) []
+    ],
+    /// Interrupt clear register
+    SSPICR [
+        /// Clears the SSPRTINTR interrupt
+        RTIC OFFSET(1) NUMBITS(1) [],
+        /// Clears the SSPRORINTR interrupt
+        RORIC OFFSET(0) NUMBITS(1) []
+    ],
+    /// DMA control register
+    SSPDMACR [
+        /// Transmit DMA Enable
+        TXDMAE OFFSET(1) NUMBITS(1) [],
+        /// Receive DMA Enable
+        RXDMAE OFFSET(0) NUMBITS(1) []
+    ],
+    /// Peripheral identification registers
+    SSPPERIPHID0 [
+        /// These bits read back as 0x22
+        PARTNUMBER0 OFFSET(0) NUMBITS(8) []
+    ],
+    /// Peripheral identification registers
+    SSPPERIPHID1 [
+        /// These bits read back as 0x1
+        DESIGNER0 OFFSET(4) NUMBITS(4) [],
+        /// These bits read back as 0x0
+        PARTNUMBER1 OFFSET(0) NUMBITS(4) []
+    ],
+    /// Peripheral identification registers
+    SSPPERIPHID2 [
+        /// These bits return the peripheral revision
+        REVISION OFFSET(4) NUMBITS(4) [],
+        /// These bits read back as 0x4
+        DESIGNER1 OFFSET(0) NUMBITS(4) []
+    ],
+    /// Peripheral identification registers
+    SSPPERIPHID3 [
+        /// These bits read back as 0x00
+        CONFIGURATION OFFSET(0) NUMBITS(8) []
+    ],
+    /// PrimeCell identification registers
+    SSPPCELLID0 [
+        /// These bits read back as 0x0D
+        SSPPCELLID0 OFFSET(0) NUMBITS(8) []
+    ],
+    /// PrimeCell identification registers
+    SSPPCELLID1 [
+        /// These bits read back as 0xF0
+        SSPPCELLID1 OFFSET(0) NUMBITS(8) []
+    ],
+    /// PrimeCell identification registers
+    SSPPCELLID2 [
+        /// These bits read back as 0x05
+        SSPPCELLID2 OFFSET(0) NUMBITS(8) []
+    ],
+    /// PrimeCell identification registers
+    SSPPCELLID3 [
+        /// These bits read back as 0xB1
+        SSPPCELLID3 OFFSET(0) NUMBITS(8) []
+    ]
+];
+
+pub struct Spi<'a, C: PeripheralClock, P: hil::gpio::Output> {
+    registers: StaticRef<SpiRegisters>,
+    clocks: &'a C,
+    master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
+    active_slave: OptionalCell<ChipSelectPolar<'a, P>>,
+
+    tx_buffer: MapCell<SubSliceMut<'static, u8>>,
+    tx_position: Cell<usize>,
+
+    rx_buffer: MapCell<SubSliceMut<'static, u8>>,
+    rx_position: Cell<usize>,
+    len: Cell<usize>,
+
+    transfers: Cell<u8>,
+    active_after: Cell<bool>,
+}
+
+impl<'a, C: PeripheralClock, P: hil::gpio::Output> Spi<'a, C, P> {
+    /// Create a driver for the SPI block at `registers`.
+    ///
+    /// Chip crates wrap this with their own base addresses; see
+    /// `rp2040::spi::new_spi0` and its RP2350 counterpart.
+    pub fn new(registers: StaticRef<SpiRegisters>, clocks: &'a C) -> Self {
+        Self {
+            registers,
+            clocks,
+            master_client: OptionalCell::empty(),
+            active_slave: OptionalCell::empty(),
+
+            tx_buffer: MapCell::empty(),
+            tx_position: Cell::new(0),
+
+            rx_buffer: MapCell::empty(),
+            rx_position: Cell::new(0),
+
+            len: Cell::new(0),
+
+            transfers: Cell::new(SPI_IDLE),
+            active_after: Cell::new(false),
+        }
+    }
+
+    fn enable(&self) {
+        self.registers.sspcr1.modify(SSPCR1::SSE::SET);
+    }
+
+    fn disable(&self) {
+        self.registers.sspcr1.modify(SSPCR1::SSE::CLEAR);
+    }
+
+    pub fn handle_interrupt(&self) {
+        if self.registers.sspsr.is_set(SSPSR::TFE) {
+            // if transmit fifo empty is set
+            if self.tx_buffer.is_some() {
+                while self.registers.sspsr.is_set(SSPSR::TNF)
+                    && self.tx_position.get() < self.len.get()
+                {
+                    self.tx_buffer.map(|buf| {
+                        // debug!("position {} of {}", self.tx_position.get(), self.len.get());
+                        self.registers
+                            .sspdr
+                            .write(SSPDR::DATA.val(buf[self.tx_position.get()].into()));
+                        self.tx_position.set(self.tx_position.get() + 1);
+                    });
+                }
+                if self.tx_position.get() >= self.len.get() {
+                    self.transfers
+                        .set(self.transfers.get() & !SPI_WRITE_IN_PROGRESS);
+                }
+            } else {
+                self.registers.sspimsc.modify(SSPIMSC::TXIM::CLEAR);
+            }
+        }
+        // if still recieving data (receive fifo not empty) store to the buffer until full
+        while self.registers.sspsr.is_set(SSPSR::RNE) {
+            let byte = self.registers.sspdr.read(SSPDR::DATA) as u8;
+            if self.rx_buffer.is_some() && self.rx_position.get() < self.len.get() {
+                self.rx_buffer.map(|buf| {
+                    buf[self.rx_position.get()] = byte;
+                });
+                self.rx_position.set(self.rx_position.get() + 1);
+            }
+        }
+        // if the buffer is full, clear the read in progress flag so the client callback can fire
+        if self.rx_position.get() >= self.len.get() {
+            self.transfers
+                .set(self.transfers.get() & !SPI_READ_IN_PROGRESS);
+        }
+
+        // The SPI state should be changed to IDLE if the transmit FIFO is empty (TFE) and the SPI is not busy (BSY))
+        if self.transfers.get() == SPI_IN_PROGRESS
+            && self.registers.sspsr.is_set(SSPSR::TFE)
+            && !self.registers.sspsr.is_set(SSPSR::BSY)
+        {
+            if !self.active_after.get() {
+                self.active_slave.map(|p| {
+                    p.deactivate();
+                });
+            }
+            self.master_client.map(|client| {
+                self.registers.sspimsc.modify(SSPIMSC::TXIM::CLEAR);
+                self.registers.sspimsc.modify(SSPIMSC::RXIM::CLEAR);
+                self.disable();
+                self.transfers.set(SPI_IDLE);
+                self.tx_buffer.take().map(|buf| {
+                    client.read_write_done(buf, self.rx_buffer.take(), Ok(self.len.get()))
+                });
+            });
+        }
+    }
+
+    fn read_write_bytes(
+        &self,
+        write_buffer: Option<SubSliceMut<'static, u8>>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            Option<SubSliceMut<'static, u8>>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
+        if write_buffer.is_none() && read_buffer.is_none() {
+            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
+        }
+
+        if self.transfers.get() == SPI_IDLE {
+            self.enable();
+            self.registers.sspimsc.modify(SSPIMSC::TXIM::CLEAR);
+            self.registers.sspimsc.modify(SSPIMSC::RXIM::CLEAR);
+            self.active_slave.map(|p| {
+                p.activate();
+            });
+
+            self.transfers.set(SPI_IN_PROGRESS);
+
+            let len = match (
+                write_buffer.as_ref().map(|b| b.len()),
+                read_buffer.as_ref().map(|b| b.len()),
+            ) {
+                (Some(wl), Some(rl)) => cmp::min(wl, rl),
+                (Some(wl), None) => wl,
+                (None, Some(rl)) => rl,
+                (None, None) => 0,
+            };
+
+            if write_buffer.is_some() {
+                self.transfers
+                    .set(self.transfers.get() | SPI_WRITE_IN_PROGRESS);
+            }
+
+            if read_buffer.is_some() {
+                self.transfers
+                    .set(self.transfers.get() | SPI_READ_IN_PROGRESS);
+            }
+
+            read_buffer.map(|buf| {
+                self.rx_buffer.replace(buf);
+                self.len.set(len);
+                self.rx_position.set(0);
+                self.registers.sspimsc.modify(SSPIMSC::RXIM::SET);
+            });
+
+            write_buffer.map(|buf| {
+                self.tx_buffer.replace(buf);
+                self.len.set(len);
+                self.tx_position.set(0);
+                self.registers.sspimsc.modify(SSPIMSC::TXIM::SET);
+            });
+
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, write_buffer, read_buffer))
+        }
+    }
+
+    // IdleLow  = SPO = 0
+    // IdleHigh = SPO = 1
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        if !self.is_busy() {
+            self.enable();
+            match polarity {
+                ClockPolarity::IdleHigh => self.registers.sspcr0.modify(SSPCR0::SPO::SET),
+                ClockPolarity::IdleLow => self.registers.sspcr0.modify(SSPCR0::SPO::CLEAR),
+            }
+            self.disable();
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    fn get_polarity(&self) -> ClockPolarity {
+        if !self.registers.sspcr0.is_set(SSPCR0::SPO) {
+            ClockPolarity::IdleLow
+        } else {
+            ClockPolarity::IdleHigh
+        }
+    }
+
+    // SampleLeading  = SPH = 0
+    // SampleTrailing = SPH = 1
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
+        if !self.is_busy() {
+            self.enable();
+            match phase {
+                ClockPhase::SampleLeading => self.registers.sspcr0.modify(SSPCR0::SPH::CLEAR),
+                ClockPhase::SampleTrailing => self.registers.sspcr0.modify(SSPCR0::SPH::SET),
+            }
+            self.disable();
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    fn get_phase(&self) -> ClockPhase {
+        if !self.registers.sspcr0.is_set(SSPCR0::SPH) {
+            ClockPhase::SampleLeading
+        } else {
+            ClockPhase::SampleTrailing
+        }
+    }
+
+    // Currently the format is set to Motorola SPI frame format, 8 bit mode (octets), MSSPCLKOUT polarity and phase on 0 SPO=0, SPH=0
+    // This means that in the case of continuous back-to-back transmissions of octets, the SSPFSSOUT signal will be pulsed HIGH between the octets.
+    // If your slave device requires the SSPFSSOUT signal to be held LOW for the entire transmission, you will need to either:
+    // 1. Set the chip select pin as a GPIO and hold it low for the duration of the octets
+    // 2. In Motorola SPI frame format set SPO=0, SPH=1 and make sure the buffer is continuous
+    // Ref: 4.4.3.13. "Motorola SPI Format" in the RP2040 datasheet, and
+    // 12.3.4.9. "Motorola SPI frame format" in the RP2350 datasheet.
+    fn set_format(&self) {
+        self.registers.sspcr0.modify(SSPCR0::DSS::DATA_8_BIT);
+        self.registers.sspcr0.modify(SSPCR0::SPO::CLEAR);
+        self.registers.sspcr0.modify(SSPCR0::SPH::CLEAR);
+        self.registers.sspcr0.modify(SSPCR0::FRF::MOTOROLA_SPI);
+    }
+}
+
+impl<'a, C: PeripheralClock, P: hil::gpio::Output> SpiMaster<'a> for Spi<'a, C, P> {
+    type ChipSelect = ChipSelectPolar<'a, P>;
+
+    fn set_client(&self, client: &'a dyn SpiMasterClient) {
+        self.master_client.set(client);
+    }
+
+    fn init(&self) -> Result<(), ErrorCode> {
+        match self.set_rate(16 * 1000 * 1000) {
+            Err(error) => Err(error),
+            Ok(_) => Ok(()),
+        }?;
+        // This sets the default format for the SPI bus
+        self.set_format();
+
+        // Always enable DREQ signals -- harmless if DMA is not listening
+        self.registers.sspdmacr.modify(SSPDMACR::TXDMAE::SET);
+        self.registers.sspdmacr.modify(SSPDMACR::RXDMAE::SET);
+
+        // set device on master
+        self.registers.sspcr1.modify(SSPCR1::MS::CLEAR);
+
+        Ok(())
+    }
+
+    fn is_busy(&self) -> bool {
+        // self.registers.sspsr.is_set(SSPSR::BSY)
+        self.transfers.get() != SPI_IDLE
+    }
+
+    fn read_write_bytes(
+        &self,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
+        if self.is_busy() {
+            return Err((ErrorCode::BUSY, write_buffer, read_buffer));
+        }
+
+        match self.read_write_bytes(Some(write_buffer), read_buffer) {
+            // some_write_buffer should always be Some(write_buffer)
+            Err((error, some_write_buffer, read_buffer)) => {
+                Err((error, some_write_buffer.unwrap(), read_buffer))
+            }
+            Ok(()) => Ok(()),
+        }
+    }
+
+    fn write_byte(&self, out_val: u8) -> Result<(), ErrorCode> {
+        if !self.is_busy() {
+            while !self.registers.sspsr.is_set(SSPSR::TFE) {}
+
+            self.registers.sspdr.modify(SSPDR::DATA.val(out_val as u32));
+
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
+        self.read_write_byte(0)
+    }
+
+    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
+        if !self.is_busy() {
+            self.write_byte(val)?;
+
+            while !self.registers.sspsr.is_set(SSPSR::RNE) {}
+
+            Ok(self.registers.sspdr.read(SSPDR::DATA) as u8)
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
+        if !self.is_busy() {
+            self.active_slave.set(cs);
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    fn set_rate(&self, baudrate: u32) -> Result<u32, ErrorCode> {
+        let freq_in = self.clocks.peripheral_frequency();
+
+        if baudrate > freq_in {
+            return Err(ErrorCode::INVAL);
+        }
+
+        let mut prescale = 0;
+        let mut postdiv = 0;
+
+        for p in (2..254).step_by(2) {
+            if (freq_in as u64) < (((p + 2) * 256) as u64 * baudrate as u64) {
+                prescale = p;
+                break;
+            }
+        }
+
+        for p in (2..256).rev() {
+            if (freq_in / (prescale * (p - 1))) > baudrate {
+                postdiv = p;
+                break;
+            }
+        }
+
+        if prescale > 0 && postdiv > 0 {
+            self.registers
+                .sspcpsr
+                .modify(SSPCPSR::CPSDVSR.val(prescale));
+            self.registers.sspcr0.modify(SSPCR0::SCR.val(postdiv - 1));
+
+            Ok(freq_in / (prescale * postdiv))
+        } else {
+            Err(ErrorCode::INVAL)
+        }
+    }
+
+    fn get_rate(&self) -> u32 {
+        let freq_in = self.clocks.peripheral_frequency();
+        let prescale = self.registers.sspcpsr.read(SSPCPSR::CPSDVSR);
+        let postdiv = self.registers.sspcr0.read(SSPCR0::SCR) + 1;
+        freq_in / (prescale * postdiv)
+    }
+
+    fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        self.set_polarity(polarity)
+    }
+
+    fn get_polarity(&self) -> ClockPolarity {
+        self.get_polarity()
+    }
+
+    fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
+        self.set_phase(phase)
+    }
+
+    fn get_phase(&self) -> ClockPhase {
+        self.get_phase()
+    }
+
+    fn hold_low(&self) {
+        self.active_after.set(true);
+    }
+    fn release_low(&self) {
+        self.active_after.set(false);
+    }
+}
