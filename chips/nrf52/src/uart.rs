@@ -27,8 +27,8 @@ const UARTE_MAX_BUFFER_SIZE: usize = 0xff;
 
 static mut BYTE: u8 = 0;
 
-pub const UARTE0_BASE: StaticRef<UarteRegisters> =
-    unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
+const UARTE0_BASE: StaticRef<crate::uart::UarteRegisters> =
+    unsafe { StaticRef::new(0x40002000 as *const crate::uart::UarteRegisters) };
 
 #[repr(C)]
 pub struct UarteRegisters {
@@ -163,7 +163,7 @@ register_bitfields! [u32,
 ];
 
 /// Wrapper for managing MMIO for UARTE.
-struct UarteRegistersManager {
+pub struct UarteRegistersManager {
     /// MMIO registers for the UARTE peripheral.
     registers: StaticRef<UarteRegisters>,
     /// Holding place for the TX DMA buffer while DMA in progress.
@@ -173,9 +173,18 @@ struct UarteRegistersManager {
 }
 
 impl UarteRegistersManager {
-    pub fn new(regs: StaticRef<UarteRegisters>) -> Self {
+    /// Create a DMA-enabled register manager for UARTE.
+    ///
+    /// # Safety
+    ///
+    /// This controls DMA hardware. As such, it must be unique. This requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - There must not be any other code that accesses the DMA buffer and
+    ///   length registers.
+    pub unsafe fn new_uarte0() -> Self {
         Self {
-            registers: regs,
+            registers: UARTE0_BASE,
             tx_dma_buf: MapCell::empty(),
             rx_dma_buf: MapCell::empty(),
         }
@@ -338,9 +347,9 @@ pub struct UARTParams {
 impl<'a> Uarte<'a> {
     /// Constructor
     // This should only be constructed once
-    pub fn new(regs: StaticRef<UarteRegisters>) -> Uarte<'a> {
+    pub fn new(registers: UarteRegistersManager) -> Uarte<'a> {
         Uarte {
-            registers: UarteRegistersManager::new(regs),
+            registers,
             tx_client: OptionalCell::empty(),
             // tx_buffer: kernel::utilities::cells::TakeCell::empty(),
             tx_len: Cell::new(0),
@@ -840,7 +849,9 @@ impl kernel::platform::chip::PanicWriter for Uarte<'_> {
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
         use uart::Configure as _;
 
-        let inner = Uarte::new(UARTE0_BASE);
+        let registers = UarteRegistersManager::new_uarte0();
+
+        let inner = Uarte::new(registers);
         inner.initialize(
             pinmux::Pinmux::new(config.txd),
             pinmux::Pinmux::new(config.rxd),
@@ -858,7 +869,8 @@ mod tests {
 
     #[test]
     fn baud_rate_divider_calculation() {
-        let u = super::Uarte::new(super::UARTE0_BASE);
+        let registers_manager = unsafe { super::UarteRegistersManager::new_uarte0() };
+        let u = super::Uarte::new(registers_manager);
         assert_eq!(u.get_divider_for_baud(0), Err(ErrorCode::INVAL));
         assert_eq!(u.get_divider_for_baud(4_000_000), Err(ErrorCode::INVAL));
 
