@@ -1,6 +1,6 @@
 //! Walks a Rust crate and extracts every code element (function, struct,
 //! enum, module, ...) that carries a `# Code Tier` doc comment, writing the
-//! result as a JSON array to a file. This is all this tool does -- it does
+//! result as a YAML list to a file. This is all this tool does -- it does
 //! not look at how code calls other code; see `tier-checker` for that.
 
 use std::collections::{HashMap, HashSet};
@@ -511,7 +511,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 3 {
-        panic!("usage: tier-extractor <path to crate> <output.json>");
+        panic!("usage: tier-extractor <path to crate> <output.yaml>");
     }
 
     let root = Path::new(&args[1]);
@@ -636,8 +636,8 @@ fn main() {
 
     eprintln!("extracted {} annotated element(s)", state.results.len());
 
-    let json = serde_json::to_string_pretty(&state.results).unwrap();
-    if let Err(err) = fs::write(output_path, json) {
+    let yaml = serde_yaml::to_string(&state.results).unwrap();
+    if let Err(err) = fs::write(output_path, yaml) {
         panic!("failed to write {}: {err}", output_path.display());
     }
 }

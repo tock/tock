@@ -1,10 +1,11 @@
 //! Builds a call graph for a Rust crate -- every function, method, and
 //! trait method as a node, with an edge for each call this tool can
-//! resolve -- and cross-references it against the JSON produced by
+//! resolve -- and cross-references it against the YAML produced by
 //! `tier-extractor` to flag interesting mismatches (e.g. a Critical
 //! function calling into Experimental code). This tool does not look at
 //! doc comments itself; it only knows about `# Code Tier` levels that
-//! were already extracted into the `--tiers` file.
+//! were already extracted into the `--tiers` file. The call graph itself
+//! is emitted as YAML too.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
@@ -24,7 +25,7 @@ struct Level {
 }
 
 /// The assurance and importance levels for one code element, as produced
-/// by `tier-extractor`. Extra fields in that JSON (`file`, `kind`, ...)
+/// by `tier-extractor`. Extra fields in that YAML (`file`, `kind`, ...)
 /// are ignored.
 #[derive(Deserialize, Clone)]
 struct CodeLevel {
@@ -54,7 +55,7 @@ struct FunctionInfo<'a> {
     code_level: Option<CodeLevel>,
 }
 
-/// A call graph node, as emitted in the JSON output.
+/// A call graph node, as emitted in the YAML output.
 #[derive(Serialize)]
 struct Node {
     path: String,
@@ -703,7 +704,7 @@ fn write_dot(nodes: &[FunctionInfo], edges: &[Edge], path: &Path) -> std::io::Re
     fs::write(path, out)
 }
 
-/// Load the JSON produced by `tier-extractor` and index it by formal path.
+/// Load the YAML produced by `tier-extractor` and index it by formal path.
 fn load_tiers(path: &Path) -> HashMap<String, CodeLevel> {
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
@@ -715,7 +716,7 @@ fn load_tiers(path: &Path) -> HashMap<String, CodeLevel> {
             return HashMap::new();
         }
     };
-    let entries: Vec<CodeLevel> = match serde_json::from_str(&content) {
+    let entries: Vec<CodeLevel> = match serde_yaml::from_str(&content) {
         Ok(entries) => entries,
         Err(err) => {
             eprintln!(
@@ -732,7 +733,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        panic!("usage: tier-checker <path to crate> [--tiers <tiers.json>] [--dot <output.dot>]");
+        panic!("usage: tier-checker <path to crate> [--tiers <tiers.yaml>] [--dot <output.dot>]");
     }
 
     let root = Path::new(&args[1]);
@@ -957,5 +958,5 @@ fn main() {
         .collect();
 
     let call_graph = CallGraph { nodes, edges };
-    println!("{}", serde_json::to_string_pretty(&call_graph).unwrap());
+    println!("{}", serde_yaml::to_string(&call_graph).unwrap());
 }
