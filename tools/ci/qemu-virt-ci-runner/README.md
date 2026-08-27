@@ -84,87 +84,18 @@ name, a human-readable description, a list of apps to install, an ordered
 sequence of steps, an optional settle delay before the screenshot, and an
 optional expected screenshot hash.
 
-```rust
-TestCase {
-    // Short identifier used with --test, --screenshot, and in log output.
-    name: "my-app",
-
-    // One sentence describing what the test checks.
-    description: "Run my-app and verify it prints the expected output.",
-
-    // libtock-c example paths relative to libtock-c/examples/.
-    apps: &["my-app"],
-
-    // Ordered sequence of actions to perform after QEMU starts.
-    steps: &[
-        TestStep::WaitSerialInOrder {
-            needles: &["App is ready"],
-            timeout: Duration::from_secs(30),
-        },
-    ],
-
-    // How long to wait after all steps before capturing the screenshot.
-    screenshot_delay: Duration::from_millis(500),
-
-    // SHA-256 hash of the expected screenshot (PPM file).
-    // Set to None to skip the screen check (hash is still printed as a
-    // baseline).  Use `--screenshot` to capture the reference image.
-    expected_screen_hash: None,
-},
-```
-
 ### Test steps
 
 Steps are executed in order after QEMU is running.  Serial waits, key presses,
 serial writes, and sleeps can be freely interleaved.
 
-| Step | Description |
-|------|-------------|
-| `WaitSerialInOrder { needles, timeout }` | Wait until every string in `needles` appears in the serial output **in the given order**. |
-| `WaitSerialAnyOrder { needles, timeout }` | Wait until every string in `needles` appears in the serial output **in any order**. Use this when the Tock scheduler may interleave output from multiple apps. |
-| `Sleep(duration)` | Pause for `duration` without reading serial or interacting with QEMU. |
-| `SendKey(qcode)` | Send a single keystroke via QMP `input-send-event` (down then up). `qcode` is a QEMU key name such as `"ret"`, `"space"`, `"a"`, or `"up"`. See the [QEMU key documentation] for the full list. |
-| `SendSerial(text)` | Write raw bytes to the serial port as if typed at a terminal. Include `"\r\n"` or `"\n"` if the board expects a line ending. |
-
-Example — wait for a prompt, send a command, then verify the response:
-
-```rust
-steps: &[
-    TestStep::WaitSerialInOrder {
-        needles: &["tock$ "],
-        timeout: Duration::from_secs(30),
-    },
-    TestStep::SendSerial("help\r\n"),
-    TestStep::WaitSerialInOrder {
-        needles: &["Valid commands are:"],
-        timeout: Duration::from_secs(10),
-    },
-],
-```
-
-Example — press a hardware button and verify the output appears:
-
-```rust
-steps: &[
-    TestStep::Sleep(Duration::from_millis(500)),
-    TestStep::SendKey("up"),
-    TestStep::WaitSerialInOrder {
-        needles: &["Button Press!"],
-        timeout: Duration::from_secs(30),
-    },
-],
-```
-
-Example — two apps whose output order depends on the scheduler:
-
-```rust
-steps: &[
-    TestStep::WaitSerialAnyOrder {
-        needles: &["App A ready", "App B ready"],
-        timeout: Duration::from_secs(30),
-    },
-],
-```
+| Step                                      | Description                                                                               |
+|-------------------------------------------|-------------------------------------------------------------------------------------------|
+| `WaitSerialInOrder { needles, timeout }`  | Wait until every string in `needles` appears in the serial output **in the given order**. |
+| `WaitSerialAnyOrder { needles, timeout }` | Wait until every string in `needles` appears in the serial output **in any order**.       |
+| `Sleep(duration)`                         | Pause for `duration` without reading serial or interacting with QEMU.                     |
+| `SendKey(qcode)`                          | Send a single keystroke via QMP. `qcode` is a QEMU key name ([QEMU key documentation]).   |
+| `SendSerial(text)`                        | Write raw bytes to the serial port as if typed at a terminal.                             |
 
 ## How QEMU is controlled
 
@@ -178,12 +109,12 @@ make variable:
 -S
 ```
 
-| Flag | Purpose |
-|------|---------|
-| `-qmp tcp:localhost:44444,server` | Opens a [QMP] JSON control socket |
+| Flag                                 | Purpose                                                       |
+|--------------------------------------|---------------------------------------------------------------|
+| `-qmp tcp:localhost:44444,server`    | Opens a [QMP] JSON control socket                             |
 | `-chardev socket,...,port=44445,...` | Exposes the UART as a TCP socket for both reading and writing |
-| `-serial chardev:serial0` | Routes the first serial port to that socket |
-| `-S` | Starts the CPU paused; the runner sends `cont` when ready |
+| `-serial chardev:serial0`            | Routes the first serial port to that socket                   |
+| `-S`                                 | Starts the CPU paused; the runner sends `cont` when ready     |
 
 **Important:** QEMU will not send the QMP greeting until *all* chardev
 clients are connected.  The runner therefore connects to both port 44444 and
