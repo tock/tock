@@ -330,7 +330,7 @@ struct Timings {
     scldel: u8,
 }
 impl Timings {
-    fn new(kernel_clock: Hertz, i2c_frequency: Hertz) -> Self {
+    fn new(kernel_clock: Hertz, i2c_frequency: Hertz) -> Result<Self, kernel::ErrorCode> {
         let kernel_clock = kernel_clock.0;
         let i2c_frequency = i2c_frequency.0;
 
@@ -345,12 +345,10 @@ impl Timings {
         // t_SCL ~= t_SYNC1 + t_SYNC2 + t_SCLL + t_SCLH
         let ratio = kernel_clock / i2c_frequency;
 
-        // For the standard-mode configuration method, we must have a ratio of 4
-        // or higher
-        assert!(
-            ratio >= 4,
-            "The I2C PCLK must be at least 4 times the bus i2c_frequency!"
-        );
+        // For the standard-mode configuration method, we must have a ratio of 4 or higher
+        if ratio < 4 {
+            return Err(kernel::ErrorCode::FAIL);
+        }
 
         let (presc_reg, scll, sclh, sdadel, scldel) = if i2c_frequency > 100_000 {
             // Fast-mode (Fm) or Fast-mode Plus (Fm+)
@@ -368,7 +366,10 @@ impl Timings {
 
             let (sdadel, scldel) = if i2c_frequency > 400_000 {
                 // Fast-mode Plus (Fm+)
-                assert!(kernel_clock >= 17_000_000); // See table in datsheet
+                // See table in datsheet
+                if kernel_clock < 17_000_000 {
+                    return Err(kernel::ErrorCode::FAIL);
+                }
 
                 let sdadel = kernel_clock / 8_000_000 / presc;
                 let scldel = kernel_clock / 4_000_000 / presc - 1;
@@ -376,7 +377,10 @@ impl Timings {
                 (sdadel, scldel)
             } else {
                 // Fast-mode (Fm)
-                assert!(kernel_clock >= 8_000_000); // See table in datsheet
+                // See table in datsheet
+                if kernel_clock < 8_000_000 {
+                    return Err(kernel::ErrorCode::FAIL);
+                }
 
                 let sdadel = kernel_clock / 4_000_000 / presc;
                 let scldel = kernel_clock / 2_000_000 / presc - 1;
@@ -392,9 +396,11 @@ impl Timings {
                 scldel as u8,
             )
         } else {
-            // Standard-mode (Sm)
-            // here we pick SCLL = SCLH
-            assert!(kernel_clock >= 2_000_000); // See table in datsheet
+            // Standard-mode (Sm); here we pick SCLL = SCLH
+            // See table in datsheet
+            if kernel_clock < 2_000_000 {
+                return Err(kernel::ErrorCode::FAIL);
+            }
 
             // Prescaler, 512 ticks for sclh/scll. Round up then
             // subtract 1
@@ -408,10 +414,9 @@ impl Timings {
             let scll = sclh;
 
             // Speed check
-            assert!(
-                sclh < 256,
-                "The I2C PCLK is too fast for this bus i2c_frequency!"
-            );
+            if sclh >= 256 {
+                return Err(kernel::ErrorCode::FAIL);
+            }
 
             let sdadel = kernel_clock / 2_000_000 / presc;
             let scldel = kernel_clock / 500_000 / presc - 1;
@@ -426,20 +431,22 @@ impl Timings {
         };
 
         // Sanity check
-        assert!(presc_reg < 16);
+        if presc_reg >= 16 {
+            return Err(kernel::ErrorCode::FAIL);
+        }
 
         // Keep values within reasonable limits for fast per_ck
         let sdadel = cmp::max(sdadel, 2);
         let scldel = cmp::max(scldel, 4);
 
         //(presc_reg, scll, sclh, sdadel, scldel)
-        Self {
+        Ok(Self {
             prescale: presc_reg,
             scll,
             sclh,
             sdadel,
             scldel,
-        }
+        })
     }
 }
 
@@ -535,22 +542,22 @@ impl<'a> I2c<'a> {
         dma.set_client(rx_channel, i2c);
     }
 
-    pub fn set_speed(&self, speed: I2cSpeed) -> Result<(), ()> {
+    pub fn set_speed(&self, speed: I2cSpeed) -> Result<(), kernel::ErrorCode> {
         // The clock frequencies must have been provided with `set_clocks` at this point
         let Some(clocks) = &self.clocks.get() else {
-            return Err(());
+            return Err(kernel::ErrorCode::FAIL);
         };
 
         // Get the clock frequency that feeds this I2C
         let clock_frequency_option = match self.index {
             1 => clocks.i2c1,
             // Other I2Cs are not yet supported
-            _ => return Err(()),
+            _ => return Err(kernel::ErrorCode::FAIL),
         };
 
         // Ensure the input clock is valid
         let Some(clock_frequency) = clock_frequency_option else {
-            return Err(());
+            return Err(kernel::ErrorCode::FAIL);
         };
 
         // The peripheral must be disabled in order to change the speed
@@ -559,7 +566,8 @@ impl<'a> I2c<'a> {
         self.disable();
 
         // Calculate the values to write into the TIMINGR register
-        let timings = Timings::new(clock_frequency, Hertz(speed as u32));
+        // This can fail if there is a problem with the input clock or requested speed
+        let timings = Timings::new(clock_frequency, Hertz(speed as u32))?;
 
         self.registers.timingr.write(
             TIMINGR::PRESC.val(timings.prescale as u32)
