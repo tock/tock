@@ -136,17 +136,17 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
 
         let start = page_number * PAGE_WORDS;
 
-        // First, check if anything we want to write will change non-0xFFFFFFFF
-        // words already in flash. If so, we need to do a erase first (like
-        // normal flash). However, if we are only writing data that is already
-        // erased, don't first do an erase. Writing data on the QEMU pflash is
-        // VERY slow. So avoiding extra writes is very worthwhile.
+        // First, check if anything we want to write will need to change a 0 bit
+        // to a 1 in flash. If so, we need to do a erase first (like normal
+        // flash). However, if we are only writing data that is already erased,
+        // don't first do an erase. Writing data on the QEMU pflash is VERY
+        // slow. So avoiding extra writes is very worthwhile.
         let mut do_erase = false;
         for (i, word) in data.as_mut().as_chunks::<4>().0.iter().enumerate() {
             let value = u32::from_le_bytes(*word);
             let existing_value = self.registers[start + i].get();
 
-            if existing_value != 0xFFFFFFFF && value != existing_value {
+            if (value & !existing_value) != 0 {
                 do_erase = true;
                 break;
             }
