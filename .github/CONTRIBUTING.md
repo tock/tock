@@ -259,7 +259,7 @@ For full details, see the
 
 The Tock project permits developers to use AI coding tools, however, developers
 must review any AI-generated code themselves for correctness and compatibility
-with Tock's code expectations. All AI use must be disclosed in the pull request
+with Tock's code expectations. All AI use must be disclosed in the issue / pull request
 description, including which AI tool was used, what portion of the patch was
 created by AI, and how the AI-generated code was reviewed.
 
