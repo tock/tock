@@ -263,6 +263,9 @@ with Tock's code expectations. All AI use must be disclosed in the issue / pull 
 description, including which AI tool was used, what portion of the patch was
 created by AI, and how the AI-generated code was reviewed.
 
+For commits where AI assisted authorship, the commit message should also
+include appropriate attribution, e.g. `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`
+
 Neither the pull request description nor any subsequent PR comments are allowed
 to be written using AI (exception: tools used exclusively for accessibility or
 translation are acceptable). Large Language Models often make unverified claims
