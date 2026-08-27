@@ -292,7 +292,8 @@ unsafe fn start() -> (
     periphs.init();
 
     // Start the TIM2 timer, used for alarms
-    periphs.tim2.start();
+    // This can only fail if `set_clocks` was not called for `tim2` yet, but it's not the case, since it's done in `periphs.init()`
+    let _ = periphs.tim2.start();
 
     // Board specific wiring
     set_pin_primary_functions(periphs);

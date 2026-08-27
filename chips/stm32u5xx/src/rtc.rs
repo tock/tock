@@ -577,7 +577,7 @@ impl<'a> Rtc<'a> {
             return Err(ErrorCode::FAIL);
         };
 
-        // Get the clock frequency feeding the RTC
+        // Get the clock frequency that feeds the RTC
         let clock_frequency_option = clocks.rtc;
 
         // Ensure the input clock is valid

@@ -541,7 +541,7 @@ impl<'a> I2c<'a> {
             return Err(());
         };
 
-        // Get the clock frequency feeding this I2C
+        // Get the clock frequency that feeds this I2C
         let clock_frequency_option = match self.index {
             1 => clocks.i2c1,
             // Other I2Cs are not yet supported

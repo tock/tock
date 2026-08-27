@@ -442,12 +442,17 @@ impl<'a> Tim2<'a> {
     /// Initializes and starts the timer hardware.
     ///
     /// This sets the prescaler to convert PCLK1 to 32kHz and enables the 32-bit free-running counter.
-    pub fn start(&self) {
-        // Get the frequency of the clock that feeds TIM2
-        let input_freq = self.clocks.get().unwrap().pclk1_tim;
+    pub fn start(&self) -> Result<(), kernel::ErrorCode> {
+        // The clock frequencies must have been provided with `set_clocks` at this point
+        let Some(clocks) = &self.clocks.get() else {
+            return Err(kernel::ErrorCode::FAIL);
+        };
+
+        // Get the clock frequency that feeds TIM2
+        let clock_frequency = clocks.pclk1_tim;
 
         // Determine the required prescaler to achieve 32kHz
-        let prescaler_value = input_freq / 32_000_u32;
+        let prescaler_value = clock_frequency / 32_000_u32;
 
         // Set the prescaler; the value used by hardware is [PSC + 1], so 1 must be subtracted
         self.registers
@@ -463,6 +468,8 @@ impl<'a> Tim2<'a> {
 
         self.registers.arr.write(ARR::ARR.val(0xFFFFFFFF));
         self.registers.cr1.modify(CR1::CEN::SET);
+
+        Ok(())
     }
 }
 
@@ -554,7 +561,13 @@ impl<'a> Pwm<'a> {
     }
 
     fn get_maximum_frequency_hz(&self) -> usize {
-        self.clocks.get().unwrap().pclk1_tim.0 as usize
+        // The clock frequencies must have been provided with `set_clocks` at this point
+        let Some(clocks) = &self.clocks.get() else {
+            return 0;
+        };
+
+        // Return the clock frequency that feeds TIM3
+        clocks.pclk1_tim.0 as usize
     }
 
     fn get_maximum_duty_cycle(&self) -> usize {
@@ -574,14 +587,20 @@ impl<'a> Pwm<'a> {
         duty_cycle: usize,
         max_duty_cycle: usize,
     ) -> Result<(), ErrorCode> {
+        // The clock frequencies must have been provided with `set_clocks` at this point
+        let Some(clocks) = &self.clocks.get() else {
+            return Err(kernel::ErrorCode::FAIL);
+        };
+
+        // Get the clock frequency that feeds TIM3
+        let clock_frequency = clocks.pclk1_tim.0 as usize;
+
+        // If the requested frequency is 0, stop PWM
         if frequency_hz == 0 {
             return self.stop_pwm(pin);
         }
 
-        // Get the frequency of the clock that feeds TIM3
-        let input_hz = self.clocks.get().unwrap().pclk1_tim.0 as usize;
-
-        if frequency_hz > input_hz {
+        if frequency_hz > clock_frequency {
             return Err(ErrorCode::INVAL);
         }
 
@@ -590,7 +609,7 @@ impl<'a> Pwm<'a> {
         }
 
         // Prevent overflow in the ARR register
-        if input_hz / frequency_hz > 65535 {
+        if clock_frequency / frequency_hz > 65535 {
             return Err(ErrorCode::INVAL);
         }
 
@@ -600,7 +619,7 @@ impl<'a> Pwm<'a> {
         let prescaler = 0;
         // Arr_value is the value that the timer counts to before resetting , it determines the frequency of the signal.
         // We derive it from Frequency = TimerClock / ((PSC + 1) * (ARR + 1))
-        let arr_value = (input_hz / frequency_hz) - 1;
+        let arr_value = (clock_frequency / frequency_hz) - 1;
         // CCR = ARR * (duty_cycle / max_duty_cycle)
         // This is the value at which the output pin will be toggled. This dictates the duty cycle of the signal.
         // For example if Arr = 100 and Ccr = 25 , the output will be high for 25 ticks and low for 75 ticks, giving a duty cycle of 25%

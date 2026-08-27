@@ -463,7 +463,7 @@ impl<'a> Spi<'a> {
             return Err(());
         };
 
-        // Get the clock frequency feeding this SPI
+        // Get the clock frequency that feeds this SPI
         let clock_frequency_option = match self.index {
             1 => clocks.spi1,
             // Other SPIs are not yet supported
@@ -631,7 +631,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
             return Err(kernel::ErrorCode::INVAL);
         }
 
-        // Get the frequency of the clock feeding this peripheral
+        // Get the frequency of the clock that feeds this peripheral
         let clock_frequency_result = self.get_kernel_clock_frequency();
 
         // The frequency must have been retrieved successfully
@@ -662,7 +662,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     }
 
     fn get_rate(&self) -> u32 {
-        // Get the frequency of the clock feeding this peripheral
+        // Get the frequency of the clock that feeds this peripheral
         let clock_frequency_result = self.get_kernel_clock_frequency();
 
         // The frequency must have been retrieved successfully
@@ -703,7 +703,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     }
 
     fn init(&self) -> Result<(), kernel::ErrorCode> {
-        // Get the frequency of the clock feeding this peripheral
+        // Get the frequency of the clock that feeds this peripheral
         let clock_frequency_result = self.get_kernel_clock_frequency();
 
         // The frequency must have been retrieved successfully

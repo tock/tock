@@ -532,7 +532,7 @@ impl uart::Configure for Usart<'_> {
             return Err(kernel::ErrorCode::FAIL);
         };
 
-        // Get the clock frequency feeding this USART
+        // Get the clock frequency that feeds this USART
         let clock_frequency_option = match self.index {
             1 => clocks.usart1,
             // Other USARTs are not yet supported
