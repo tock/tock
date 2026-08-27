@@ -626,7 +626,7 @@ define ci_setup_qemu_riscv
 	@# Use the latest QEMU as it has OpenTitan support
 	@printf "Building QEMU, this could take a few minutes\n\n"
 	@git clone https://github.com/qemu/qemu ./tools/ci/qemu 2>/dev/null || echo "qemu already cloned, checking out"
-	@cd tools/ci/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
+	@cd tools/ci/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu,arm-softmmu --disable-linux-io-uring --disable-libdaxctl;
 	@# Build qemu
 	@$(MAKE) -C "tools/ci/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
 endef
