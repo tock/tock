@@ -661,12 +661,9 @@ impl Kernel {
                                         // Should we communicate the error somehow?
                                         // https://github.com/tock/tock/issues/1993
                                         //
-                                        // SAFETY: This is safe by coincidence: we currently have no code in
-                                        // Tock that _actually_ reclaims any memory given out to processes.
-                                        // So, even though a process can have a MPU region for a buffer
-                                        // owned by a process that no longer exists, the underlying memory
-                                        // for that buffer is guaranteed to not be used by the kernel for
-                                        // anything.
+                                        // SAFETY: This is NOT safe. This is a known issue with this
+                                        // implementation of IPC:
+                                        // <https://github.com/tock/tock/issues/1993>.
                                         unsafe {
                                             let _ = ipc.schedule_upcall(
                                                 process.processid(),
