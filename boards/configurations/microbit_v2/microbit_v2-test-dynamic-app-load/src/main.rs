@@ -156,6 +156,7 @@ pub struct MicroBit {
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
+        DynamicBinaryStorage<'static>,
     >,
 
     scheduler: &'static SchedulerInUse,
@@ -885,9 +886,11 @@ unsafe fn start() -> (
         dynamic_binary_storage,
         dynamic_binary_storage,
         dynamic_binary_storage,
+        dynamic_binary_storage,
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::app_loader_component_static!(
+        DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,

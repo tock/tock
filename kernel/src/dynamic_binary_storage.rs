@@ -38,6 +38,7 @@ pub enum State {
     Load,
     Abort,
     Unload(Result<(), ErrorCode>, usize),
+    Uninstall,
     PaddingWrite,
     Fail,
 }
@@ -152,6 +153,24 @@ pub trait DynamicProcessUnloadClient {
     fn unload_done(&self, result: Result<(), ErrorCode>, app_handle: usize);
 }
 
+/// This interface supports uninstalling processes during runtime.
+pub trait DynamicProcessUninstall {
+    /// Call to uninstall an application binary with a specified `app_handle`.
+    fn uninstall(&self, app_handle: usize) -> Result<(), ErrorCode>;
+
+    /// Sets a client for the SequentialDynamicProcessUninstall Object
+    ///
+    /// When the client operation is done, it calls the `uninstall_done()`
+    /// function.
+    fn set_uninstall_client(&self, client: &'static dyn DynamicProcessUninstallClient);
+}
+
+/// The callback for dynamic process unloading.
+pub trait DynamicProcessUninstallClient {
+    /// Removed application binary from storage.
+    fn uninstall_done(&self, result: Result<(), ErrorCode>);
+}
+
 /// Dynamic process loading machine.
 pub struct SequentialDynamicBinaryStorage<
     'a,
@@ -167,6 +186,7 @@ pub struct SequentialDynamicBinaryStorage<
     storage_client: OptionalCell<&'static dyn DynamicBinaryStoreClient>,
     load_client: OptionalCell<&'static dyn DynamicProcessLoadClient>,
     unload_client: OptionalCell<&'static dyn DynamicProcessUnloadClient>,
+    uninstall_client: OptionalCell<&'static dyn DynamicProcessUninstallClient>,
     process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
     deferred_call: DeferredCall,
@@ -189,6 +209,7 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             storage_client: OptionalCell::empty(),
             load_client: OptionalCell::empty(),
             unload_client: OptionalCell::empty(),
+            uninstall_client: OptionalCell::empty(),
             process_metadata: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             deferred_call: DeferredCall::new(),
@@ -239,7 +260,9 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             // If we are going to write the padding header, we already know
             // where to write in flash, so we don't have to add the start
             // address
-            State::Setup | State::Load | State::PaddingWrite | State::Abort => Ok(offset),
+            State::Setup | State::Load | State::PaddingWrite | State::Abort | State::Uninstall => {
+                Ok(offset)
+            }
             // We aren't supposed to be able to write unless we are in one of
             // the first two write states
             _ => Err(ErrorCode::FAIL),
@@ -493,6 +516,14 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
             }
             State::Unload(_, _) => {
                 self.buffer.replace(buffer);
+            }
+            State::Uninstall => {
+                self.buffer.replace(buffer);
+                // Reset metadata and let client know we are done uninstalling the app.
+                self.reset_process_loading_metadata();
+                self.uninstall_client.map(|client| {
+                    client.uninstall_done(Ok(()));
+                });
             }
             State::Idle => {
                 self.buffer.replace(buffer);
@@ -776,6 +807,55 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 };
 
                 result
+            }
+            _ => {
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                Err(ErrorCode::BUSY)
+            }
+        }
+    }
+}
+
+/// Uninstall interface exposed to the app_loader capsule
+impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
+    DynamicProcessUninstall for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
+{
+    fn set_uninstall_client(&self, client: &'static dyn DynamicProcessUninstallClient) {
+        self.uninstall_client.set(client);
+    }
+
+    fn uninstall(&self, app_handle: usize) -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Idle => {
+                self.state.set(State::Uninstall);
+
+                // This relation is true for this implementation, however,
+                // app_handle could encompass other identifiers.
+                let application_binary_address = app_handle;
+
+                let application_binary_size =
+                    match self.loader_driver.fetch_application_binary_size(app_handle) {
+                        Ok(app_size) => app_size as usize,
+                        Err(_) => {
+                            self.reset_process_loading_metadata();
+                            return Err(ErrorCode::FAIL);
+                        }
+                    };
+
+                let padding_result =
+                    self.write_padding_app(application_binary_size, application_binary_address);
+                let _ = match padding_result {
+                    Ok(()) => Ok(()),
+                    Err(_) => {
+                        // This means we were unable to write the
+                        // padding app.
+                        self.reset_process_loading_metadata();
+                        Err(ErrorCode::FAIL)
+                    }
+                };
+                padding_result
             }
             _ => {
                 // We are in the wrong mode of operation. Ideally we should never reach
