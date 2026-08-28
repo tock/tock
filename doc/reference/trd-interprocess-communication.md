@@ -215,7 +215,7 @@ entirely.
 ### 2.1 Current Implementation
 
 The current implementation of IPC Identifier is found in
-[capsules/extra/src/ipc/ipc_identifier.rs](../../capsules/extra/src/ipc/ipc_identifier.rs)
+[capsules/core/src/ipc/ipc_identifier.rs](../../capsules/core/src/ipc/ipc_identifier.rs)
 
 Internally, it uses a combination of ProcessID and ShortID to identify a
 process. The combination of the two of these uniquely identify an application
@@ -515,14 +515,14 @@ To be determined.
 ## 7 Implementations
 
 Implementations for IPC mechanisms can be found in
-[capsules/extra/src/ipc/](../../capsules/extra/src/ipc/)
+[capsules/core/src/ipc/](../../capsules/core/src/ipc/)
 
 At time of writing this includes:
 
-* [IPC Identifier](capsules/extra/src/ipc/ipc_identifier.rs)
-* [IPC Registry Package Name](capsules/extra/src/ipc/ipc_registry_package_name.rs)
-* [IPC Registry String Name](capsules/extra/src/ipc/ipc_registry_string_name.rs)
-* [IPC Relay Request](capsules/extra/src/ipc/ipc_registry_relay_request.rs)
+* [IPC Identifier](capsules/core/src/ipc/ipc_identifier.rs)
+* [IPC Registry Package Name](capsules/core/src/ipc/ipc_registry_package_name.rs)
+* [IPC Registry String Name](capsules/core/src/ipc/ipc_registry_string_name.rs)
+* [IPC Relay Request](capsules/core/src/ipc/ipc_registry_relay_request.rs)
 
 ## 8 Authors' Addresses
 
