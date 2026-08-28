@@ -17,6 +17,11 @@ provide different underlying implementations for registration and/or discovery.
 Current capsules allow for registration/discovery using string names or package
 names.
 
+The [Registration Filter](filter.rs) types can be used for filtering of which
+apps are allowed to register as certain service names. See the
+[RegistrationFilter policy trait](../../../../kernel/src/platform/registration.rs)
+for more details.
+
 ## Relay
 
 **Relay** capsules provide a means for single-copy, allow-to-allow

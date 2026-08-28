@@ -70,6 +70,7 @@ pub struct IpcRegistryStringName<'a, RF: RegistrationFilter> {
         AllowRwCount<0>,
     >,
 
+    /// Filter for validating service registrations.
     registration_filter: &'a RF,
 }
 

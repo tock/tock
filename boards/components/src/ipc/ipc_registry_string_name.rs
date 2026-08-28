@@ -10,6 +10,7 @@
 //! let ipc_registry_string_name = IpcRegistryStringNameComponent::new(
 //!     board_kernel,
 //!     capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
+//!     &capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull {},
 //!     create_capability!(capabilities::MemoryAllocationCapability)
 //!     )
 //!     .finalize(components::ipc_registry_string_name_component_static!());
