@@ -275,7 +275,7 @@ const SCB: StaticRef<ScbRegisters> = unsafe { StaticRef::new(0xE000ED00 as *cons
 /// Allow the core to go into deep sleep on WFI.
 ///
 /// The specific definition of "deep sleep" is chip specific.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn set_sleepdeep() {
     use core::arch::asm;
 
@@ -307,7 +307,7 @@ pub unsafe fn set_sleepdeep() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn set_sleepdeep() {
     // Dummy operation to satisfy the `Writable` trait import on
     // non-ARM platforms.
@@ -338,7 +338,7 @@ pub unsafe fn set_vector_table_offset(offset: *const ()) {
 }
 
 /// Disable the FPU
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn disable_fpca() {
     use core::arch::asm;
     SCB.cpacr
@@ -376,7 +376,7 @@ pub unsafe fn disable_fpca() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn disable_fpca() {
     // Dummy read register, to satisfy the `Readable` trait import on
     // non-ARM platforms.

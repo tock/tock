@@ -541,32 +541,32 @@ pub enum SystemDescriptorTypes32 {
 
 //For CI only
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn load_ss(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn load_ds(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn load_es(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn load_fs(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn load_gs(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn load_cs(_sel: SegmentSelector) {
     unimplemented!()
 }

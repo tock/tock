@@ -6,7 +6,7 @@
 
 use crate::csr::{CSR, mstatus::mstatus};
 
-#[cfg(any(riscv, doc))]
+#[cfg(riscv)]
 #[inline(always)]
 /// NOP instruction
 pub fn nop() {
@@ -16,7 +16,7 @@ pub fn nop() {
     }
 }
 
-#[cfg(any(riscv, doc))]
+#[cfg(riscv)]
 #[inline(always)]
 /// Wait For Interrupt (WFI) instruction.
 pub unsafe fn wfi() {
@@ -51,12 +51,12 @@ where
 }
 
 // Mock implementations for tests on Travis-CI.
-#[cfg(not(any(riscv, doc)))]
+#[cfg(not(riscv))]
 pub fn nop() {
     unimplemented!()
 }
 
-#[cfg(not(any(riscv, doc)))]
+#[cfg(not(riscv))]
 pub unsafe fn wfi() {
     unimplemented!()
 }

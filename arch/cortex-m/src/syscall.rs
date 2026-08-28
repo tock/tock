@@ -55,7 +55,7 @@ pub static mut SCB_REGISTERS: UnsafeCell<[u32; 5]> = UnsafeCell::new([0; 5]);
 ///
 /// We need to do this in assembly because we cannot have Rust access
 /// the global variable.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub fn get_global_app_hard_fault() -> usize {
     let app_fault: usize;
 
@@ -88,7 +88,7 @@ pub fn get_global_app_hard_fault() -> usize {
 ///
 /// We need to do this in assembly because we cannot have Rust access
 /// the global variable.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub fn get_global_syscall_fired() -> usize {
     let syscall_fired: usize;
 
@@ -122,7 +122,7 @@ pub fn get_global_syscall_fired() -> usize {
 ///
 /// We need to do this in assembly because we cannot have Rust access
 /// the global variable.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     let _ccr: u32;
     let cfsr: u32;
@@ -165,19 +165,19 @@ pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
 }
 
 /// Dummy
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub fn get_global_app_hard_fault() -> usize {
     0
 }
 
 /// Dummy
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub fn get_global_syscall_fired() -> usize {
     0
 }
 
 /// Dummy
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub fn get_global_scb_registers() -> (u32, u32, u32, u32, u32) {
     (0, 0, 0, 0, 0)
 }

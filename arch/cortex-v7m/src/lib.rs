@@ -18,7 +18,7 @@
 /// - OUTPUTS:
 ///   - This writes to `r0`, a caller-saved register.
 /// - This does not fall-through, it branches at the end.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn systick_handler_arm_v7m() {
     use core::arch::naked_asm;
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
 ///   - This writes to `r2`, a caller-saved register.
 ///   - This writes to `r3`, a caller-saved register.
 /// - This does not fall-through, it branches in both arms of the branch.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
     use core::arch::naked_asm;
@@ -170,7 +170,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
 ///   - This writes to `r2`, a caller-saved register.
 ///   - This writes to `r3`, a caller-saved register.
 /// - This does not fall-through, it branches at the end.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn generic_isr_arm_v7m() {
     use core::arch::naked_asm;
@@ -255,7 +255,7 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
 ///
 /// For documentation of this function, please see
 /// `CortexMVariant::switch_to_user`.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn switch_to_user_arm_v7m(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
@@ -354,7 +354,7 @@ pub unsafe fn switch_to_user_arm_v7m(
     }
 }
 
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 /// Continue the hardfault handler for all hard-faults that occurred
 /// during kernel execution. This function must never return.
 unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
@@ -567,7 +567,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
 ///   - This writes to `r2`, a caller-saved register.
 ///   - This writes to `r3`, a caller-saved register.
 /// - This does not fall-through, it branches at the end.
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     // These constants are defined in the linker script.
@@ -701,22 +701,22 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
 // ARM assembly since it will not compile.
 ///////////////////////////////////////////////////////////////////
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn systick_handler_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn generic_isr_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn switch_to_user_arm_v7m(
     _user_stack: *const u8,
     _process_regs: &mut [usize; 8],
@@ -724,7 +724,7 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     unimplemented!()
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     unimplemented!()
 }
