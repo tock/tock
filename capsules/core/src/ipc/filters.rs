@@ -21,3 +21,19 @@ impl RegistrationFilter for IpcStringNameRegistrationFilterNull {
         Ok(())
     }
 }
+
+/// Null filter for [`IpcRegistryPackageName`].
+///
+/// This permits all registrations from all processes.
+pub struct IpcPackageNameRegistrationFilterNull;
+
+impl RegistrationFilter for IpcPackageNameRegistrationFilterNull {
+    type RegistrationIdentifier = &'static str;
+    fn filter_registration(
+        &self,
+        _processid: ProcessId,
+        _registrationid: &Self::RegistrationIdentifier,
+    ) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+}
