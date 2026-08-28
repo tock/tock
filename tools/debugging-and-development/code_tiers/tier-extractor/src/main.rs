@@ -507,37 +507,85 @@ fn walk_crate_root<'a>(entry_file: &Path, module_name: &str, state: &mut WalkSta
     walk_items(&ast.items, &entry_file, module_name, state);
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
+/// Extract the `members` list from a `[workspace]` table in a `Cargo.toml`
+/// file, without pulling in a full TOML parser. Returns `None` if the file
+/// has no `[workspace]` table with a `members` array (i.e. it's a plain
+/// crate manifest, not a workspace root). Handles both
+/// `members = ["a", "b"]` on one line and the more common style of one
+/// quoted path per line.
+fn workspace_members(cargo_toml: &Path) -> Option<Vec<String>> {
+    let content = fs::read_to_string(cargo_toml).ok()?;
+    let mut in_workspace = false;
+    let mut in_members = false;
+    let mut members = Vec::new();
 
-    if args.len() < 3 {
-        panic!("usage: tier-extractor <path to crate> <output.yaml>");
+    fn collect_quoted(text: &str, out: &mut Vec<String>) {
+        let mut rest = text;
+        while let Some(start) = rest.find('"') {
+            let after = &rest[start + 1..];
+            let Some(end) = after.find('"') else { break };
+            out.push(after[..end].to_string());
+            rest = &after[end + 1..];
+        }
     }
 
-    let root = Path::new(&args[1]);
-    let output_path = Path::new(&args[2]);
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_workspace = line == "[workspace]";
+            in_members = false;
+            continue;
+        }
+        if !in_workspace {
+            continue;
+        }
+        if !in_members {
+            let Some(rest) = line.strip_prefix("members") else {
+                continue;
+            };
+            let Some(rest) = rest.trim_start().strip_prefix('=') else {
+                continue;
+            };
+            let Some(rest) = rest.trim_start().strip_prefix('[') else {
+                continue;
+            };
+            in_members = true;
+            collect_quoted(rest, &mut members);
+            if rest.contains(']') {
+                in_members = false;
+            }
+        } else {
+            collect_quoted(line, &mut members);
+            if line.contains(']') {
+                in_members = false;
+            }
+        }
+    }
 
-    // Files are recorded with an absolute path during the walk (so `mod`
-    // resolution and cfg(test) file-tracking can canonicalize freely); at
-    // the end they're rewritten relative to the crate's parent directory,
-    // so e.g. `/Users/.../tock/kernel/src/grant.rs` becomes
-    // `kernel/src/grant.rs`.
-    let root_canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-    let file_base = root_canonical
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| root_canonical.clone());
+    if members.is_empty() {
+        None
+    } else {
+        Some(members)
+    }
+}
 
-    let crate_name = crate_name_from_cargo_toml(&root.join("Cargo.toml")).unwrap_or_else(|| {
-        root.file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default()
-    });
+/// Extract every `# Code Tier`-annotated element from a single crate
+/// rooted at `crate_root` (a directory containing a `Cargo.toml` and a
+/// `src/` directory). File paths in the returned entries are absolute;
+/// the caller rewrites them relative to whatever base makes sense.
+fn extract_crate(crate_root: &Path) -> Vec<Entry> {
+    let crate_name =
+        crate_name_from_cargo_toml(&crate_root.join("Cargo.toml")).unwrap_or_else(|| {
+            crate_root
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default()
+        });
 
     // Parse every `.rs` file in the crate up front so that `mod foo;`
     // declarations can be resolved to their file's contents.
     let mut files: HashMap<PathBuf, syn::File> = HashMap::new();
-    for entry in WalkBuilder::new(root).build() {
+    for entry in WalkBuilder::new(crate_root).build() {
         let entry = match entry {
             Ok(entry) => entry,
             Err(err) => {
@@ -572,11 +620,11 @@ fn main() {
 
     // Formal crate roots: the library and/or binary entry points.
     let mut roots: Vec<(PathBuf, String)> = vec![
-        (root.join("src/lib.rs"), crate_name.clone()),
-        (root.join("src/main.rs"), crate_name.clone()),
+        (crate_root.join("src/lib.rs"), crate_name.clone()),
+        (crate_root.join("src/main.rs"), crate_name.clone()),
     ];
     for pattern_dir in ["src/bin", "examples", "tests", "benches"] {
-        let Ok(read_dir) = fs::read_dir(root.join(pattern_dir)) else {
+        let Ok(read_dir) = fs::read_dir(crate_root.join(pattern_dir)) else {
             continue;
         };
         for entry in read_dir.flatten() {
@@ -611,7 +659,7 @@ fn main() {
             "warning: {} is not reachable from a crate root via `mod`; using a best-effort path",
             path.display()
         );
-        let relative = path.strip_prefix(root).unwrap_or(&path);
+        let relative = path.strip_prefix(crate_root).unwrap_or(&path);
         let guessed_path = relative
             .with_extension("")
             .components()
@@ -630,13 +678,73 @@ fn main() {
         walk_items(&ast.items, &path, &guessed_path, &mut state);
     }
 
-    for entry in &mut state.results {
+    state.results
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() < 3 {
+        panic!("usage: tier-extractor <path to crate or workspace> <output.yaml>");
+    }
+
+    let root = Path::new(&args[1]);
+    let output_path = Path::new(&args[2]);
+    let root_canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+
+    // Files are recorded with an absolute path during each crate's walk
+    // (so `mod` resolution and cfg(test) file-tracking can canonicalize
+    // freely); at the end they're rewritten relative to `file_base`, so
+    // e.g. `/Users/.../tock/kernel/src/grant.rs` becomes
+    // `kernel/src/grant.rs`.
+    let (crate_roots, file_base): (Vec<PathBuf>, PathBuf) =
+        match workspace_members(&root.join("Cargo.toml")) {
+            Some(members) => {
+                eprintln!(
+                    "processing workspace with {} member crate(s)",
+                    members.len()
+                );
+                let crate_roots = members.iter().map(|m| root.join(m)).collect();
+                (crate_roots, root_canonical.clone())
+            }
+            None => {
+                let file_base = root_canonical
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| root_canonical.clone());
+                (vec![root.to_path_buf()], file_base)
+            }
+        };
+
+    let mut results: Vec<Entry> = Vec::new();
+    for crate_root in &crate_roots {
+        if !crate_root.join("Cargo.toml").is_file() {
+            eprintln!(
+                "warning: {} has no Cargo.toml; skipping",
+                crate_root.display()
+            );
+            continue;
+        }
+        let crate_results = extract_crate(crate_root);
+        eprintln!(
+            "  {}: {} annotated element(s)",
+            crate_root.display(),
+            crate_results.len()
+        );
+        results.extend(crate_results);
+    }
+
+    for entry in &mut results {
         entry.file = relative_file(Path::new(&entry.file), &file_base);
     }
 
-    eprintln!("extracted {} annotated element(s)", state.results.len());
+    eprintln!(
+        "extracted {} annotated element(s) from {} crate(s)",
+        results.len(),
+        crate_roots.len()
+    );
 
-    let yaml = serde_yaml::to_string(&state.results).unwrap();
+    let yaml = serde_yaml::to_string(&results).unwrap();
     if let Err(err) = fs::write(output_path, yaml) {
         panic!("failed to write {}: {err}", output_path.display());
     }
