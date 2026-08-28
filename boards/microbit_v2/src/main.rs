@@ -120,8 +120,11 @@ type Lsm303agrDriver = capsules_extra::lsm303agr::Lsm303agrI2C<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
 >;
 type BuzzerDriver = components::buzzer::BuzzerComponentType<AlarmHw, PwmHw>;
+type IpcRegistryStringNameFilter = capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull;
 type IpcRegistryStringNameDriver =
-    components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponentType;
+    components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponentType<
+        IpcRegistryStringNameFilter,
+    >;
 type IpcRelayRequestDriver = components::ipc::ipc_relay_request::IpcRelayRequestComponentType;
 
 /// Supported drivers by the platform
@@ -700,9 +703,12 @@ unsafe fn start() -> (
         components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponent::new(
             board_kernel,
             capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
+            &capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull {},
             create_capability!(capabilities::MemoryAllocationCapability),
         )
-        .finalize(components::ipc_registry_string_name_component_static!());
+        .finalize(components::ipc_registry_string_name_component_static!(
+            IpcRegistryStringNameFilter
+        ));
 
     let ipc_relay_request = components::ipc::ipc_relay_request::IpcRelayRequestComponent::new(
         board_kernel,

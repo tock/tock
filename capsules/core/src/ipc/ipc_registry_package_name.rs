@@ -21,6 +21,7 @@
 //! let ipc_registry_package_name = components::ipc::ipc_registry_package_name::IpcRegistryPackageNameComponent::new(
 //!     board_kernel,
 //!     capsules_core::ipc::ipc_registry_package_name::DRIVER_NUM,
+//!     &capsules_core::ipc::filters::IpcPackageNameRegistrationFilterNull {},
 //!     PMCapability,
 //!     create_capability!(capabilities::MemoryAllocationCapability),
 //! ).finalize(components::ipc_registry_package_name_component_static!(PMCapability));
@@ -29,6 +30,7 @@
 use crate::ipc::ipc_identifier::IpcIdentifier;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::platform::registration::RegistrationFilter;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, Kernel, ProcessId};
@@ -63,7 +65,7 @@ pub struct App {
 ///
 /// This capsule allows for registration and discovery of IPC processes via the
 /// Package Name field of their TBF header.
-pub struct IpcRegistryPackageName<C: ProcessManagementCapability> {
+pub struct IpcRegistryPackageName<'a, RF: RegistrationFilter, C: ProcessManagementCapability> {
     /// Grant memory
     apps: Grant<
         App,
@@ -71,6 +73,9 @@ pub struct IpcRegistryPackageName<C: ProcessManagementCapability> {
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<0>,
     >,
+
+    /// Filter for validating service registrations.
+    registration_filter: &'a RF,
 
     /// Reference to the kernel object so we can access process state.
     kernel: &'static Kernel,
@@ -80,7 +85,12 @@ pub struct IpcRegistryPackageName<C: ProcessManagementCapability> {
     capability: C,
 }
 
-impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
+impl<
+    'a,
+    RF: RegistrationFilter<RegistrationIdentifier = &'static str>,
+    C: ProcessManagementCapability,
+> IpcRegistryPackageName<'a, RF, C>
+{
     /// Create a new IpcRegistryPackageName capsule
     pub fn new(
         grant: Grant<
@@ -89,19 +99,35 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
+        registration_filter: &'a RF,
         kernel: &'static Kernel,
         capability: C,
     ) -> Self {
         Self {
             apps: grant,
+            registration_filter,
             kernel,
             capability,
         }
     }
 
     fn register(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        // If registration validation is desired, that would go here before
-        // saving the name
+        // Check that package name exists, and validate it
+        self.kernel.process_map_or_external(
+            Err(ErrorCode::NOMEM),
+            processid,
+            |process| {
+                if process.get_process_name() == "" {
+                    // Can't register without a package name
+                    Err(ErrorCode::NOMEM)
+                } else {
+                    // Validate this registration attempt
+                    self.registration_filter
+                        .filter_registration(processid, &process.get_process_name())
+                }
+            },
+            &self.capability,
+        )?;
 
         // Ensure that a package name field exists
         if !self.kernel.process_map_or_external(
@@ -202,7 +228,9 @@ impl<C: ProcessManagementCapability> IpcRegistryPackageName<C> {
     }
 }
 
-impl<C: ProcessManagementCapability> SyscallDriver for IpcRegistryPackageName<C> {
+impl<RF: RegistrationFilter<RegistrationIdentifier = &'static str>, C: ProcessManagementCapability>
+    SyscallDriver for IpcRegistryPackageName<'_, RF, C>
+{
     /// Registration and discovery of IPC services
     ///
     /// Matches based on server package name and client allowed buffer.

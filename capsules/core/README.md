@@ -80,6 +80,7 @@ Interprocess Communication (IPC) mechanisms and related infrastructure.
 - **[IPC Identifier](src/ipc/ipc_identifier.rs)**: IPC Identifier type used in other IPC capsules.
 - **[IPC Registry String Name](src/ipc/ipc_registry_string_name.rs)**: Service registry and discovery based on process-specified string names.
 - **[IPC Registry Package Name](src/ipc/ipc_registry_package_name.rs)**: Service registry and discovery based on process package names.
+- **[IPC Registration Filter](src/ipc/filters.rs)**: Enables filtering of which services are allowed to register.
 - **[IPC Relay Request](src/ipc/ipc_relay_request.rs)**: Single-copy communication via client-to-server requests and server-to-client responses.
 
 Miscellaneous Capsules & Infrastructure
