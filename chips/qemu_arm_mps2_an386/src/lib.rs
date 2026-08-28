@@ -24,6 +24,10 @@ use cortexm4::{CortexMVariant, initialize_ram_jump_to_main, unhandled_interrupt}
 extern "C" {
     // _estack is not really a function, but it makes the types work.
     // You should never actually invoke it!!
+    //
+    // Keep this in the chip crate: `process_console` declares `_estack` as
+    // data, and LTO can't hold both types in one unit -- it renames ours to
+    // `_estack.1` and the link then fails, blaming an unrelated line.
     fn _estack();
 }
 
