@@ -28,7 +28,6 @@ pub mod hertz;
 use hertz::Hertz;
 
 /// All clock frequencies
-#[derive(Copy, Clone)]
 pub struct Clocks {
     pub sys: Hertz,
     pub hclk1: Hertz,
@@ -37,7 +36,9 @@ pub struct Clocks {
     pub pclk1: Hertz,
     pub pclk2: Hertz,
     pub pclk3: Hertz,
+    /// TIMx (x = 2 to 7)
     pub pclk1_tim: Hertz,
+    /// TIMx (x = 1, 8, 15, 16, 17)
     pub pclk2_tim: Hertz,
     pub msik: Option<Hertz>,
     pub hsi48: Option<Hertz>,

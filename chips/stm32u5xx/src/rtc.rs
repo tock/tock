@@ -1,12 +1,13 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
+// Copyright Tock Contributors 2026.
 
 // RTC Driver for the STM32U545RE-Q
 // Referance Document:
 // RM0456 Reference Manual: https://www.st.com/resource/en/reference_manual/rm0456-stm32u5-series-armbased-32bit-mcus-stmicroelectronics.pdf
 
-use crate::rcc::{Clocks, hertz::Hertz};
+use crate::rcc::hertz::Hertz;
 use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -489,7 +490,7 @@ enum DeferredCallTask {
 
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
-    clocks: OptionalCell<Clocks>,
+    clock: OptionalCell<Hertz>,
 
     client: OptionalCell<&'a dyn date_time::DateTimeClient>,
     time: Cell<DateTimeValues>,
@@ -516,7 +517,7 @@ impl<'a> Rtc<'a> {
     pub fn new(base: StaticRef<RtcRegisters>) -> Rtc<'a> {
         Rtc {
             registers: base,
-            clocks: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
 
             client: OptionalCell::empty(),
             time: Cell::new(DateTimeValues {
@@ -534,8 +535,8 @@ impl<'a> Rtc<'a> {
         }
     }
 
-    pub fn set_clocks(&self, clocks: Clocks) {
-        self.clocks.set(clocks);
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
     }
 
     /// Bypass write protection.
@@ -572,17 +573,10 @@ impl<'a> Rtc<'a> {
         Ok(())
     }
     pub fn init_mode(&self) -> Result<(), ErrorCode> {
-        // The clock frequencies must have been provided with `set_clocks` at this point
-        let Some(clocks) = &self.clocks.get() else {
-            return Err(ErrorCode::FAIL);
-        };
-
         // Get the clock frequency that feeds the RTC
-        let clock_frequency_option = clocks.rtc;
-
-        // Ensure the input clock is valid
-        let Some(clock_frequency) = clock_frequency_option else {
-            return Err(kernel::ErrorCode::INVAL);
+        // It must have been provided with `set_clock` at this point
+        let Some(clock_frequency) = self.clock.get() else {
+            return Err(ErrorCode::FAIL);
         };
 
         // The calendar lives in the backup domain, so it keeps running across a

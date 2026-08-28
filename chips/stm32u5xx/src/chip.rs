@@ -49,9 +49,9 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub rtc: rtc::Rtc<'a>,
     pub tim2: tim::Tim2<'a>,
     pub tim3: tim::Pwm<'a>,
-    pub usart1: usart::Usart<'a, 1>,
-    pub spi1: spi::Spi<'a, 1>,
-    pub i2c1: i2c::I2c<'a, 1>,
+    pub usart1: usart::Usart<'a>,
+    pub spi1: spi::Spi<'a>,
+    pub i2c1: i2c::I2c<'a>,
     pub exti: &'a exti::Exti<'a>,
     pub dma1: &'a Dma,
     pub pwr: pwr::Pwr,
@@ -73,9 +73,9 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             rtc: rtc::Rtc::new(rtc::RTC_BASE),
             tim2: tim::Tim2::new(tim::TIM2_BASE),
             tim3: tim::Pwm::new(tim::TIM3_BASE),
-            usart1: usart::Usart::<1>::new(usart::USART1_BASE),
-            spi1: spi::Spi::<1>::new(spi::SPI1_BASE),
-            i2c1: i2c::I2c::<1>::new(i2c::I2C1_BASE, I2cSpeed::Speed100k),
+            usart1: usart::Usart::new(usart::USART1_BASE),
+            spi1: spi::Spi::new(spi::SPI1_BASE),
+            i2c1: i2c::I2c::new(i2c::I2C1_BASE, I2cSpeed::Speed100k),
             exti,
             dma1,
             pwr: pwr::Pwr::new(pwr::PWR_BASE),
@@ -158,13 +158,22 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // It also returns whether some values from `RccConfig` were overridden for being invalid, but it's unused here
         let (clocks, _) = self.rcc.init(rcc_config, &self.pwr);
 
-        // Provide a copy of that structure to each peripheral that needs it
-        self.usart1.set_clocks(clocks);
-        self.tim2.set_clocks(clocks);
-        self.tim3.set_clocks(clocks);
-        self.spi1.set_clocks(clocks);
-        self.i2c1.set_clocks(clocks);
-        self.rtc.set_clocks(clocks);
+        // Provide the clock frequency to each peripheral that needs it
+        // In case of a wrong RCC configuration, some of these may be `None`
+        if let Some(c) = clocks.usart1 {
+            self.usart1.set_clock(c);
+        }
+        if let Some(c) = clocks.spi1 {
+            self.spi1.set_clock(c);
+        }
+        if let Some(c) = clocks.i2c1 {
+            self.i2c1.set_clock(c);
+        }
+        if let Some(c) = clocks.rtc {
+            self.rtc.set_clock(c);
+        }
+        self.tim2.set_clock(clocks.pclk1_tim);
+        self.tim3.set_clock(clocks.pclk1_tim);
 
         // Activate the independent analog supply, needed for analog peripherals
         self.pwr.validate_vdda();

@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2026.
 
 use crate::dma::{ChannelId, Dma};
-use crate::rcc::{Clocks, hertz::Hertz};
+use crate::rcc::hertz::Hertz;
 use core::cell::Cell;
 use core::cmp;
 use cortexm33::dma_fence::CortexMDmaFence;
@@ -415,9 +415,9 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct Spi<'a, const INDEX: usize> {
+pub struct Spi<'a> {
     pub registers: StaticRef<SpiRegisters>,
-    clocks: OptionalCell<Clocks>,
+    clock: OptionalCell<Hertz>,
     client: OptionalCell<&'a dyn spi::SpiMasterClient>,
     dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<Option<ChannelId>>,
@@ -430,14 +430,11 @@ pub struct Spi<'a, const INDEX: usize> {
     active_after: Cell<bool>,
 }
 
-impl<'a, const INDEX: usize> Spi<'a, INDEX> {
-    // Ensure a valid peripheral index was provided
-    const _INDEX_CHECK: () = assert!(INDEX == 1, "Only SPI1 is currently supported");
-
+impl<'a> Spi<'a> {
     pub fn new(base: StaticRef<SpiRegisters>) -> Self {
         Self {
             registers: base,
-            clocks: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
             client: OptionalCell::empty(),
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
@@ -451,29 +448,18 @@ impl<'a, const INDEX: usize> Spi<'a, INDEX> {
         }
     }
 
-    pub fn set_clocks(&self, clocks: Clocks) {
-        self.clocks.set(clocks);
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
     }
 
     pub fn get_kernel_clock_frequency(&self) -> Result<Hertz, kernel::ErrorCode> {
-        // The clock frequencies must have been provided with `set_clocks` at this point
-        let Some(clocks) = &self.clocks.get() else {
-            return Err(kernel::ErrorCode::FAIL);
-        };
-
         // Get the clock frequency that feeds this SPI
-        let clock_frequency_option = match INDEX {
-            1 => clocks.spi1,
-            // Other SPIs are not yet supported (this is unreachable due to the compile-time assert)
-            _ => return Err(kernel::ErrorCode::FAIL),
-        };
-
-        // Ensure the input clock is valid
-        let Some(clock_frequency) = clock_frequency_option else {
-            return Err(kernel::ErrorCode::INVAL);
-        };
-
-        Ok(clock_frequency)
+        // It must have been provided with `set_clock` at this point
+        if let Some(clock_frequency) = self.clock.get() {
+            Ok(clock_frequency)
+        } else {
+            Err(kernel::ErrorCode::FAIL)
+        }
     }
 
     // Adapted from embassy-rs/embassy/embassy-stm32/src/spi/mod.rs
@@ -580,7 +566,7 @@ impl<'a, const INDEX: usize> Spi<'a, INDEX> {
     }
 }
 
-impl<'a, const INDEX: usize> spi::SpiMaster<'a> for Spi<'a, INDEX> {
+impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     type ChipSelect = &'a crate::gpio::Pin<'a>;
 
     fn set_phase(&self, phase: ClockPhase) -> Result<(), kernel::ErrorCode> {
@@ -641,7 +627,7 @@ impl<'a, const INDEX: usize> spi::SpiMaster<'a> for Spi<'a, INDEX> {
 
         // Find the best prescaler
         let (mbr_field_value, div) =
-            Spi::<'a, INDEX>::compute_baud_rate_prescaler(clock_frequency, Hertz(rate));
+            Spi::<'a>::compute_baud_rate_prescaler(clock_frequency, Hertz(rate));
 
         // Before we can set the rate we need to disable the SPI.
         let spi_was_enabled = self.registers.cr1.is_set(CR1::SPE);
@@ -716,7 +702,7 @@ impl<'a, const INDEX: usize> spi::SpiMaster<'a> for Spi<'a, INDEX> {
 
         // Find the best prescaler to set an SPI frequency of 2MHz
         let (mbr_field_value, _) =
-            Spi::<'a, INDEX>::compute_baud_rate_prescaler(clock_frequency, Hertz(2_000_000));
+            Spi::<'a>::compute_baud_rate_prescaler(clock_frequency, Hertz(2_000_000));
 
         // Errata 2.18.1 Workaround: Explicitly force CRCSIZE to 0b00111 (8-bit) to prevent
         // RxFIFO data corruption when TSIZE > 0 and CRC is disabled
@@ -920,7 +906,7 @@ impl<'a, const INDEX: usize> spi::SpiMaster<'a> for Spi<'a, INDEX> {
     }
 }
 
-impl<const INDEX: usize> crate::dma::DmaClient for Spi<'_, INDEX> {
+impl crate::dma::DmaClient for Spi<'_> {
     /// Callback triggered by the DMA controller hardware interrupt when a
     /// DMA channel finishes moving its assigned number of bytes.
     fn transfer_done(&self, channel: ChannelId) {

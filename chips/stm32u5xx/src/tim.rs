@@ -1,6 +1,7 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
+// Copyright Tock Contributors 2026.
 
 use kernel::ErrorCode;
 use kernel::hil::time::Time;
@@ -13,7 +14,7 @@ use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, reg
 
 use crate::{
     gpio::{Mode, Pin},
-    rcc::Clocks,
+    rcc::hertz::Hertz,
 };
 
 register_structs! {
@@ -406,7 +407,7 @@ register_bitfields![u32,
 /// timing while remaining power-efficient.
 pub struct Tim2<'a> {
     registers: StaticRef<TimRegisters>,
-    clocks: OptionalCell<Clocks>,
+    clock: OptionalCell<Hertz>,
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
@@ -415,13 +416,13 @@ impl<'a> Tim2<'a> {
     pub const fn new(base: StaticRef<TimRegisters>) -> Tim2<'a> {
         Tim2 {
             registers: base,
-            clocks: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
             client: OptionalCell::empty(),
         }
     }
 
-    pub fn set_clocks(&self, clocks: Clocks) {
-        self.clocks.set(clocks);
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
     }
 
     /// Core interrupt handler for the peripheral.
@@ -443,13 +444,11 @@ impl<'a> Tim2<'a> {
     ///
     /// This sets the prescaler to convert PCLK1 to 32kHz and enables the 32-bit free-running counter.
     pub fn start(&self) -> Result<(), kernel::ErrorCode> {
-        // The clock frequencies must have been provided with `set_clocks` at this point
-        let Some(clocks) = &self.clocks.get() else {
+        // Get the clock frequency that feeds TIM2
+        // It must have been provided with `set_clock` at this point
+        let Some(clock_frequency) = self.clock.get() else {
             return Err(kernel::ErrorCode::FAIL);
         };
-
-        // Get the clock frequency that feeds TIM2
-        let clock_frequency = clocks.pclk1_tim;
 
         // Determine the required prescaler to achieve 32kHz
         let prescaler_value = clock_frequency / 32_000_u32;
@@ -542,7 +541,7 @@ pub struct Pwm<'a> {
     // Base address for the TIM3 registers
     registers: StaticRef<TimRegisters>,
     // All effective clock frequencies
-    clocks: OptionalCell<Clocks>,
+    clock: OptionalCell<Hertz>,
     // Needed so the struct can carry 'a lifetime because of type Pin = Pin<'a>
     _phantom: core::marker::PhantomData<&'a ()>,
 }
@@ -551,23 +550,23 @@ impl<'a> Pwm<'a> {
     pub const fn new(base: StaticRef<TimRegisters>) -> Pwm<'a> {
         Pwm {
             registers: base,
-            clocks: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
             _phantom: core::marker::PhantomData,
         }
     }
 
-    pub fn set_clocks(&self, clocks: Clocks) {
-        self.clocks.set(clocks);
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
     }
 
     fn get_maximum_frequency_hz(&self) -> usize {
-        // The clock frequencies must have been provided with `set_clocks` at this point
-        let Some(clocks) = &self.clocks.get() else {
-            return 0;
-        };
-
-        // Return the clock frequency that feeds TIM3
-        clocks.pclk1_tim.0 as usize
+        // Get the clock frequency that feeds TIM3
+        // It must have been provided with `set_clock` at this point
+        if let Some(clock_frequency) = self.clock.get() {
+            clock_frequency.0 as usize
+        } else {
+            0
+        }
     }
 
     fn get_maximum_duty_cycle(&self) -> usize {
@@ -587,13 +586,12 @@ impl<'a> Pwm<'a> {
         duty_cycle: usize,
         max_duty_cycle: usize,
     ) -> Result<(), ErrorCode> {
-        // The clock frequencies must have been provided with `set_clocks` at this point
-        let Some(clocks) = &self.clocks.get() else {
+        // Get the clock frequency that feeds TIM3
+        // It must have been provided with `set_clock` at this point
+        let Some(clock_frequency) = self.clock.get() else {
             return Err(kernel::ErrorCode::FAIL);
         };
-
-        // Get the clock frequency that feeds TIM3
-        let clock_frequency = clocks.pclk1_tim.0 as usize;
+        let clock_frequency = clock_frequency.0 as usize;
 
         // If the requested frequency is 0, stop PWM
         if frequency_hz == 0 {

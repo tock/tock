@@ -1,7 +1,7 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
+// Copyright Tock Contributors 2026.
 
 #![no_std]
 #![no_main]
@@ -76,13 +76,10 @@ struct NucleoU545RE {
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
             'static,
-            stm32u545::spi::Spi<'static, 1>,
+            stm32u545::spi::Spi<'static>,
         >,
     >,
-    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<
-        'static,
-        stm32u545::i2c::I2c<'static, 1>,
-    >,
+    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, stm32u545::i2c::I2c<'static>>,
     date_time:
         &'static capsules_extra::date_time::DateTimeCapsule<'static, stm32u545::rtc::Rtc<'static>>,
 }
@@ -327,9 +324,8 @@ unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(&periphs.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    let spi_mux = components::spi::SpiMuxComponent::new(&periphs.spi1).finalize(
-        components::spi_mux_component_static!(stm32u545::spi::Spi<1>),
-    );
+    let spi_mux = components::spi::SpiMuxComponent::new(&periphs.spi1)
+        .finalize(components::spi_mux_component_static!(stm32u545::spi::Spi));
 
     let alarm_mux = components::alarm::AlarmMuxComponent::new(&periphs.tim2).finalize(
         components::alarm_mux_component_static!(stm32u545::tim::Tim2),
@@ -422,7 +418,7 @@ unsafe fn start() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::spi_syscall_component_static!(
-        stm32u545::spi::Spi<'static, 1>
+        stm32u545::spi::Spi<'static>
     ));
 
     let button = components::button::ButtonComponent::new(
@@ -561,7 +557,7 @@ unsafe fn start() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::i2c_master_driver_component_static!(
-        stm32u545::i2c::I2c<1>
+        stm32u545::i2c::I2c
     ));
 
     // Platform and Interrupts

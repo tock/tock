@@ -1,10 +1,11 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
+// Copyright Tock Contributors 2026.
 
 use crate::{
     dma::{ChannelId, Dma, DmaPeripheral},
-    rcc::{Clocks, hertz::Hertz},
+    rcc::hertz::Hertz,
 };
 use core::cell::Cell;
 use cortexm33::dma_fence::CortexMDmaFence;
@@ -175,9 +176,9 @@ register_bitfields![u32,
 /// for both transmitting and receiving data, which provides high efficiency and
 /// ensures that fast data bursts (such as arrow key escape sequences) are
 /// captured correctly.
-pub struct Usart<'a, const INDEX: usize> {
+pub struct Usart<'a> {
     pub registers: StaticRef<UsartRegisters>,
-    clocks: OptionalCell<Clocks>,
+    clock: OptionalCell<Hertz>,
     dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<Option<ChannelId>>,
     dma_channel_rx: Cell<Option<ChannelId>>,
@@ -192,14 +193,11 @@ pub struct Usart<'a, const INDEX: usize> {
     rx_deferred: Cell<bool>,
 }
 
-impl<'a, const INDEX: usize> Usart<'a, INDEX> {
-    // Ensure a valid peripheral index was provided
-    const _INDEX_CHECK: () = assert!(INDEX == 1, "Only USART1 is currently supported");
-
+impl<'a> Usart<'a> {
     pub fn new(base: StaticRef<UsartRegisters>) -> Self {
         Self {
             registers: base,
-            clocks: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
             dma_channel_rx: Cell::new(None),
@@ -215,8 +213,8 @@ impl<'a, const INDEX: usize> Usart<'a, INDEX> {
         }
     }
 
-    pub fn set_clocks(&self, clocks: Clocks) {
-        self.clocks.set(clocks);
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
     }
 
     // Adapted from embassy-rs/embassy/embassy-stm32/src/uart/mod.rs
@@ -402,7 +400,7 @@ enum BaudrateError {
     TooLow,
 }
 
-impl<const INDEX: usize> DeferredCallClient for Usart<'_, INDEX> {
+impl DeferredCallClient for Usart<'_> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
@@ -438,7 +436,7 @@ impl<const INDEX: usize> DeferredCallClient for Usart<'_, INDEX> {
     }
 }
 
-impl<const INDEX: usize> crate::dma::DmaClient for Usart<'_, INDEX> {
+impl crate::dma::DmaClient for Usart<'_> {
     fn transfer_done(&self, channel: ChannelId) {
         if let Some(tx_ch) = self.dma_channel_tx.get() {
             if channel == tx_ch {
@@ -454,7 +452,7 @@ impl<const INDEX: usize> crate::dma::DmaClient for Usart<'_, INDEX> {
     }
 }
 
-impl<'a, const INDEX: usize> uart::Transmit<'a> for Usart<'a, INDEX> {
+impl<'a> uart::Transmit<'a> for Usart<'a> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -523,23 +521,12 @@ impl<'a, const INDEX: usize> uart::Transmit<'a> for Usart<'a, INDEX> {
     }
 }
 
-impl<const INDEX: usize> uart::Configure for Usart<'_, INDEX> {
+impl uart::Configure for Usart<'_> {
     fn configure(&self, params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
-        // The clock frequencies must have been provided with `set_clocks` at this point
-        let Some(clocks) = &self.clocks.get() else {
-            return Err(kernel::ErrorCode::FAIL);
-        };
-
         // Get the clock frequency that feeds this USART
-        let clock_frequency_option = match INDEX {
-            1 => clocks.usart1,
-            // Other USARTs are not yet supported (this is unreachable due to the compile-time assert)
-            _ => return Err(kernel::ErrorCode::FAIL),
-        };
-
-        // Ensure the input clock is valid
-        let Some(clock_frequency) = clock_frequency_option else {
-            return Err(kernel::ErrorCode::INVAL);
+        // It must have been provided with `set_clock` at this point
+        let Some(clock_frequency) = self.clock.get() else {
+            return Err(kernel::ErrorCode::FAIL);
         };
 
         let regs = &*self.registers;
@@ -564,7 +551,7 @@ impl<const INDEX: usize> uart::Configure for Usart<'_, INDEX> {
     }
 }
 
-impl<'a, const INDEX: usize> uart::Receive<'a> for Usart<'a, INDEX> {
+impl<'a> uart::Receive<'a> for Usart<'a> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -653,7 +640,7 @@ pub struct UsartPanicWriterConfig {
     pub base: StaticRef<UsartRegisters>,
 }
 
-impl<const INDEX: usize> PanicWriter for Usart<'_, INDEX> {
+impl PanicWriter for Usart<'_> {
     type Config = UsartPanicWriterConfig;
     unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
         let writer = UsartPanicWriter {

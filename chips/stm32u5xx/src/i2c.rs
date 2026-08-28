@@ -4,7 +4,7 @@
 
 use crate::{
     dma::{self, ChannelId, Dma, DmaPeripheral},
-    rcc::{Clocks, hertz::Hertz},
+    rcc::hertz::Hertz,
 };
 use core::cell::Cell;
 use core::cmp;
@@ -452,9 +452,9 @@ impl Timings {
 
 /// I2C driver implementation with DMA for the STM32U5 series.
 /// Currently, it is a controller-only driver.
-pub struct I2c<'a, const INDEX: usize> {
+pub struct I2c<'a> {
     pub registers: StaticRef<I2cRegisters>,
-    clocks: OptionalCell<Clocks>,
+    clock: OptionalCell<Hertz>,
 
     initialized: Cell<bool>,
     enabled: Cell<bool>,
@@ -492,14 +492,11 @@ pub struct I2c<'a, const INDEX: usize> {
     error: OptionalCell<Error>,
 }
 
-impl<'a, const INDEX: usize> I2c<'a, INDEX> {
-    // Ensure a valid peripheral index was provided
-    const _INDEX_CHECK: () = assert!(INDEX == 1, "Only I2C1 is currently supported");
-
+impl<'a> I2c<'a> {
     pub fn new(base: StaticRef<I2cRegisters>, speed: I2cSpeed) -> Self {
         Self {
             registers: base,
-            clocks: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
 
             initialized: Cell::new(false),
             enabled: Cell::new(false),
@@ -526,8 +523,8 @@ impl<'a, const INDEX: usize> I2c<'a, INDEX> {
         }
     }
 
-    pub fn set_clocks(&self, clocks: Clocks) {
-        self.clocks.set(clocks);
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
     }
 
     pub fn set_dma(i2c: &'static Self, dma: &'a Dma, tx_channel: ChannelId, rx_channel: ChannelId) {
@@ -541,21 +538,10 @@ impl<'a, const INDEX: usize> I2c<'a, INDEX> {
     }
 
     pub fn set_speed(&self, speed: I2cSpeed) -> Result<(), kernel::ErrorCode> {
-        // The clock frequencies must have been provided with `set_clocks` at this point
-        let Some(clocks) = &self.clocks.get() else {
-            return Err(kernel::ErrorCode::FAIL);
-        };
-
         // Get the clock frequency that feeds this I2C
-        let clock_frequency_option = match INDEX {
-            1 => clocks.i2c1,
-            // Other I2Cs are not yet supported (this is unreachable due to the compile-time assert)
-            _ => return Err(kernel::ErrorCode::FAIL),
-        };
-
-        // Ensure the input clock is valid
-        let Some(clock_frequency) = clock_frequency_option else {
-            return Err(kernel::ErrorCode::INVAL);
+        // It must have been provided with `set_clock` at this point
+        let Some(clock_frequency) = self.clock.get() else {
+            return Err(kernel::ErrorCode::FAIL);
         };
 
         // The peripheral must be disabled in order to change the speed
@@ -991,7 +977,7 @@ impl<'a, const INDEX: usize> I2c<'a, INDEX> {
     }
 }
 
-impl<'a, const INDEX: usize> I2CMaster<'a> for I2c<'a, INDEX> {
+impl<'a> I2CMaster<'a> for I2c<'a> {
     fn set_master_client(&self, client: &'a dyn I2CHwMasterClient) {
         self.master_client.replace(client);
     }
@@ -1107,7 +1093,7 @@ impl<'a, const INDEX: usize> I2CMaster<'a> for I2c<'a, INDEX> {
     }
 }
 
-impl<const INDEX: usize> dma::DmaClient for I2c<'_, INDEX> {
+impl dma::DmaClient for I2c<'_> {
     fn transfer_done(&self, channel: ChannelId) {
         self.handle_dma_interrupt(channel);
     }
