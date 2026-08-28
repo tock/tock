@@ -35,6 +35,7 @@ WG-OpenTitan:
   - doc/wg/opentitan/**/*
 
 WG-Network:
+  - capsules/core/src/ipc/*
   - capsules/extra/src/ble_advertising_driver.rs
   - capsules/extra/src/can.rs
   - capsules/extra/src/ethernet_tap.rs
