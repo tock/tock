@@ -6,7 +6,11 @@
 # 2.0. During that migration, we have two versions of tock-registers.
 # TODO(https://github.com/tock/tock/issues/5122): Remove once the migration is
 # complete.
-allowed-duplicate-crates = ["tock-registers"]
+allowed-duplicate-crates = [
+    "tock-registers",
+    "tock-registers-codegen",
+    "tock-registers-macros",
+]
 
 # We want our internal API documentation to be as good as our public
 # documentation. Enable `check-private-items` to apply lints from
