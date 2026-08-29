@@ -9,7 +9,6 @@
 pub use virtio;
 
 mod interrupts;
-pub mod virtio_mmio;
 
 pub mod chip;
 pub mod clint;
