@@ -14,6 +14,7 @@ use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
 use rv64i::csr::{CSR, mcause, mie::mie, mip::mip};
+use tock_registers::Mmio64;
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;
@@ -21,6 +22,7 @@ use sifive::plic::Plic;
 use crate::interrupts;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
+use virtio::transports::mmio::virtio_mmio_device_registers;
 
 type QemuRv64VirtPMP = rv64i::pmp::PMPUserMPU<8, rv64i::pmp::simple::SimplePMP<16>>;
 
@@ -36,23 +38,18 @@ pub struct QemuRv64VirtChip<'a, I: InterruptService + 'a> {
 
 pub struct QemuRv64VirtDefaultPeripherals<'a> {
     pub uart0: qemu_virt_chip::uart::Uart16550<'a>,
-    pub virtio_mmio: [VirtIOMMIODevice; 8],
+    pub virtio_mmio: [VirtIOMMIODevice<virtio_mmio_device_registers::Real<Mmio64>>; 8],
 }
 
 impl QemuRv64VirtDefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             uart0: qemu_virt_chip::uart::Uart16550::new(crate::uart::UART0_BASE),
-            virtio_mmio: [
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_0_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_1_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_2_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_3_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_4_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_5_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_6_BASE),
-                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_7_BASE),
-            ],
+            // Safety: This is unsound if run in a non-riscv64 environment or in
+            // a riscv64 environment without VirtIO.
+            virtio_mmio: unsafe {
+                VirtIOMMIODevice::<virtio_mmio_device_registers::Real<Mmio64>>::new_all()
+            },
         }
     }
 }
