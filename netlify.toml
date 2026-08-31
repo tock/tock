@@ -2,7 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2022.
 
-# Suppress `tput` warnings by setting TERM
+# Netlify does not build this repository. The documentation is built and
+# uploaded by `.github/workflows/docs.yml` (Netlify's build infra times out).
+#
+# Builds are turned off on the Netlify site itself, so nothing here normally
+# runs. This is kept as a guard in case they are ever switched back on: without
+# it Netlify would fall back to its default of publishing the repository root,
+# replacing the documentation with a directory listing of the kernel sources.
 [build]
-environment = { TERM = "dumb" }
-command = "tools/ci/netlify-build.sh"
+command = "echo 'Netlify must not build this repo; see .github/workflows/docs.yml' >&2; exit 1"
+publish = "doc/rustdoc"

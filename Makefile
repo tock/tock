@@ -205,7 +205,7 @@ list:
 .PHONY: ci-all
 ci-all:\
 	ci-runner-github\
-	ci-runner-netlify
+	ci-runner-docs
 
 # Run all CI that doesn't require installation of extra tools.
 #
@@ -336,12 +336,12 @@ ci-runner-github-qemu:\
 	$(call banner,CI-Runner: GitHub qemu runner DONE)
 
 
-#n.b. netlify calls tools/ci/netlify-build.sh, which is a wrapper
-#     that first installs toolchains, then calls this.
-.PHONY: ci-runner-netlify
-ci-runner-netlify:\
+# n.b. this runs from .github/workflows/docs.yml, which also uploads the
+#      resulting doc/rustdoc tree to Netlify when run on master.
+.PHONY: ci-runner-docs
+ci-runner-docs:\
 	ci-job-rustdoc
-	$(call banner,CI-Runner: Netlify runner DONE)
+	$(call banner,CI-Runner: Docs runner DONE)
 
 
 ## Jobs & Setup
@@ -657,7 +657,7 @@ ci-job-qemu: ci-setup-qemu
 
 
 
-### ci-runner-netlify jobs:
+### ci-runner-docs jobs:
 .PHONY: ci-job-rustdoc
 ci-job-rustdoc:
 	$(call banner,CI-Job: Rustdoc Documentation)

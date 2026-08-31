@@ -1,0 +1,142 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+# Builds the merged rustdoc tree, and publishes it to Netlify
+# (docs.tockos.org) from master. Pull requests opened from a branch in this
+# repository also get a preview deploy, linked from a `docs-preview` commit
+# status. Pull requests from forks build but do not deploy: GitHub does not
+# expose secrets to a `pull_request` run from a fork, so there is no token to
+# deploy with.
+#
+# NOTE: This needs two repo secrets, NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID.
+
+name: docs-ci
+
+env:
+  TERM: xterm # Makes tput work in actions output
+
+on:
+  push:
+    branches: [master] # Publishes to production.
+  pull_request: # Builds; same-repo pull requests also get a preview deploy.
+  merge_group:
+
+permissions:
+  contents: read
+
+# ┌────────────────┬──────────────────────────────────────────────────┬─────────────────────────────┐
+# │    trigger     │                    github.ref                    │       resulting group       │
+# ├────────────────┼──────────────────────────────────────────────────┼─────────────────────────────┤
+# │ PR (any push)  │ refs/pull/<N>/merge                              │ docs-ci-refs/pull/<N>/merge │
+# ├────────────────┼──────────────────────────────────────────────────┼─────────────────────────────┤
+# │ push to master │ refs/heads/master                                │ docs-ci-refs/heads/master   │
+# ├────────────────┼──────────────────────────────────────────────────┼─────────────────────────────┤
+# │ merge queue    │ refs/heads/gh-readonly-queue/master/pr-<N>-<sha> │ unique per queue entry      │
+# └────────────────┴──────────────────────────────────────────────────┴─────────────────────────────┘
+#
+# Master runs queue rather than cancel. The CLI blocks until the deploy is
+# live, so serializing runs is what serializes publishes; cancelling a run
+# would kill the client without cancelling the server-side deploy, letting
+# two resolve concurrently and possibly land out of order.
+#
+# Pull request runs do cancel. A superseded preview build is pure waste, and
+# the worst case there is a preview alias briefly showing an older commit
+# until the next push republishes it.
+concurrency:
+  group: docs-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci-docs:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      statuses: write # For the `docs-preview` status on pull requests.
+    # The build runs in ~2 minutes; the upload of ~27k files is the slow half
+    # and Netlify warns it can take "many minutes" at that count. This is only
+    # here so a wedged deploy fails in half an hour instead of six.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # In all cases, do a build and verify there are no doc warnings.
+      - name: ci-runner-docs
+        run: make ci-runner-docs
+
+      # Pull requests from a branch on tock/tock get a preview deploy. PRs from
+      # forks do not as they don't have access to secrets (for netlify tokens).
+      - name: Deploy preview to Netlify
+        id: preview
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        # Deploys are "draft" by default (i.e., no `--prod` -> no publish)
+        #  --dir directory to publish
+        #  --no-build netlify doesn't do the build, just accepts the upload
+        #  --json for machine-processing of response
+        #  --alias creates a persistent URL for this PR
+        #  --message human handle for Netlify UX use
+        run: |
+          npx --yes netlify-cli@27.4.1 deploy \
+            --dir=doc/rustdoc \
+            --no-build \
+            --json \
+            --alias="pr-$PR_NUMBER" \
+            --message "PR #$PR_NUMBER @ $GITHUB_SHA" > "$RUNNER_TEMP/deploy.json"
+          # Only .deploy_url -- .url is the site's production URL.
+          url=$(jq -r '.deploy_url // empty' "$RUNNER_TEMP/deploy.json")
+          if [ -z "$url" ]; then
+            echo "no deploy_url in netlify output:" >&2
+            cat "$RUNNER_TEMP/deploy.json" >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Docs preview: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      # Netlify used to report its own deploy-preview check here. Keep the
+      # preview one click from checks list, rather than buried in job summary.
+      - name: Link the preview from a commit status
+        if: ${{ !cancelled() && steps.preview.conclusion != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          URL: ${{ steps.preview.outputs.url }}
+        run: |
+          if [ -n "$URL" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" \
+              -f state=success \
+              -f context=docs-preview \
+              -f description="Documentation preview" \
+              -f target_url="$URL"
+          else
+            gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" \
+              -f state=failure \
+              -f context=docs-preview \
+              -f description="Preview deploy failed"
+          fi
+
+      # Pushes to master publish to production.
+      - name: Deploy to Netlify
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        # --dir: What to publish
+        # --prod: Push to production
+        # --no-build: Don't build anything
+        # --message: Label for netlify for this upload
+        run: |
+          npx --yes netlify-cli@27.4.1 deploy \
+            --dir=doc/rustdoc \
+            --prod \
+            --no-build \
+            --message "master @ $GITHUB_SHA"
