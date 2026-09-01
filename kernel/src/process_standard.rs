@@ -1336,7 +1336,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                                 // Now, to mark that the grant has been entered, we set the lowest
                                 // bit to one and save this as the grant pointer.
                                 grant_entry.grant_ptr =
-                                    (usize::from(grant_ptr_nonnull.addr()) | 0x1) as *mut u8;
+                                    grant_ptr_nonnull.map_addr(|a| a | 0x1).as_ptr();
 
                                 // And we return the grant pointer to the entered grant.
                                 Ok(grant_ptr_nonnull)
@@ -1384,7 +1384,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // Now, to mark that the grant has been released, we set the
                 // lowest bit back to zero and save this as the grant
                 // pointer.
-                grant_entry.grant_ptr = (grant_ptr as usize & !0x1) as *mut u8;
+                grant_entry.grant_ptr = grant_ptr.map_addr(|a| a & !0x1);
             }
         });
     }
@@ -2612,7 +2612,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             // `!(align - 1)` then returns a mask with leading ones, followed by
             // `a` trailing zeros.
             let alignment_mask = !(align - 1);
-            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
+            let new_break = new_break_unaligned.map_addr(|a| a & alignment_mask);
 
             // Verify there is space for this allocation
             if new_break < self.app_break.get() {
