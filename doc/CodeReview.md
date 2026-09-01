@@ -25,7 +25,7 @@ merges pull requests for the main Tock repository.
   * [General Review Principles](#general-review-principles)
   * [`unsafe` Code](#unsafe-code)
     + [Declaration of `unsafe` Functions, Associated Functions, and Methods](#declaration-of-unsafe-functions-associated-functions-and-methods)
-    + [Implementation of `unsafe` Functions, Associated Functions, and Methods](#implementation-of-unsafe-functions-associated-functions-and-methods)
+    + [Implementation of `unsafe` Trait Methods](#implementation-of-unsafe-trait-methods)
     + [`unsafe` Code Blocks](#unsafe-code-blocks)
   * [Review Guide by Repository Subsystem](#review-guide-by-repository-subsystem)
     + [Core Kernel (`/kernel` crate) Not Including HILs](#core-kernel-kernel-crate-not-including-hils)
@@ -315,16 +315,8 @@ behavior.
 The core of these comments are invariants which `unsafe` code expects to be
 upheld.
 
- - Invariants should be succinct and specific.
- - Invariants should be minimal in scope.
- - Invariants should start with a short name to be easily referenced.
- - Invariants that assume a Rust concept should write the concept in all
-   capitals to indicate that this is more than a simple noun.
-    - E.g., Rust has a specific [set of criteria][rust-valid-ptr] for what it
-      means for a raw pointer to be "valid". In lieu of enumerating individual
-      invariants to assert that a raw pointer is NonNull, Dereferenceable,
-      Aligned, Initialized, and Live, a Safety invariant can simply assert
-      "the pointer is VALID for a [read/write]".
+- Invariants should be succinct and specific.
+- Invariants should be minimal in scope.
 
 There are several fundamental types of `unsafe` code, each with their own
 template for Safety comments:
@@ -333,14 +325,10 @@ template for Safety comments:
 
 On function and method declarations, the primary purpose of the `unsafe`
 keyword is to indicate that there are invariants the **caller** of the
-function is obligated to uphold. Safety documentation may also include
-information that restricts what the **callee** is permitted to do with
-arguments.
+function is obligated to uphold.
 
- - The Safety comment for a function MUST express all of the invariants a
-   caller is assumed to uphold.
- - If appropriate, the Safety comment for a function SHOULD also express, in a
-   separate list, all of the invariants that the function will uphold.
+- The Safety comment for a function MUST express all of the invariants a
+  caller is assumed to uphold.
 
 `unsafe fn`s must use the following template for a Safety comment:
 
@@ -350,15 +338,7 @@ arguments.
     ///
     /// # Safety
     ///
-    /// [optional]: Summary of caller expectations.
-    ///
-    /// Caller Invariants:
-    ///   - name1: <requirement 1>
-    ///   - name2: <requirement 2> ...
-    ///
-    /// [Callee Invariants]:
-    ///   - name1: <requirement 1>
-    ///   - name2: <requirement 2> ...
+    /// Caller requirements for the use of this function to be safe.
 
 Here is an example of a Safety comment for a method declaration:
 
@@ -377,15 +357,11 @@ Here is an example of a Safety comment for a method declaration:
     /// readable, and writeable memory that belongs to this process. This
     /// function has exclusive access to this memory range during operation.
     ///
-    /// Caller Invariants:
-    ///   - valid_start: `accessible_memory_start` is a VALID pointer to process memory.
-    ///   - valid_end: `app_brk - 1` is a VALID pointer to process memory.
-    ///   - valid_range: `app_brk` > `accessible_memory_start`.
-    ///   - valid_align: `accessible_memory_start` is aligned to the native word type.
-    ///   - refs: No Rust references exist to [`accessible_memory_start`, `app_brk`).
-    /// Callee Invariants:
-    ///   - bounds: All unsafe memory operations will occur within the bounds
-    ///      [`accessible_memory_start, `app_brk`).
+    /// - `accessible_memory_start` must be a valid pointer to process memory.
+    /// - `app_brk - 1` must be a valid pointer to process memory.
+    /// - `app_brk` > `accessible_memory_start`.
+    /// - `accessible_memory_start` is aligned to the native word type.
+    /// - No Rust references exist to [`accessible_memory_start`, `app_brk`).
     unsafe fn set_syscall_return_value(
         &self,
         accessible_memory_start: *const u8,
@@ -395,21 +371,13 @@ Here is an example of a Safety comment for a method declaration:
     ) -> Result<(), ()>;
 
 
-#### Implementation of `unsafe` Functions, Associated Functions, and Methods
+#### Implementation of `unsafe` Trait Methods
 
-The implementation of functions and methods should be treated as any other
-code block, as documented next. Since the 2024 Edition of Rust, the body of an
-`unsafe fn` is no longer itself `unsafe`, thus explicit `unsafe` blocks are
-required within the implementation.
-
-For a method being `impl`'d, you should **not** include a Safety comment, as
-the canonical reference is in the trait definition. Comments with additional
-information regarding how this specific implementation adheres to the callee
-requirements should generally be included in the implementation body. Method
-`impl`s MUST NOT introduce any new caller Safety requirements.
-
-For a plain function, the definition and implementation site are the same, so
-there is already a Safety comment.
+For a trait method being implemented, you should **not** include a Safety
+comment, as the canonical reference is in the trait definition. Comments with
+additional information regarding how this specific implementation adheres to
+the callee requirements should generally be included in the implementation
+body. Method `impl`s MUST NOT introduce any new caller Safety requirements.
 
 #### `unsafe` Code Blocks
 
@@ -417,64 +385,41 @@ Rust requires that whenever an implementation performs an `unsafe` operation
 it be encapsulated in an `unsafe` code block. Generally, `unsafe` code blocks
 should be minimal and restricted to one operation.
 
-We do not enforce strictly one operation per block (i.e., [clippy's
-multiple_unsafe_ops_per_block][clippy-mult-unsafe]) and permit grouping of
-operations where the _reasoning_ around all of the grouped `unsafe` operations
-are the same. When multiple operations are grouped in one block, the Safety
-comment must explicitly note this, and explain how each operation's invariants
-are upheld.
+We do not enforce strictly one operation per block (i.e.,
+[clippy's multiple_unsafe_ops_per_block][clippy-mult-unsafe]) and permit
+grouping of operations where the _reasoning_ around all of the grouped
+`unsafe` operations are the same. When multiple operations are grouped in one
+block, the Safety comment must explain how each operation's invariants are
+upheld.
 
 Each `unsafe` code block must have its own Safety comment that adheres to the
 following template:
 
     // [optional]: Any generic code comments unrelated to Safety concerns.
     //
-    // SAFETY: This block contains N unsafe operation(s) [repeated M times].
-    //
-    // [if N > 1]: GROUPING: Justification for grouping.
-    //
-    // [optional]: Summary of safety related concerns.
-    //
-    // XXX invariants are satisfied as follows:
-    //   - name1: <requirement 1> is assured because ...
-    //   - name2: <requirement 2> is assured because ...
+    // SAFETY: Explanation of how all required safety requirements are met.
 
 The following is an example of a common-case Safety comment:
 
-    // We are now ready to run user code, go ahead and do that.
+    // Get a reference to the slice of `GrantPointerEntry`s.
     //
-    // SAFETY: This block contains one unsafe operation.
-    //
-    // `switch_to_user` invariants are satisfied as follows:
-    //   - stack_ptr: The first argument, `state.psp`, must hold a valid
-    //     pointer touserspace memory; this invariant is always held for
-    //     an object of the type `CortexMStoredState`.
-    //   - regs: The second argument, `state.regs`, must point to memory
-    //     laid out as `&mut [u32; 8]` for assembly access; this invariant
-    //     is always held for an object of the type `CortexMStoredState`.
-    let new_stack_pointer =
-        unsafe { A::switch_to_user(state.psp as *const usize, &mut state.regs) };
+    // SAFETY: This is safe, as `grant_pointers_memory_location` is aligned to a
+    // `GrantPointerEntry`, and we ensured there is space for
+    // `grant_ptrs_num` of `GrantPointerEntry`s allocated.
+    let grant_pointers_uninit: &mut [MaybeUninit<GrantPointerEntry>] =
+        unsafe { slice::from_raw_parts_mut(grant_pointers_memory_location, grant_ptrs_num) };
 
-The following is an example of a grouped Safety comment, note the explicit
-justification for grouping and explanation of how each operation's invariants
-are upheld:
+The following is an example of a grouped Safety comment. The multiple
+requirements are listed.
 
-    // SAFETY: This block contains two unsafe operations repeated six times.
-    //
-    // GROUPING: These operations are grouped as they all operate on a
-    // contiguous region of memory with the same safety requirements derived
-    // from the same caller assertion.
-    //
-    // The caller asserted that `new_stack_pointer` is VALID for reads and
-    // points to the beginning of an array of 8 contiguous words of memory
-    // we have exclusive access to.
-    //
-    // For each `add`, invariants are satisfied as follows:
-    //   - valid_base: The base pointer is VALID for reads per caller assertion.
-    //   - bounds: Each offset is within the bounds asserted by the caller as
-    //     VALID for reads.
-    // For each `ptr::read`, invariants are satisfied as follows:
-    //   - valid_ptrs: The pointer is VALID for reads per the above.
+    // SAFETY: These pointer reads require offsetting the pointer and then
+    // using it to access memory. These both require the pointers to remain
+    // valid, point to allocated memory, and be aligned.
+    // - The memory is valid and allocated because we ensured there is room
+    //   for the stack frame at the stack pointer and that it is within
+    //   process memory.
+    // - We verified the `new_stack_pointer` is properly aligned, and the
+    //   offset pointers will be aligned as well.
     let (r0, r1, r2, r3, yield_pc, psr) = unsafe {
         (
             ptr::read(new_stack_pointer.add(0)),
