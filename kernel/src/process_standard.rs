@@ -1601,11 +1601,11 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     fn get_addresses(&self) -> ProcessAddresses {
         ProcessAddresses {
             flash_start: self.flash_start() as usize,
-            flash_non_protected_start: self.flash_non_protected_start() as usize,
+            flash_non_protected_start: self.flash_non_protected_start(),
             flash_integrity_end: ((self.flash.as_ptr() as usize)
                 + (self.header.get_binary_end() as usize))
                 as *const u8,
-            flash_end: self.flash_end() as usize,
+            flash_end: self.flash_end(),
             sram_start: self.mem_start() as usize,
             sram_app_brk: self.app_memory_break() as usize,
             sram_grant_start: self.kernel_memory_break() as usize,
@@ -2531,7 +2531,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             CapabilityPtr::new_with_authority(
                 init_addr as *const (),
                 flash_start as usize,
-                (self.flash_end() as usize) - (flash_start as usize),
+                self.flash_end() - (flash_start as usize),
                 CapabilityPtrPermissions::Execute,
             )
         };
@@ -2569,6 +2569,11 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// this method returns true, the buffer is guaranteed to be readable to the
     /// process.
     fn in_app_flash_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        #![allow(
+            clippy::suspicious_operation_groupings,
+            reason = "false positive on flash_non_protected_start"
+        )]
+
         // TODO: On some platforms, CapabilityPtr has sufficient authority that we
         // could skip this check.
         // CapabilityPtr needs to make it slightly further, and we need to add
@@ -2577,8 +2582,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
         buf_end_addr >= buf_start_addr
-            && buf_start_addr >= self.flash_non_protected_start()
-            && buf_end_addr <= self.flash_end()
+            && buf_start_addr.addr() >= self.flash_non_protected_start()
+            && buf_end_addr.addr() <= self.flash_end()
     }
 
     /// Allocate memory in a process's grant region.
@@ -2713,14 +2718,14 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// kernel. The protected range of flash contains the TBF header and
     /// potentially other state the kernel is storing on behalf of the process,
     /// and cannot be edited by the process.
-    fn flash_non_protected_start(&self) -> *const u8 {
-        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
+    fn flash_non_protected_start(&self) -> usize {
+        (self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize
     }
 
     /// The first address after the end of the flash region allocated for this
     /// process.
-    fn flash_end(&self) -> *const u8 {
-        self.flash.as_ptr().wrapping_add(self.flash.len())
+    fn flash_end(&self) -> usize {
+        self.flash.as_ptr().addr().wrapping_add(self.flash.len())
     }
 
     /// The lowest address of the grant region for the process.
