@@ -1409,3 +1409,11 @@ impl Clocks {
         self.set_frequency(Clock::Rtc, freq);
     }
 }
+
+/// Lets the drivers shared with the other RP2 chip reach `clk_peri` without
+/// naming this chip's `Clock` enum, which the two chips do not share.
+impl rp2xxx::PeripheralClock for Clocks {
+    fn peripheral_frequency(&self) -> u32 {
+        self.get_frequency(Clock::Peripheral)
+    }
+}

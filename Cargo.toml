@@ -110,6 +110,7 @@ members = [
     "chips/psoc62xa",
     "chips/rp2040",
     "chips/rp2350",
+    "chips/rp2xxx",
     "chips/sam4l",
     "chips/segger",
     "chips/sifive",
