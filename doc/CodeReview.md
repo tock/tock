@@ -221,7 +221,7 @@ If an update or upgrade is required, setup targets **must** prompt before
 installing.
 
 ##### `ci-runner-*[-*]`
-These are targets like `ci-runner-netlify` and `ci-runner-github`.
+These are targets like `ci-runner-docs` and `ci-runner-github`.
 They represent exactly what is run by various CI runners.
 For platform with multiple CI rules, like GitHub, the `ci-runner-github` is a
 meta target that runs all GitHub checks, while `ci-runner-github-*` are the
