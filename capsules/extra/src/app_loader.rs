@@ -614,7 +614,7 @@ impl<
                 // (usually defined by the return value of `Unload`, but
                 // can be extensible).
 
-                let result = self.uninstall_driver.uninstall(arg1);
+                let result = self.uninstall_driver.uninstall_with_app_handle(arg1);
                 match result {
                     Ok(()) => CommandReturn::success(),
                     Err(e) => {

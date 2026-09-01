@@ -158,7 +158,7 @@ pub trait DynamicProcessUnloadClient {
 /// This interface supports uninstalling processes during runtime.
 pub trait DynamicProcessUninstall {
     /// Call to uninstall an application binary with a specified `app_handle`.
-    fn uninstall(&self, app_handle: usize) -> Result<(), ErrorCode>;
+    fn uninstall_with_app_handle(&self, app_handle: usize) -> Result<(), ErrorCode>;
 
     /// Sets a client for the SequentialDynamicProcessUninstall Object
     ///
@@ -865,7 +865,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
         self.uninstall_client.set(client);
     }
 
-    fn uninstall(&self, app_handle: usize) -> Result<(), ErrorCode> {
+    fn uninstall_with_app_handle(&self, app_handle: usize) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Idle => {
                 self.state.set(State::Uninstall);
