@@ -6,6 +6,15 @@ include ../../../Makefile.common
 
 QEMU_CMD := qemu-system-riscv64
 
+QEMU_CMDLINE_EXTRA ?= \
+	-serial stdio \
+
+# Command line for automatically interacting with QEMU:
+# 	-qmp tcp:localhost:44444,server \
+# 	-chardev socket,id=serial0,host=localhost,port=44445,server=on \
+# 	-serial chardev:serial0 \
+# 	-S \
+
 QEMU_CMDLINE := \
     $(QEMU_CMD) \
     -machine virt \
@@ -15,15 +24,8 @@ QEMU_CMDLINE := \
     -device virtio-rng-device \
     -device virtio-keyboard-device \
     -device virtio-gpu-device \
-    -serial stdio \
     $(QEMU_CMDLINE_EXTRA)
     
-
-# -qmp tcp:localhost:44444,server \
-#     -chardev socket,id=serial0,host=localhost,port=44445,server=on \
-#     -serial chardev:serial0 \
-
-
 
 # Set this as the default local board to write apps to with tockloader
 .PHONY: init
