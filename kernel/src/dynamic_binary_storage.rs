@@ -392,7 +392,7 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             buffer[15] = buffer[3] ^ buffer[7] ^ buffer[11];
 
             for i in 16..BUF_LEN {
-                buffer[i] = 0x00_u8;
+                buffer[i] = 0xff_u8;
             }
         });
 
@@ -423,7 +423,7 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
     fn erase_chunk(&self, offset: usize, chunk_size: usize) -> Result<(), ErrorCode> {
         self.buffer.map(|buffer| {
             for i in 0..chunk_size {
-                buffer[i] = 0x00_u8;
+                buffer[i] = 0xff_u8;
             }
         });
 
