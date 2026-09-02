@@ -1591,3 +1591,41 @@ impl SIO {
         }
     }
 }
+
+impl rp2xxx::pads::PioPad for RPGpioPin<'_> {
+    type Block = crate::pio::PIONumber;
+
+    fn select_pio(&self, block: Self::Block) {
+        crate::pio::gpio_init(block, self)
+    }
+
+    fn set_schmitt(&self, enable: bool) {
+        RPGpioPin::set_schmitt(self, enable)
+    }
+
+    fn set_slew_rate(&self, rate: rp2xxx::pads::SlewRate) {
+        RPGpioPin::set_slew_rate(
+            self,
+            match rate {
+                rp2xxx::pads::SlewRate::Slow => SlewRate::Slow,
+                rp2xxx::pads::SlewRate::Fast => SlewRate::Fast,
+            },
+        )
+    }
+
+    fn set_drive_strength(&self, strength: rp2xxx::pads::DriveStrength) {
+        RPGpioPin::set_drive_strength(
+            self,
+            match strength {
+                rp2xxx::pads::DriveStrength::Drive2mA => DriveStrength::Drive2mA,
+                rp2xxx::pads::DriveStrength::Drive4mA => DriveStrength::Drive4ma,
+                rp2xxx::pads::DriveStrength::Drive8mA => DriveStrength::Drive8ma,
+                rp2xxx::pads::DriveStrength::Drive12mA => DriveStrength::Drive12ma,
+            },
+        )
+    }
+
+    fn activate_pads(&self) {
+        RPGpioPin::activate_pads(self)
+    }
+}

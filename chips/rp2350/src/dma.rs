@@ -272,9 +272,11 @@ pub enum Irq {
     Irq3,
 }
 
-pub trait DmaChannelClient {
-    fn transfer_done(&self);
-}
+/// Notified when a channel finishes a transfer.
+///
+/// Defined in `rp2xxx` and re-exported here: nothing about it differs between
+/// the chips, and a driver above DMA has to be able to name one trait.
+pub use rp2xxx::dma::DmaChannelClient;
 
 #[derive(Clone, Copy)]
 pub struct DmaChannel<'a> {
@@ -454,6 +456,40 @@ fn ctrl_word(
         + incr_wr
         + CTRL_TRIG::CHAIN_TO.val(chain_to as u32)
         + CTRL_TRIG::EN::SET
+}
+
+impl rp2xxx::dma::DmaChannel for DmaChannel<'_> {
+    type Block = crate::pio::PIONumber;
+
+    fn set_read_addr(&self, addr: u32) {
+        DmaChannel::set_read_addr(self, addr)
+    }
+
+    fn set_write_addr(&self, addr: u32) {
+        DmaChannel::set_write_addr(self, addr)
+    }
+
+    fn set_len(&self, len: u32) {
+        DmaChannel::set_len(self, len)
+    }
+
+    fn read_word_from_pio(&self, block: Self::Block, sm: pio::SMNumber) {
+        self.enable(
+            DmaPeripheral::PioRxFifo(block, sm),
+            DataSize::Word,
+            Transfer::PeripheralToMemory,
+            false,
+        )
+    }
+
+    fn write_word_to_pio(&self, block: Self::Block, sm: pio::SMNumber) {
+        self.enable(
+            DmaPeripheral::PioTxFifo(block, sm),
+            DataSize::Word,
+            Transfer::MemoryToPeripheral,
+            false,
+        )
+    }
 }
 
 #[cfg(test)]

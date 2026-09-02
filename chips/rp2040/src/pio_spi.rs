@@ -590,15 +590,15 @@ fn spi_program_init(
     let sm = pio.sm(sm_number);
     sm.config(config);
     crate::pio::gpio_init(
-        pio,
+        pio.number(),
         &RPGpioPin::new(RPGpio::from_u32(clock_pin).expect("GPIO pin must be 0 to 29")),
     );
     crate::pio::gpio_init(
-        pio,
+        pio.number(),
         &RPGpioPin::new(RPGpio::from_u32(in_pin).expect("GPIO pin must be 0 to 29")),
     );
     crate::pio::gpio_init(
-        pio,
+        pio.number(),
         &RPGpioPin::new(RPGpio::from_u32(out_pin).expect("GPIO pin must be 0 to 29")),
     );
     sm.set_enabled(false);

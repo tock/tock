@@ -90,12 +90,16 @@ pub fn new_pio2() -> Pio {
     new_pio(PIONumber::PIO2, PIO_2_BASE_ADDRESS)
 }
 
-/// Point a pin at the PIO block a driver drives.
+/// Point a pin at one of this chip's PIO blocks.
 ///
 /// Which alternate function selects a PIO block, and how many blocks there
 /// are, are facts about this chip rather than about the state machines.
-pub fn gpio_init(pio: &Pio, pin: &RPGpioPin) {
-    pin.set_function(match pio.number() {
+///
+/// Takes the block rather than the `Pio` driving it, because a pin can be
+/// pointed at a block without a driver in hand: `PioPad::select_pio` has
+/// exactly that.
+pub fn gpio_init(block: PIONumber, pin: &RPGpioPin) {
+    pin.set_function(match block {
         PIONumber::PIO0 => GpioFunction::PIO0,
         PIONumber::PIO1 => GpioFunction::PIO1,
         PIONumber::PIO2 => GpioFunction::PIO2,
