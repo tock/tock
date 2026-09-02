@@ -852,7 +852,13 @@ impl kernel::platform::chip::PanicWriter for Uarte<'_> {
     ) -> impl IoWrite + core::fmt::Write {
         use uart::Configure as _;
 
-        let registers = UarteRegistersManager::new_uarte0();
+        // SAFETY: This must be unique and the only owner of the UARTE0 register
+        // manager. We are generally VIOLATING this safety requirement. See
+        // <https://github.com/tock/tock/pull/5091> and
+        // <https://github.com/tock/tock/pull/4990> for more context and some
+        // paths forward to resolve this existing safety violation about
+        // multiple managers of the UARTE0 DMA registers.
+        let registers = unsafe { UarteRegistersManager::new_uarte0() };
 
         let inner = Uarte::new(registers);
         inner.initialize(
