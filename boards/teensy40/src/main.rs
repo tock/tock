@@ -53,7 +53,6 @@ struct Teensy40 {
         1,
     >,
     console: &'static capsules_core::console::Console<'static>,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
@@ -74,7 +73,6 @@ impl SyscallDriverLookup for Teensy40 {
         match driver_num {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
@@ -321,15 +319,8 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
     //
     // Capabilities
     //
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-
-    let ipc = kernel::ipc::IPC::new(
-        board_kernel,
-        kernel::ipc::DRIVER_NUM,
-        &memory_allocation_capability,
-    );
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -346,7 +337,6 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
     let teensy40 = Teensy40 {
         led,
         console,
-        ipc,
         alarm,
 
         scheduler,
@@ -396,7 +386,7 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&platform, chip, &main_loop_capability);
 }
 
 kernel::stack_size! {0x2000}

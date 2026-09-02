@@ -17,7 +17,6 @@ use crate::debug;
 use crate::deferred_call::DeferredCall;
 use crate::errorcode::ErrorCode;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
-use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
@@ -371,11 +370,10 @@ impl Kernel {
     /// This function has one configuration option: `no_sleep`. If that argument
     /// is set to true, the kernel will never attempt to put the chip to sleep,
     /// and this function can be called again immediately.
-    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip>(
         &self,
         resources: &KR,
         chip: &C,
-        ipc: Option<&ipc::IPC<NUM_PROCS>>,
         no_sleep: bool,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
@@ -398,7 +396,7 @@ impl Kernel {
                     SchedulingDecision::RunProcess((processid, timeslice_us)) => {
                         self.process_map_or((), processid, |process| {
                             let (reason, time_executed) =
-                                self.do_process(resources, chip, process, ipc, timeslice_us);
+                                self.do_process(resources, chip, process, timeslice_us);
                             scheduler.result(reason, time_executed);
                         });
                     }
@@ -435,18 +433,17 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the [`Scheduler`]
     /// implementation in use.
-    pub fn kernel_loop<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    pub fn kernel_loop<KR: KernelResources<C>, C: Chip>(
         &self,
         resources: &KR,
         chip: &C,
-        ipc: Option<&ipc::IPC<NUM_PROCS>>,
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         resources.watchdog().setup();
         // Before we begin, verify that deferred calls were soundly setup.
         DeferredCall::verify_setup();
         loop {
-            self.kernel_loop_operation(resources, chip, ipc, false, capability);
+            self.kernel_loop_operation(resources, chip, false, capability);
         }
     }
 
@@ -481,12 +478,11 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    fn do_process<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    fn do_process<KR: KernelResources<C>, C: Chip>(
         &self,
         resources: &KR,
         chip: &C,
         process: &dyn process::Process,
-        ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
         timeslice_us: Option<NonZeroU32>,
     ) -> (process::StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
@@ -651,25 +647,6 @@ impl Kernel {
                                 }
                                 process.set_process_function(ccb);
                             }
-                            Task::IPC((otherapp, ipc_type)) => {
-                                ipc.map_or_else(
-                                    || {
-                                        panic!("Kernel consistency error: IPC Task with no IPC");
-                                    },
-                                    |ipc| {
-                                        // TODO(alevy): this could error for a variety of reasons.
-                                        // Should we communicate the error somehow?
-                                        // https://github.com/tock/tock/issues/1993
-                                        unsafe {
-                                            let _ = ipc.schedule_upcall(
-                                                process.processid(),
-                                                otherapp,
-                                                ipc_type,
-                                            );
-                                        }
-                                    },
-                                );
-                            }
                         },
                     }
                 }
@@ -713,7 +690,6 @@ impl Kernel {
                                     }
                                     (ccb.argument0, ccb.argument1, ccb.argument2)
                                 }
-                                Task::IPC(_) => todo!(),
                             };
                             process
                                 .set_syscall_return_value(SyscallReturn::YieldWaitFor(a0, a1, a2));

@@ -83,7 +83,6 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
 /// Supported drivers by the platform
 pub struct RaspberryPiPico2 {
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     console: &'static capsules_core::console::Console<'static>,
     scheduler: &'static SchedulerInUse,
     systick: cortexm33::systick::SysTick,
@@ -105,7 +104,6 @@ impl SyscallDriverLookup for RaspberryPiPico2 {
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -316,7 +314,6 @@ pub unsafe fn main() {
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer0)
         .finalize(components::alarm_mux_component_static!(RPTimer));
@@ -426,11 +423,6 @@ pub unsafe fn main() {
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let raspberry_pi_pico = RaspberryPiPico2 {
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         console,
         alarm,
         gpio,
@@ -474,10 +466,5 @@ pub unsafe fn main() {
 
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    board_kernel.kernel_loop(
-        &raspberry_pi_pico,
-        chip,
-        Some(&raspberry_pi_pico.ipc),
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&raspberry_pi_pico, chip, &main_loop_capability);
 }

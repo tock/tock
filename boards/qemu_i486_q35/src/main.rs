@@ -21,7 +21,6 @@ use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::keyboard::Keyboard;
-use kernel::ipc::IPC;
 use kernel::platform::chip::InterruptService;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
@@ -167,7 +166,6 @@ pub struct QemuI386Q35Platform {
         'static,
         VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>,
     >,
-    ipc: IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static SchedulerInUse,
     scheduler_timer: &'static SchedulerTimerHw,
     rng: Option<&'static RngDriver<'static, VirtIORng<'static, 'static, X86DmaFence>>>,
@@ -189,7 +187,6 @@ impl SyscallDriverLookup for QemuI386Q35Platform {
                     f(None)
                 }
             }
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -556,11 +553,6 @@ unsafe extern "cdecl" fn main() {
             scheduler,
             scheduler_timer,
             rng: rng_driver,
-            ipc: kernel::ipc::IPC::new(
-                board_kernel,
-                kernel::ipc::DRIVER_NUM,
-                &memory_allocation_cap,
-            ),
         }
     );
 
@@ -606,5 +598,5 @@ unsafe extern "cdecl" fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(platform, chip, Some(&platform.ipc), &main_loop_cap);
+    board_kernel.kernel_loop(platform, chip, &main_loop_cap);
 }

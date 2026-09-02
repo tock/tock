@@ -59,7 +59,6 @@ struct MspExp432P401R {
             msp432::timer::TimerA<'static>,
         >,
     >,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules_core::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
     wdt: &'static msp432::wdt::Wdt,
     scheduler: &'static SchedulerInUse,
@@ -112,7 +111,6 @@ impl SyscallDriverLookup for MspExp432P401R {
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
@@ -348,7 +346,6 @@ unsafe fn start() -> (
         msp432::gpio::IntPin<'static>
     ));
 
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -451,11 +448,6 @@ unsafe fn start() -> (
         button,
         gpio,
         alarm,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         adc,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
@@ -506,5 +498,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, board, chip) = start();
-    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(&board, chip, &main_loop_capability);
 }

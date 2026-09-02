@@ -72,7 +72,6 @@ pub type SchedulerInUse = components::sched::round_robin::RoundRobinComponentTyp
 /// Base drivers for the Raspberry Pi Pico boards
 pub struct Platform {
     pub systick: cortexm0p::systick::SysTick,
-    pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     pub scheduler: &'static SchedulerInUse,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -100,7 +99,6 @@ impl SyscallDriverLookup for Platform {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
@@ -622,11 +620,6 @@ pub unsafe fn setup(
         spi_controller,
         date_time,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_capability,
-        ),
         scheduler,
     };
 

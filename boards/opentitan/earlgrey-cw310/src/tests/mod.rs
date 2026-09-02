@@ -34,7 +34,6 @@ fn run_kernel_op(loops: usize) {
             BOARD.unwrap().kernel_loop_operation(
                 PLATFORM.unwrap(),
                 PANIC_RESOURCES.get().and_then(|pr| pr.chip.get()).unwrap(),
-                None::<&kernel::ipc::IPC<0>>,
                 true,
                 MAIN_CAP.unwrap(),
             );

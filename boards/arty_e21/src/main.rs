@@ -64,7 +64,6 @@ struct ArtyE21 {
         3,
     >,
     button: &'static capsules_core::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
-    // ipc: kernel::ipc::IPC<NUM_PROCS>,
     scheduler: &'static SchedulerInUse,
 }
 
@@ -82,7 +81,6 @@ impl SyscallDriverLookup for ArtyE21 {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
 
-            // kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -288,7 +286,6 @@ unsafe fn start() -> (
         alarm,
         led,
         button,
-        // ipc: kernel::ipc::IPC::new(board_kernel),
         scheduler,
     };
 
@@ -351,10 +348,5 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     let (board_kernel, board, chip) = start();
-    board_kernel.kernel_loop(
-        &board,
-        chip,
-        None::<&kernel::ipc::IPC<0>>,
-        &main_loop_capability,
-    );
+    board_kernel.kernel_loop(&board, chip, &main_loop_capability);
 }

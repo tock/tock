@@ -497,12 +497,7 @@ pub unsafe fn main() {
 
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-        board_kernel.kernel_loop(
-            esp32_c3_board,
-            chip,
-            None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
-            &main_loop_cap,
-        );
+        board_kernel.kernel_loop(esp32_c3_board, chip, &main_loop_cap);
     }
 }
 
