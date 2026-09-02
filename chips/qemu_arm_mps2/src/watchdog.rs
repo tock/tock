@@ -92,9 +92,11 @@ impl WatchDog for Watchdog {
     }
 
     fn tickle(&self) {
-        // Any value clears the pending interrupt and reloads from
-        // WDOGLOAD.
+        // Any value clears the pending interrupt and reloads from WDOGLOAD.
         self.registers.wdogintclr.set(1);
+        // The HIL requires tickle() to resume a suspended watchdog. Clearing
+        // the interrupt does not restart a stopped counter, so set IntEn here.
+        self.registers.wdogcontrol.modify(WDOGCONTROL::IntEn::SET);
     }
 
     fn suspend(&self) {
