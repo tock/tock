@@ -95,25 +95,25 @@ pub unsafe fn main() {
 
     // These symbols are defined in the linker script.
     extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
         /// Beginning of the RAM region for app memory.
         static mut _sappmem: u8;
         /// End of the RAM region for app memory.
         static _eappmem: u8;
     }
 
+    // SAFETY: The linker script ensures the symbols are valid and refer to a
+    // memory region entirely used to store TBFs. `_sapps` starts after the
+    // kernel text region and therefore is not null. We never create a mutable
+    // reference to the same memory region.
+    #[allow(unused_unsafe)]
+    let app_flash = unsafe { kernel::symbol_defined_slice!(_sapps, _eapps) };
+
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
+        app_flash,
         core::slice::from_raw_parts_mut(
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
