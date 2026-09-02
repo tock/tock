@@ -4,6 +4,7 @@
 
 //! Interface for configuring the Memory Protection Unit.
 
+use crate::context_tokens::PanicContext;
 use core::fmt::{self, Display};
 
 /// User mode access permissions.
@@ -300,4 +301,15 @@ pub unsafe trait MPU {
     /// transitively write to kernel-private memory (such as MMIO registers of
     /// DMA-capable peripherals).
     unsafe fn configure_mpu(&self, config: &Self::MpuConfig);
+}
+
+/// Disables the app MPU because the kernel is panicking.
+///
+/// [`MPU::disable_app_mpu`] is `unsafe` because the kernel must re-enable it
+/// via [`MPU::enable_app_mpu`] before ever switching back to an application.
+/// A panic never does: the caller is beginning to unwind panic-time
+/// diagnostics, and Tock's panic handlers never resume normal execution.
+pub fn mpu_disable_panic<M: MPU + ?Sized>(mpu: &M, _panic_context: &PanicContext) {
+    // SAFETY: we are panicking and will never switch back to an application.
+    unsafe { mpu.disable_app_mpu() }
 }
