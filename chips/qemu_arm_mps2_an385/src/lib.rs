@@ -4,8 +4,6 @@
 
 //! Chip support specific to the ARM MPS2 AN385 FPGA image.
 //!
-//! Shared peripherals live in the `qemu_arm_mps2` family crate.
-//!
 //! Nothing relocates the vector table: the image executes directly from
 //! address 0, where the linker script places `.vectors`.
 
@@ -36,8 +34,9 @@ extern "C" {
     link_section = ".vectors"
 )]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-// Stable name so each board's `layout.ld` can assert this crate was linked.
-#[unsafe(export_name = "mps2_vector_table")]
+// Stable, per-image name so each board's `layout.ld` can assert that its
+// own vector table -- not the other image's -- was linked in.
+#[unsafe(export_name = "mps2_an385_vector_table")]
 /// ARM Cortex-M Vector Table
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,                      // Stack Pointer
