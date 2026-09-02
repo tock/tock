@@ -126,9 +126,25 @@ impl<'a> Timer<'a> {
         // over every alarm expiry and every free-run wrap.
         self.resync();
 
-        if self.armed.take() {
-            self.client.map(|client| client.alarm());
+        if !self.armed.get() {
+            return;
         }
+
+        // The countdown that raised this interrupt is not necessarily the one
+        // the pending alarm is waiting on: a short countdown can reach 0
+        // between `set_alarm` sampling the clock and writing the new `VALUE`.
+        // Firing on that would report an alarm that is not due yet and leave
+        // the real deadline unarmed, so re-arm instead whenever the target is
+        // still ahead of us.
+        let now = self.now();
+        let remaining = Ticks32::from(self.target.get()).wrapping_sub(now);
+        if remaining.into_u32() != 0 && remaining < Ticks32::half_max_value() {
+            self.set_alarm(now, remaining);
+            return;
+        }
+
+        self.armed.set(false);
+        self.client.map(|client| client.alarm());
     }
 }
 
