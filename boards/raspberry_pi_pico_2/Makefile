@@ -16,6 +16,9 @@ BOOTSEL_FOLDER?=/run/media/$(USER)/RP2350
 .PHONY: install
 install: program
 
+.PHONY: flash-openocd
+flash-openocd: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	$(OPENOCD) $(OPENOCD_OPTIONS) -c "adapter speed 5000" -c "program $<; verify_image $<;  reset; shutdown;"
 
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin

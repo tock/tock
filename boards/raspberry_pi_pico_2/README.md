@@ -146,7 +146,7 @@ communication between the two devices.
 `cd` into `boards/raspberry_pi_pico` directory and run:
 
 ```bash
-$ make flash OPENOCD_INTERFACE=[swd|picoprobe]
+$ make flash-openocd OPENOCD_INTERFACE=[swd|picoprobe]
 ```
 
 The *OPENOCD_INTERFACE* parameter selects which mode to flash the target Pico
