@@ -519,7 +519,10 @@ pub struct UsartPanicWriterConfig {
 
 impl PanicWriter for Usart<'_> {
     type Config = UsartPanicWriterConfig;
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
+    fn create_panic_writer(
+        config: Self::Config,
+        _panic: &core::panic::PanicInfo,
+    ) -> impl IoWrite + core::fmt::Write {
         let writer = UsartPanicWriter {
             registers: config.base,
         };

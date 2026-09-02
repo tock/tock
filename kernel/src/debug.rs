@@ -165,7 +165,7 @@ pub unsafe fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
 ) {
     unsafe {
         // Create the synchronous writer we can use to output the panic message.
-        let mut writer = PW::create_panic_writer(writer_config);
+        let mut writer = PW::create_panic_writer(writer_config, panic_info);
 
         panic_begin(nop);
         // Flush debug buffer if needed
