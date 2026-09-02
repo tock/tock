@@ -4,11 +4,15 @@
 
 # Makefile for building the tock kernel for the Raspberry Pi Pico 2 board.
 
+# Get current directory for openocd configs path so this Makefile
+# can be included in others
+curr:=$(dir $(lastword $(MAKEFILE_LIST)))
+
 include ../Makefile.common
 
 OPENOCD=openocd
 OPENOCD_INTERFACE=picoprobe
-OPENOCD_OPTIONS=-f openocd-$(OPENOCD_INTERFACE).cfg
+OPENOCD_OPTIONS=-f $(curr)openocd-$(OPENOCD_INTERFACE).cfg
 
 BOOTSEL_FOLDER?=/run/media/$(USER)/RP2350
 
