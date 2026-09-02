@@ -102,6 +102,7 @@ but the approximate definitions:
 | [Raspberry Pi Pico 2](raspberry_pi_pico_2/README.md)              | ARM Cortex-M33   | RP2350         | openocd    | openocd                     | No            |
 | [LPCXpresso55S69 Development Board](lpc55s69-evk/README.md)       | ARM Cortex-M33   | LPC55S6x       | probe-rs   | probe-rs                    | No            |
 | [PSOC™ Control C3M5 Evaluation Kit](psc3m5_evk/README.md)         | ARM Cortex-M33   | PSC3M5         | openocd    | probe-rs                    | No            |
+| [Musca B1](musca_b1_board/README.md)                              | ARM Cortex-M33   | Musca-B1       | custom     | custom                      | No            |
 
 
 ### Other
