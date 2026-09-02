@@ -115,7 +115,7 @@ fn pwm_program_init(
     let out_isr_32_command = 0x60c0_u16;
     sm.config(config);
     crate::pio::gpio_init(
-        pio,
+        pio.number(),
         &RPGpioPin::new(RPGpio::from_u32(pin).expect("GPIO pin must be 0 to 29")),
     );
     sm.set_enabled(false);

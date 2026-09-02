@@ -15,10 +15,20 @@
 //! The test is whether the register layout and the behaviour are the same, not
 //! whether the names match. `clocks`, `gpio` and `uart` each diverge by
 //! hundreds of lines between the two chips and stay in their own crates.
+//!
+//! Not everything here is a driver. `dma` and `pads` hold no registers at all,
+//! only the traits a shared driver needs of a chip. DMA is the case that makes
+//! them necessary: its registers differ too much for one driver, so each chip
+//! keeps its own, and `dma` describes what `pio_gspi` needs of either. A
+//! peripheral can fail the test above and still have an interface worth
+//! stating once.
 
 #![no_std]
 
+pub mod dma;
+pub mod pads;
 pub mod pio;
+pub mod pio_gspi;
 pub mod spi;
 
 /// Access to the peripheral clock, `clk_peri`.

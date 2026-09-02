@@ -4,7 +4,7 @@
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use rp2040::gpio::{RPGpio, RPGpioPin};
+use rp2040::gpio::RPGpioPin;
 use rp2040::pio_gspi::PioGSpi;
 use rp2040::{dma, pio, pio_gspi};
 
@@ -18,8 +18,8 @@ pub struct PioGspiComponent {
     dma_irq: dma::Irq,
     pio: &'static pio::Pio,
     pio_sm: pio::SMNumber,
-    clk: RPGpio,
-    dio: RPGpio,
+    clk: &'static RPGpioPin<'static>,
+    dio: &'static RPGpioPin<'static>,
     cs: &'static RPGpioPin<'static>,
 }
 
@@ -29,8 +29,8 @@ impl PioGspiComponent {
         pio_sm: pio::SMNumber,
         dma_channel: dma::DmaChannel<'static>,
         dma_irq: dma::Irq,
-        clk: RPGpio,
-        dio: RPGpio,
+        clk: &'static RPGpioPin<'static>,
+        dio: &'static RPGpioPin<'static>,
         cs: &'static RPGpioPin<'static>,
     ) -> Self {
         Self {
@@ -56,8 +56,8 @@ impl Component for PioGspiComponent {
         let pio_gspi = static_memory.write(PioGSpi::new(
             self.pio,
             self.dma_channel,
-            self.clk as _,
-            self.dio as _,
+            self.clk,
+            self.dio,
             self.cs,
             self.pio_sm,
         ));
