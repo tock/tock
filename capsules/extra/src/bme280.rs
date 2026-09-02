@@ -138,6 +138,7 @@ impl<'a, I: I2CDevice> TemperatureDriver<'a> for Bme280<'a, I> {
             buffer[0] = PRESS_MSB;
 
             self.op.set(Operation::Temp);
+            // Read pressure and temperature.
             self.i2c.write_read(buffer, 1, 6).unwrap();
         });
 
@@ -163,7 +164,7 @@ impl<'a, I: I2CDevice> HumidityDriver<'a> for Bme280<'a, I> {
             buffer[0] = PRESS_MSB;
 
             self.op.set(Operation::Humidity);
-            // First 3 for pressure, next 3 for temp, last 2 for humidity
+            // Read pressure, temperature, and humidity.
             self.i2c.write_read(buffer, 1, 8).unwrap();
         });
 
@@ -189,7 +190,7 @@ impl<'a, I: I2CDevice> PressureDriver<'a> for Bme280<'a, I> {
             buffer[0] = PRESS_MSB;
 
             self.op.set(Operation::Pressure);
-            // First 3 read are pressure, next 3 is temperature
+            // Read pressure and temperature.
             self.i2c.write_read(buffer, 1, 6).unwrap();
         });
 
