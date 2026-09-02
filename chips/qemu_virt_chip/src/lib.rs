@@ -7,4 +7,5 @@
 #![forbid(unsafe_code)]
 #![no_std]
 
+pub mod pflash;
 pub mod uart;
