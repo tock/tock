@@ -4,8 +4,7 @@
 
 //! Tock kernel for the QEMU ARM MPS2 AN386 (Cortex-M4) machine.
 //!
-//! This board and `an385` are identical other than their CPU core;
-//! all the shared setup lives in `mps2_base`.
+//! The shared setup lives in `mps2_base`.
 
 #![no_std]
 #![no_main]

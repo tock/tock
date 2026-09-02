@@ -141,9 +141,8 @@ pub struct EarlyInit<C: CortexMVariant + 'static> {
 /// `static_init!()`, which does not itself guard against being called more
 /// than once. `C` must be the actual `CortexMVariant` of the CPU this is
 /// running on.
-/// This is in a separate, inline(never) function so that its stack frame is
-/// removed when this function returns. Otherwise, the stack space used for
-/// these static_inits is wasted.
+// inline(never) so this frame, and the stack the `static_init!()`s below use,
+// is reclaimed when it returns rather than held for the life of the kernel.
 #[inline(never)]
 pub unsafe fn early_init<C: CortexMVariant>(
     panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
@@ -190,9 +189,8 @@ pub unsafe fn early_init<C: CortexMVariant>(
 /// from the same boot, same `C`) -- this allocates more `'static` state and
 /// starts loading processes from the linker-defined app regions, neither of
 /// which is safe to repeat.
-/// This is in a separate, inline(never) function so that its stack frame is
-/// removed when this function returns. Otherwise, the stack space used for
-/// these static_inits is wasted.
+// inline(never) so this frame, and the stack the `static_init!()`s below use,
+// is reclaimed when it returns rather than held for the life of the kernel.
 #[inline(never)]
 pub unsafe fn finish_start<C: CortexMVariant>(
     early: EarlyInit<C>,

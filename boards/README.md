@@ -118,8 +118,8 @@ Virtual hardware platforms that are regularly tested as part of the CI.
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
 | [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md)    | RISC-V RV32IMAC  | QEMU           | custom     | custom                      | Yes (7.2.0)   |
 | [QEMU RISC-V 64 bit `virt` platform](qemu_rv64_virt/README.md)    | RISC-V RV64IMAC  | QEMU           | custom     | custom                      | Yes           |
-| [QEMU ARM MPS2 AN385](qemu_arm_mps2/an385/README.md)              | ARM Cortex-M3    | QEMU           | custom     | custom                      | Yes (10.2.1)  |
-| [QEMU ARM MPS2 AN386](qemu_arm_mps2/an386/README.md)              | ARM Cortex-M4    | QEMU           | custom     | custom                      | Yes (10.2.1)  |
+| [QEMU ARM MPS2 AN385](qemu_arm_mps2/an385/README.md)              | ARM Cortex-M3    | QEMU           | custom     | custom                      | Yes           |
+| [QEMU ARM MPS2 AN386](qemu_arm_mps2/an386/README.md)              | ARM Cortex-M4    | QEMU           | custom     | custom                      | Yes           |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                | RISC-V RV32IMC   | LiteX+VexRiscV | custom     | tockloader (flash-file)[^1] | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |
 | [VeeR EL2 simulation](veer_el2_sim/README.md)                     | RISC-V RV32IMC   | VeeR EL2       | custom     | custom                      | No            |
