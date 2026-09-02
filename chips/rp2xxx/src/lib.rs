@@ -4,17 +4,21 @@
 
 //! Peripherals shared by the RP2040 and the RP2350.
 //!
-//! Raspberry Pi's two microcontrollers share several Arm PrimeCell peripherals
-//! verbatim. Drivers for those live here, and the `rp2040` and `rp2350` crates
-//! wrap them with the parts that genuinely differ between the chips -- base
-//! addresses, clocks, and GPIO pin types.
+//! Raspberry Pi's two microcontrollers carry several peripherals one driver
+//! can serve. Some are Arm PrimeCells the two chips take verbatim, such as the
+//! PL022 in `spi`. Others are Raspberry Pi's own and differ only in where
+//! things sit rather than in how they are laid out, such as `pio`, whose
+//! interrupt registers begin at a different offset on each chip. Both belong
+//! here, and the `rp2040` and `rp2350` crates wrap them with what genuinely
+//! differs: base addresses, clocks, and GPIO pin types.
 //!
-//! Peripherals that only look alike are *not* here. `clocks`, `gpio` and `uart`
-//! each diverge by hundreds of lines between the two chips and stay in their
-//! own crates.
+//! The test is whether the register layout and the behaviour are the same, not
+//! whether the names match. `clocks`, `gpio` and `uart` each diverge by
+//! hundreds of lines between the two chips and stay in their own crates.
 
 #![no_std]
 
+pub mod pio;
 pub mod spi;
 
 /// Access to the peripheral clock, `clk_peri`.
