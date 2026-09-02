@@ -31,11 +31,14 @@ type LedDriver = capsules_core::led::LedDriver<'static, ScreenOnLedSingle, 4>;
 
 type ButtonDriver = capsules_extra::button_keyboard::ButtonKeyboard<'static>;
 
+type SyscallReturnTestDriver = components::syscall_return_test::SyscallReturnTestComponentType;
+
 struct Platform {
     base: qemu_rv64_virt_lib::QemuRv64VirtPlatform,
     screen: Option<&'static ScreenDriver>,
     led: Option<&'static LedDriver>,
     buttons: Option<&'static ButtonDriver>,
+    syscall_return_test: &'static SyscallReturnTestDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -65,6 +68,7 @@ impl SyscallDriverLookup for Platform {
                     f(None)
                 }
             }
+            capsules_extra::syscall_return_test::DRIVER_NUM => f(Some(self.syscall_return_test)),
 
             _ => self.base.with_driver(driver_num, f),
         }
@@ -208,11 +212,27 @@ pub unsafe fn main() {
         .finalize(components::keyboard_button_component_static!())
     });
 
+    //--------------------------------------------------------------------------
+    // SYSCALL RETURN TEST CAPSULE
+    //--------------------------------------------------------------------------
+
+    let syscall_return_test = components::syscall_return_test::SyscallReturnTestComponent::new(
+        board_kernel,
+        capsules_extra::syscall_return_test::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::syscall_return_test_component_static!());
+
+    //--------------------------------------------------------------------------
+    // PLATFORM
+    //--------------------------------------------------------------------------
+
     let platform = Platform {
         base: base_platform,
         screen,
         led,
         buttons,
+        syscall_return_test,
     };
 
     // Start the process console:
