@@ -918,29 +918,29 @@ impl Kernel {
                         // conversion.
                         let upcall = Upcall::new(process.processid(), upcall_id, appdata, upcall_ptr);
 
-                        // If `ptr` is not null, we must first verify that the
-                        // upcall function pointer is within process accessible
-                        // memory. Per TRD104:
-                        //
-                        // > If the passed upcall is not valid (is outside
-                        // > process executable memory...), the kernel...MUST
-                        // > immediately return a failure with a error code of
-                        // > `INVALID`.
-                        let rval1 = upcall_ptr.map_or(None, |upcall_ptr_nonnull| {
-                            if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull.as_ptr()) {
-                                Some(ErrorCode::INVAL)
-                            } else {
-                                None
-                            }
-                        });
+                        let rval = match driver {
+                            Some(driver) => {
+                                // If `ptr` is not null, we must first verify that the
+                                // upcall function pointer is within process accessible
+                                // memory. Per TRD104:
+                                //
+                                // > If the passed upcall is not valid (is outside
+                                // > process executable memory...), the kernel...MUST
+                                // > immediately return a failure with a error code of
+                                // > `INVALID`.
+                                let rval1 = upcall_ptr.map_or(None, |upcall_ptr_nonnull| {
+                                    if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull.as_ptr()) {
+                                        Some(ErrorCode::INVAL)
+                                    } else {
+                                        None
+                                    }
+                                });
 
-                        // If the upcall is either null or valid, then we
-                        // continue handling the upcall.
-                        let rval = match rval1 {
-                            Some(err) => upcall.into_subscribe_failure(err),
-                            None => {
-                                match driver {
-                                    Some(driver) => {
+                                // If the upcall is either null or valid, then we
+                                // continue handling the upcall.
+                                match rval1 {
+                                    Some(err) => upcall.into_subscribe_failure(err),
+                                    None => {
                                         // At this point we must save the new
                                         // upcall and return the old. The
                                         // upcalls are stored by the core kernel
@@ -1019,9 +1019,9 @@ impl Kernel {
                                             }
                                         }
                                     }
-                                    None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
                                 }
-                            }
+                            },
+                            None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
                         };
 
                         // Per TRD104, we only clear upcalls if the subscribe
