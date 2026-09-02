@@ -589,15 +589,18 @@ fn spi_program_init(
 ) {
     let sm = pio.sm(sm_number);
     sm.config(config);
-    pio.gpio_init(&RPGpioPin::new(
-        RPGpio::from_u32(clock_pin).expect("GPIO pin must be 0 to 29"),
-    ));
-    pio.gpio_init(&RPGpioPin::new(
-        RPGpio::from_u32(in_pin).expect("GPIO pin must be 0 to 29"),
-    ));
-    pio.gpio_init(&RPGpioPin::new(
-        RPGpio::from_u32(out_pin).expect("GPIO pin must be 0 to 29"),
-    ));
+    crate::pio::gpio_init(
+        pio,
+        &RPGpioPin::new(RPGpio::from_u32(clock_pin).expect("GPIO pin must be 0 to 29")),
+    );
+    crate::pio::gpio_init(
+        pio,
+        &RPGpioPin::new(RPGpio::from_u32(in_pin).expect("GPIO pin must be 0 to 29")),
+    );
+    crate::pio::gpio_init(
+        pio,
+        &RPGpioPin::new(RPGpio::from_u32(out_pin).expect("GPIO pin must be 0 to 29")),
+    );
     sm.set_enabled(false);
 
     // Important: make the sideset pin an output pin then make it a side set pin
