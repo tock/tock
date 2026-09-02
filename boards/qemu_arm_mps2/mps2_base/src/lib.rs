@@ -4,27 +4,24 @@
 
 //! Shared kernel setup for the QEMU ARM MPS2 boards.
 //!
-//! MPS2 boards are identical other than their CPU core, so this crate is
-//! generic over the [`CortexMVariant`] and provides everything that
-//! genericity allows to be shared: the `Platform` syscall driver lookup, the
-//! `ChipHw` type, and the process/capsule setup in [`early_init()`] /
-//! [`finish_start()`]. What can't be made generic stays in each board's own
-//! `main.rs`/`io.rs`:
-//! - The `static_init!(ChipHw<C>, ...)` allocation in between those two
-//!   calls, since a `static` can't reference a generic function's own type
-//!   parameter.
-//! - The `#[panic_handler]` function and its `PANIC_RESOURCES` static, for
-//!   the same reason (plus `#[panic_handler]` itself requires a concrete,
-//!   non-generic function).
-//! - `kernel::stack_size!`, an item-position macro that can't be invoked
-//!   from inside a generic function body.
-//! - The board name used in the boot banner.
+//! The MPS2 images differ only in their CPU core, so this crate is generic
+//! over [`CortexMVariant`] and holds everything that genericity allows to be
+//! shared: the `Platform` syscall driver lookup, the `ChipHw` type, and the
+//! process/capsule setup in [`early_init()`] / [`finish_start()`].
 //!
-//! Both boards use the same memory layout (identical addresses; only the
-//! two linker scripts' `MEMORY` blocks are duplicated, since each board
-//! crate needs its own): with the default linker script, a board loads
-//! processes from flash=0x00040000-0x0007FFFF into ram=0x21004000-
-//! 0x2101FFFF (RAM above the kernel's own static allocations).
+//! What stays in each board's own `main.rs`/`io.rs`:
+//! - The `static_init!(ChipHw<C>, ...)` allocation between those two calls: a
+//!   `static`'s type cannot name the enclosing generic function's own type
+//!   parameter.
+//! - `#[panic_handler]`, which has to be a concrete non-generic function, and
+//!   the `PANIC_RESOURCES` static it reads.
+//! - `kernel::stack_size!` and the board name in the boot banner.
+//!
+//! Both boards use the same memory layout, so the two linker scripts'
+//! `MEMORY` blocks are identical copies; each board crate needs its own.
+//! Processes are loaded from flash at 0x00040000-0x0007FFFF into the RAM
+//! above the kernel's own static allocations -- `_sappmem` in the built ELF
+//! -- up to 0x21020000.
 
 #![no_std]
 
@@ -124,25 +121,17 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
 /// [`finish_start()`].
 pub struct EarlyInit<C: CortexMVariant + 'static> {
     pub peripherals: &'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
-    pub processes: &'static kernel::process::ProcessArray<NUM_PROCS>,
-    pub board_kernel: &'static kernel::Kernel,
-    pub panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
+    processes: &'static kernel::process::ProcessArray<NUM_PROCS>,
+    board_kernel: &'static kernel::Kernel,
+    panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
 }
 
 /// Runs the CPU-variant init and allocates peripherals/kernel state.
 ///
-/// Split out from [`finish_start()`] because the `ChipHw<C>` allocation in
-/// between the two has to be a `static_init!()` written at a concrete,
-/// non-generic call site (a `static` can't reference a generic function's
-/// own type parameter — see each board's `main.rs`), so each board calls:
-/// `early_init`, then its own `static_init!(ChipHw<C>, ...)`, then
-/// `finish_start`.
-///
-/// `panic_resources` is board-owned for the same reason, but populating it
-/// happens here and in [`finish_start()`], so both boards only have to
-/// declare the static. It is carried through [`EarlyInit`] rather than
-/// passed to both functions, so the two halves cannot be handed different
-/// statics.
+/// A board calls `early_init`, then its own `static_init!(ChipHw<C>, ...)`,
+/// then [`finish_start()`]. `panic_resources` is populated across both
+/// halves; it travels in [`EarlyInit`] rather than being passed to each, so
+/// the two cannot be handed different statics.
 ///
 /// # Safety
 ///
@@ -152,6 +141,9 @@ pub struct EarlyInit<C: CortexMVariant + 'static> {
 /// `static_init!()`, which does not itself guard against being called more
 /// than once. `C` must be the actual `CortexMVariant` of the CPU this is
 /// running on.
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
 #[inline(never)]
 pub unsafe fn early_init<C: CortexMVariant>(
     panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
@@ -198,6 +190,9 @@ pub unsafe fn early_init<C: CortexMVariant>(
 /// from the same boot, same `C`) -- this allocates more `'static` state and
 /// starts loading processes from the linker-defined app regions, neither of
 /// which is safe to repeat.
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
 #[inline(never)]
 pub unsafe fn finish_start<C: CortexMVariant>(
     early: EarlyInit<C>,
