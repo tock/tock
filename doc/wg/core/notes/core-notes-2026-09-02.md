@@ -129,11 +129,11 @@ already done, it's just a milestone feature.
 2. QEMU boards for RISC-V and ARM tests.
 3. STM32U support.
 
-- https://urldefense.com/v3/__https://github.com/tock/tock/pull/5125__;!!Mih3wA!A8cvagIjDr8Z9hPbNNKPm8CAKIaLNkRLoJI_6otcLFYOvw3dz5YG5vBxt9pRdzkab6qsR0zM6nTT3l4HNQ$
-- https://urldefense.com/v3/__https://github.com/tock/tock/pull/5101__;!!Mih3wA!A8cvagIjDr8Z9hPbNNKPm8CAKIaLNkRLoJI_6otcLFYOvw3dz5YG5vBxt9pRdzkab6qsR0zM6nSWTPuCDQ$
-- https://urldefense.com/v3/__https://github.com/tock/tock/pull/5098__;!!Mih3wA!A8cvagIjDr8Z9hPbNNKPm8CAKIaLNkRLoJI_6otcLFYOvw3dz5YG5vBxt9pRdzkab6qsR0zM6nRxWX7pIA$
-- https://urldefense.com/v3/__https://github.com/tock/tock/pull/5034__;!!Mih3wA!A8cvagIjDr8Z9hPbNNKPm8CAKIaLNkRLoJI_6otcLFYOvw3dz5YG5vBxt9pRdzkab6qsR0zM6nRmkUAARA$
-- https://urldefense.com/v3/__https://github.com/tock/tock/pull/5022__;!!Mih3wA!A8cvagIjDr8Z9hPbNNKPm8CAKIaLNkRLoJI_6otcLFYOvw3dz5YG5vBxt9pRdzkab6qsR0zM6nTPfhTA0g$
+- https://github.com/tock/tock/pull/5125
+- https://github.com/tock/tock/pull/5101
+- https://github.com/tock/tock/pull/5098
+- https://github.com/tock/tock/pull/5034
+- https://github.com/tock/tock/pull/5022
 
 ## Notes
 
