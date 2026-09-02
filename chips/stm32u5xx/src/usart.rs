@@ -5,9 +5,11 @@
 use crate::dma::{ChannelId, Dma, DmaPeripheral};
 use core::cell::Cell;
 use cortexm33::dma_fence::CortexMDmaFence;
+use kernel::context_tokens::PanicContext;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{self};
 use kernel::platform::chip::PanicWriter;
+use kernel::platform::chip::PanicWriterFactory;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
@@ -490,7 +492,7 @@ impl<'a> uart::Receive<'a> for Usart<'a> {
     }
 }
 
-struct UsartPanicWriter {
+pub struct UsartPanicWriter {
     registers: StaticRef<UsartRegisters>,
 }
 
@@ -517,12 +519,13 @@ pub struct UsartPanicWriterConfig {
     pub base: StaticRef<UsartRegisters>,
 }
 
-impl PanicWriter for Usart<'_> {
+impl PanicWriterFactory for Usart<'_> {
     type Config = UsartPanicWriterConfig;
+    type Writer = UsartPanicWriter;
     fn create_panic_writer(
         config: Self::Config,
-        _panic: &core::panic::PanicInfo,
-    ) -> impl IoWrite + core::fmt::Write {
+        panic_context: &PanicContext,
+    ) -> PanicWriter<Self::Writer> {
         let writer = UsartPanicWriter {
             registers: config.base,
         };
@@ -533,6 +536,6 @@ impl PanicWriter for Usart<'_> {
         regs.brr.write(BRR::BRR.val(35));
         regs.cr1.write(CR1::TE::SET + CR1::RE::SET + CR1::UE::SET);
 
-        writer
+        PanicWriter::new(writer, panic_context)
     }
 }

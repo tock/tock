@@ -6,6 +6,7 @@ use core::fmt::Write;
 use kernel::debug;
 use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWriter;
 use kernel::utilities::registers::interfaces::Readable;
 
 use crate::clint;
@@ -146,7 +147,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
+    fn print_state<W: Write>(_this: Option<&Self>, write: &mut PanicWriter<W>) {
         rv32i::print_riscv_state(write);
     }
 }

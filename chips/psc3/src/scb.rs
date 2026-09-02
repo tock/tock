@@ -403,7 +403,7 @@ impl Configure for Scb<'_> {
 ///
 /// This is only to be used by panic messages and is not used within the normal
 /// operation of the Tock kernel.
-struct ScbPanicWriter<'a> {
+pub struct ScbPanicWriter<'a> {
     scb: Scb<'a>,
 }
 
@@ -426,13 +426,14 @@ pub struct ScbPanicWriterConfig {
     pub params: kernel::hil::uart::Parameters,
 }
 
-impl kernel::platform::chip::PanicWriter for Scb<'_> {
+impl<'a> kernel::platform::chip::PanicWriterFactory for Scb<'a> {
     type Config = ScbPanicWriterConfig;
+    type Writer = ScbPanicWriter<'a>;
 
     fn create_panic_writer(
         config: Self::Config,
-        _panic: &core::panic::PanicInfo,
-    ) -> impl IoWrite + core::fmt::Write {
+        panic_context: &kernel::context_tokens::PanicContext,
+    ) -> kernel::platform::chip::PanicWriter<Self::Writer> {
         use kernel::hil::uart::Configure as _;
 
         let scb = Scb::new();
@@ -445,6 +446,6 @@ impl kernel::platform::chip::PanicWriter for Scb<'_> {
 
         scb.enable_scb();
 
-        ScbPanicWriter { scb }
+        kernel::platform::chip::PanicWriter::new(ScbPanicWriter { scb }, panic_context)
     }
 }

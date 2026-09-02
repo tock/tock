@@ -8,7 +8,7 @@ use crate::pm;
 
 use core::fmt::Write;
 use cortexm4::{CortexM4, CortexMVariant};
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, InterruptService, PanicWriter};
 
 pub struct Sam4l<I: InterruptService + 'static> {
     mpu: cortexm4::mpu::MPU,
@@ -293,7 +293,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
         cortexm4::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state<W: Write>(_this: Option<&Self>, writer: &mut PanicWriter<W>) {
         CortexM4::print_cortexm_state(writer);
     }
 }
