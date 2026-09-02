@@ -93,7 +93,16 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         }
     }
 
-    pub fn init(&'static self) {
+    /// Since the `RccConfig` struct passed to `Rcc::init` is hardcoded here (as opposed to being passed in from outside), it's reasonable to assume that its fields are set correctly
+    ///
+    /// If, however, it is modified to be invalid (e.g. selecting a clock source in `RccConfig::mux` that isn't enabled), some peripheral clocks in the `Clocks` struct returned by `Rcc::init` may be `None`
+    ///
+    /// In that case:
+    /// - those peripherals' drivers will not get their clock via `set_clock`
+    ///     - some of their functions will fail, which is usually indicated by `Err(kernel::ErrorCode::FAIL)` where the HIL allows it
+    /// - the rest of the chip will still be initialized
+    /// - this function will return `Err(kernel::ErrorCode::INVAL)`; the board level can choose what to do in case this happens
+    pub fn init(&'static self) -> Result<(), kernel::ErrorCode> {
         // Enable clock routing to all used peripherals
         self.rcc.enable_tim2();
         self.rcc.enable_tim3();
@@ -158,20 +167,31 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         // It also returns whether some values from `RccConfig` were overridden for being invalid, but it's unused here
         let (clocks, _) = self.rcc.init(rcc_config, &self.pwr);
 
+        // This keeps track of whether all peripheral clocks are configured correctly
+        let mut clocks_ok = true;
+
         // Provide the clock frequency to each peripheral that needs it
-        // In case of a wrong RCC configuration, some of these may be `None`
         if let Some(c) = clocks.usart1 {
             self.usart1.set_clock(c);
+        } else {
+            clocks_ok = false;
         }
         if let Some(c) = clocks.spi1 {
             self.spi1.set_clock(c);
+        } else {
+            clocks_ok = false;
         }
         if let Some(c) = clocks.i2c1 {
             self.i2c1.set_clock(c);
+        } else {
+            clocks_ok = false;
         }
         if let Some(c) = clocks.rtc {
             self.rtc.set_clock(c);
+        } else {
+            clocks_ok = false;
         }
+        // These clocks cannot be absent, regardless of configuration
         self.tim2.set_clock(clocks.pclk1_tim);
         self.tim3.set_clock(clocks.pclk1_tim);
 
@@ -227,6 +247,13 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
 
         // Initialize SPI1
         let _ = self.spi1.init();
+
+        // Return an error if at least one of the peripheral clocks was invalid (as explained in the function's doc comment)
+        if clocks_ok {
+            Ok(())
+        } else {
+            Err(kernel::ErrorCode::INVAL)
+        }
     }
 }
 

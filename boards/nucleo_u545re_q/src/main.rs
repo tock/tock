@@ -289,7 +289,8 @@ unsafe fn start() -> (
     );
 
     // Initialize wiring (DMA, clocks)
-    periphs.init();
+    // This can only fail if the `RccConfig` inside is intentionally modified to be incorrect (as explained in the function's doc comment)
+    let _ = periphs.init();
 
     // Start the TIM2 timer, used for alarms
     // This can only fail if `set_clocks` was not called for `tim2` yet, but it's not the case, since it's done in `periphs.init()`
