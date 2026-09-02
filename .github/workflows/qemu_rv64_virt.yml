@@ -57,15 +57,13 @@ jobs:
       # Install elf2tab, required to build libtock-c userspace apps.
       - name: Install elf2tab
         run: |
-          cargo install elf2tab@0.13.0
+          cargo install elf2tab
 
       # Check out libtock-c to build a real userspace app.
       - name: Checkout libtock-c
         uses: actions/checkout@v7
         with:
           repository: tock/libtock-c
-          # Pinned to the libtock-c commit that added rv64 support (tock/libtock-c#572).
-          ref: 32c7099ffaba54e9f847da8009ef74ade8442314
           path: libtock-c
 
       # Build the qemu_rv64_virt board kernel.
