@@ -1,28 +1,20 @@
 QEMU ARM MPS2 AN386 (Cortex-M4) Platform
 =========================================
 
-This board crate targets QEMU's `mps2-an386` machine: an emulation of ARM's own
-"MPS2 + AN386" Cortex-M System Design Kit (CMSDK) reference platform, not a
-real vendor chip. This is a purely virtual target for exercising the Cortex-M4
-arch under QEMU, useful for CI and kernel development without access to real
-ARM hardware.
+QEMU's `mps2-an386` machine, emulating ARM's "MPS2 + AN386" CMSDK reference
+platform. Built for `thumbv7em-none-eabi`.
 
-The AN386 does have a FPU available, but this board does not yet exercise that
+The AN386 does have an FPU available, but this board does not yet exercise it
 (i.e., it uses the `cortexm4` architecture crate, not `cortexm4f`).
 
-See `mps2_base`'s README for peripheral details.
+See the [family README](../mps2_base/README.md) for the peripherals these
+boards support and for how to run them.
 
-Running QEMU
-------------
-
-- **`run`**: Start Tock on an emulated QEMU board:
+- **`run`**: start Tock under QEMU:
 
   ```
   $ make run
   [...]
-     text	   data	    bss	    dec	    hex	filename
-    63532	      0	  15664	  79196	  1355c	target/thumbv7em-none-eabi/release/mps2-an386
-
   Running QEMU emulator version 10.2.1 with
    - kernel target/thumbv7em-none-eabi/release/mps2-an386.elf
   To exit type C-a x
@@ -32,5 +24,4 @@ Running QEMU
   tock$
   ```
 
-- **`run-app`**: same as `mps2-an385`'s (`make run-app
-  APP=$PATH_TO_APP.tbf`).
+- **`run-app`**: start Tock with one or more apps loaded.

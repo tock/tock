@@ -1,9 +1,11 @@
 QEMU ARM MPS2 Family
 ====================
 
-ARM provides the `MPS + ANXXX` Cortex-M System Design Kit (CMSDK) reference
-platforms for hardware bringup. These are a common peripheral suite coupled with
-differing cores. This crate is the shared base platform.
+ARM's `MPS + ANXXX` Cortex-M System Design Kit (CMSDK) reference platforms pair
+one peripheral suite with a range of cores. QEMU emulates several of them; the
+`an385` and `an386` boards beside this crate are purely virtual targets for
+exercising the Cortex-M architecture crates under CI, with no real hardware
+involved. This crate is the platform code they share.
 
 Peripherals
 -----------
@@ -39,3 +41,18 @@ default is, not meaningful data. The driver therefore always enables `CR1.LBM`
 a zero-sized placeholder for the same reason GPIO is unavailable: there's no
 functional GPIO pin to toggle for it, and no real device to select in the first
 place.
+
+Running
+-------
+
+`qemu-system-arm` needs `-machine mps2-an38x` and `-kernel $TOCK_KERNEL.elf`;
+each board's `make run` supplies both. QEMU executes a Cortex-M ELF directly
+from its vector table at address 0, so no bootloader or `-bios` indirection is
+needed, and `-nographic` suppresses the graphical window (there is no display
+device).
+
+`make run-app APP=$PATH_TO_APP.tbf` boots with one or more apps loaded at
+`APP_ADDRESS` (0x00040000). To load several at once, concatenate their `.tbf`
+files largest-first (e.g. `cat app1.tbf app2.tbf > apps.bin`): `elf2tab` pads
+each `.tbf` to a power-of-two size for MPU alignment, and the loader assumes
+that ordering.
