@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2026.
 
 //! Semihosting support for ARM Cortex M Architectures.
 
@@ -11,14 +11,14 @@
 ///
 /// Not exposed outside this module: it's a general, unrestricted semihosting
 /// interface. External callers should use specific, narrow operations (e.g.
-/// [`semihost_terminate`]) that encode specific commands.
+/// [`terminate`]) that encode specific commands.
 ///
 /// # Safety
 ///
 /// Only meaningful when running under a semihosting host (e.g. QEMU started
-/// with `-semihosting`, or an attached debug probe); otherwise the `bkpt`
-/// instruction traps with no host to service it, so **the caller must not
-/// assume this call takes effect**.
+/// with `-semihosting`, or an attached debug probe). With no host, the `bkpt`
+/// raises a debug exception instead, escalating to a `HardFault` when nothing
+/// is configured to take it.
 ///
 /// The exact safety requirements depend on `operation`. This method should
 /// not be called directly with raw parameters. Instead, this module wraps
@@ -44,8 +44,8 @@ unsafe fn semihost_command(operation: u32, parameter: u32) -> u32 {
     //     `SYS_WRITEC`) dereference `parameter` as a pointer.
     //   - pure, readonly: not applicable, as above.
     //   - preserves_flags: not documented by the semihosting spec.
-    //   - noreturn: we do fall through (there may be no host to service
-    //     this call at all, e.g. real hardware with no debugger attached).
+    //   - noreturn: we do fall through -- even for `SYS_EXIT`, since a
+    //     semihosting host can choose to resume the target.
     //   - att_syntax: not on arm.
     //   - raw: not required.
     unsafe {
@@ -104,7 +104,7 @@ pub enum SysexitReason {
 ///
 /// This nominally halts execution, thus the caller should have the authority to
 /// halt execution. This *should* only be called on under semihosting (e.g. on
-/// a QEMU board); on other targets the `BPKT` will escalate to a `HardFault`.
+/// a QEMU board); on other targets the `BKPT` will escalate to a `HardFault`.
 ///
 /// This **may not actually halt execution**. A debugger *can* tell semihosting
 /// to resume the target. Callers must assume this can fall through.
