@@ -125,8 +125,10 @@ impl<'a> Uart<'a> {
             self.registers.intstatus.write(INTSTATUS::Rx::SET);
             self.receive_continue();
         }
-        // Overrun conditions: clear them so the interrupt doesn't retrigger.
-        // There is no HIL-level overrun reporting for this simple device.
+        // Overrun conditions. These sources are never enabled (CTRL's
+        // TxOverrunIntEn/RxOverrunIntEn stay clear), so this is defensive:
+        // clear both the latched condition and the interrupt so a source
+        // enabled later cannot retrigger endlessly.
         if intstatus.is_set(INTSTATUS::TxOverrun) {
             self.registers.state.write(STATE::TxOverrun::SET);
             self.registers.intstatus.write(INTSTATUS::TxOverrun::SET);
@@ -164,6 +166,13 @@ impl<'a> Uart<'a> {
 
     fn receive_continue(&self) {
         let Some(rx_buffer) = self.rx_buffer.take() else {
+            // No receive outstanding. Read the byte out anyway and drop it:
+            // the device has a single byte of receive storage and accepts no
+            // further input while it is full, so leaving it there stalls
+            // reception permanently.
+            if self.registers.state.is_set(STATE::RxFull) {
+                let _ = self.registers.data.read(DATA::Data);
+            }
             return;
         };
 
@@ -175,7 +184,6 @@ impl<'a> Uart<'a> {
         }
 
         if index == len {
-            self.registers.ctrl.modify(CTRL::RxIntEn::CLEAR);
             self.rx_client.map(move |client| {
                 client.received_buffer(rx_buffer, len, Ok(()), hil::uart::Error::None)
             });
@@ -210,9 +218,14 @@ impl hil::uart::Configure for Uart<'_> {
             return Err(ErrorCode::INVAL);
         }
         self.registers.bauddiv.write(BAUDDIV::Div.val(bauddiv));
+        // RxIntEn stays set for as long as the receiver is enabled. The
+        // device latches INTSTATUS.RX only at the instant a byte arrives, and
+        // only if RxIntEn is set right then, so enabling it per-operation
+        // loses any byte that arrives between operations -- and with it every
+        // later byte, because the full holding register blocks reception.
         self.registers
             .ctrl
-            .modify(CTRL::TxEn::SET + CTRL::RxEn::SET);
+            .modify(CTRL::TxEn::SET + CTRL::RxEn::SET + CTRL::RxIntEn::SET);
 
         Ok(())
     }
@@ -251,7 +264,14 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        // Aborting a transmission in progress is not supported, but the HIL
+        // asks for Ok(()) -- and no callback -- when there is nothing to
+        // abort in the first place.
+        if self.tx_buffer.is_some() {
+            Err(ErrorCode::FAIL)
+        } else {
+            Ok(())
+        }
     }
 
     fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
@@ -279,13 +299,18 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
         self.rx_index.set(0);
-        self.registers.ctrl.modify(CTRL::RxIntEn::SET);
 
         Ok(())
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        // An outstanding receive cannot be cancelled, but "nothing
+        // outstanding" is Ok(()) with no callback.
+        if self.rx_buffer.is_some() {
+            Err(ErrorCode::FAIL)
+        } else {
+            Ok(())
+        }
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
@@ -342,6 +367,8 @@ impl kernel::platform::chip::PanicWriter for UartPanicWriter<'_> {
 
         let inner = Uart::new(config.base);
         inner.reset();
+        // Nothing to report a failure to: this runs from the panic handler,
+        // and the parameters come from the board's own configuration.
         let _ = inner.configure(config.params);
         UartPanicWriter { inner }
     }
