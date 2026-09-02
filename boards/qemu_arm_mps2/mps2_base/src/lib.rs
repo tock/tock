@@ -7,12 +7,13 @@
 //! The MPS2 images differ only in their CPU core, so this crate is generic
 //! over [`CortexMVariant`] and holds everything that genericity allows to be
 //! shared: the `Platform` syscall driver lookup, the `ChipHw` type, and the
-//! process/capsule setup in [`early_init()`] / [`finish_start()`].
+//! process/capsule setup in [`start()`].
 //!
 //! What stays in each board's own `main.rs`/`io.rs`:
-//! - The `static_init!(ChipHw<C>, ...)` allocation between those two calls: a
-//!   `static`'s type cannot name the enclosing generic function's own type
-//!   parameter.
+//! - The `static_init!(ChipHw<C>, ...)` allocation, which [`start()`] takes
+//!   as a closure: a `static`'s type cannot name the enclosing generic
+//!   function's own type parameter, so it has to be written at the board's
+//!   concrete type.
 //! - `#[panic_handler]`, which has to be a concrete non-generic function, and
 //!   the `PANIC_RESOURCES` static it reads.
 //! - `kernel::stack_size!` and the board name in the boot banner.
@@ -117,36 +118,36 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
     }
 }
 
-/// Peripherals and kernel state ready for allocating the chip and calling
-/// [`finish_start()`].
-pub struct EarlyInit<C: CortexMVariant + 'static> {
-    pub peripherals: &'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
-    processes: &'static kernel::process::ProcessArray<NUM_PROCS>,
-    board_kernel: &'static kernel::Kernel,
-    panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
-}
-
-/// Runs the CPU-variant init and allocates peripherals/kernel state.
+/// Brings the board up and starts loading processes.
 ///
-/// A board calls `early_init`, then its own `static_init!(ChipHw<C>, ...)`,
-/// then [`finish_start()`]. `panic_resources` is populated across both
-/// halves; it travels in [`EarlyInit`] rather than being passed to each, so
-/// the two cannot be handed different statics.
+/// `alloc_chip` allocates the `ChipHw<C>`. That allocation has to be a
+/// `static_init!()` written at the board's concrete type, because a
+/// `static`'s type cannot name the enclosing generic function's own type
+/// parameter; taking it as a closure keeps the rest of the sequence in here,
+/// where its ordering is not something a board can get wrong.
 ///
 /// # Safety
 ///
-/// Must be called exactly once, before any other access to the chip's
-/// peripherals or kernel state, from the board's `main()` entry point --
-/// this performs one-time hardware init and allocates `'static` state via
-/// `static_init!()`, which does not itself guard against being called more
-/// than once. `C` must be the actual `CortexMVariant` of the CPU this is
-/// running on.
+/// Must be called exactly once, from the board's `main()` entry point and
+/// before any other access to the chip's peripherals or kernel state -- this
+/// performs one-time hardware init, allocates `'static` state via
+/// `static_init!()`, and starts loading processes from the linker-defined app
+/// regions, none of which is safe to repeat. `C` must be the actual
+/// `CortexMVariant` of the CPU this is running on.
 // inline(never) so this frame, and the stack the `static_init!()`s below use,
 // is reclaimed when it returns rather than held for the life of the kernel.
 #[inline(never)]
-pub unsafe fn early_init<C: CortexMVariant>(
+pub unsafe fn start<C: CortexMVariant, F>(
     panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
-) -> EarlyInit<C> {
+    alloc_chip: F,
+) -> (
+    &'static kernel::Kernel,
+    &'static Platform,
+    &'static ChipHw<C>,
+)
+where
+    F: FnOnce(&'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>) -> &'static ChipHw<C>,
+{
     ChipHw::<C>::init();
 
     kernel::deferred_call::initialize_deferred_call_state::<<ChipHw<C> as Chip>::ThreadIdProvider>(
@@ -168,44 +169,7 @@ pub unsafe fn early_init<C: CortexMVariant>(
         resources.processes.put(processes.as_slice());
     });
 
-    EarlyInit {
-        peripherals,
-        processes,
-        board_kernel,
-        panic_resources,
-    }
-}
-
-/// Finishes board setup and starts loading processes.
-///
-/// `chip` must have been allocated by the caller via
-/// `static_init!(ChipHw<C>, ChipHw::<C>::new(early_init.peripherals))`
-/// after [`early_init()`] — see its docs for why.
-///
-/// # Safety
-///
-/// Must be called exactly once, immediately after the [`early_init()`] call
-/// that produced `early` and the `static_init!()` that produced `chip` (both
-/// from the same boot, same `C`) -- this allocates more `'static` state and
-/// starts loading processes from the linker-defined app regions, neither of
-/// which is safe to repeat.
-// inline(never) so this frame, and the stack the `static_init!()`s below use,
-// is reclaimed when it returns rather than held for the life of the kernel.
-#[inline(never)]
-pub unsafe fn finish_start<C: CortexMVariant>(
-    early: EarlyInit<C>,
-    chip: &'static ChipHw<C>,
-) -> (
-    &'static kernel::Kernel,
-    &'static Platform,
-    &'static ChipHw<C>,
-) {
-    let EarlyInit {
-        peripherals,
-        processes,
-        board_kernel,
-        panic_resources,
-    } = early;
+    let chip = alloc_chip(peripherals);
 
     panic_resources.get().map(|resources| {
         resources.chip.put(chip);

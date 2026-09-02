@@ -33,20 +33,18 @@ static PANIC_RESOURCES: SingleThreadValue<
 pub unsafe fn main() {
     // SAFETY: `main` is only ever invoked once, by the reset handler, before
     // anything else touches the chip's peripherals or kernel state -- see
-    // `mps2_base::early_init()`'s safety doc. `CortexM4` is this
-    // board's actual CPU core.
-    let early = unsafe { mps2_base::early_init::<qemu_arm_mps2_an386::CortexM4>(&PANIC_RESOURCES) };
-
-    // Create the actual chip instance (with specific Cortex-M variant)
-    let chip = static_init!(
-        mps2_base::ChipHw<qemu_arm_mps2_an386::CortexM4>,
-        mps2_base::ChipHw::<qemu_arm_mps2_an386::CortexM4>::new(early.peripherals)
-    );
-
-    // SAFETY: called immediately after the `early_init()`/`static_init!()`
-    // pair above, from the same boot, same `C` -- see
-    // `mps2_base::finish_start()`'s safety doc.
-    let (board_kernel, platform, chip) = unsafe { mps2_base::finish_start(early, chip) };
+    // `mps2_base::start()`'s safety doc. `CortexM4` is this board's actual CPU
+    // core.
+    let (board_kernel, platform, chip) = unsafe {
+        mps2_base::start::<qemu_arm_mps2_an386::CortexM4, _>(&PANIC_RESOURCES, |peripherals| {
+            // The chip instance names the Cortex-M variant concretely, which
+            // `static_init!()` cannot do inside a generic function.
+            static_init!(
+                mps2_base::ChipHw<qemu_arm_mps2_an386::CortexM4>,
+                mps2_base::ChipHw::<qemu_arm_mps2_an386::CortexM4>::new(peripherals)
+            )
+        })
+    };
 
     kernel::debug!("QEMU MPS2 AN386 (Cortex-M4) initialization complete.");
     kernel::debug!("Entering main loop.");
