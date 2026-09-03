@@ -211,7 +211,7 @@ enum State {
 #[derive(Default)]
 pub struct App {}
 
-pub struct TSL2561<'a, I: i2c::I2CDevice> {
+pub struct TSL2561<'a, I: i2c::I2CDevice<'a>> {
     i2c: &'a I,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
@@ -220,7 +220,7 @@ pub struct TSL2561<'a, I: i2c::I2CDevice> {
     owning_process: OptionalCell<ProcessId>,
 }
 
-impl<'a, I: i2c::I2CDevice> TSL2561<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> TSL2561<'a, I> {
     pub fn new(
         i2c: &'a I,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
@@ -359,7 +359,7 @@ impl<'a, I: i2c::I2CDevice> TSL2561<'a, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> i2c::I2CClient for TSL2561<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> i2c::I2CClient for TSL2561<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::SelectId => {
@@ -449,7 +449,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for TSL2561<'_, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> gpio::Client for TSL2561<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> gpio::Client for TSL2561<'a, I> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
@@ -464,7 +464,7 @@ impl<I: i2c::I2CDevice> gpio::Client for TSL2561<'_, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> SyscallDriver for TSL2561<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> SyscallDriver for TSL2561<'a, I> {
     fn command(
         &self,
         command_num: usize,

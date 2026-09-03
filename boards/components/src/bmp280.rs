@@ -33,6 +33,7 @@ use capsules_extra::bmp280::Bmp280;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 use kernel::hil::time::Alarm;
 
 #[macro_export]

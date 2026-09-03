@@ -37,7 +37,7 @@ enum Operation {
     RainFall,
 }
 
-pub struct DFRobotRainFall<'a, A: Alarm<'a>, I: I2CDevice> {
+pub struct DFRobotRainFall<'a, A: Alarm<'a>, I: I2CDevice<'a>> {
     buffer: TakeCell<'static, [u8]>,
     i2c: &'a I,
     rainfall_client: OptionalCell<&'a dyn RainFallClient>,
@@ -46,7 +46,7 @@ pub struct DFRobotRainFall<'a, A: Alarm<'a>, I: I2CDevice> {
     alarm: &'a A,
 }
 
-impl<'a, A: Alarm<'a>, I: I2CDevice> DFRobotRainFall<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: I2CDevice<'a>> DFRobotRainFall<'a, A, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> Self {
         DFRobotRainFall {
             buffer: TakeCell::new(buffer),
@@ -73,7 +73,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> DFRobotRainFall<'a, A, I> {
     }
 }
 
-impl<'a, A: Alarm<'a>, I: I2CDevice> RainFallDriver<'a> for DFRobotRainFall<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: I2CDevice<'a>> RainFallDriver<'a> for DFRobotRainFall<'a, A, I> {
     fn set_client(&self, client: &'a dyn RainFallClient) {
         self.rainfall_client.set(client);
     }
@@ -107,7 +107,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> RainFallDriver<'a> for DFRobotRainFall<'a, 
     }
 }
 
-impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for DFRobotRainFall<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: I2CDevice<'a>> I2CClient for DFRobotRainFall<'a, A, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.buffer.replace(buffer);
@@ -186,7 +186,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for DFRobotRainFall<'a, A, I> {
     }
 }
 
-impl<'a, A: Alarm<'a>, I: I2CDevice> AlarmClient for DFRobotRainFall<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: I2CDevice<'a>> AlarmClient for DFRobotRainFall<'a, A, I> {
     fn alarm(&self) {
         match self.op.get() {
             Operation::None => (),

@@ -35,7 +35,7 @@ enum State {
     WritePage(u8),
 }
 
-pub struct Sh1106<'a, I: hil::i2c::I2CDevice> {
+pub struct Sh1106<'a, I: hil::i2c::I2CDevice<'a>> {
     i2c: &'a I,
     state: Cell<State>,
     client: OptionalCell<&'a dyn hil::screen::ScreenClient>,
@@ -50,7 +50,7 @@ pub struct Sh1106<'a, I: hil::i2c::I2CDevice> {
     active_frame_height: Cell<u8>,
 }
 
-impl<'a, I: hil::i2c::I2CDevice> Sh1106<'a, I> {
+impl<'a, I: hil::i2c::I2CDevice<'a>> Sh1106<'a, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8], enable_charge_pump: bool) -> Self {
         Self {
             i2c,
@@ -231,7 +231,7 @@ impl<'a, I: hil::i2c::I2CDevice> Sh1106<'a, I> {
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice> hil::screen::ScreenSetup<'a> for Sh1106<'a, I> {
+impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::ScreenSetup<'a> for Sh1106<'a, I> {
     fn set_client(&self, client: &'a dyn hil::screen::ScreenSetupClient) {
         self.setup_client.set(client);
     }
@@ -271,7 +271,7 @@ impl<'a, I: hil::i2c::I2CDevice> hil::screen::ScreenSetup<'a> for Sh1106<'a, I> 
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice> hil::screen::Screen<'a> for Sh1106<'a, I> {
+impl<'a, I: hil::i2c::I2CDevice<'a>> hil::screen::Screen<'a> for Sh1106<'a, I> {
     fn set_client(&self, client: &'a dyn hil::screen::ScreenClient) {
         self.client.set(client);
     }
@@ -367,7 +367,7 @@ impl<'a, I: hil::i2c::I2CDevice> hil::screen::Screen<'a> for Sh1106<'a, I> {
     }
 }
 
-impl<I: hil::i2c::I2CDevice> hil::i2c::I2CClient for Sh1106<'_, I> {
+impl<'a, I: hil::i2c::I2CDevice<'a>> hil::i2c::I2CClient for Sh1106<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), hil::i2c::Error>) {
         self.buffer.replace(buffer);
         self.i2c.disable();

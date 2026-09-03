@@ -78,7 +78,7 @@ enum Registers {
     LpfpRes = 0x33,
 }
 
-pub struct Lps22hb<'a, I: I2CDevice> {
+pub struct Lps22hb<'a, I: I2CDevice<'a>> {
     buffer: TakeCell<'static, [u8]>,
     i2c_bus: &'a I,
     pressure_client: OptionalCell<&'a dyn PressureClient>,
@@ -86,7 +86,7 @@ pub struct Lps22hb<'a, I: I2CDevice> {
     state: Cell<State>,
 }
 
-impl<'a, I: I2CDevice> Lps22hb<'a, I> {
+impl<'a, I: I2CDevice<'a>> Lps22hb<'a, I> {
     pub fn new(i2c_bus: &'a I, buffer: &'static mut [u8]) -> Lps22hb<'a, I> {
         Lps22hb {
             buffer: TakeCell::new(buffer),
@@ -131,7 +131,7 @@ impl<'a, I: I2CDevice> Lps22hb<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> PressureDriver<'a> for Lps22hb<'a, I> {
+impl<'a, I: I2CDevice<'a>> PressureDriver<'a> for Lps22hb<'a, I> {
     fn set_client(&self, client: &'a dyn PressureClient) {
         self.pressure_client.set(client);
     }
@@ -158,7 +158,7 @@ pub enum State {
     GotMeasurement,
 }
 
-impl<I: I2CDevice> I2CClient for Lps22hb<'_, I> {
+impl<'a, I: I2CDevice<'a>> I2CClient for Lps22hb<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.state.set(State::Idle);

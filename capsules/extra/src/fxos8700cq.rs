@@ -182,7 +182,7 @@ enum State {
 }
 
 pub struct Fxos8700cq<'a> {
-    i2c: &'a dyn I2CDevice,
+    i2c: &'a dyn I2CDevice<'a>,
     interrupt_pin1: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -191,7 +191,7 @@ pub struct Fxos8700cq<'a> {
 
 impl<'a> Fxos8700cq<'a> {
     pub fn new(
-        i2c: &'a dyn I2CDevice,
+        i2c: &'a dyn I2CDevice<'a>,
         interrupt_pin1: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
     ) -> Fxos8700cq<'a> {

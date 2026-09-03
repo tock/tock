@@ -183,7 +183,7 @@ enum Operation {
 
 pub struct Atecc508a<'a> {
     buffer: TakeCell<'static, [u8]>,
-    i2c: &'a dyn I2CDevice,
+    i2c: &'a dyn I2CDevice<'a>,
     op: Cell<Operation>,
     op_len: Cell<usize>,
 
@@ -215,7 +215,7 @@ pub struct Atecc508a<'a> {
 
 impl<'a> Atecc508a<'a> {
     pub fn new(
-        i2c: &'a dyn I2CDevice,
+        i2c: &'a dyn I2CDevice<'a>,
         buffer: &'static mut [u8],
         entropy_buffer: &'static mut [u8; 32],
         digest_buffer: &'static mut [u8; 64],
