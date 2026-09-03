@@ -57,24 +57,6 @@ jobs:
           repository: tock/libtock-c
           path: libtock-c
 
-      - name: Build libtock-c apps
-        shell: bash
-        run: |
-          export TOCK_TARGETS="\
-            rv64imac|rv64imac.0x80100080.0x80300000|0x80100080|0x80300000\
-            rv64imac|rv64imac.0x80110080.0x80310000|0x80110080|0x80310000\
-            rv64imac|rv64imac.0x80130080.0x80330000|0x80130080|0x80330000\
-            rv64imac|rv64imac.0x80180080.0x80380000|0x80180080|0x80380000"
-          pushd libtock-c/examples
-          make -C c_hello
-          make -C tests/led/led-odd
-          make -C tests/u8g2-demos/tock-logo
-          make -C tests/button_print
-          make -C tests/console/console
-          make -C blink
-          make -C tests/exit
-          popd
-
       - name: Build the qemu_rv64_virt-test-ci kernel
         shell: bash
         run: |

@@ -9,6 +9,11 @@ use crate::{TestCase, TestStep};
 pub static BOARD: super::Board = super::Board {
     name: "qemu_rv64_virt",
     board_dir: "../../../boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci",
+    tock_targets: "\
+        rv64imac|rv64imac.0x80100080.0x80300000|0x80100080|0x80300000 \
+        rv64imac|rv64imac.0x80110080.0x80310000|0x80110080|0x80310000 \
+        rv64imac|rv64imac.0x80130080.0x80330000|0x80130080|0x80330000 \
+        rv64imac|rv64imac.0x80180080.0x80380000|0x80180080|0x80380000",
     tests: TESTS,
 };
 
