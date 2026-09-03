@@ -139,7 +139,7 @@ pub trait LTC294XClient {
 }
 
 /// Implementation of a driver for the LTC294X coulomb counters.
-pub struct LTC294X<'a, I: i2c::I2CDevice> {
+pub struct LTC294X<'a, I: i2c::I2CDevice<'a>> {
     i2c: &'a I,
     interrupt_pin: Option<&'a dyn gpio::InterruptPin<'a>>,
     model: Cell<ChipModel>,
@@ -148,7 +148,7 @@ pub struct LTC294X<'a, I: i2c::I2CDevice> {
     client: OptionalCell<&'static dyn LTC294XClient>,
 }
 
-impl<'a, I: i2c::I2CDevice> LTC294X<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> LTC294X<'a, I> {
     pub fn new(
         i2c: &'a I,
         interrupt_pin: Option<&'a dyn gpio::InterruptPin<'a>>,
@@ -341,7 +341,7 @@ impl<'a, I: i2c::I2CDevice> LTC294X<'a, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> i2c::I2CClient for LTC294X<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> i2c::I2CClient for LTC294X<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadStatus => {
@@ -415,7 +415,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LTC294X<'_, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> gpio::Client for LTC294X<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> gpio::Client for LTC294X<'a, I> {
     fn fired(&self) {
         self.client.map(|client| {
             client.interrupt();
@@ -441,13 +441,13 @@ mod upcall {
 
 /// Default implementation of the LTC2941 driver that provides a Driver
 /// interface for providing access to applications.
-pub struct LTC294XDriver<'a, I: i2c::I2CDevice> {
+pub struct LTC294XDriver<'a, I: i2c::I2CDevice<'a>> {
     ltc294x: &'a LTC294X<'a, I>,
     grants: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
-impl<'a, I: i2c::I2CDevice> LTC294XDriver<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> LTC294XDriver<'a, I> {
     pub fn new(
         ltc: &'a LTC294X<'a, I>,
         grants: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
@@ -460,7 +460,7 @@ impl<'a, I: i2c::I2CDevice> LTC294XDriver<'a, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> LTC294XClient for LTC294XDriver<'a, I> {
     fn interrupt(&self) {
         self.owning_process.map(|pid| {
             let _res = self.grants.enter(pid, |_app, upcalls| {
@@ -525,7 +525,7 @@ impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> SyscallDriver for LTC294XDriver<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> SyscallDriver for LTC294XDriver<'a, I> {
     /// Request operations for the LTC294X chip.
     ///
     /// ### `command_num`

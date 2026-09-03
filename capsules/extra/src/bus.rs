@@ -418,7 +418,7 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for SpiMasterBus<'a, S> {
 
 /*********** I2C ************/
 
-pub struct I2CMasterBus<'a, I: I2CDevice> {
+pub struct I2CMasterBus<'a, I: I2CDevice<'a>> {
     i2c: &'a I,
     len: Cell<usize>,
     client: OptionalCell<&'a dyn Client>,
@@ -426,7 +426,7 @@ pub struct I2CMasterBus<'a, I: I2CDevice> {
     status: Cell<BusStatus>,
 }
 
-impl<'a, I: I2CDevice> I2CMasterBus<'a, I> {
+impl<'a, I: I2CDevice<'a>> I2CMasterBus<'a, I> {
     pub fn new(i2c: &'a I, addr_buffer: &'static mut [u8]) -> I2CMasterBus<'a, I> {
         I2CMasterBus {
             i2c,
@@ -438,7 +438,7 @@ impl<'a, I: I2CDevice> I2CMasterBus<'a, I> {
     }
 }
 
-impl<'a, A: BusAddr, I: I2CDevice> Bus<'a, A> for I2CMasterBus<'a, I> {
+impl<'a, A: BusAddr, I: I2CDevice<'a>> Bus<'a, A> for I2CMasterBus<'a, I> {
     fn set_addr(&self, addr: A) -> Result<(), ErrorCode> {
         self.addr_buffer
             .take()
@@ -509,7 +509,7 @@ impl<'a, A: BusAddr, I: I2CDevice> Bus<'a, A> for I2CMasterBus<'a, I> {
     }
 }
 
-impl<I: I2CDevice> I2CClient for I2CMasterBus<'_, I> {
+impl<'a, I: I2CDevice<'a>> I2CClient for I2CMasterBus<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         let len = match status {
             Ok(()) => self.len.get(),

@@ -22,6 +22,7 @@
 
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::fxos8700cq::Fxos8700cq;
+use kernel::hil::i2c::I2CDevice as _;
 
 use kernel::component::Component;
 

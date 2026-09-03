@@ -88,7 +88,7 @@ struct CalibrationData {
     humidity_intercept: f32,
 }
 
-pub struct Hts221<'a, I: I2CDevice> {
+pub struct Hts221<'a, I: I2CDevice<'a>> {
     buffer: TakeCell<'static, [u8]>,
     i2c: &'a I,
     temperature_client: OptionalCell<&'a dyn TemperatureClient>,
@@ -98,7 +98,7 @@ pub struct Hts221<'a, I: I2CDevice> {
     pending_humidity: Cell<bool>,
 }
 
-impl<'a, I: I2CDevice> Hts221<'a, I> {
+impl<'a, I: I2CDevice<'a>> Hts221<'a, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8]) -> Self {
         Hts221 {
             buffer: TakeCell::new(buffer),
@@ -152,7 +152,7 @@ impl<'a, I: I2CDevice> Hts221<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> TemperatureDriver<'a> for Hts221<'a, I> {
+impl<'a, I: I2CDevice<'a>> TemperatureDriver<'a> for Hts221<'a, I> {
     fn set_client(&self, client: &'a dyn TemperatureClient) {
         self.temperature_client.set(client);
     }
@@ -167,7 +167,7 @@ impl<'a, I: I2CDevice> TemperatureDriver<'a> for Hts221<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> HumidityDriver<'a> for Hts221<'a, I> {
+impl<'a, I: I2CDevice<'a>> HumidityDriver<'a> for Hts221<'a, I> {
     fn set_client(&self, client: &'a dyn HumidityClient) {
         self.humidity_client.set(client);
     }
@@ -192,7 +192,7 @@ enum State {
     Idle(CalibrationData, i32, usize),
 }
 
-impl<I: I2CDevice> I2CClient for Hts221<'_, I> {
+impl<'a, I: I2CDevice<'a>> I2CClient for Hts221<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.state.set(State::Idle(

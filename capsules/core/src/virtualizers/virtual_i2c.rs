@@ -243,7 +243,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, I2CDevice<
     }
 }
 
-impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CDevice for I2CDevice<'a, I> {
+impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CDevice<'a> for I2CDevice<'a, I> {
     fn enable(&self) {
         if !self.enabled.get() {
             self.enabled.set(true);
@@ -332,11 +332,6 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> SMBusDevice<'a, I, S> {
             client: OptionalCell::empty(),
         }
     }
-
-    pub fn set_client(&'a self, client: &'a dyn I2CClient) {
-        self.mux.smbus_devices.push_head(self);
-        self.client.set(client);
-    }
 }
 
 impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CClient for SMBusDevice<'a, I, S> {
@@ -355,7 +350,9 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, SMBusDevic
     }
 }
 
-impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::I2CDevice for SMBusDevice<'a, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::I2CDevice<'a>
+    for SMBusDevice<'a, I, S>
+{
     fn enable(&self) {
         if !self.enabled.get() {
             self.enabled.set(true);
@@ -411,9 +408,14 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::I2CDevice for SMBu
             Err((Error::ArbitrationLost, buffer))
         }
     }
+
+    fn set_client(&'a self, client: &'a dyn I2CClient) {
+        self.mux.smbus_devices.push_head(self);
+        self.client.set(client);
+    }
 }
 
-impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::SMBusDevice
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::SMBusDevice<'a>
     for SMBusDevice<'a, I, S>
 {
     fn smbus_write_read(

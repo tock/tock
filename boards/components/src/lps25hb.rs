@@ -11,6 +11,7 @@ use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 
 #[macro_export]
 macro_rules! lps25hb_component_static {

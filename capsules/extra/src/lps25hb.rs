@@ -103,7 +103,7 @@ enum State {
 #[derive(Default)]
 pub struct App {}
 
-pub struct LPS25HB<'a, I: i2c::I2CDevice> {
+pub struct LPS25HB<'a, I: i2c::I2CDevice<'a>> {
     i2c: &'a I,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<State>,
@@ -112,7 +112,7 @@ pub struct LPS25HB<'a, I: i2c::I2CDevice> {
     owning_process: OptionalCell<ProcessId>,
 }
 
-impl<'a, I: i2c::I2CDevice> LPS25HB<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> LPS25HB<'a, I> {
     pub fn new(
         i2c: &'a I,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
@@ -175,7 +175,7 @@ impl<'a, I: i2c::I2CDevice> LPS25HB<'a, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> i2c::I2CClient for LPS25HB<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if status != Ok(()) {
             self.state.set(State::Idle);
@@ -302,7 +302,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> gpio::Client for LPS25HB<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> gpio::Client for LPS25HB<'a, I> {
     fn fired(&self) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -321,7 +321,7 @@ impl<I: i2c::I2CDevice> gpio::Client for LPS25HB<'_, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> SyscallDriver for LPS25HB<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> SyscallDriver for LPS25HB<'a, I> {
     fn command(
         &self,
         command_num: usize,

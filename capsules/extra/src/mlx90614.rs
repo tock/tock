@@ -68,7 +68,7 @@ enum_from_primitive! {
 #[derive(Default)]
 pub struct App {}
 
-pub struct Mlx90614SMBus<'a, S: i2c::SMBusDevice> {
+pub struct Mlx90614SMBus<'a, S: i2c::SMBusDevice<'a>> {
     smbus_temp: &'a S,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     buffer: TakeCell<'static, [u8]>,
@@ -77,7 +77,7 @@ pub struct Mlx90614SMBus<'a, S: i2c::SMBusDevice> {
     owning_process: OptionalCell<ProcessId>,
 }
 
-impl<'a, S: i2c::SMBusDevice> Mlx90614SMBus<'a, S> {
+impl<'a, S: i2c::SMBusDevice<'a>> Mlx90614SMBus<'a, S> {
     pub fn new(
         smbus_temp: &'a S,
         buffer: &'static mut [u8],
@@ -119,7 +119,7 @@ impl<'a, S: i2c::SMBusDevice> Mlx90614SMBus<'a, S> {
     }
 }
 
-impl<S: i2c::SMBusDevice> i2c::I2CClient for Mlx90614SMBus<'_, S> {
+impl<'a, S: i2c::SMBusDevice<'a>> i2c::I2CClient for Mlx90614SMBus<'a, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::Idle => {
@@ -168,7 +168,7 @@ impl<S: i2c::SMBusDevice> i2c::I2CClient for Mlx90614SMBus<'_, S> {
     }
 }
 
-impl<S: i2c::SMBusDevice> SyscallDriver for Mlx90614SMBus<'_, S> {
+impl<'a, S: i2c::SMBusDevice<'a>> SyscallDriver for Mlx90614SMBus<'a, S> {
     fn command(
         &self,
         command_num: usize,
@@ -233,7 +233,7 @@ impl<S: i2c::SMBusDevice> SyscallDriver for Mlx90614SMBus<'_, S> {
     }
 }
 
-impl<'a, S: i2c::SMBusDevice> sensors::TemperatureDriver<'a> for Mlx90614SMBus<'a, S> {
+impl<'a, S: i2c::SMBusDevice<'a>> sensors::TemperatureDriver<'a> for Mlx90614SMBus<'a, S> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

@@ -231,7 +231,7 @@ pub trait I2CDevice<'a> {
     -> Result<(), (Error, &'static mut [u8])>;
 
     /// Set the client for the I2CDevice.
-    fn set_client(&self, client: &'a dyn I2CClient);
+    fn set_client(&'a self, client: &'a dyn I2CClient);
 }
 
 pub trait SMBusDevice<'a>: I2CDevice<'a> {
