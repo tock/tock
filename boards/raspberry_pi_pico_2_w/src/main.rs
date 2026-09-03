@@ -5,13 +5,14 @@
 //! Tock kernel for the Raspberry Pi Pico 2 W.
 //!
 //! It is based on the RP2350 SoC (Cortex M33) and carries an Infineon
-//! CYW43439 radio, which this board does not yet bring up.
+//! CYW43439 radio, reached over half duplex SPI driven by a PIO state
+//! machine with DMA underneath it.
 //!
 //! The board is the Raspberry Pi Pico 2 with the radio wired into four of the
 //! pins the plain board leaves free, so it is built on
 //! [`raspberry_pi_pico_2`] and differs from it only where the radio takes
-//! something over. Today that is the LED: GPIO 25 is the LED on a Pico 2 and
-//! the radio's chip select here, so this board has no LED driver at all.
+//! something over: the LED, since GPIO 25 is the LED on a Pico 2 and the
+//! radio's chip select here, and the four pins the radio is wired to.
 
 #![no_std]
 #![no_main]
@@ -19,19 +20,40 @@
 
 use core::ptr::addr_of_mut;
 
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::component::Component;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability};
+use pio_gspi_component::{PioGspiComponent, pio_gpsi_component_static};
 
 use rp2350::chip::{Rp2350, Rp2350DefaultPeripherals};
 use rp2350::gpio::{RPGpio, RPGpioPin};
+use rp2350::pio_gspi::PioGSpi;
+use rp2350::timer::RPTimer;
+use rp2350::{dma, pio};
 
 mod io;
+mod pio_gspi_component;
 
 // Allocate memory for the stack
 kernel::stack_size! {0x3000}
+
+type CYW4343xSpiBus = capsules_extra::cyw4343::spi_bus::CYW4343xSpiBus<
+    'static,
+    PioGSpi<'static>,
+    VirtualMuxAlarm<'static, RPTimer<'static>>,
+>;
+
+type CYW4343xHw = capsules_extra::cyw4343::CYW4343x<
+    'static,
+    RPGpioPin<'static>,
+    VirtualMuxAlarm<'static, RPTimer<'static>>,
+    CYW4343xSpiBus,
+>;
+
+type WifiDriver = capsules_extra::wifi::WifiDriver<'static, CYW4343xHw>;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -40,6 +62,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 /// Supported drivers by the platform
 pub struct RaspberryPiPico2W {
     base: raspberry_pi_pico_2::Platform,
+    wifi: &'static WifiDriver,
 }
 
 impl SyscallDriverLookup for RaspberryPiPico2W {
@@ -47,7 +70,10 @@ impl SyscallDriverLookup for RaspberryPiPico2W {
     where
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
-        self.base.with_driver(driver_num, f)
+        match driver_num {
+            capsules_extra::wifi::DRIVER_NUM => f(Some(self.wifi)),
+            _ => self.base.with_driver(driver_num, f),
+        }
     }
 }
 
@@ -86,7 +112,7 @@ impl KernelResources<Rp2350<'static, Rp2350DefaultPeripherals<'static>>> for Ras
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
-    let (board_kernel, base, peripherals, _mux_alarm, chip) =
+    let (board_kernel, base, peripherals, mux_alarm, chip) =
         raspberry_pi_pico_2::setup(|board_kernel, peripherals| {
             GpioComponent::new(
                 board_kernel,
@@ -133,7 +159,57 @@ pub unsafe fn main() {
     // Set the UART used for panic
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
-    let raspberry_pi_pico_2_w = RaspberryPiPico2W { base };
+    // The CYW43439 radio.
+    //
+    // It hangs off four pins rather than a bus the chip has a peripheral for:
+    // chip select and power are plain outputs, and clock and data are driven
+    // by a PIO state machine running a half duplex SPI program, with a DMA
+    // channel moving the words. The pins are the same four the RP2040 Pico W
+    // uses, which is why boards/raspberry_pi_pico_w reads almost identically
+    // from here down.
+    let cs = peripherals.pins.get_pin(RPGpio::GPIO25);
+    cs.make_output();
+
+    let pio_gspi = PioGspiComponent::new(
+        &peripherals.pio0,
+        pio::SMNumber::SM0,
+        peripherals.dma.channel(dma::Channel::Ch0),
+        dma::Irq::Irq0,
+        peripherals.pins.get_pin(RPGpio::GPIO29),
+        peripherals.pins.get_pin(RPGpio::GPIO24),
+        cs,
+    )
+    .finalize(pio_gpsi_component_static!());
+
+    let (fw, nvram, clm) = (
+        tock_firmware_cyw43::cyw43439::FW,
+        tock_firmware_cyw43::cyw43439::NVRAM,
+        tock_firmware_cyw43::cyw43439::CLM,
+    );
+
+    let pwr = peripherals.pins.get_pin(RPGpio::GPIO23);
+    pwr.make_output();
+
+    let cyw4343_spi_bus =
+        components::cyw4343::CYW4343xSpiBusComponent::new(mux_alarm, pio_gspi, fw, nvram).finalize(
+            components::cyw4343x_spi_bus_component_static!(PioGSpi<'static>, RPTimer),
+        );
+    pio_gspi.set_irq_client(cyw4343_spi_bus);
+
+    let cyw4343_device =
+        components::cyw4343::CYW4343xComponent::new(pwr, mux_alarm, cyw4343_spi_bus, clm).finalize(
+            components::cyw4343_component_static!(RPGpioPin, RPTimer, CYW4343xSpiBus),
+        );
+
+    let wifi = components::wifi::WifiComponent::new(
+        board_kernel,
+        capsules_extra::wifi::DRIVER_NUM,
+        cyw4343_device,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::wifi_component_static!(CYW4343xHw));
+
+    let raspberry_pi_pico_2_w = RaspberryPiPico2W { base, wifi };
 
     kernel::debug!("Initialization complete. Enter main loop");
 

@@ -9,9 +9,23 @@ only where the radio takes something over.
 
 ## What this board supports
 
-Everything `raspberry_pi_pico_2` supports: the console, the alarm, GPIO and
-IPC. **The radio is not yet brought up**, so nothing here uses WiFi or
-Bluetooth.
+Everything `raspberry_pi_pico_2` supports, plus the CYW43439 radio: the
+console, the alarm, GPIO, IPC and WiFi. Bluetooth is not wired up.
+
+The radio is reached over half duplex SPI, driven by a PIO state machine with
+DMA underneath it rather than by an SPI peripheral, because it is wired to four
+ordinary pins. Its firmware, NVRAM and CLM blobs are linked into the kernel
+image, which is why this board's `layout.ld` gives itself 575K of rom where the
+plain Pico 2 takes 255K. Applications load at `0x10090000` here.
+
+Nothing drives the radio at boot. The `wifi` syscall driver starts it when an
+application asks, so a kernel with no application loaded never talks to it.
+
+The power pin is a caveat rather than a guarantee. `make_output` enables the
+output without writing a value, so GPIO 23 drives whatever `GPIO_OUT` already
+held: low out of a cold reset, but not necessarily after a warm one from a
+kernel that had powered the radio. `boards/raspberry_pi_pico_w` behaves the
+same way.
 
 The GPIO driver exposes fewer pins than it does on a Pico 2. GPIO 23, 24, 25
 and 29 are the radio's power, gSPI data, chip select and gSPI clock, so they
