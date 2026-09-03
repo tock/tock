@@ -64,6 +64,8 @@ type LedDriver = capsules_core::led::LedDriver<'static, ScreenOnLedSingle, 4>;
 
 type ButtonDriver = capsules_extra::button_keyboard::ButtonKeyboard<'static>;
 
+type SyscallReturnTestDriver = components::syscall_return_test::SyscallReturnTestComponentType;
+
 /// Needed for the process info capsule.
 pub struct PMCapability;
 unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
@@ -111,6 +113,7 @@ struct Platform {
     process_info: &'static ProcessInfoDriver,
     nonvolatile_storage: &'static IsolatedNonvolatileStorageDriver,
     virtio_console: Option<&'static capsules_core::console::Console<'static>>,
+    syscall_return_test: &'static SyscallReturnTestDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -151,6 +154,7 @@ impl SyscallDriverLookup for Platform {
                     f(None)
                 }
             }
+            capsules_extra::syscall_return_test::DRIVER_NUM => f(Some(self.syscall_return_test)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -458,6 +462,17 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // SYSCALL RETURN TEST CAPSULE
+    //--------------------------------------------------------------------------
+
+    let syscall_return_test = components::syscall_return_test::SyscallReturnTestComponent::new(
+        board_kernel,
+        capsules_extra::syscall_return_test::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::syscall_return_test_component_static!());
+
+    //--------------------------------------------------------------------------
     // PROCESS CONSOLE
     //--------------------------------------------------------------------------
 
@@ -650,6 +665,7 @@ pub unsafe fn main() {
             process_info,
             nonvolatile_storage,
             virtio_console: virtio_console_driver,
+            syscall_return_test
         }
     );
     loader.set_client(platform);
