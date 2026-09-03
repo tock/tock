@@ -596,7 +596,11 @@ fn cmd_run_all(board: &boards::Board, libtock_c_dir: &Path) -> Result<(), String
         return Err(format!("`make init` failed in {}", board.board_dir));
     }
 
-    let all_apps: Vec<&str> = board.tests.iter().flat_map(|tc| tc.apps.iter().copied()).collect();
+    let all_apps: Vec<&str> = board
+        .tests
+        .iter()
+        .flat_map(|tc| tc.apps.iter().copied())
+        .collect();
     build_apps(&all_apps, libtock_c_dir, board.tock_targets)?;
 
     for tc in board.tests {
