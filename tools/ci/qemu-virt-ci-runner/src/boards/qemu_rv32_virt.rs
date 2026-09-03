@@ -68,4 +68,22 @@ static TESTS: &[TestCase] = &[
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
     },
+    TestCase {
+        name: "restart",
+        description: "Verify apps can restart.",
+        apps: &["tests/restart"],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &[
+                "Testing restart. x=1 (should be 1), z=0 (should be 0)",
+                "Restarting.",
+                "Testing restart. x=1 (should be 1), z=0 (should be 0)",
+                "Restarting.",
+                "Testing restart. x=1 (should be 1), z=0 (should be 0)",
+                "Restarting.",
+            ],
+            timeout: Duration::from_secs(10),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
 ];
