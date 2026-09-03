@@ -257,17 +257,30 @@ For full details, see the
 
 ## AI Policy
 
-The Tock project permits
-developers to use AI coding tools, however, developers must review any
-AI-generated code themselves for correctness and compatibility with Tock's
-code expectations. All AI use must be disclosed in the pull request
+The Tock project permits developers to use AI coding tools, however, developers
+must review any AI-generated code themselves for correctness and compatibility
+with Tock's code expectations. All AI use must be disclosed in the issue / pull request
 description, including which AI tool was used, what portion of the patch was
 created by AI, and how the AI-generated code was reviewed.
+
+For commits where AI assisted authorship, the commit message should also
+include appropriate attribution, e.g. `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`
+
+Neither the pull request description nor any subsequent PR comments are allowed
+to be written using AI (exception: tools used exclusively for accessibility or
+translation are acceptable). Large Language Models often make unverified claims
+and produce verbose output. Writing PR comments by hand reduces cognitive burden
+for reviewers, incentivizes authors to reflect on generated changes, and keeps
+communication succinct. If including AI output genuinely serves the purposes of
+the PR, include it in a [`<details>`][html-details] drawer. PRs should be
+self-contained and have sufficient documentation without any additional
+generative-AI context.
 
 Contributors remain responsible for ensuring that their contributions are
 compatible with the applicable licenses, do not infringe on any copyright
 claims, and maintain proper attribution.
 
+[html-details]: https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/details
 
 ## Notes
 
