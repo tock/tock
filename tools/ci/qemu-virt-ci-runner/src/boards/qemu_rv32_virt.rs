@@ -46,4 +46,26 @@ static TESTS: &[TestCase] = &[
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
     },
+    TestCase {
+        name: "sha256",
+        description: "Check SHA256 computation works.",
+        apps: &["tests/sha"],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &["SHA computation correct."],
+            timeout: Duration::from_secs(5),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
+    TestCase {
+        name: "rng",
+        description: "Verify we get multiple rounds of random numbers.",
+        apps: &["tests/rng"],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &["Randomness:", "Randomness:", "Randomness:", "Randomness:"],
+            timeout: Duration::from_secs(5),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
 ];
