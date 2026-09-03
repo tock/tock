@@ -89,15 +89,10 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw<'static>) {
 
     let buf2 = &mut *addr_of_mut!(BUF2);
     let len = buf2.len();
-    if spi.read_write_bytes(
+    let _ = spi.read_write_bytes(
         (buf2 as &mut [u8]).into(),
         Some((&mut *addr_of_mut!(BUF1) as &mut [u8]).into()),
-    ) != Ok(())
-    {
-        loop {
-            spi.write_byte(0xA5).unwrap();
-        }
-    }
+    );
 
     pin2.clear();
 }

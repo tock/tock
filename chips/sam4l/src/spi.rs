@@ -522,35 +522,6 @@ impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
         self.transfers_in_progress.get() != 0
     }
 
-    /// Write a byte to the SPI and discard the read; if an
-    /// asynchronous operation is outstanding, do nothing.
-    fn write_byte(&self, out_byte: u8) -> Result<(), ErrorCode> {
-        let spi = &SpiRegisterManager::new(self);
-
-        let tdr = (out_byte as u32) & spi_consts::tdr::TD;
-        // Wait for data to leave TDR and enter serializer, so TDR is free
-        // for this next byte
-        while !spi.registers.sr.is_set(Status::TDRE) {}
-        spi.registers.tdr.set(tdr);
-        Ok(())
-    }
-
-    /// Write 0 to the SPI and return the read; if an
-    /// asynchronous operation is outstanding, do nothing.
-    fn read_byte(&self) -> Result<u8, ErrorCode> {
-        self.read_write_byte(0)
-    }
-
-    /// Write a byte to the SPI and return the read; if an
-    /// asynchronous operation is outstanding, do nothing.
-    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
-        let spi = &SpiRegisterManager::new(self);
-
-        self.write_byte(val)?;
-        while !spi.registers.sr.is_set(Status::RDRF) {}
-        Ok(spi.registers.rdr.get() as u8)
-    }
-
     /// Asynchronous buffer read/write of SPI. `write_buffer` must be present;
     /// `read_buffer` may be `None`. If read_buffer is present, then the length
     /// of the read/write is the minimum of two buffer lengths.
