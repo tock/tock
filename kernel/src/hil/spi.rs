@@ -325,45 +325,6 @@ pub trait SpiMaster<'a> {
         ),
     >;
 
-    /// Synchronously write a single byte on the bus. Not for general use
-    /// because it is blocking: intended for debugging.
-    ///
-    /// ### Return values
-    ///
-    /// - `Ok(())`: the byte was written
-    /// - `Err(OFF)`: the SPI bus is powered down
-    /// - `Err(BUSY)`: the SPI bus is busy with a
-    ///   [`SpiMaster::read_write_bytes`] operation whose callback hasn't been
-    ///   called yet.
-    /// - `Err(FAIL)`: other failure
-    fn write_byte(&self, val: u8) -> Result<(), ErrorCode>;
-
-    /// Synchronously write a 0 and read a single byte from the bus. Not for
-    /// general use because it is blocking: intended for debugging.
-    ///
-    /// ### Return values
-    ///
-    /// - `Ok(u8)`: the read byte
-    /// - `Err(OFF)`: the SPI bus is powered down
-    /// - `Err(BUSY)`: the SPI bus is busy with a
-    ///   [`SpiMaster::read_write_bytes`] operation whose callback hasn't been
-    ///   called yet.
-    /// - `Err(FAIL)`: other failure
-    fn read_byte(&self) -> Result<u8, ErrorCode>;
-
-    /// Synchronously write and read a single byte. Not for general use because
-    /// it is blocking: intended for debugging.
-    ///
-    /// ### Return values
-    ///
-    /// - `Ok(u8)`: the read byte
-    /// - `Err(OFF)`: the SPI bus is powered down
-    /// - `Err(BUSY)`: the SPI bus is busy with a
-    ///   [`SpiMaster::read_write_bytes`] operation whose callback hasn't been
-    ///   called yet.
-    /// - `Err(FAIL)`: other failure
-    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode>;
-
     /// Specify which chip select to use. Configuration settings (rate,
     /// polarity, phase) are chip-select specific and are stored for that chip
     /// select.
