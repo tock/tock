@@ -143,32 +143,8 @@ impl Uart {
         self.enable_uart();
     }
 
-    // The datasheet gives a non-exhaustive list of example settings for
-    // typical bauds. The register is actually just a simple clock divider,
-    // as explained and with implementation from:
-    // https://devzone.nordicsemi.com/f/nordic-q-a/43280/technical-question-regarding-uart-baud-rate-generator-baudrate-register-offset-0x524
-    //
-    // This peripheral shares the same baud rate generator hardware as the
-    // UARTE peripheral.
-    fn get_divider_for_baud(&self, baud_rate: u32) -> Result<u32, ErrorCode> {
-        if baud_rate > 1_000_000 || baud_rate < 1200 {
-            return Err(ErrorCode::INVAL);
-        }
-
-        // force 64 bit values for precision
-        let system_clock = 16000000u64; // TODO: Support dynamic clock
-        let scalar = 32u64;
-        let target_baud: u64 = baud_rate.into();
-
-        // n.b. bits 11-0 are ignored by hardware
-        let divider64 = (((target_baud << scalar) + (system_clock >> 1)) / system_clock) + 0x800;
-        let divider = (divider64 & 0xffff_f000) as u32;
-
-        Ok(divider)
-    }
-
     fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
-        let divider = self.get_divider_for_baud(baud_rate)?;
+        let divider = crate::uart::Uarte::get_divider_for_baud(baud_rate)?;
         self.registers.baudrate.set(divider);
 
         Ok(())
