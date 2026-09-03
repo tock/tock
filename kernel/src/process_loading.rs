@@ -389,6 +389,12 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
     // Try to create a process object from that app slice. If we don't
     // get a process and we didn't get a loading error (aka we got to
     // this point), then the app is a disabled process or just padding.
+    //
+    // SAFETY: We must not allow `app_memory` to be used anywhere as it could
+    // alias memory allocated for the process. We only use `app_memory` to call
+    // this function, and then we only use the returned `unused_memory` pointer
+    // afterwards, ensuring the same memory cannot be given to the newly created
+    // process and anything else.
     let (process_option, unused_memory) = unsafe {
         ProcessStandard::<C, D>::create(
             kernel,
