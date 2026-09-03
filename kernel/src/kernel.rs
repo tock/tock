@@ -660,6 +660,10 @@ impl Kernel {
                                         // TODO(alevy): this could error for a variety of reasons.
                                         // Should we communicate the error somehow?
                                         // https://github.com/tock/tock/issues/1993
+                                        //
+                                        // SAFETY: This is NOT safe. This is a known issue with this
+                                        // implementation of IPC:
+                                        // <https://github.com/tock/tock/issues/1993>.
                                         unsafe {
                                             let _ = ipc.schedule_upcall(
                                                 process.processid(),
