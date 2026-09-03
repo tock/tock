@@ -104,6 +104,10 @@ pub struct QemuRv32VirtPlatform {
             RiscvCoherentDmaFence,
         >,
     >,
+    /// Virtualization mux over the single hardware alarm. Exposed so board
+    /// configurations can add capsules that need their own virtual alarm.
+    pub mux_alarm:
+        &'static MuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
 }
 
 impl QemuRv32VirtPlatform {
@@ -777,6 +781,7 @@ pub unsafe fn start() -> (
         virtio_ethernet_tap,
         virtio_gpu_screen,
         virtio_input_keyboard,
+        mux_alarm,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,

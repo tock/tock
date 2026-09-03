@@ -70,6 +70,14 @@ type Sha = components::sha::ShaSoftware256ComponentType;
 const SHA_DIGEST_LEN: usize = 32;
 type ShaDriver = components::sha::ShaDriverComponentType<Sha, SHA_DIGEST_LEN>;
 
+type ChipAlarm = qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>;
+type MockI2CBus = capsules_extra::mock::i2c_bus::MockI2CBus<'static>;
+type Sht4xSensor = components::sht4x::SHT4xComponentType<
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, ChipAlarm>,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, MockI2CBus>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<Sht4xSensor>;
+
 /// Needed for the process info capsule.
 pub struct PMCapability;
 unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
@@ -119,6 +127,7 @@ struct Platform {
     virtio_console: Option<&'static capsules_core::console::Console<'static>>,
     syscall_return_test: &'static SyscallReturnTestDriver,
     sha: &'static ShaDriver,
+    temperature: &'static TemperatureDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -161,6 +170,7 @@ impl SyscallDriverLookup for Platform {
             }
             capsules_extra::syscall_return_test::DRIVER_NUM => f(Some(self.syscall_return_test)),
             capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -497,6 +507,45 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // MOCK SHT4x TEMPERATURE SENSOR + I2C VIRTUALIZER
+    //--------------------------------------------------------------------------
+
+    // Mock SHT4x sensor implemented in software.
+    let mock_sht4x = components::mock::sht4x::MockSht4xComponent::new()
+        .finalize(components::mock_sht4x_component_static!());
+
+    // `MockI2CBus` is a "reverse" virtualizer: it presents an `i2c::I2CMaster`
+    // bus upward and dispatches each transaction to the attached mock device
+    // whose registered address matches. Attach the mock SHT4x at its base
+    // address.
+    let i2c_bus = components::mock::i2c_bus::MockI2CBusComponent::new()
+        .finalize(components::mock_i2c_bus_component_static!());
+    let _sht4x_on_bus = components::mock::i2c_bus::MockI2CBusDeviceComponent::new(
+        i2c_bus,
+        mock_sht4x,
+        capsules_extra::mock::sensors::sht4x::BASE_ADDR,
+    )
+    .finalize(components::mock_i2c_bus_device_component_static!());
+
+    let mux_i2c = components::i2c::I2CMuxComponent::new(i2c_bus, None)
+        .finalize(components::i2c_mux_component_static!(MockI2CBus));
+
+    let sht4x = components::sht4x::SHT4xComponent::new(
+        mux_i2c,
+        capsules_extra::mock::sensors::sht4x::BASE_ADDR,
+        base_platform.mux_alarm,
+    )
+    .finalize(components::sht4x_component_static!(ChipAlarm, MockI2CBus));
+
+    let temperature = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        sht4x,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::temperature_component_static!(Sht4xSensor));
+
+    //--------------------------------------------------------------------------
     // PROCESS CONSOLE
     //--------------------------------------------------------------------------
 
@@ -690,7 +739,8 @@ pub unsafe fn main() {
             nonvolatile_storage,
             virtio_console: virtio_console_driver,
             syscall_return_test,
-            sha
+            sha,
+            temperature,
         }
     );
     loader.set_client(platform);
