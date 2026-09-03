@@ -40,6 +40,7 @@
  */
 
 PAGE_SIZE = DEFINED(PAGE_SIZE) ? PAGE_SIZE : 512;
+VECTOR_TABLE_ALIGNMENT = DEFINED(VECTOR_TABLE_ALIGNMENT) ? VECTOR_TABLE_ALIGNMENT : 1;
 ENTRY(initialize_ram_jump_to_main)
 
 SECTIONS
@@ -83,6 +84,12 @@ SECTIONS
          * This is the reason why the .text section has to be the first.
          */
         KEEP(*(.multiboot))
+
+        /* 
+         * Alignment used in case vector table isn't well aligned, which can occur if
+         * tock isn't the first program starting on the board.
+         */
+        . = ALIGN(VECTOR_TABLE_ALIGNMENT);
 
         /* Place vector table at the beginning of ROM.
          *
