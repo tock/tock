@@ -612,6 +612,46 @@ fn cmd_run_all(board: &boards::Board, libtock_c_dir: &Path) -> Result<(), String
     Ok(())
 }
 
+fn cmd_run_one(board: &boards::Board, test_name: &str, libtock_c_dir: &Path) -> Result<(), String> {
+    println!(
+        "qemu-virt CI runner single test (board: {}, test: {})...",
+        board.name, test_name
+    );
+
+    println!("Running `make init` in {}...", board.board_dir);
+    let status = Command::new("make")
+        .current_dir(board.board_dir)
+        .arg("init")
+        .status()
+        .map_err(|e| format!("failed to run `make init` in {}: {}", board.board_dir, e))?;
+    if !status.success() {
+        return Err(format!("`make init` failed in {}", board.board_dir));
+    }
+
+    let tc = board
+        .tests
+        .iter()
+        .find(|t| t.name == test_name)
+        .ok_or_else(|| {
+            format!(
+                "unknown test {:?}; available tests: {}",
+                test_name,
+                board
+                    .tests
+                    .iter()
+                    .map(|t| t.name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?;
+    build_apps(tc.apps, libtock_c_dir, board.tock_targets)?;
+    let r = run_test(tc, libtock_c_dir, board.board_dir);
+    if r.is_ok() {
+        println!("TEST PASSED: {}", tc.name);
+    }
+    r
+}
+
 fn cmd_list_tests(board: &boards::Board) {
     println!("Board: {}", board.name);
     println!();
@@ -737,34 +777,7 @@ fn main() {
         }
 
         // Single-test mode.
-        [_, flag, test_name] if flag == "--test" => {
-            match board.tests.iter().find(|t| t.name == test_name.as_str()) {
-                Some(tc) => {
-                    if let Err(e) = build_apps(tc.apps, &libtock_c_dir, board.tock_targets) {
-                        eprintln!("Error: {}", e);
-                        std::process::exit(1);
-                    }
-                    let r = run_test(tc, &libtock_c_dir, board.board_dir);
-                    if r.is_ok() {
-                        println!("TEST PASSED: {}", tc.name);
-                    }
-                    r
-                }
-                None => {
-                    eprintln!(
-                        "unknown test {:?}; available tests: {}",
-                        test_name,
-                        board
-                            .tests
-                            .iter()
-                            .map(|t| t.name)
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    );
-                    std::process::exit(2);
-                }
-            }
-        }
+        [_, flag, test_name] if flag == "--test" => cmd_run_one(board, test_name, &libtock_c_dir),
 
         // Screenshot mode: boot one test and save a screendump.
         [_, flag, test_name, dest] if flag == "--screenshot" => {
