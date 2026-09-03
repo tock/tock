@@ -23,33 +23,35 @@ use kernel::hil::uart;
 use kernel::utilities::StaticRef;
 use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use nrf5x::gpio::Pin;
 
 pub const UART0_BASE: StaticRef<UartRegisters> =
     unsafe { StaticRef::new(0x40002000 as *const UartRegisters) };
 
-#[repr(C)]
-pub struct UartRegisters {
-    _reserved1: [u32; 1],
-    task_stoprx: WriteOnly<u32, Task::Register>,
-    task_starttx: WriteOnly<u32, Task::Register>,
-    task_stoptx: WriteOnly<u32, Task::Register>,
-    _reserved2: [u32; 67],
-    event_txdrdy: ReadWrite<u32, Event::Register>,
-    _reserved3: [u32; 248],
-    enable: ReadWrite<u32, Enable::Register>,
-    _reserved4: [u32; 1],
-    pselrts: ReadWrite<u32, Psel::Register>,
-    pseltxd: ReadWrite<u32, Psel::Register>,
-    pselcts: ReadWrite<u32, Psel::Register>,
-    pselrxd: ReadWrite<u32, Psel::Register>,
-    _reserved5: [u32; 1],
-    txd: WriteOnly<u32, Byte::Register>,
-    _reserved6: [u32; 1],
-    baudrate: ReadWrite<u32, Baudrate::Register>,
-    _reserved7: [u32; 17],
-    config: ReadWrite<u32, Config::Register>,
+register_structs! {
+    pub UartRegisters {
+        (0x000 => _reserved1),
+        (0x004 => task_stoprx: WriteOnly<u32, Task::Register>),
+        (0x008 => task_starttx: WriteOnly<u32, Task::Register>),
+        (0x00C => task_stoptx: WriteOnly<u32, Task::Register>),
+        (0x010 => _reserved2),
+        (0x11C => event_txdrdy: ReadWrite<u32, Event::Register>),
+        (0x120 => _reserved3),
+        (0x500 => enable: ReadWrite<u32, Enable::Register>),
+        (0x504 => _reserved4),
+        (0x508 => pselrts: ReadWrite<u32, Psel::Register>),
+        (0x50C => pseltxd: ReadWrite<u32, Psel::Register>),
+        (0x510 => pselcts: ReadWrite<u32, Psel::Register>),
+        (0x514 => pselrxd: ReadWrite<u32, Psel::Register>),
+        (0x518 => _reserved5),
+        (0x51C => txd: WriteOnly<u32, Byte::Register>),
+        (0x520 => _reserved6),
+        (0x524 => baudrate: ReadWrite<u32, Baudrate::Register>),
+        (0x528 => _reserved7),
+        (0x56C => config: ReadWrite<u32, Config::Register>),
+        (0x570 => @END),
+    }
 }
 
 register_bitfields! [u32,
