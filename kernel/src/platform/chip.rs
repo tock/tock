@@ -96,6 +96,12 @@ pub trait Chip {
     /// `None`. The implementation of `print_state` may not print certain
     /// information if it depends on runtime-accessible state in `Self`, but
     /// that reference is not provided.
+    ///
+    /// # Safety
+    ///
+    /// Implementations may need to access low-level chip-specific hardware that
+    /// isn't safe to access during the normal operation of the chip. This
+    /// function may only be called from a panic context.
     unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write);
 }
 
