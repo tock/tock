@@ -519,6 +519,8 @@ fn cmd_screenshot(
         dest.display()
     );
 
+    build_apps(tc.apps, libtock_c_dir, board.tock_targets)?;
+
     run_with_apps(
         tc.apps,
         libtock_c_dir,
@@ -559,6 +561,28 @@ fn cmd_screenshot(
     )
 }
 
+fn build_apps(app_names: &[&str], libtock_c_dir: &Path, tock_targets: &str) -> Result<(), String> {
+    let mut unique: Vec<&str> = app_names.to_vec();
+    unique.sort();
+    unique.dedup();
+    for app in unique {
+        if app.is_empty() {
+            continue;
+        }
+        let app_path = libtock_c_dir.join("examples").join(app);
+        println!("Building app: {}", app);
+        let status = Command::new("make")
+            .current_dir(&app_path)
+            .env("TOCK_TARGETS", tock_targets)
+            .status()
+            .map_err(|e| format!("`make` failed for {}: {}", app, e))?;
+        if !status.success() {
+            return Err(format!("`make` failed for {}", app));
+        }
+    }
+    Ok(())
+}
+
 fn cmd_run_all(board: &boards::Board, libtock_c_dir: &Path) -> Result<(), String> {
     println!("qemu-virt CI runner starting (board: {})...", board.name);
 
@@ -571,6 +595,9 @@ fn cmd_run_all(board: &boards::Board, libtock_c_dir: &Path) -> Result<(), String
     if !status.success() {
         return Err(format!("`make init` failed in {}", board.board_dir));
     }
+
+    let all_apps: Vec<&str> = board.tests.iter().flat_map(|tc| tc.apps.iter().copied()).collect();
+    build_apps(&all_apps, libtock_c_dir, board.tock_targets)?;
 
     for tc in board.tests {
         run_test(tc, libtock_c_dir, board.board_dir)?;
@@ -709,6 +736,10 @@ fn main() {
         [_, flag, test_name] if flag == "--test" => {
             match board.tests.iter().find(|t| t.name == test_name.as_str()) {
                 Some(tc) => {
+                    if let Err(e) = build_apps(tc.apps, &libtock_c_dir, board.tock_targets) {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
                     let r = run_test(tc, &libtock_c_dir, board.board_dir);
                     if r.is_ok() {
                         println!("TEST PASSED: {}", tc.name);
