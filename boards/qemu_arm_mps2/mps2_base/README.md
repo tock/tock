@@ -51,8 +51,33 @@ from its vector table at address 0, so no bootloader or `-bios` indirection is
 needed, and `-nographic` suppresses the graphical window (there is no display
 device).
 
-`make run-app APP=$PATH_TO_APP.tbf` boots with one or more apps loaded at
-`APP_ADDRESS` (0x00040000). To load several at once, concatenate their `.tbf`
-files largest-first (e.g. `cat app1.tbf app2.tbf > apps.bin`): `elf2tab` pads
-each `.tbf` to a power-of-two size for MPU alignment, and the loader assumes
-that ordering.
+Apps live in the "prog" flash region at 0x00040000, in an image `tockloader`
+manages as a *local board*. QEMU loads the kernel and that image as two
+separate blobs, so `tockloader` never has to know about the kernel.
+
+`tockloader` tracks exactly one local board at a time for your whole user
+account -- the setting lives in its user data directory, not in this tree --
+so `make init` replaces whatever was registered before. Run it in the board
+directory you are about to use whenever you switch boards:
+
+```
+$ make init
+```
+
+Then install apps and run:
+
+```
+$ tockloader install $PATH_TO_APP.tab
+$ make run-app
+```
+
+`make run-app` rebuilds the kernel and boots it with whatever is in the image,
+so installed apps persist across runs; `tockloader list` and `uninstall`
+operate on the image too. Letting `tockloader` pack the image is what makes
+more than one app work without thought: `elf2tab` pads each `.tbf` to a
+power-of-two size for MPU alignment, so a hand-concatenated image has to be
+ordered largest-first, and `tockloader` handles that itself.
+
+**Requires `tockloader` 1.18.1 or newer.** 1.18.0 crashes writing to an image
+that has no kernel in it, and earlier versions fail on any board whose flash
+starts at 0x0.
