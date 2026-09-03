@@ -225,11 +225,6 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CDevice<'a, I, S> {
             client: OptionalCell::empty(),
         }
     }
-
-    pub fn set_client(&'a self, client: &'a dyn I2CClient) {
-        self.mux.i2c_devices.push_head(self);
-        self.client.set(client);
-    }
 }
 
 impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CClient for I2CDevice<'a, I, S> {
@@ -303,6 +298,11 @@ impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CDevice for I2CDevice<'a, I> {
         } else {
             Err((Error::ArbitrationLost, buffer))
         }
+    }
+
+    fn set_client(&'a self, client: &'a dyn I2CClient) {
+        self.mux.i2c_devices.push_head(self);
+        self.client.set(client);
     }
 }
 
