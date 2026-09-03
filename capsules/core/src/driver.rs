@@ -28,6 +28,7 @@ pub enum NUM {
     Ipc                   = 0x10000,
     AppLoader             = 0x10001,
     ProcessInfo           = 0x10002,
+    UserspaceServices     = 0x10003,
 
     // HW Buses
     Spi                   = 0x20001,
