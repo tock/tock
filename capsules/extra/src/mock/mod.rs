@@ -11,4 +11,5 @@
 //! [`kernel::deferred_call::DeferredCall`]s to asynchronously deliver the
 //! callbacks that hardware interrupts would normally trigger.
 
+pub mod i2c_bus;
 pub mod sensors;
