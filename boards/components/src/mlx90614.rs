@@ -23,6 +23,7 @@ use capsules_extra::mlx90614::Mlx90614SMBus;
 use core::mem::MaybeUninit;
 use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
+use kernel::hil::i2c::I2CDevice as _;
 use kernel::hil::i2c::{self, NoSMBus};
 
 // Setup static space for the objects.
