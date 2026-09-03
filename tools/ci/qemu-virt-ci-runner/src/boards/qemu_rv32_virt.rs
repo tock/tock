@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use crate::{TestCase, TestStep};
+use crate::{App, TestCase, TestStep};
 
 pub static BOARD: super::Board = super::Board {
     name: "qemu_rv32_virt",
@@ -21,7 +21,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "c_hello",
         description: "Run the c_hello app and verify it prints \"Hello World!\" over serial.",
-        apps: &["c_hello"],
+        apps: &[App::LibtockC("c_hello")],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["Hello World!"],
             timeout: Duration::from_secs(30),
@@ -32,7 +32,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "syscall-return",
         description: "Check syscalls return expected success/error codes.",
-        apps: &["tests/syscall-return"],
+        apps: &[App::LibtockC("tests/syscall-return")],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["All tests succeeded"],
             timeout: Duration::from_secs(5),
@@ -43,7 +43,9 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "isolated_nonvolatile_storage_read_write",
         description: "Check writing to isolated nonvolatile storage works.",
-        apps: &["tests/isolated_nonvolatile_storage/invs_read_write"],
+        apps: &[App::LibtockC(
+            "tests/isolated_nonvolatile_storage/invs_read_write",
+        )],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["All tests succeeded"],
             timeout: Duration::from_secs(30),
@@ -54,7 +56,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "sha256",
         description: "Check SHA256 computation works.",
-        apps: &["tests/sha"],
+        apps: &[App::LibtockC("tests/sha")],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["SHA computation correct."],
             timeout: Duration::from_secs(5),
@@ -65,7 +67,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "rng",
         description: "Verify we get multiple rounds of random numbers.",
-        apps: &["tests/rng"],
+        apps: &[App::LibtockC("tests/rng")],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["Randomness:", "Randomness:", "Randomness:", "Randomness:"],
             timeout: Duration::from_secs(5),
@@ -76,7 +78,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "restart",
         description: "Verify apps can restart.",
-        apps: &["tests/restart"],
+        apps: &[App::LibtockC("tests/restart")],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &[
                 "Testing restart. x=1 (should be 1), z=0 (should be 0)",

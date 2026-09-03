@@ -172,7 +172,7 @@ fn wait_for_tcp(port: u16) -> Result<TcpStream, String> {
 
 /// Install tockloader apps, start QEMU in the background, and run the test closure.
 fn run_with_apps<F>(
-    app_names: &[&str],
+    apps: &[App],
     libtock_c_dir: &Path,
     board_dir: &str,
     test_fn: F,
@@ -190,18 +190,27 @@ where
         return Err(format!("tockloader erase-apps failed"));
     }
 
-    println!("Installing apps: {:?}", app_names);
+    let app_labels: Vec<&str> = apps
+        .iter()
+        .map(|a| match a {
+            App::LibtockC(p) => *p,
+        })
+        .collect();
+    println!("Installing apps: {:?}", app_labels);
 
-    // Install each libtock-c example app with tockloader.
-    for app in app_names {
-        let app_path = libtock_c_dir.join("examples").join(app);
-        let status = Command::new("tockloader")
-            .current_dir(&app_path)
-            .args(["install"])
-            .status()
-            .map_err(|e| format!("tockloader install failed for {}: {}", app, e))?;
-        if !status.success() {
-            return Err(format!("tockloader install failed for {}", app));
+    for app in apps {
+        match app {
+            App::LibtockC(path) => {
+                let app_path = libtock_c_dir.join("examples").join(path);
+                let status = Command::new("tockloader")
+                    .current_dir(&app_path)
+                    .args(["install"])
+                    .status()
+                    .map_err(|e| format!("tockloader install failed for {}: {}", path, e))?;
+                if !status.success() {
+                    return Err(format!("tockloader install failed for {}", path));
+                }
+            }
         }
     }
 
@@ -392,10 +401,17 @@ pub(crate) enum TestStep {
     SendSerial(&'static str),
 }
 
+/// An app to install before running a test.
+#[derive(Clone, Copy)]
+pub(crate) enum App {
+    /// A libtock-c app identified by its path relative to `libtock-c/examples/`.
+    LibtockC(&'static str),
+}
+
 pub(crate) struct TestCase {
     pub name: &'static str,
     pub description: &'static str,
-    pub apps: &'static [&'static str],
+    pub apps: &'static [App],
     /// Ordered sequence of actions to perform after QEMU is running.
     pub steps: &'static [TestStep],
     /// How long to wait after all steps before capturing the screenshot.
@@ -561,23 +577,25 @@ fn cmd_screenshot(
     )
 }
 
-fn build_apps(app_names: &[&str], libtock_c_dir: &Path, tock_targets: &str) -> Result<(), String> {
-    let mut unique: Vec<&str> = app_names.to_vec();
-    unique.sort();
-    unique.dedup();
-    for app in unique {
-        if app.is_empty() {
-            continue;
-        }
-        let app_path = libtock_c_dir.join("examples").join(app);
-        println!("Building app: {}", app);
+fn build_apps(apps: &[App], libtock_c_dir: &Path, tock_targets: &str) -> Result<(), String> {
+    let mut libtock_c_paths: Vec<&str> = apps
+        .iter()
+        .filter_map(|a| match a {
+            App::LibtockC(path) => Some(*path),
+        })
+        .collect();
+    libtock_c_paths.sort();
+    libtock_c_paths.dedup();
+    for path in libtock_c_paths {
+        let app_path = libtock_c_dir.join("examples").join(path);
+        println!("Building libtock-c app: {}", path);
         let status = Command::new("make")
             .current_dir(&app_path)
             .env("TOCK_TARGETS", tock_targets)
             .status()
-            .map_err(|e| format!("`make` failed for {}: {}", app, e))?;
+            .map_err(|e| format!("`make` failed for {}: {}", path, e))?;
         if !status.success() {
-            return Err(format!("`make` failed for {}", app));
+            return Err(format!("`make` failed for {}", path));
         }
     }
     Ok(())
@@ -596,7 +614,7 @@ fn cmd_run_all(board: &boards::Board, libtock_c_dir: &Path) -> Result<(), String
         return Err(format!("`make init` failed in {}", board.board_dir));
     }
 
-    let all_apps: Vec<&str> = board
+    let all_apps: Vec<App> = board
         .tests
         .iter()
         .flat_map(|tc| tc.apps.iter().copied())

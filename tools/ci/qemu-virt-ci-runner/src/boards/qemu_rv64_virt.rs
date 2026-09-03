@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use crate::{TestCase, TestStep};
+use crate::{App, TestCase, TestStep};
 
 pub static BOARD: super::Board = super::Board {
     name: "qemu_rv64_virt",
@@ -21,7 +21,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "c_hello",
         description: "Run the c_hello app and verify it prints \"Hello World!\" over serial.",
-        apps: &["c_hello"],
+        apps: &[App::LibtockC("c_hello")],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["Hello World!"],
             timeout: Duration::from_secs(30),
@@ -32,7 +32,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "led-odd",
         description: "Run led-odd and verify the screen shows LEDs 1 and 3 on.",
-        apps: &["tests/led/led-odd"],
+        apps: &[App::LibtockC("tests/led/led-odd")],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["Entering main loop."],
             timeout: Duration::from_secs(30),
@@ -45,7 +45,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "tock-logo",
         description: "Run the tock-logo u8g2 demo and verify the screen matches the expected logo.",
-        apps: &["tests/u8g2-demos/tock-logo"],
+        apps: &[App::LibtockC("tests/u8g2-demos/tock-logo")],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["Entering main loop."],
             timeout: Duration::from_secs(30),
@@ -58,7 +58,10 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "led-odd-logo",
         description: "Run led-odd and tock-logo together and verify the combined screen output as the LEDs display on the screen.",
-        apps: &["tests/led/led-odd", "tests/u8g2-demos/tock-logo"],
+        apps: &[
+            App::LibtockC("tests/led/led-odd"),
+            App::LibtockC("tests/u8g2-demos/tock-logo"),
+        ],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &["Entering main loop."],
             timeout: Duration::from_secs(30),
@@ -71,7 +74,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "button_print",
         description: "Use the keyboard to send the character up arrow, and ensure that is translated to button 0 being pressed for userspace.",
-        apps: &["tests/button_print"],
+        apps: &[App::LibtockC("tests/button_print")],
         steps: &[
             TestStep::Sleep(Duration::from_millis(500)),
             TestStep::SendKey("up"),
@@ -86,7 +89,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "console",
         description: "Send characters over serial and verify the console app echoes them back.",
-        apps: &["tests/console/console"],
+        apps: &[App::LibtockC("tests/console/console")],
         steps: &[
             TestStep::WaitSerialInOrder {
                 needles: &["Entering main loop."],
@@ -111,7 +114,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "hello-pconsole",
         description: "Run c_hello alongside the process console and verify both the app output and the tock$ prompt appear.",
-        apps: &["c_hello"],
+        apps: &[App::LibtockC("c_hello")],
         steps: &[
             TestStep::Sleep(Duration::from_millis(100)),
             TestStep::SendSerial("\n\r"),
@@ -143,7 +146,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "pconsole-list",
         description: "Run two apps and verify the process console 'list' command shows both, in any scheduler order.",
-        apps: &["c_hello", "blink"],
+        apps: &[App::LibtockC("c_hello"), App::LibtockC("blink")],
         steps: &[
             TestStep::Sleep(Duration::from_millis(500)),
             TestStep::SendSerial("list\n\r"),
@@ -158,7 +161,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "exit",
         description: "Run the exit app and confirm it shows as Terminated in the process list.",
-        apps: &["tests/exit"],
+        apps: &[App::LibtockC("tests/exit")],
         steps: &[
             TestStep::WaitSerialInOrder {
                 needles: &["Testing exit.", "Exiting."],
@@ -177,7 +180,7 @@ static TESTS: &[TestCase] = &[
     TestCase {
         name: "unexpected-rx",
         description: "Send a serial byte before the app starts and verify the kernel handles unexpected RX without crashing.",
-        apps: &["c_hello"],
+        apps: &[App::LibtockC("c_hello")],
         steps: &[
             TestStep::SendSerial("a"),
             TestStep::WaitSerialInOrder {
