@@ -9,4 +9,5 @@
 
 pub mod bme280;
 pub mod i2c_bus;
+pub mod isl29035;
 pub mod sht4x;

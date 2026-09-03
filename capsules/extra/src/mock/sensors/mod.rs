@@ -5,4 +5,5 @@
 //! Mock sensor implementations.
 
 pub mod bme280;
+pub mod isl29035;
 pub mod sht4x;
