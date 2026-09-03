@@ -66,6 +66,10 @@ type ButtonDriver = capsules_extra::button_keyboard::ButtonKeyboard<'static>;
 
 type SyscallReturnTestDriver = components::syscall_return_test::SyscallReturnTestComponentType;
 
+type Sha = components::sha::ShaSoftware256ComponentType;
+const SHA_DIGEST_LEN: usize = 32;
+type ShaDriver = components::sha::ShaDriverComponentType<Sha, SHA_DIGEST_LEN>;
+
 /// Needed for the process info capsule.
 pub struct PMCapability;
 unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
@@ -114,6 +118,7 @@ struct Platform {
     nonvolatile_storage: &'static IsolatedNonvolatileStorageDriver,
     virtio_console: Option<&'static capsules_core::console::Console<'static>>,
     syscall_return_test: &'static SyscallReturnTestDriver,
+    sha: &'static ShaDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -155,6 +160,7 @@ impl SyscallDriverLookup for Platform {
                 }
             }
             capsules_extra::syscall_return_test::DRIVER_NUM => f(Some(self.syscall_return_test)),
+            capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -473,6 +479,24 @@ pub unsafe fn main() {
     .finalize(components::syscall_return_test_component_static!());
 
     //--------------------------------------------------------------------------
+    // SHA256
+    //--------------------------------------------------------------------------
+
+    let sha256_userspace = components::sha::ShaSoftware256Component::new()
+        .finalize(components::sha_software_256_component_static!());
+
+    let sha = components::sha::ShaDriverComponent::new(
+        board_kernel,
+        capsules_extra::sha256_driver::DRIVER_NUM,
+        sha256_userspace,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::sha_driver_component_static!(
+        Sha,
+        SHA_DIGEST_LEN
+    ));
+
+    //--------------------------------------------------------------------------
     // PROCESS CONSOLE
     //--------------------------------------------------------------------------
 
@@ -484,7 +508,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     // Create the software-based SHA engine.
-    let sha = components::sha::ShaSoftware256Component::new()
+    let sha256_credentials = components::sha::ShaSoftware256Component::new()
         .finalize(components::sha_software_256_component_static!());
 
     // Create the credential checker.
@@ -555,7 +579,7 @@ pub unsafe fn main() {
     // Policy checks for a valid EcdsaNistP256 signature.
     let checking_policy_signature =
         components::appid::checker_signature::AppCheckerSignatureComponent::new(
-            sha,
+            sha256_credentials,
             verifier_multiple_keys,
             tock_tbf::types::TbfFooterV2CredentialsType::EcdsaNistP256,
         )
@@ -665,7 +689,8 @@ pub unsafe fn main() {
             process_info,
             nonvolatile_storage,
             virtio_console: virtio_console_driver,
-            syscall_return_test
+            syscall_return_test,
+            sha
         }
     );
     loader.set_client(platform);
