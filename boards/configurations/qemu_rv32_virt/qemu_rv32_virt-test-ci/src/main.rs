@@ -75,7 +75,8 @@ type ShaDriver = components::sha::ShaDriverComponentType<Sha, SHA_DIGEST_LEN>;
 // by address). The normal I2C virtualizer (`MuxI2C` + `I2CDevice`) is stacked
 // on top of that bus, exactly as it would be over a real I2C controller. The
 // mock SHT4x backs the temperature syscall driver; the mock BME280 backs the
-// pressure syscall driver.
+// pressure syscall driver. The mock ISL29035 (ambient light) answers at the
+// same address the mock SHT4x uses (0x44), so it lives on a second mock bus.
 type ChipAlarm = qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>;
 type MockI2CBus = capsules_extra::mock::i2c_bus::MockI2CBus<'static>;
 type MockI2CDevice = capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, MockI2CBus>;
@@ -86,6 +87,7 @@ type Sht4xSensor = components::sht4x::SHT4xComponentType<
 type TemperatureDriver = components::temperature::TemperatureComponentType<Sht4xSensor>;
 type Bme280Sensor = components::bme280::Bme280ComponentType<MockI2CDevice>;
 type PressureDriver = capsules_extra::pressure::PressureSensor<'static, Bme280Sensor>;
+type AmbientLightDriver = capsules_extra::ambient_light::AmbientLight<'static>;
 
 /// Needed for the process info capsule.
 pub struct PMCapability;
@@ -138,6 +140,7 @@ struct Platform {
     sha: &'static ShaDriver,
     temperature: &'static TemperatureDriver,
     pressure: &'static PressureDriver,
+    ambient_light: &'static AmbientLightDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -182,6 +185,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::pressure::DRIVER_NUM => f(Some(self.pressure)),
+            capsules_extra::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -582,6 +586,38 @@ pub unsafe fn main() {
     )
     .finalize(components::pressure_component_static!(Bme280Sensor));
 
+    // Ambient-light syscall driver, backed by the mock ISL29035. The ISL29035
+    // driver hard-codes I2C address 0x44, which the mock SHT4x already uses, so
+    // the mock ISL29035 gets its own mock bus and forward virtualizer.
+    let light_i2c_bus = components::mock::i2c_bus::MockI2CBusComponent::new()
+        .finalize(components::mock_i2c_bus_component_static!());
+
+    let mock_isl29035 = components::mock::isl29035::MockIsl29035Component::new()
+        .finalize(components::mock_isl29035_component_static!());
+    let _isl29035_on_bus = components::mock::i2c_bus::MockI2CBusDeviceComponent::new(
+        light_i2c_bus,
+        mock_isl29035,
+        capsules_extra::mock::sensors::isl29035::BASE_ADDR,
+    )
+    .finalize(components::mock_i2c_bus_device_component_static!());
+
+    let light_mux_i2c = components::i2c::I2CMuxComponent::new(light_i2c_bus, None)
+        .finalize(components::i2c_mux_component_static!(MockI2CBus));
+
+    let isl29035 =
+        components::isl29035::Isl29035Component::new(light_mux_i2c, base_platform.mux_alarm)
+            .finalize(components::isl29035_component_static!(
+                ChipAlarm, MockI2CBus
+            ));
+
+    let ambient_light = components::isl29035::AmbientLightComponent::new(
+        board_kernel,
+        capsules_extra::ambient_light::DRIVER_NUM,
+        isl29035,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::ambient_light_component_static!());
+
     //--------------------------------------------------------------------------
     // PROCESS CONSOLE
     //--------------------------------------------------------------------------
@@ -779,6 +815,7 @@ pub unsafe fn main() {
             sha,
             temperature,
             pressure,
+            ambient_light,
         }
     );
     loader.set_client(platform);
