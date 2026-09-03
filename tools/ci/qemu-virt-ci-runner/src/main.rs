@@ -310,7 +310,8 @@ fn expect_serial_any_order(
 }
 
 /// Wait until each needle appears in the serial output in the given order.
-/// Each needle must appear after all preceding needles have been matched.
+/// Each needle must appear strictly after the end of the previous needle's
+/// match, so a single occurrence in the output cannot satisfy two needles.
 fn expect_serial_in_order(
     serial: &mut BufReader<TcpStream>,
     needles: &[&str],
@@ -321,9 +322,18 @@ fn expect_serial_in_order(
         needles, timeout
     );
     let mut idx = 0;
+    // Byte offset into the accumulated buffer; needle[idx] is only searched
+    // in buf[search_from..] so each match must follow the previous one.
+    let mut search_from = 0usize;
     read_serial_until(serial, timeout, |buf| {
-        while idx < needles.len() && buf.contains(needles[idx]) {
-            idx += 1;
+        while idx < needles.len() {
+            match buf[search_from..].find(needles[idx]) {
+                Some(pos) => {
+                    search_from += pos + needles[idx].len();
+                    idx += 1;
+                }
+                None => break,
+            }
         }
         Ok(idx == needles.len())
     })
