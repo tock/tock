@@ -1160,39 +1160,6 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
         Ok(())
     }
 
-    fn write_byte(&self, val: u8) -> Result<(), ErrorCode> {
-        let usart = &USARTRegManager::new(self);
-        usart
-            .registers
-            .cr
-            .write(Control::RXEN::SET + Control::TXEN::SET);
-        usart
-            .registers
-            .thr
-            .write(TransmitHold::TXCHR.val(val as u32));
-        Ok(())
-    }
-
-    fn read_byte(&self) -> Result<u8, ErrorCode> {
-        let usart = &USARTRegManager::new(self);
-        Ok(usart.registers.rhr.read(ReceiverHold::RXCHR) as u8)
-    }
-
-    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
-        let usart = &USARTRegManager::new(self);
-        usart
-            .registers
-            .cr
-            .write(Control::RXEN::SET + Control::TXEN::SET);
-
-        usart
-            .registers
-            .thr
-            .write(TransmitHold::TXCHR.val(val as u32));
-        while !usart.registers.csr.is_set(ChannelStatus::RXRDY) {}
-        Ok(usart.registers.rhr.read(ReceiverHold::RXCHR) as u8)
-    }
-
     /// Pass in a None to use the HW chip select pin on the USART (RTS).
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         self.spi_chip_select.set(cs);

@@ -383,45 +383,6 @@ impl<'a> hil::spi::SpiMaster<'a> for PioSpi<'a> {
         Ok(())
     }
 
-    fn write_byte(&self, val: u8) -> Result<(), ErrorCode> {
-        match self.read_write_byte(val) {
-            Ok(_) => Ok(()),
-            Err(error) => Err(error),
-        }
-    }
-
-    fn read_byte(&self) -> Result<u8, ErrorCode> {
-        self.read_write_byte(0)
-    }
-
-    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
-        if self.is_busy() {
-            return Err(ErrorCode::BUSY);
-        }
-
-        self.set_chip_select(true);
-
-        let mut data: u32;
-
-        // One byte operations can be synchronous
-        self.pio.sm(self.sm_number).push_blocking(val as u32)?;
-
-        data = match self.pio.sm(self.sm_number).pull_blocking() {
-            Ok(val) => val,
-            Err(error) => {
-                return Err(error);
-            }
-        };
-
-        data >>= AUTOPULL_SHIFT;
-
-        if !self.hold_low.get() {
-            self.set_chip_select(false);
-        }
-
-        Ok(data as u8)
-    }
-
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         if !self.is_busy() {
             self.chip_select.set(cs);
