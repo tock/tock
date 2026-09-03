@@ -446,7 +446,7 @@ impl<'a> Uarte<'a> {
     //
     // Technically only RX is limited to 1MBaud, can TX up to 8MBaud:
     // https://devzone.nordicsemi.com/f/nordic-q-a/84204/framing-error-and-noisy-data-when-using-uarte-at-high-baud-rate
-    fn get_divider_for_baud(&self, baud_rate: u32) -> Result<u32, ErrorCode> {
+    pub fn get_divider_for_baud(baud_rate: u32) -> Result<u32, ErrorCode> {
         if baud_rate > 1_000_000 || baud_rate < 1200 {
             return Err(ErrorCode::INVAL);
         }
@@ -464,7 +464,7 @@ impl<'a> Uarte<'a> {
     }
 
     fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
-        let divider = self.get_divider_for_baud(baud_rate)?;
+        let divider = Self::get_divider_for_baud(baud_rate)?;
         self.registers.registers.baudrate.set(divider);
 
         Ok(())
