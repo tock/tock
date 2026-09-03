@@ -694,9 +694,7 @@ pub unsafe fn encode_upcall_trd64bit_ptr(
     a2: *mut u64,
     a3: *mut u64,
 ) {
-    // # Safety
-    //
-    // All safety invariants must be upheld by the function caller.
+    // SAFETY: All safety invariants must be upheld by the function caller.
     unsafe {
         // The TRD specifies that arguments 0, 1, and 2 are u32s. So, we cast to
         // u32 to ensure we are not using the upper bits, and then cast to u64
