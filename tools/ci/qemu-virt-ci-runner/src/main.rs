@@ -552,6 +552,16 @@ fn cmd_screenshot(
 fn cmd_run_all(board: &boards::Board, libtock_c_dir: &Path) -> Result<(), String> {
     println!("qemu-virt CI runner starting (board: {})...", board.name);
 
+    println!("Running `make init` in {}...", board.board_dir);
+    let status = Command::new("make")
+        .current_dir(board.board_dir)
+        .arg("init")
+        .status()
+        .map_err(|e| format!("failed to run `make init` in {}: {}", board.board_dir, e))?;
+    if !status.success() {
+        return Err(format!("`make init` failed in {}", board.board_dir));
+    }
+
     for tc in board.tests {
         run_test(tc, libtock_c_dir, board.board_dir)?;
         println!("TEST PASSED: {}", tc.name);
