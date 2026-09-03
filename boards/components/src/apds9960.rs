@@ -10,6 +10,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 
 #[macro_export]
 macro_rules! apds9960_component_static {

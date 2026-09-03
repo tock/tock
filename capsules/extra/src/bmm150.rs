@@ -65,14 +65,14 @@ enum Registers {
     REPZ = 0x52,
 }
 
-pub struct BMM150<'a, I: I2CDevice> {
+pub struct BMM150<'a, I: I2CDevice<'a>> {
     buffer: TakeCell<'static, [u8]>,
     i2c: &'a I,
     ninedof_client: OptionalCell<&'a dyn NineDofClient>,
     state: Cell<State>,
 }
 
-impl<'a, I: I2CDevice> BMM150<'a, I> {
+impl<'a, I: I2CDevice<'a>> BMM150<'a, I> {
     pub fn new(buffer: &'static mut [u8], i2c: &'a I) -> BMM150<'a, I> {
         BMM150 {
             buffer: TakeCell::new(buffer),
@@ -117,7 +117,7 @@ impl<'a, I: I2CDevice> BMM150<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CDevice> NineDof<'a> for BMM150<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> NineDof<'a> for BMM150<'a, I> {
     fn set_client(&self, client: &'a dyn NineDofClient) {
         self.ninedof_client.set(client);
     }
@@ -137,7 +137,7 @@ enum State {
     Read,
 }
 
-impl<I: I2CDevice> I2CClient for BMM150<'_, I> {
+impl<'a, I: I2CDevice<'a>> I2CClient for BMM150<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.state.set(State::Sleep);
