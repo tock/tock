@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2026.
 
-# This workflow runs the qemu-virt-ci-runner, which builds the qemu_rv64_virt
-# Tock kernel, installs libtock-c apps via tockloader, runs the board inside
-# qemu-system-riscv64, and verifies serial output and screen state.
+# This workflow runs the qemu-virt-ci-runner, which builds qemu_rv64_virt and
+# qemu_rv32_virt Tock kernels, installs libtock-c apps via tockloader, runs
+# each board inside qemu-system-riscv{64,32}, and verifies serial output and
+# screen state.
 
 name: qemu-virt-ci
 env:
@@ -62,12 +63,15 @@ jobs:
         run: |
           pushd boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci
           make
+          make init
+          make install
           popd
 
-      - name: Initialize local board with kernel
+      - name: Build the qemu_rv32_virt-test-ci kernel
         shell: bash
         run: |
-          pushd boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci
+          pushd boards/configurations/qemu_rv32_virt/qemu_rv32_virt-test-ci
+          make
           make init
           make install
           popd
@@ -77,10 +81,14 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 &
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
-      - name: Run qemu-virt CI tests
+      - name: Run qemu-virt CI tests (rv64)
         shell: bash
         # libtock-c is checked out inside the tock workspace in CI (GitHub
         # Actions requires checkouts to be under the workspace root).
         # ../../../libtock-c is relative to tools/ci/qemu-virt-ci-runner/,
         # which is the working directory when cargo run executes.
-        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--libtock-c ../../../libtock-c"
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board qemu_rv64_virt --libtock-c ../../../libtock-c"
+
+      - name: Run qemu-virt CI tests (rv32)
+        shell: bash
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board qemu_rv32_virt --libtock-c ../../../libtock-c"
