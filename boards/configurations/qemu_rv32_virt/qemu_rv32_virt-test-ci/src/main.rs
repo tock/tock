@@ -70,13 +70,22 @@ type Sha = components::sha::ShaSoftware256ComponentType;
 const SHA_DIGEST_LEN: usize = 32;
 type ShaDriver = components::sha::ShaDriverComponentType<Sha, SHA_DIGEST_LEN>;
 
+// Mock sensors, connected through a mock I2C bus (`MockI2CBus`, a "reverse"
+// virtualizer that dispatches controller transactions to attached mock devices
+// by address). The normal I2C virtualizer (`MuxI2C` + `I2CDevice`) is stacked
+// on top of that bus, exactly as it would be over a real I2C controller. The
+// mock SHT4x backs the temperature syscall driver; the mock BME280 backs the
+// pressure syscall driver.
 type ChipAlarm = qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>;
 type MockI2CBus = capsules_extra::mock::i2c_bus::MockI2CBus<'static>;
+type MockI2CDevice = capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, MockI2CBus>;
 type Sht4xSensor = components::sht4x::SHT4xComponentType<
     capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, ChipAlarm>,
-    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, MockI2CBus>,
+    MockI2CDevice,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<Sht4xSensor>;
+type Bme280Sensor = components::bme280::Bme280ComponentType<MockI2CDevice>;
+type PressureDriver = capsules_extra::pressure::PressureSensor<'static, Bme280Sensor>;
 
 /// Needed for the process info capsule.
 pub struct PMCapability;
@@ -128,6 +137,7 @@ struct Platform {
     syscall_return_test: &'static SyscallReturnTestDriver,
     sha: &'static ShaDriver,
     temperature: &'static TemperatureDriver,
+    pressure: &'static PressureDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -171,6 +181,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::syscall_return_test::DRIVER_NUM => f(Some(self.syscall_return_test)),
             capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules_extra::pressure::DRIVER_NUM => f(Some(self.pressure)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -507,19 +518,18 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
-    // MOCK SHT4x TEMPERATURE SENSOR + I2C VIRTUALIZER
+    // MOCK I2C BUS + MOCK SENSORS (temperature & pressure)
     //--------------------------------------------------------------------------
-
-    // Mock SHT4x sensor implemented in software.
-    let mock_sht4x = components::mock::sht4x::MockSht4xComponent::new()
-        .finalize(components::mock_sht4x_component_static!());
 
     // `MockI2CBus` is a "reverse" virtualizer: it presents an `i2c::I2CMaster`
     // bus upward and dispatches each transaction to the attached mock device
-    // whose registered address matches. Attach the mock SHT4x at its base
-    // address.
+    // whose registered address matches.
     let i2c_bus = components::mock::i2c_bus::MockI2CBusComponent::new()
         .finalize(components::mock_i2c_bus_component_static!());
+
+    // Mock SHT4x sensor, attached to the bus at its base address.
+    let mock_sht4x = components::mock::sht4x::MockSht4xComponent::new()
+        .finalize(components::mock_sht4x_component_static!());
     let _sht4x_on_bus = components::mock::i2c_bus::MockI2CBusDeviceComponent::new(
         i2c_bus,
         mock_sht4x,
@@ -527,9 +537,21 @@ pub unsafe fn main() {
     )
     .finalize(components::mock_i2c_bus_device_component_static!());
 
+    // Mock BME280 sensor, attached to the same bus at its own address.
+    let mock_bme280 = components::mock::bme280::MockBme280Component::new()
+        .finalize(components::mock_bme280_component_static!());
+    let _bme280_on_bus = components::mock::i2c_bus::MockI2CBusDeviceComponent::new(
+        i2c_bus,
+        mock_bme280,
+        capsules_extra::mock::sensors::bme280::BASE_ADDR,
+    )
+    .finalize(components::mock_i2c_bus_device_component_static!());
+
+    // The normal ("forward") I2C virtualizer stacks on top of the mock bus.
     let mux_i2c = components::i2c::I2CMuxComponent::new(i2c_bus, None)
         .finalize(components::i2c_mux_component_static!(MockI2CBus));
 
+    // Temperature syscall driver, backed by the mock SHT4x.
     let sht4x = components::sht4x::SHT4xComponent::new(
         mux_i2c,
         capsules_extra::mock::sensors::sht4x::BASE_ADDR,
@@ -544,6 +566,21 @@ pub unsafe fn main() {
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::temperature_component_static!(Sht4xSensor));
+
+    // Pressure syscall driver, backed by the mock BME280.
+    let bme280 = components::bme280::Bme280Component::new(
+        mux_i2c,
+        capsules_extra::mock::sensors::bme280::BASE_ADDR,
+    )
+    .finalize(components::bme280_component_static!(MockI2CBus));
+
+    let pressure = components::pressure::PressureComponent::new(
+        board_kernel,
+        capsules_extra::pressure::DRIVER_NUM,
+        bme280,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::pressure_component_static!(Bme280Sensor));
 
     //--------------------------------------------------------------------------
     // PROCESS CONSOLE
@@ -741,6 +778,7 @@ pub unsafe fn main() {
             syscall_return_test,
             sha,
             temperature,
+            pressure,
         }
     );
     loader.set_client(platform);
