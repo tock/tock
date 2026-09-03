@@ -62,12 +62,6 @@ jobs:
         run: |
           pushd boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci
           make
-          popd
-
-      - name: Initialize local board with kernel
-        shell: bash
-        run: |
-          pushd boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci
           make init
           make install
           popd
@@ -77,10 +71,10 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 &
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
-      - name: Run qemu-virt CI tests
+      - name: Run qemu_rv64_virt-test-ci CI tests
         shell: bash
         # libtock-c is checked out inside the tock workspace in CI (GitHub
         # Actions requires checkouts to be under the workspace root).
         # ../../../libtock-c is relative to tools/ci/qemu-virt-ci-runner/,
         # which is the working directory when cargo run executes.
-        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--libtock-c ../../../libtock-c"
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board qemu_rv64_virt --libtock-c ../../../libtock-c"
