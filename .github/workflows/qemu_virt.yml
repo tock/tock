@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y curl git make gcc gcc-riscv64-unknown-elf qemu-system-riscv python3-pip pipx bash wget file unzip xvfb
+          apt-get install -y curl git make build-essential gcc-riscv64-unknown-elf qemu-system-riscv python3-pip pipx bash wget file unzip xvfb
 
       - name: Install Rust
         run: |
