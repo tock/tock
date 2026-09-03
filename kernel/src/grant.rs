@@ -1453,7 +1453,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         };
 
         // Get references to all of the saved upcall data.
-        //
+        let (saved_upcalls_slice, saved_allow_ro_slice, saved_allow_rw_slice) =
+            layout.get_resource_slices();
         // SAFETY:
         // - Pointer is well aligned and initialized with data from Self::new()
         //   call.
@@ -1465,8 +1466,6 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         //   Mutable reference to this memory are only created through the
         //   kernel in the syscall interface which is serialized in time with
         //   this call.
-        let (saved_upcalls_slice, saved_allow_ro_slice, saved_allow_rw_slice) =
-            layout.get_resource_slices();
         let grant_data = unsafe {
             EnteredGrantKernelManagedLayout::offset_of_grant_data_t(
                 grant_ptr,
