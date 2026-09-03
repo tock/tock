@@ -533,34 +533,6 @@ impl<'a, C: PeripheralClock, P: hil::gpio::Output> SpiMaster<'a> for Spi<'a, C, 
         }
     }
 
-    fn write_byte(&self, out_val: u8) -> Result<(), ErrorCode> {
-        if !self.is_busy() {
-            while !self.registers.sspsr.is_set(SSPSR::TFE) {}
-
-            self.registers.sspdr.modify(SSPDR::DATA.val(out_val as u32));
-
-            Ok(())
-        } else {
-            Err(ErrorCode::BUSY)
-        }
-    }
-
-    fn read_byte(&self) -> Result<u8, ErrorCode> {
-        self.read_write_byte(0)
-    }
-
-    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
-        if !self.is_busy() {
-            self.write_byte(val)?;
-
-            while !self.registers.sspsr.is_set(SSPSR::RNE) {}
-
-            Ok(self.registers.sspdr.read(SSPDR::DATA) as u8)
-        } else {
-            Err(ErrorCode::BUSY)
-        }
-    }
-
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         if !self.is_busy() {
             self.active_slave.set(cs);

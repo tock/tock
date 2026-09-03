@@ -693,65 +693,6 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         Ok(())
     }
 
-    /// Use with care, this is a blocking function
-    fn read_byte(&self) -> Result<u8, kernel::ErrorCode> {
-        self.read_write_byte(0)
-    }
-
-    /// Use with care, this is a blocking function
-    fn write_byte(&self, val: u8) -> Result<(), kernel::ErrorCode> {
-        let regs = &*self.registers;
-
-        // Wait until the FIFO has space
-        while !regs.sr.is_set(SR::TXP) {}
-
-        // Write byte into TXDR (Transmit data register)
-        regs.txdr.write(TXDR::TXDR.val(val as u32));
-
-        // Start transfer
-        regs.cr1.modify(CR1::CSTART::SET);
-
-        // Wait for transfer to finish
-        while !regs.sr.is_set(SR::TXC) {}
-
-        Ok(())
-    }
-
-    /// Use with care, this is a blocking function
-    fn read_write_byte(&self, val: u8) -> Result<u8, kernel::ErrorCode> {
-        let regs = &*self.registers;
-
-        // Disable SPI to modify TSIZE
-        regs.cr1.modify(CR1::SPE::CLEAR);
-
-        // Set the transfer size
-        regs.cr2.modify(CR2::TSIZE.val(1));
-
-        // Enable SPI back on
-        regs.cr1.modify(CR1::SPE::SET);
-
-        // Wait until the TX FIFO actually has space then write the byte
-        while !regs.sr.is_set(SR::TXP) {}
-        regs.txdr.write(TXDR::TXDR.val(val as u32));
-
-        // Start the transfer
-        regs.cr1.modify(CR1::CSTART::SET);
-
-        // Wait for the incoming byte to arrive in the RX FIFO
-        while !regs.sr.is_set(SR::RXP) {}
-
-        // Retrieve the byte
-        let byte = regs.rxdr.get() as u8;
-
-        // Wait for the transfer to finish
-        while !regs.sr.is_set(SR::EOT) {}
-
-        // Clear the completion flags
-        regs.ifcr.write(IFCR::EOTC::SET + IFCR::TXTFC::SET);
-
-        Ok(byte)
-    }
-
     fn read_write_bytes(
         &self,
         mut write_buffer: kernel::utilities::leasable_buffer::SubSliceMut<'static, u8>,
