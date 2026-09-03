@@ -1105,7 +1105,7 @@ impl hil::gpio::Input for Pin<'_> {
 
 impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
-        with_interrupts_disabled(|| {
+        with_interrupts_disabled(|_interrupts_disabled| {
             self.exti_lineid.map(|lineid| {
                 let l = lineid;
 
@@ -1134,7 +1134,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     }
 
     fn disable_interrupts(&self) {
-        with_interrupts_disabled(|| {
+        with_interrupts_disabled(|_interrupts_disabled| {
             self.exti_lineid.map(|lineid| {
                 let l = lineid;
                 self.exti.mask_interrupt(l);

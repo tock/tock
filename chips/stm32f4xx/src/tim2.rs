@@ -443,7 +443,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        with_interrupts_disabled(|| {
+        with_interrupts_disabled(|_interrupts_disabled| {
             // Disable counter
             self.registers.dier.modify(DIER::CC1IE::CLEAR);
             cortexm4f::nvic::Nvic::new(self.irqn).clear_pending();
