@@ -16,8 +16,12 @@ rp2350 = { path = "../../chips/rp2350" }
 components = { path = "../components" }
 
 capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 raspberry_pi_pico_2 = { path = "../raspberry_pi_pico_2" }
+
+# Exports the firmware blobs
+tock-firmware-cyw43 = { git = "https://github.com/tock/firmware.git" }
 
 [build-dependencies]
 tock_build_scripts = { path = "../build_scripts" }

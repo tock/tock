@@ -12,8 +12,12 @@ MEMORY
 
   /* boot from Flash */
   bootloader (rx) : ORIGIN = 0x10000000, LENGTH = 1024
-  rom (rx)  : ORIGIN = 0x10000400, LENGTH = 255K
-  prog (rx) : ORIGIN = 0x10040000, LENGTH = 256K
+  /* The radio's firmware, NVRAM and CLM blobs live in the kernel image, so
+     this board needs far more rom than the plain Pico 2's 255K. Same 576K
+     total that boards/raspberry_pi_pico_w gives itself for the same blobs,
+     less the 1K bootloader block, which moves prog up to 0x10090000. */
+  rom (rx)  : ORIGIN = 0x10000400, LENGTH = 575K
+  prog (rx) : ORIGIN = 0x10090000, LENGTH = 256K
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 520K
 }
 
