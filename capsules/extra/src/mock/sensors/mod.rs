@@ -4,4 +4,5 @@
 
 //! Mock sensor implementations.
 
+pub mod bme280;
 pub mod sht4x;

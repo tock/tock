@@ -7,5 +7,6 @@
 //! These wire up the capsules in `capsules_extra::mock`, which pretend to be
 //! real peripherals so a board can be exercised without the actual hardware.
 
+pub mod bme280;
 pub mod i2c_bus;
 pub mod sht4x;
