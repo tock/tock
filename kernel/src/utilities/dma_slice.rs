@@ -286,6 +286,9 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMut<'a, T
         // made by DMA operations finished _before_ this function ran:
         fence.acquire::<T>(self.slice_ptr.as_ptr());
 
+        // SAFETY: This pointer must be convertible to a reference. We know that
+        // it is because the only constructor for `self.slice_ptr` started with
+        // a valid Rust reference.
         unsafe { self.slice_ptr.as_mut() }
     }
 }
@@ -619,6 +622,10 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMut<'a
         fence.acquire::<T>(ptr::slice_from_raw_parts_mut(self.as_mut_ptr(), self.len()));
 
         // Restore the original `SubSliceMut` configuration:
+        //
+        // SAFETY: The `internal_slice_ptr` pointer must be convertible to a
+        // reference. We know that it is because the only constructor for
+        // `self.internal_slice_ptr` started with a valid Rust reference.
         let mut sub_slice_mut = SubSliceMut::new(unsafe { self.internal_slice_ptr.as_mut() });
         sub_slice_mut.slice(self.active_range);
         sub_slice_mut
@@ -636,6 +643,10 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMut<'a
     /// were read-only).
     unsafe fn take_no_acquire(mut self) -> SubSliceMut<'a, T> {
         // Restore the original `SubSliceMut` configuration:
+        //
+        // SAFETY: The `internal_slice_ptr` pointer must be convertible to a
+        // reference. We know that it is because the only constructor for
+        // `self.internal_slice_ptr` started with a valid Rust reference.
         let mut sub_slice_mut = SubSliceMut::new(unsafe { self.internal_slice_ptr.as_mut() });
         sub_slice_mut.slice(self.active_range);
         sub_slice_mut
@@ -786,14 +797,24 @@ pub mod immutable_from_into_bytes {
     pub unsafe trait ImmutableFromIntoBytes: private::Sealed {}
 
     impl private::Sealed for u8 {}
+    // SAFETY: The primitive u8 type is always initialized, does not have
+    // interior mutability, and is always valid for any byte patterns.
     unsafe impl ImmutableFromIntoBytes for u8 {}
     impl private::Sealed for u16 {}
+    // SAFETY: The primitive u16 type is always initialized, does not have
+    // interior mutability, and is always valid for any byte patterns.
     unsafe impl ImmutableFromIntoBytes for u16 {}
     impl private::Sealed for u32 {}
+    // SAFETY: The primitive u32 type is always initialized, does not have
+    // interior mutability, and is always valid for any byte patterns.
     unsafe impl ImmutableFromIntoBytes for u32 {}
     impl private::Sealed for u64 {}
+    // SAFETY: The primitive u64 type is always initialized, does not have
+    // interior mutability, and is always valid for any byte patterns.
     unsafe impl ImmutableFromIntoBytes for u64 {}
     impl private::Sealed for u128 {}
+    // SAFETY: The primitive u128 type is always initialized, does not have
+    // interior mutability, and is always valid for any byte patterns.
     unsafe impl ImmutableFromIntoBytes for u128 {}
 }
 
