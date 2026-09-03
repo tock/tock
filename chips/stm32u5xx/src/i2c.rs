@@ -330,9 +330,11 @@ struct Timings {
     scldel: u8,
 }
 impl Timings {
+    const I2C_STANDARD_MODE_FREQUENCY_LIMIT: Hertz = Hertz::khz(100);
+    const I2C_FAST_MODE_FREQUENCY_LIMIT: Hertz = Hertz::khz(400);
+
     fn new(kernel_clock: Hertz, i2c_frequency: Hertz) -> Result<Self, kernel::ErrorCode> {
         let kernel_clock = kernel_clock.0;
-        let i2c_frequency = i2c_frequency.0;
 
         // Refer to RM0433 Rev 7 Figure 539 for setup and hold timing:
         //
@@ -343,92 +345,93 @@ impl Timings {
         //
         // t_SYNC1 + t_SYNC2 > 4 * t_I2CCLK
         // t_SCL ~= t_SYNC1 + t_SYNC2 + t_SCLL + t_SCLH
-        let ratio = kernel_clock / i2c_frequency;
+        let ratio = kernel_clock / i2c_frequency.0;
 
         // For the standard-mode configuration method, we must have a ratio of 4 or higher
         if ratio < 4 {
             return Err(kernel::ErrorCode::INVAL);
         }
 
-        let (presc_reg, scll, sclh, sdadel, scldel) = if i2c_frequency > 100_000 {
-            // Fast-mode (Fm) or Fast-mode Plus (Fm+)
-            // here we pick SCLL + 1 = 2 * (SCLH + 1)
+        let (presc_reg, scll, sclh, sdadel, scldel) =
+            if i2c_frequency > Self::I2C_STANDARD_MODE_FREQUENCY_LIMIT {
+                // Fast-mode (Fm) or Fast-mode Plus (Fm+)
+                // here we pick SCLL + 1 = 2 * (SCLH + 1)
 
-            // Prescaler, 384 ticks for sclh/scll. Round up then subtract 1
-            let presc_reg = ((ratio - 1) / 384) as u8;
-            // ratio < 1200 by pclk 120MHz max., therefore presc < 16
+                // Prescaler, 384 ticks for sclh/scll. Round up then subtract 1
+                let presc_reg = ((ratio - 1) / 384) as u8;
+                // ratio < 1200 by pclk 120MHz max., therefore presc < 16
 
-            // Actual precale value selected
-            let presc = (presc_reg + 1) as u32;
+                // Actual precale value selected
+                let presc = (presc_reg + 1) as u32;
 
-            let sclh = ((ratio / presc) - 3) / 3;
-            let scll = (2 * (sclh + 1)) - 1;
+                let sclh = ((ratio / presc) - 3) / 3;
+                let scll = (2 * (sclh + 1)) - 1;
 
-            let (sdadel, scldel) = if i2c_frequency > 400_000 {
-                // Fast-mode Plus (Fm+)
-                // See table in datsheet
-                if kernel_clock < 17_000_000 {
-                    return Err(kernel::ErrorCode::INVAL);
-                }
+                let (sdadel, scldel) = if i2c_frequency > Self::I2C_FAST_MODE_FREQUENCY_LIMIT {
+                    // Fast-mode Plus (Fm+)
+                    // See table in datsheet
+                    if kernel_clock < 17_000_000 {
+                        return Err(kernel::ErrorCode::INVAL);
+                    }
 
-                let sdadel = kernel_clock / 8_000_000 / presc;
-                let scldel = kernel_clock / 4_000_000 / presc - 1;
+                    let sdadel = kernel_clock / 8_000_000 / presc;
+                    let scldel = kernel_clock / 4_000_000 / presc - 1;
 
-                (sdadel, scldel)
+                    (sdadel, scldel)
+                } else {
+                    // Fast-mode (Fm)
+                    // See table in datsheet
+                    if kernel_clock < 8_000_000 {
+                        return Err(kernel::ErrorCode::INVAL);
+                    }
+
+                    let sdadel = kernel_clock / 4_000_000 / presc;
+                    let scldel = kernel_clock / 2_000_000 / presc - 1;
+
+                    (sdadel, scldel)
+                };
+
+                (
+                    presc_reg,
+                    scll as u8,
+                    sclh as u8,
+                    sdadel as u8,
+                    scldel as u8,
+                )
             } else {
-                // Fast-mode (Fm)
+                // Standard-mode (Sm); here we pick SCLL = SCLH
                 // See table in datsheet
-                if kernel_clock < 8_000_000 {
+                if kernel_clock < 2_000_000 {
                     return Err(kernel::ErrorCode::INVAL);
                 }
 
-                let sdadel = kernel_clock / 4_000_000 / presc;
-                let scldel = kernel_clock / 2_000_000 / presc - 1;
+                // Prescaler, 512 ticks for sclh/scll. Round up then
+                // subtract 1
+                let presc = (ratio - 1) / 512;
+                let presc_reg = cmp::min(presc, 15) as u8;
 
-                (sdadel, scldel)
+                // Actual prescale value selected
+                let presc = (presc_reg + 1) as u32;
+
+                let sclh = ((ratio / presc) - 2) / 2;
+                let scll = sclh;
+
+                // Speed check
+                if sclh >= 256 {
+                    return Err(kernel::ErrorCode::INVAL);
+                }
+
+                let sdadel = kernel_clock / 2_000_000 / presc;
+                let scldel = kernel_clock / 500_000 / presc - 1;
+
+                (
+                    presc_reg,
+                    scll as u8,
+                    sclh as u8,
+                    sdadel as u8,
+                    scldel as u8,
+                )
             };
-
-            (
-                presc_reg,
-                scll as u8,
-                sclh as u8,
-                sdadel as u8,
-                scldel as u8,
-            )
-        } else {
-            // Standard-mode (Sm); here we pick SCLL = SCLH
-            // See table in datsheet
-            if kernel_clock < 2_000_000 {
-                return Err(kernel::ErrorCode::INVAL);
-            }
-
-            // Prescaler, 512 ticks for sclh/scll. Round up then
-            // subtract 1
-            let presc = (ratio - 1) / 512;
-            let presc_reg = cmp::min(presc, 15) as u8;
-
-            // Actual prescale value selected
-            let presc = (presc_reg + 1) as u32;
-
-            let sclh = ((ratio / presc) - 2) / 2;
-            let scll = sclh;
-
-            // Speed check
-            if sclh >= 256 {
-                return Err(kernel::ErrorCode::INVAL);
-            }
-
-            let sdadel = kernel_clock / 2_000_000 / presc;
-            let scldel = kernel_clock / 500_000 / presc - 1;
-
-            (
-                presc_reg,
-                scll as u8,
-                sclh as u8,
-                sdadel as u8,
-                scldel as u8,
-            )
-        };
 
         // Sanity check
         if presc_reg >= 16 {

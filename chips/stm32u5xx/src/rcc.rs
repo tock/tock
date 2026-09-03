@@ -295,6 +295,39 @@ pub struct Rcc {
 }
 
 impl Rcc {
+    /// See RM0456 § 11.4.2
+    const HSI16_FREQUENCY: Hertz = Hertz::mhz(16);
+    /// See RM0456 § 11.4.4
+    const HSI48_FREQUENCY: Hertz = Hertz::mhz(48);
+    /// See RM0456 § 11.4.8
+    const LSI_FREQUENCY: Hertz = Hertz::khz(32);
+
+    // See RM0456 table 114
+    const BUS_RANGE1_FREQUENCY_LIMIT: Hertz = Hertz::mhz(160);
+    const BUS_RANGE2_FREQUENCY_LIMIT: Hertz = Hertz::mhz(110);
+    const BUS_RANGE3_FREQUENCY_LIMIT: Hertz = Hertz::mhz(55);
+    const BUS_RANGE4_FREQUENCY_LIMIT: Hertz = Hertz::mhz(25);
+
+    // See RM0456 table 115
+    const MSIS_MSIK_RANGE4_FREQUENCY_LIMIT: Hertz = Hertz::mhz(24);
+    const HSE_RANGE123_FREQUENCY_LIMIT: Hertz = Hertz::mhz(50);
+    const HSE_RANGE4_FREQUENCY_LIMIT: Hertz = Hertz::mhz(25);
+
+    // See RM0456 § 10.5.4
+    const SYSCLK_NO_BOOST_FREQUENCY_LIMIT: Hertz = Hertz::mhz(55);
+
+    // See RM0456 § 11.4.6
+    const PLL_REF_FREQUENCY_LOWER_LIMIT: Hertz = Hertz::mhz(4);
+    const PLL_REF_FREQUENCY_UPPER_LIMIT: Hertz = Hertz::mhz(16);
+
+    // See RM0456 table 115
+    const PLL_RANGE1_VCOMIN_VCOMAX_OUTMAX_FREQUENCIES: (Hertz, Hertz, Hertz) =
+        (Hertz::mhz(128), Hertz::mhz(544), Hertz::mhz(208));
+    const PLL_RANGE2_VCOMIN_VCOMAX_OUTMAX_FREQUENCIES: (Hertz, Hertz, Hertz) =
+        (Hertz::mhz(128), Hertz::mhz(544), Hertz::mhz(110));
+    const PLL_RANGE3_VCOMIN_VCOMAX_OUTMAX_FREQUENCIES: (Hertz, Hertz, Hertz) =
+        (Hertz::mhz(128), Hertz::mhz(330), Hertz::mhz(55));
+
     pub const fn new(base: StaticRef<RccRegisters>) -> Self {
         Self { registers: base }
     }
@@ -315,7 +348,7 @@ impl Rcc {
             // Check MSI output per RM0456 § 11.4.10
             if let VoltageScale::Range4 = config.voltage_range {
                 // Cap MSIS to 24MHz in voltage range 4
-                if Self::msirange_to_hertz(range).0 > 24_000_000 {
+                if Self::msirange_to_hertz(range) > Self::MSIS_MSIK_RANGE4_FREQUENCY_LIMIT {
                     range = MsiRange::Range24mhz;
                     was_fallback_applied = true;
                 }
@@ -346,7 +379,7 @@ impl Rcc {
             // Check MSI output per RM0456 § 11.4.10
             if let VoltageScale::Range4 = config.voltage_range {
                 // Cap MSIK to 24MHz in voltage range 4
-                if Self::msirange_to_hertz(range).0 > 24_000_000 {
+                if Self::msirange_to_hertz(range) > Self::MSIS_MSIK_RANGE4_FREQUENCY_LIMIT {
                     range = MsiRange::Range24mhz;
                     was_fallback_applied = true;
                 }
@@ -370,22 +403,22 @@ impl Rcc {
             Self::msirange_to_hertz(range)
         });
 
-        let hsi16 = Hertz(16_000_000);
+        let hsi16 = Self::HSI16_FREQUENCY;
 
         let hse = config.hse.map(|mut hse| {
             // Check frequency limits per RM456 § 11.4.10
             match config.voltage_range {
                 VoltageScale::Range1 | VoltageScale::Range2 | VoltageScale::Range3 => {
                     // Cap HSE to 50MHz in voltage range 1/2/3
-                    if hse.freq.0 > 50_000_000 {
-                        hse.freq = Hertz(50_000_000);
+                    if hse.freq > Self::HSE_RANGE123_FREQUENCY_LIMIT {
+                        hse.freq = Self::HSE_RANGE123_FREQUENCY_LIMIT;
                         was_fallback_applied = true;
                     }
                 }
                 VoltageScale::Range4 => {
                     // Cap HSE to 25MHz in voltage range 4
-                    if hse.freq.0 > 25_000_000 {
-                        hse.freq = Hertz(25_000_000);
+                    if hse.freq > Self::HSE_RANGE4_FREQUENCY_LIMIT {
+                        hse.freq = Self::HSE_RANGE4_FREQUENCY_LIMIT;
                         was_fallback_applied = true;
                     }
                 }
@@ -411,14 +444,14 @@ impl Rcc {
 
         let hsi48 = if config.hsi48 {
             self.enable_hsi48();
-            Some(Hertz(48_000_000))
+            Some(Self::HSI48_FREQUENCY)
         } else {
             None
         };
 
         let lsi = if config.lsi {
             self.enable_lsi();
-            Some(Hertz(32_000))
+            Some(Self::LSI_FREQUENCY)
         } else {
             None
         };
@@ -494,10 +527,10 @@ impl Rcc {
         let mut hclk = sys / ahb_pre;
 
         let hclk_max = match config.voltage_range {
-            VoltageScale::Range1 => Hertz::mhz(160),
-            VoltageScale::Range2 => Hertz::mhz(110),
-            VoltageScale::Range3 => Hertz::mhz(55),
-            VoltageScale::Range4 => Hertz::mhz(25),
+            VoltageScale::Range1 => Self::BUS_RANGE1_FREQUENCY_LIMIT,
+            VoltageScale::Range2 => Self::BUS_RANGE2_FREQUENCY_LIMIT,
+            VoltageScale::Range3 => Self::BUS_RANGE3_FREQUENCY_LIMIT,
+            VoltageScale::Range4 => Self::BUS_RANGE4_FREQUENCY_LIMIT,
         };
 
         // If the resulting HCLK frequency exceeds the maximum for the selected voltage range, fall back to the highest divider
@@ -509,7 +542,7 @@ impl Rcc {
         }
 
         // If needed, enable the EPOD booster to reach the target clock speed, per § 10.5.4
-        if sys >= Hertz::mhz(55) {
+        if sys >= Self::SYSCLK_NO_BOOST_FREQUENCY_LIMIT {
             pwr.enable_epod_booster();
         }
 
@@ -697,7 +730,9 @@ impl Rcc {
 
         // Check limits per RM0456 § 11.4.6
         // If the resulting reference frequency is invalid, fall back to HSI16 with a divider of 4 (so 4MHz)
-        if ref_freq < Hertz::mhz(4) || ref_freq > Hertz::mhz(16) {
+        if ref_freq < Self::PLL_REF_FREQUENCY_LOWER_LIMIT
+            || ref_freq > Self::PLL_REF_FREQUENCY_UPPER_LIMIT
+        {
             input_source = PllSource::Hsi;
             src_freq = input.hsi16;
 
@@ -709,9 +744,9 @@ impl Rcc {
 
         // Check PLL clocks per RM0456 § 11.4.10
         let (vco_min, vco_max, out_max) = match voltage_range {
-            VoltageScale::Range1 => (Hertz::mhz(128), Hertz::mhz(544), Hertz::mhz(208)),
-            VoltageScale::Range2 => (Hertz::mhz(128), Hertz::mhz(544), Hertz::mhz(110)),
-            VoltageScale::Range3 => (Hertz::mhz(128), Hertz::mhz(330), Hertz::mhz(55)),
+            VoltageScale::Range1 => Self::PLL_RANGE1_VCOMIN_VCOMAX_OUTMAX_FREQUENCIES,
+            VoltageScale::Range2 => Self::PLL_RANGE2_VCOMIN_VCOMAX_OUTMAX_FREQUENCIES,
+            VoltageScale::Range3 => Self::PLL_RANGE3_VCOMIN_VCOMAX_OUTMAX_FREQUENCIES,
             // PLL is unavailable in voltage range 4
             VoltageScale::Range4 => {
                 return (
@@ -801,7 +836,7 @@ impl Rcc {
                 let mboost = if let Some(r) = r {
                     // § 10.5.4: if we're targeting >= 55 MHz, we must configure PLL1MBOOST to a prescaler
                     // value that results in an output between 4 and 16 MHz for the PWR EPOD boost
-                    if r >= Hertz::mhz(55) {
+                    if r >= Self::SYSCLK_NO_BOOST_FREQUENCY_LIMIT {
                         // source_clk can be up to 50 MHz, so there's just a few cases:
                         match src_freq.0 {
                             ..=16_000_000 => PllMboost::Div1, // Bypass, giving EPOD 4-16 MHz
