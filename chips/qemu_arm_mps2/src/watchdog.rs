@@ -34,9 +34,6 @@ use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, regi
 
 use crate::SYSCLK_FRQ;
 
-pub const WATCHDOG_BASE: StaticRef<WatchdogRegisters> =
-    unsafe { StaticRef::new(0x4000_8000 as *const WatchdogRegisters) };
-
 /// Unlock value documented in the CMSDK Watchdog TRM; writing anything else
 /// to `WDOGLOCK` re-locks the device.
 const WDOG_UNLOCK_VALUE: u32 = 0x1ACC_E551;

@@ -36,9 +36,6 @@ use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, regi
 
 use crate::SYSCLK_FRQ;
 
-pub const SPI_SHIELD0_BASE: StaticRef<SpiRegisters> =
-    unsafe { StaticRef::new(0x4002_6000 as *const SpiRegisters) };
-
 register_structs! {
     pub SpiRegisters {
         (0x000 => cr0: ReadWrite<u32, CR0::Register>),

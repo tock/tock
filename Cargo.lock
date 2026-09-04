@@ -736,7 +736,7 @@ dependencies = [
  "cortexm3",
  "kernel",
  "mps2_base",
- "qemu_arm_mps2",
+ "qemu_arm_mps2-unsafe",
  "qemu_arm_mps2_an385",
  "tock_build_scripts",
 ]
@@ -748,7 +748,7 @@ dependencies = [
  "cortexm4",
  "kernel",
  "mps2_base",
- "qemu_arm_mps2",
+ "qemu_arm_mps2-unsafe",
  "qemu_arm_mps2_an386",
  "tock_build_scripts",
 ]
@@ -763,6 +763,7 @@ dependencies = [
  "cortexm",
  "kernel",
  "qemu_arm_mps2",
+ "qemu_arm_mps2-unsafe",
 ]
 
 [[package]]
@@ -1314,8 +1315,16 @@ dependencies = [
 name = "qemu_arm_mps2"
 version = "0.2.3-dev"
 dependencies = [
+ "kernel",
+]
+
+[[package]]
+name = "qemu_arm_mps2-unsafe"
+version = "0.2.3-dev"
+dependencies = [
  "cortexm",
  "kernel",
+ "qemu_arm_mps2",
 ]
 
 [[package]]

@@ -15,22 +15,10 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
 use crate::SYSCLK_FRQ;
-
-pub const UART0_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x4000_4000 as *const UartRegisters) };
-pub const UART1_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x4000_5000 as *const UartRegisters) };
-pub const UART2_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x4000_6000 as *const UartRegisters) };
-pub const UART3_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x4000_7000 as *const UartRegisters) };
-pub const UART4_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x4000_9000 as *const UartRegisters) };
 
 #[repr(C)]
 pub struct UartRegisters {
@@ -99,7 +87,7 @@ impl<'a> Uart<'a> {
 
     /// Disable the device and clear any pending interrupt state. Safe to
     /// call at any time; used both at construction and by the panic writer.
-    fn reset(&self) {
+    pub fn reset(&self) {
         self.registers.ctrl.set(0);
         // Both are write-one-to-clear; STATE latches the overrun conditions
         // themselves, INTSTATUS the interrupts they raised.
@@ -112,6 +100,18 @@ impl<'a> Uart<'a> {
                 + INTSTATUS::TxOverrun::SET
                 + INTSTATUS::RxOverrun::SET,
         );
+    }
+
+    /// Write `bytes` out by polling, bypassing the interrupt-driven state
+    /// above. For panic writers; must not be interleaved with a transmit
+    /// already in flight.
+    pub fn transmit_sync(&self, bytes: &[u8]) {
+        self.registers.ctrl.modify(CTRL::TxIntEn::CLEAR);
+        for byte in bytes {
+            while self.registers.state.is_set(STATE::TxFull) {}
+            self.registers.data.write(DATA::Data.val(*byte as u32));
+        }
+        while self.registers.state.is_set(STATE::TxFull) {}
     }
 
     pub fn handle_interrupt(&self) {
@@ -315,61 +315,5 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
-    }
-}
-
-/// A synchronous, polling writer for panic messages.
-///
-/// This bypasses all interrupt-driven state above and is only ever used
-/// from the panic handler.
-pub struct UartPanicWriter<'a> {
-    inner: Uart<'a>,
-}
-
-impl UartPanicWriter<'_> {
-    fn transmit_sync(&self, bytes: &[u8]) {
-        self.inner.registers.ctrl.modify(CTRL::TxIntEn::CLEAR);
-        for byte in bytes {
-            while self.inner.registers.state.is_set(STATE::TxFull) {}
-            self.inner
-                .registers
-                .data
-                .write(DATA::Data.val(*byte as u32));
-        }
-        while self.inner.registers.state.is_set(STATE::TxFull) {}
-    }
-}
-
-impl IoWrite for UartPanicWriter<'_> {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        self.transmit_sync(buf);
-        buf.len()
-    }
-}
-
-impl core::fmt::Write for UartPanicWriter<'_> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-pub struct UartPanicWriterConfig {
-    pub base: StaticRef<UartRegisters>,
-    pub params: hil::uart::Parameters,
-}
-
-impl kernel::platform::chip::PanicWriter for UartPanicWriter<'_> {
-    type Config = UartPanicWriterConfig;
-
-    unsafe fn create_panic_writer(config: Self::Config) -> impl IoWrite + core::fmt::Write {
-        use hil::uart::Configure as _;
-
-        let inner = Uart::new(config.base);
-        inner.reset();
-        // Nothing to report a failure to: this runs from the panic handler,
-        // and the parameters come from the board's own configuration.
-        let _ = inner.configure(config.params);
-        UartPanicWriter { inner }
     }
 }

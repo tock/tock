@@ -13,6 +13,7 @@ components = { path = "../../components" }
 cortexm = { path = "../../../arch/cortex-m" }
 kernel = { path = "../../../kernel" }
 qemu_arm_mps2 = { path = "../../../chips/qemu_arm_mps2" }
+qemu_arm_mps2-unsafe = { path = "../../../chips/qemu_arm_mps2-unsafe" }
 
 capsules-core = { path = "../../../capsules/core" }
 capsules-system = { path = "../../../capsules/system" }
