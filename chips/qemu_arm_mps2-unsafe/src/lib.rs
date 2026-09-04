@@ -9,7 +9,6 @@
 
 pub mod addresses;
 pub mod chip;
-pub mod uart;
 
 use qemu_arm_mps2::Mps2DefaultPeripherals;
 
