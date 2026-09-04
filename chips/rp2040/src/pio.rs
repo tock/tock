@@ -2045,6 +2045,88 @@ mod tests {
         assert_eq!(instrs[1], 0x5678);
     }
 
+    #[test]
+    fn relocation_moves_jmp_targets_and_wraps_at_32() {
+        // jmp 3, then `set pindirs, 31`, which is not a jmp.
+        let jmp3 = 0b000_00000_000_00011u16;
+        let set = 0b111_00000_100_11111u16;
+        let mut out = [0u16; 2];
+        for (slot, instr) in out
+            .iter_mut()
+            .zip(RelocatedProgram::new([jmp3, set].iter(), 5))
+        {
+            *slot = instr;
+        }
+        assert_eq!(out[0], 0b000_00000_000_01000);
+        assert_eq!(out[1], set, "a non-jmp must be copied untouched");
+
+        // 3 + 30 is 33, which must come back as 1 and must not spill out of
+        // the five address bits. Comparing the whole instruction is the point:
+        // masking the result would hide a missing wrap.
+        let mut wrapped = [0u16; 1];
+        for (slot, instr) in wrapped
+            .iter_mut()
+            .zip(RelocatedProgram::new([jmp3].iter(), 30))
+        {
+            *slot = instr;
+        }
+        assert_eq!(wrapped[0], 0b000_00000_000_00001);
+    }
+
+    // Only opcode 000 is JMP. Every other opcode must survive relocation
+    // unchanged, including the ones whose low bits look like an address.
+    #[test]
+    fn relocation_leaves_every_other_opcode_alone() {
+        for opcode in 1..8u16 {
+            let instr = (opcode << 13) | 0b00000_000_11111;
+            let mut out = [0u16; 1];
+            for (slot, relocated) in out.iter_mut().zip(RelocatedProgram::new([instr].iter(), 7)) {
+                *slot = relocated;
+            }
+            assert_eq!(out[0], instr, "opcode {opcode:03b} was relocated");
+        }
+    }
+
+    // 0 means 32 in both threshold fields, and 0 means 65536 in CLKDIV::INT.
+    // Both come out right today only because .val() masks; nothing states the
+    // convention, so nothing would notice a field growing a bit.
+    #[test]
+    fn a_shift_threshold_of_32_encodes_as_zero() {
+        assert_eq!(SMx_SHIFTCTRL::PUSH_THRESH.val(32).value, 0);
+        assert_eq!(SMx_SHIFTCTRL::PULL_THRESH.val(32).value, 0);
+        assert_eq!(SMx_SHIFTCTRL::PUSH_THRESH.val(31).value, 31 << 20);
+    }
+
+    #[test]
+    fn a_clock_divisor_of_65536_encodes_as_zero() {
+        assert_eq!(SMx_CLKDIV::INT.val(65536).value, 0);
+        assert_eq!(SMx_CLKDIV::INT.val(1).value, 1 << 16);
+    }
+
+    // TXF0 is at +0x10 and RXF0 at +0x20, four bytes apart per state machine.
+    // Both blocks and all four state machines, because checking one of the
+    // eight would not notice the block or the index being dropped. One
+    // StateMachine serves both blocks here because these two take the block as
+    // an argument rather than reading it from the state machine they belong
+    // to -- worth knowing, since it means the pairing is unchecked.
+    #[test]
+    fn fifo_addresses_match_the_datasheet_map() {
+        for (pio, base) in [
+            (PIONumber::PIO0, PIO_0_BASE_ADDRESS as u32),
+            (PIONumber::PIO1, PIO_1_BASE_ADDRESS as u32),
+        ] {
+            for (n, sm_number) in [SMNumber::SM0, SMNumber::SM1, SMNumber::SM2, SMNumber::SM3]
+                .into_iter()
+                .enumerate()
+            {
+                let sm = StateMachine::new(sm_number, PIO0_BASE, PIO0_XOR_BASE, PIO0_SET_BASE);
+                let n = n as u32;
+                assert_eq!(sm.tx_fifo_addr(pio), base + 0x10 + 4 * n);
+                assert_eq!(sm.rx_fifo_addr(pio), base + 0x20 + 4 * n);
+            }
+        }
+    }
+
     // Unrelated SHIFTCTRL fields must survive a join change.
     #[test]
     fn changing_the_join_leaves_the_shift_settings_alone() {
