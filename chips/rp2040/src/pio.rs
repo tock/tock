@@ -26,6 +26,7 @@ use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
 const NUMBER_INTERRUPT_LINES: usize = 2;
+const NUMBER_IRQ_FLAGS: usize = 8;
 
 #[repr(C)]
 struct InstrMem {
@@ -549,6 +550,22 @@ fn instructions_from_bytes(
     Ok((instructions, len))
 }
 
+/// The write-one-to-clear bit for one of the block's eight IRQ flags, or
+/// `None` if there is no such flag.
+fn irq_flag_bit(irq_num: u32) -> Option<u32> {
+    (irq_num < NUMBER_IRQ_FLAGS as u32).then(|| 1 << irq_num)
+}
+
+/// The block's IRQ flags asserted in an INTS reading, as a mask over flags
+/// 0 to 3.
+///
+/// The INTS bits named SM0 to SM3 are those flags, not state machines. The
+/// datasheet names them that way, which is the trap: any state machine can
+/// raise any flag.
+fn pending_irq_flags(ints: u32) -> u32 {
+    (ints >> IRQ_INTS::SM0.shift) & 0xf
+}
+
 /// The INTE bits that enable or disable one interrupt source.
 ///
 /// The two interrupt lines have the same layout, so this does not depend on
@@ -669,9 +686,18 @@ pub trait PioRxClient {
     fn on_data_received(&self, data: u32);
 }
 
-/// Client for State Machine interrupts fired by the `irq` PIO instruction
-pub trait PioSmClient {
-    fn on_irq(&self);
+/// Client for a PIO block's IRQ flags, raised by the `irq` PIO instruction.
+///
+/// The flags belong to the block, not to a state machine. The hardware fixes
+/// no association between the eight flags and the four state machines, and any
+/// state machine can raise any flag, so there is one client for the block
+/// rather than one per state machine. Only flags 0 to 3 reach the NVIC.
+pub trait PioIrqClient {
+    /// One or more of the block's IRQ flags fired.
+    ///
+    /// `flags` is a mask over flags 0 to 3. They are cleared before this is
+    /// called, so any state machine blocked on one is already free to run.
+    fn on_irq(&self, flags: u32);
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -690,7 +716,6 @@ pub struct StateMachine {
     tx_client: OptionalCell<&'static dyn PioTxClient>,
     rx_state: Cell<StateMachineState>,
     rx_client: OptionalCell<&'static dyn PioRxClient>,
-    sm_client: OptionalCell<&'static dyn PioSmClient>,
 }
 
 impl StateMachine {
@@ -708,7 +733,6 @@ impl StateMachine {
             tx_state: Cell::new(StateMachineState::Ready),
             tx_client: OptionalCell::empty(),
             rx_state: Cell::new(StateMachineState::Ready),
-            sm_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
         }
     }
@@ -753,11 +777,6 @@ impl StateMachine {
     /// Set rx client for a state machine.
     pub fn set_rx_client(&self, client: &'static dyn PioRxClient) {
         self.rx_client.set(client);
-    }
-
-    /// Set client for a state machine interrupt.
-    pub fn set_sm_client(&self, client: &'static dyn PioSmClient) {
-        self.sm_client.set(client);
     }
 
     /// Set every config for the IN pins.
@@ -1293,17 +1312,11 @@ impl StateMachine {
             StateMachineState::Ready => {}
         }
     }
-
-    /// Handle an `SMx` interrupt. The PIO program got to a `irq` instruction.
-    fn handle_sm_interrupt(&self) {
-        let _ = self.sm_client.map(|client| {
-            client.on_irq();
-        });
-    }
 }
 
 pub struct Pio {
     registers: StaticRef<PioRegisters>,
+    irq_client: OptionalCell<&'static dyn PioIrqClient>,
     pio_number: PIONumber,
     sms: [StateMachine; NUMBER_STATE_MACHINES],
     instructions_used: Cell<u32>,
@@ -1395,6 +1408,7 @@ impl Pio {
         Self {
             registers: PIO0_BASE,
             _clear_registers: PIO0_CLEAR_BASE,
+            irq_client: OptionalCell::empty(),
             pio_number: PIONumber::PIO0,
             sms: SM_NUMBERS.map(|x| StateMachine::new(x, PIO0_BASE, PIO0_XOR_BASE, PIO0_SET_BASE)),
             instructions_used: Cell::new(0),
@@ -1406,6 +1420,7 @@ impl Pio {
         Self {
             registers: PIO1_BASE,
             _clear_registers: PIO1_CLEAR_BASE,
+            irq_client: OptionalCell::empty(),
             pio_number: PIONumber::PIO1,
             sms: SM_NUMBERS.map(|x| StateMachine::new(x, PIO1_BASE, PIO1_XOR_BASE, PIO1_SET_BASE)),
             instructions_used: Cell::new(0),
@@ -1415,6 +1430,11 @@ impl Pio {
     /// Get the PIO number
     pub fn number(&self) -> PIONumber {
         self.pio_number
+    }
+
+    /// Set the client for this block's IRQ flags.
+    pub fn set_irq_client(&self, client: &'static dyn PioIrqClient) {
+        self.irq_client.set(client);
     }
 
     /// Get state machine
@@ -1454,16 +1474,11 @@ impl Pio {
 
     /// Clear a PIO interrupt.
     pub fn interrupt_clear(&self, irq_num: u32) {
-        match irq_num {
-            0 => self.registers.irq.modify(IRQ::IRQ0.val(1)),
-            1 => self.registers.irq.modify(IRQ::IRQ1.val(1)),
-            2 => self.registers.irq.modify(IRQ::IRQ2.val(1)),
-            3 => self.registers.irq.modify(IRQ::IRQ3.val(1)),
-            4 => self.registers.irq.modify(IRQ::IRQ4.val(1)),
-            5 => self.registers.irq.modify(IRQ::IRQ5.val(1)),
-            6 => self.registers.irq.modify(IRQ::IRQ6.val(1)),
-            7 => self.registers.irq.modify(IRQ::IRQ7.val(1)),
-            _ => debug!("IRQ Number invalid - must be from 0 to 7"),
+        // Write one to clear, so only the named flag may be written. modify()
+        // would read the other seven and write them back, clearing those too.
+        match irq_flag_bit(irq_num) {
+            Some(bit) => self.registers.irq.set(bit),
+            None => debug!("IRQ Number invalid - must be from 0 to 7"),
         }
     }
 
@@ -1494,14 +1509,19 @@ impl Pio {
                 sm.handle_rx_interrupt();
             }
         }
-        for (sm, irq) in
-            self.sms
-                .iter()
-                .zip([IRQ_INTS::SM0, IRQ_INTS::SM1, IRQ_INTS::SM2, IRQ_INTS::SM3])
-        {
-            if ints.is_set(irq) {
-                sm.handle_sm_interrupt();
-            }
+        // The block's own IRQ flags, which belong to no particular state
+        // machine. Cleared here rather than by the client: leaving one set
+        // leaves the peripheral asserting, and the kernel's poll loop would
+        // find it pending again on the next pass.
+        //
+        // Before the call, not after, so a flag raised while the client runs
+        // survives to the next pass instead of being cleared unseen. And only
+        // the flags just read, because clearing all four would discard one
+        // raised between that read and this write.
+        let flags = pending_irq_flags(ints.get());
+        if flags != 0 {
+            self.registers.irq.set(flags);
+            self.irq_client.map(|client| client.on_irq(flags));
         }
     }
 
@@ -1970,6 +1990,40 @@ mod tests {
             assert_eq!(group(line) + offset_of!(IrqReg, intf), inte + 4);
             assert_eq!(group(line) + offset_of!(IrqReg, ints), inte + 8);
         }
+    }
+
+    // The two functions work in different registers: pending_irq_flags reads
+    // INTS, where flag n is bit n + 8, and irq_flag_bit writes `irq`, where
+    // flag n is bit n. handle_interrupt feeds one to the other, so they have
+    // to agree on which flag is which.
+    #[test]
+    fn a_pending_flag_clears_the_flag_it_names() {
+        for n in 0..4u32 {
+            let pending = pending_irq_flags(1 << (IRQ_INTS::SM0.shift as u32 + n));
+            assert_eq!(pending, irq_flag_bit(n).unwrap(), "flag {n}");
+        }
+    }
+
+    #[test]
+    fn only_the_eight_real_irq_flags_have_a_clear_bit() {
+        for n in 0..8u32 {
+            assert_eq!(irq_flag_bit(n), Some(1 << n));
+        }
+        assert_eq!(irq_flag_bit(8), None, "there is no ninth flag");
+        assert_eq!(irq_flag_bit(u32::MAX), None);
+    }
+
+    // Flags 0 to 3 are INTS bits 8 to 11 per the datasheet. Written out here
+    // rather than taken from the bitfield, so moving the field fails this.
+    #[test]
+    fn pending_flags_are_the_block_irq_bits_and_nothing_else() {
+        for flags in 0..16u32 {
+            assert_eq!(pending_irq_flags(flags << 8), flags);
+        }
+        // The TXNFULL and RXNEMPTY halves sit below them and must not leak in.
+        assert_eq!(pending_irq_flags(0xff), 0);
+        // Only four flags reach the NVIC, however much else is set.
+        assert_eq!(pending_irq_flags(0xffff_ffff), 0xf);
     }
 
     // The discriminants index irq_lines, so they are the register layout, not
