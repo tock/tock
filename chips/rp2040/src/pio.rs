@@ -16,7 +16,9 @@ use core::cell::Cell;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use kernel::utilities::registers::{
+    FieldValue, ReadOnly, ReadWrite, register_bitfields, register_structs,
+};
 use kernel::{ErrorCode, debug};
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
@@ -560,6 +562,20 @@ where
     }
 }
 
+/// The SHIFTCTRL bits for a FIFO join setting.
+///
+/// Both bits are always written, so a join can be undone and the two settings
+/// cannot both be left set. Split out of [`StateMachine::set_fifo_join`] so a
+/// test can assert what that function writes rather than restate it.
+fn fifo_join_bits(fifo_join: PioFifoJoin) -> FieldValue<u32, SMx_SHIFTCTRL::Register> {
+    let (rx, tx) = match fifo_join {
+        PioFifoJoin::PioFifoJoinNone => (0, 0),
+        PioFifoJoin::PioFifoJoinTx => (0, 1),
+        PioFifoJoin::PioFifoJoinRx => (1, 0),
+    };
+    SMx_SHIFTCTRL::FJOIN_RX.val(rx) + SMx_SHIFTCTRL::FJOIN_TX.val(tx)
+}
+
 #[derive(Clone, Copy)]
 pub struct LoadedProgram {
     used_memory: u32,
@@ -596,9 +612,9 @@ pub enum PIONumber {
 /// The FIFO queues can be joined together for twice the length in one direction.
 #[derive(PartialEq)]
 pub enum PioFifoJoin {
-    PioFifoJoinNone = 0,
-    PioFifoJoinTx = 1,
-    PioFifoJoinRx = 2,
+    PioFifoJoinNone,
+    PioFifoJoinTx,
+    PioFifoJoinRx,
 }
 
 /// PIO interrupt source numbers for PIO related interrupts
@@ -833,15 +849,9 @@ impl StateMachine {
     ///
     /// fifo_join => specifies the join type - see the `PioFifoJoin` type
     pub fn set_fifo_join(&self, fifo_join: PioFifoJoin) {
-        if fifo_join == PioFifoJoin::PioFifoJoinRx {
-            self.registers.sm[self.sm_number as usize]
-                .shiftctrl
-                .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join as u32));
-        } else if fifo_join == PioFifoJoin::PioFifoJoinTx {
-            self.registers.sm[self.sm_number as usize]
-                .shiftctrl
-                .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join as u32));
-        }
+        self.registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(fifo_join_bits(fifo_join));
     }
 
     /// Set every config for the SIDESET pins.
@@ -1943,5 +1953,54 @@ mod examples {
                 self.registers.fdebug.read(FDEBUG::RXUNDER)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kernel::utilities::registers::LocalRegisterCopy;
+
+    // Composed by the driver's own fifo_join_bits rather than rebuilt here, so
+    // a change to what set_fifo_join writes fails this instead of passing it.
+    #[test]
+    fn joining_either_fifo_sets_that_bit_and_clears_the_other() {
+        assert_eq!(fifo_join_bits(PioFifoJoin::PioFifoJoinRx).value, 1 << 31);
+        assert_eq!(fifo_join_bits(PioFifoJoin::PioFifoJoinTx).value, 1 << 30);
+        assert_eq!(fifo_join_bits(PioFifoJoin::PioFifoJoinNone).value, 0);
+    }
+
+    // The same bits applied to a register, so the test sees what a write does
+    // rather than what it encodes. LocalRegisterCopy is tock-registers' own
+    // in-memory register; no mock is involved.
+    #[test]
+    fn switching_the_join_clears_the_previous_one() {
+        let mut shiftctrl: LocalRegisterCopy<u32, SMx_SHIFTCTRL::Register> =
+            LocalRegisterCopy::new(0);
+
+        shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinRx));
+        assert!(shiftctrl.is_set(SMx_SHIFTCTRL::FJOIN_RX));
+
+        shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinTx));
+        assert!(shiftctrl.is_set(SMx_SHIFTCTRL::FJOIN_TX));
+        assert!(
+            !shiftctrl.is_set(SMx_SHIFTCTRL::FJOIN_RX),
+            "both FIFOs joined at once"
+        );
+
+        shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinNone));
+        assert_eq!(shiftctrl.get(), 0, "a join could not be undone");
+    }
+
+    // Unrelated SHIFTCTRL fields must survive a join change.
+    #[test]
+    fn changing_the_join_leaves_the_shift_settings_alone() {
+        let mut shiftctrl: LocalRegisterCopy<u32, SMx_SHIFTCTRL::Register> =
+            LocalRegisterCopy::new(0);
+        shiftctrl.modify(SMx_SHIFTCTRL::PUSH_THRESH.val(8) + SMx_SHIFTCTRL::AUTOPUSH::SET);
+        shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinRx));
+
+        assert_eq!(shiftctrl.read(SMx_SHIFTCTRL::PUSH_THRESH), 8);
+        assert!(shiftctrl.is_set(SMx_SHIFTCTRL::AUTOPUSH));
     }
 }
