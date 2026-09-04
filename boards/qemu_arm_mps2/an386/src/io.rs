@@ -10,8 +10,8 @@ use kernel::hil::uart;
 /// Panic handler.
 #[panic_handler]
 pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
-    debug::panic_print::<qemu_arm_mps2_unsafe::uart::UartPanicWriter, _, _>(
-        qemu_arm_mps2_unsafe::uart::UartPanicWriterConfig {
+    debug::panic_print::<qemu_arm_mps2::uart::UartPanicWriter, _, _>(
+        qemu_arm_mps2::uart::UartPanicWriterConfig {
             base: qemu_arm_mps2_unsafe::addresses::UART0_BASE,
             params: uart::Parameters {
                 baud_rate: 115200,

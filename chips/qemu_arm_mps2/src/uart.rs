@@ -15,6 +15,7 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
@@ -87,7 +88,7 @@ impl<'a> Uart<'a> {
 
     /// Disable the device and clear any pending interrupt state. Safe to
     /// call at any time; used both at construction and by the panic writer.
-    pub fn reset(&self) {
+    fn reset(&self) {
         self.registers.ctrl.set(0);
         // Both are write-one-to-clear; STATE latches the overrun conditions
         // themselves, INTSTATUS the interrupts they raised.
@@ -315,5 +316,50 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
+    }
+}
+
+/// A synchronous, polling writer for panic messages.
+///
+/// This bypasses all of [`Uart`]'s interrupt-driven state and is only ever
+/// used from the panic handler.
+pub struct UartPanicWriter<'a> {
+    inner: Uart<'a>,
+}
+
+impl IoWrite for UartPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        self.inner.transmit_sync(buf);
+        buf.len()
+    }
+}
+
+impl core::fmt::Write for UartPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+pub struct UartPanicWriterConfig {
+    pub base: StaticRef<UartRegisters>,
+    pub params: hil::uart::Parameters,
+}
+
+impl kernel::platform::chip::PanicWriter for UartPanicWriter<'_> {
+    type Config = UartPanicWriterConfig;
+
+    fn create_panic_writer(
+        config: Self::Config,
+        _panic: &core::panic::PanicInfo,
+    ) -> impl IoWrite + core::fmt::Write {
+        use hil::uart::Configure as _;
+
+        let inner = Uart::new(config.base);
+        inner.reset();
+        // Nothing to report a failure to: this runs from the panic handler,
+        // and the parameters come from the board's own configuration.
+        let _ = inner.configure(config.params);
+        UartPanicWriter { inner }
     }
 }
