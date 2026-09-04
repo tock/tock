@@ -734,7 +734,7 @@ pub unsafe fn start() -> (
     // PIO
     //--------------------------------------------------------------------------
 
-    let mut pio: Pio = Pio::new_pio0();
+    let mut pio: Pio = rp2040::pio::new_pio0();
 
     let _pio_pwm = PioPwm::new(&mut pio, clocks);
     // This will start a PWM with PIO with the set frequency and duty cycle on the specified pin.
