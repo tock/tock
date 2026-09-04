@@ -117,8 +117,11 @@ impl<'a> PioGSpi<'a> {
         self.pio
             .cyw43_spi_program_init(self.sm_number, self.clock_pin, self.dio_pin, &config);
 
-        self.pio
-            .set_irq_source(0, crate::pio::InterruptSources::Interrupt0, true);
+        self.pio.set_irq_source(
+            crate::pio::PioInterrupt::Irq0,
+            crate::pio::InterruptSources::Interrupt0,
+            true,
+        );
     }
 }
 
