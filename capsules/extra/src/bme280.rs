@@ -40,6 +40,10 @@ const CALIB00: u8 = 0x88;
 // Raw 20-bit value returned when pressure measurement is skipped.
 const SKIPPED_PRESSURE_READING: i32 = 0x80000;
 
+const PENDING_TEMP: u8 = 1 << 0;
+const PENDING_PRESS: u8 = 1 << 1;
+const PENDING_HUM: u8 = 1 << 2;
+
 #[derive(Clone, Copy, PartialEq)]
 enum DeviceState {
     Identify,
@@ -53,9 +57,7 @@ enum DeviceState {
 #[derive(Clone, Copy, PartialEq)]
 enum Operation {
     None,
-    Temp,
-    Pressure,
-    Humidity,
+    Read,
 }
 
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -92,6 +94,7 @@ pub struct Bme280<'a, I: I2CDevice> {
     state: Cell<DeviceState>,
     op: Cell<Operation>,
     t_fine: Cell<i32>,
+    pending_clients: Cell<u8>,
 }
 
 impl<'a, I: I2CDevice> Bme280<'a, I> {
@@ -106,6 +109,7 @@ impl<'a, I: I2CDevice> Bme280<'a, I> {
             state: Cell::new(DeviceState::Identify),
             op: Cell::new(Operation::None),
             t_fine: Cell::new(0),
+            pending_clients: Cell::new(0),
         }
     }
 
@@ -117,6 +121,22 @@ impl<'a, I: I2CDevice> Bme280<'a, I> {
                 self.i2c.write_read(buffer, 1, 1).unwrap();
             }
         });
+    }
+
+    fn start_read(&self) -> Result<(), ErrorCode> {
+        let buffer = self.buffer.take().ok_or(ErrorCode::BUSY)?;
+
+        buffer[0] = PRESS_MSB;
+        self.op.set(Operation::Read);
+
+        match self.i2c.write_read(buffer, 1, 8) {
+            Ok(()) => Ok(()),
+            Err((error, buffer)) => {
+                self.buffer.replace(buffer);
+                self.op.set(Operation::None);
+                Err(error.into())
+            }
+        }
     }
 }
 
@@ -130,17 +150,20 @@ impl<'a, I: I2CDevice> TemperatureDriver<'a> for Bme280<'a, I> {
             return Err(ErrorCode::BUSY);
         }
 
-        if self.op.get() != Operation::None {
+        let pending = self.pending_clients.get();
+        if pending & PENDING_TEMP != 0 {
             return Err(ErrorCode::BUSY);
         }
 
-        self.buffer.take().map(|buffer| {
-            buffer[0] = PRESS_MSB;
+        self.pending_clients.set(pending | PENDING_TEMP);
 
-            self.op.set(Operation::Temp);
-            // Read pressure and temperature.
-            self.i2c.write_read(buffer, 1, 6).unwrap();
-        });
+        // Initiate a new read
+        if self.op.get() == Operation::None {
+            if let Err(error) = self.start_read() {
+                self.pending_clients.set(pending);
+                return Err(error);
+            }
+        }
 
         Ok(())
     }
@@ -156,17 +179,20 @@ impl<'a, I: I2CDevice> HumidityDriver<'a> for Bme280<'a, I> {
             return Err(ErrorCode::BUSY);
         }
 
-        if self.op.get() != Operation::None {
+        let pending = self.pending_clients.get();
+        if pending & PENDING_HUM != 0 {
             return Err(ErrorCode::BUSY);
         }
 
-        self.buffer.take().map(|buffer| {
-            buffer[0] = PRESS_MSB;
+        self.pending_clients.set(pending | PENDING_HUM);
 
-            self.op.set(Operation::Humidity);
-            // Read pressure, temperature, and humidity.
-            self.i2c.write_read(buffer, 1, 8).unwrap();
-        });
+        // Initiate a new read
+        if self.op.get() == Operation::None {
+            if let Err(error) = self.start_read() {
+                self.pending_clients.set(pending);
+                return Err(error);
+            }
+        }
 
         Ok(())
     }
@@ -182,17 +208,20 @@ impl<'a, I: I2CDevice> PressureDriver<'a> for Bme280<'a, I> {
             return Err(ErrorCode::BUSY);
         }
 
-        if self.op.get() != Operation::None {
+        let pending = self.pending_clients.get();
+        if pending & PENDING_PRESS != 0 {
             return Err(ErrorCode::BUSY);
         }
 
-        self.buffer.take().map(|buffer| {
-            buffer[0] = PRESS_MSB;
+        self.pending_clients.set(pending | PENDING_PRESS);
 
-            self.op.set(Operation::Pressure);
-            // Read pressure and temperature.
-            self.i2c.write_read(buffer, 1, 6).unwrap();
-        });
+        // Initiate a new read
+        if self.op.get() == Operation::None {
+            if let Err(error) = self.start_read() {
+                self.pending_clients.set(pending);
+                return Err(error);
+            }
+        }
 
         Ok(())
     }
@@ -201,23 +230,34 @@ impl<'a, I: I2CDevice> PressureDriver<'a> for Bme280<'a, I> {
 impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
+            let last_op = self.op.get();
+
+            self.buffer.replace(buffer);
+            self.op.set(Operation::None);
             // We have no way to report an error, so just return a bogus value
-            match self.op.get() {
-                Operation::None => (),
-                Operation::Temp => {
+            if last_op == Operation::Read {
+                let pending = self.pending_clients.get();
+
+                if pending & PENDING_TEMP != 0 {
+                    self.pending_clients
+                        .set(self.pending_clients.get() & !PENDING_TEMP);
                     self.temperature_client
                         .map(|client| client.callback(Err(i2c_err.into())));
                 }
-                Operation::Pressure => {
+
+                if pending & PENDING_PRESS != 0 {
+                    self.pending_clients
+                        .set(self.pending_clients.get() & !PENDING_PRESS);
                     self.pressure_client
                         .map(|client| client.callback(Err(i2c_err.into())));
                 }
-                Operation::Humidity => {
+
+                if pending & PENDING_HUM != 0 {
+                    self.pending_clients
+                        .set(self.pending_clients.get() & !PENDING_HUM);
                     self.humidity_client.map(|client| client.callback(0));
                 }
             }
-            self.buffer.replace(buffer);
-            self.op.set(Operation::None);
             return;
         }
 
@@ -289,146 +329,99 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
 
                 self.state.set(DeviceState::Normal);
             }
-            DeviceState::Normal => {
-                match self.op.get() {
-                    Operation::None => (),
-                    Operation::Temp => {
-                        let calib = self.calibration.get();
+            DeviceState::Normal => match self.op.get() {
+                Operation::None => {
+                    self.buffer.replace(buffer);
+                }
+                Operation::Read => {
+                    let calib = self.calibration.get();
+                    let pending = self.pending_clients.get();
 
-                        let adc_temperature: i32 = ((buffer[3] as usize) << 12
-                            | (buffer[4] as usize) << 4
-                            | (((buffer[5] as usize) >> 4) & 0x0F))
-                            as i32;
+                    let adc_pressure: i32 = ((buffer[0] as usize) << 12
+                        | (buffer[1] as usize) << 4
+                        | (buffer[2] as usize) >> 4)
+                        as i32;
+                    let adc_temperature: i32 = ((buffer[3] as usize) << 12
+                        | (buffer[4] as usize) << 4
+                        | (((buffer[5] as usize) >> 4) & 0x0F))
+                        as i32;
+                    let adc_hum = (((buffer[6] as u32) << 8) | (buffer[7] as u32)) as i32;
 
-                        if adc_temperature == 0 {
-                            // We got a misread, try again
-                            self.buffer.replace(buffer);
-                            self.op.set(Operation::None);
-                            let _ = self.read_temperature();
-                            return;
+                    if adc_temperature == 0
+                        || (self.pending_clients.get() & PENDING_HUM != 0 && adc_hum == 0)
+                    {
+                        self.buffer.replace(buffer);
+                        if let Err(error) = self.start_read() {
+                            if pending & PENDING_TEMP != 0 {
+                                self.pending_clients
+                                    .set(self.pending_clients.get() & !PENDING_TEMP);
+                                self.temperature_client
+                                    .map(|client| client.callback(Err(error)));
+                            }
+
+                            if pending & PENDING_PRESS != 0 {
+                                self.pending_clients
+                                    .set(self.pending_clients.get() & !PENDING_PRESS);
+                                self.pressure_client
+                                    .map(|client| client.callback(Err(error)));
+                            }
+
+                            if pending & PENDING_HUM != 0 {
+                                self.pending_clients
+                                    .set(self.pending_clients.get() & !PENDING_HUM);
+                                self.humidity_client.map(|client| client.callback(0));
+                            }
                         }
+                        return;
+                    }
 
-                        let t_fine = calculate_tfine(adc_temperature, calib);
-                        self.t_fine.set(t_fine);
+                    let t_fine = calculate_tfine(adc_temperature, calib);
+                    self.t_fine.set(t_fine);
 
-                        let temperature = (self.t_fine.get() * 5 + 128) >> 8;
+                    let temperature = if pending & PENDING_TEMP != 0 {
+                        Some((self.t_fine.get() * 5 + 128) >> 8)
+                    } else {
+                        None
+                    };
+                    let pressure = if pending & PENDING_PRESS != 0 {
+                        Some(if adc_pressure == SKIPPED_PRESSURE_READING {
+                            Err(ErrorCode::FAIL)
+                        } else {
+                            calculate_pressure(adc_pressure, t_fine, calib)
+                        })
+                    } else {
+                        None
+                    };
+                    let humidity = if pending & PENDING_HUM != 0 {
+                        Some(calculate_humidity(adc_hum, t_fine, calib))
+                    } else {
+                        None
+                    };
 
+                    self.buffer.replace(buffer);
+                    self.op.set(Operation::None);
+
+                    if let Some(temperature) = temperature {
+                        self.pending_clients
+                            .set(self.pending_clients.get() & !PENDING_TEMP);
                         self.temperature_client
                             .map(|client| client.callback(Ok(temperature)));
                     }
-                    Operation::Pressure => {
-                        let calib = self.calibration.get();
-                        let adc_pressure: i32 = ((buffer[0] as usize) << 12
-                            | (buffer[1] as usize) << 4
-                            | (buffer[2] as usize) >> 4)
-                            as i32;
-                        let adc_temperature: i32 = ((buffer[3] as usize) << 12
-                            | (buffer[4] as usize) << 4
-                            | (((buffer[5] as usize) >> 4) & 0x0F))
-                            as i32;
 
-                        if adc_temperature == 0 {
-                            // We got a misread, try again
-                            self.buffer.replace(buffer);
-                            self.op.set(Operation::None);
-                            let _ = self.read_atmospheric_pressure();
-                            return;
-                        }
-
-                        let t_fine = calculate_tfine(adc_temperature, calib);
-                        self.t_fine.set(t_fine);
-
-                        if adc_pressure == SKIPPED_PRESSURE_READING {
-                            self.buffer.replace(buffer);
-                            self.op.set(Operation::None);
-                            self.pressure_client
-                                .map(|client| client.callback(Err(ErrorCode::FAIL)));
-                            return;
-                        }
-
-                        // This is straight from the datasheet (Page 25/60)
-                        let mut var1: i64;
-                        let mut var2: i64;
-                        let mut p: i64;
-
-                        var1 = self.t_fine.get() as i64 - 128_000;
-                        var2 = var1 * var1 * (calib.press6 as i64);
-                        var2 += (var1 * (calib.press5 as i64)) << 17;
-                        var2 += (calib.press4 as i64) << 35;
-                        var1 = ((var1 * var1 * calib.press3 as i64) >> 8)
-                            + ((var1 * calib.press2 as i64) << 12);
-                        var1 = ((((1_i64) << 47) + var1) * (calib.press1 as i64)) >> 33;
-
-                        // Avoid divide by zero fault
-                        // Spec sheet returns 0 to client here
-                        if var1 == 0 {
-                            self.buffer.replace(buffer);
-                            self.op.set(Operation::None);
-                            self.pressure_client.map(|client| client.callback(Ok(0)));
-                            return;
-                        }
-
-                        p = 1_048_576 - adc_pressure as i64;
-                        p = (((p << 31) - var2) * 3125) / var1;
-                        var1 = (calib.press9 as i64 * (p >> 13) * (p >> 13)) >> 25;
-                        var2 = (calib.press8 as i64 * p) >> 19;
-                        p = ((p + var1 + var2) >> 8) + ((calib.press7 as i64) << 4);
-
-                        // p is Q24.8 Pa but we expect to return in hPa
-                        let pressure_hpa = p / 25_600;
-
-                        self.pressure_client
-                            .map(|client| client.callback(Ok(pressure_hpa as u32)));
+                    if let Some(pressure) = pressure {
+                        self.pending_clients
+                            .set(self.pending_clients.get() & !PENDING_PRESS);
+                        self.pressure_client.map(|client| client.callback(pressure));
                     }
-                    Operation::Humidity => {
-                        let calib = self.calibration.get();
 
-                        let adc_temperature: i32 = ((buffer[3] as usize) << 12
-                            | (buffer[4] as usize) << 4
-                            | (((buffer[5] as usize) >> 4) & 0x0F))
-                            as i32;
-                        let adc_hum = (((buffer[6] as u32) << 8) | (buffer[7] as u32)) as i32;
-
-                        if adc_hum == 0 || adc_temperature == 0 {
-                            // We got a misread, try again
-                            self.buffer.replace(buffer);
-                            self.op.set(Operation::None);
-                            let _ = self.read_humidity();
-                            return;
-                        }
-
-                        let t_fine = calculate_tfine(adc_temperature, calib);
-                        self.t_fine.set(t_fine);
-
-                        let t_fine_offset = self.t_fine.get() - 76800;
-
-                        // This is straight from the datasheet
-                        let var1 = ((((adc_hum << 14)
-                            - ((calib.hum4 as i32) << 20)
-                            - ((calib.hum5 as i32) * t_fine_offset))
-                            + 16384)
-                            >> 15)
-                            * (((((((t_fine_offset * (calib.hum6 as i32)) >> 10)
-                                * (((t_fine_offset * (calib.hum3 as i32)) >> 11) + 32768))
-                                >> 10)
-                                + 2097152)
-                                * (calib.hum2 as i32)
-                                + 8192)
-                                >> 14);
-                        let var2 = var1
-                            - (((((var1 >> 15) * (var1 >> 15)) >> 7) * (calib.hum1 as i32)) >> 4);
-
-                        let var3 = if var2 < 0 { 0 } else { var2 };
-                        let var6 = if var3 > 419430400 { 419430400 } else { var3 };
-
-                        let hum = (((var6 >> 12) * 100) / 1024) as usize;
-
-                        self.humidity_client.map(|client| client.callback(hum));
+                    if let Some(humidity) = humidity {
+                        self.pending_clients
+                            .set(self.pending_clients.get() & !PENDING_HUM);
+                        self.humidity_client
+                            .map(|client| client.callback(humidity as usize));
                     }
                 }
-                self.buffer.replace(buffer);
-                self.op.set(Operation::None);
-            }
+            },
         }
     }
 }
@@ -441,4 +434,56 @@ fn calculate_tfine(temp: i32, calib: CalibrationData) -> i32 {
         >> 14;
 
     var1 + var2
+}
+
+fn calculate_pressure(press: i32, t_fine: i32, calib: CalibrationData) -> Result<u32, ErrorCode> {
+    // This is straight from the datasheet (Page 25/60)
+    let mut var1: i64;
+    let mut var2: i64;
+    let mut p: i64;
+
+    var1 = t_fine as i64 - 128_000;
+    var2 = var1 * var1 * (calib.press6 as i64);
+    var2 += (var1 * (calib.press5 as i64)) << 17;
+    var2 += (calib.press4 as i64) << 35;
+    var1 = ((var1 * var1 * calib.press3 as i64) >> 8) + ((var1 * calib.press2 as i64) << 12);
+    var1 = ((((1_i64) << 47) + var1) * (calib.press1 as i64)) >> 33;
+
+    // Avoid divide by zero fault
+    // Spec sheet returns 0 to client here
+    if var1 == 0 {
+        return Err(ErrorCode::FAIL);
+    }
+
+    p = 1_048_576 - press as i64;
+    p = (((p << 31) - var2) * 3125) / var1;
+    var1 = (calib.press9 as i64 * (p >> 13) * (p >> 13)) >> 25;
+    var2 = (calib.press8 as i64 * p) >> 19;
+    p = ((p + var1 + var2) >> 8) + ((calib.press7 as i64) << 4);
+
+    // p is Q24.8 Pa but we expect to return in hPa
+    Ok((p / 25_600) as u32)
+}
+
+fn calculate_humidity(hum: i32, t_fine: i32, calib: CalibrationData) -> i32 {
+    let t_fine_offset = t_fine - 76800;
+
+    // This is straight from the datasheet
+    let var1 =
+        ((((hum << 14) - ((calib.hum4 as i32) << 20) - ((calib.hum5 as i32) * t_fine_offset))
+            + 16384)
+            >> 15)
+            * (((((((t_fine_offset * (calib.hum6 as i32)) >> 10)
+                * (((t_fine_offset * (calib.hum3 as i32)) >> 11) + 32768))
+                >> 10)
+                + 2097152)
+                * (calib.hum2 as i32)
+                + 8192)
+                >> 14);
+    let var2 = var1 - (((((var1 >> 15) * (var1 >> 15)) >> 7) * (calib.hum1 as i32)) >> 4);
+
+    let var3 = if var2 < 0 { 0 } else { var2 };
+    let var6 = if var3 > 419430400 { 419430400 } else { var3 };
+
+    ((var6 >> 12) * 100) / 1024
 }
