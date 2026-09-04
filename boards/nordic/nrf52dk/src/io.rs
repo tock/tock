@@ -16,9 +16,9 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &nrf52832::gpio::nrf52832_gpio_create_pin(Pin::P0_17);
     let led = &mut led::LedLow::new(led_kernel_pin);
 
-    debug::panic::<_, nrf52832::uart::Uarte, _, _>(
+    debug::panic::<_, nrf52832::uart_legacy::Uart, _, _>(
         &mut [led],
-        nrf52832::uart::UartPanicWriterConfig {
+        nrf52832::uart_legacy::UartPanicWriterConfig {
             params: uart::Parameters {
                 baud_rate: 115200,
                 stop_bits: uart::StopBits::One,

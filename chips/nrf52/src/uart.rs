@@ -16,7 +16,6 @@ use kernel::hil::uart;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::dma_slice::DmaSubSliceMut;
-use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
@@ -25,9 +24,7 @@ use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: usize = 0xff;
 
-static mut BYTE: u8 = 0;
-
-const UARTE0_BASE: StaticRef<crate::uart::UarteRegisters> =
+pub const UARTE0_BASE: StaticRef<crate::uart::UarteRegisters> =
     unsafe { StaticRef::new(0x40002000 as *const crate::uart::UarteRegisters) };
 
 #[repr(C)]
@@ -449,7 +446,7 @@ impl<'a> Uarte<'a> {
     //
     // Technically only RX is limited to 1MBaud, can TX up to 8MBaud:
     // https://devzone.nordicsemi.com/f/nordic-q-a/84204/framing-error-and-noisy-data-when-using-uarte-at-high-baud-rate
-    fn get_divider_for_baud(&self, baud_rate: u32) -> Result<u32, ErrorCode> {
+    pub fn get_divider_for_baud(baud_rate: u32) -> Result<u32, ErrorCode> {
         if baud_rate > 1_000_000 || baud_rate < 1200 {
             return Err(ErrorCode::INVAL);
         }
@@ -467,7 +464,7 @@ impl<'a> Uarte<'a> {
     }
 
     fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
-        let divider = self.get_divider_for_baud(baud_rate)?;
+        let divider = Self::get_divider_for_baud(baud_rate)?;
         self.registers.registers.baudrate.set(divider);
 
         Ok(())
@@ -635,30 +632,6 @@ impl<'a> Uarte<'a> {
         }
     }
 
-    /// Transmit one byte at the time and the client is responsible for polling
-    /// This is used by the panic handler
-    pub unsafe fn send_byte(&self, byte: u8) {
-        // self.tx_remaining_bytes.set(1);
-        self.registers
-            .registers
-            .event_endtx
-            .write(Event::READY::CLEAR);
-        // precaution: copy value into variable with static lifetime
-        BYTE = byte;
-        self.registers
-            .registers
-            .txd_ptr
-            .set(core::ptr::addr_of!(BYTE) as u32);
-        self.registers
-            .registers
-            .txd_maxcnt
-            .write(Counter::COUNTER.val(1));
-        self.registers
-            .registers
-            .task_starttx
-            .write(Task::ENABLE::SET);
-    }
-
     /// Check if the UART transmission is done
     pub fn tx_ready(&self) -> bool {
         self.registers.registers.event_endtx.is_set(Event::READY)
@@ -794,81 +767,6 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
                 .write(Task::ENABLE::SET);
             Err(ErrorCode::BUSY)
         }
-    }
-}
-
-/// A synchronous writer for the nRF52 useful for panics.
-///
-/// For boards that want to use the UART to display panic messages, this
-/// provides an implementation of
-/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
-/// output.
-///
-/// This is only to be used by panic messages and is not used within the normal
-/// operation of the Tock kernel.
-///
-/// TODO: Validate this [`UartPanicWriter`] is always sound to create.
-struct UartPanicWriter<'a> {
-    inner: Uarte<'a>,
-}
-
-impl IoWrite for UartPanicWriter<'_> {
-    fn write(&mut self, buf: &[u8]) -> usize {
-        for &c in buf {
-            unsafe {
-                self.inner.send_byte(c);
-            }
-            while !self.inner.tx_ready() {}
-        }
-        buf.len()
-    }
-}
-
-impl core::fmt::Write for UartPanicWriter<'_> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
-    }
-}
-
-/// Configuration for the synchronous UART panic writer.
-///
-/// This captures everything needed to setup the UART for panic display, even
-/// if the normal kernel had initialized it differently.
-pub struct UartPanicWriterConfig {
-    pub params: uart::Parameters,
-    pub txd: Pin,
-    pub rxd: Pin,
-    pub cts: Option<Pin>,
-    pub rts: Option<Pin>,
-}
-
-impl kernel::platform::chip::PanicWriter for Uarte<'_> {
-    type Config = UartPanicWriterConfig;
-
-    fn create_panic_writer(
-        config: Self::Config,
-        _panic: &core::panic::PanicInfo,
-    ) -> impl IoWrite + core::fmt::Write {
-        use uart::Configure as _;
-
-        // SAFETY: This must be unique and the only owner of the UARTE0 register
-        // manager. We are generally VIOLATING this safety requirement. See
-        // <https://github.com/tock/tock/pull/5091> and
-        // <https://github.com/tock/tock/pull/4990> for more context and some
-        // paths forward to resolve this existing safety violation about
-        // multiple managers of the UARTE0 DMA registers.
-        let registers = unsafe { UarteRegistersManager::new_uarte0() };
-
-        let inner = Uarte::new(registers);
-        inner.initialize(
-            pinmux::Pinmux::new(config.txd),
-            pinmux::Pinmux::new(config.rxd),
-            config.cts.map(pinmux::Pinmux::new),
-            config.rts.map(pinmux::Pinmux::new),
-        );
-        let _ = inner.configure(config.params);
-        UartPanicWriter { inner }
     }
 }
 
