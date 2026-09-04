@@ -562,6 +562,31 @@ where
     }
 }
 
+/// Convert a big-endian `&[u8]` program into PIO instructions.
+///
+/// Split out of [`Pio::add_program`] so it can be tested on the host: the rest
+/// of that path writes instruction memory and needs the real peripheral.
+///
+/// Returns the full-size buffer and how much of it is populated.
+fn instructions_from_bytes(
+    program: &[u8],
+) -> Result<([u16; NUMBER_INSTR_MEMORY_LOCATIONS], usize), ProgramError> {
+    if !program.len().is_multiple_of(2) {
+        return Err(ProgramError::NotInstructionAligned);
+    }
+    let len = program.len() / 2;
+    if len > NUMBER_INSTR_MEMORY_LOCATIONS {
+        return Err(ProgramError::InsufficientSpace);
+    }
+
+    let mut instructions = [0u16; NUMBER_INSTR_MEMORY_LOCATIONS];
+    let (pairs, _) = program.as_chunks::<2>();
+    for (slot, chunk) in instructions.iter_mut().zip(pairs) {
+        *slot = u16::from_be_bytes(*chunk);
+    }
+    Ok((instructions, len))
+}
+
 /// The SHIFTCTRL bits for a FIFO join setting.
 ///
 /// Both bits are always written, so a join can be undone and the two settings
@@ -588,6 +613,8 @@ pub enum ProgramError {
     InsufficientSpace,
     /// Loading a program would overwrite the existing one
     AddrInUse(usize),
+    /// A `&[u8]` program did not contain a whole number of 16-bit instructions.
+    NotInstructionAligned,
 }
 
 /// There are a total of 4 State Machines per PIO.
@@ -1591,13 +1618,8 @@ impl Pio {
         origin: Option<usize>,
         program: &[u8],
     ) -> Result<LoadedProgram, ProgramError> {
-        let mut program_u16: [u16; NUMBER_INSTR_MEMORY_LOCATIONS / 2] =
-            [0; NUMBER_INSTR_MEMORY_LOCATIONS / 2];
-        for (i, chunk) in program.chunks(2).enumerate() {
-            program_u16[i] = ((chunk[0] as u16) << 8) | (chunk[1] as u16);
-        }
-
-        self.add_program16(origin, &program_u16[0..program.len() / 2])
+        let (instructions, len) = instructions_from_bytes(program)?;
+        self.add_program16(origin, &instructions[0..len])
     }
 
     /// Adds a program to PIO.
@@ -1990,6 +2012,37 @@ mod tests {
 
         shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinNone));
         assert_eq!(shiftctrl.get(), 0, "a join could not be undone");
+    }
+
+    #[test]
+    fn a_program_filling_instruction_memory_converts() {
+        let (instrs, len) = instructions_from_bytes(&[0xe0; 64]).unwrap();
+        assert_eq!(len, NUMBER_INSTR_MEMORY_LOCATIONS);
+        assert_eq!(instrs[31], 0xe0e0);
+    }
+
+    #[test]
+    fn a_program_longer_than_instruction_memory_is_rejected() {
+        assert_eq!(
+            instructions_from_bytes(&[0xe0; 66]),
+            Err(ProgramError::InsufficientSpace)
+        );
+    }
+
+    #[test]
+    fn an_odd_byte_count_is_rejected() {
+        assert_eq!(
+            instructions_from_bytes(&[0xe0; 3]),
+            Err(ProgramError::NotInstructionAligned)
+        );
+    }
+
+    #[test]
+    fn bytes_are_read_big_endian() {
+        let (instrs, len) = instructions_from_bytes(&[0x12, 0x34, 0x56, 0x78]).unwrap();
+        assert_eq!(len, 2);
+        assert_eq!(instrs[0], 0x1234);
+        assert_eq!(instrs[1], 0x5678);
     }
 
     // Unrelated SHIFTCTRL fields must survive a join change.
