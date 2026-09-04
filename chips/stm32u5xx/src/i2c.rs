@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
-use crate::dma::{self, ChannelId, Dma, DmaPeripheral};
+use crate::{
+    dma::{self, ChannelId, Dma, DmaPeripheral},
+    rcc::hertz::Hertz,
+};
 use core::cell::Cell;
+use core::cmp;
 use core::fmt::{self};
 use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::hil::i2c::{self, Error, I2CHwMasterClient, I2CMaster};
@@ -275,10 +279,11 @@ register_bitfields![u32,
     ],
 ];
 
+#[derive(Copy, Clone)]
 pub enum I2cSpeed {
-    Speed100k,
-    Speed400k,
-    Speed1M,
+    Speed100k = 100_000,
+    Speed400k = 400_000,
+    Speed1M = 1_000_000,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -315,10 +320,152 @@ impl fmt::Display for I2cDirection {
     }
 }
 
+// Adapted from embassy-rs/embassy/embassy-stm32/src/i2c/v2.rs
+/// Computed field values for the I2C_TIMINGR register
+struct Timings {
+    prescale: u8,
+    scll: u8,
+    sclh: u8,
+    sdadel: u8,
+    scldel: u8,
+}
+impl Timings {
+    const I2C_STANDARD_MODE_FREQUENCY_LIMIT: Hertz = Hertz::khz(100);
+    const I2C_FAST_MODE_FREQUENCY_LIMIT: Hertz = Hertz::khz(400);
+
+    fn new(kernel_clock: Hertz, i2c_frequency: Hertz) -> Result<Self, kernel::ErrorCode> {
+        let kernel_clock = kernel_clock.0;
+
+        // Refer to RM0433 Rev 7 Figure 539 for setup and hold timing:
+        //
+        // t_I2CCLK = 1 / PCLK1
+        // t_PRESC  = (PRESC + 1) * t_I2CCLK
+        // t_SCLL   = (SCLL + 1) * t_PRESC
+        // t_SCLH   = (SCLH + 1) * t_PRESC
+        //
+        // t_SYNC1 + t_SYNC2 > 4 * t_I2CCLK
+        // t_SCL ~= t_SYNC1 + t_SYNC2 + t_SCLL + t_SCLH
+        let ratio = kernel_clock / i2c_frequency.0;
+
+        // For the standard-mode configuration method, we must have a ratio of 4 or higher
+        if ratio < 4 {
+            return Err(kernel::ErrorCode::INVAL);
+        }
+
+        let (presc_reg, scll, sclh, sdadel, scldel) =
+            if i2c_frequency > Self::I2C_STANDARD_MODE_FREQUENCY_LIMIT {
+                // Fast-mode (Fm) or Fast-mode Plus (Fm+)
+                // here we pick SCLL + 1 = 2 * (SCLH + 1)
+
+                // Prescaler, 384 ticks for sclh/scll. Round up then subtract 1
+                let presc_reg = ((ratio - 1) / 384) as u8;
+                // ratio < 1200 by pclk 120MHz max., therefore presc < 16
+
+                // Actual precale value selected
+                let presc = (presc_reg + 1) as u32;
+
+                let sclh = ((ratio / presc) - 3) / 3;
+                let scll = (2 * (sclh + 1)) - 1;
+
+                let (sdadel, scldel) = if i2c_frequency > Self::I2C_FAST_MODE_FREQUENCY_LIMIT {
+                    // Fast-mode Plus (Fm+)
+                    // See table in datsheet
+                    if kernel_clock < 17_000_000 {
+                        return Err(kernel::ErrorCode::INVAL);
+                    }
+
+                    let sdadel = kernel_clock / 8_000_000 / presc;
+                    let scldel = kernel_clock / 4_000_000 / presc - 1;
+
+                    (sdadel, scldel)
+                } else {
+                    // Fast-mode (Fm)
+                    // See table in datsheet
+                    if kernel_clock < 8_000_000 {
+                        return Err(kernel::ErrorCode::INVAL);
+                    }
+
+                    let sdadel = kernel_clock / 4_000_000 / presc;
+                    let scldel = kernel_clock / 2_000_000 / presc - 1;
+
+                    (sdadel, scldel)
+                };
+
+                (
+                    presc_reg,
+                    scll as u8,
+                    sclh as u8,
+                    sdadel as u8,
+                    scldel as u8,
+                )
+            } else {
+                // Standard-mode (Sm); here we pick SCLL = SCLH
+                // See table in datsheet
+                if kernel_clock < 2_000_000 {
+                    return Err(kernel::ErrorCode::INVAL);
+                }
+
+                // Prescaler, 512 ticks for sclh/scll. Round up then
+                // subtract 1
+                let presc = (ratio - 1) / 512;
+                let presc_reg = cmp::min(presc, 15) as u8;
+
+                // Actual prescale value selected
+                let presc = (presc_reg + 1) as u32;
+
+                let sclh = ((ratio / presc) - 2) / 2;
+                let scll = sclh;
+
+                // Speed check
+                if sclh >= 256 {
+                    return Err(kernel::ErrorCode::INVAL);
+                }
+
+                let sdadel = kernel_clock / 2_000_000 / presc;
+                let scldel = kernel_clock / 500_000 / presc - 1;
+
+                (
+                    presc_reg,
+                    scll as u8,
+                    sclh as u8,
+                    sdadel as u8,
+                    scldel as u8,
+                )
+            };
+
+        // Sanity check
+        if presc_reg >= 16 {
+            return Err(kernel::ErrorCode::INVAL);
+        }
+
+        // Keep values within reasonable limits for fast per_ck
+        let sdadel = cmp::max(sdadel, 2);
+        let scldel = cmp::max(scldel, 4);
+
+        //(presc_reg, scll, sclh, sdadel, scldel)
+        Ok(Self {
+            prescale: presc_reg,
+            scll,
+            sclh,
+            sdadel,
+            scldel,
+        })
+    }
+}
+
 /// I2C driver implementation with DMA for the STM32U5 series.
 /// Currently, it is a controller-only driver.
 pub struct I2c<'a> {
     pub registers: StaticRef<I2cRegisters>,
+    clock: OptionalCell<Hertz>,
+
+    initialized: Cell<bool>,
+    enabled: Cell<bool>,
+
+    /// The I2C speed cannot be chosen through the HIL yet, so it's provided by `new`
+    ///
+    /// It is possible to change through `enable`/`set_speed`, if the HIL will support this in the future
+    speed: Cell<I2cSpeed>,
 
     // DMA reference, buffer, and TX/RX channels
     dma: OptionalCell<&'a Dma>,
@@ -349,14 +496,19 @@ pub struct I2c<'a> {
 }
 
 impl<'a> I2c<'a> {
-    pub fn new(base: StaticRef<I2cRegisters>) -> Self {
+    pub fn new(base: StaticRef<I2cRegisters>, speed: I2cSpeed) -> Self {
         Self {
             registers: base,
-            dma: OptionalCell::empty(),
+            clock: OptionalCell::empty(),
 
+            initialized: Cell::new(false),
+            enabled: Cell::new(false),
+
+            speed: Cell::new(speed),
+
+            dma: OptionalCell::empty(),
             dma_channel_tx: OptionalCell::empty(),
             dma_channel_rx: OptionalCell::empty(),
-
             dma_buf: MapCell::empty(),
 
             buf: TakeCell::empty(),
@@ -374,6 +526,10 @@ impl<'a> I2c<'a> {
         }
     }
 
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
+    }
+
     pub fn set_dma(i2c: &'static Self, dma: &'a Dma, tx_channel: ChannelId, rx_channel: ChannelId) {
         i2c.dma.set(dma);
 
@@ -384,58 +540,89 @@ impl<'a> I2c<'a> {
         dma.set_client(rx_channel, i2c);
     }
 
-    pub fn set_speed(&self, speed: I2cSpeed) {
+    pub fn set_speed(&self, speed: I2cSpeed) -> Result<(), kernel::ErrorCode> {
+        // Get the clock frequency that feeds this I2C
+        // It must have been provided with `set_clock` at this point
+        let Some(clock_frequency) = self.clock.get() else {
+            return Err(kernel::ErrorCode::FAIL);
+        };
+
+        // The peripheral must be disabled in order to change the speed
+        // Disable it, but remember if it was enabled
+        let was_enabled = self.enabled.get();
         self.disable();
 
-        // The following values for the TIMINGR register
-        // have been found using the STM32CubeMX tool,
-        // as per the STM32U5 documentation
-        // (65.4.10 I2C_TIMINGR register configuration examples or page 2720)
-        //
-        // These values are for the PCLK1 configuration (present in ./rcc.rs)
-        match speed {
-            I2cSpeed::Speed100k => {
-                self.registers.timingr.set(0x0000_0E14);
-            }
-            I2cSpeed::Speed400k => {
-                self.registers.timingr.set(0x0000_0004);
-            }
-            I2cSpeed::Speed1M => {
-                self.registers.timingr.set(0x0000_0000);
-            }
+        // Calculate the values to write into the TIMINGR register
+        // This can fail if there is a problem with the input clock or requested speed
+        let timings = Timings::new(clock_frequency, Hertz(speed as u32))?;
+
+        self.registers.timingr.write(
+            TIMINGR::PRESC.val(timings.prescale as u32)
+                + TIMINGR::SCLL.val(timings.scll as u32)
+                + TIMINGR::SCLH.val(timings.sclh as u32)
+                + TIMINGR::SDADEL.val(timings.sdadel as u32)
+                + TIMINGR::SCLDEL.val(timings.scldel as u32),
+        );
+
+        // If the peripheral was originally enabled, enable it again
+        if was_enabled {
+            self.enable(None)?;
         }
 
-        self.enable();
+        // Store the current speed
+        self.speed.set(speed);
+
+        Ok(())
     }
 
-    pub fn enable(&self) {
-        // Fast-mode Plus drive enable
-        // Even if the Board integrator has not chosen to use Fm+,
-        // It's a good default.
-        self.registers.cr1.modify(CR1::FMP::SET);
+    /// Initialize and enable the peripheral, and/or set its speed
+    ///
+    /// This can fail if the configured clock source is invalid (only possible by selecting `MSIK` as the source and not enabling it)
+    /// - The effect is that every HIL function will return `Error::NotSupported`, as if the peripheral was not enabled
+    pub fn enable(&self, speed: Option<I2cSpeed>) -> Result<(), kernel::ErrorCode> {
+        if !self.initialized.get() {
+            // Fast-mode Plus drive enable
+            // Even if the Board integrator has not chosen to use Fm+,
+            // It's a good default.
+            self.registers.cr1.modify(CR1::FMP::SET);
 
-        // Turning AUTOEND completely off: all end operations are handled in software
-        self.registers.cr2.modify(CR2::AUTOEND::CLEAR);
+            // Turning AUTOEND completely off: all end operations are handled in software
+            self.registers.cr2.modify(CR2::AUTOEND::CLEAR);
 
-        // Allowing several interrupts
-        self.registers.cr1.modify(
-            CR1::ERRIE::SET
-                + CR1::STOPIE::SET
-                + CR1::NACKIE::SET
-                + CR1::ADDRIE::SET
-                + CR1::TCIE::SET,
-        );
+            // Allowing several interrupts
+            self.registers.cr1.modify(
+                CR1::ERRIE::SET
+                    + CR1::STOPIE::SET
+                    + CR1::NACKIE::SET
+                    + CR1::ADDRIE::SET
+                    + CR1::TCIE::SET,
+            );
+
+            // Avoid redoing the initialization step on subsequent calls
+            self.initialized.set(true);
+        }
+
+        // Change the speed to what was provided, if it's not None
+        if let Some(speed) = speed {
+            // This can fail if the configured clock source is invalid, as described above
+            self.set_speed(speed)?;
+        }
 
         // Setting the peripheral enable
         self.registers.cr1.modify(CR1::PE::SET);
+        self.enabled.set(true);
+
+        Ok(())
     }
 
     pub fn disable(&self) {
         // Clearing the peripheral enable
         self.registers.cr1.modify(CR1::PE::CLEAR);
+        self.enabled.set(false);
     }
 
-    fn reset(&self) {
+    /// This can only fail for the same reason as `enable`
+    fn reset(&self) -> Result<(), kernel::ErrorCode> {
         // Resetting local variables
         self.stop_dma();
         self.buf.take();
@@ -456,7 +643,9 @@ impl<'a> I2c<'a> {
         //      Enable the peripheral
         self.disable();
         self.registers.cr1.get();
-        self.enable();
+        self.enable(None)?;
+
+        Ok(())
     }
 
     /// (More information about NBYTES and RELOAD can be found
@@ -527,7 +716,7 @@ impl<'a> I2c<'a> {
                 kernel::debug!(
                     "Error in logic: The static buffer has to be available on Transfer Complete"
                 );
-                self.reset();
+                let _ = self.reset();
                 return;
             };
 
@@ -595,7 +784,7 @@ impl<'a> I2c<'a> {
                 kernel::debug!(
                     "Error in logic: The static buffer has to be available after stopping DMA"
                 );
-                self.reset();
+                let _ = self.reset();
                 return;
             };
 
@@ -627,7 +816,7 @@ impl<'a> I2c<'a> {
             kernel::debug!(
                 "Error in logic: The static buffer has to be available when handling errors."
             );
-            self.reset();
+            let _ = self.reset();
             return;
         };
 
@@ -664,7 +853,7 @@ impl<'a> I2c<'a> {
             kernel::debug!(
                 "Error in logic: Static buffer has to be available when handling the DMA interrupt"
             );
-            self.reset();
+            let _ = self.reset();
             return;
         };
 
@@ -797,7 +986,8 @@ impl<'a> I2CMaster<'a> for I2c<'a> {
     }
 
     fn enable(&self) {
-        self.enable();
+        // Since the HIL cannot select an I2C speed, it is provided through the driver's `new`
+        let _ = self.enable(Some(self.speed.get()));
     }
 
     fn disable(&self) {
@@ -811,8 +1001,16 @@ impl<'a> I2CMaster<'a> for I2c<'a> {
         write_len: usize,
         read_len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
+        // Ensure the driver is enabled (which implies it's also initialized)
+        if !self.enabled.get() {
+            return Err((Error::NotSupported, data));
+        }
+
         if self.status.get() == I2cStatus::Idle {
-            self.reset();
+            if self.reset().is_err() {
+                return Err((Error::NotSupported, data));
+            }
+
             self.status.set(I2cStatus::WritingReading);
 
             self.write_len.set(write_len);
@@ -837,8 +1035,16 @@ impl<'a> I2CMaster<'a> for I2c<'a> {
         data: &'static mut [u8],
         len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
+        // Ensure the driver is enabled (which implies it's also initialized)
+        if !self.enabled.get() {
+            return Err((Error::NotSupported, data));
+        }
+
         if self.status.get() == I2cStatus::Idle {
-            self.reset();
+            if self.reset().is_err() {
+                return Err((Error::NotSupported, data));
+            }
+
             self.status.set(I2cStatus::Writing);
 
             self.write_len.set(len);
@@ -862,8 +1068,16 @@ impl<'a> I2CMaster<'a> for I2c<'a> {
         data: &'static mut [u8],
         len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
+        // Ensure the driver is enabled (which implies it's also initialized)
+        if !self.enabled.get() {
+            return Err((Error::NotSupported, data));
+        }
+
         if self.status.get() == I2cStatus::Idle {
-            self.reset();
+            if self.reset().is_err() {
+                return Err((Error::NotSupported, data));
+            }
+
             self.status.set(I2cStatus::Reading);
 
             self.read_len.set(len);

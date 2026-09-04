@@ -1,8 +1,12 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
+// Copyright Tock Contributors 2026.
 
-use crate::dma::{ChannelId, Dma, DmaPeripheral};
+use crate::{
+    dma::{ChannelId, Dma, DmaPeripheral},
+    rcc::hertz::Hertz,
+};
 use core::cell::Cell;
 use cortexm33::dma_fence::CortexMDmaFence;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -14,6 +18,7 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::dma_slice::DmaSubSliceMut;
 use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::registers::FieldValue;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
@@ -66,7 +71,9 @@ register_bitfields![u32,
         /// Transmission complete interrupt enable
         TCIE    OFFSET(6)   NUMBITS(1) [],
         /// TXE interrupt enable
-        TXEIE   OFFSET(7)   NUMBITS(1) []
+        TXEIE   OFFSET(7)   NUMBITS(1) [],
+        /// Oversampling mode
+        OVER8   OFFSET(15)  NUMBITS(1) []
     ],
     pub CR2 [
         /// STOP bits
@@ -146,7 +153,20 @@ register_bitfields![u32,
     ],
     pub PRESC [
         /// Clock prescaler
-        PRESCALER OFFSET(0) NUMBITS(4) []
+        PRESCALER OFFSET(0) NUMBITS(4) [
+            DIV1 = 0,
+            DIV2 = 1,
+            DIV4 = 2,
+            DIV6 = 3,
+            DIV8 = 4,
+            DIV10 = 5,
+            DIV12 = 6,
+            DIV16 = 7,
+            DIV32 = 8,
+            DIV64 = 9,
+            DIV128 = 10,
+            DIV256 = 11
+        ]
     ]
 ];
 
@@ -158,6 +178,7 @@ register_bitfields![u32,
 /// captured correctly.
 pub struct Usart<'a> {
     pub registers: StaticRef<UsartRegisters>,
+    clock: OptionalCell<Hertz>,
     dma: OptionalCell<&'a Dma>,
     dma_channel_tx: Cell<Option<ChannelId>>,
     dma_channel_rx: Cell<Option<ChannelId>>,
@@ -176,6 +197,7 @@ impl<'a> Usart<'a> {
     pub fn new(base: StaticRef<UsartRegisters>) -> Self {
         Self {
             registers: base,
+            clock: OptionalCell::empty(),
             dma: OptionalCell::empty(),
             dma_channel_tx: Cell::new(None),
             dma_channel_rx: Cell::new(None),
@@ -188,6 +210,89 @@ impl<'a> Usart<'a> {
             deferred_call: DeferredCall::new(),
             tx_deferred: Cell::new(false),
             rx_deferred: Cell::new(false),
+        }
+    }
+
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
+    }
+
+    // Adapted from embassy-rs/embassy/embassy-stm32/src/uart/mod.rs
+    fn calculate_brr(baud: u32, pclk: u32, presc: u32, mul: u32) -> u32 {
+        // The calculation to be done to get the BRR is `mul * pclk / presc / baud`
+        // To do this in 32-bit only we can't multiply `mul` and `pclk`
+        let clock = pclk / presc;
+
+        // The mul is applied as the last operation to prevent overflow
+        let brr = clock / baud * mul;
+
+        // The BRR calculation will be a bit off because of integer rounding.
+        // Because we multiplied our inaccuracy with mul, our rounding now needs to be in proportion to mul.
+        let rounding = ((clock % baud) * mul + (baud / 2)) / baud;
+
+        brr + rounding
+    }
+
+    // Adapted from embassy-rs/embassy/embassy-stm32/src/uart/mod.rs
+    fn find_and_set_baudrate(
+        &self,
+        baudrate: u32,
+        kernel_clock: Hertz,
+    ) -> Result<(), BaudrateError> {
+        const DIVS: [(u16, FieldValue<u32, PRESC::Register>); 12] = [
+            (1, PRESC::PRESCALER::DIV1),
+            (2, PRESC::PRESCALER::DIV2),
+            (4, PRESC::PRESCALER::DIV4),
+            (6, PRESC::PRESCALER::DIV6),
+            (8, PRESC::PRESCALER::DIV8),
+            (10, PRESC::PRESCALER::DIV10),
+            (12, PRESC::PRESCALER::DIV12),
+            (16, PRESC::PRESCALER::DIV16),
+            (32, PRESC::PRESCALER::DIV32),
+            (64, PRESC::PRESCALER::DIV64),
+            (128, PRESC::PRESCALER::DIV128),
+            (256, PRESC::PRESCALER::DIV256),
+        ];
+
+        let (mul, brr_min, brr_max) = (1, 0x10, 0x1_0000);
+
+        let mut found_brr = false;
+        let mut over8 = false;
+
+        for &(presc, presc_fields_value) in &DIVS {
+            let brr = Self::calculate_brr(baudrate, kernel_clock.0, presc as u32, mul);
+
+            if brr < brr_min {
+                if brr * 2 >= brr_min {
+                    over8 = true;
+
+                    self.registers
+                        .brr
+                        .write(BRR::BRR.val(((brr << 1) & !0xF) | (brr & 0x07)));
+
+                    self.registers.presc.write(presc_fields_value);
+
+                    found_brr = true;
+                    break;
+                }
+
+                return Err(BaudrateError::TooHigh);
+            }
+
+            if brr < brr_max {
+                self.registers.brr.write(BRR::BRR.val(brr));
+                self.registers.presc.write(presc_fields_value);
+                found_brr = true;
+                break;
+            }
+        }
+
+        self.registers.cr1.modify(CR1::OVER8.val(over8 as u32));
+
+        if found_brr {
+            Ok(())
+        } else {
+            Err(BaudrateError::TooLow)
         }
     }
 
@@ -288,6 +393,11 @@ impl<'a> Usart<'a> {
             regs.cr3.modify(CR3::DMAT::SET);
         }
     }
+}
+
+enum BaudrateError {
+    TooHigh,
+    TooLow,
 }
 
 impl DeferredCallClient for Usart<'_> {
@@ -412,11 +522,24 @@ impl<'a> uart::Transmit<'a> for Usart<'a> {
 }
 
 impl uart::Configure for Usart<'_> {
-    fn configure(&self, _params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
+    fn configure(&self, params: uart::Parameters) -> Result<(), kernel::ErrorCode> {
+        // Get the clock frequency that feeds this USART
+        // It must have been provided with `set_clock` at this point
+        let Some(clock_frequency) = self.clock.get() else {
+            return Err(kernel::ErrorCode::FAIL);
+        };
+
         let regs = &*self.registers;
         regs.cr1.modify(CR1::UE::CLEAR);
-        regs.presc.write(PRESC::PRESCALER.val(0));
-        regs.brr.write(BRR::BRR.val(35));
+
+        // Set the baud rate
+        if self
+            .find_and_set_baudrate(params.baud_rate, clock_frequency)
+            .is_err()
+        {
+            return Err(kernel::ErrorCode::INVAL);
+        }
+
         regs.icr.write(
             ICR::TCCF::SET + ICR::ORECF::SET + ICR::NECF::SET + ICR::FECF::SET + ICR::PECF::SET,
         );

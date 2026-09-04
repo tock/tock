@@ -1,7 +1,7 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2024.
 // Copyright OxidOS Automotive 2026.
+// Copyright Tock Contributors 2026.
 
 #![no_std]
 #![no_main]
@@ -18,7 +18,6 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
-use stm32u545::rng::RNG_BASE;
 
 pub mod io;
 
@@ -272,7 +271,7 @@ unsafe fn start() -> (
         <ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider,
     >();
 
-    // Create Individual Drivers
+    // Create individual drivers
     let exti = static_init!(
         stm32u545::exti::Exti<'static>,
         stm32u545::exti::Exti::new(stm32u545::exti::EXTI_BASE)
@@ -283,32 +282,37 @@ unsafe fn start() -> (
         stm32u545::dma::Dma::new(stm32u545::dma::DMA1_BASE)
     );
 
-    // Load Peripherals Bundle
+    // Create the peripheral bundle
     let periphs = static_init!(
         stm32u545::chip::Stm32u5xxDefaultPeripherals<'static>,
         stm32u545::chip::Stm32u5xxDefaultPeripherals::new(exti, dma1)
     );
 
-    let trng = static_init!(
-        stm32u545::rng::Trng<'static>,
-        stm32u545::rng::Trng::new(RNG_BASE)
-    );
-    trng.init();
-    periphs.rcc.enable_trng();
-
     // Initialize wiring (DMA, clocks)
-    periphs.init();
+    // This can only fail if the `RccConfig` inside is intentionally modified to be incorrect (as explained in the function's doc comment)
+    let _ = periphs.init();
+
+    // Start the TIM2 timer, used for alarms
+    // This can only fail if `set_clocks` was not called for `tim2` yet, but it's not the case, since it's done in `periphs.init()`
+    let _ = periphs.tim2.start();
 
     // Board specific wiring
-    periphs.tim2.start();
     set_pin_primary_functions(periphs);
 
-    // Create an adapter for the HASH peripheral.
-    // In this way it is ensured that only one mode is used by the peripheral.
+    // Create an adapter for the HASH peripheral
+    // In this way it is ensured that only one mode is used by the peripheral
     let sha256 = static_init!(
         stm32u545::hash::sha256::Sha256Adapter<'static>,
         stm32u545::hash::sha256::Sha256Adapter::new(&periphs.hash)
     );
+
+    // Create the TRNG peripheral
+    let trng = static_init!(
+        stm32u545::rng::Trng<'static>,
+        stm32u545::rng::Trng::new(stm32u545::rng::RNG_BASE)
+    );
+    // Note: TRNG clock routing is enabled in the RCC in `periphs.init()` above
+    trng.init();
 
     // Adapter receives callbacks from the peripheral
     let _ = periphs.hash.set_sha256_adapter(sha256);
