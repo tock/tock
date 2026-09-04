@@ -17,9 +17,10 @@ use kernel::hil::sensors::{
 };
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 
-const HUM_MSB: u8 = 0xFD;
-const TEMP_MSB: u8 = 0xFA;
 #[allow(dead_code)]
+const HUM_MSB: u8 = 0xFD;
+#[allow(dead_code)]
+const TEMP_MSB: u8 = 0xFA;
 const PRESS_MSB: u8 = 0xF7;
 #[allow(dead_code)]
 const CONFIG: u8 = 0xF5;
@@ -60,8 +61,8 @@ enum Operation {
 #[derive(Clone, Copy, PartialEq, Default)]
 struct CalibrationData {
     temp1: u16,
-    temp2: u16,
-    temp3: u16,
+    temp2: i16,
+    temp3: i16,
 
     press1: u16,
     press2: i16,
@@ -134,10 +135,11 @@ impl<'a, I: I2CDevice> TemperatureDriver<'a> for Bme280<'a, I> {
         }
 
         self.buffer.take().map(|buffer| {
-            buffer[0] = TEMP_MSB;
+            buffer[0] = PRESS_MSB;
 
             self.op.set(Operation::Temp);
-            self.i2c.write_read(buffer, 1, 3).unwrap();
+            // Read pressure and temperature.
+            self.i2c.write_read(buffer, 1, 6).unwrap();
         });
 
         Ok(())
@@ -159,10 +161,11 @@ impl<'a, I: I2CDevice> HumidityDriver<'a> for Bme280<'a, I> {
         }
 
         self.buffer.take().map(|buffer| {
-            buffer[0] = HUM_MSB;
+            buffer[0] = PRESS_MSB;
 
             self.op.set(Operation::Humidity);
-            self.i2c.write_read(buffer, 1, 3).unwrap();
+            // Read pressure, temperature, and humidity.
+            self.i2c.write_read(buffer, 1, 8).unwrap();
         });
 
         Ok(())
@@ -187,7 +190,8 @@ impl<'a, I: I2CDevice> PressureDriver<'a> for Bme280<'a, I> {
             buffer[0] = PRESS_MSB;
 
             self.op.set(Operation::Pressure);
-            self.i2c.write_read(buffer, 1, 3).unwrap();
+            // Read pressure and temperature.
+            self.i2c.write_read(buffer, 1, 6).unwrap();
         });
 
         Ok(())
@@ -234,8 +238,8 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                 let mut calib = self.calibration.take();
                 //TODO: Use Rust's built in u16 and i16 from_le_bytes(buffer[0], buffer[1]);
                 calib.temp1 = buffer[0] as u16 | (buffer[1] as u16) << 8;
-                calib.temp2 = buffer[2] as u16 | (buffer[3] as u16) << 8;
-                calib.temp3 = buffer[4] as u16 | (buffer[5] as u16) << 8;
+                calib.temp2 = buffer[2] as i16 | (buffer[3] as i16) << 8;
+                calib.temp3 = buffer[4] as i16 | (buffer[5] as i16) << 8;
                 calib.press1 = buffer[6] as u16 | (buffer[7] as u16) << 8;
                 calib.press2 = buffer[8] as i16 | (buffer[9] as i16) << 8;
                 calib.press3 = buffer[10] as i16 | (buffer[11] as i16) << 8;
@@ -291,9 +295,9 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                     Operation::Temp => {
                         let calib = self.calibration.get();
 
-                        let adc_temperature: i32 = ((buffer[0] as usize) << 12
-                            | (buffer[1] as usize) << 4
-                            | (((buffer[2] as usize) >> 4) & 0x0F))
+                        let adc_temperature: i32 = ((buffer[3] as usize) << 12
+                            | (buffer[4] as usize) << 4
+                            | (((buffer[5] as usize) >> 4) & 0x0F))
                             as i32;
 
                         if adc_temperature == 0 {
@@ -304,16 +308,8 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                             return;
                         }
 
-                        let var1 = (((adc_temperature >> 3) - ((calib.temp1 as i32) << 1))
-                            * (calib.temp2 as i32))
-                            >> 11;
-                        let var2 = (((((adc_temperature >> 4) - (calib.temp1 as i32))
-                            * ((adc_temperature >> 4) - (calib.temp1 as i32)))
-                            >> 12)
-                            * (calib.temp3 as i32))
-                            >> 14;
-
-                        self.t_fine.set(var1 + var2);
+                        let t_fine = calculate_tfine(adc_temperature, calib);
+                        self.t_fine.set(t_fine);
 
                         let temperature = (self.t_fine.get() * 5 + 128) >> 8;
 
@@ -326,6 +322,21 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                             | (buffer[1] as usize) << 4
                             | (buffer[2] as usize) >> 4)
                             as i32;
+                        let adc_temperature: i32 = ((buffer[3] as usize) << 12
+                            | (buffer[4] as usize) << 4
+                            | (((buffer[5] as usize) >> 4) & 0x0F))
+                            as i32;
+
+                        if adc_temperature == 0 {
+                            // We got a misread, try again
+                            self.buffer.replace(buffer);
+                            self.op.set(Operation::None);
+                            let _ = self.read_atmospheric_pressure();
+                            return;
+                        }
+
+                        let t_fine = calculate_tfine(adc_temperature, calib);
+                        self.t_fine.set(t_fine);
 
                         if adc_pressure == SKIPPED_PRESSURE_READING {
                             self.buffer.replace(buffer);
@@ -371,15 +382,23 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                     }
                     Operation::Humidity => {
                         let calib = self.calibration.get();
-                        let adc_hum = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as i32;
 
-                        if adc_hum == 0 {
+                        let adc_temperature: i32 = ((buffer[3] as usize) << 12
+                            | (buffer[4] as usize) << 4
+                            | (((buffer[5] as usize) >> 4) & 0x0F))
+                            as i32;
+                        let adc_hum = (((buffer[6] as u32) << 8) | (buffer[7] as u32)) as i32;
+
+                        if adc_hum == 0 || adc_temperature == 0 {
                             // We got a misread, try again
                             self.buffer.replace(buffer);
                             self.op.set(Operation::None);
                             let _ = self.read_humidity();
                             return;
                         }
+
+                        let t_fine = calculate_tfine(adc_temperature, calib);
+                        self.t_fine.set(t_fine);
 
                         let t_fine_offset = self.t_fine.get() - 76800;
 
@@ -412,4 +431,14 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
             }
         }
     }
+}
+
+fn calculate_tfine(temp: i32, calib: CalibrationData) -> i32 {
+    let var1 = (((temp >> 3) - ((calib.temp1 as i32) << 1)) * (calib.temp2 as i32)) >> 11;
+    let var2 = (((((temp >> 4) - (calib.temp1 as i32)) * ((temp >> 4) - (calib.temp1 as i32)))
+        >> 12)
+        * (calib.temp3 as i32))
+        >> 14;
+
+    var1 + var2
 }
