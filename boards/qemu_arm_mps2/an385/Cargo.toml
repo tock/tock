@@ -12,6 +12,7 @@ edition.workspace = true
 [dependencies]
 cortexm3 = { path = "../../../arch/cortex-m3" }
 kernel = { path = "../../../kernel" }
+qemu_arm_mps2 = { path = "../../../chips/qemu_arm_mps2" }
 qemu_arm_mps2-unsafe = { path = "../../../chips/qemu_arm_mps2-unsafe" }
 qemu_arm_mps2_an385 = { path = "../../../chips/qemu_arm_mps2_an385" }
 mps2_base = { path = "../mps2_base" }
