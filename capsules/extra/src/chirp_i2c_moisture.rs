@@ -50,7 +50,7 @@ enum Operation {
     Moisture,
 }
 
-pub struct ChirpI2cMoisture<'a, I: I2CDevice> {
+pub struct ChirpI2cMoisture<'a, I: I2CDevice<'a>> {
     buffer: TakeCell<'static, [u8]>,
     i2c: &'a I,
     moisture_client: OptionalCell<&'a dyn MoistureClient>,
@@ -58,7 +58,7 @@ pub struct ChirpI2cMoisture<'a, I: I2CDevice> {
     op: Cell<Operation>,
 }
 
-impl<'a, I: I2CDevice> ChirpI2cMoisture<'a, I> {
+impl<'a, I: I2CDevice<'a>> ChirpI2cMoisture<'a, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8]) -> Self {
         ChirpI2cMoisture {
             buffer: TakeCell::new(buffer),
@@ -70,7 +70,7 @@ impl<'a, I: I2CDevice> ChirpI2cMoisture<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> MoistureDriver<'a> for ChirpI2cMoisture<'a, I> {
+impl<'a, I: I2CDevice<'a>> MoistureDriver<'a> for ChirpI2cMoisture<'a, I> {
     fn set_client(&self, client: &'a dyn MoistureClient) {
         self.moisture_client.set(client);
     }
@@ -99,7 +99,7 @@ impl<'a, I: I2CDevice> MoistureDriver<'a> for ChirpI2cMoisture<'a, I> {
     }
 }
 
-impl<I: I2CDevice> I2CClient for ChirpI2cMoisture<'_, I> {
+impl<'a, I: I2CDevice<'a>> I2CClient for ChirpI2cMoisture<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.buffer.replace(buffer);

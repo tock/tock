@@ -32,6 +32,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::bus8080;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterDevice};
 
 // Setup static space for the objects.

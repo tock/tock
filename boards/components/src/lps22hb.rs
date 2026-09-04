@@ -9,6 +9,7 @@ use capsules_extra::lps22hb::Lps22hb;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 
 #[macro_export]
 macro_rules! lps22hb_component_static {

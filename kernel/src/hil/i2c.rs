@@ -217,7 +217,7 @@ pub trait I2CHwSlaveClient {
 /// Higher-level interface for I2C Master commands that wraps in the I2C
 /// address. It gives an interface for communicating with a specific I2C
 /// device.
-pub trait I2CDevice {
+pub trait I2CDevice<'a> {
     fn enable(&self);
     fn disable(&self);
     fn write_read(
@@ -229,9 +229,12 @@ pub trait I2CDevice {
     fn write(&self, data: &'static mut [u8], len: usize) -> Result<(), (Error, &'static mut [u8])>;
     fn read(&self, buffer: &'static mut [u8], len: usize)
     -> Result<(), (Error, &'static mut [u8])>;
+
+    /// Set the client for the I2CDevice.
+    fn set_client(&'a self, client: &'a dyn I2CClient);
 }
 
-pub trait SMBusDevice: I2CDevice {
+pub trait SMBusDevice<'a>: I2CDevice<'a> {
     /// Write data then read data to a slave device in an SMBus
     /// compatible way.
     ///
