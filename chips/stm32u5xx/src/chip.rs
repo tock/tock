@@ -32,6 +32,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWriter;
 use stm32u5xx_unsafe::aes::AES_BASE;
 
 pub struct Stm32u5xx<'a, I: InterruptService + 'a> {
@@ -439,7 +440,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
         cortexm33::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
+    fn print_state<W: Write>(_this: Option<&Self>, write: &mut PanicWriter<W>) {
         let _ = write.write_str("Cortex-M33 state\n");
     }
 }

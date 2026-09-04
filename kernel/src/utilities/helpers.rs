@@ -434,6 +434,49 @@ pub fn usize_as_native_mut(val: &mut usize) -> &mut u64 {
     unsafe { &mut *ptr.cast::<u64>() }
 }
 
+/// Mint a [`PanicContext`](crate::context_tokens::PanicContext) token.
+///
+/// This is the `PanicContext` equivalent of [`create_capability!`]: it hides
+/// the `unsafe` keyword at the call site while still requiring that call
+/// site be in a crate permitted to use `unsafe` at all.
+///
+/// # Usage Example
+///
+/// ```ignore
+/// # use kernel::mint_panic_context;
+/// # use core::panic::PanicInfo;
+/// # fn f(panic_info: &PanicInfo) {
+/// let panic_context = kernel::mint_panic_context!(panic_info);
+/// # }
+/// ```
+///
+/// # Restrictions
+///
+/// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates.
+/// The argument must be an actual `&PanicInfo` obtained from a
+/// `#[panic_handler]` (or a function that was itself handed one); `PanicInfo`
+/// has no public constructor, so this is unforgeable proof that a panic is
+/// genuinely underway.
+///
+/// # Safety
+///
+/// This macro can only be used in a context that is allowed to use `unsafe`.
+/// Specifically, an internal `allow(unsafe_code)` directive will conflict with
+/// any `forbid(unsafe_code)` at the crate or block level.
+#[macro_export]
+macro_rules! mint_panic_context {
+    ($panic_info:expr) => {{
+        let panic_info = $panic_info;
+        // SAFETY: this expansion only compiles in a crate permitted to use
+        // `unsafe` (see macro doc); by invoking this macro here, the caller
+        // asserts `panic_info` is a genuine `&PanicInfo`.
+        #[allow(unsafe_code)]
+        unsafe {
+            $crate::context_tokens::PanicContext::new_trusted(panic_info)
+        }
+    }};
+}
+
 /// Compute a POSIX-style CRC32 checksum of a slice.
 ///
 /// Online calculator: <https://crccalc.com/>

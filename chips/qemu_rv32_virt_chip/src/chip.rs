@@ -9,7 +9,7 @@ use core::ptr::addr_of;
 
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, InterruptService, PanicWriter};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
@@ -176,7 +176,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state<W: Write>(this: Option<&Self>, writer: &mut PanicWriter<W>) {
         rv32i::print_riscv_state(writer);
         if let Some(t) = this {
             let _ = writer.write_fmt(format_args!("{}", t.pmp.pmp));

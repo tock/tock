@@ -8,6 +8,7 @@ use core::fmt::Write;
 use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::InterruptService;
+use kernel::platform::chip::PanicWriter;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{CSR, mcause, mie::mie};
 use rv32i::pmp::{PMPUserMPU, kernel_protection::KernelProtectionPMP};
@@ -104,7 +105,7 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
         rv32i::support::with_interrupts_disabled(f)
     }
 
-    unsafe fn print_state(this: Option<&Self>, writer: &mut dyn Write) {
+    fn print_state<W: Write>(this: Option<&Self>, writer: &mut PanicWriter<W>) {
         let _ = writer.write_fmt(format_args!(
             "\r\n---| LiteX configuration for {} |---",
             this.map_or("unknown board (in trap handler thread)", |t| t

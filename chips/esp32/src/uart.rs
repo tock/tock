@@ -483,7 +483,7 @@ use kernel::utilities::io_write::IoWrite;
 /// operation of the Tock kernel.
 ///
 /// TODO: Validate this [`UartPanicWriter`] is always sound to create.
-struct UartPanicWriter<'a> {
+pub struct UartPanicWriter<'a> {
     uart: Uart<'a>,
 }
 
@@ -510,13 +510,14 @@ pub struct UartPanicWriterConfig {
     pub params: kernel::hil::uart::Parameters,
 }
 
-impl kernel::platform::chip::PanicWriter for Uart<'_> {
+impl<'a> kernel::platform::chip::PanicWriterFactory for Uart<'a> {
     type Config = UartPanicWriterConfig;
+    type Writer = UartPanicWriter<'a>;
 
     fn create_panic_writer(
         config: Self::Config,
-        _panic: &core::panic::PanicInfo,
-    ) -> impl IoWrite + core::fmt::Write {
+        panic_context: &kernel::context_tokens::PanicContext,
+    ) -> kernel::platform::chip::PanicWriter<Self::Writer> {
         use kernel::hil::uart::Configure as _;
 
         let uart = Uart::new(config.registers);
@@ -524,6 +525,6 @@ impl kernel::platform::chip::PanicWriter for Uart<'_> {
         // Configure the UART correctly for panics.
         let _ = uart.configure(config.params);
 
-        UartPanicWriter { uart }
+        kernel::platform::chip::PanicWriter::new(UartPanicWriter { uart }, panic_context)
     }
 }
