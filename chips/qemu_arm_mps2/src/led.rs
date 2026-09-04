@@ -19,9 +19,6 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::registers::ReadWrite;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
-pub const FPGAIO_BASE: StaticRef<FpgaioRegisters> =
-    unsafe { StaticRef::new(0x4002_8000 as *const FpgaioRegisters) };
-
 /// Number of LEDs QEMU wires up to `LED0` for the an385/an386 machines
 /// (the `mps2-fpgaio` device's `num-leds` property default).
 pub const NUM_LEDS: u32 = 2;
