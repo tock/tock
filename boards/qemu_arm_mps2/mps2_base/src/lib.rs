@@ -37,7 +37,7 @@ use kernel::{create_capability, static_init};
 
 pub const NUM_PROCS: usize = 4;
 
-pub type ChipHw<C> = qemu_arm_mps2::chip::QemuArmMps2Chip<
+pub type ChipHw<C> = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
     'static,
     C,
     qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
@@ -156,9 +156,10 @@ where
     let _ = panic_resources
         .bind_to_thread::<<ChipHw<C> as Chip>::ThreadIdProvider>(PanicResources::new());
 
+    // SAFETY: We promise to be the only caller of `default_peripherals`.
     let peripherals = static_init!(
         qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
-        qemu_arm_mps2::Mps2DefaultPeripherals::new()
+        qemu_arm_mps2_unsafe::default_peripherals()
     );
 
     let processes = components::process_array::ProcessArrayComponent::new()

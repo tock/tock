@@ -29,11 +29,6 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
-pub const TIMER0_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_0000 as *const TimerRegisters) };
-pub const TIMER1_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4000_1000 as *const TimerRegisters) };
-
 #[repr(C)]
 pub struct TimerRegisters {
     ctrl: ReadWrite<u32, CTRL::Register>,

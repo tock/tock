@@ -8,10 +8,8 @@ use core::fmt::Write;
 
 use cortexm::CortexMVariant;
 use kernel::platform::chip::InterruptService;
-use kernel::utilities::StaticRef;
 
-const MPU_BASE_ADDRESS: StaticRef<cortexm::mpu::MpuRegisters> =
-    unsafe { StaticRef::new(0xE000_ED90 as *const cortexm::mpu::MpuRegisters) };
+use crate::addresses;
 
 pub type Mps2Mpu = cortexm::mpu::MPU<8, 32>;
 
@@ -28,7 +26,7 @@ impl<'a, V: CortexMVariant, I: InterruptService + 'a> QemuArmMps2Chip<'a, V, I> 
     /// syscall-boundary hardware state.
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: unsafe { Mps2Mpu::new(MPU_BASE_ADDRESS) },
+            mpu: unsafe { Mps2Mpu::new(addresses::MPU_BASE) },
             userspace_kernel_boundary: unsafe { cortexm::syscall::SysCall::new() },
             interrupt_service,
         }
@@ -44,9 +42,8 @@ impl<'a, V: CortexMVariant, I: InterruptService + 'a> kernel::platform::chip::Ch
 
     fn init() {
         // This board has no bootloader relocating the vector table, and no
-        // documented silicon errata to work around (this is a QEMU-only
-        // FPGA reference image, not real silicon), so there is nothing to
-        // do beyond unmasking interrupts at the NVIC.
+        // documented errata to work around, so there is nothing to do beyond
+        // unmasking interrupts at the NVIC.
         cortexm::nvic::enable_all();
     }
 

@@ -8,7 +8,7 @@ FPGA image. For more on the platform, see the QEMU documentation:
 https://www.qemu.org/docs/master/system/arm/mps2.html
 
 This crate holds the peripherals shared across those images. What differs per
-image -- the core and its vector table -- lives in `qemu_arm_mps2_an385` and
+image (the core and its vector table) lives in `qemu_arm_mps2_an385` and
 `qemu_arm_mps2_an386`.
 
 QEMU's `hw/arm/mps2.c` implements four of these configurations:
