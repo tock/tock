@@ -48,14 +48,14 @@ pub struct VirtIOConsole<'a, F: DmaFence> {
 
     // Single-byte scratch buffer kept posted to the receive queue while a
     // `receive_buffer` call is outstanding.
-    rx_chunk: TakeCell<'static, [u8; 1]>,
+    rx_chunk: TakeCell<'static, u8>,
 }
 
 impl<'a, F: DmaFence> VirtIOConsole<'a, F> {
     pub fn new(
         txqueue: &'a SplitVirtqueue<'static, 'static, 1, F>,
         rxqueue: &'a SplitVirtqueue<'static, 'static, 1, F>,
-        rx_chunk: &'static mut [u8; 1],
+        rx_chunk: &'static mut u8,
     ) -> VirtIOConsole<'a, F> {
         txqueue.enable_used_callbacks();
         rxqueue.enable_used_callbacks();
@@ -80,30 +80,30 @@ impl<'a, F: DmaFence> VirtIOConsole<'a, F> {
     fn post_rx_chunk(&self) {
         if let Some(chunk) = self.rx_chunk.take() {
             let mut chain = [Some(VirtqueueBuffer::DeviceWriteable(SubSliceMut::new(
-                chunk,
+                core::slice::from_mut(chunk),
             )))];
 
-            if let Err(e) = self.rxqueue.provide_buffer_chain(&mut chain) {
+            if self.rxqueue.provide_buffer_chain(&mut chain).is_err() {
                 // Queue is full (should not happen with a single
                 // outstanding one-byte chain) -- hand the buffer back so
                 // future calls can retry, rather than losing it.
-                let VirtqueueBuffer::DeviceWriteable(sub_slice_mut) = chain[0].take().unwrap()
+                let VirtqueueBuffer::DeviceWriteable(sub_slice_mut) =
+                    chain[0].take().expect("No rx buffer")
                 else {
                     panic!("VirtIO console: rx queue returned DeviceReadable buffer")
                 };
-                let chunk: &'static mut [u8; 1] = sub_slice_mut
+                let chunk = sub_slice_mut
                     .take()
-                    .try_into()
-                    .unwrap_or_else(|_| panic!("VirtIO console: rx chunk was resized"));
+                    .first_mut()
+                    .expect("VirtIO console: rx chunk was resized");
                 self.rx_chunk.replace(chunk);
-                kernel::debug!("VirtIO console: failed to post rx buffer: {:?}", e);
             }
         }
     }
 
-    fn handle_rx_chunk(&self, chunk: &'static mut [u8; 1], bytes_used: usize) {
+    fn handle_rx_chunk(&self, chunk: &'static mut u8, bytes_used: usize) {
         let byte_received = bytes_used >= 1;
-        let byte = chunk[0];
+        let byte = *chunk;
         self.rx_chunk.replace(chunk);
 
         if !byte_received {
@@ -162,10 +162,10 @@ impl<F: DmaFence> SplitVirtqueueClient<'static> for VirtIOConsole<'_, F> {
             else {
                 panic!("VirtIO console: rx queue returned DeviceReadable buffer")
             };
-            let chunk: &'static mut [u8; 1] = sub_slice_mut
+            let chunk = sub_slice_mut
                 .take()
-                .try_into()
-                .unwrap_or_else(|_| panic!("VirtIO console: rx chunk was resized"));
+                .first_mut()
+                .expect("VirtIO console: rx chunk was resized");
             self.handle_rx_chunk(chunk, bytes_used);
         } else if queue_number == self.txqueue.queue_number().unwrap() {
             let tx = buffer_chain[0].take().expect("No tx buffer");
@@ -232,7 +232,7 @@ impl<'a, F: DmaFence> hil::uart::Transmit<'a> for VirtIOConsole<'a, F> {
         self.txqueue.provide_buffer_chain(&mut chain).map_err(|e| {
             self.tx_pending.set(false);
             let VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(sub_slice_mut)) =
-                chain[0].take().unwrap()
+                chain[0].take().expect("No tx buffer")
             else {
                 panic!("VirtIO console: tx chain buffer changed type")
             };
