@@ -14,6 +14,7 @@ pub mod dwt;
 pub mod mpu;
 pub mod nvic;
 pub mod scb;
+pub mod semihosting;
 pub mod support;
 pub mod syscall;
 pub mod systick;

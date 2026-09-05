@@ -8,11 +8,9 @@
 
 use core::fmt::Write;
 
-// Re-export the base generic cortex-m functions here as they are
-// valid on cortex-m0.
-pub use cortexm::support;
-
 pub use cortexm::nvic;
+pub use cortexm::semihosting;
+pub use cortexm::support;
 pub use cortexm::syscall;
 pub use cortexm::thread_id;
 
