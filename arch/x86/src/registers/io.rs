@@ -8,6 +8,78 @@
 
 #[cfg(target_arch = "x86")]
 use core::arch::asm;
+use core::marker::PhantomData;
+use tock_registers::{Address, Bus, BusRead, BusWrite};
+
+#[derive(Clone, Copy)]
+pub struct Port {
+    number: u16,
+    _phantom: PhantomData<*mut ()>,
+}
+
+impl Port {
+    /// Returns a new Port with the given number.
+    pub fn new(number: u16) -> Self {
+        Self {
+            number,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl Address for Port {
+    unsafe fn byte_add(self, offset: usize) -> Port {
+        Port {
+            number: self.number + offset as u16,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+// Safety: Port does not expose safe operations to access registers on its own. Instead, it is used
+// through two types:
+// 1. The Real<> structs, which are always !Send + !Sync
+// 2. RegisterSender<>, which is Send if the bus is Send but which guarantees that only one thread
+//    can access the registers at a time. Making Port Send enables RegisterSender<> to work with
+//    it.
+unsafe impl Send for Port {}
+
+macro_rules! bus_impls {
+    ($value:ty, $size:literal, $in:ident, $out:ident) => {
+        // Safety: All the $size values are correct for x86, which has a 32-bit usize.
+        unsafe impl Bus<$value> for Port {
+            const PADDED_SIZE: usize = $size;
+        }
+        impl BusRead<$value> for Port {
+            unsafe fn read(self) -> $value {
+                #[cfg(target_arch = "x86")]
+                unsafe {
+                    $in(self.number) as $value
+                }
+                #[cfg(not(target_arch = "x86"))]
+                unimplemented!()
+            }
+        }
+        impl BusWrite<$value> for Port {
+            unsafe fn write(self, val: $value) {
+                #[cfg(target_arch = "x86")]
+                unsafe {
+                    $out(self.number, val as _)
+                }
+                #[cfg(not(target_arch = "x86"))]
+                {
+                    let _ = val;
+                    unimplemented!()
+                }
+            }
+        }
+    };
+}
+
+bus_impls!(u8, 1, inb, outb);
+bus_impls!(u16, 2, inw, outw);
+bus_impls!(u32, 4, inl, outl);
+bus_impls!(usize, 4, inl, outl);
 
 /// Write 8 bits to port
 ///
