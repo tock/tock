@@ -29,6 +29,10 @@ flash: $(KERNEL)
 	picotool uf2 convert $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2
 	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Raspberry Pi Pico 2 Flash Drive Folder; echo You can download and flash $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2; fi
 
+# Giving .apps contents makes objcopy lay the program headers out again, and
+# the (NOLOAD) .stack segment comes back claiming file content for SRAM that
+# has none. UF2 converters reject the result, so drop the section from the
+# image being flashed: it only reserves stack space and carries no bytes.
 .PHONY: program
 program: $(KERNEL)
 ifeq ($(APP),)
@@ -36,6 +40,7 @@ ifeq ($(APP),)
 endif
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
+	arm-none-eabi-objcopy -R .stack $(KERNEL_WITH_APP)
 	picotool uf2 convert $(KERNEL_WITH_APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2
 	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Raspberry Pi Pico 2 Flash Drive Folder; echo You can download and flash $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2; fi
 
@@ -46,4 +51,5 @@ ifeq ($(APP),)
 endif
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
+	arm-none-eabi-objcopy -R .stack $(KERNEL_WITH_APP)
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "adapter speed 5000" -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP);  reset; shutdown;"

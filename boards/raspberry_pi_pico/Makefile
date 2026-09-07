@@ -36,12 +36,17 @@ flash: $(KERNEL)
 	elf2uf2-rs $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2
 	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Raspberry Pi Pico Flash Drive Folder; echo You can download and flash $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2; fi
 
+# Giving .apps contents makes objcopy lay the program headers out again, and
+# the (NOLOAD) .stack segment comes back claiming file content for SRAM that
+# has none. UF2 converters reject the result, so drop the section from the
+# image being flashed: it only reserves stack space and carries no bytes.
 $(KERNEL_WITH_APP): $(KERNEL)
 ifeq ($(APP),)
 	$(error Please define the APP variable with the TBF file to flash an application)
 endif
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $@
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $@
+	arm-none-eabi-objcopy -R .stack $@
 
 .PHONY: program
 program: $(KERNEL_WITH_APP)
