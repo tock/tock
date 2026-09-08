@@ -31,7 +31,7 @@ pub const NUM_PROCS: usize = 4;
 /// `capsules_core::driver::NUM` registry (which only has a slot for one,
 /// generic "the console"), since this board exposes two independent serial
 /// ports.
-const VIRTIO_CONSOLE_DRIVER_NUM: usize = 0xA0000;
+const VIRTIO_CONSOLE_DRIVER_NUM: usize = 0xFF0000;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
