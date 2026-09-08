@@ -484,6 +484,8 @@ pub fn initialize_debug_gpio<P: ThreadIdProvider>() {
 /// Callers of this function must ensure that this function is never called
 /// concurrently with other calls to [`initialize_debug_gpio_unsafe`].
 pub unsafe fn initialize_debug_gpio_unsafe<P: ThreadIdProvider>() {
+    // SAFETY: The caller ensures there is no concurrent call to
+    // `DEBUG_GPIOS.bind_to_thread_unsafe()`.
     unsafe {
         DEBUG_GPIOS
             .bind_to_thread_unsafe::<P>(MapCell::empty())
@@ -591,6 +593,9 @@ pub fn initialize_debug_writer_wrapper<P: ThreadIdProvider>() {
 /// Callers of this function must ensure that this function is never called
 /// concurrently with other calls to [`initialize_debug_writer_wrapper_unsafe`].
 pub unsafe fn initialize_debug_writer_wrapper_unsafe<P: ThreadIdProvider>() {
+    // SAFETY: The caller ensures there is no concurrent call to
+    // `DEBUG_WRITER.bind_to_thread_unsafe()` and
+    // `DEBUG_WRITER_COUNT.bind_to_thread_unsafe()`.
     unsafe {
         DEBUG_WRITER
             .bind_to_thread_unsafe::<P>(MapCell::empty())
