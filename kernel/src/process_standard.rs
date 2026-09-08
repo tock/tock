@@ -1361,11 +1361,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
 
         // Get the address of the custom grant based on the identifier.
-        let custom_grant_address = self.get_custom_grant_address(identifier);
+        let address = self.get_custom_grant_address(identifier);
 
         // We never deallocate custom grants and only we can change the
         // `identifier` so we know this is a valid address for the custom grant.
-        Ok(custom_grant_address as *mut u8)
+        // kernel_memory_break seems like the most reasonable pointer to get the
+        // provenance from.
+        Ok(self.kernel_memory_break().with_addr(address).cast_mut())
     }
 
     unsafe fn leave_grant(&self, grant_num: usize) {
