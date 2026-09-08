@@ -103,12 +103,12 @@ pub enum NUM {
     CycleCount            = 0x90008,
     Servo                 = 0x90009,
 
+    // Testing
+    SyscallReturnTest     = 0xB0000,
+
     // IPC Mechanisms
     IpcRegistryStringName  = 0xA0000,
     IpcRegistryPackageName = 0xA0001,
     IpcRelayRequest        = 0xA0010,
-
-    // Testing
-    SyscallReturnTest     = 0xB0000,
 }
 }
