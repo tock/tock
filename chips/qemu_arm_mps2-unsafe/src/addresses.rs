@@ -4,6 +4,17 @@
 
 //! Peripheral base addresses for the ARM MPS2 AN385/AN386 FPGA images,
 //! from QEMU's `hw/arm/mps2.c` (`mps2_common_init`).
+//!
+//! NOTE: This file is unique to the ARM MPS2 family, it is not a precedent
+//! other chips should follow. The MPS2 chips are synthetic, simulation-
+//! only designs that have the unique property of **by specification**
+//! having identical peripheral maps and implementations---literally the
+//! same HDL code. Generally, it is up to a specific instantiation of an
+//! unsafe chip to assert the memory map and underlying peripherals. Only
+//! in this unique case does it make sense to de-duplicate these definitions
+//! to a shared crate, and only because the chips that rely on these shared
+//! definitions **by specification and implementation** have literally
+//! identical peripherals.
 
 use cortexm::mpu::MpuRegisters;
 use kernel::utilities::StaticRef;
