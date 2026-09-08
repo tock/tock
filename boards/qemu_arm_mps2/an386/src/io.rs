@@ -26,15 +26,10 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         crate::PANIC_RESOURCES.get(),
     );
 
-    // SAFETY: the system is no longer in a well-defined state (we're in the
-    // panic handler), so falling through if there's no semihosting host to
-    // service this (e.g. real hardware, or QEMU without `-semihosting`) is
-    // fine -- we don't resume normal execution either way, per the loop
-    // below.
+    // SAFETY: The system is no longer in a well-defined state (we're in the
+    // panic handler), so terminating is appropriate under semihosting.
     unsafe {
         use cortexm4::semihosting;
         semihosting::terminate(semihosting::SysexitReason::ADP_Stopped_RunTimeErrorUnknown);
     }
-
-    loop {}
 }
