@@ -11,6 +11,7 @@ pub mod copy_range;
 pub mod copy_slice;
 pub mod dma_slice;
 pub mod helpers;
+pub mod interrupts_disabled_cell;
 pub mod io_write;
 pub mod leasable_buffer;
 pub mod machine_register;

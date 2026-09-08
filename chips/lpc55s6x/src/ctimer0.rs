@@ -388,7 +388,7 @@ impl<'a> LPCTimer<'a> {
     }
 
     fn enable_timer_interrupt(&self) {
-        with_interrupts_disabled(|| {
+        with_interrupts_disabled(|_interrupts_disabled| {
             let n = cortexm33::nvic::Nvic::new(CTIMER0);
             n.enable();
         })
@@ -459,7 +459,7 @@ impl<'a> Alarm<'a> for LPCTimer<'a> {
         self.disable_interrupt();
         self.armed.set(false);
 
-        with_interrupts_disabled(|| {
+        with_interrupts_disabled(|_interrupts_disabled| {
             cortexm33::nvic::Nvic::new(CTIMER0).clear_pending();
         });
 

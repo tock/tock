@@ -7,6 +7,7 @@
 testbench for VeeR EL2, so the Pic is not expected to handle any interrupts. */
 
 use core::sync::atomic::{AtomicU32, Ordering};
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
@@ -181,10 +182,9 @@ impl Pic {
 
     /// Save the current interrupt to be handled later
     /// This will save the interrupt at index internally to be handled later.
-    /// Interrupts must be disabled before this is called.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub fn save_interrupt(&self, index: u32) {
+    pub fn save_interrupt(&self, index: u32, _interrupts_disabled: &InterruptsDisabledContext) {
         assert!(index < 96, "Unsupported index {}", index);
         let bitmap = &INTERRUPT_BITMAPS[(index / 32) as usize];
         bitmap.store(
@@ -208,12 +208,7 @@ impl Pic {
 
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
-    /// Interrupts must be disabled before this is called.
-    ///
-    /// # Safety
-    ///
-    /// access to memory-mapped registers
-    pub unsafe fn complete(&self, index: u32) {
+    pub fn complete(&self, index: u32, _interrupts_disabled: &InterruptsDisabledContext) {
         // Clear the interrupt
         self.registers.meigwclr[index as usize - 1].set(0);
         // Enable the interrupt

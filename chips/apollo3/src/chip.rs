@@ -6,6 +6,7 @@
 
 use core::fmt::Write;
 use cortexm4f::{CortexM4F, CortexMVariant};
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -159,7 +160,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm4f::support::with_interrupts_disabled(f)
     }

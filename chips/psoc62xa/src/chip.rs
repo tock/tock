@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025 SRL.
 
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -46,7 +47,7 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm0p::support::with_interrupts_disabled(f)
     }

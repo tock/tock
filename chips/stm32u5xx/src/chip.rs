@@ -27,6 +27,7 @@ use crate::usart;
 use crate::{aes, dac, exti, rsa};
 
 use core::fmt::Write;
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption::AES256;
@@ -434,7 +435,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm33::support::with_interrupts_disabled(f)
     }

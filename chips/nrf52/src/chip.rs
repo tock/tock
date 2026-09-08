@@ -6,6 +6,7 @@
 
 use core::fmt::Write;
 use cortexm4f::{CortexM4F, CortexMVariant, nvic};
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::StaticRef;
 
@@ -202,7 +203,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm4f::support::with_interrupts_disabled(f)
     }

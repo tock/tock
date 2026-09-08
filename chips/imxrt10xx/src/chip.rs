@@ -6,6 +6,7 @@
 
 use core::fmt::Write;
 use cortexm7::{CortexM7, CortexMVariant};
+use kernel::context_tokens::InterruptsDisabledContext;
 use kernel::debug;
 use kernel::platform::chip::{Chip, InterruptService};
 
@@ -148,7 +149,7 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
-        F: FnOnce() -> R,
+        F: FnOnce(&InterruptsDisabledContext) -> R,
     {
         cortexm7::support::with_interrupts_disabled(f)
     }

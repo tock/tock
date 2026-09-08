@@ -7,6 +7,8 @@ use core::ptr;
 
 use tock_registers::LocalRegisterCopy;
 
+use kernel::context_tokens::InterruptsDisabledContext;
+
 use crate::support;
 
 use super::NUM_VECTORS;
@@ -63,27 +65,25 @@ impl InterruptPoller {
     ///
     /// The given closure `f` is executed with interrupts disabled (using
     /// [`support::with_interrupts_disabled`](crate::support::with_interrupts_disabled))
-    /// and  passed a reference to the singleton.
+    /// and passed a reference to the singleton, along with the `InterruptsDisabledContext` token proving
+    /// that interrupts are disabled for the duration of the closure.
     pub fn access<F, R>(f: F) -> R
     where
-        F: FnOnce(&InterruptPoller) -> R,
+        F: FnOnce(&InterruptPoller, &InterruptsDisabledContext) -> R,
     {
-        support::with_interrupts_disabled(|| {
+        support::with_interrupts_disabled(|interrupts_disabled| {
             // Safety: Interrupts are disabled within this closure, so we can safely access the
             //         singleton without racing against interrupt handlers.
             let poller = unsafe { &*ptr::addr_of!(SINGLETON) };
 
-            f(poller)
+            f(poller, interrupts_disabled)
         })
     }
 
     /// Marks that the specified interrupt as pending.
     ///
-    /// # Safety
-    ///
-    /// Interrupts must be disabled when this function is called. This function is _intended_ to be
-    /// called from within an ISR, so hopefully this is already true.
-    pub unsafe fn set_pending(num: u32) {
+    /// This function is _intended_ to be called from within an ISR.
+    pub fn set_pending(num: u32, _interrupts_disabled: &InterruptsDisabledContext) {
         // Safety: Caller ensures interrupts are disabled when this function is called, so it
         //         should be safe to access the singleton without racing against any interrupt
         //         handlers.
