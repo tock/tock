@@ -3,9 +3,6 @@
 // Copyright Tock Contributors 2026.
 
 //! Chip support specific to the ARM MPS2 AN385 FPGA image.
-//!
-//! Nothing relocates the vector table: the image executes directly from
-//! address 0, where the linker script places `.vectors`.
 
 #![no_std]
 
