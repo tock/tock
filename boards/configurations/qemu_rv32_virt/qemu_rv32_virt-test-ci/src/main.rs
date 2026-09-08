@@ -88,6 +88,13 @@ type IsolatedNonvolatileStorageDriver =
 
 type FlashUser = capsules_core::virtualizers::virtual_flash::FlashUser<'static, FlashHw>;
 
+type IpcRegistryStringNameFilter = capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull;
+type IpcRegistryStringNameDriver =
+    components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponentType<
+        IpcRegistryStringNameFilter,
+    >;
+type IpcRelayRequestDriver = components::ipc::ipc_relay_request::IpcRelayRequestComponentType;
+
 type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
 type SignatureVerifyInMemoryKeys =
     components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponentType<
@@ -119,6 +126,8 @@ struct Platform {
     virtio_console: Option<&'static capsules_core::console::Console<'static>>,
     syscall_return_test: &'static SyscallReturnTestDriver,
     sha: &'static ShaDriver,
+    ipc_registry_string_name: &'static IpcRegistryStringNameDriver,
+    ipc_relay_request: &'static IpcRelayRequestDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -161,6 +170,10 @@ impl SyscallDriverLookup for Platform {
             }
             capsules_extra::syscall_return_test::DRIVER_NUM => f(Some(self.syscall_return_test)),
             capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.sha)),
+            capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM => {
+                f(Some(self.ipc_registry_string_name))
+            }
+            capsules_core::ipc::ipc_relay_request::DRIVER_NUM => f(Some(self.ipc_relay_request)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -497,6 +510,28 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // IPC
+    //--------------------------------------------------------------------------
+
+    let ipc_registry_string_name =
+        components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponent::new(
+            board_kernel,
+            capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
+            &capsules_core::ipc::filters::IpcStringNameRegistrationFilterNull {},
+            create_capability!(capabilities::MemoryAllocationCapability),
+        )
+        .finalize(components::ipc_registry_string_name_component_static!(
+            IpcRegistryStringNameFilter
+        ));
+
+    let ipc_relay_request = components::ipc::ipc_relay_request::IpcRelayRequestComponent::new(
+        board_kernel,
+        capsules_core::ipc::ipc_relay_request::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::ipc_relay_request_component_static!());
+
+    //--------------------------------------------------------------------------
     // PROCESS CONSOLE
     //--------------------------------------------------------------------------
 
@@ -690,7 +725,9 @@ pub unsafe fn main() {
             nonvolatile_storage,
             virtio_console: virtio_console_driver,
             syscall_return_test,
-            sha
+            sha,
+            ipc_registry_string_name,
+            ipc_relay_request,
         }
     );
     loader.set_client(platform);
