@@ -100,16 +100,18 @@ pub enum SysexitReason {
 /// `angel_SWIreason_ReportException (0x18)` on older cortex-m arches,
 /// but they have the same semantics].
 ///
+/// This **may not actually halt execution**. A debugger *can* tell semihosting
+/// to resume the target. In that case, this will stick at the terminal `loop`.
+///
 /// # Safety
 ///
 /// This nominally halts execution, thus the caller should have the authority to
 /// halt execution. This *should* only be called on under semihosting (e.g. on
 /// a QEMU board); on other targets the `BKPT` will escalate to a `HardFault`.
-///
-/// This **may not actually halt execution**. A debugger *can* tell semihosting
-/// to resume the target. Callers must assume this can fall through.
+// TODO: This, and other semihosting commands, should likely take a capability
+// rather than being `unsafe`.
 #[inline(always)]
-pub unsafe fn terminate(reason: SysexitReason) {
+pub unsafe fn terminate(reason: SysexitReason) -> ! {
     const SYS_EXIT: u32 = 0x18;
     // SAFETY: SYS_EXIT is a valid `operation` for semihosting. With SYS_EXIT,
     // `parameter` is interpreted as a plain integer, which are constrained to
@@ -117,4 +119,7 @@ pub unsafe fn terminate(reason: SysexitReason) {
     unsafe {
         semihost_command(SYS_EXIT, reason as u32);
     }
+
+    // Ensure `-> !` if semihosting does something funny.
+    loop {}
 }
