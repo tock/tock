@@ -120,6 +120,9 @@ type Lsm303agrDriver = capsules_extra::lsm303agr::Lsm303agrI2C<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2cHw>,
 >;
 type BuzzerDriver = components::buzzer::BuzzerComponentType<AlarmHw, PwmHw>;
+type IpcRegistryStringNameDriver =
+    components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponentType;
+type IpcRelayRequestDriver = components::ipc::ipc_relay_request::IpcRelayRequestComponentType;
 
 /// Supported drivers by the platform
 pub struct MicroBit {
@@ -141,6 +144,8 @@ pub struct MicroBit {
     pwm: &'static PwmDriver,
     app_flash: &'static AppFlashDriver,
     sound_pressure: &'static SoundPressureDriver,
+    ipc_registry_string_name: &'static IpcRegistryStringNameDriver,
+    ipc_relay_request: &'static IpcRelayRequestDriver,
 
     scheduler: &'static SchedulerInUse,
     systick: cortexm4::systick::SysTick,
@@ -169,6 +174,10 @@ impl SyscallDriverLookup for MicroBit {
             capsules_extra::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
+            capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM => {
+                f(Some(self.ipc_registry_string_name))
+            }
+            capsules_core::ipc::ipc_relay_request::DRIVER_NUM => f(Some(self.ipc_relay_request)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -684,6 +693,25 @@ unsafe fn start() -> (
     );
 
     //--------------------------------------------------------------------------
+    // Interprocess Communication
+    //--------------------------------------------------------------------------
+
+    let ipc_registry_string_name =
+        components::ipc::ipc_registry_string_name::IpcRegistryStringNameComponent::new(
+            board_kernel,
+            capsules_core::ipc::ipc_registry_string_name::DRIVER_NUM,
+            create_capability!(capabilities::MemoryAllocationCapability),
+        )
+        .finalize(components::ipc_registry_string_name_component_static!());
+
+    let ipc_relay_request = components::ipc::ipc_relay_request::IpcRelayRequestComponent::new(
+        board_kernel,
+        capsules_core::ipc::ipc_relay_request::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::ipc_relay_request_component_static!());
+
+    //--------------------------------------------------------------------------
     // Process Console
     //--------------------------------------------------------------------------
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -743,6 +771,8 @@ unsafe fn start() -> (
         adc: adc_syscall,
         alarm,
         app_flash,
+        ipc_registry_string_name,
+        ipc_relay_request,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,

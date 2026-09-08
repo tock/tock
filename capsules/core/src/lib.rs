@@ -20,6 +20,7 @@ pub mod gpio;
 pub mod i2c_master;
 pub mod i2c_master_slave_combo;
 pub mod i2c_master_slave_driver;
+pub mod ipc;
 pub mod led;
 pub mod low_level_debug;
 pub mod process_console;
