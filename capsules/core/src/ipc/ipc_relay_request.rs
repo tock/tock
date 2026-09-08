@@ -402,6 +402,7 @@ impl IpcRelayRequest {
                 })?;
 
 
+
                 // Stop looking if we found a client
                 if client.is_some() {
                     break;
@@ -413,6 +414,7 @@ impl IpcRelayRequest {
         self.apps.enter(processid, |app, _| {
             app.iteration_offset = end_offset;
         })?;
+
 
 
         if let Some(client_processid) = client {

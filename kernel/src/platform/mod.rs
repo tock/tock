@@ -9,6 +9,7 @@
 pub mod chip;
 pub mod dma_fence;
 pub mod mpu;
+pub mod registration;
 pub mod scheduler_timer;
 pub mod watchdog;
 

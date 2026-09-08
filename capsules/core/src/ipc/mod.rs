@@ -4,6 +4,7 @@
 
 //! Provides capsules for interprocess communication (IPC)
 
+pub mod filters;
 pub mod ipc_identifier;
 pub mod ipc_registry_package_name;
 pub mod ipc_registry_string_name;
