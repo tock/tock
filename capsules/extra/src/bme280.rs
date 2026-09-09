@@ -40,10 +40,6 @@ const CALIB00: u8 = 0x88;
 // Raw 20-bit value returned when pressure measurement is skipped.
 const SKIPPED_PRESSURE_READING: i32 = 0x80000;
 
-const PENDING_TEMP: u8 = 1 << 0;
-const PENDING_PRESS: u8 = 1 << 1;
-const PENDING_HUM: u8 = 1 << 2;
-
 #[derive(Clone, Copy, PartialEq)]
 enum DeviceState {
     Identify,
@@ -94,7 +90,9 @@ pub struct Bme280<'a, I: I2CDevice> {
     state: Cell<DeviceState>,
     op: Cell<Operation>,
     t_fine: Cell<i32>,
-    pending_clients: Cell<u8>,
+    pending_temp: Cell<bool>,
+    pending_hum: Cell<bool>,
+    pending_press: Cell<bool>,
 }
 
 impl<'a, I: I2CDevice> Bme280<'a, I> {
@@ -109,7 +107,9 @@ impl<'a, I: I2CDevice> Bme280<'a, I> {
             state: Cell::new(DeviceState::Identify),
             op: Cell::new(Operation::None),
             t_fine: Cell::new(0),
-            pending_clients: Cell::new(0),
+            pending_temp: Cell::new(false),
+            pending_hum: Cell::new(false),
+            pending_press: Cell::new(false),
         }
     }
 
@@ -150,17 +150,15 @@ impl<'a, I: I2CDevice> TemperatureDriver<'a> for Bme280<'a, I> {
             return Err(ErrorCode::BUSY);
         }
 
-        let pending = self.pending_clients.get();
-        if pending & PENDING_TEMP != 0 {
+        if self.pending_temp.get() {
             return Err(ErrorCode::BUSY);
         }
-
-        self.pending_clients.set(pending | PENDING_TEMP);
+        self.pending_temp.set(true);
 
         // Initiate a new read
         if self.op.get() == Operation::None {
             if let Err(error) = self.start_read() {
-                self.pending_clients.set(pending);
+                self.pending_temp.set(false);
                 return Err(error);
             }
         }
@@ -179,17 +177,16 @@ impl<'a, I: I2CDevice> HumidityDriver<'a> for Bme280<'a, I> {
             return Err(ErrorCode::BUSY);
         }
 
-        let pending = self.pending_clients.get();
-        if pending & PENDING_HUM != 0 {
+        if self.pending_hum.get() {
             return Err(ErrorCode::BUSY);
         }
 
-        self.pending_clients.set(pending | PENDING_HUM);
+        self.pending_hum.set(true);
 
         // Initiate a new read
         if self.op.get() == Operation::None {
             if let Err(error) = self.start_read() {
-                self.pending_clients.set(pending);
+                self.pending_hum.set(false);
                 return Err(error);
             }
         }
@@ -208,17 +205,16 @@ impl<'a, I: I2CDevice> PressureDriver<'a> for Bme280<'a, I> {
             return Err(ErrorCode::BUSY);
         }
 
-        let pending = self.pending_clients.get();
-        if pending & PENDING_PRESS != 0 {
+        if self.pending_press.get() {
             return Err(ErrorCode::BUSY);
         }
 
-        self.pending_clients.set(pending | PENDING_PRESS);
+        self.pending_press.set(true);
 
         // Initiate a new read
         if self.op.get() == Operation::None {
             if let Err(error) = self.start_read() {
-                self.pending_clients.set(pending);
+                self.pending_press.set(false);
                 return Err(error);
             }
         }
@@ -236,25 +232,24 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
             self.op.set(Operation::None);
             // We have no way to report an error, so just return a bogus value
             if last_op == Operation::Read {
-                let pending = self.pending_clients.get();
+                let pending_temp = self.pending_temp.get();
+                let pending_press = self.pending_press.get();
+                let pending_hum = self.pending_hum.get();
 
-                if pending & PENDING_TEMP != 0 {
-                    self.pending_clients
-                        .set(self.pending_clients.get() & !PENDING_TEMP);
+                if pending_temp {
+                    self.pending_temp.set(false);
                     self.temperature_client
                         .map(|client| client.callback(Err(i2c_err.into())));
                 }
 
-                if pending & PENDING_PRESS != 0 {
-                    self.pending_clients
-                        .set(self.pending_clients.get() & !PENDING_PRESS);
+                if pending_press {
+                    self.pending_press.set(false);
                     self.pressure_client
                         .map(|client| client.callback(Err(i2c_err.into())));
                 }
 
-                if pending & PENDING_HUM != 0 {
-                    self.pending_clients
-                        .set(self.pending_clients.get() & !PENDING_HUM);
+                if pending_hum {
+                    self.pending_hum.set(false);
                     self.humidity_client.map(|client| client.callback(0));
                 }
             }
@@ -335,7 +330,9 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                 }
                 Operation::Read => {
                     let calib = self.calibration.get();
-                    let pending = self.pending_clients.get();
+                    let pending_temp = self.pending_temp.get();
+                    let pending_press = self.pending_press.get();
+                    let pending_hum = self.pending_hum.get();
 
                     let adc_pressure: i32 = ((buffer[0] as usize) << 12
                         | (buffer[1] as usize) << 4
@@ -347,28 +344,23 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                         as i32;
                     let adc_hum = (((buffer[6] as u32) << 8) | (buffer[7] as u32)) as i32;
 
-                    if adc_temperature == 0
-                        || (self.pending_clients.get() & PENDING_HUM != 0 && adc_hum == 0)
-                    {
+                    if adc_temperature == 0 || (pending_hum && adc_hum == 0) {
                         self.buffer.replace(buffer);
                         if let Err(error) = self.start_read() {
-                            if pending & PENDING_TEMP != 0 {
-                                self.pending_clients
-                                    .set(self.pending_clients.get() & !PENDING_TEMP);
+                            if pending_temp {
+                                self.pending_temp.set(false);
                                 self.temperature_client
                                     .map(|client| client.callback(Err(error)));
                             }
 
-                            if pending & PENDING_PRESS != 0 {
-                                self.pending_clients
-                                    .set(self.pending_clients.get() & !PENDING_PRESS);
+                            if pending_press {
+                                self.pending_press.set(false);
                                 self.pressure_client
                                     .map(|client| client.callback(Err(error)));
                             }
 
-                            if pending & PENDING_HUM != 0 {
-                                self.pending_clients
-                                    .set(self.pending_clients.get() & !PENDING_HUM);
+                            if pending_hum {
+                                self.pending_hum.set(false);
                                 self.humidity_client.map(|client| client.callback(0));
                             }
                         }
@@ -378,12 +370,12 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                     let t_fine = calculate_tfine(adc_temperature, calib);
                     self.t_fine.set(t_fine);
 
-                    let temperature = if pending & PENDING_TEMP != 0 {
+                    let temperature = if pending_temp {
                         Some((self.t_fine.get() * 5 + 128) >> 8)
                     } else {
                         None
                     };
-                    let pressure = if pending & PENDING_PRESS != 0 {
+                    let pressure = if pending_press {
                         Some(if adc_pressure == SKIPPED_PRESSURE_READING {
                             Err(ErrorCode::FAIL)
                         } else {
@@ -392,7 +384,7 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                     } else {
                         None
                     };
-                    let humidity = if pending & PENDING_HUM != 0 {
+                    let humidity = if pending_hum {
                         Some(calculate_humidity(adc_hum, t_fine, calib))
                     } else {
                         None
@@ -402,21 +394,18 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                     self.op.set(Operation::None);
 
                     if let Some(temperature) = temperature {
-                        self.pending_clients
-                            .set(self.pending_clients.get() & !PENDING_TEMP);
+                        self.pending_temp.set(false);
                         self.temperature_client
                             .map(|client| client.callback(Ok(temperature)));
                     }
 
                     if let Some(pressure) = pressure {
-                        self.pending_clients
-                            .set(self.pending_clients.get() & !PENDING_PRESS);
+                        self.pending_press.set(false);
                         self.pressure_client.map(|client| client.callback(pressure));
                     }
 
                     if let Some(humidity) = humidity {
-                        self.pending_clients
-                            .set(self.pending_clients.get() & !PENDING_HUM);
+                        self.pending_hum.set(false);
                         self.humidity_client
                             .map(|client| client.callback(humidity as usize));
                     }
