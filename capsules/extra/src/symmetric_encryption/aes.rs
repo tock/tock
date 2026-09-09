@@ -125,7 +125,7 @@ impl<
                                             AesOperation::AESCtr(_)
                                             | AesOperation::AESCBC(_)
                                             | AesOperation::AESECB(_) => {
-                                                AES::set_key(self.aes, buf)?;
+                                                AES::set_key(self.aes, &buf[..static_buffer_len])?;
                                                 Ok(())
                                             }
                                             AesOperation::AESCCM(_) => {
@@ -167,7 +167,7 @@ impl<
                                             AesOperation::AESCtr(_)
                                             | AesOperation::AESCBC(_)
                                             | AesOperation::AESECB(_) => {
-                                                AES::set_iv(self.aes, buf)?;
+                                                AES::set_iv(self.aes, &buf[..static_buffer_len])?;
                                                 Ok(())
                                             }
                                             AesOperation::AESCCM(_) => {
