@@ -1,0 +1,28 @@
+diff --git a/boards/lora_e5_mini/chip_layout.ld b/boards/lora_e5_mini/chip_layout.ld
+index d86cae3d7..cf440aaa2 100644
+--- a/boards/lora_e5_mini/chip_layout.ld
++++ b/boards/lora_e5_mini/chip_layout.ld
+@@ -2,17 +2,16 @@
+ /* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+ /* Copyright Tock Contributors 2025.                                  */
+ 
+-/* Memory layout for the STM32WLE5JC 
+- * rom = 252KB 
+- * kernel = 128KB
+- * user = 128KB
++/* Memory layout for the STM32WLE5JC
++ * rom = 256KB
++ * kernel = 64KB
++ * user = 196KB
+  * ram = 64KB */
+ 
+ MEMORY
+ {
+-  rom (rx)  : ORIGIN = 0x08000000, LENGTH = 0x00018000
+-  prog (rx) : ORIGIN = 0x08018000, LENGTH = 0x00028000
++  rom (rx)  : ORIGIN = 0x08000000, LENGTH = 0x00010000
++  prog (rx) : ORIGIN = 0x08010000, LENGTH = 0x00030000
+   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x00010000
+ }
+-
+ PAGE_SIZE = 2K;
