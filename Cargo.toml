@@ -72,6 +72,7 @@ members = [
     "boards/configurations/microbit_v2/microbit_v2-test-dynamic-app-load",
     "boards/configurations/qemu_rv64_virt/qemu_rv64_virt-test-ci",
     "boards/tutorials/nrf52840dk-root-of-trust-tutorial",
+    "boards/tutorials/nrf52840dk-userv-tutorial",
     "boards/tutorials/nrf52840dk-dynamic-apps-and-policies",
     "boards/tutorials/nrf52840dk-hotp-tutorial",
     "boards/tutorials/nrf52840dk-thread-tutorial",
