@@ -281,6 +281,13 @@ pub unsafe fn main() {
 
     resets.unreset_all_except(&[], true);
 
+    // Clear again now the peripherals have been reset. `Chip::init()` clears
+    // pending interrupts too, but a source still asserting then re-latches at
+    // once, and resetting it afterwards does not take the latched bit back.
+    // The bootrom leaves USB enabled with its interrupt enables set, so a
+    // reset out of a live bootrom session panicked on an unclaimed IRQ 14.
+    cortexm33::nvic::clear_all_pending();
+
     // Set the UART used for panic
     (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
