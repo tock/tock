@@ -174,7 +174,8 @@ impl<
                                                 Ok(())
                                             }
                                             AesOperation::AESGCM(_) => {
-                                                AESGCM::set_iv(self.aes, &buf[0..13])?;
+                                                // GCM's IV is 96-bit; 13 is the CCM nonce length.
+                                                AESGCM::set_iv(self.aes, &buf[0..12])?;
                                                 Ok(())
                                             }
                                         }
