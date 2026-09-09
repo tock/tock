@@ -423,10 +423,10 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                     //     - 0 -> Deactivate carrier
                     //     - 1 -> Activate carrier
                     //
-                    // Currently we don't care about the value, just that this
-                    // event has occurred. If it has happened, update the flag
-                    // in `State::Connecting`.
-                    self.set_connecting_state(false, true);
+                    // We connect only when DTR is asserted, which happens only when a terminal has actually opened the port.
+                    // Windows's serial driver sends this request with DTR 0 long before any terminal actually opens the port,
+                    // treating that as connected works but queues console output with no terminal open.
+                    self.set_connecting_state(false, setup_data.value & 1 != 0);
 
                     self.ctrl_state.set(CtrlState::SetControlLineState);
                 }
@@ -487,11 +487,17 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
         // Here we check to see if we just got connected to a CDC client. If so,
         // we do a delay before transmitting if needed.
         if let State::Connecting {
-            line_coding,
+            // It's better to ignore line coding here because it requires the host
+            // to send SET_LINE_CODING with a baud rate of 115200.
+            // Linux does this by default, but Windows does not:
+            // the driver reads GET_LINE_CODING and sends that same value back to SET_LINE_CODING,
+            // blocking the device in Connecting.
+            // So we just rely on DTR here.
+            line_coding: _,
             line_state,
         } = self.state.get()
         {
-            if line_coding && line_state {
+            if line_state {
                 self.state.set(State::ConnectingDelay);
 
                 // Wait a 100 ms before sending data.
