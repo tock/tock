@@ -776,10 +776,13 @@ mod tests {
 
     #[test]
     fn baud_rate_divider_calculation() {
-        let registers_manager = unsafe { super::UarteRegistersManager::new_uarte0() };
-        let u = super::Uarte::new(registers_manager);
-        assert_eq!(u.get_divider_for_baud(0), Err(ErrorCode::INVAL));
-        assert_eq!(u.get_divider_for_baud(4_000_000), Err(ErrorCode::INVAL));
+        use crate::uart::Uarte;
+
+        assert_eq!(Uarte::get_divider_for_baud(0), Err(ErrorCode::INVAL));
+        assert_eq!(
+            Uarte::get_divider_for_baud(4_000_000),
+            Err(ErrorCode::INVAL)
+        );
 
         // The constants below are the list from the Nordic technical documents.
         //
@@ -792,34 +795,34 @@ mod tests {
         // computation of the divider yields 115203 (+0.002% err). Both work in
         // practice, but the error here is an annoying and uncharacteristic
         // Nordic quirk.
-        assert_eq!(u.get_divider_for_baud(1200), Ok(0x0004F000));
-        assert_eq!(u.get_divider_for_baud(2400), Ok(0x0009D000));
-        assert_eq!(u.get_divider_for_baud(4800), Ok(0x0013B000));
-        assert_eq!(u.get_divider_for_baud(9600), Ok(0x00275000));
+        assert_eq!(Uarte::get_divider_for_baud(1200), Ok(0x0004F000));
+        assert_eq!(Uarte::get_divider_for_baud(2400), Ok(0x0009D000));
+        assert_eq!(Uarte::get_divider_for_baud(4800), Ok(0x0013B000));
+        assert_eq!(Uarte::get_divider_for_baud(9600), Ok(0x00275000));
         //assert_eq!(u.get_divider_for_baud(14400), Ok(0x003AF000));
-        assert_eq!(u.get_divider_for_baud(19200), Ok(0x004EA000));
+        assert_eq!(Uarte::get_divider_for_baud(19200), Ok(0x004EA000));
         //assert_eq!(u.get_divider_for_baud(28800), Ok(0x0075C000));
         //assert_eq!(u.get_divider_for_baud(38400), Ok(0x009D0000));
         //assert_eq!(u.get_divider_for_baud(57600), Ok(0x00EB0000));
-        assert_eq!(u.get_divider_for_baud(76800), Ok(0x013A9000));
+        assert_eq!(Uarte::get_divider_for_baud(76800), Ok(0x013A9000));
         //assert_eq!(u.get_divider_for_baud(115200), Ok(0x01D60000));
         //assert_eq!(u.get_divider_for_baud(230400), Ok(0x03B00000));
-        assert_eq!(u.get_divider_for_baud(250000), Ok(0x04000000));
+        assert_eq!(Uarte::get_divider_for_baud(250000), Ok(0x04000000));
         //assert_eq!(u.get_divider_for_baud(460800), Ok(0x07400000));
         //assert_eq!(u.get_divider_for_baud(921600), Ok(0x0F000000));
-        assert_eq!(u.get_divider_for_baud(1000000), Ok(0x10000000));
+        assert_eq!(Uarte::get_divider_for_baud(1000000), Ok(0x10000000));
         //
         // For completeness of testing, we do verify that the calculation works
         // as-expected to generate the empirically correct divisors.  (i.e.,
         // these are not the datasheet constants, but are the correct divisors
         // for the desired bauds):
-        assert_eq!(u.get_divider_for_baud(14400), Ok(0x003B0000));
-        assert_eq!(u.get_divider_for_baud(28800), Ok(0x0075F000));
-        assert_eq!(u.get_divider_for_baud(38400), Ok(0x009D5000));
-        assert_eq!(u.get_divider_for_baud(57600), Ok(0x00EBF000));
-        assert_eq!(u.get_divider_for_baud(115200), Ok(0x01D7E000));
-        assert_eq!(u.get_divider_for_baud(230400), Ok(0x03AFB000));
-        assert_eq!(u.get_divider_for_baud(460800), Ok(0x075F7000));
-        assert_eq!(u.get_divider_for_baud(921600), Ok(0x0EBEE000));
+        assert_eq!(Uarte::get_divider_for_baud(14400), Ok(0x003B0000));
+        assert_eq!(Uarte::get_divider_for_baud(28800), Ok(0x0075F000));
+        assert_eq!(Uarte::get_divider_for_baud(38400), Ok(0x009D5000));
+        assert_eq!(Uarte::get_divider_for_baud(57600), Ok(0x00EBF000));
+        assert_eq!(Uarte::get_divider_for_baud(115200), Ok(0x01D7E000));
+        assert_eq!(Uarte::get_divider_for_baud(230400), Ok(0x03AFB000));
+        assert_eq!(Uarte::get_divider_for_baud(460800), Ok(0x075F7000));
+        assert_eq!(Uarte::get_divider_for_baud(921600), Ok(0x0EBEE000));
     }
 }
