@@ -19,8 +19,8 @@ pub struct NrfStartupComponent<'a> {
     button_rst_pin: Pin,
     reg_vout: Regulator0Output,
     nvmc: &'a nrf52::nvmc::Nvmc,
-    uicr: &'a nrf52::uicr::Uicr,
-    approtect: &'a nrf52::approtect::Approtect,
+    uicr: &'a nrf52::uicr::Uicr<'a>,
+    approtect: &'a nrf52::approtect::Approtect<'a>,
 }
 
 impl<'a> NrfStartupComponent<'a> {
