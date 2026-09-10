@@ -46,16 +46,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 use nrf5x::pinmux::Pinmux;
 
-const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {
-    [
-        StaticRef::new(0x40003000 as *const SpimRegisters),
-        StaticRef::new(0x40004000 as *const SpimRegisters),
-        StaticRef::new(0x40023000 as *const SpimRegisters),
-    ]
-};
-
 #[repr(C)]
-struct SpimRegisters {
+pub struct SpimRegisters {
     _reserved0: [u8; 16],                            // reserved
     tasks_start: WriteOnly<u32, TASK::Register>,     // Start SPI transaction
     tasks_stop: WriteOnly<u32, TASK::Register>,      // Stop SPI transaction
@@ -251,9 +243,9 @@ pub struct SPIM<'a> {
 }
 
 impl<'a> SPIM<'a> {
-    pub const fn new(instance: usize) -> SPIM<'a> {
+    pub const fn new(registers: StaticRef<SpimRegisters>) -> SPIM<'a> {
         SPIM {
-            registers: INSTANCES[instance],
+            registers,
             client: OptionalCell::empty(),
             chip_select: OptionalCell::empty(),
             busy: Cell::new(false),
