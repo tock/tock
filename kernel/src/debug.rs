@@ -205,16 +205,16 @@ pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
                         panic_process_info(p, process_printer, &mut writer);
                     }
                 } else {
-                    let _ = writer.write_str("\r\nNo loaded processes\r\n");
+                    let _ = writer.write_str("\r\nNo loaded processes.\r\n");
                 }
             } else {
-                let _ = writer.write_str("\r\nProcess Printer is not available\r\n");
+                let _ = writer.write_str("\r\nProcess Printer is not available.\r\n");
             }
         } else {
-            let _ = writer.write_str("\r\nProcesses List is not available\r\n");
+            let _ = writer.write_str("\r\nProcesses List is not available.\r\n");
         }
     } else {
-        let _ = writer.write_str("\r\nPanic Resources are not available\r\n");
+        let _ = writer.write_str("\r\nPanic Resources are not available.\r\n");
     }
 }
 
