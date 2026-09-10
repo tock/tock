@@ -16,6 +16,9 @@ use kernel::utilities::StaticRef;
 const AESECB_BASE: StaticRef<crate::aes::AesEcbRegisters> =
     unsafe { StaticRef::new(0x4000E000 as *const crate::aes::AesEcbRegisters) };
 
+const COMP_BASE: StaticRef<crate::acomp::CompRegisters> =
+    unsafe { StaticRef::new(0x40013000 as *const crate::acomp::CompRegisters) };
+
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const crate::rtc::RtcRegisters) };
 
@@ -97,7 +100,7 @@ impl Nrf52DefaultPeripherals<'_> {
         let uarte0_registers = unsafe { crate::uart::UarteRegistersManager::new_uarte0() };
 
         Self {
-            acomp: crate::acomp::Comparator::new(),
+            acomp: crate::acomp::Comparator::new(COMP_BASE),
             ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
             pwr_clk: crate::power::Power::new(),
             ble_radio: crate::ble_radio::Radio::new(),
