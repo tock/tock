@@ -15,11 +15,8 @@ use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
 use crate::gpio::Pin;
 
-const UICR_BASE: StaticRef<UicrRegisters> =
-    unsafe { StaticRef::new(0x10001200 as *const UicrRegisters) };
-
 #[repr(C)]
-struct UicrRegisters {
+pub struct UicrRegisters {
     /// Mapping of the nRESET function (see POWER chapter for details)
     /// - Address: 0x200 - 0x204
     pselreset0: ReadWrite<u32, Pselreset::Register>,
@@ -139,10 +136,8 @@ impl From<u32> for Regulator0Output {
 }
 
 impl Uicr {
-    pub const fn new() -> Uicr {
-        Uicr {
-            registers: UICR_BASE,
-        }
+    pub const fn new(registers: StaticRef<UicrRegisters>) -> Uicr {
+        Uicr { registers }
     }
 
     pub fn set_psel0_reset_pin(&self, pin: Pin) {

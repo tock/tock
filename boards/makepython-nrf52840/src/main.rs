@@ -285,6 +285,7 @@ pub unsafe fn start() -> (
         BUTTON_RST_PIN,
         nrf52840::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
+        &base_peripherals.uicr,
     )
     .finalize(());
 
