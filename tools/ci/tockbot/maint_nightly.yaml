@@ -4,23 +4,23 @@
 
 _anchors:
   core_wg_users: &core_wg_users
-    - hudson-ayers
+    - alevy
     - bradjc
     - brghena
-    - phil-levis
-    - alevy
-    - ppannuto
-    - lschuermann
+    - hudson-ayers
     - jrvanwhy
+    - lschuermann
+    - phil-levis
+    - ppannuto
 
   active_reviewers: &active_reviewers
+    - alevy
     - alexandruradovici
-    - hudson-ayers
     - bradjc
     - brghena
-    - alevy
-    - lschuermann
+    - hudson-ayers
     - jrvanwhy
+    - lschuermann
 
 repo:
   owner: tock
