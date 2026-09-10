@@ -375,6 +375,7 @@ pub unsafe fn start_particle_boron() -> (
         BUTTON_RST_PIN,
         nrf52840::uicr::Regulator0Output::V3_0,
         &base_peripherals.nvmc,
+        &base_peripherals.uicr,
     )
     .finalize(());
 
