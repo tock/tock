@@ -64,6 +64,9 @@ const TIMER1_BASE: StaticRef<crate::timer::TimerRegisters> =
 const TIMER2_BASE: StaticRef<crate::timer::TimerRegisters> =
     unsafe { StaticRef::new(0x4000A000 as *const crate::timer::TimerRegisters) };
 
+const TWI1_BASE: StaticRef<crate::i2c::TwiRegisters> =
+    unsafe { StaticRef::new(0x40004000 as *const crate::i2c::TwiRegisters) };
+
 const UICR_BASE: StaticRef<crate::uicr::UicrRegisters> =
     unsafe { StaticRef::new(0x10001200 as *const crate::uicr::UicrRegisters) };
 
@@ -149,7 +152,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             uarte0: crate::uart::Uarte::new(uarte0_registers),
             spim0: crate::spi::SPIM::new(SPIM0_BASE),
             spim2: crate::spi::SPIM::new(SPIM2_BASE),
-            twi1: crate::i2c::TWI::new_twi1(),
+            twi1: crate::i2c::TWI::new(TWI1_BASE),
             // Default to 3.3 V VDD reference.
             adc: crate::adc::Adc::new(SAADC_BASE, 3300),
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
