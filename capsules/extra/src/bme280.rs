@@ -230,7 +230,6 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
 
             self.buffer.replace(buffer);
             self.op.set(Operation::None);
-            // We have no way to report an error, so just return a bogus value
             if last_op == Operation::Read {
                 let pending_temp = self.pending_temp.get();
                 let pending_press = self.pending_press.get();
@@ -250,6 +249,7 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
 
                 if pending_hum {
                     self.pending_hum.set(false);
+                    // We have no way to report an error, so just return a bogus value
                     self.humidity_client.map(|client| client.callback(0));
                 }
             }
@@ -344,6 +344,7 @@ impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
                         as i32;
                     let adc_hum = (((buffer[6] as u32) << 8) | (buffer[7] as u32)) as i32;
 
+                    // Retry zero temperature or humidity readings, which indicate a misread.
                     if adc_temperature == 0 || (pending_hum && adc_hum == 0) {
                         self.buffer.replace(buffer);
                         if let Err(error) = self.start_read() {
