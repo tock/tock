@@ -453,25 +453,6 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         self.registers.sr.is_set(SR::BSY)
     }
 
-    fn write_byte(&self, out_byte: u8) -> Result<(), ErrorCode> {
-        // loop till TXE (Transmit Buffer Empty) becomes 1
-        while !self.registers.sr.is_set(SR::TXE) {}
-
-        self.registers.dr.modify(DR::DR.val(out_byte));
-        Ok(())
-    }
-
-    fn read_byte(&self) -> Result<u8, ErrorCode> {
-        self.read_write_byte(0)
-    }
-
-    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
-        self.write_byte(val)?;
-        // loop till RXNE becomes 1
-        while !self.registers.sr.is_set(SR::RXNE) {}
-        Ok(self.registers.dr.read(DR::DR))
-    }
-
     fn read_write_bytes(
         &self,
         write_buffer: SubSliceMut<'static, u8>,
