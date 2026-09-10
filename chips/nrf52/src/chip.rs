@@ -31,6 +31,9 @@ const PWM0_BASE: StaticRef<crate::pwm::PwmRegisters> =
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const crate::rtc::RtcRegisters) };
 
+const SAADC_BASE: StaticRef<crate::adc::AdcRegisters> =
+    unsafe { StaticRef::new(0x40007000 as *const crate::adc::AdcRegisters) };
+
 const SPIM0_BASE: StaticRef<crate::spi::SpimRegisters> =
     unsafe { StaticRef::new(0x40003000 as *const crate::spi::SpimRegisters) };
 
@@ -134,7 +137,7 @@ impl Nrf52DefaultPeripherals<'_> {
             spim2: crate::spi::SPIM::new(SPIM2_BASE),
             twi1: crate::i2c::TWI::new_twi1(),
             // Default to 3.3 V VDD reference.
-            adc: crate::adc::Adc::new(3300),
+            adc: crate::adc::Adc::new(SAADC_BASE, 3300),
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
             clock: crate::clock::Clock::new(),
             pwm0: crate::pwm::Pwm::new(PWM0_BASE),
