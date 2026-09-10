@@ -25,6 +25,9 @@ const NVMC_BASE: StaticRef<crate::nvmc::NvmcRegisters> =
 const POWER_BASE: StaticRef<crate::power::PowerRegisters> =
     unsafe { StaticRef::new(0x40000000 as *const crate::power::PowerRegisters) };
 
+const PWM0_BASE: StaticRef<crate::pwm::PwmRegisters> =
+    unsafe { StaticRef::new(0x4001C000 as *const crate::pwm::PwmRegisters) };
+
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const crate::rtc::RtcRegisters) };
 
@@ -124,7 +127,7 @@ impl Nrf52DefaultPeripherals<'_> {
             adc: crate::adc::Adc::new(3300),
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
             clock: crate::clock::Clock::new(),
-            pwm0: crate::pwm::Pwm::new(),
+            pwm0: crate::pwm::Pwm::new(PWM0_BASE),
         }
     }
     // Necessary for setting up circular dependencies
