@@ -8,66 +8,70 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct PwmRegisters {
-    _reserved0: [u8; 4],
-    /// Stops PWM pulse generation on all channels at the end of current PWM period
-    tasks_stop: WriteOnly<u32, TASK::Register>,
-    /// Loads the first PWM value on all enabled channels
-    tasks_seqstart: [WriteOnly<u32, TASK::Register>; 2],
-    /// Steps by one value in the current sequence on all enabled channels if DECODER.MO
-    tasks_nextstep: WriteOnly<u32, TASK::Register>,
-    _reserved1: [u8; 240],
-    /// Response to STOP task, emitted when PWM pulses are no longer generated
-    events_stopped: ReadWrite<u32, EVENT::Register>,
-    /// First PWM period started on sequence 0
-    events_seqstarted: [ReadWrite<u32, EVENT::Register>; 2],
-    /// Emitted at end of every sequence 0, when last value from RAM has been
-    /// applied to the wave counter
-    events_seqend: [ReadWrite<u32, EVENT::Register>; 2],
-    /// Emitted at the end of each PWM period
-    events_pwmperiodend: ReadWrite<u32, EVENT::Register>,
-    /// Concatenated sequences have been played the amount of times defined in LOOP.CNT
-    events_loopsdone: ReadWrite<u32, EVENT::Register>,
-    _reserved2: [u8; 224],
-    /// Shortcut register
-    shorts: ReadWrite<u32, SHORTS::Register>,
-    _reserved3: [u8; 252],
-    /// Enable or disable interrupt
-    inten: ReadWrite<u32, INTEN::Register>,
-    /// Enable interrupt
-    intenset: ReadWrite<u32, INTEN::Register>,
-    /// Disable interrupt
-    intenclr: ReadWrite<u32, INTEN::Register>,
-    _reserved4: [u8; 500],
-    /// PWM module enable register
-    enable: ReadWrite<u32, ENABLE::Register>,
-    /// Selects operating mode of the wave counter
-    mode: ReadWrite<u32, MODE::Register>,
-    /// Value up to which the pulse generator counter counts
-    countertop: ReadWrite<u32, COUNTERTOP::Register>,
-    /// Configuration for PWM_CLK
-    prescaler: ReadWrite<u32, PRESCALER::Register>,
-    /// Configuration of the decoder
-    decoder: ReadWrite<u32, DECODER::Register>,
-    /// Amount of playback of a loop
-    loopreg: ReadWrite<u32, LOOP::Register>,
-    _reserved5: [u8; 8],
-    seq0: PwmSeqRegisters,
-    _reserved6: [u8; 16],
-    seq1: PwmSeqRegisters,
-    _reserved7: [u8; 16],
-    psel_out: [ReadWrite<u32>; 4],
+register_structs! {
+    pub PwmRegisters {
+        (0x000 => _reserved0),
+        /// Stops PWM pulse generation on all channels at the end of current PWM period
+        (0x004 => tasks_stop: WriteOnly<u32, TASK::Register>),
+        /// Loads the first PWM value on all enabled channels
+        (0x008 => tasks_seqstart: [WriteOnly<u32, TASK::Register>; 2]),
+        /// Steps by one value in the current sequence on all enabled channels if DECODER.MO
+        (0x010 => tasks_nextstep: WriteOnly<u32, TASK::Register>),
+        (0x014 => _reserved1),
+        /// Response to STOP task, emitted when PWM pulses are no longer generated
+        (0x104 => events_stopped: ReadWrite<u32, EVENT::Register>),
+        /// First PWM period started on sequence 0
+        (0x108 => events_seqstarted: [ReadWrite<u32, EVENT::Register>; 2]),
+        /// Emitted at end of every sequence 0, when last value from RAM has been
+        /// applied to the wave counter
+        (0x110 => events_seqend: [ReadWrite<u32, EVENT::Register>; 2]),
+        /// Emitted at the end of each PWM period
+        (0x118 => events_pwmperiodend: ReadWrite<u32, EVENT::Register>),
+        /// Concatenated sequences have been played the amount of times defined in LOOP.CNT
+        (0x11C => events_loopsdone: ReadWrite<u32, EVENT::Register>),
+        (0x120 => _reserved2),
+        /// Shortcut register
+        (0x200 => shorts: ReadWrite<u32, SHORTS::Register>),
+        (0x204 => _reserved3),
+        /// Enable or disable interrupt
+        (0x300 => inten: ReadWrite<u32, INTEN::Register>),
+        /// Enable interrupt
+        (0x304 => intenset: ReadWrite<u32, INTEN::Register>),
+        /// Disable interrupt
+        (0x308 => intenclr: ReadWrite<u32, INTEN::Register>),
+        (0x30C => _reserved4),
+        /// PWM module enable register
+        (0x500 => enable: ReadWrite<u32, ENABLE::Register>),
+        /// Selects operating mode of the wave counter
+        (0x504 => mode: ReadWrite<u32, MODE::Register>),
+        /// Value up to which the pulse generator counter counts
+        (0x508 => countertop: ReadWrite<u32, COUNTERTOP::Register>),
+        /// Configuration for PWM_CLK
+        (0x50C => prescaler: ReadWrite<u32, PRESCALER::Register>),
+        /// Configuration of the decoder
+        (0x510 => decoder: ReadWrite<u32, DECODER::Register>),
+        /// Amount of playback of a loop
+        (0x514 => loopreg: ReadWrite<u32, LOOP::Register>),
+        (0x518 => _reserved5),
+        (0x520 => seq0: PwmSeqRegisters),
+        (0x530 => _reserved6),
+        (0x540 => seq1: PwmSeqRegisters),
+        (0x550 => _reserved7),
+        (0x560 => psel_out: [ReadWrite<u32>; 4]),
+        (0x570 => @END),
+    }
 }
 
-#[repr(C)]
-struct PwmSeqRegisters {
-    seq_ptr: ReadWrite<u32>,
-    seq_cnt: ReadWrite<u32, SEQ_CNT::Register>,
-    seq_refresh: ReadWrite<u32, SEQ_REFRESH::Register>,
-    seq_enddelay: ReadWrite<u32, SEQ_ENDDELAY::Register>,
+register_structs! {
+    PwmSeqRegisters {
+        (0x0 => seq_ptr: ReadWrite<u32>),
+        (0x4 => seq_cnt: ReadWrite<u32, SEQ_CNT::Register>),
+        (0x8 => seq_refresh: ReadWrite<u32, SEQ_REFRESH::Register>),
+        (0xC => seq_enddelay: ReadWrite<u32, SEQ_ENDDELAY::Register>),
+        (0x10 => @END),
+    }
 }
 
 register_bitfields![u32,
