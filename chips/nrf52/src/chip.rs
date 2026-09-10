@@ -49,6 +49,9 @@ const TIMER1_BASE: StaticRef<crate::timer::TimerRegisters> =
 const TIMER2_BASE: StaticRef<crate::timer::TimerRegisters> =
     unsafe { StaticRef::new(0x4000A000 as *const crate::timer::TimerRegisters) };
 
+const UICR_BASE: StaticRef<crate::uicr::UicrRegisters> =
+    unsafe { StaticRef::new(0x10001200 as *const crate::uicr::UicrRegisters) };
+
 const RNG_BASE: StaticRef<crate::trng::RngRegisters> =
     unsafe { StaticRef::new(0x4000D000 as *const crate::trng::RngRegisters) };
 
@@ -92,6 +95,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub nvmc: crate::nvmc::Nvmc,
     pub clock: crate::clock::Clock,
     pub pwm0: crate::pwm::Pwm,
+    pub uicr: crate::uicr::Uicr,
 }
 
 impl Nrf52DefaultPeripherals<'_> {
@@ -134,6 +138,7 @@ impl Nrf52DefaultPeripherals<'_> {
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
             clock: crate::clock::Clock::new(),
             pwm0: crate::pwm::Pwm::new(PWM0_BASE),
+            uicr: crate::uicr::Uicr::new(UICR_BASE),
         }
     }
     // Necessary for setting up circular dependencies
