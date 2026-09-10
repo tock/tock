@@ -8,6 +8,9 @@ use kernel::hil::time::Alarm;
 use kernel::utilities::StaticRef;
 use nrf52::chip::Nrf52DefaultPeripherals;
 
+const RADIO_BASE: StaticRef<crate::ieee802154_radio::RadioRegisters> =
+    unsafe { StaticRef::new(0x40001000 as *const crate::ieee802154_radio::RadioRegisters) };
+
 const USBD_BASE: StaticRef<crate::usbd::UsbdRegisters<'static>> =
     unsafe { StaticRef::new(0x40027000 as *const crate::usbd::UsbdRegisters<'static>) };
 
@@ -53,7 +56,10 @@ impl<'a> Nrf52840DefaultPeripherals<'a> {
 
         Self {
             nrf52: nrf52_peripherals,
-            ieee802154_radio: crate::ieee802154_radio::Radio::new(ieee802154_radio_ack_buf),
+            ieee802154_radio: crate::ieee802154_radio::Radio::new(
+                RADIO_BASE,
+                ieee802154_radio_ack_buf,
+            ),
             usbd: crate::usbd::Usbd::new(USBD_BASE, USBD_CHIPINFO_BASE, USBD_USBERRATA_BASE),
             gpio_port: crate::gpio::nrf52840_gpio_create(),
         }
