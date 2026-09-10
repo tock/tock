@@ -323,9 +323,7 @@ pub unsafe fn ieee802154_udp(
     // 802.15.4
     //--------------------------------------------------------------------------
 
-    let ficr = nrf52840::ficr::Ficr::new();
-
-    let device_id = ficr.id();
+    let device_id = nrf52840_peripherals.nrf52.ficr.id();
     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
     let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
@@ -438,13 +436,17 @@ pub unsafe fn start_no_pconsole() -> (
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let ficr = static_init!(
+        nrf52840::ficr::Ficr,
+        nrf52840::ficr::Ficr::new(nrf52840::chip::FICR_BASE)
+    );
     // Initialize chip peripheral drivers
     //
     // SAFETY: We believe this is unique and uniquely controls DMA.
     let nrf52840_peripherals = unsafe {
         static_init!(
             Nrf52840DefaultPeripherals,
-            Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+            Nrf52840DefaultPeripherals::new(ficr, ieee802154_ack_buf, aes_ecb_buf)
         )
     };
 
@@ -493,9 +495,6 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
-
-    // Get FICR instance to read chip properties.
-    let ficr = nrf52840::ficr::Ficr::new();
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).

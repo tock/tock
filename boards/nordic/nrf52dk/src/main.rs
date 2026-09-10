@@ -257,9 +257,13 @@ pub unsafe fn start() -> (
         );
 
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let ficr = static_init!(
+        nrf52832::ficr::Ficr,
+        nrf52832::ficr::Ficr::new(nrf52832::chip::FICR_BASE)
+    );
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new(aes_ecb_buf)
+        Nrf52832DefaultPeripherals::new(ficr, aes_ecb_buf)
     );
 
     // set up circular peripheral dependencies
@@ -275,9 +279,6 @@ pub unsafe fn start() -> (
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
-
-    // Get FICR instance to read chip properties.
-    let ficr = nrf52832::ficr::Ficr::new();
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,

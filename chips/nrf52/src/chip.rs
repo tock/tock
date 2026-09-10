@@ -25,6 +25,9 @@ const CLOCK_BASE: StaticRef<crate::clock::ClockRegisters> =
 const COMP_BASE: StaticRef<crate::acomp::CompRegisters> =
     unsafe { StaticRef::new(0x40013000 as *const crate::acomp::CompRegisters) };
 
+pub const FICR_BASE: StaticRef<crate::ficr::FicrRegisters> =
+    unsafe { StaticRef::new(0x10000000 as *const crate::ficr::FicrRegisters) };
+
 const NVMC_BASE: StaticRef<crate::nvmc::NvmcRegisters> =
     unsafe { StaticRef::new(0x4001E400 as *const crate::nvmc::NvmcRegisters) };
 
@@ -107,11 +110,12 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub nvmc: crate::nvmc::Nvmc,
     pub clock: crate::clock::Clock,
     pub pwm0: crate::pwm::Pwm,
-    pub uicr: crate::uicr::Uicr,
-    pub approtect: crate::approtect::Approtect,
+    pub uicr: crate::uicr::Uicr<'a>,
+    pub approtect: crate::approtect::Approtect<'a>,
+    pub ficr: &'a crate::ficr::Ficr,
 }
 
-impl Nrf52DefaultPeripherals<'_> {
+impl<'a> Nrf52DefaultPeripherals<'a> {
     /// Create default peripherals for an nRF52-based microcontroller.
     ///
     /// # Safety
@@ -124,7 +128,7 @@ impl Nrf52DefaultPeripherals<'_> {
     ///   drivers.
     /// - There must not be any other code that accesses the DMA buffer and
     ///   length registers of the DMA-enabled peripherals.
-    pub unsafe fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
+    pub unsafe fn new(ficr: &'a crate::ficr::Ficr, aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
         // SAFETY: See function-level doc.
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
@@ -151,8 +155,9 @@ impl Nrf52DefaultPeripherals<'_> {
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
             clock: crate::clock::Clock::new(CLOCK_BASE),
             pwm0: crate::pwm::Pwm::new(PWM0_BASE),
-            uicr: crate::uicr::Uicr::new(UICR_BASE),
-            approtect: crate::approtect::Approtect::new(APPROTECT_BASE),
+            uicr: crate::uicr::Uicr::new(UICR_BASE, ficr),
+            approtect: crate::approtect::Approtect::new(APPROTECT_BASE, ficr),
+            ficr,
         }
     }
     // Necessary for setting up circular dependencies
