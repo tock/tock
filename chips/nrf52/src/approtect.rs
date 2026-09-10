@@ -23,11 +23,8 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-const APPROTECT_BASE: StaticRef<ApprotectRegisters> =
-    unsafe { StaticRef::new(0x40000000 as *const ApprotectRegisters) };
-
 register_structs! {
-    ApprotectRegisters {
+    pub ApprotectRegisters {
         (0x000 => _reserved0),
         (0x550 => forceprotect: ReadWrite<u32, Forceprotect::Register>),
         (0x554 => _reserved1),
@@ -55,10 +52,8 @@ pub struct Approtect {
 }
 
 impl Approtect {
-    pub const fn new() -> Approtect {
-        Approtect {
-            registers: APPROTECT_BASE,
-        }
+    pub const fn new(registers: StaticRef<ApprotectRegisters>) -> Approtect {
+        Approtect { registers }
     }
 
     /// Software disable the Access Port Protection mechanism.
