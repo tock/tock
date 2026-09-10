@@ -3,10 +3,12 @@
 // Copyright OxidOS Automotive 2025 SRL.
 
 use core::cell::Cell;
+use core::fmt;
 use core::num::NonZeroUsize;
 use kernel::errorcode::ErrorCode;
 use kernel::hil::uart::{self, Configure, Receive, ReceiveClient, Transmit, TransmitClient};
 use kernel::utilities::StaticRef;
+use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::{
     cells::{OptionalCell, TakeCell},
     registers::{
@@ -853,5 +855,51 @@ impl Configure for Scb<'_> {
             }
             Ok(())
         }
+    }
+}
+
+/// [`PanicWriter`](kernel::platform::chip::PanicWriter) with synchronous
+/// output.
+///
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel.
+struct ScbPanicWriter<'a> {
+    inner: Scb<'a>,
+}
+
+impl IoWrite for ScbPanicWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> usize {
+        // Create a fresh Scb instance to access the fixed SCB5 hardware registers.
+        // The SCB is assumed to have been configured by the normal kernel startup.
+        self.inner.transmit_uart_sync(buf);
+        buf.len()
+    }
+}
+
+impl fmt::Write for ScbPanicWriter<'_> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
+/// Configuration for the synchronous SCB UART panic writer.
+pub struct ScbPanicWriterConfig {
+    pub params: uart::Parameters,
+}
+
+impl kernel::platform::chip::PanicWriter for Scb<'static> {
+    type Config = ScbPanicWriterConfig;
+
+    fn create_panic_writer(
+        config: Self::Config,
+        _panic: &core::panic::PanicInfo,
+    ) -> impl IoWrite + fmt::Write {
+        use uart::Configure as _;
+
+        let inner = Scb::new();
+
+        let _ = inner.configure(config.params);
+        ScbPanicWriter { inner }
     }
 }
