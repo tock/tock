@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 #![no_std]
+#![recursion_limit = "512"]
 
 pub mod acomp;
 pub mod adc;
