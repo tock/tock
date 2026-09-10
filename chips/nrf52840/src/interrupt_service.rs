@@ -30,7 +30,7 @@ pub struct Nrf52840DefaultPeripherals<'a> {
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
 
-impl Nrf52840DefaultPeripherals<'_> {
+impl<'a> Nrf52840DefaultPeripherals<'a> {
     /// Create default peripherals for the nRF52840 microcontroller.
     ///
     /// # Safety
@@ -44,11 +44,12 @@ impl Nrf52840DefaultPeripherals<'_> {
     /// - There must not be any other code that accesses the DMA buffer and
     ///   length registers of the DMA-enabled peripherals.
     pub unsafe fn new(
+        ficr: &'a nrf52::ficr::Ficr,
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
         aes_ecb_buf: &'static mut [u8; 48],
     ) -> Self {
         // SAFETY: See function-level doc.
-        let nrf52_peripherals = unsafe { Nrf52DefaultPeripherals::new(aes_ecb_buf) };
+        let nrf52_peripherals = unsafe { Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf) };
 
         Self {
             nrf52: nrf52_peripherals,
