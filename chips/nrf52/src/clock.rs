@@ -28,7 +28,7 @@ use kernel::utilities::registers::{
 };
 
 register_structs! {
-    ClockRegisters {
+    pub ClockRegisters {
         (0x000 => tasks_hfclkstart: WriteOnly<u32, Control::Register>),
         (0x004 => tasks_hfclkstop: WriteOnly<u32, Control::Register>),
         (0x008 => tasks_lfclkstart: ReadWrite<u32, Control::Register>),
@@ -126,9 +126,6 @@ register_bitfields! [u32,
     ]
 ];
 
-const CLOCK_BASE: StaticRef<ClockRegisters> =
-    unsafe { StaticRef::new(0x40000000 as *const ClockRegisters) };
-
 /// Interrupt sources
 pub enum InterruptField {
     HFCLKSTARTED = 1 << 0,
@@ -167,9 +164,9 @@ pub trait ClockClient {
 
 impl Clock {
     /// Constructor
-    pub const fn new() -> Clock {
+    pub const fn new(registers: StaticRef<ClockRegisters>) -> Clock {
         Clock {
-            registers: CLOCK_BASE,
+            registers,
             client: OptionalCell::empty(),
         }
     }

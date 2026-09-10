@@ -19,6 +19,9 @@ const AESECB_BASE: StaticRef<crate::aes::AesEcbRegisters> =
 const APPROTECT_BASE: StaticRef<crate::approtect::ApprotectRegisters> =
     unsafe { StaticRef::new(0x40000000 as *const crate::approtect::ApprotectRegisters) };
 
+const CLOCK_BASE: StaticRef<crate::clock::ClockRegisters> =
+    unsafe { StaticRef::new(0x40000000 as *const crate::clock::ClockRegisters) };
+
 const COMP_BASE: StaticRef<crate::acomp::CompRegisters> =
     unsafe { StaticRef::new(0x40013000 as *const crate::acomp::CompRegisters) };
 
@@ -146,7 +149,7 @@ impl Nrf52DefaultPeripherals<'_> {
             // Default to 3.3 V VDD reference.
             adc: crate::adc::Adc::new(SAADC_BASE, 3300),
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
-            clock: crate::clock::Clock::new(),
+            clock: crate::clock::Clock::new(CLOCK_BASE),
             pwm0: crate::pwm::Pwm::new(PWM0_BASE),
             uicr: crate::uicr::Uicr::new(UICR_BASE),
             approtect: crate::approtect::Approtect::new(APPROTECT_BASE),
