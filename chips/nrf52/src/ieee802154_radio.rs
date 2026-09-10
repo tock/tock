@@ -76,9 +76,6 @@ use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitf
 
 use crate::constants::TxPower;
 
-const RADIO_BASE: StaticRef<RadioRegisters> =
-    unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
-
 const ACK_FLAG: u8 = 0b00100000;
 
 pub const IEEE802154_PAYLOAD_LENGTH: usize = 255;
@@ -105,7 +102,7 @@ pub const ACK_BUF_SIZE: usize =
 const BUF_PREFIX_SIZE: u32 = 1;
 
 #[repr(C)]
-struct RadioRegisters {
+pub struct RadioRegisters {
     /// Enable Radio in TX mode
     /// - Address: 0x000 - 0x004
     task_txen: WriteOnly<u32, Task::Register>,
@@ -717,9 +714,12 @@ impl AlarmClient for Radio<'_> {
 }
 
 impl<'a> Radio<'a> {
-    pub fn new(ack_buf: &'static mut [u8; ACK_BUF_SIZE]) -> Self {
+    pub fn new(
+        registers: StaticRef<RadioRegisters>,
+        ack_buf: &'static mut [u8; ACK_BUF_SIZE],
+    ) -> Self {
         Self {
-            registers: RADIO_BASE,
+            registers,
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
             config_client: OptionalCell::empty(),
