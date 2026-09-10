@@ -16,6 +16,9 @@ use kernel::utilities::StaticRef;
 const AESECB_BASE: StaticRef<crate::aes::AesEcbRegisters> =
     unsafe { StaticRef::new(0x4000E000 as *const crate::aes::AesEcbRegisters) };
 
+const APPROTECT_BASE: StaticRef<crate::approtect::ApprotectRegisters> =
+    unsafe { StaticRef::new(0x40000000 as *const crate::approtect::ApprotectRegisters) };
+
 const COMP_BASE: StaticRef<crate::acomp::CompRegisters> =
     unsafe { StaticRef::new(0x40013000 as *const crate::acomp::CompRegisters) };
 
@@ -99,6 +102,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub clock: crate::clock::Clock,
     pub pwm0: crate::pwm::Pwm,
     pub uicr: crate::uicr::Uicr,
+    pub approtect: crate::approtect::Approtect,
 }
 
 impl Nrf52DefaultPeripherals<'_> {
@@ -142,6 +146,7 @@ impl Nrf52DefaultPeripherals<'_> {
             clock: crate::clock::Clock::new(),
             pwm0: crate::pwm::Pwm::new(PWM0_BASE),
             uicr: crate::uicr::Uicr::new(UICR_BASE),
+            approtect: crate::approtect::Approtect::new(APPROTECT_BASE),
         }
     }
     // Necessary for setting up circular dependencies

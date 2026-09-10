@@ -250,6 +250,7 @@ pub unsafe fn main() {
         nrf52840::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
         &base_peripherals.uicr,
+        &base_peripherals.approtect,
     )
     .finalize(());
 
