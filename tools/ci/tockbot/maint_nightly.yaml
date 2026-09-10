@@ -5,6 +5,7 @@
 _anchors:
   core_wg_users: &core_wg_users
     - alevy
+    - alexandruradovici
     - bradjc
     - brghena
     - hudson-ayers
