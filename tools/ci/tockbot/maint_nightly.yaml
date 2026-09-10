@@ -15,13 +15,13 @@ _anchors:
     - ppannuto
 
   active_reviewers: &active_reviewers
-    - alevy
     - alexandruradovici
     - bradjc
     - brghena
     - hudson-ayers
     - jrvanwhy
     - lschuermann
+    - ppannuto
 
 repo:
   owner: tock
