@@ -115,7 +115,7 @@ impl Uart {
     }
 
     fn initialize(&self, txd: Pin, rxd: Pin, cts: Option<Pin>, rts: Option<Pin>) {
-        self.disable_uart();
+        self.disable_uart_and_uarte();
 
         // Stop any ongoing TX or RX sequences.
         self.registers.task_stoptx.write(Task::ENABLE::SET);
@@ -156,7 +156,9 @@ impl Uart {
         self.registers.enable.write(Enable::ENABLE::ON);
     }
 
-    fn disable_uart(&self) {
+    /// The UART and UARTE peripherals alias. There is no way to turn off one
+    /// without turning off both of them.
+    fn disable_uart_and_uarte(&self) {
         self.registers.enable.write(Enable::ENABLE::OFF);
     }
 
@@ -173,6 +175,8 @@ impl Uart {
 
 impl uart::Configure for Uart {
     fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
+        self.set_baud_rate(params.baud_rate)?;
+
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
         if params.stop_bits != uart::StopBits::One {
@@ -184,8 +188,6 @@ impl uart::Configure for Uart {
         if params.hw_flow_control {
             return Err(ErrorCode::NOSUPPORT);
         }
-
-        self.set_baud_rate(params.baud_rate)?;
 
         Ok(())
     }
