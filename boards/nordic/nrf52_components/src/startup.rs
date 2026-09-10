@@ -20,6 +20,7 @@ pub struct NrfStartupComponent<'a> {
     reg_vout: Regulator0Output,
     nvmc: &'a nrf52::nvmc::Nvmc,
     uicr: &'a nrf52::uicr::Uicr,
+    approtect: &'a nrf52::approtect::Approtect,
 }
 
 impl<'a> NrfStartupComponent<'a> {
@@ -29,6 +30,7 @@ impl<'a> NrfStartupComponent<'a> {
         reg_vout: Regulator0Output,
         nvmc: &'a nrf52::nvmc::Nvmc,
         uicr: &'a nrf52::uicr::Uicr,
+        approtect: &'a nrf52::approtect::Approtect,
     ) -> Self {
         Self {
             nfc_as_gpios,
@@ -36,6 +38,7 @@ impl<'a> NrfStartupComponent<'a> {
             reg_vout,
             nvmc,
             uicr,
+            approtect,
         }
     }
 }
@@ -48,8 +51,7 @@ impl Component for NrfStartupComponent<'_> {
         // hardware revisions. See
         // https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect.
         // If run on older HW revisions this function will do nothing.
-        let approtect = nrf52::approtect::Approtect::new();
-        approtect.sw_disable_approtect();
+        self.approtect.sw_disable_approtect();
 
         // Make non-volatile memory writable and activate the reset button
 
