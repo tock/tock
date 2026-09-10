@@ -1540,7 +1540,7 @@ impl<T> CustomGrant<T> {
     /// Because this function requires `&mut self`, it should be impossible to
     /// access the inner data of a given `CustomGrant` reentrantly. Thus the
     /// reentrance detection we use for non-custom grants is not needed here.
-    pub fn enter<F, R>(&self, fun: F) -> Result<R, Error>
+    pub fn enter<F, R>(&mut self, fun: F) -> Result<R, Error>
     where
         F: FnOnce(GrantData<'_, T>) -> R,
     {
