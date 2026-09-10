@@ -31,6 +31,9 @@ const POWER_BASE: StaticRef<crate::power::PowerRegisters> =
 const PWM0_BASE: StaticRef<crate::pwm::PwmRegisters> =
     unsafe { StaticRef::new(0x4001C000 as *const crate::pwm::PwmRegisters) };
 
+const RADIO_BASE: StaticRef<crate::ble_radio::RadioRegisters> =
+    unsafe { StaticRef::new(0x40001000 as *const crate::ble_radio::RadioRegisters) };
+
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const crate::rtc::RtcRegisters) };
 
@@ -129,7 +132,7 @@ impl Nrf52DefaultPeripherals<'_> {
             acomp: crate::acomp::Comparator::new(COMP_BASE),
             ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
             pwr_clk: crate::power::Power::new(POWER_BASE),
-            ble_radio: crate::ble_radio::Radio::new(),
+            ble_radio: crate::ble_radio::Radio::new(RADIO_BASE),
             trng: crate::trng::Trng::new(RNG_BASE),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             temp: crate::temperature::Temp::new(TEMP_BASE),
