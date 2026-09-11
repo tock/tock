@@ -145,6 +145,11 @@ impl<'a> NonvolatileStorage<'a> for RamNonvolatileStorage<'a> {
         address: usize,
         length: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // HACK
+        let address = address - 0x40000;
+
+        kernel::debug!("RNS w {:#02x} {}", address, length);
+
         if self.operation.is_some() {
             return Err((ErrorCode::BUSY, buffer));
         }
