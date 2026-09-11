@@ -26,6 +26,7 @@ use capsules_extra::chirp_i2c_moisture::{BUFFER_SIZE, ChirpI2cMoisture};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 
 // Setup static space for the objects.
 #[macro_export]

@@ -28,6 +28,7 @@ use capsules_extra::bme280::Bme280;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 
 // Setup static space for the objects.
 #[macro_export]

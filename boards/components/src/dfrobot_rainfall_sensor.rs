@@ -22,6 +22,7 @@ use capsules_extra::dfrobot_rainfall_sensor::{BUFFER_SIZE, DFRobotRainFall};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 use kernel::hil::time;
 use kernel::hil::time::Alarm;
 
