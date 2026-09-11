@@ -191,10 +191,7 @@ impl<const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default + AsMut<[
     }
 
     fn handle_interrupt(&self) {
-        let state = self.state.get();
-        self.state.set(FlashState::Ready);
-
-        match state {
+        match self.state.replace(FlashState::Ready) {
             FlashState::Read => {
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
