@@ -8,7 +8,7 @@
 //! by both FPGA images.
 //!
 //! The current `Mps2DefaultPeripherals` implementation drives only UART0,
-//! TIMER0, and the Shield0 PL022.
+//! UART1, TIMER0, and the Shield0 PL022.
 
 pub const UART0_RX: u32 = 0;
 pub const UART0_TX: u32 = 1;
