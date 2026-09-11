@@ -74,7 +74,7 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             CapabilityPtr::new_with_authority(
                 addresses.sram_end as *const _,
                 addresses.sram_start,
-                addresses.sram_end - addresses.sram_start,
+                addresses.sram_app_brk - addresses.sram_start,
                 CapabilityPtrPermissions::ReadWrite,
             )
         }),
