@@ -6,14 +6,21 @@
 //! test isolated nonvolatile storage.
 //!
 //! The AN386 has no real flash controller, so nonvolatile storage is backed
-//! by RAM (`capsules_extra::ram_nonvolatile_storage`) and does not survive a
-//! reset. Apps are assigned storage permissions individually, so each app
-//! can only read and write its own storage region.
+//! by RAM ([`ram_nonvolatile_storage`]) and does not survive a reset. Apps
+//! are assigned storage permissions individually, so each app can only read
+//! and write its own storage region.
 //!
 //! This configuration also exposes a second `Console`, on UART1, at driver
 //! number `0x01000001` -- see the "SECOND CONSOLE (UART1)" section in
 //! `main()` and the family Makefile for how it's bridged to a host serial
 //! port under QEMU.
+//!
+//! It also copies the dynamic process loading stack from
+//! `tutorials/nrf52840dk-dynamic-apps-and-policies`, letting userspace load
+//! new apps at runtime through `capsules_extra::app_loader`. Its backing
+//! store is a second [`ram_nonvolatile_storage`] instance over the same
+//! `_sapps`..`_eapps` region `app_flash` is read from -- see the "DYNAMIC
+//! PROCESS LOADING" section in `main()`.
 
 #![no_std]
 #![no_main]
@@ -22,11 +29,15 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::debug::PanicResources;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::static_init;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
 pub mod io;
+mod ram_dynamic_binary_storage;
+mod ram_isolated_nonvolatile_storage;
+mod ram_nonvolatile_storage;
 
 kernel::stack_size! {0x2000}
 
@@ -51,9 +62,22 @@ const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolic
 const CONSOLE1_DRIVER_NUM: usize = 0x01000001;
 
 type NonvolatileStorageDriver =
-    components::ram_isolated_nonvolatile_storage::RamIsolatedNonvolatileStorageComponentType<
+    ram_isolated_nonvolatile_storage::RamIsolatedNonvolatileStorageComponentType<
         APP_STORAGE_REGION_SIZE,
     >;
+
+type DynamicBinaryStorageDriver = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+    'static,
+    'static,
+    ChipHw,
+    kernel::process::ProcessStandardDebugFull,
+    ram_nonvolatile_storage::RamNonvolatileStorage<'static>,
+>;
+type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
+    DynamicBinaryStorageDriver,
+    DynamicBinaryStorageDriver,
+    DynamicBinaryStorageDriver,
+>;
 
 /// Board-owned panic-time resources, populated by `mps2_base` during boot
 /// and read back by the `#[panic_handler]` in `io.rs`.
@@ -65,6 +89,7 @@ struct Platform {
     base: &'static mps2_base::Platform,
     nonvolatile_storage: &'static NonvolatileStorageDriver,
     console1: &'static capsules_core::console::Console<'static>,
+    dynamic_app_loader: &'static AppLoaderDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -77,6 +102,7 @@ impl SyscallDriverLookup for Platform {
                 f(Some(self.nonvolatile_storage))
             }
             CONSOLE1_DRIVER_NUM => f(Some(self.console1)),
+            capsules_extra::app_loader::DRIVER_NUM => f(Some(self.dynamic_app_loader)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -148,14 +174,16 @@ pub unsafe fn main() {
     );
 
     let nonvolatile_storage =
-        components::ram_isolated_nonvolatile_storage::RamIsolatedNonvolatileStorageComponent::new(
+        ram_isolated_nonvolatile_storage::RamIsolatedNonvolatileStorageComponent::new(
             board_kernel,
             capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
             ram_storage,
             create_capability!(capabilities::MemoryAllocationCapability),
         )
         .finalize(
-            components::ram_isolated_nonvolatile_storage_component_static!(APP_STORAGE_REGION_SIZE),
+            ram_isolated_nonvolatile_storage::ram_isolated_nonvolatile_storage_component_static!(
+                APP_STORAGE_REGION_SIZE
+            ),
         );
 
     //--------------------------------------------------------------------------
@@ -241,7 +269,7 @@ pub unsafe fn main() {
     );
 
     // Create and start the asynchronous process loader.
-    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+    let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
         board_kernel,
         chip,
@@ -259,6 +287,60 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // DYNAMIC PROCESS LOADING
+    //--------------------------------------------------------------------------
+    //
+    // Apps loaded this way land in the same `_sapps`..`_eapps` region
+    // `app_flash` above points at -- the "range of memory where apps are
+    // stored in flash" on this board (there being no real flash, that
+    // range is itself just RAM `tockloader`/QEMU's `-device loader`
+    // pre-populate before boot). `loader` already holds a `&'static [u8]`
+    // over that range for its own scanning, so this second
+    // `RamNonvolatileStorage` is built with `new_at()` rather than `new()`:
+    // it writes through raw pointers instead of a `&mut [u8]`, so it never
+    // creates a live reference that would alias `loader`'s -- see
+    // `ram_nonvolatile_storage`'s module docs.
+
+    // SAFETY: `[_sapps, _eapps)` is valid for the life of the kernel (it's
+    // the linker-defined app flash region), and the only other access to it
+    // is `loader`'s read-only `&'static [u8]` scan above -- see this
+    // section's comment and `RamNonvolatileStorage::new_at()`'s safety doc.
+    let dynamic_app_storage = static_init!(
+        ram_nonvolatile_storage::RamNonvolatileStorage,
+        ram_nonvolatile_storage::RamNonvolatileStorage::new_at(
+            core::ptr::addr_of!(_sapps) as usize,
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+        )
+    );
+    dynamic_app_storage.register();
+
+    let dynamic_binary_storage = ram_dynamic_binary_storage::RamDynamicBinaryStorageComponent::new(
+        board_kernel,
+        dynamic_app_storage,
+        loader,
+    )
+    .finalize(
+        ram_dynamic_binary_storage::ram_dynamic_binary_storage_component_static!(
+            ChipHw,
+            kernel::process::ProcessStandardDebugFull,
+        ),
+    );
+
+    let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
+        board_kernel,
+        capsules_extra::app_loader::DRIVER_NUM,
+        dynamic_binary_storage,
+        dynamic_binary_storage,
+        dynamic_binary_storage,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::app_loader_component_static!(
+        DynamicBinaryStorageDriver,
+        DynamicBinaryStorageDriver,
+        DynamicBinaryStorageDriver,
+    ));
+
+    //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
@@ -266,6 +348,7 @@ pub unsafe fn main() {
         base: base_platform,
         nonvolatile_storage,
         console1,
+        dynamic_app_loader,
     };
 
     kernel::debug!("QEMU MPS2 AN386 (Cortex-M4) isolated nonvolatile storage test.");
