@@ -21,7 +21,6 @@ use qemu_arm_mps2::Mps2DefaultPeripherals;
 pub unsafe fn default_peripherals() -> Mps2DefaultPeripherals<'static> {
     Mps2DefaultPeripherals::new(
         addresses::UART0_BASE,
-        addresses::UART1_BASE,
         addresses::TIMER0_BASE,
         addresses::FPGAIO_BASE,
         addresses::SPI_SHIELD0_BASE,

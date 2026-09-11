@@ -30,18 +30,20 @@ use cortexm::CortexMVariant;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::platform::chip::Chip;
+use kernel::platform::chip::{Chip, InterruptService};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
+use qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip;
 
 pub const NUM_PROCS: usize = 4;
 
-pub type ChipHw<C> = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
-    'static,
-    C,
-    qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
->;
+/// The chip type [`start()`] uses: `QemuArmMps2Chip` with the default
+/// peripherals this crate builds. Boards that need to service interrupts
+/// this crate doesn't (for example a second UART) can instead call
+/// [`start_without_loading_processes()`] directly with their own
+/// `InterruptService` type `P` -- see that function's docs.
+pub type ChipHw<C> = QemuArmMps2Chip<'static, C, qemu_arm_mps2::Mps2DefaultPeripherals<'static>>;
 pub type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
@@ -86,7 +88,9 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
+impl<C: CortexMVariant, P: InterruptService + 'static>
+    KernelResources<QemuArmMps2Chip<'static, C, P>> for Platform
+{
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -126,15 +130,26 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
 /// non-default storage permissions policy). Boards that just want the
 /// default synchronous loader should call [`start()`] instead.
 ///
-/// `alloc_chip` allocates the `ChipHw<C>`. That allocation has to be a
-/// `static_init!()` written at the board's concrete type, because a
-/// `static`'s type cannot name the enclosing generic function's own type
-/// parameter; taking it as a closure keeps the rest of the sequence in here,
-/// where its ordering is not something a board can get wrong.
+/// `alloc_chip` builds the `QemuArmMps2Chip<'static, C, P>`. That allocation
+/// has to be a `static_init!()` written at the board's concrete type,
+/// because a `static`'s type cannot name the enclosing generic function's
+/// own type parameter; taking it as a closure keeps the rest of the
+/// sequence in here, where its ordering is not something a board can get
+/// wrong.
 ///
-/// The returned `Mps2DefaultPeripherals` is the same instance `alloc_chip`
-/// was handed, so a board can reach peripherals this crate doesn't build a
-/// capsule for itself (for example `uart1`) to wire up its own.
+/// `P` is the `InterruptService` the resulting chip dispatches interrupts
+/// to -- `alloc_chip` decides what it is by what it builds and returns. A
+/// board that only needs the peripherals this crate already builds (in the
+/// `&'static Mps2DefaultPeripherals` `alloc_chip` is handed, also returned
+/// here for reaching fields with no dedicated capsule, like unused pins)
+/// can use `ChipHw<C>` (`P` = `Mps2DefaultPeripherals`) directly, the way
+/// [`start()`] does. A board that needs to service an interrupt this crate
+/// doesn't (for example a second UART) instead defines its own `P`
+/// wrapping a `&'static Mps2DefaultPeripherals` plus whatever else it
+/// needs, with an `InterruptService` impl that falls through to the
+/// wrapped one for everything else -- see `an386-test-invs`'s
+/// `src/peripherals.rs` for an example -- and has `alloc_chip` build one
+/// and pass it to `QemuArmMps2Chip::new()`.
 ///
 /// # Safety
 ///
@@ -146,25 +161,32 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
 // inline(never) so this frame, and the stack the `static_init!()`s below use,
 // is reclaimed when it returns rather than held for the life of the kernel.
 #[inline(never)]
-pub unsafe fn start_without_loading_processes<C: CortexMVariant, F>(
-    panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
+pub unsafe fn start_without_loading_processes<C: CortexMVariant, P: InterruptService + 'static, F>(
+    panic_resources: &'static SingleThreadValue<
+        PanicResources<QemuArmMps2Chip<'static, C, P>, ProcessPrinterInUse>,
+    >,
     alloc_chip: F,
 ) -> (
     &'static kernel::Kernel,
     &'static Platform,
-    &'static ChipHw<C>,
+    &'static QemuArmMps2Chip<'static, C, P>,
     &'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
 )
 where
-    F: FnOnce(&'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>) -> &'static ChipHw<C>,
+    F: FnOnce(
+        &'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
+    ) -> &'static QemuArmMps2Chip<'static, C, P>,
 {
-    ChipHw::<C>::init();
+    <QemuArmMps2Chip<'static, C, P> as Chip>::init();
 
-    kernel::deferred_call::initialize_deferred_call_state::<<ChipHw<C> as Chip>::ThreadIdProvider>(
-    );
+    kernel::deferred_call::initialize_deferred_call_state::<
+        <QemuArmMps2Chip<'static, C, P> as Chip>::ThreadIdProvider,
+    >();
 
     let _ = panic_resources
-        .bind_to_thread::<<ChipHw<C> as Chip>::ThreadIdProvider>(PanicResources::new());
+        .bind_to_thread::<<QemuArmMps2Chip<'static, C, P> as Chip>::ThreadIdProvider>(
+            PanicResources::new(),
+        );
 
     // SAFETY: We promise to be the only caller of `default_peripherals`.
     let peripherals = static_init!(
@@ -197,7 +219,9 @@ where
     )
     .finalize(components::console_component_static!());
 
-    components::debug_writer::DebugWriterComponent::new::<<ChipHw<C> as Chip>::ThreadIdProvider>(
+    components::debug_writer::DebugWriterComponent::new::<
+        <QemuArmMps2Chip<'static, C, P> as Chip>::ThreadIdProvider,
+    >(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )

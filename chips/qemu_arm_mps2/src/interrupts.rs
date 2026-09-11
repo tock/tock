@@ -8,7 +8,9 @@
 //! by both FPGA images.
 //!
 //! The current `Mps2DefaultPeripherals` implementation drives only UART0,
-//! UART1, TIMER0, and the Shield0 PL022.
+//! TIMER0, and the Shield0 PL022. Boards that need more (e.g. a second
+//! UART) can layer their own `InterruptService` on top -- see
+//! `an386-test-invs`'s `src/peripherals.rs` for an example.
 
 pub const UART0_RX: u32 = 0;
 pub const UART0_TX: u32 = 1;
