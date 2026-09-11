@@ -116,6 +116,7 @@ pub mod tickv;
 pub mod tickv_kv_store;
 pub mod touch;
 pub mod tsl2561;
+pub mod uart_rx_buffer;
 pub mod usb;
 pub mod usb_hid_driver;
 pub mod virtualizers;
