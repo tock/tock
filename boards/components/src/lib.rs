@@ -81,7 +81,6 @@ pub mod process_printer;
 pub mod proximity;
 pub mod pwm;
 pub mod rainfall;
-pub mod ram_isolated_nonvolatile_storage;
 pub mod rf233;
 pub mod rng;
 pub mod sched;
