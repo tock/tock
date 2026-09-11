@@ -100,9 +100,16 @@ mkdir -p "$META/host"
 # RUSTDOCFLAGS makes each crate write its own non-colliding <crate>.json
 # into $META/host. `--no-deps` skips generating docs for third-party
 # dependencies, which takes a long time and we don't link to anyway.
+#
+# TOCK_CARGO_FLAGS is unset for everyday local use, so warnings are
+# non-fatal here, same as a local `cargo build`/`check`. CI (ci-job-rustdoc)
+# sets it to `--config boards/cargo/deny_warnings.toml`, which merges that
+# file's `rustdocflags` with whatever each package already sets, rather
+# than replacing it outright (which `RUSTDOCFLAGS` as an environment
+# variable would do), so doc warnings are treated as build failures there.
 CARGO_TARGET_DIR="$WORK" \
     RUSTDOCFLAGS="${RUSTDOCFLAGS:-} -Z unstable-options --write-doc-meta-dir=$META/host" \
-    cargo doc --no-deps
+    cargo doc --no-deps $TOCK_CARGO_FLAGS
 
 # CRATE_TARGETS crates get pulled into the host pass too, as dependencies
 # of the boards/chips that use them. Prune their host-pass meta so the

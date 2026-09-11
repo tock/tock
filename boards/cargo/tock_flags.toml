@@ -30,8 +30,6 @@ rustflags = [
   "-Z", "emit-stack-sizes",
 ]
 rustdocflags = [
-  # Error if there are warnings. This allows CI to fail on warnings.
-  "-D", "warnings",
   # Document internal code. This is helpful for understanding how the kernel
   # works and developing within crates.
   "--document-private-items"
