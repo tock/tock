@@ -35,13 +35,18 @@ use kernel::static_init;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
 pub mod io;
+mod peripherals;
 mod ram_dynamic_binary_storage;
 mod ram_isolated_nonvolatile_storage;
 mod ram_nonvolatile_storage;
 
 kernel::stack_size! {0x2000}
 
-type ChipHw = mps2_base::ChipHw<qemu_arm_mps2_an386::CortexM4>;
+type ChipHw = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
+    'static,
+    qemu_arm_mps2_an386::CortexM4,
+    peripherals::Peripherals<'static>,
+>;
 
 // How much nonvolatile storage space to allocate per-app.
 const APP_STORAGE_REGION_SIZE: usize = 2048;
@@ -144,22 +149,37 @@ impl KernelResources<ChipHw> for Platform {
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    // UART1 doesn't depend on anything `start_without_loading_processes()`
+    // builds, so it's allocated up front: `alloc_chip` below captures it to
+    // build this board's `Peripherals`, and it's used again afterward (in
+    // the "SECOND CONSOLE" section) to build the console on top of it.
+    //
+    // SAFETY: We promise to be the only caller that constructs a `Uart` at
+    // `UART1_BASE`.
+    let uart1 = static_init!(
+        qemu_arm_mps2::uart::Uart<'static>,
+        qemu_arm_mps2::uart::Uart::new(qemu_arm_mps2_unsafe::addresses::UART1_BASE)
+    );
+
     // SAFETY: `main` is only ever invoked once, by the reset handler, before
     // anything else touches the chip's peripherals or kernel state -- see
     // `mps2_base::start_without_loading_processes()`'s safety doc. `CortexM4`
     // is this board's actual CPU core.
-    let (board_kernel, base_platform, chip, peripherals) = unsafe {
-        mps2_base::start_without_loading_processes::<qemu_arm_mps2_an386::CortexM4, _>(
-            &PANIC_RESOURCES,
-            |peripherals| {
-                // The chip instance names the Cortex-M variant concretely,
-                // which `static_init!()` cannot do inside a generic function.
-                static_init!(
-                    mps2_base::ChipHw<qemu_arm_mps2_an386::CortexM4>,
-                    mps2_base::ChipHw::<qemu_arm_mps2_an386::CortexM4>::new(peripherals)
-                )
-            },
-        )
+    let (board_kernel, base_platform, chip, _base_peripherals) = unsafe {
+        mps2_base::start_without_loading_processes::<
+            qemu_arm_mps2_an386::CortexM4,
+            peripherals::Peripherals<'static>,
+            _,
+        >(&PANIC_RESOURCES, |base_peripherals| {
+            // The chip instance names the Cortex-M variant and our
+            // `Peripherals` type concretely, which `static_init!()` cannot
+            // do inside a generic function.
+            let custom_peripherals = static_init!(
+                peripherals::Peripherals<'static>,
+                peripherals::Peripherals::new(base_peripherals, uart1)
+            );
+            static_init!(ChipHw, ChipHw::new(custom_peripherals))
+        })
     };
 
     //--------------------------------------------------------------------------
@@ -192,9 +212,11 @@ pub unsafe fn main() {
     //
     // QEMU's `mps2-an386` machine emulates five CMSDK UARTs; `mps2_base`
     // only wires UART0 up (to the debug/process console). This gives
-    // userspace a second, independent serial channel over UART1.
+    // userspace a second, independent serial channel over UART1 (`uart1`,
+    // allocated above so both this and `peripherals::Peripherals` could use
+    // it).
 
-    let uart1_mux = components::console::UartMuxComponent::new(&peripherals.uart1, 115200)
+    let uart1_mux = components::console::UartMuxComponent::new(uart1, 115200)
         .finalize(components::uart_mux_component_static!());
 
     let console1 = components::console::ConsoleComponent::new(

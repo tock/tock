@@ -28,7 +28,6 @@ pub const SYSCLK_FRQ: u32 = 25_000_000;
 /// Instantiates the peripherals this chip crate drives.
 pub struct Mps2DefaultPeripherals<'a> {
     pub uart0: uart::Uart<'a>,
-    pub uart1: uart::Uart<'a>,
     pub timer0: timer::Timer<'a>,
     pub fpgaio: led::Fpgaio,
     pub spi_shield0: spi::Spi<'a>,
@@ -38,7 +37,6 @@ pub struct Mps2DefaultPeripherals<'a> {
 impl Mps2DefaultPeripherals<'_> {
     pub fn new(
         uart0: StaticRef<uart::UartRegisters>,
-        uart1: StaticRef<uart::UartRegisters>,
         timer0: StaticRef<timer::TimerRegisters>,
         fpgaio: StaticRef<led::FpgaioRegisters>,
         spi_shield0: StaticRef<spi::SpiRegisters>,
@@ -46,7 +44,6 @@ impl Mps2DefaultPeripherals<'_> {
     ) -> Self {
         Self {
             uart0: uart::Uart::new(uart0),
-            uart1: uart::Uart::new(uart1),
             timer0: timer::Timer::new(timer0),
             fpgaio: led::Fpgaio::new(fpgaio),
             spi_shield0: spi::Spi::new(spi_shield0),
@@ -59,7 +56,6 @@ impl InterruptService for Mps2DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0_RX | interrupts::UART0_TX => self.uart0.handle_interrupt(),
-            interrupts::UART1_RX | interrupts::UART1_TX => self.uart1.handle_interrupt(),
             interrupts::TIMER0 => self.timer0.handle_interrupt(),
             interrupts::SPI_SHIELD => self.spi_shield0.handle_interrupt(),
             _ => return false,
