@@ -118,7 +118,13 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
     }
 }
 
-/// Brings the board up and starts loading processes.
+/// Brings the board up, short of loading processes.
+///
+/// This is everything [`start()`] does except the final "load processes from
+/// the linker-defined app regions" step, for boards that need to plug in
+/// their own process loading (for example, to use an async loader with a
+/// non-default storage permissions policy). Boards that just want the
+/// default synchronous loader should call [`start()`] instead.
 ///
 /// `alloc_chip` allocates the `ChipHw<C>`. That allocation has to be a
 /// `static_init!()` written at the board's concrete type, because a
@@ -126,24 +132,28 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
 /// parameter; taking it as a closure keeps the rest of the sequence in here,
 /// where its ordering is not something a board can get wrong.
 ///
+/// The returned `Mps2DefaultPeripherals` is the same instance `alloc_chip`
+/// was handed, so a board can reach peripherals this crate doesn't build a
+/// capsule for itself (for example `uart1`) to wire up its own.
+///
 /// # Safety
 ///
 /// Must be called exactly once, from the board's `main()` entry point and
 /// before any other access to the chip's peripherals or kernel state -- this
-/// performs one-time hardware init, allocates `'static` state via
-/// `static_init!()`, and starts loading processes from the linker-defined app
-/// regions, none of which is safe to repeat. `C` must be the actual
+/// performs one-time hardware init and allocates `'static` state via
+/// `static_init!()`, none of which is safe to repeat. `C` must be the actual
 /// `CortexMVariant` of the CPU this is running on.
 // inline(never) so this frame, and the stack the `static_init!()`s below use,
 // is reclaimed when it returns rather than held for the life of the kernel.
 #[inline(never)]
-pub unsafe fn start<C: CortexMVariant, F>(
+pub unsafe fn start_without_loading_processes<C: CortexMVariant, F>(
     panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
     alloc_chip: F,
 ) -> (
     &'static kernel::Kernel,
     &'static Platform,
     &'static ChipHw<C>,
+    &'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
 )
 where
     F: FnOnce(&'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>) -> &'static ChipHw<C>,
@@ -268,6 +278,39 @@ where
             watchdog: &peripherals.watchdog,
         }
     );
+
+    (board_kernel, platform, chip, peripherals)
+}
+
+/// Brings the board up and starts loading processes.
+///
+/// This calls [`start_without_loading_processes()`] and then loads processes
+/// from the linker-defined app regions using the default synchronous loader
+/// (null storage permissions policy, [`capsules_system::process_policies::PanicFaultPolicy`]).
+/// Boards that need an async loader or a different storage permissions
+/// policy should call [`start_without_loading_processes()`] directly and load
+/// processes themselves.
+///
+/// # Safety
+///
+/// Same requirements as [`start_without_loading_processes()`]: must be called
+/// exactly once, from the board's `main()` entry point and before any other
+/// access to the chip's peripherals or kernel state. `C` must be the actual
+/// `CortexMVariant` of the CPU this is running on.
+#[inline(never)]
+pub unsafe fn start<C: CortexMVariant, F>(
+    panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
+    alloc_chip: F,
+) -> (
+    &'static kernel::Kernel,
+    &'static Platform,
+    &'static ChipHw<C>,
+)
+where
+    F: FnOnce(&'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>) -> &'static ChipHw<C>,
+{
+    let (board_kernel, platform, chip, _peripherals) =
+        start_without_loading_processes(panic_resources, alloc_chip);
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
