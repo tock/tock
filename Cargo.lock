@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "apollo3"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "arty_e21"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "arty_e21_chip",
  "capsules-core",
@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "arty_e21_chip"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "rv32i",
@@ -52,7 +52,7 @@ dependencies = [
 
 [[package]]
 name = "capsules-aes-gcm"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "enum_primitive",
  "ghash",
@@ -62,7 +62,7 @@ dependencies = [
 
 [[package]]
 name = "capsules-core"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "enum_primitive",
  "kernel",
@@ -71,7 +71,7 @@ dependencies = [
 
 [[package]]
 name = "capsules-extra"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "enum_primitive",
@@ -81,7 +81,7 @@ dependencies = [
 
 [[package]]
 name = "capsules-system"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "tock-tbf",
@@ -95,7 +95,7 @@ checksum = "2fd1289c04a9ea8cb22300a459a72a385d7c73d3259e2ed7dcb2af674838cfa9"
 
 [[package]]
 name = "clue_nrf52840"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "components"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -129,14 +129,14 @@ checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
 name = "cortexm"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
 ]
 
 [[package]]
 name = "cortexm0"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "kernel",
@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "cortexm0p"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "cortexm0",
@@ -153,7 +153,7 @@ dependencies = [
 
 [[package]]
 name = "cortexm3"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "cortexv7m",
@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "cortexm33"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "cortexv7m",
@@ -171,7 +171,7 @@ dependencies = [
 
 [[package]]
 name = "cortexm4"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "cortexv7m",
@@ -180,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "cortexm4f"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "cortexv7m",
@@ -189,7 +189,7 @@ dependencies = [
 
 [[package]]
 name = "cortexm7"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "cortexv7m",
@@ -198,7 +198,7 @@ dependencies = [
 
 [[package]]
 name = "cortexv7m"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "kernel",
@@ -237,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "cy8cproto_62_4243_w"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "e310_g002"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "e310x",
  "kernel",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "e310_g003"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "e310x",
  "kernel",
@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "e310x"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "rv32i",
@@ -302,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "earlgrey"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "lowrisc",
@@ -311,7 +311,7 @@ dependencies = [
 
 [[package]]
 name = "earlgrey-cw310"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-aes-gcm",
  "capsules-core",
@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "ecdsa-sw"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "kernel",
@@ -372,14 +372,14 @@ version = "0.1.0"
 
 [[package]]
 name = "esp32"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
 ]
 
 [[package]]
 name = "esp32-c3"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "esp32",
  "kernel",
@@ -388,7 +388,7 @@ dependencies = [
 
 [[package]]
 name = "esp32-c3-board"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -471,7 +471,7 @@ dependencies = [
 
 [[package]]
 name = "hail"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -485,7 +485,7 @@ dependencies = [
 
 [[package]]
 name = "hifive1"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "hifive_inventor"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "imix"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -538,7 +538,7 @@ dependencies = [
 
 [[package]]
 name = "imxrt1050-evkb"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -552,7 +552,7 @@ dependencies = [
 
 [[package]]
 name = "imxrt10xx"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm7",
  "enum_primitive",
@@ -561,7 +561,7 @@ dependencies = [
 
 [[package]]
 name = "kernel"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "flux-rs",
  "tock-cells",
@@ -577,7 +577,7 @@ checksum = "58f929b4d672ea937a23a1ab494143d968337a5f47e56d0815df1e0890ddf174"
 
 [[package]]
 name = "litex"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "tock-registers",
@@ -585,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "litex_arty"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -599,7 +599,7 @@ dependencies = [
 
 [[package]]
 name = "litex_sim"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -613,7 +613,7 @@ dependencies = [
 
 [[package]]
 name = "litex_vexriscv"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "litex",
@@ -622,7 +622,7 @@ dependencies = [
 
 [[package]]
 name = "lora_e5_mini"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -636,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "lora_things_plus"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "apollo3",
  "capsules-core",
@@ -651,7 +651,7 @@ dependencies = [
 
 [[package]]
 name = "lowrisc"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "rv32i",
@@ -659,7 +659,7 @@ dependencies = [
 
 [[package]]
 name = "lpc55s69-evk"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-system",
@@ -674,7 +674,7 @@ dependencies = [
 
 [[package]]
 name = "lpc55s6x"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
  "enum_primitive",
@@ -683,7 +683,7 @@ dependencies = [
 
 [[package]]
 name = "makepython-nrf52840"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -699,7 +699,7 @@ dependencies = [
 
 [[package]]
 name = "microbit_v2"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -715,7 +715,7 @@ dependencies = [
 
 [[package]]
 name = "microbit_v2-test-dynamic-app-load"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -731,7 +731,7 @@ dependencies = [
 
 [[package]]
 name = "msp-exp432p401r"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -745,7 +745,7 @@ dependencies = [
 
 [[package]]
 name = "msp432"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
  "enum_primitive",
@@ -754,7 +754,7 @@ dependencies = [
 
 [[package]]
 name = "nano33ble"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -770,7 +770,7 @@ dependencies = [
 
 [[package]]
 name = "nano33ble_rev2"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -786,7 +786,7 @@ dependencies = [
 
 [[package]]
 name = "nano_rp2040_connect"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
@@ -811,7 +811,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52832"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "kernel",
@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52833"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "kernel",
@@ -829,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "kernel",
@@ -838,7 +838,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840_dongle"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -854,7 +854,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -870,7 +870,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-dynamic-apps-and-policies"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -889,7 +889,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-hotp-tutorial"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -903,7 +903,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-root-of-trust-tutorial"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -917,7 +917,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-test-appid-ecdsap256"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -936,7 +936,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-test-appid-sha256"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -953,7 +953,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-test-appid-tbf"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -970,7 +970,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-test-base"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -985,7 +985,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-test-dynamic-app-load"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1001,7 +1001,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-test-invs"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1018,7 +1018,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-test-kernel"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1035,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-test-sha256"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1052,7 +1052,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52840dk-thread-tutorial"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1066,7 +1066,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52_components"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1080,7 +1080,7 @@ dependencies = [
 
 [[package]]
 name = "nrf52dk"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1096,7 +1096,7 @@ dependencies = [
 
 [[package]]
 name = "nrf5x"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "enum_primitive",
  "kernel",
@@ -1105,7 +1105,7 @@ dependencies = [
 
 [[package]]
 name = "nrf5x-unsafe"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "kernel",
@@ -1113,7 +1113,7 @@ dependencies = [
 
 [[package]]
 name = "nucleo_f429zi"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1127,7 +1127,7 @@ dependencies = [
 
 [[package]]
 name = "nucleo_f446re"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1141,7 +1141,7 @@ dependencies = [
 
 [[package]]
 name = "nucleo_u545re_q"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "particle_boron"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "pci-x86"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "tock-registers",
  "x86",
@@ -1199,7 +1199,7 @@ dependencies = [
 
 [[package]]
 name = "pico_explorer_base"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1244,7 +1244,7 @@ dependencies = [
 
 [[package]]
 name = "psc3"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
  "enum_primitive",
@@ -1253,7 +1253,7 @@ dependencies = [
 
 [[package]]
 name = "psc3m5_evk"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1267,7 +1267,7 @@ dependencies = [
 
 [[package]]
 name = "psoc62xa"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm0p",
  "enum_primitive",
@@ -1276,7 +1276,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_i486_q35"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1293,7 +1293,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_rv32_virt"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1308,7 +1308,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_rv32_virt-syscall-return-test"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1324,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_rv32_virt-tutorial"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1342,7 +1342,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_rv32_virt_chip"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "qemu_virt_chip",
@@ -1353,7 +1353,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_rv64_virt"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1368,7 +1368,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_rv64_virt-test-ci"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1384,7 +1384,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_rv64_virt_chip"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "qemu_virt_chip",
@@ -1395,7 +1395,7 @@ dependencies = [
 
 [[package]]
 name = "qemu_virt_chip"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
 ]
@@ -1417,7 +1417,7 @@ checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
 name = "raspberry_pi_pico"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1432,7 +1432,7 @@ dependencies = [
 
 [[package]]
 name = "raspberry_pi_pico_2"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1447,7 +1447,7 @@ dependencies = [
 
 [[package]]
 name = "raspberry_pi_pico_w"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1463,7 +1463,7 @@ dependencies = [
 
 [[package]]
 name = "redboard_artemis_atp"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "apollo3",
  "capsules-core",
@@ -1477,7 +1477,7 @@ dependencies = [
 
 [[package]]
 name = "redboard_artemis_nano"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "apollo3",
  "capsules-core",
@@ -1491,7 +1491,7 @@ dependencies = [
 
 [[package]]
 name = "redboard_redv"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1516,7 +1516,7 @@ dependencies = [
 
 [[package]]
 name = "riscv"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv-csr",
@@ -1532,7 +1532,7 @@ dependencies = [
 
 [[package]]
 name = "rp2040"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm0p",
  "enum_primitive",
@@ -1542,7 +1542,7 @@ dependencies = [
 
 [[package]]
 name = "rp2350"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
  "enum_primitive",
@@ -1552,14 +1552,14 @@ dependencies = [
 
 [[package]]
 name = "rp2xxx"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
 ]
 
 [[package]]
 name = "rv32i"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv",
@@ -1569,7 +1569,7 @@ dependencies = [
 
 [[package]]
 name = "rv64i"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv",
@@ -1579,7 +1579,7 @@ dependencies = [
 
 [[package]]
 name = "sam4l"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
  "enum_primitive",
@@ -1601,7 +1601,7 @@ dependencies = [
 
 [[package]]
 name = "segger"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
 ]
@@ -1619,7 +1619,7 @@ dependencies = [
 
 [[package]]
 name = "sifive"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "rv32i",
@@ -1637,7 +1637,7 @@ dependencies = [
 
 [[package]]
 name = "sma_q3"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1654,7 +1654,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f303xc"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
@@ -1663,7 +1663,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f3discovery"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1677,7 +1677,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f401cc"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
@@ -1687,7 +1687,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f412g"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
@@ -1697,7 +1697,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f412gdiscovery"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1711,7 +1711,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f429idiscovery"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1725,7 +1725,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f429zi"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
@@ -1735,7 +1735,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f446re"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
@@ -1745,7 +1745,7 @@ dependencies = [
 
 [[package]]
 name = "stm32f4xx"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
  "enum_primitive",
@@ -1754,7 +1754,7 @@ dependencies = [
 
 [[package]]
 name = "stm32u545"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
  "kernel",
@@ -1763,7 +1763,7 @@ dependencies = [
 
 [[package]]
 name = "stm32u5xx"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
  "kernel",
@@ -1772,7 +1772,7 @@ dependencies = [
 
 [[package]]
 name = "stm32u5xx-unsafe"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
  "kernel",
@@ -1780,7 +1780,7 @@ dependencies = [
 
 [[package]]
 name = "stm32wle5jc"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
  "enum_primitive",
@@ -1790,7 +1790,7 @@ dependencies = [
 
 [[package]]
 name = "stm32wle5xx"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
  "enum_primitive",
@@ -1816,7 +1816,7 @@ dependencies = [
 
 [[package]]
 name = "teensy40"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1853,7 +1853,7 @@ version = "0.1.0"
 
 [[package]]
 name = "tock_build_scripts"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 
 [[package]]
 name = "typenum"
@@ -1879,7 +1879,7 @@ dependencies = [
 
 [[package]]
 name = "veer_el2"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv-csr",
@@ -1889,7 +1889,7 @@ dependencies = [
 
 [[package]]
 name = "veer_el2_sim"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1909,14 +1909,14 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "virtio"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
 ]
 
 [[package]]
 name = "virtio-pci-x86"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "pci-x86",
@@ -1925,7 +1925,7 @@ dependencies = [
 
 [[package]]
 name = "weact-f401ccu6"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1939,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "wm1110dev"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -1955,7 +1955,7 @@ dependencies = [
 
 [[package]]
 name = "x86"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "tock-cells",
@@ -1964,7 +1964,7 @@ dependencies = [
 
 [[package]]
 name = "x86_q35"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "tock-cells",
