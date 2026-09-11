@@ -1,11 +1,13 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026.
+// Copyright Tock Contributors 2026.
 
 // RTC Driver for the STM32U545RE-Q
 // Referance Document:
 // RM0456 Reference Manual: https://www.st.com/resource/en/reference_manual/rm0456-stm32u5-series-armbased-32bit-mcus-stmicroelectronics.pdf
 
+use crate::rcc::hertz::Hertz;
 use core::cell::Cell;
 use kernel::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -488,6 +490,8 @@ enum DeferredCallTask {
 
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
+    clock: OptionalCell<Hertz>,
+
     client: OptionalCell<&'a dyn date_time::DateTimeClient>,
     time: Cell<DateTimeValues>,
 
@@ -513,6 +517,8 @@ impl<'a> Rtc<'a> {
     pub fn new(base: StaticRef<RtcRegisters>) -> Rtc<'a> {
         Rtc {
             registers: base,
+            clock: OptionalCell::empty(),
+
             client: OptionalCell::empty(),
             time: Cell::new(DateTimeValues {
                 year: 0,
@@ -523,10 +529,16 @@ impl<'a> Rtc<'a> {
                 minute: 0,
                 seconds: 0,
             }),
+
             deferred_call: DeferredCall::new(),
             deferred_call_task: OptionalCell::empty(),
         }
     }
+
+    pub fn set_clock(&self, clock: Hertz) {
+        self.clock.set(clock);
+    }
+
     /// Bypass write protection.
     fn bypass_write_protection(&self) {
         // Unlock write acces to RTC_WPR to be able to access RTC calibration and initialization registers
@@ -561,6 +573,12 @@ impl<'a> Rtc<'a> {
         Ok(())
     }
     pub fn init_mode(&self) -> Result<(), ErrorCode> {
+        // Get the clock frequency that feeds the RTC
+        // It must have been provided with `set_clock` at this point
+        let Some(clock_frequency) = self.clock.get() else {
+            return Err(ErrorCode::FAIL);
+        };
+
         // The calendar lives in the backup domain, so it keeps running across a
         // system reset (and across power loss when VBAT is present).
         // INITS is set by hardware once the calendar has been programmed and is reset
@@ -571,15 +589,21 @@ impl<'a> Rtc<'a> {
         }
 
         self.enter_init_mode()?;
-        // Run clock at 1 Hz
-        // The formula is f_RTC = f_CLK / ((PREDIV_A + 1) * (PREDIV_S + 1))
-        // The RTC is clocked by the LSI, which runs at 32 kHz
-        // 32 kHz / (128 * 250) = 1 Hz.
-        // It is recommended to max out PREDIV_A which is an asynchronous prescaler.
-        // Doing this reduces the power consumption since we minimize the frequency of the clock
-        // that goes into the synchronous part of the RTC.
-        self.registers.rtc_prer.modify(RTC_PRER::PREDIV_A.val(127));
-        self.registers.rtc_prer.modify(RTC_PRER::PREDIV_S.val(249));
+
+        // Set the sub-second counter frequency to 256 Hz
+        let subsecond_frequency = Hertz(256);
+
+        // Adapted from embassy-rs/embassy/embassy-stm32/src/rtc/mod.rs
+        let async_psc = ((clock_frequency / subsecond_frequency) - 1) as u8;
+        let sync_psc = (subsecond_frequency.0 - 1) as u16;
+        // subsecond_frequency = 256Hz => PREDIV_A = 124, PREDIV_S = 255
+
+        // f_RTC = f_CLK / ((PREDIV_A + 1) * (PREDIV_S + 1))
+        // f_CLK = 32kHz => f_RTC = 1Hz
+
+        self.registers.rtc_prer.modify(
+            RTC_PRER::PREDIV_A.val(async_psc as u32) + RTC_PRER::PREDIV_S.val(sync_psc as u32),
+        );
 
         // Enter BCD mode.
         self.registers.rtc_icsr.modify(RTC_ICSR::BIN::CLEAR);

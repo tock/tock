@@ -106,9 +106,9 @@ pub struct CRC<'a> {
 }
 
 impl CRC<'_> {
-    pub fn new(base_addr: StaticRef<CrcRegisters>) -> Self {
+    pub fn new(base: StaticRef<CrcRegisters>) -> Self {
         Self {
-            registers: base_addr,
+            registers: base,
             client: OptionalCell::empty(),
             deferred_call: DeferredCall::new(),
             state: Cell::new(State::Idle),
