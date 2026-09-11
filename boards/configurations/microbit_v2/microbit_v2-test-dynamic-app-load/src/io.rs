@@ -8,7 +8,7 @@ use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart;
 use nrf52833::gpio::Pin;
-use nrf52833::uart::{UartPanicWriterConfig, Uarte};
+use nrf52833::uart_legacy::{Uart, UartPanicWriterConfig};
 
 /// Default panic handler for the microbit board.
 ///
@@ -23,7 +23,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
     let led_kernel_pin = &nrf52833::gpio::nrf52833_gpio_create_pin(Pin::P0_20);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    debug::panic::<_, Uarte, _, _>(
+    debug::panic::<_, Uart, _, _>(
         &mut [led],
         UartPanicWriterConfig {
             params: uart::Parameters {
