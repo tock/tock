@@ -66,6 +66,12 @@ const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolic
 // dedicated second serial channel need their own `Console` here.
 const CONSOLE1_DRIVER_NUM: usize = 0x01000001;
 
+// Backing storage for `capsules_extra::uart_rx_buffer::UartRxBuffer`,
+// which sits between UART1 and its `UartMux` -- see the "SECOND CONSOLE"
+// section in `main()`.
+static mut UART1_RX_BYTE: [u8; 1] = [0; 1];
+static mut UART1_RX_RING: [u8; 512] = [0; 512];
+
 type NonvolatileStorageDriver =
     ram_isolated_nonvolatile_storage::RamIsolatedNonvolatileStorageComponentType<
         APP_STORAGE_REGION_SIZE,
@@ -215,8 +221,25 @@ pub unsafe fn main() {
     // userspace a second, independent serial channel over UART1 (`uart1`,
     // allocated above so both this and `peripherals::Peripherals` could use
     // it).
+    //
+    // `UartRxBuffer` sits between `uart1` and the `UartMux` below,
+    // continuously collecting received bytes into its own 512-byte ring
+    // buffer in the background, ahead of whenever the console side actually
+    // asks for them.
 
-    let uart1_mux = components::console::UartMuxComponent::new(uart1, 115200)
+    // SAFETY: `main` runs once, so these are the only outstanding
+    // references to `UART1_RX_BYTE`/`UART1_RX_RING`.
+    let uart1_rx_byte: &'static mut [u8] = &mut *core::ptr::addr_of_mut!(UART1_RX_BYTE);
+    let uart1_rx_ring: &'static mut [u8] = &mut *core::ptr::addr_of_mut!(UART1_RX_RING);
+
+    let uart1_rx_buffer = static_init!(
+        capsules_extra::uart_rx_buffer::UartRxBuffer<'static>,
+        capsules_extra::uart_rx_buffer::UartRxBuffer::new(uart1, uart1_rx_byte, uart1_rx_ring)
+    );
+    uart1_rx_buffer.register();
+    uart1_rx_buffer.start_receiving();
+
+    let uart1_mux = components::console::UartMuxComponent::new(uart1_rx_buffer, 115200)
         .finalize(components::uart_mux_component_static!());
 
     let console1 = components::console::ConsoleComponent::new(
@@ -225,7 +248,7 @@ pub unsafe fn main() {
         uart1_mux,
         create_capability!(capabilities::MemoryAllocationCapability),
     )
-    .finalize(components::console_component_static!());
+    .finalize(components::console_component_static!(2048, 2048));
 
     //--------------------------------------------------------------------------
     // APP IDENTIFIERS
