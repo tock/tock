@@ -1235,6 +1235,37 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             )),
         }
     }
+
+    /// Function to return the size of an application with a specified handle `app_handle`.
+    pub fn fetch_application_binary_size(
+        &self,
+        app_handle: usize,
+    ) -> Result<u32, ProcessBinaryError> {
+        let flash = self.flash_bank.get();
+        let application_binary_address = app_handle - flash.as_ptr() as usize;
+
+        // Might want to verify if the app is valid with check_new_binary_validity() either here, or before returning the size
+        let test_header_slice = flash
+            .get(application_binary_address..application_binary_address + 8)
+            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+        let header = test_header_slice
+            .try_into()
+            .or(Err(ProcessBinaryError::NotEnoughFlash))?;
+
+        let (_version, _header_length, app_length) =
+            match tock_tbf::parse::parse_tbf_header_lengths(header) {
+                Ok((v, hl, el)) => (v, hl, el),
+                Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_app_length)) => {
+                    return Err(ProcessBinaryError::TbfHeaderNotFound);
+                }
+                Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                    return Err(ProcessBinaryError::TbfHeaderNotFound);
+                }
+            };
+
+        Ok(app_length)
+    }
 }
 
 impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
