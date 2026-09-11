@@ -86,7 +86,6 @@ pub mod proximity;
 pub mod public_key_crypto;
 pub mod pwm;
 pub mod rainfall;
-pub mod ram_nonvolatile_storage;
 pub mod read_only_state;
 pub mod rf233;
 pub mod rf233_const;

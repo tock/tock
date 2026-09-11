@@ -5,29 +5,17 @@
 //! Component for isolated non-volatile storage backed by RAM.
 //!
 //! This is the same userspace-facing stack as
-//! [`crate::isolated_nonvolatile_storage`], but for platforms with no real
-//! nonvolatile storage peripheral: the backing store is a
-//! [`capsules_extra::ram_nonvolatile_storage::RamNonvolatileStorage`] over a
-//! plain `&'static mut [u8]` buffer rather than flash. Contents do not
-//! survive a reset.
+//! `components::isolated_nonvolatile_storage`, but for platforms with no
+//! real nonvolatile storage peripheral: the backing store is
+//! [`crate::ram_nonvolatile_storage::RamNonvolatileStorage`] over a plain
+//! `&'static mut [u8]` buffer rather than flash. Contents do not survive a
+//! reset.
 //!
-//! Usage
-//! -----
-//! ```rust,ignore
-//! static mut STORAGE: [u8; 32768] = [0; 32768];
-//! let nonvolatile_storage = components::ram_isolated_nonvolatile_storage::RamIsolatedNonvolatileStorageComponent::new(
-//!     board_kernel,
-//!     capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
-//!     &mut STORAGE,
-//!     create_capability!(capabilities::MemoryAllocationCapability),
-//! )
-//! .finalize(components::ram_isolated_nonvolatile_storage_component_static!(
-//!     components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT
-//! ));
-//! ```
+//! Board-local, like [`crate::ram_nonvolatile_storage`]: this isn't
+//! published from `boards/components` for other boards to depend on.
 
+use crate::ram_nonvolatile_storage::RamNonvolatileStorage;
 use capsules_extra::isolated_nonvolatile_storage_driver::IsolatedNonvolatileStorage;
-use capsules_extra::ram_nonvolatile_storage::RamNonvolatileStorage;
 use core::mem::MaybeUninit;
 use kernel::capabilities::MemoryAllocationCapability;
 use kernel::component::Component;
@@ -35,12 +23,10 @@ use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 
 // Setup static space for the objects.
-#[macro_export]
 macro_rules! ram_isolated_nonvolatile_storage_component_static {
     ($APP_REGION_SIZE:expr $(,)?) => {{
-        let storage = kernel::static_buf!(
-            capsules_extra::ram_nonvolatile_storage::RamNonvolatileStorage<'static>
-        );
+        let storage =
+            kernel::static_buf!(crate::ram_nonvolatile_storage::RamNonvolatileStorage<'static>);
         let ns = kernel::static_buf!(
             capsules_extra::isolated_nonvolatile_storage_driver::IsolatedNonvolatileStorage<
                 'static,
@@ -53,6 +39,7 @@ macro_rules! ram_isolated_nonvolatile_storage_component_static {
         (storage, ns, buffer)
     }};
 }
+pub(crate) use ram_isolated_nonvolatile_storage_component_static;
 
 pub type RamIsolatedNonvolatileStorageComponentType<const APP_REGION_SIZE: usize> =
     IsolatedNonvolatileStorage<'static, APP_REGION_SIZE>;
