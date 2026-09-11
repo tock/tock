@@ -175,7 +175,7 @@ pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
     // Display general information about the kernel.
     panic_banner(&mut writer, panic_info);
 
-    panic_resources.map(|pr| {
+    if let Some(pr) = panic_resources {
         let chip = pr.chip.take();
 
         // SAFETY: This may only be called during a panic, and we are guaranteed
@@ -197,13 +197,25 @@ pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
             // run processes.
             unsafe { c.mpu().disable_app_mpu() }
         });
-        pr.processes.take().map(|p| {
-            // SAFETY: We are guaranteed to be in a panic context.
-            unsafe {
-                panic_process_info(p, pr.printer.take(), &mut writer);
+        if let Some(p) = pr.processes.take() {
+            if let Some(process_printer) = pr.printer.take() {
+                if p.iter().filter(|p| p.get().is_some()).count() > 0 {
+                    // SAFETY: We are guaranteed to be in a panic context.
+                    unsafe {
+                        panic_process_info(p, process_printer, &mut writer);
+                    }
+                } else {
+                    let _ = writer.write_str("\r\nNo loaded processes.\r\n");
+                }
+            } else {
+                let _ = writer.write_str("\r\nProcess Printer is not available.\r\n");
             }
-        });
-    });
+        } else {
+            let _ = writer.write_str("\r\nProcesses List is not available.\r\n");
+        }
+    } else {
+        let _ = writer.write_str("\r\nPanic Resources are not available.\r\n");
+    }
 }
 
 /// Tock default panic routine.
@@ -276,7 +288,9 @@ pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
                 c.mpu().disable_app_mpu()
             });
             pr.processes.take().map(|p| {
-                panic_process_info(p, pr.printer.take(), writer);
+                if let Some(process_printer) = pr.printer.take() {
+                    panic_process_info(p, process_printer, writer);
+                }
             });
         });
     }
@@ -392,24 +406,22 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, write
 /// This must only be called from a panic context.
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
     processes: &'static [ProcessSlot],
-    process_printer: Option<&'static PP>,
+    process_printer: &'static PP,
     writer: &mut W,
 ) {
-    process_printer.map(|printer| {
-        // print data about each process
-        let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-        for slot in processes {
-            slot.proc.get().map(|process| {
-                // Print the memory map and basic process info.
-                //
-                // Because we are using a synchronous printer we do not need to
-                // worry about looping on the print function.
-                printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
-                // Print all of the process details.
-                process.print_full_process(writer);
-            });
-        }
-    });
+    // print data about each process
+    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+    for slot in processes {
+        slot.proc.get().map(|process| {
+            // Print the memory map and basic process info.
+            //
+            // Because we are using a synchronous printer we do not need to
+            // worry about looping on the print function.
+            process_printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
+            // Print all of the process details.
+            process.print_full_process(writer);
+        });
+    }
 }
 
 /// Blinks a recognizable pattern forever.
