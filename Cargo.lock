@@ -3,6 +3,23 @@
 version = 4
 
 [[package]]
+name = "an386-test-invs"
+version = "0.2.3-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "cortexm4",
+ "kernel",
+ "mps2_base",
+ "qemu_arm_mps2",
+ "qemu_arm_mps2-unsafe",
+ "qemu_arm_mps2_an386",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "apollo3"
 version = "0.2.3-dev"
 dependencies = [
