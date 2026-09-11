@@ -70,7 +70,8 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioConfig, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::dma_slice::DmaSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
     ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
@@ -583,6 +584,79 @@ register_bitfields! [u32,
     ]
 ];
 
+/// Wrapper for managing MMIO for the 802.15.4 radio peripheral.
+pub struct RadioRegistersManager {
+    /// MMIO registers for the radio peripheral.
+    registers: StaticRef<RadioRegisters>,
+    /// Holding place for the packet buffer while the radio hardware may be
+    /// accessing it via DMA (i.e. while receiving into it, or transmitting
+    /// from it).
+    dma_buf: MapCell<DmaSliceMut<'static, u8>>,
+}
+
+impl RadioRegistersManager {
+    /// Create a DMA-enabled register manager for the radio peripheral.
+    ///
+    /// # Safety
+    ///
+    /// This controls DMA hardware. As such, it must be unique. This requires:
+    ///
+    /// - This constructor must be called at most once.
+    /// - There must not be any other code that accesses the DMA buffer and
+    ///   length registers.
+    pub unsafe fn new(registers: StaticRef<RadioRegisters>) -> Self {
+        Self {
+            registers,
+            dma_buf: MapCell::empty(),
+        }
+    }
+
+    /// Provide `buffer` to the radio hardware as the target of the next
+    /// receive or transmit DMA operation.
+    pub fn set_dma_ptr(&self, buffer: &'static mut [u8]) {
+        // To create a DmaFence we must trust the implementation.
+        //
+        // # Safety
+        //
+        // The architecture-provided version is correct for the nRF52.
+        let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+        // Create the DmaSliceMut for the packet buffer. This ensures that we
+        // can soundly share it with the DMA hardware.
+        let dma_slice = DmaSliceMut::new_static(buffer, fence);
+
+        self.registers
+            .packetptr
+            .set(dma_slice.ptr_addr() as u32 + BUF_PREFIX_SIZE);
+
+        // Save the DmaSliceMut while the DMA hardware may access it.
+        self.dma_buf.replace(dma_slice);
+    }
+
+    /// Reclaim the buffer most recently provided via `set_dma_ptr`.
+    ///
+    /// Callers must only call this once they have observed, via the
+    /// appropriate event register (e.g. `EVENTS_END`), that the radio
+    /// hardware has finished its operation and is no longer accessing the
+    /// buffer.
+    pub fn take_dma_buf(&self) -> Option<&'static mut [u8]> {
+        self.dma_buf.take().map(|dma_slice| {
+            // To create a DmaFence we must trust the implementation.
+            //
+            // # Safety
+            //
+            // The architecture-provided version is correct for the nRF52.
+            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
+
+            // # Safety
+            //
+            // The caller has observed that the radio hardware finished its
+            // DMA operation on this buffer (see doc comment above).
+            unsafe { dma_slice.take(fence) }
+        })
+    }
+}
+
 /// Operating mode of the radio.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum RadioState {
@@ -610,13 +684,12 @@ enum DeferredOperation {
 }
 
 pub struct Radio<'a> {
-    registers: StaticRef<RadioRegisters>,
+    registers: RadioRegistersManager,
     rx_client: OptionalCell<&'a dyn radio::RxClient>,
     tx_client: OptionalCell<&'a dyn radio::TxClient>,
     config_client: OptionalCell<&'a dyn radio::ConfigClient>,
     power_client: OptionalCell<&'a dyn radio::PowerClient>,
     tx_power: Cell<TxPower>,
-    tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     ack_buf: TakeCell<'static, [u8]>,
     addr: Cell<u16>,
@@ -636,15 +709,15 @@ impl AlarmClient for Radio<'_> {
     fn alarm(&self) {
         // This alarm function is the callback for when the CCA backoff alarm completes
         // Attempt a new CCA period by issuing CCASTART task
-        self.registers.task_ccastart.write(Task::ENABLE::SET);
+        self.registers
+            .registers
+            .task_ccastart
+            .write(Task::ENABLE::SET);
     }
 }
 
 impl<'a> Radio<'a> {
-    pub fn new(
-        registers: StaticRef<RadioRegisters>,
-        ack_buf: &'static mut [u8; ACK_BUF_SIZE],
-    ) -> Self {
+    pub fn new(registers: RadioRegistersManager, ack_buf: &'static mut [u8; ACK_BUF_SIZE]) -> Self {
         Self {
             registers,
             rx_client: OptionalCell::empty(),
@@ -652,7 +725,6 @@ impl<'a> Radio<'a> {
             config_client: OptionalCell::empty(),
             power_client: OptionalCell::empty(),
             tx_power: Cell::new(TxPower::ZerodBm),
-            tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
             ack_buf: TakeCell::new(ack_buf),
             addr: Cell::new(0),
@@ -675,6 +747,7 @@ impl<'a> Radio<'a> {
 
     pub fn is_enabled(&self) -> bool {
         self.registers
+            .registers
             .mode
             .matches_all(Mode::MODE::IEEE802154_250KBIT)
     }
@@ -685,40 +758,36 @@ impl<'a> Radio<'a> {
         // Unwrap fail = Radio RX Buffer is missing (may be due to receive client not replacing in receive(...) method,
         // or some instance in  driver taking buffer without properly replacing).
         let rbuf = self.rx_buf.take().unwrap();
-        self.rx_buf.replace(self.set_dma_ptr(rbuf));
+        self.registers.set_dma_ptr(rbuf);
 
         // Instruct radio hardware to automatically progress from RXIDLE to RX
         // state upon receipt of internal `READY` signal after radio ramp-up completes.
-        self.registers.shorts.write(Shortcut::READY_START::SET);
+        self.registers
+            .registers
+            .shorts
+            .write(Shortcut::READY_START::SET);
 
-        self.registers.task_rxen.write(Task::ENABLE::SET);
+        self.registers.registers.task_rxen.write(Task::ENABLE::SET);
     }
 
     fn radio_on(&self) {
         // reset and enable power
-        self.registers.power.write(Task::ENABLE::CLEAR);
-        self.registers.power.write(Task::ENABLE::SET);
+        self.registers.registers.power.write(Task::ENABLE::CLEAR);
+        self.registers.registers.power.write(Task::ENABLE::SET);
     }
 
     fn radio_off(&self) {
         self.state.set(RadioState::OFF);
 
-        self.registers.power.write(Task::ENABLE::CLEAR);
+        self.registers.registers.power.write(Task::ENABLE::CLEAR);
     }
 
     fn radio_is_on(&self) -> bool {
-        self.registers.power.is_set(Task::ENABLE)
-    }
-
-    fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8] {
-        self.registers
-            .packetptr
-            .set(buffer.as_ptr() as u32 + BUF_PREFIX_SIZE);
-        buffer
+        self.registers.registers.power.is_set(Task::ENABLE)
     }
 
     fn crc_check(&self) -> Result<(), ErrorCode> {
-        if self.registers.crcstatus.is_set(Event::READY) {
+        if self.registers.registers.crcstatus.is_set(Event::READY) {
             Ok(())
         } else {
             Err(ErrorCode::FAIL)
@@ -752,18 +821,24 @@ impl<'a> Radio<'a> {
                 ////////////////////////////////////////////////////////////////
 
                 // Since READY_START shortcut enabled, always clear READY event
-                self.registers.event_ready.write(Event::READY::CLEAR);
+                self.registers
+                    .registers
+                    .event_ready
+                    .write(Event::READY::CLEAR);
 
                 // Completed receiving a packet, now determine if we need to send ACK
-                if self.registers.event_end.is_set(Event::READY) {
-                    self.registers.event_end.write(Event::READY::CLEAR);
+                if self.registers.registers.event_end.is_set(Event::READY) {
+                    self.registers
+                        .registers
+                        .event_end
+                        .write(Event::READY::CLEAR);
                     let crc = self.crc_check();
 
                     // Unwrap fail = Radio RX Buffer is missing (may be due to
                     // receive client not replacing in receive(...) method, or
                     // some instance in driver taking buffer without properly
                     // replacing).
-                    let rbuf = self.rx_buf.take().unwrap();
+                    let rbuf = self.registers.take_dma_buf().unwrap();
 
                     // Data buffer format: | PREFIX | PHR | PSDU | LQI |
                     //
@@ -873,20 +948,27 @@ impl<'a> Radio<'a> {
                 // Ramp up shortcuts to the CCASTART while the ready event due
                 // to the Tx ramp up requires we issue a start task in response
                 // to progress the state machine.
-                if self.registers.event_ready.is_set(Event::READY) {
+                if self.registers.registers.event_ready.is_set(Event::READY) {
                     // In both cases, we must clear event
-                    self.registers.event_ready.write(Event::READY::CLEAR);
+                    self.registers
+                        .registers
+                        .event_ready
+                        .write(Event::READY::CLEAR);
 
                     // Ready event from Tx ramp up will be in radio internal
                     // TXIDLE state
-                    if self.registers.state.get() == crate::constants::RADIO_STATE_TXIDLE {
+                    if self.registers.registers.state.get() == crate::constants::RADIO_STATE_TXIDLE
+                    {
                         start_task = true;
                     }
                 }
 
                 // Handle CCA related interrupts.
-                if self.registers.event_ccabusy.is_set(Event::READY) {
-                    self.registers.event_ccabusy.write(Event::READY::CLEAR);
+                if self.registers.registers.event_ccabusy.is_set(Event::READY) {
+                    self.registers
+                        .registers
+                        .event_ccabusy
+                        .write(Event::READY::CLEAR);
 
                     // Need to back off for a period of time outlined in the
                     // IEEE 802.15.4 standard (see Figure 69 in section 7.5.1.4
@@ -911,10 +993,10 @@ impl<'a> Radio<'a> {
 
                         let result = Err(ErrorCode::BUSY);
                         self.tx_client.map(|client| {
-                            // Unwrap fail = TX Buffer is missing and was
-                            // mistakenly not replaced after completion of
+                            // Unwrap fail = TX buffer is missing and was
+                            // mistakenly not reclaimed after completion of
                             // set_dma_ptr(...)
-                            let tbuf = self.tx_buf.take().unwrap();
+                            let tbuf = self.registers.take_dma_buf().unwrap();
                             client.send_done(tbuf, false, result);
                         });
                         rx_init = true;
@@ -923,16 +1005,20 @@ impl<'a> Radio<'a> {
 
                 // End event received; The TX is now finished and we need to
                 // notify the sending client.
-                if self.registers.event_end.is_set(Event::READY) {
-                    self.registers.event_end.write(Event::READY::CLEAR);
+                if self.registers.registers.event_end.is_set(Event::READY) {
+                    self.registers
+                        .registers
+                        .event_end
+                        .write(Event::READY::CLEAR);
                     let result = Ok(());
 
                     // TODO: Acked is hardcoded to always return false; add
                     // support to receive tx ACK.
                     self.tx_client.map(|client| {
-                        // Unwrap fail = TX Buffer is missing and was mistakenly
-                        // not replaced after completion of set_dma_ptr(...)
-                        let tbuf = self.tx_buf.take().unwrap();
+                        // Unwrap fail = TX buffer is missing and was
+                        // mistakenly not reclaimed after completion of
+                        // set_dma_ptr(...)
+                        let tbuf = self.registers.take_dma_buf().unwrap();
                         client.send_done(tbuf, false, result);
                     });
                     rx_init = true;
@@ -947,17 +1033,23 @@ impl<'a> Radio<'a> {
                 ////////////////////////////////////////////////////////////////
 
                 // Since READY_START shortcut enabled, always clear READY event
-                self.registers.event_ready.write(Event::READY::CLEAR);
+                self.registers
+                    .registers
+                    .event_ready
+                    .write(Event::READY::CLEAR);
 
                 // Completed sending ACK
-                if self.registers.event_end.is_set(Event::READY) {
-                    self.registers.event_end.write(Event::READY::CLEAR);
+                if self.registers.registers.event_end.is_set(Event::READY) {
+                    self.registers
+                        .registers
+                        .event_end
+                        .write(Event::READY::CLEAR);
 
-                    // Unwrap fail = TX Buffer is missing and was mistakenly not
-                    // replaced after completion of set_dma_ptr(...)
-                    let tbuf = self.tx_buf.take().unwrap();
+                    // Unwrap fail = TX buffer is missing and was mistakenly
+                    // not reclaimed after completion of set_dma_ptr(...)
+                    let tbuf = self.registers.take_dma_buf().unwrap();
 
-                    // We must replace the ACK buffer that was passed to tx_buf
+                    // We must replace the ACK buffer that was passed to DMA
                     self.ack_buf.replace(tbuf);
 
                     // Reset radio to proper receiving state
@@ -997,27 +1089,28 @@ impl<'a> Radio<'a> {
             self.rx();
         }
         if start_task {
-            self.registers.task_start.write(Task::ENABLE::SET);
+            self.registers.registers.task_start.write(Task::ENABLE::SET);
         }
     }
 
     pub fn enable_interrupts(&self) {
         self.registers
+            .registers
             .intenset
             .write(Interrupt::READY::SET + Interrupt::CCABUSY::SET + Interrupt::END::SET);
     }
 
     pub fn enable_interrupt(&self, intr: u32) {
-        self.registers.intenset.set(intr);
+        self.registers.registers.intenset.set(intr);
     }
 
     pub fn clear_interrupt(&self, intr: u32) {
-        self.registers.intenclr.set(intr);
+        self.registers.registers.intenclr.set(intr);
     }
 
     pub fn disable_all_interrupts(&self) {
         // disable all possible interrupts
-        self.registers.intenclr.set(0xffffffff);
+        self.registers.registers.intenclr.set(0xffffffff);
     }
 
     pub fn set_ack_buffer(&self, buffer: &'static mut [u8]) {
@@ -1050,24 +1143,28 @@ impl<'a> Radio<'a> {
     // IEEE802.15.4 SPECIFICATION Section 6.20.12.5 of the NRF52840 Datasheet
     fn ieee802154_set_crc_config(&self) {
         self.registers
+            .registers
             .crccnf
             .write(CrcConfiguration::LEN::TWO + CrcConfiguration::SKIPADDR::IEEE802154);
         self.registers
+            .registers
             .crcinit
             .set(crate::constants::RADIO_CRCINIT_IEEE802154);
         self.registers
+            .registers
             .crcpoly
             .set(crate::constants::RADIO_CRCPOLY_IEEE802154);
     }
 
     fn ieee802154_set_rampup_mode(&self) {
         self.registers
+            .registers
             .modecnf0
             .write(RadioModeConfig::RU::FAST + RadioModeConfig::DTX::CENTER);
     }
 
     fn ieee802154_set_cca_config(&self) {
-        self.registers.ccactrl.write(
+        self.registers.registers.ccactrl.write(
             CCAControl::CCAMODE.val(crate::constants::IEEE802154_CCA_MODE)
                 + CCAControl::CCAEDTHRESH.val(crate::constants::IEEE802154_CCA_ED_THRESH)
                 + CCAControl::CCACORRTHRESH.val(crate::constants::IEEE802154_CCA_CORR_THRESH)
@@ -1078,30 +1175,38 @@ impl<'a> Radio<'a> {
     // Packet configuration
     // Settings taken from RiotOS nrf52840 15.4 driver
     fn ieee802154_set_packet_config(&self) {
-        self.registers.pcnf0.write(
+        self.registers.registers.pcnf0.write(
             PacketConfiguration0::LFLEN.val(8)
                 + PacketConfiguration0::PLEN::THIRTYTWOZEROS
                 + PacketConfiguration0::CRCINC::INCLUDE,
         );
 
         self.registers
+            .registers
             .pcnf1
             .write(PacketConfiguration1::MAXLEN.val(crate::constants::RADIO_PAYLOAD_LENGTH as u32));
     }
 
     fn ieee802154_set_channel_rate(&self) {
-        self.registers.mode.write(Mode::MODE::IEEE802154_250KBIT);
+        self.registers
+            .registers
+            .mode
+            .write(Mode::MODE::IEEE802154_250KBIT);
     }
 
     fn ieee802154_set_channel_freq(&self) {
         let channel = self.channel.get();
         self.registers
+            .registers
             .frequency
             .write(Frequency::FREQUENCY.val(channel as u32));
     }
 
     fn ieee802154_set_tx_power(&self) {
-        self.registers.txpower.set(self.tx_power.get() as u32);
+        self.registers
+            .registers
+            .txpower
+            .set(self.tx_power.get() as u32);
     }
 
     pub fn startup(&self) -> Result<(), ErrorCode> {
@@ -1165,8 +1270,9 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     }
 
     fn busy(&self) -> bool {
-        // `tx_buf` is only occupied when a transmission is underway.
-        self.tx_buf.is_some()
+        // The state machine is only in TX or ACK while a transmission
+        // (standard packet or ACK) is underway.
+        matches!(self.state.get(), RadioState::TX | RadioState::ACK)
     }
 
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {
@@ -1289,15 +1395,14 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         // Insert the PHR which is the PDSU length.
         buf[radio::PHR_OFFSET] = (frame_len + radio::MFR_SIZE) as u8;
 
-        // The tx_buf does not possess static memory. This buffer only
-        // temporarily holds a reference to another buffer passed as a function
-        // argument. The tx_buf holds ownership of this buffer until it is
-        // returned through the send_done(...) function.
-        self.tx_buf.replace(self.set_dma_ptr(buf));
+        // Hand the buffer to the radio hardware as the DMA target for this
+        // transmission. It is reclaimed from `self.registers` once the
+        // transmission completes (see `handle_interrupt`).
+        self.registers.set_dma_ptr(buf);
 
         // The transmit function handles sending both ACK and standard packets
         if let RadioState::ACK = self.state.get() {
-            self.registers.task_txen.write(Task::ENABLE::SET);
+            self.registers.registers.task_txen.write(Task::ENABLE::SET);
         } else {
             // Configure radio for standard packet TX
             self.state.set(RadioState::TX);
@@ -1308,14 +1413,17 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
             //   up completed, begin CCA backoff
             // - RX to TXRU state upon internal receipt CCA completion event
             //   (clear to begin transmitting)
-            self.registers.shorts.write(
+            self.registers.registers.shorts.write(
                 Shortcut::DISABLED_RXEN::SET
                     + Shortcut::RXREADY_CCASTART::SET
                     + Shortcut::CCAIDLE_TXEN::SET,
             );
 
             // Radio is in proper shortcut state, disable and begin TX sequence
-            self.registers.task_disable.write(Task::ENABLE::SET);
+            self.registers
+                .registers
+                .task_disable
+                .write(Task::ENABLE::SET);
         }
 
         Ok(())

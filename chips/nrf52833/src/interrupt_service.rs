@@ -26,10 +26,12 @@ impl<'a> Nrf52833DefaultPeripherals<'a> {
         aes_ecb_buf: &'static mut [u8; 48],
         pwm_buf: &'static mut [u16; 4],
     ) -> Self {
+        let radio_registers = crate::ieee802154_radio::RadioRegistersManager::new(RADIO_BASE);
+
         Self {
             nrf52: Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf, pwm_buf),
             ieee802154_radio: crate::ieee802154_radio::Radio::new(
-                RADIO_BASE,
+                radio_registers,
                 ieee802154_radio_ack_buf,
             ),
             gpio_port: crate::gpio::nrf52833_gpio_create(),

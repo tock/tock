@@ -55,10 +55,14 @@ impl<'a> Nrf52840DefaultPeripherals<'a> {
         // SAFETY: See function-level doc.
         let nrf52_peripherals = unsafe { Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf, pwm_buf) };
 
+        // SAFETY: See function-level doc.
+        let radio_registers =
+            unsafe { crate::ieee802154_radio::RadioRegistersManager::new(RADIO_BASE) };
+
         Self {
             nrf52: nrf52_peripherals,
             ieee802154_radio: crate::ieee802154_radio::Radio::new(
-                RADIO_BASE,
+                radio_registers,
                 ieee802154_radio_ack_buf,
             ),
             usbd: crate::usbd::Usbd::new(USBD_BASE, USBD_CHIPINFO_BASE, USBD_USBERRATA_BASE),
