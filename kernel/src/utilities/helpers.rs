@@ -171,7 +171,7 @@ macro_rules! create_typed_capability {
 /// only defines a visibly named type, it does not create any instances.
 /// Use this when you need to name the capability type across scope boundaries.
 ///
-/// Use [`mint_defined_capability!`] to create an instance. Note: You can only
+/// Use `mint_defined_capability!` to create an instance. Note: You can only
 /// mint capabilities in the module that defines this type, or in a descendant
 /// of that module.
 ///

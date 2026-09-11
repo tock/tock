@@ -4,7 +4,7 @@
 
 //! Capsule for testing syscall return variants from userspace.
 //!
-//! Each command returns a specific [`SyscallReturn`] variant with distinct,
+//! Each command returns a specific [`CommandReturn`] variant with distinct,
 //! known values so userspace tests can verify correct encoding and decoding
 //! of every return type.
 //!
