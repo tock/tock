@@ -28,21 +28,24 @@ QEMU can be started with Tock using the following arguments (in Tock's top-level
 $ qemu-system-riscv32 -M sifive_e,revb=true -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf  -nographic
 ```
 
-Or with the `qemu` make target:
+Or with the `run` make target:
 
 ```bash
-$ make qemu
+$ make run
 ```
 
 QEMU can be started with Tock and a userspace app using the following arguments (in Tock's top-level directory):
 
-```
-qemu-system-riscv32 -M sifive_e,revb=true -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf -device loader,file=./examples/hello.tbf,addr=0x20040000 -nographic
-```
-Or with the `qemu-app` make target:
+First, initialize the local board for installing apps:
 
 ```bash
-$ make APP=/path/to/app.tbf qemu-app
+$ make init
+```
+
+Then run the kernel and app in QEMU:
+
+```bash
+$ make run
 ```
 
 The TBF must be compiled for the HiFive board which is, at the time of writing,
@@ -51,10 +54,10 @@ the Hello World exmple app from the libtock-rs repository by running:
 
 ```
 $ cd [LIBTOCK-RS-DIR]
-$ make EXAMPLE=hello_world flash-hifive1
-$ tar xf target/riscv32imac-unknown-none-elf/tab/hifive1/hello_world.tab
+$ make hifive1 EXAMPLE=console
+$ tockloader install ./target/tbf/hifive1/console.tab
 $ cd [TOCK_ROOT]/boards/hifive
-$ make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
+$ make run
 ```
 
 HiFive1 Revision A
