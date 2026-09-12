@@ -16,8 +16,41 @@ use kernel::utilities::StaticRef;
 const AESECB_BASE: StaticRef<crate::aes::AesEcbRegisters> =
     unsafe { StaticRef::new(0x4000E000 as *const crate::aes::AesEcbRegisters) };
 
+const APPROTECT_BASE: StaticRef<crate::approtect::ApprotectRegisters> =
+    unsafe { StaticRef::new(0x40000000 as *const crate::approtect::ApprotectRegisters) };
+
+const CLOCK_BASE: StaticRef<crate::clock::ClockRegisters> =
+    unsafe { StaticRef::new(0x40000000 as *const crate::clock::ClockRegisters) };
+
+const COMP_BASE: StaticRef<crate::acomp::CompRegisters> =
+    unsafe { StaticRef::new(0x40013000 as *const crate::acomp::CompRegisters) };
+
+pub const FICR_BASE: StaticRef<crate::ficr::FicrRegisters> =
+    unsafe { StaticRef::new(0x10000000 as *const crate::ficr::FicrRegisters) };
+
+const NVMC_BASE: StaticRef<crate::nvmc::NvmcRegisters> =
+    unsafe { StaticRef::new(0x4001E400 as *const crate::nvmc::NvmcRegisters) };
+
+const POWER_BASE: StaticRef<crate::power::PowerRegisters> =
+    unsafe { StaticRef::new(0x40000000 as *const crate::power::PowerRegisters) };
+
+const PWM0_BASE: StaticRef<crate::pwm::PwmRegisters> =
+    unsafe { StaticRef::new(0x4001C000 as *const crate::pwm::PwmRegisters) };
+
+const RADIO_BASE: StaticRef<crate::ble_radio::RadioRegisters> =
+    unsafe { StaticRef::new(0x40001000 as *const crate::ble_radio::RadioRegisters) };
+
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const crate::rtc::RtcRegisters) };
+
+const SAADC_BASE: StaticRef<crate::adc::AdcRegisters> =
+    unsafe { StaticRef::new(0x40007000 as *const crate::adc::AdcRegisters) };
+
+const SPIM0_BASE: StaticRef<crate::spi::SpimRegisters> =
+    unsafe { StaticRef::new(0x40003000 as *const crate::spi::SpimRegisters) };
+
+const SPIM2_BASE: StaticRef<crate::spi::SpimRegisters> =
+    unsafe { StaticRef::new(0x40023000 as *const crate::spi::SpimRegisters) };
 
 const TEMP_BASE: StaticRef<crate::temperature::TempRegisters> =
     unsafe { StaticRef::new(0x4000C000 as *const crate::temperature::TempRegisters) };
@@ -30,6 +63,12 @@ const TIMER1_BASE: StaticRef<crate::timer::TimerRegisters> =
 
 const TIMER2_BASE: StaticRef<crate::timer::TimerRegisters> =
     unsafe { StaticRef::new(0x4000A000 as *const crate::timer::TimerRegisters) };
+
+const TWI1_BASE: StaticRef<crate::i2c::TwiRegisters> =
+    unsafe { StaticRef::new(0x40004000 as *const crate::i2c::TwiRegisters) };
+
+const UICR_BASE: StaticRef<crate::uicr::UicrRegisters> =
+    unsafe { StaticRef::new(0x10001200 as *const crate::uicr::UicrRegisters) };
 
 const RNG_BASE: StaticRef<crate::trng::RngRegisters> =
     unsafe { StaticRef::new(0x4000D000 as *const crate::trng::RngRegisters) };
@@ -74,9 +113,12 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub nvmc: crate::nvmc::Nvmc,
     pub clock: crate::clock::Clock,
     pub pwm0: crate::pwm::Pwm,
+    pub uicr: crate::uicr::Uicr<'a>,
+    pub approtect: crate::approtect::Approtect<'a>,
+    pub ficr: &'a crate::ficr::Ficr,
 }
 
-impl Nrf52DefaultPeripherals<'_> {
+impl<'a> Nrf52DefaultPeripherals<'a> {
     /// Create default peripherals for an nRF52-based microcontroller.
     ///
     /// # Safety
@@ -89,7 +131,7 @@ impl Nrf52DefaultPeripherals<'_> {
     ///   drivers.
     /// - There must not be any other code that accesses the DMA buffer and
     ///   length registers of the DMA-enabled peripherals.
-    pub unsafe fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
+    pub unsafe fn new(ficr: &'a crate::ficr::Ficr, aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
         // SAFETY: See function-level doc.
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
@@ -97,10 +139,10 @@ impl Nrf52DefaultPeripherals<'_> {
         let uarte0_registers = unsafe { crate::uart::UarteRegistersManager::new_uarte0() };
 
         Self {
-            acomp: crate::acomp::Comparator::new(),
+            acomp: crate::acomp::Comparator::new(COMP_BASE),
             ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
-            pwr_clk: crate::power::Power::new(),
-            ble_radio: crate::ble_radio::Radio::new(),
+            pwr_clk: crate::power::Power::new(POWER_BASE),
+            ble_radio: crate::ble_radio::Radio::new(RADIO_BASE),
             trng: crate::trng::Trng::new(RNG_BASE),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             temp: crate::temperature::Temp::new(TEMP_BASE),
@@ -108,14 +150,17 @@ impl Nrf52DefaultPeripherals<'_> {
             timer1: crate::timer::TimerAlarm::new(TIMER1_BASE),
             timer2: crate::timer::Timer::new(TIMER2_BASE),
             uarte0: crate::uart::Uarte::new(uarte0_registers),
-            spim0: crate::spi::SPIM::new(0),
-            twi1: crate::i2c::TWI::new_twi1(),
-            spim2: crate::spi::SPIM::new(2),
+            spim0: crate::spi::SPIM::new(SPIM0_BASE),
+            spim2: crate::spi::SPIM::new(SPIM2_BASE),
+            twi1: crate::i2c::TWI::new(TWI1_BASE),
             // Default to 3.3 V VDD reference.
-            adc: crate::adc::Adc::new(3300),
-            nvmc: crate::nvmc::Nvmc::new(),
-            clock: crate::clock::Clock::new(),
-            pwm0: crate::pwm::Pwm::new(),
+            adc: crate::adc::Adc::new(SAADC_BASE, 3300),
+            nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
+            clock: crate::clock::Clock::new(CLOCK_BASE),
+            pwm0: crate::pwm::Pwm::new(PWM0_BASE),
+            uicr: crate::uicr::Uicr::new(UICR_BASE, ficr),
+            approtect: crate::approtect::Approtect::new(APPROTECT_BASE, ficr),
+            ficr,
         }
     }
     // Necessary for setting up circular dependencies
