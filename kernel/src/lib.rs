@@ -105,7 +105,7 @@ pub const KERNEL_MAJOR_VERSION: u16 = 2;
 ///
 /// This is compiled with the crate to enable for checking of compatibility with
 /// loaded apps.
-pub const KERNEL_MINOR_VERSION: u16 = 3;
+pub const KERNEL_MINOR_VERSION: u16 = 4;
 /// Kernel patch version.
 pub const KERNEL_PATCH_VERSION: u16 = 0;
 /// Kernel in-development version counter.
