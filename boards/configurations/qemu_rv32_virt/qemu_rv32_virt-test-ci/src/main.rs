@@ -1,8 +1,8 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2026.
 
-//! Board file for qemu-system-riscv32 "virt" machine type
+//! Board file for qemu-system-riscv32 "virt" machine for CI testing.
 
 #![no_std]
 #![no_main]
@@ -12,8 +12,10 @@ use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
+use kernel::process::ProcessLoadingAsync;
 use kernel::{create_capability, debug, static_init};
 
+mod app_id_assigner_name_metadata;
 mod checker_credentials_not_required;
 
 //------------------------------------------------------------------------------
@@ -21,6 +23,15 @@ mod checker_credentials_not_required;
 //------------------------------------------------------------------------------
 
 pub const NUM_PROCS: usize = 4;
+
+/// Syscall driver number for the board's second console, backed by the virtio
+/// console device rather than UART0.
+///
+/// This is a board-local number: it isn't part of the shared
+/// `capsules_core::driver::NUM` registry (which only has a slot for one,
+/// generic "the console"), since this board exposes two independent serial
+/// ports.
+const VIRTIO_CONSOLE_DRIVER_NUM: usize = 0xA0000;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -53,6 +64,24 @@ type LedDriver = capsules_core::led::LedDriver<'static, ScreenOnLedSingle, 4>;
 
 type ButtonDriver = capsules_extra::button_keyboard::ButtonKeyboard<'static>;
 
+/// Needed for the process info capsule.
+pub struct PMCapability;
+unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
+unsafe impl capabilities::ProcessStartCapability for PMCapability {}
+
+type ProcessInfoDriver = capsules_extra::process_info_driver::ProcessInfo<PMCapability>;
+
+type FlashHw = qemu_rv32_virt_chip::pflash::Pflash0<'static>;
+type IsolatedNonvolatileStorageDriver =
+    capsules_extra::isolated_nonvolatile_storage_driver::IsolatedNonvolatileStorage<
+        'static,
+        {
+            components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT
+        },
+    >;
+
+type FlashUser = capsules_core::virtualizers::virtual_flash::FlashUser<'static, FlashHw>;
+
 type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
 type SignatureVerifyInMemoryKeys =
     components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponentType<
@@ -74,10 +103,14 @@ type SignatureChecker = components::appid::checker_signature::AppCheckerSignatur
 //------------------------------------------------------------------------------
 
 struct Platform {
+    board_kernel: &'static kernel::Kernel,
     base: qemu_rv32_virt_lib::QemuRv32VirtPlatform,
     screen: Option<&'static ScreenDriver>,
     led: Option<&'static LedDriver>,
     buttons: Option<&'static ButtonDriver>,
+    process_info: &'static ProcessInfoDriver,
+    nonvolatile_storage: &'static IsolatedNonvolatileStorageDriver,
+    virtio_console: Option<&'static capsules_core::console::Console<'static>>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -107,7 +140,17 @@ impl SyscallDriverLookup for Platform {
                     f(None)
                 }
             }
-
+            capsules_extra::process_info_driver::DRIVER_NUM => f(Some(self.process_info)),
+            capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM => {
+                f(Some(self.nonvolatile_storage))
+            }
+            VIRTIO_CONSOLE_DRIVER_NUM => {
+                if let Some(virtio_console) = self.virtio_console {
+                    f(Some(virtio_console))
+                } else {
+                    f(None)
+                }
+            }
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -157,12 +200,129 @@ impl KernelResources<qemu_rv32_virt_lib::ChipHw> for Platform {
     }
 }
 
+// Print loaded processes when the loader finishes.
+impl kernel::process::ProcessLoadingAsyncClient for Platform {
+    fn process_loaded(&self, _result: Result<(), kernel::process::ProcessLoadError>) {}
+
+    fn process_loading_finished(&self) {
+        kernel::debug!("Processes loaded:");
+        for (i, p) in self
+            .board_kernel
+            .process_iter_capability(&create_capability!(
+                capabilities::ProcessManagementCapability
+            ))
+            .enumerate()
+        {
+            kernel::debug!(
+                "[{}] {} ShortId={}",
+                i,
+                p.get_process_name(),
+                p.short_app_id()
+            );
+        }
+    }
+}
+
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, base_platform, chip, _peripherals) = qemu_rv32_virt_lib::start();
+    let (board_kernel, base_platform, chip, peripherals) = qemu_rv32_virt_lib::start();
+
+    //--------------------------------------------------------------------------
+    // VIRTIO CONSOLE (second UART)
+    //--------------------------------------------------------------------------
+
+    // Look for a virtio console device (QEMU's `virtio-serial-device`) on
+    // one of the board's virtio-mmio slots. If found, wire it up as a
+    // second syscall-facing console, under its own driver number (see
+    // `VIRTIO_CONSOLE_DRIVER_NUM`) since it's a separate serial port from
+    // the board's primary UART0 console.
+    let virtio_console_driver: Option<&'static capsules_core::console::Console<'static>> = {
+        use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
+        use qemu_rv32_virt_chip::virtio::devices::virtio_console::VirtIOConsole;
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+        use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
+        };
+        use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+        let console_idx = peripherals
+            .virtio_mmio
+            .iter()
+            .position(|dev| matches!(dev.query(), Ok(VirtIODeviceType::Console)));
+
+        if let Some(console_idx) = console_idx {
+            let dma_fence = rv32i::dma_fence::RiscvCoherentDmaFence::new();
+
+            // Transmit queue (single-buffer chains: the whole tx_buffer is
+            // one descriptor, no header).
+            let tx_descriptors =
+                static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default());
+            let tx_available_ring =
+                static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default());
+            let tx_used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default());
+            let tx_queue = static_init!(
+                SplitVirtqueue<1, rv32i::dma_fence::RiscvCoherentDmaFence>,
+                SplitVirtqueue::new(tx_descriptors, tx_available_ring, tx_used_ring, dma_fence),
+            );
+            tx_queue.set_transport(&peripherals.virtio_mmio[console_idx]);
+
+            // Receive queue (single one-byte buffer, re-posted for every
+            // received byte; see `virtio_console`'s module documentation).
+            let rx_descriptors =
+                static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default());
+            let rx_available_ring =
+                static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default());
+            let rx_used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default());
+            let rx_queue = static_init!(
+                SplitVirtqueue<1, rv32i::dma_fence::RiscvCoherentDmaFence>,
+                SplitVirtqueue::new(rx_descriptors, rx_available_ring, rx_used_ring, dma_fence),
+            );
+            rx_queue.set_transport(&peripherals.virtio_mmio[console_idx]);
+
+            let rx_chunk = static_init!([u8; 1], [0; 1]);
+
+            let virtio_console = static_init!(
+                VirtIOConsole<'static, rv32i::dma_fence::RiscvCoherentDmaFence>,
+                VirtIOConsole::new(tx_queue, rx_queue, rx_chunk),
+            );
+            tx_queue.set_client(virtio_console);
+            rx_queue.set_client(virtio_console);
+
+            let mmio_queues = static_init!([&'static dyn Virtqueue; 2], [rx_queue, tx_queue]);
+            peripherals.virtio_mmio[console_idx]
+                .initialize(virtio_console, mmio_queues)
+                .unwrap();
+
+            // Wire the virtio console up as a syscall-facing console driver,
+            // the same way the board's primary UART0 console is set up (via
+            // a `MuxUart`, even though this device currently has only one
+            // user), just under a different driver number.
+            let virtio_uart_mux =
+                components::console::UartMuxComponent::new(virtio_console, 115200)
+                    .finalize(components::uart_mux_component_static!());
+
+            let console = components::console::ConsoleComponent::new(
+                board_kernel,
+                VIRTIO_CONSOLE_DRIVER_NUM,
+                virtio_uart_mux,
+                create_capability!(capabilities::MemoryAllocationCapability),
+            )
+            .finalize(components::console_component_static!(2048, 2048));
+
+            debug!(
+                "Found VirtIO Console device, registered as console driver {:#x}",
+                VIRTIO_CONSOLE_DRIVER_NUM
+            );
+
+            Some(console)
+        } else {
+            debug!("VirtIO Console device not found");
+            None
+        }
+    };
 
     //--------------------------------------------------------------------------
     // SCREEN
@@ -250,15 +410,59 @@ pub unsafe fn main() {
         .finalize(components::keyboard_button_component_static!())
     });
 
-    let platform = Platform {
-        base: base_platform,
-        screen,
-        led,
-        buttons,
-    };
+    //--------------------------------------------------------------------------
+    // PROCESS INFO FOR USERSPACE
+    //--------------------------------------------------------------------------
+
+    let process_info = components::process_info_driver::ProcessInfoComponent::new(
+        board_kernel,
+        capsules_extra::process_info_driver::DRIVER_NUM,
+        PMCapability,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::process_info_component_static!(PMCapability));
+
+    //--------------------------------------------------------------------------
+    // VIRTUAL FLASH
+    //--------------------------------------------------------------------------
+
+    let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.pflash)
+        .finalize(components::flash_mux_component_static!(FlashHw));
+
+    // Create a virtual flash user for (isolated) nonvolatile storage.
+    let virtual_flash_nvm = components::flash::FlashUserComponent::new(mux_flash)
+        .finalize(components::flash_user_component_static!(FlashHw));
+
+    //--------------------------------------------------------------------------
+    // NONVOLATILE STORAGE
+    //--------------------------------------------------------------------------
+
+    // Reserve the last sector of pflash for userspace-accessible isolated
+    // nonvolatile storage, leaving the rest of the device for (dynamically
+    // loaded) app images.
+    const ISOLATED_STORAGE_SIZE: usize = qemu_rv32_virt_chip::pflash::PFLASH0_SECTOR_SIZE;
+    const ISOLATED_STORAGE_START: usize =
+        qemu_rv32_virt_chip::pflash::PFLASH0_SIZE - ISOLATED_STORAGE_SIZE;
+
+    let nonvolatile_storage = components::isolated_nonvolatile_storage::IsolatedNonvolatileStorageComponent::new(
+        board_kernel,
+        capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
+        virtual_flash_nvm,
+        ISOLATED_STORAGE_START,
+        ISOLATED_STORAGE_SIZE,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::isolated_nonvolatile_storage_component_static!(
+        FlashUser,
+        { components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT }
+    ));
+
+    //--------------------------------------------------------------------------
+    // PROCESS CONSOLE
+    //--------------------------------------------------------------------------
 
     // Start the process console:
-    let _ = platform.base.process_console_start();
+    let _ = base_platform.process_console_start();
 
     //--------------------------------------------------------------------------
     // CREDENTIAL CHECKING
@@ -348,21 +552,22 @@ pub unsafe fn main() {
         ));
 
     // Wrap the policy checker with a custom version that does not require valid
-    // credentials to load the app. We are ok with this for this tutorial
-    // because the verifying key (or lack thereof) is encoded in the AppId so
-    // we can still check if an app is signed or not.
+    // credentials to load the app. We are ok with this because the verifying
+    // key (or lack thereof) is encoded in the AppId so we can still check if
+    // an app is signed or not.
     let checking_policy = static_init!(
-        checker_credentials_not_required::AppCheckerCredentialsNotRequired<
-            SignatureChecker,
-        >,
+        checker_credentials_not_required::AppCheckerCredentialsNotRequired<SignatureChecker>,
         checker_credentials_not_required::AppCheckerCredentialsNotRequired::new(
             checking_policy_signature
         ),
     );
 
-    // Create the AppID assigner.
-    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
-        .finalize(components::appid_assigner_names_component_static!());
+    // Create the AppID assigner — encodes credential metadata in the high bits
+    // of the ShortId so the syscall filter can read which key signed each app.
+    let assigner = static_init!(
+        app_id_assigner_name_metadata::AppIdAssignerNameMetadata,
+        app_id_assigner_name_metadata::AppIdAssignerNameMetadata::new()
+    );
 
     // Create the process checking machine.
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
@@ -372,11 +577,18 @@ pub unsafe fn main() {
     // STORAGE PERMISSIONS
     //--------------------------------------------------------------------------
 
+    kernel::create_typed_capability!(app_storage_capability, AppStoreCap:
+        kernel::capabilities::ApplicationStorageCapability
+    );
     let storage_permissions_policy =
-        components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
-            components::storage_permissions_null_component_static!(
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
+            app_storage_capability,
+        )
+        .finalize(
+            components::storage_permissions_individual_component_static!(
                 qemu_rv32_virt_lib::ChipHw,
                 kernel::process::ProcessStandardDebugFull,
+                AppStoreCap
             ),
         );
 
@@ -406,7 +618,7 @@ pub unsafe fn main() {
     );
 
     // Create and start the asynchronous process loader.
-    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+    let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
         board_kernel,
         chip,
@@ -423,10 +635,29 @@ pub unsafe fn main() {
         NUM_PROCS
     ));
 
+    //--------------------------------------------------------------------------
+    // PLATFORM SETUP AND START KERNEL LOOP
+    //--------------------------------------------------------------------------
+
+    let platform = static_init!(
+        Platform,
+        Platform {
+            board_kernel,
+            base: base_platform,
+            screen,
+            led,
+            buttons,
+            process_info,
+            nonvolatile_storage,
+            virtio_console: virtio_console_driver,
+        }
+    );
+    loader.set_client(platform);
+
     debug!("Starting main kernel loop.");
 
     board_kernel.kernel_loop(
-        &platform,
+        platform,
         chip,
         Some(&platform.base.ipc),
         &main_loop_capability,
