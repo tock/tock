@@ -112,10 +112,25 @@ impl<const NUM_PINS: usize> SyscallDriver for Pwm<'_, NUM_PINS> {
                         // Duty cycle is represented as a 4 digit number, so we divide by 10000 to get the percentage of the max duty cycle.
                         // e.g.: a duty cycle of 60.5% is represented as 6050, so the actual value of the duty cycle is
                         // 6050 * max_duty_cycle / 10000 = 0.605 * max_duty_cycle
+                        //
+                        // However, the max duty cycle might be large enough to overflow a u32, so
+                        // we cast to u64 to do the calculation.
+                        const fn ratio_max_duty_cycle(
+                            duty_cycle_hundredths: usize,
+                            max_cycles: usize,
+                        ) -> usize {
+                            let cycles_hundredths: u64 =
+                                duty_cycle_hundredths as u64 * max_cycles as u64;
+                            (cycles_hundredths / 10000) as usize
+                        }
+
                         self.pwm_pins[pin]
                             .start(
                                 frequency_hz,
-                                duty_cycle * self.pwm_pins[pin].get_maximum_duty_cycle() / 10000,
+                                ratio_max_duty_cycle(
+                                    duty_cycle,
+                                    self.pwm_pins[pin].get_maximum_duty_cycle(),
+                                ),
                             )
                             .into()
                     }
