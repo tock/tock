@@ -11,31 +11,33 @@ use crate::ficr;
 use enum_primitive::cast::FromPrimitive;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 use crate::gpio::Pin;
 
-#[repr(C)]
-pub struct UicrRegisters {
-    /// Mapping of the nRESET function (see POWER chapter for details)
-    /// - Address: 0x200 - 0x204
-    pselreset0: ReadWrite<u32, Pselreset::Register>,
-    /// Mapping of the nRESET function (see POWER chapter for details)
-    /// - Address: 0x204 - 0x208
-    pselreset1: ReadWrite<u32, Pselreset::Register>,
-    /// Access Port protection
-    /// - Address: 0x208 - 0x20c
-    approtect: ReadWrite<u32, ApProtect::Register>,
-    /// Setting of pins dedicated to NFC functionality: NFC antenna or GPIO
-    /// - Address: 0x20c - 0x210
-    nfcpins: ReadWrite<u32, NfcPins::Register>,
-    _reserved1: [u32; 60],
-    /// External circuitry to be supplied from VDD pin.
-    /// - Address: 0x300 - 0x304
-    extsupply: ReadWrite<u32, ExtSupply::Register>,
-    /// GPIO reference voltage
-    /// - Address: 0x304 - 0x308
-    regout0: ReadWrite<u32, RegOut::Register>,
+register_structs! {
+    pub UicrRegisters {
+        /// Mapping of the nRESET function (see POWER chapter for details)
+        /// - Address: 0x200 - 0x204
+        (0x00 => pselreset0: ReadWrite<u32, Pselreset::Register>),
+        /// Mapping of the nRESET function (see POWER chapter for details)
+        /// - Address: 0x204 - 0x208
+        (0x04 => pselreset1: ReadWrite<u32, Pselreset::Register>),
+        /// Access Port protection
+        /// - Address: 0x208 - 0x20c
+        (0x08 => approtect: ReadWrite<u32, ApProtect::Register>),
+        /// Setting of pins dedicated to NFC functionality: NFC antenna or GPIO
+        /// - Address: 0x20c - 0x210
+        (0x0C => nfcpins: ReadWrite<u32, NfcPins::Register>),
+        (0x10 => _reserved1),
+        /// External circuitry to be supplied from VDD pin.
+        /// - Address: 0x300 - 0x304
+        (0x100 => extsupply: ReadWrite<u32, ExtSupply::Register>),
+        /// GPIO reference voltage
+        /// - Address: 0x304 - 0x308
+        (0x104 => regout0: ReadWrite<u32, RegOut::Register>),
+        (0x108 => @END),
+    }
 }
 
 register_bitfields! [u32,

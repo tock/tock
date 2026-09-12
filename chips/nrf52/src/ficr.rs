@@ -14,66 +14,50 @@
 use core::fmt;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::{ReadOnly, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, register_bitfields, register_structs};
 
-/// Struct of the FICR registers
-///
-/// Section 13.1 of <https://infocenter.nordicsemi.com/pdf/nRF52832_PS_v1.0.pdf>
-/// Section  4.4 of <https://infocenter.nordicsemi.com/pdf/nRF52840_PS_v1.1.pdf>
-/// The structure is identical for the data mapped here, differences start
-/// at address 0x350.
-#[repr(C)]
-pub struct FicrRegisters {
-    /// Reserved
-    _reserved0: [u32; 4],
-    /// Code memory page size
-    /// - Address: 0x010 - 0x014
-    codepagesize: ReadOnly<u32, CodePageSize::Register>,
-    /// Code memory size
-    /// - Address: 0x014 - 0x018
-    codesize: ReadOnly<u32, CodeSize::Register>,
-    /// Reserved
-    _reserved1: [u32; 18],
-    /// Device identifier
-    /// - Address: 0x060 - 0x064
-    deviceid0: ReadOnly<u32, DeviceId0::Register>,
-    /// Device identifier
-    /// - Address: 0x064 - 0x068
-    deviceid1: ReadOnly<u32, DeviceId1::Register>,
-    /// Reserved
-    _reserved2: [u32; 6],
-    /// Encryption Root
-    /// - Address: 0x080 - 0x090
-    er: [ReadOnly<u32, EncryptionRoot::Register>; 4],
-    /// Identity Root
-    /// - Address: 0x090 - 0x0A0
-    ir: [ReadOnly<u32, IdentityRoot::Register>; 4],
-    /// Device address type
-    /// - Address: 0x0A0 - 0x0A4
-    deviceaddrtype: ReadOnly<u32, DeviceAddressType::Register>,
-    /// Device address
-    /// - Address: 0x0A4 - 0x0A8
-    deviceaddr0: ReadOnly<u32, DeviceAddress0::Register>,
-    /// Device address
-    /// - Address: 0x0A8 - 0x0AC
-    deviceaddr1: ReadOnly<u32, DeviceAddress1::Register>,
-    /// Reserved
-    _reserved3: [u32; 21],
-    /// Part code
-    /// - Address: 0x100 - 0x104
-    info_part: ReadOnly<u32, InfoPart::Register>,
-    /// Part Variant, Hardware version and Production configuration
-    /// - Address: 0x104 - 0x108
-    info_variant: ReadOnly<u32, InfoVariant::Register>,
-    /// Package option
-    /// - Address: 0x108 - 0x10C
-    info_package: ReadOnly<u32, InfoPackage::Register>,
-    /// RAM variant
-    /// - Address: 0x10C - 0x110
-    info_ram: ReadOnly<u32, InfoRam::Register>,
-    /// Flash variant
-    /// - Address: 0x110 - 0x114
-    info_flash: ReadOnly<u32, InfoFlash::Register>,
+register_structs! {
+    /// Struct of the FICR registers
+    ///
+    /// Section 13.1 of <https://infocenter.nordicsemi.com/pdf/nRF52832_PS_v1.0.pdf>
+    /// Section  4.4 of <https://infocenter.nordicsemi.com/pdf/nRF52840_PS_v1.1.pdf>
+    /// The structure is identical for the data mapped here, differences start
+    /// at address 0x350.
+    pub FicrRegisters {
+        (0x000 => _reserved0),
+        /// Code memory page size
+        (0x010 => codepagesize: ReadOnly<u32, CodePageSize::Register>),
+        /// Code memory size
+        (0x014 => codesize: ReadOnly<u32, CodeSize::Register>),
+        (0x018 => _reserved1),
+        /// Device identifier
+        (0x060 => deviceid0: ReadOnly<u32, DeviceId0::Register>),
+        /// Device identifier
+        (0x064 => deviceid1: ReadOnly<u32, DeviceId1::Register>),
+        (0x068 => _reserved2),
+        /// Encryption Root
+        (0x080 => er: [ReadOnly<u32, EncryptionRoot::Register>; 4]),
+        /// Identity Root
+        (0x090 => ir: [ReadOnly<u32, IdentityRoot::Register>; 4]),
+        /// Device address type
+        (0x0A0 => deviceaddrtype: ReadOnly<u32, DeviceAddressType::Register>),
+        /// Device address
+        (0x0A4 => deviceaddr0: ReadOnly<u32, DeviceAddress0::Register>),
+        /// Device address
+        (0x0A8 => deviceaddr1: ReadOnly<u32, DeviceAddress1::Register>),
+        (0x0AC => _reserved3),
+        /// Part code
+        (0x100 => info_part: ReadOnly<u32, InfoPart::Register>),
+        /// Part Variant, Hardware version and Production configuration
+        (0x104 => info_variant: ReadOnly<u32, InfoVariant::Register>),
+        /// Package option
+        (0x108 => info_package: ReadOnly<u32, InfoPackage::Register>),
+        /// RAM variant
+        (0x10C => info_ram: ReadOnly<u32, InfoRam::Register>),
+        /// Flash variant
+        (0x110 => info_flash: ReadOnly<u32, InfoFlash::Register>),
+        (0x114 => @END),
+    }
 }
 
 register_bitfields! [u32,

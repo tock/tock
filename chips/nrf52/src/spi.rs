@@ -43,52 +43,81 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 use nrf5x::pinmux::Pinmux;
 
-#[repr(C)]
-pub struct SpimRegisters {
-    _reserved0: [u8; 16],                            // reserved
-    tasks_start: WriteOnly<u32, TASK::Register>,     // Start SPI transaction
-    tasks_stop: WriteOnly<u32, TASK::Register>,      // Stop SPI transaction
-    _reserved1: [u8; 4],                             // reserved
-    tasks_suspend: WriteOnly<u32, TASK::Register>,   // Suspend SPI transaction
-    tasks_resume: WriteOnly<u32, TASK::Register>,    // Resume SPI transaction
-    _reserved2: [u8; 224],                           // reserved
-    events_stopped: ReadWrite<u32, EVENT::Register>, // SPI transaction has stopped
-    _reserved3: [u8; 8],                             // reserved
-    events_endrx: ReadWrite<u32, EVENT::Register>,   // End of RXD buffer reached
-    _reserved4: [u8; 4],                             // reserved
-    events_end: ReadWrite<u32, EVENT::Register>,     // End of RXD buffer and TXD buffer reached
-    _reserved5: [u8; 4],                             // reserved
-    events_endtx: ReadWrite<u32, EVENT::Register>,   // End of TXD buffer reached
-    _reserved6: [u8; 40],                            // reserved
-    events_started: ReadWrite<u32, EVENT::Register>, // Transaction started
-    _reserved7: [u8; 176],                           // reserved
-    shorts: ReadWrite<u32>,                          // Shortcut register
-    _reserved8: [u8; 256],                           // reserved
-    intenset: ReadWrite<u32, INTE::Register>,        // Enable interrupt
-    intenclr: ReadWrite<u32, INTE::Register>,        // Disable interrupt
-    _reserved9: [u8; 500],                           // reserved
-    enable: ReadWrite<u32, ENABLE::Register>,        // Enable SPIM
-    _reserved10: [u8; 4],                            // reserved
-    psel_sck: ReadWrite<u32>,                        // Pin select for SCK
-    psel_mosi: ReadWrite<u32>,                       // Pin select for MOSI signal
-    psel_miso: ReadWrite<u32>,                       // Pin select for MISO signal
-    _reserved11: [u8; 16],                           // reserved
-    frequency: ReadWrite<u32>,                       // SPI frequency
-    _reserved12: [u8; 12],                           // reserved
-    rxd_ptr: ReadWrite<u32>,                         // Data pointer
-    rxd_maxcnt: ReadWrite<u32, MAXCNT::Register>,    // Maximum number of bytes in receive buffer
-    rxd_amount: ReadWrite<u32>,                      // Number of bytes transferred
-    rxd_list: ReadWrite<u32>,                        // EasyDMA list type
-    txd_ptr: ReadWrite<u32>,                         // Data pointer
-    txd_maxcnt: ReadWrite<u32, MAXCNT::Register>,    // Maximum number of bytes in transmit buffer
-    txd_amount: ReadWrite<u32>,                      // Number of bytes transferred
-    txd_list: ReadWrite<u32>,                        // EasyDMA list type
-    config: ReadWrite<u32, CONFIG::Register>,        // Configuration register
-    _reserved13: [u8; 104],                          // reserved
-    orc: ReadWrite<u32>,                             // Over-read character.
+register_structs! {
+    pub SpimRegisters {
+        (0x000 => _reserved0),
+        /// Start SPI transaction
+        (0x010 => tasks_start: WriteOnly<u32, TASK::Register>),
+        /// Stop SPI transaction
+        (0x014 => tasks_stop: WriteOnly<u32, TASK::Register>),
+        (0x018 => _reserved1),
+        /// Suspend SPI transaction
+        (0x01C => tasks_suspend: WriteOnly<u32, TASK::Register>),
+        /// Resume SPI transaction
+        (0x020 => tasks_resume: WriteOnly<u32, TASK::Register>),
+        (0x024 => _reserved2),
+        /// SPI transaction has stopped
+        (0x104 => events_stopped: ReadWrite<u32, EVENT::Register>),
+        (0x108 => _reserved3),
+        /// End of RXD buffer reached
+        (0x110 => events_endrx: ReadWrite<u32, EVENT::Register>),
+        (0x114 => _reserved4),
+        /// End of RXD buffer and TXD buffer reached
+        (0x118 => events_end: ReadWrite<u32, EVENT::Register>),
+        (0x11C => _reserved5),
+        /// End of TXD buffer reached
+        (0x120 => events_endtx: ReadWrite<u32, EVENT::Register>),
+        (0x124 => _reserved6),
+        /// Transaction started
+        (0x14C => events_started: ReadWrite<u32, EVENT::Register>),
+        (0x150 => _reserved7),
+        /// Shortcut register
+        (0x200 => shorts: ReadWrite<u32>),
+        (0x204 => _reserved8),
+        /// Enable interrupt
+        (0x304 => intenset: ReadWrite<u32, INTE::Register>),
+        /// Disable interrupt
+        (0x308 => intenclr: ReadWrite<u32, INTE::Register>),
+        (0x30C => _reserved9),
+        /// Enable SPIM
+        (0x500 => enable: ReadWrite<u32, ENABLE::Register>),
+        (0x504 => _reserved10),
+        /// Pin select for SCK
+        (0x508 => psel_sck: ReadWrite<u32>),
+        /// Pin select for MOSI signal
+        (0x50C => psel_mosi: ReadWrite<u32>),
+        /// Pin select for MISO signal
+        (0x510 => psel_miso: ReadWrite<u32>),
+        (0x514 => _reserved11),
+        /// SPI frequency
+        (0x524 => frequency: ReadWrite<u32>),
+        (0x528 => _reserved12),
+        /// Data pointer
+        (0x534 => rxd_ptr: ReadWrite<u32>),
+        /// Maximum number of bytes in receive buffer
+        (0x538 => rxd_maxcnt: ReadWrite<u32, MAXCNT::Register>),
+        /// Number of bytes transferred
+        (0x53C => rxd_amount: ReadWrite<u32>),
+        /// EasyDMA list type
+        (0x540 => rxd_list: ReadWrite<u32>),
+        /// Data pointer
+        (0x544 => txd_ptr: ReadWrite<u32>),
+        /// Maximum number of bytes in transmit buffer
+        (0x548 => txd_maxcnt: ReadWrite<u32, MAXCNT::Register>),
+        /// Number of bytes transferred
+        (0x54C => txd_amount: ReadWrite<u32>),
+        /// EasyDMA list type
+        (0x550 => txd_list: ReadWrite<u32>),
+        /// Configuration register
+        (0x554 => config: ReadWrite<u32, CONFIG::Register>),
+        (0x558 => _reserved13),
+        /// Over-read character.
+        (0x5C0 => orc: ReadWrite<u32>),
+        (0x5C4 => @END),
+    }
 }
 
 register_bitfields![u32,
