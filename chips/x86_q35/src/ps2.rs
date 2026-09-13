@@ -114,7 +114,7 @@ impl core::fmt::Display for Ps2Health {
 
 /// Note: There is no hardware interrupt when the input buffer empties, so we must poll bit 1.
 /// See OSDev documentation:
-/// https://wiki.osdev.org/I8042_PS/2_Controller#Status_Register
+/// <https://wiki.osdev.org/I8042_PS/2_Controller#Status_Register>
 ///
 /// Block until the controller’s input buffer is empty (ready for a command).
 #[inline(always)]
@@ -131,7 +131,7 @@ fn wait_ib_empty_with_timeout(limit: usize) -> Result<(), Ps2Error> {
 
 /// Data-ready events trigger IRQ1, handled asynchronously in `handle_interrupt()`.
 /// See OSDev documentation:
-/// https://wiki.osdev.org/I8042_PS/2_Controller#Status_Register
+/// <https://wiki.osdev.org/I8042_PS/2_Controller#Status_Register>
 ///
 /// Block until there is data ready to read in the output buffer.
 #[inline(always)]
