@@ -5,10 +5,11 @@
 //! PIO gSPI (generic SPI) support
 
 use crate::dma::{self, DmaChannel, DmaChannelClient};
-use crate::gpio::RPGpioPin;
+use crate::gpio::{RPGpio, RPGpioPin};
 use crate::pio::{Pio, PioSmClient, SMNumber, StateMachineConfiguration};
+use enum_primitive::cast::FromPrimitive;
 use kernel::ErrorCode;
-use kernel::hil::gpio::{self, Output as _};
+use kernel::hil::gpio::{self, Configure as _, Output as _};
 use kernel::hil::spi::{self, SpiMasterDevice};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -114,8 +115,13 @@ impl<'a> PioGSpi<'a> {
             ..Default::default()
         };
 
-        self.pio
-            .cyw43_spi_program_init(self.sm_number, self.clock_pin, self.dio_pin, &config);
+        cyw43_spi_program_init(
+            self.pio,
+            self.sm_number,
+            self.clock_pin,
+            self.dio_pin,
+            &config,
+        );
 
         self.pio
             .set_irq_source(0, crate::pio::InterruptSources::Interrupt0, true);
@@ -267,4 +273,50 @@ impl PioSmClient for PioGSpi<'_> {
         self.pio.interrupt_clear(0);
         self.irq_client.map(|client| client.fired());
     }
+}
+
+/// Load and start the CYW43 gSPI program on one state machine.
+///
+/// The half-duplex bus needs pad settings the generic PIO API does not
+/// expose, which is why this lives with its one caller rather than in
+/// `pio.rs`.
+fn cyw43_spi_program_init(
+    pio: &Pio,
+    sm_number: SMNumber,
+    clock_pin: u32,
+    dio_pin: u32,
+    config: &StateMachineConfiguration,
+) {
+    let sm = pio.sm(sm_number);
+    sm.set_enabled(false);
+    sm.config(config);
+    let clock_pin_handle =
+        RPGpioPin::new(RPGpio::from_u32(clock_pin).expect("GPIO pin must be 0 to 29"));
+    let dio_pin_handle =
+        RPGpioPin::new(RPGpio::from_u32(dio_pin).expect("GPIO pin must be 0 to 29"));
+    pio.gpio_init(&clock_pin_handle);
+    pio.gpio_init(&dio_pin_handle);
+
+    dio_pin_handle.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+    dio_pin_handle.set_schmitt(true);
+    pio.set_input_sync_bypass(&dio_pin_handle, true);
+    dio_pin_handle.set_drive_strength(crate::gpio::DriveStrength::Drive12ma);
+    dio_pin_handle.set_slew_rate(crate::gpio::SlewRate::Fast);
+    dio_pin_handle.activate_pads();
+
+    clock_pin_handle.set_drive_strength(crate::gpio::DriveStrength::Drive12ma);
+    clock_pin_handle.set_slew_rate(crate::gpio::SlewRate::Fast);
+    clock_pin_handle.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+    clock_pin_handle.set_schmitt(true);
+    clock_pin_handle.set_slew_rate(crate::gpio::SlewRate::Slow);
+    clock_pin_handle.activate_pads();
+
+    sm.set_pins_dirs(dio_pin, 1, true);
+    sm.set_pins_dirs(clock_pin, 1, true);
+
+    sm.set_pins(&[&clock_pin_handle, &dio_pin_handle], false);
+
+    sm.init();
+    sm.clear_fifos();
+    sm.set_enabled(true);
 }
