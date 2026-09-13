@@ -11,16 +11,19 @@ board developed by the Raspberry Pi Foundation based on the RP2040 chip.
 
 First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
-## Installing elf2uf2-rs
+## Installing picotool
 
-The Nano RP2040 uses UF2 files for flashing. Tock compiles to an ELF file.
-The `elf2uf2-rs` utility is needed to transform the Tock ELF file into an UF2 file.
+The RP2040 uses UF2 files for flashing. `tockloader` builds a flash image that
+holds the kernel and any applications, and the `picotool` utility transforms that
+image into a UF2 file.
 
-To install `elf2uf2`, run the commands:
+To install `picotool`, check the instructions from their GitHub [page](https://github.com/raspberrypi/picotool).
 
-```bash
-$ cargo install elf2uf2-rs
-```
+## Installing tockloader
+
+`tockloader` writes the kernel and the applications into the flash image this
+board is programmed from. See the
+[Getting Started guide](../../doc/Getting_Started.md) for how to install it.
 
 ## Flashing the kernel
 
@@ -31,7 +34,8 @@ The Raspberry Pi Pico RP2040 Connect can be programmed using its bootloader, whi
 To flash the Pico RP2040, it needs to be put into BOOTSEL mode. This will mount
 a flash drive that allows one to copy a UF2 file. To enter BOOTSEL mode, press the BOOTSEL button and hold it while you connect the other end of the micro USB cable to your computer.
 
-Then `cd` into `boards/raspberry_pi_pico` directory and run:
+Then `cd` into `boards/pico_explorer_base` directory and run `make init` once to
+point `tockloader` at this board's flash image, followed by:
 
 ```bash
 $ make flash
@@ -49,9 +53,11 @@ $ make flash-debug
 
 Enter BOOTSEL mode.
 
-Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
+Apps are built out-of-tree. Once an app is built, install it into the flash image
+and write that image to the board:
 ```bash
-$ APP="<path to app's tbf file>" make program
+$ tockloader install --local-board <path to app's .tab file>
+$ make flash
 ```
 
 ## Debugging
@@ -152,12 +158,15 @@ $ arm-none-eabi-gdb tock/target/thumbv6m-none-eabi/release/raspberry_pi_pico.elf
 ```
 ## Flashing app
 
-Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
+Apps are built out-of-tree. Once an app is built, install it into the flash image
+and write that image to the board over SWD:
 ```bash
-$ make program
+$ tockloader install --local-board <path to app's .tab file>
+$ make flash-openocd
 ```
 
-This will generate a new ELF file that can be deployed on the Raspberry Pi Pico via gdb and OpenOCD as described in the [section above](#flash-the-tock-kernel).
+The gdb route in the section above loads the kernel ELF, and carries no
+application.
 
 ## Book
 

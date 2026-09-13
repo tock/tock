@@ -10,16 +10,19 @@ board built using the Raspberry Pi Foundation's RP2040 chip.
 
 First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
-## Installing elf2uf2-rs
+## Installing picotool
 
-The Nano RP2040 uses UF2 files for flashing. Tock compiles to an ELF file.
-The `elf2uf2-rs` utility is needed to transform the Tock ELF file into an UF2 file.
+The RP2040 uses UF2 files for flashing. `tockloader` builds a flash image that
+holds the kernel and any applications, and the `picotool` utility transforms that
+image into a UF2 file.
 
-To install `elf2uf2`, run the commands:
+To install `picotool`, check the instructions from their GitHub [page](https://github.com/raspberrypi/picotool).
 
-```bash
-$ cargo install elf2uf2-rs
-```
+## Installing tockloader
+
+`tockloader` writes the kernel and the applications into the flash image this
+board is programmed from. See the
+[Getting Started guide](../../doc/Getting_Started.md) for how to install it.
 
 ## Flashing the kernel
 
@@ -41,7 +44,8 @@ the device can be [forced into BOOTSEL mode using a jumper wire](https://docs.ar
 4. Wait for the flash drive to mount
 5. Disconnect the board from USB (*very important*)
 
-`cd` into `boards/nano_rp2040_connect` directory and run:
+`cd` into `boards/nano_rp2040_connect` directory and run `make init` once to
+point `tockloader` at this board's flash image, followed by:
 
 ```bash
 $ make flash
@@ -59,9 +63,11 @@ $ make flash-debug
 
 Enter BOOTSEL mode.
 
-Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
+Apps are built out-of-tree. Once an app is built, install it into the flash image
+and write that image to the board:
 ```bash
-$ APP="<path to app's tbf file>" make flash-app
+$ tockloader install --local-board <path to app's .tab file>
+$ make flash
 ```
 
 ## Serial Interface
