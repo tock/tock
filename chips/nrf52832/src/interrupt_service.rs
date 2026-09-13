@@ -14,9 +14,13 @@ pub struct Nrf52832DefaultPeripherals<'a> {
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
 impl<'a> Nrf52832DefaultPeripherals<'a> {
-    pub unsafe fn new(ficr: &'a nrf52::ficr::Ficr, aes_ecb_buf: &'static mut [u8; 48]) -> Self {
+    pub unsafe fn new(
+        ficr: &'a nrf52::ficr::Ficr,
+        aes_ecb_buf: &'static mut [u8; 48],
+        pwm_buf: &'static mut [u16; 4],
+    ) -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf),
+            nrf52: Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf, pwm_buf),
             gpio_port: crate::gpio::nrf52832_gpio_create(),
         }
     }
