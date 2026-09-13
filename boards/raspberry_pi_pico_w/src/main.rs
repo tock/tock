@@ -131,8 +131,8 @@ pub unsafe fn start() -> (
         pio::SMNumber::SM0,
         peripherals.dma.channel(dma::Channel::Channel0),
         dma::Irq::Irq0,
-        RPGpio::GPIO29,
-        RPGpio::GPIO24,
+        peripherals.pins.get_pin(RPGpio::GPIO29),
+        peripherals.pins.get_pin(RPGpio::GPIO24),
         cs,
     )
     .finalize(pio_gpsi_component_static!());
