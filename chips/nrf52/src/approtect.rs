@@ -23,11 +23,8 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-const APPROTECT_BASE: StaticRef<ApprotectRegisters> =
-    unsafe { StaticRef::new(0x40000000 as *const ApprotectRegisters) };
-
 register_structs! {
-    ApprotectRegisters {
+    pub ApprotectRegisters {
         (0x000 => _reserved0),
         (0x550 => forceprotect: ReadWrite<u32, Forceprotect::Register>),
         (0x554 => _reserved1),
@@ -50,15 +47,17 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct Approtect {
+pub struct Approtect<'a> {
     registers: StaticRef<ApprotectRegisters>,
+    ficr: &'a ficr::Ficr,
 }
 
-impl Approtect {
-    pub const fn new() -> Approtect {
-        Approtect {
-            registers: APPROTECT_BASE,
-        }
+impl<'a> Approtect<'a> {
+    pub const fn new(
+        registers: StaticRef<ApprotectRegisters>,
+        ficr: &'a ficr::Ficr,
+    ) -> Approtect<'a> {
+        Approtect { registers, ficr }
     }
 
     /// Software disable the Access Port Protection mechanism.
@@ -70,8 +69,7 @@ impl Approtect {
     /// - <https://devzone.nordicsemi.com/f/nordic-q-a/96590/how-to-disable-approtect-permanently-dfu-is-needed>
     /// - <https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect>
     pub fn sw_disable_approtect(&self) {
-        let factory_config = ficr::Ficr::new();
-        match factory_config.variant() {
+        match self.ficr.variant() {
             ficr::Variant::AAF0 | ficr::Variant::Unspecified => {
                 // Newer revisions of the chip require setting the APPROTECT
                 // software register to `SwDisable`. We assume that an unspecified
