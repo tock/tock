@@ -1,12 +1,11 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025.
+// Copyright Tock Contributors 2026.
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
 use kernel::debug;
-use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::io_write::IoWrite;
@@ -81,24 +80,25 @@ impl IoWrite for Writer {
     }
 }
 
-/// Default panic handler for the Raspberry Pi Pico 2 board.
+/// Default panic handler for the Raspberry Pi Pico 2 W board.
 ///
-/// We just use the standard default provided by the debug module in the kernel.
+/// This board has no LED the kernel can reach on its own. GPIO 25 drives the
+/// radio's chip select rather than an LED, and the LED that does exist is pin
+/// 0 of the CYW43439, which needs the radio brought up before it can be lit.
+/// So the panic message goes out over the console and the board halts.
 #[cfg(not(test))]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    // LED is connected to GPIO 25
-
     use core::ptr::addr_of_mut;
-    let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25);
-    let led = &mut LedHigh::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
 
-    debug::panic_old(
-        &mut [led],
+    debug::panic_print_old(
         writer,
         pi,
         &cortexm33::support::nop,
         raspberry_pi_pico_2::PANIC_RESOURCES.get(),
-    )
+    );
+
+    // Loop forever
+    loop {}
 }
