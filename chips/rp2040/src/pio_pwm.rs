@@ -6,8 +6,9 @@
 
 //! Programmable Input Output (PIO) hardware test file.
 use crate::clocks::{self};
-use crate::gpio::RPGpio;
+use crate::gpio::{RPGpio, RPGpioPin};
 use crate::pio::{Pio, SMNumber, StateMachineConfiguration};
+use enum_primitive::cast::FromPrimitive;
 
 use kernel::utilities::cells::TakeCell;
 use kernel::{ErrorCode, hil};
@@ -68,7 +69,7 @@ impl hil::pwm::Pwm for PioPwm<'_> {
             let pwm_period = ((max_freq / frequency_hz) / 3) as u32;
             let sm_number = SMNumber::SM0;
             let duty_cycle = duty_cycle_percentage as u32;
-            pio.pwm_program_init(sm_number, pin_nr, pwm_period, &custom_config);
+            pwm_program_init(pio, sm_number, pin_nr, pwm_period, &custom_config);
             let _ = pio
                 .sm(sm_number)
                 .push_blocking(pwm_period * duty_cycle / (self.get_maximum_duty_cycle()) as u32);
@@ -92,4 +93,36 @@ impl hil::pwm::Pwm for PioPwm<'_> {
     fn get_maximum_frequency_hz(&self) -> usize {
         self.clocks.get_frequency(clocks::Clock::System) as usize
     }
+}
+
+/// Load and start the PWM program on one state machine.
+///
+/// The period is pushed to the FIFO and then moved into the ISR by hand,
+/// with a `pull` and an `out isr, 32` executed before the state machine is
+/// released. The program reloads the period from the ISR on every wrap, so
+/// it has to be there before the first one.
+fn pwm_program_init(
+    pio: &Pio,
+    sm_number: SMNumber,
+    pin: u32,
+    pwm_period: u32,
+    config: &StateMachineConfiguration,
+) {
+    let sm = pio.sm(sm_number);
+    // "pull" command created by pioasm
+    let pull_command = 0x8080_u16;
+    // "out isr, 32" command created by pioasm
+    let out_isr_32_command = 0x60c0_u16;
+    sm.config(config);
+    pio.gpio_init(&RPGpioPin::new(
+        RPGpio::from_u32(pin).expect("GPIO pin must be 0 to 29"),
+    ));
+    sm.set_enabled(false);
+    sm.set_pins_dirs(pin, 1, true);
+    sm.set_side_set_pins(pin, 1, false, true);
+    sm.init();
+    let _ = sm.push_blocking(pwm_period);
+    sm.exec(pull_command);
+    sm.exec(out_isr_32_command);
+    sm.set_enabled(true);
 }
