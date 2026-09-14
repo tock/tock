@@ -25,6 +25,7 @@ pub use cortexm::CortexMVariant;
 pub use cortexm::initialize_ram_jump_to_main;
 pub use cortexm::nvic;
 pub use cortexm::scb;
+pub use cortexm::semihosting;
 pub use cortexm::support;
 pub use cortexm::systick;
 pub use cortexm::thread_id;

@@ -16,6 +16,7 @@ SKIP = [
     "boards/build_scripts",
     "boards/components",
     "boards/nordic/nrf52_components",
+    "boards/qemu_arm_mps2/mps2_base",
     "boards/configurations",
     "boards/tutorials",
 ]
