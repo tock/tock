@@ -30,23 +30,18 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::debug::PanicResources;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::platform::chip::InterruptService;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::static_init;
 use kernel::utilities::single_thread_value::SingleThreadValue;
+use qemu_arm_mps2::{interrupts, uart};
 
 pub mod io;
-mod peripherals;
 mod ram_dynamic_binary_storage;
 mod ram_isolated_nonvolatile_storage;
 mod ram_nonvolatile_storage;
 
 kernel::stack_size! {0x2000}
-
-type ChipHw = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
-    'static,
-    qemu_arm_mps2_an386::CortexM4,
-    peripherals::Peripherals<'static>,
->;
 
 // How much nonvolatile storage space to allocate per-app.
 const APP_STORAGE_REGION_SIZE: usize = 2048;
@@ -57,14 +52,17 @@ const RAM_NONVOLATILE_STORAGE_SIZE: usize = 32768;
 static mut RAM_NONVOLATILE_STORAGE: [u8; RAM_NONVOLATILE_STORAGE_SIZE] =
     [0; RAM_NONVOLATILE_STORAGE_SIZE];
 
-// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
-    capsules_system::process_policies::StopWithDebugFaultPolicy {};
+//--------------------------------------------------------------------------
+// TYPES
+//--------------------------------------------------------------------------
 
-// A second console, on UART1, at an out-of-tree driver number: `mps2_base`
-// only wires UART0 up to the debug/process console, so apps that want a
-// dedicated second serial channel need their own `Console` here.
-const CONSOLE1_DRIVER_NUM: usize = 0x01000001;
+type ChipHw = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
+    'static,
+    qemu_arm_mps2_an386::CortexM4,
+    Peripherals<'static>,
+>;
+
+type UartHw = qemu_arm_mps2::uart::Uart<'static>;
 
 type NonvolatileStorageDriver =
     ram_isolated_nonvolatile_storage::RamIsolatedNonvolatileStorageComponentType<
@@ -84,10 +82,23 @@ type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
     DynamicBinaryStorageDriver,
 >;
 
+//--------------------------------------------------------------------------
+// KERNEL CONFIG
+//--------------------------------------------------------------------------
+
+// How should the kernel respond when a process faults.
+const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
+    capsules_system::process_policies::StopWithDebugFaultPolicy {};
+
 /// Board-owned panic-time resources, populated by `mps2_base` during boot
 /// and read back by the `#[panic_handler]` in `io.rs`.
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, mps2_base::ProcessPrinterInUse>> =
     SingleThreadValue::new();
+
+// A second console, on UART1, at an out-of-tree driver number: `mps2_base`
+// only wires UART0 up to the debug/process console, so apps that want a
+// dedicated second serial channel need their own `Console` here.
+const CONSOLE1_DRIVER_NUM: usize = 0x01000001;
 
 /// Supported drivers by the platform.
 struct Platform {
@@ -146,6 +157,34 @@ impl KernelResources<ChipHw> for Platform {
     }
 }
 
+/// This configuration's `InterruptService`, layering UART1 on top of the
+/// peripherals `mps2_base` already builds.
+pub struct Peripherals<'a> {
+    base: &'a qemu_arm_mps2::Mps2DefaultPeripherals<'a>,
+    pub uart1: &'a uart::Uart<'a>,
+}
+
+impl<'a> Peripherals<'a> {
+    pub fn new(
+        base: &'a qemu_arm_mps2::Mps2DefaultPeripherals<'a>,
+        uart1: &'a uart::Uart<'a>,
+    ) -> Self {
+        Self { base, uart1 }
+    }
+}
+
+impl<'a> InterruptService for Peripherals<'a> {
+    fn service_interrupt(&self, interrupt: u32) -> bool {
+        match interrupt {
+            interrupts::UART1_RX | interrupts::UART1_TX => {
+                self.uart1.handle_interrupt();
+                true
+            }
+            _ => self.base.service_interrupt(interrupt),
+        }
+    }
+}
+
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
@@ -168,15 +207,15 @@ pub unsafe fn main() {
     let (board_kernel, base_platform, chip, _base_peripherals) = unsafe {
         mps2_base::start_without_loading_processes::<
             qemu_arm_mps2_an386::CortexM4,
-            peripherals::Peripherals<'static>,
+            Peripherals<'static>,
             _,
         >(&PANIC_RESOURCES, |base_peripherals| {
             // The chip instance names the Cortex-M variant and our
             // `Peripherals` type concretely, which `static_init!()` cannot
             // do inside a generic function.
             let custom_peripherals = static_init!(
-                peripherals::Peripherals<'static>,
-                peripherals::Peripherals::new(base_peripherals, uart1)
+                Peripherals<'static>,
+                Peripherals::new(base_peripherals, uart1)
             );
             static_init!(ChipHw, ChipHw::new(custom_peripherals))
         })
@@ -209,41 +248,22 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // SECOND CONSOLE (UART1)
     //--------------------------------------------------------------------------
-    //
-    // QEMU's `mps2-an386` machine emulates five CMSDK UARTs; `mps2_base`
-    // only wires UART0 up (to the debug/process console). This gives
-    // userspace a second, independent serial channel over UART1 (`uart1`,
-    // allocated above so both this and `peripherals::Peripherals` could use
-    // it).
-    //
-    // `UartRxBuffer` sits between `uart1` and `Console` below, continuously
-    // collecting received bytes into its own ring buffer in the background,
-    // ahead of whenever the console side actually asks for them. `Console`
-    // is its only client, so it's built directly on top of `uart1_rx_buffer`
-    // with `DirectConsoleComponent` rather than through a `MuxUart`: the mux
-    // exists to share a UART between multiple clients, which doesn't apply
-    // here.
-    let uart1_rx_buffer = components::uart_rx_buffer::UartRxBufferComponent::new(uart1).finalize(
-        components::uart_rx_buffer_component_static!(qemu_arm_mps2::uart::Uart<'static>),
-    );
 
-    let console1 = components::console::DirectConsoleComponent::new(
+    let uart1_rx_buffer = components::uart_rx_buffer::UartRxBufferComponent::new(uart1)
+        .finalize(components::uart_rx_buffer_component_static!(UartHw));
+
+    let console1 = components::console::ConsoleNoMuxComponent::new(
         board_kernel,
         CONSOLE1_DRIVER_NUM,
         uart1_rx_buffer,
         115200,
         create_capability!(capabilities::MemoryAllocationCapability),
     )
-    .finalize(components::direct_console_component_static!(2048, 2048));
+    .finalize(components::console_no_mux_component_static!(2048, 2048));
 
     //--------------------------------------------------------------------------
     // APP IDENTIFIERS
     //--------------------------------------------------------------------------
-    //
-    // This configuration exists to test nonvolatile storage, not app
-    // credentials, so processes are approved unconditionally and identified
-    // by name. `IndividualStoragePermissions` only needs each process to
-    // have a `Fixed` `ShortId` to grant it access to its own storage region.
 
     let checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
         .finalize(components::app_checker_null_component_static!());
