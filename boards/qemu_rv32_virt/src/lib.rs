@@ -193,10 +193,8 @@ impl
 pub unsafe fn start() -> (
     &'static kernel::Kernel,
     QemuRv32VirtPlatform,
-    &'static qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
-        'static,
-        QemuRv32VirtDefaultPeripherals<'static>,
-    >,
+    &'static ChipHw,
+    &'static QemuRv32VirtDefaultPeripherals<'static>,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -801,5 +799,5 @@ pub unsafe fn start() -> (
         debug!("- VirtIO Input device not found, disabling Input");
     }
 
-    (board_kernel, platform, chip)
+    (board_kernel, platform, chip, peripherals)
 }
