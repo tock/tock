@@ -66,12 +66,6 @@ const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolic
 // dedicated second serial channel need their own `Console` here.
 const CONSOLE1_DRIVER_NUM: usize = 0x01000001;
 
-// Backing storage for `capsules_extra::uart_rx_buffer::UartRxBuffer`,
-// which sits between UART1 and its `Console` -- see the "SECOND CONSOLE"
-// section in `main()`.
-static mut UART1_RX_BYTE: [u8; 1] = [0; 1];
-static mut UART1_RX_RING: [u8; 512] = [0; 512];
-
 type NonvolatileStorageDriver =
     ram_isolated_nonvolatile_storage::RamIsolatedNonvolatileStorageComponentType<
         APP_STORAGE_REGION_SIZE,
@@ -223,24 +217,15 @@ pub unsafe fn main() {
     // it).
     //
     // `UartRxBuffer` sits between `uart1` and `Console` below, continuously
-    // collecting received bytes into its own 512-byte ring buffer in the
-    // background, ahead of whenever the console side actually asks for
-    // them. `Console` is its only client, so it's built directly on top of
-    // `uart1_rx_buffer` with `DirectConsoleComponent` rather than through a
-    // `MuxUart`: the mux exists to share a UART between multiple clients,
-    // which doesn't apply here.
-
-    // SAFETY: `main` runs once, so these are the only outstanding
-    // references to `UART1_RX_BYTE`/`UART1_RX_RING`.
-    let uart1_rx_byte: &'static mut [u8] = &mut *core::ptr::addr_of_mut!(UART1_RX_BYTE);
-    let uart1_rx_ring: &'static mut [u8] = &mut *core::ptr::addr_of_mut!(UART1_RX_RING);
-
-    let uart1_rx_buffer = static_init!(
-        capsules_extra::uart_rx_buffer::UartRxBuffer<'static>,
-        capsules_extra::uart_rx_buffer::UartRxBuffer::new(uart1, uart1_rx_byte, uart1_rx_ring)
+    // collecting received bytes into its own ring buffer in the background,
+    // ahead of whenever the console side actually asks for them. `Console`
+    // is its only client, so it's built directly on top of `uart1_rx_buffer`
+    // with `DirectConsoleComponent` rather than through a `MuxUart`: the mux
+    // exists to share a UART between multiple clients, which doesn't apply
+    // here.
+    let uart1_rx_buffer = components::uart_rx_buffer::UartRxBufferComponent::new(uart1).finalize(
+        components::uart_rx_buffer_component_static!(qemu_arm_mps2::uart::Uart<'static>),
     );
-    uart1_rx_buffer.register();
-    uart1_rx_buffer.start_receiving();
 
     let console1 = components::console::DirectConsoleComponent::new(
         board_kernel,

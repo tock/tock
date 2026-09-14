@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "an386-test-invs"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-extra",
@@ -748,7 +748,7 @@ dependencies = [
 
 [[package]]
 name = "mps2-an385"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm3",
  "kernel",
@@ -761,7 +761,7 @@ dependencies = [
 
 [[package]]
 name = "mps2-an386"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
  "kernel",
@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "mps2_base"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
  "capsules-system",
@@ -1332,14 +1332,14 @@ dependencies = [
 
 [[package]]
 name = "qemu_arm_mps2"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "kernel",
 ]
 
 [[package]]
 name = "qemu_arm_mps2-unsafe"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm",
  "kernel",
@@ -1348,14 +1348,14 @@ dependencies = [
 
 [[package]]
 name = "qemu_arm_mps2_an385"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm3",
 ]
 
 [[package]]
 name = "qemu_arm_mps2_an386"
-version = "0.2.3-dev"
+version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
 ]
