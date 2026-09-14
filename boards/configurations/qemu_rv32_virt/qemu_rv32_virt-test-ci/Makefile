@@ -12,6 +12,9 @@ BROKEN_QEMU_VERSIONS  := <= 8.1.5
 # pflash.
 PFLASH_IMAGE := qemu_rv32_virt-pflash0.bin
 
+QEMU_CMDLINE_EXTRA ?= \
+    -serial stdio \
+
 QEMU_BASE_CMDLINE := \
     $(QEMU_CMD) \
     -machine virt \
@@ -25,8 +28,7 @@ QEMU_BASE_CMDLINE := \
     -chardev pty,id=hostserial \
     -device virtio-serial-device \
     -device virtconsole,chardev=hostserial \
-    $(QEMU_NETDEV_CMDLINE) \
-    -serial stdio
+    $(QEMU_CMDLINE_EXTRA) \
 
 
 # Set this as the default local board to write apps to with tockloader
