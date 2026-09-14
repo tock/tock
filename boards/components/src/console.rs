@@ -186,6 +186,114 @@ impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize, CAP: MemoryAllocationCapa
         console
     }
 }
+
+//////////////////////////////////////////////////////////////////////
+// Console without UART mux
+//////////////////////////////////////////////////////////////////////
+
+#[macro_export]
+macro_rules! console_no_mux_component_static {
+    // Common logic for both branches
+    ($rx_buffer_len: expr, $tx_buffer_len: expr) => {{
+        use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
+        use kernel::static_buf;
+        let read_buf = static_buf!([u8; $rx_buffer_len]);
+        let write_buf = static_buf!([u8; $tx_buffer_len]);
+        let console = static_buf!(Console<'static>);
+        (write_buf, read_buf, console)
+    }};
+    () => {
+        $crate::console_no_mux_component_static!(DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE)
+    };
+    ($rx_buffer_len: literal, $tx_buffer_len: literal) => {
+        $crate::console_no_mux_component_static!($rx_buffer_len, $tx_buffer_len)
+    };
+}
+
+pub type ConsoleNoMuxComponentType = console::Console<'static>;
+
+/// Builds a `Console` directly on top of a UART, with no `MuxUart` in between.
+pub struct ConsoleNoMuxComponent<
+    U: 'static + uart::Uart<'static>,
+    const RX_BUF_LEN: usize,
+    const TX_BUF_LEN: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+    uart: &'static U,
+    baud_rate: u32,
+    mem_cap: CAP,
+}
+
+impl<
+    U: 'static + uart::Uart<'static>,
+    const RX_BUF_LEN: usize,
+    const TX_BUF_LEN: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> ConsoleNoMuxComponent<U, RX_BUF_LEN, TX_BUF_LEN, CAP>
+{
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        uart: &'static U,
+        baud_rate: u32,
+        mem_cap: CAP,
+    ) -> Self {
+        Self {
+            board_kernel,
+            driver_num,
+            uart,
+            baud_rate,
+            mem_cap,
+        }
+    }
+}
+
+impl<
+    U: 'static + uart::Uart<'static>,
+    const RX_BUF_LEN: usize,
+    const TX_BUF_LEN: usize,
+    CAP: MemoryAllocationCapability + 'static,
+> Component for ConsoleNoMuxComponent<U, RX_BUF_LEN, TX_BUF_LEN, CAP>
+{
+    type StaticInput = (
+        &'static mut MaybeUninit<[u8; TX_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; RX_BUF_LEN]>,
+        &'static mut MaybeUninit<console::Console<'static>>,
+    );
+    type Output = &'static console::Console<'static>;
+
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let write_buffer = s.0.write([0; TX_BUF_LEN]);
+        let read_buffer = s.1.write([0; RX_BUF_LEN]);
+
+        let _ = self.uart.configure(uart::Parameters {
+            baud_rate: self.baud_rate,
+            width: uart::Width::Eight,
+            stop_bits: uart::StopBits::One,
+            parity: uart::Parity::None,
+            hw_flow_control: false,
+        });
+
+        let console = s.2.write(console::Console::new(
+            self.uart,
+            write_buffer,
+            read_buffer,
+            self.board_kernel
+                .create_grant(self.driver_num, &self.mem_cap),
+        ));
+        hil::uart::Transmit::set_transmit_client(self.uart, console);
+        hil::uart::Receive::set_receive_client(self.uart, console);
+
+        console
+    }
+}
+
+//////////////////////////////////////////////////////////////////////
+// Ordered Console
+//////////////////////////////////////////////////////////////////////
+
 #[macro_export]
 macro_rules! console_ordered_component_static {
     ($A:ty $(,)?) => {{
