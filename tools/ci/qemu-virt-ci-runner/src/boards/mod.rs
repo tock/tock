@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
+pub mod hifive1;
 pub mod qemu_rv64_virt;
 
 pub struct Board {
@@ -18,4 +19,4 @@ pub struct Board {
     pub tests: &'static [crate::TestCase],
 }
 
-pub static BOARDS: &[&Board] = &[&qemu_rv64_virt::BOARD];
+pub static BOARDS: &[&Board] = &[&qemu_rv64_virt::BOARD, &hifive1::BOARD];
