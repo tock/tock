@@ -14,7 +14,7 @@ use crate::dma;
 use crate::gpio::{RPGpio, RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
-use crate::pio::Pio;
+use crate::pio::{Pio, PioInterrupt};
 use crate::pwm;
 use crate::resets::Resets;
 use crate::rtc;
@@ -185,7 +185,19 @@ impl InterruptService for Rp2040DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::PIO0_IRQ_0 => {
-                self.pio0.handle_interrupt();
+                self.pio0.handle_interrupt(PioInterrupt::Irq0);
+                true
+            }
+            interrupts::PIO0_IRQ_1 => {
+                self.pio0.handle_interrupt(PioInterrupt::Irq1);
+                true
+            }
+            interrupts::PIO1_IRQ_0 => {
+                self.pio1.handle_interrupt(PioInterrupt::Irq0);
+                true
+            }
+            interrupts::PIO1_IRQ_1 => {
+                self.pio1.handle_interrupt(PioInterrupt::Irq1);
                 true
             }
             interrupts::TIMER_IRQ_0 => {
