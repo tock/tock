@@ -282,7 +282,7 @@ pub unsafe fn main() {
             );
             rx_queue.set_transport(&peripherals.virtio_mmio[console_idx]);
 
-            let rx_chunk = static_init!([u8; 1], [0; 1]);
+            let rx_chunk = static_init!(u8, 0);
 
             let virtio_console = static_init!(
                 VirtIOConsole<'static, rv32i::dma_fence::RiscvCoherentDmaFence>,
