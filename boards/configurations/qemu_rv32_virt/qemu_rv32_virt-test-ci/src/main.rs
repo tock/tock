@@ -17,6 +17,7 @@ use kernel::{create_capability, debug, static_init};
 
 mod app_id_assigner_name_metadata;
 mod checker_credentials_not_required;
+mod pmp_pflash;
 
 //------------------------------------------------------------------------------
 // BOARD CONSTANTS
@@ -59,10 +60,11 @@ type LedDriver = capsules_core::led::LedDriver<'static, ScreenOnLedSingle, 4>;
 
 type ButtonDriver = capsules_extra::button_keyboard::ButtonKeyboard<'static>;
 
-/// Needed for the process info capsule.
-pub struct PMCapability;
-unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
-unsafe impl capabilities::ProcessStartCapability for PMCapability {}
+// Needed for the process info capsule.
+kernel::define_capability_type!(PMCapability:
+    capabilities::ProcessManagementCapability,
+    capabilities::ProcessStartCapability
+);
 
 type ProcessInfoDriver = capsules_extra::process_info_driver::ProcessInfo<PMCapability>;
 
@@ -74,7 +76,6 @@ type IsolatedNonvolatileStorageDriver =
             components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT
         },
     >;
-
 type FlashUser = capsules_core::virtualizers::virtual_flash::FlashUser<'static, FlashHw>;
 
 type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
@@ -412,7 +413,7 @@ pub unsafe fn main() {
     let process_info = components::process_info_driver::ProcessInfoComponent::new(
         board_kernel,
         capsules_extra::process_info_driver::DRIVER_NUM,
-        PMCapability,
+        unsafe { kernel::mint_defined_capability!(PMCapability) },
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::process_info_component_static!(PMCapability));
@@ -420,6 +421,10 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // VIRTUAL FLASH
     //--------------------------------------------------------------------------
+
+    // This board uses `pflash0` as backing storage for isolated userspace
+    // nonvolatile storage. Grant that access via a board-specific ePMP entry.
+    pmp_pflash::allow_kernel_pflash_access();
 
     let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.pflash)
         .finalize(components::flash_mux_component_static!(FlashHw));
