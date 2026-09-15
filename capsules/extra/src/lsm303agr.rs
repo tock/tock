@@ -708,50 +708,41 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
                 }
             },
             State::Measure(MeasurementState::ReadAccelerationXYZ) => {
-                let mut x: usize = 0;
-                let mut y: usize = 0;
-                let mut z: usize = 0;
-                let values = if status == Ok(()) {
-                    self.nine_dof_client.map(|client| {
-                        // compute using only integers
-                        let scale_factor = self.settings.get().accel_scale as usize;
-                        x = (((buffer[0] as i16 | ((buffer[1] as i16) << 8)) as i32)
-                            * (SCALE_FACTOR[scale_factor] as i32)
-                            * 1000
-                            / 32768) as usize;
-                        y = (((buffer[2] as i16 | ((buffer[3] as i16) << 8)) as i32)
-                            * (SCALE_FACTOR[scale_factor] as i32)
-                            * 1000
-                            / 32768) as usize;
-                        z = (((buffer[4] as i16 | ((buffer[5] as i16) << 8)) as i32)
-                            * (SCALE_FACTOR[scale_factor] as i32)
-                            * 1000
-                            / 32768) as usize;
-                        client.callback(x, y, z);
-                    });
+                let (x, y, z, sx, sy, sz) = if status == Ok(()) {
+                    // compute using only integers
+                    let scale_factor = self.settings.get().accel_scale as usize;
+                    let sx = (((buffer[0] as i16 | ((buffer[1] as i16) << 8)) as i32)
+                        * (SCALE_FACTOR[scale_factor] as i32)
+                        * 1000
+                        / 32768) as usize;
+                    let sy = (((buffer[2] as i16 | ((buffer[3] as i16) << 8)) as i32)
+                        * (SCALE_FACTOR[scale_factor] as i32)
+                        * 1000
+                        / 32768) as usize;
+                    let sz = (((buffer[4] as i16 | ((buffer[5] as i16) << 8)) as i32)
+                        * (SCALE_FACTOR[scale_factor] as i32)
+                        * 1000
+                        / 32768) as usize;
 
-                    x = (buffer[0] as i16 | ((buffer[1] as i16) << 8)) as usize;
-                    y = (buffer[2] as i16 | ((buffer[3] as i16) << 8)) as usize;
-                    z = (buffer[4] as i16 | ((buffer[5] as i16) << 8)) as usize;
-                    true
+                    let x = (buffer[0] as i16 | ((buffer[1] as i16) << 8)) as usize;
+                    let y = (buffer[2] as i16 | ((buffer[3] as i16) << 8)) as usize;
+                    let z = (buffer[4] as i16 | ((buffer[5] as i16) << 8)) as usize;
+                    (x, y, z, sx, sy, sz)
                 } else {
-                    self.nine_dof_client.map(|client| {
-                        client.callback(0, 0, 0);
-                    });
-                    false
+                    (0, 0, 0, 0, 0, 0)
                 };
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
-                        if values {
-                            let _ = upcalls.schedule_upcall(0, (x, y, z));
-                        } else {
-                            let _ = upcalls.schedule_upcall(0, (0, 0, 0));
-                        }
+                        let _ = upcalls.schedule_upcall(0, (x, y, z));
                     });
                 });
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
+
+                self.nine_dof_client.map(|client| {
+                    client.callback(sx, sy, sz);
+                });
             }
 
             State::Measure(MeasurementState::ReadTemperature) => {
@@ -759,9 +750,6 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
                     Ok(()) => Ok((buffer[1] as u16 as i16 | ((buffer[0] as i16) << 8)) as i32 / 8),
                     Err(i2c_err) => Err(i2c_err.into()),
                 };
-                self.temperature_client.map(|client| {
-                    client.callback(values);
-                });
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
                         if let Ok(temp) = values {
@@ -774,46 +762,41 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
                 self.buffer.replace(buffer);
                 self.i2c_accelerometer.disable();
                 self.state.set(State::Idle);
+
+                self.temperature_client.map(|client| {
+                    client.callback(values);
+                });
             }
             State::Measure(MeasurementState::ReadMagnetometerXYZ) => {
-                let mut x: usize = 0;
-                let mut y: usize = 0;
-                let mut z: usize = 0;
-                let values = if status == Ok(()) {
-                    self.nine_dof_client.map(|client| {
-                        // compute using only integers
-                        let range = self.settings.get().mag_range as usize;
-                        x = (((buffer[1] as i16 | ((buffer[0] as i16) << 8)) as i32) * 100
-                            / RANGE_FACTOR_X_Y[range] as i32) as usize;
-                        z = (((buffer[3] as i16 | ((buffer[2] as i16) << 8)) as i32) * 100
-                            / RANGE_FACTOR_X_Y[range] as i32) as usize;
-                        y = (((buffer[5] as i16 | ((buffer[4] as i16) << 8)) as i32) * 100
-                            / RANGE_FACTOR_Z[range] as i32) as usize;
-                        client.callback(x, y, z);
-                    });
+                let (x, y, z, sx, sy, sz) = if status == Ok(()) {
+                    // compute using only integers
+                    let range = self.settings.get().mag_range as usize;
+                    let sx = (((buffer[1] as i16 | ((buffer[0] as i16) << 8)) as i32) * 100
+                        / RANGE_FACTOR_X_Y[range] as i32) as usize;
+                    let sz = (((buffer[3] as i16 | ((buffer[2] as i16) << 8)) as i32) * 100
+                        / RANGE_FACTOR_X_Y[range] as i32) as usize;
+                    let sy = (((buffer[5] as i16 | ((buffer[4] as i16) << 8)) as i32) * 100
+                        / RANGE_FACTOR_Z[range] as i32) as usize;
 
-                    x = ((buffer[1] as u16 | ((buffer[0] as u16) << 8)) as i16) as usize;
-                    z = ((buffer[3] as u16 | ((buffer[2] as u16) << 8)) as i16) as usize;
-                    y = ((buffer[5] as u16 | ((buffer[4] as u16) << 8)) as i16) as usize;
-                    true
+                    let x = ((buffer[1] as u16 | ((buffer[0] as u16) << 8)) as i16) as usize;
+                    let z = ((buffer[3] as u16 | ((buffer[2] as u16) << 8)) as i16) as usize;
+                    let y = ((buffer[5] as u16 | ((buffer[4] as u16) << 8)) as i16) as usize;
+                    (x, y, z, sx, sy, sz)
                 } else {
-                    self.nine_dof_client.map(|client| {
-                        client.callback(0, 0, 0);
-                    });
-                    false
+                    (0, 0, 0, 0, 0, 0)
                 };
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
-                        if values {
-                            let _ = upcalls.schedule_upcall(0, (x, y, z));
-                        } else {
-                            let _ = upcalls.schedule_upcall(0, (0, 0, 0));
-                        }
+                        let _ = upcalls.schedule_upcall(0, (x, y, z));
                     });
                 });
                 self.buffer.replace(buffer);
                 self.i2c_magnetometer.disable();
                 self.state.set(State::Idle);
+
+                self.nine_dof_client.map(|client| {
+                    client.callback(sx, sy, sz);
+                });
             }
             _ => {
                 self.i2c_magnetometer.disable();
