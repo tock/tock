@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2024.
 
 use kernel::hil::uart;
-use nrf52840::uart::{UartPanicWriterConfig, Uarte};
+use nrf52840::uart_legacy::{Uart, UartPanicWriterConfig};
 
 #[cfg(not(test))]
 #[panic_handler]
@@ -16,7 +16,7 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    debug::panic::<_, Uarte, _, _>(
+    debug::panic::<_, Uart, _, _>(
         &mut [led],
         UartPanicWriterConfig {
             params: uart::Parameters {
