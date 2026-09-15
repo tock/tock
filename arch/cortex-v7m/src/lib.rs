@@ -38,17 +38,14 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
     //   1 = User state in thread mode
     //
     // Do not change other CONTROL bits.
+    //
+    // Also, do not change the LR bits in case we have a tail-chained exception.
     mrs r0, CONTROL                   // r0 = CONTROL
     bic r0, r0, #1                    // r0 = r0 & ~0x1
     msr CONTROL, r0                   // CONTROL.nPriv = 0
     // CONTROL writes must be followed by an Instruction Synchronization Barrier
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb                               // synchronization barrier
-
-    // The link register is set to the `EXC_RETURN` value on exception entry. To
-    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
-    // to 0 to use the main (kernel) stack.
-    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     // This will resume in the switch_to_user function where application state
     // is saved and the scheduler can choose what to do next.
@@ -146,9 +143,9 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     isb
 
     // The link register is set to the `EXC_RETURN` value on exception entry. To
-    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
-    // to 0 to use the main (kernel) stack.
-    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
+   // ensure we continue executing in the kernel we ensure the SPSEL bit is set
+   // to 0 to use the main (kernel) stack.
+   bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     // Return to the kernel.
     bx lr
@@ -191,6 +188,8 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
     //   1 = User state in thread mode
     //
     // Do not change other CONTROL bits.
+    //
+    // Also, do not change the LR bits in case we have a tail-chained exception.
     mrs r0, CONTROL                   // r0 = CONTROL
     bic r0, r0, #1                    // r0 = r0 & ~0x1
     msr CONTROL, r0                   // CONTROL.nPriv = 0
@@ -236,11 +235,6 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
     // `service_pending_interrupts()`.
     ldr r3, =0xe000e200               // r3 = &NVIC.ISPR
     str r0, [r3, r2, lsl #2]          // *(r3 + r2 * 4) = r0
-
-    // The link register is set to the `EXC_RETURN` value on exception entry. To
-    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
-    // to 0 to use the main (kernel) stack.
-    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
@@ -651,17 +645,14 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     str r1, [r0, #0]         // APP_HARD_FAULT = 1
 
     // Set thread mode to privileged. Do not touch other CONTROL state.
+    //
+    // Also, do not change the LR bits in case we have a tail-chained exception.
     mrs r0, CONTROL
     bic r0, r0, #1
     msr CONTROL, r0
     // CONTROL writes must be followed by ISB
     // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html
     isb
-
-    // The link register is set to the `EXC_RETURN` value on exception
-    // entry. To ensure we continue executing in the kernel we ensure the
-    // SPSEL bit is set to 0 to use the main (kernel) stack.
-    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     bx lr
         ",
