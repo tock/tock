@@ -51,26 +51,26 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 // Test access to the peripherals
 #[cfg(test)]
-static mut PERIPHERALS: Option<&'static Apollo3DefaultPeripherals> = None;
+static PERIPHERALS: SingleThreadValue<&'static Apollo3DefaultPeripherals> =
+    SingleThreadValue::new();
 // Test access to board
 #[cfg(test)]
-static mut BOARD: Option<&'static kernel::Kernel> = None;
+static BOARD: SingleThreadValue<&'static kernel::Kernel> = SingleThreadValue::new();
 // Test access to platform
 #[cfg(test)]
-static mut PLATFORM: Option<&'static RedboardArtemisNano> = None;
-// Test access to main loop capability
-#[cfg(test)]
-static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+static PLATFORM: SingleThreadValue<&'static RedboardArtemisNano> = SingleThreadValue::new();
 // Test access to alarm
-static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
+static ALARM: SingleThreadValue<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> =
+    SingleThreadValue::new();
 // Test access to sensors
-static mut BME280: Option<
+static BME280: SingleThreadValue<
     &'static capsules_extra::bme280::Bme280<
         'static,
         capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
     >,
-> = None;
-static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
+> = SingleThreadValue::new();
+static CCS811: SingleThreadValue<&'static capsules_extra::ccs811::Ccs811<'static>> =
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
 
@@ -309,7 +309,8 @@ unsafe fn setup() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
-    ALARM = Some(mux_alarm);
+    let _ = ALARM
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(mux_alarm);
 
     // Create a process printer for panic.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -357,7 +358,8 @@ unsafe fn setup() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::humidity_component_static!(BME280Sensor));
-    BME280 = Some(bme280);
+    let _ =
+        BME280.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(bme280);
 
     let ccs811 = Ccs811Component::new(mux_i2c, 0x5B)
         .finalize(components::ccs811_component_static!(apollo3::iom::Iom));
@@ -368,7 +370,8 @@ unsafe fn setup() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::air_quality_component_static!());
-    CCS811 = Some(ccs811);
+    let _ =
+        CCS811.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(ccs811);
 
     // Init the SPI controller
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom0).finalize(
@@ -511,21 +514,22 @@ use kernel::platform::watchdog::WatchDog;
 
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
-    unsafe {
-        let (board_kernel, esp32_c3_board, _chip, peripherals) = setup();
+    let (board_kernel, esp32_c3_board, _chip, peripherals) = unsafe { setup() };
 
-        BOARD = Some(board_kernel);
-        PLATFORM = Some(&esp32_c3_board);
-        PERIPHERALS = Some(peripherals);
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+    let _ = BOARD
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(board_kernel);
+    let _ = PLATFORM.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        esp32_c3_board,
+    );
+    let _ = PERIPHERALS
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(peripherals);
 
-        PLATFORM.map(|p| {
-            p.watchdog().setup();
-        });
+    if let Some(p) = PLATFORM.get() {
+        p.watchdog().setup();
+    }
 
-        for test in tests {
-            test();
-        }
+    for test in tests {
+        test();
     }
 
     loop {}
