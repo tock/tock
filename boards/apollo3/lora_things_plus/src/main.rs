@@ -53,6 +53,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::utilities::cells::MapCell;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, debug, static_init};
 
@@ -89,28 +90,40 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 // Test access to the peripherals
-static mut PERIPHERALS: Option<&'static Apollo3DefaultPeripherals> = None;
+static PERIPHERALS: SingleThreadValue<MapCell<&'static Apollo3DefaultPeripherals>> =
+    SingleThreadValue::new();
 // Test access to board
 #[cfg(test)]
-static mut BOARD: Option<&'static kernel::Kernel> = None;
+static BOARD: SingleThreadValue<MapCell<&'static kernel::Kernel>> = SingleThreadValue::new();
 // Test access to platform
 #[cfg(test)]
-static mut PLATFORM: Option<&'static LoRaThingsPlus> = None;
+static PLATFORM: SingleThreadValue<MapCell<&'static LoRaThingsPlus>> = SingleThreadValue::new();
 // Test access to main loop capability
 #[cfg(test)]
-static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+static MAIN_CAP: SingleThreadValue<MapCell<&'static dyn kernel::capabilities::MainLoopCapability>> =
+    SingleThreadValue::new();
 // Test access to alarm
-static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
+static ALARM: SingleThreadValue<
+    MapCell<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>>,
+> = SingleThreadValue::new();
 // Test access to sensors
-static mut BME280: Option<
-    &'static capsules_extra::bme280::Bme280<
-        'static,
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+static BME280: SingleThreadValue<
+    MapCell<
+        &'static capsules_extra::bme280::Bme280<
+            'static,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                apollo3::iom::Iom<'static>,
+            >,
+        >,
     >,
-> = None;
-static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
+> = SingleThreadValue::new();
+static CCS811: SingleThreadValue<MapCell<&'static capsules_extra::ccs811::Ccs811<'static>>> =
+    SingleThreadValue::new();
 #[cfg(feature = "atecc508a")]
-static mut ATECC508A: Option<&'static capsules_extra::atecc508a::Atecc508a<'static>> = None;
+static ATECC508A: SingleThreadValue<
+    MapCell<&'static capsules_extra::atecc508a::Atecc508a<'static>>,
+> = SingleThreadValue::new();
 
 kernel::stack_size! {0x1000}
 
@@ -221,7 +234,7 @@ struct LoRaThingsPlus {
 
 #[cfg(feature = "atecc508a")]
 fn atecc508a_wakeup() {
-    let peripherals = (unsafe { PERIPHERALS }).unwrap();
+    let peripherals = PERIPHERALS.get().unwrap().get().unwrap();
 
     peripherals.gpio_port[6].make_output();
     peripherals.gpio_port[6].clear();
@@ -250,7 +263,7 @@ unsafe fn setup_atecc508a(
     let atecc508a = Atecc508aComponent::new(mux_i2c, 0x60, atecc508a_wakeup).finalize(
         components::atecc508a_component_static!(apollo3::iom::Iom<'static>),
     );
-    ATECC508A = Some(atecc508a);
+    ATECC508A.get().unwrap().put(atecc508a);
 
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
@@ -424,9 +437,38 @@ unsafe fn setup() -> (
         .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
             PanicResources::new(),
         );
+    let _ = PERIPHERALS
+        .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            MapCell::empty(),
+        );
+    let _ = ALARM.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        MapCell::empty(),
+    );
+    let _ = BME280.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        MapCell::empty(),
+    );
+    let _ = CCS811.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        MapCell::empty(),
+    );
+    #[cfg(feature = "atecc508a")]
+    let _ = ATECC508A.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        MapCell::empty(),
+    );
+    #[cfg(test)]
+    let _ = BOARD.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        MapCell::empty(),
+    );
+    #[cfg(test)]
+    let _ = PLATFORM.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        MapCell::empty(),
+    );
+    #[cfg(test)]
+    let _ = MAIN_CAP.bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+        MapCell::empty(),
+    );
 
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
-    PERIPHERALS = Some(peripherals);
+    PERIPHERALS.get().unwrap().put(peripherals);
 
     // No need to statically allocate mcu/pwr/clk_ctrl because they are only used in main!
     let mcu_ctrl = apollo3::mcuctrl::McuCtrl::new();
@@ -541,7 +583,7 @@ unsafe fn setup() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
-    ALARM = Some(mux_alarm);
+    ALARM.get().unwrap().put(mux_alarm);
 
     // Create a process printer for panic.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -596,7 +638,7 @@ unsafe fn setup() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::humidity_component_static!(BME280Sensor));
-    BME280 = Some(bme280);
+    BME280.get().unwrap().put(bme280);
 
     let ccs811 = Ccs811Component::new(mux_i2c, 0x5B).finalize(
         components::ccs811_component_static!(apollo3::iom::Iom<'static>),
@@ -608,7 +650,7 @@ unsafe fn setup() -> (
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::air_quality_component_static!());
-    CCS811 = Some(ccs811);
+    CCS811.get().unwrap().put(ccs811);
 
     #[cfg(feature = "chirp_i2c_moisture")]
     let moisture = Some(setup_chirp_i2c_moisture(
@@ -921,7 +963,7 @@ unsafe fn setup() -> (
         // Setup the in-memory key selector.
         let verifier_multiple_keys =
             components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponent::new(
-                ATECC508A.unwrap(),
+                ATECC508A.get().unwrap().get().unwrap(),
                 verifying_keys,
             )
             .finalize(
@@ -1030,20 +1072,21 @@ use kernel::platform::watchdog::WatchDog;
 
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
-    unsafe {
-        let (board_kernel, sf_lora_thing_plus_board, _chip) = setup();
+    let (board_kernel, sf_lora_thing_plus_board, _chip) = unsafe { setup() };
 
-        BOARD = Some(board_kernel);
-        PLATFORM = Some(&sf_lora_thing_plus_board);
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+    BOARD.get().unwrap().put(board_kernel);
+    PLATFORM.get().unwrap().put(sf_lora_thing_plus_board);
+    MAIN_CAP
+        .get()
+        .unwrap()
+        .put(&create_capability!(capabilities::MainLoopCapability));
 
-        PLATFORM.map(|p| {
-            p.watchdog().setup();
-        });
+    PLATFORM.get().unwrap().map(|p| {
+        p.watchdog().setup();
+    });
 
-        for test in tests {
-            test();
-        }
+    for test in tests {
+        test();
     }
 
     loop {}

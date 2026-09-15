@@ -10,16 +10,14 @@ use crate::PLATFORM;
 use kernel::debug;
 
 fn run_kernel_op(loops: usize) {
-    unsafe {
-        for _i in 0..loops {
-            BOARD.unwrap().kernel_loop_operation(
-                PLATFORM.unwrap(),
-                PANIC_RESOURCES.get().and_then(|pr| pr.chip.get()).unwrap(),
-                None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
-                true,
-                MAIN_CAP.unwrap(),
-            );
-        }
+    for _i in 0..loops {
+        BOARD.get().unwrap().get().unwrap().kernel_loop_operation(
+            PLATFORM.get().unwrap().get().unwrap(),
+            PANIC_RESOURCES.get().and_then(|pr| pr.chip.get()).unwrap(),
+            None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
+            true,
+            MAIN_CAP.get().unwrap().get().unwrap(),
+        );
     }
 }
 

@@ -130,7 +130,7 @@ unsafe fn static_init_test_partial_cb() -> &'static SpiHostCallback {
 /// dataset. This tests partial transfers and continued offset write outs.
 #[test_case]
 fn spi_host_transfer_partial() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = PERIPHERALS.get().unwrap().get().unwrap();
     let spi_host = &perf.iom2;
 
     let cb = unsafe { static_init_test_partial_cb() };
@@ -173,7 +173,7 @@ fn spi_host_transfer_partial() {
 /// after a transfer (reset internal offsets and counts etc...)
 #[test_case]
 fn spi_host_transfer_single() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = PERIPHERALS.get().unwrap().get().unwrap();
     let spi_host = &perf.iom2;
 
     let cb = unsafe { static_init_test_cb() };

@@ -141,7 +141,7 @@ macro_rules! static_init_test_cb {
 
 #[test_case]
 fn hmac_check_load_binary() {
-    let atecc508a = unsafe { ATECC508A.unwrap() };
+    let atecc508a = ATECC508A.get().unwrap().get().unwrap();
 
     let callback = unsafe { static_init_test_cb!() };
 

@@ -32,7 +32,9 @@ static mut TESTS: Option<
 pub fn run_multi_alarm() {
     debug!("start multi alarm test...");
     unsafe {
-        TESTS = Some(static_init_multi_alarm_test(ALARM.unwrap()));
+        TESTS = Some(static_init_multi_alarm_test(
+            ALARM.get().unwrap().get().unwrap(),
+        ));
         TESTS.unwrap()[0].run();
         TESTS.unwrap()[1].run();
         TESTS.unwrap()[2].run();

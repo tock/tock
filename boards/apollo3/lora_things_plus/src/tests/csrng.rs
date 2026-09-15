@@ -19,9 +19,9 @@ fn run_csrng_entropy32() {
     debug!("check run CSRNG Entropy 32... ");
     run_kernel_op(100);
 
-    unsafe {
-        let rng = ATECC508A.unwrap();
+    let rng = ATECC508A.get().unwrap().get().unwrap();
 
+    unsafe {
         let t = static_init!(TestEntropy32<'static>, TestEntropy32::new(rng));
         rng.set_client(t);
 
