@@ -479,7 +479,6 @@ unsafe fn start() -> (
         false,
         capsules_extra::lsm303xx::Lsm303Scale::Scale2G,
         false,
-        true,
         capsules_extra::lsm303xx::Lsm303MagnetoDataRate::DataRate3_0Hz,
         capsules_extra::lsm303xx::Lsm303Range::Range1_9G,
     ) {
