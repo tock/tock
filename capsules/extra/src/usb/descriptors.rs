@@ -13,6 +13,7 @@ use core::fmt;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::registers::InMemoryRegister;
 use kernel::utilities::registers::interfaces::Readable;
+use kernel::utilities::registers::interfaces::Writeable;
 
 // On Nordic, USB buffers must be 32-bit aligned, with a power-of-2 size. For
 // now we apply these constraints on all platforms.
@@ -895,6 +896,31 @@ impl CdcAcmSetLineCodingData {
             parity: p[5].get(),
             data_bits: p[6].get(),
         })
+    }
+
+    /// Serialize this `CdcAcmSetLineCodingData` into a packet buffer to
+    /// respond to a Get_Line_Coding request.
+    pub fn put(&self, p: &[InMemoryRegister<u8>]) {
+        let bytes = self.baud_rate.to_le_bytes();
+        p[0].set(bytes[0]);
+        p[1].set(bytes[1]);
+        p[2].set(bytes[2]);
+        p[3].set(bytes[3]);
+        p[4].set(self.stop_bits);
+        p[5].set(self.parity);
+        p[6].set(self.data_bits);
+    }
+}
+
+impl Default for CdcAcmSetLineCodingData {
+    fn default() -> Self {
+        // 115200 baud, 1 stop bit, no parity, 8 data bits.
+        CdcAcmSetLineCodingData {
+            baud_rate: 115200,
+            stop_bits: 0,
+            parity: 0,
+            data_bits: 8,
+        }
     }
 }
 

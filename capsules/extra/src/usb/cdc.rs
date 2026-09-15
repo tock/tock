@@ -88,6 +88,8 @@ enum CtrlState {
     Idle,
     /// Host has sent a SET_LINE_CODING configuration request.
     SetLineCoding,
+    /// Host has sent a GET_LINE_CODING configuration request.
+    GetLineCoding,
     /// Host has send a SET_CONTROL_LINE_STATE configuration request.
     SetControlLineState,
 }
@@ -96,6 +98,7 @@ enum CtrlState {
 enum CDCCntrlMessage {
     NotSupported,
     SetLineCoding = 0x20,
+    GetLineCoding = 0x21,
     SetControlLineState = 0x22,
     SendBreak = 0x23,
 }
@@ -104,6 +107,7 @@ impl From<u8> for CDCCntrlMessage {
     fn from(num: u8) -> Self {
         match num {
             0x20 => CDCCntrlMessage::SetLineCoding,
+            0x21 => CDCCntrlMessage::GetLineCoding,
             0x22 => CDCCntrlMessage::SetControlLineState,
             0x23 => CDCCntrlMessage::SendBreak,
             _ => CDCCntrlMessage::NotSupported,
@@ -414,6 +418,9 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                 CDCCntrlMessage::SetLineCoding => {
                     self.ctrl_state.set(CtrlState::SetLineCoding);
                 }
+                CDCCntrlMessage::GetLineCoding => {
+                    self.ctrl_state.set(CtrlState::GetLineCoding);
+                }
                 CDCCntrlMessage::SetControlLineState => {
                     // Bit 0 and 1 of the value (setup_data.value) can be set
                     // D0: Indicates to DCE if DTE is present or not.
@@ -444,7 +451,14 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 
     /// Handle a Control In transaction
     fn ctrl_in(&'a self, endpoint: usize) -> hil::usb::CtrlInResult {
-        self.client_ctrl.ctrl_in(endpoint)
+        if self.ctrl_state.get() == CtrlState::GetLineCoding {
+            // We don't actually configure a real UART, so just report our
+            // fixed line coding back to the host.
+            descriptors::CdcAcmSetLineCodingData::default().put(&self.client_ctrl.ctrl_buffer.buf);
+            hil::usb::CtrlInResult::Packet(7, true)
+        } else {
+            self.client_ctrl.ctrl_in(endpoint)
+        }
     }
 
     /// Handle a Control Out transaction
