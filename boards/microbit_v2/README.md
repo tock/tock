@@ -64,7 +64,7 @@ Drag and drop the [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/t
 
 The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
 
-### Using cargo flash
+### Using probe-rs
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
 ```bash
