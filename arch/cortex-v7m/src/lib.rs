@@ -77,17 +77,29 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-    // First check to see which direction we are going in. If the link register
-    // (containing EXC_RETURN) has a 1 in the SPSEL bit (meaning the
-    // alternative/process stack was in use) then we are coming from a process
-    // which has called a syscall.
-    ubfx r0, lr, #2, #1               // r0 = (LR & (0x1<<2)) >> 2
-    cmp r0, #0                        // r0 (SPSEL bit) =≟ 0
-    bne 100f // to_kernel             // if SPSEL == 1, jump to to_kernel
+    // First check to see which direction we are going in.
+    //
+    // We use `SVC_SWITCH_TO_APP`, which is set by the `switch_to_user` code,
+    // to reliably determine if we should switch from kernel to user, or if this
+    // is an `svc` issued from a userspace app. Upon switching to an app, we're
+    // responsible for clearing `SVC_SWITCH_TO_APP`.
+    //
+    // This used to use the link register (containing EXC_RETURN)'s SPSEL bit,
+    // but that turns out to be unreliable with tail-chained exception handlers.
+    // See the doc comment on `SVC_SWITCH_TO_APP` for more information.
+    ldr r0, ={svc_switch_to_app}      // r0 = &SVC_SWITCH_TO_APP
+    ldr r1, [r0]                      // r1 = SVC_SWITCH_TO_APP
+    cmp r1, #0                        // r1 == 0 (coming from app)
+    beq 100f // to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
-    // application. Use the CONTROL register to set the thread mode to
-    // unprivileged to run the application.
+    // application. We must clear `SVC_SWITCH_TO_APP`, such that we reliably
+    // recognize the next `svc` as coming from an app.
+    mov r1, #0                        // r1 = 0 (coming from app)
+    str r1, [r0]                      // *&SVC_SWITCH_TO_APP = 0
+
+    // Use the CONTROL register to set the thread mode to unprivileged to run
+    // the application.
     //
     // CONTROL[2]: FPCA (Floating-Point Context Active)
     //   0 = No active floating-point context
@@ -154,6 +166,7 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     bx lr
         ",
         syscall_fired = sym cortexm::syscall::SYSCALL_FIRED,
+        svc_switch_to_app = sym cortexm::syscall::SVC_SWITCH_TO_APP,
     );
 }
 
@@ -271,6 +284,8 @@ pub unsafe fn switch_to_user_arm_v7m(
     //   - This uses `r7`, which is replaced before exiting asm.
     //   - This uses `r9`, which is replaced before exiting asm.
     // - OUTPUTS:
+    //   - This writes `SVC_SWITCH_TO_APP = 1` to indicate that the `svc` we
+    //     issue should go from kernel -> app, and runs with kernel context.
     //   - This writes `r0` which is specified as an output.
     //   - This writes `r2` which is specified as an output.
     //   - This writes `r3` which is specified as an output.
@@ -315,10 +330,17 @@ pub unsafe fn switch_to_user_arm_v7m(
     // register.
     ldmia r1, {{r4-r11}}              // r4 = r1[0], r5 = r1[1], ...
 
-    // Generate a SVC exception to handle the context switch from kernel to
-    // userspace. It doesn't matter which SVC number we use here as it is not
-    // used in the exception handler. Data being returned from a syscall is
-    // transferred on the app's stack.
+    // Indicate that the next `svc` instruction intends to switch from kernel to
+    // an app, and then generate the SVC exception. See the documentation of
+    // `SVC_SWITCH_TO_APP` for more information. `r0` should be free to use
+    // here, as we've saved it at PSP. We use `r0` as a non-zero value, as
+    // Rust's references are guaranteed to have non-zero addresses. There is no
+    // other meaning in the value we write here.
+    ldr r0, ={svc_switch_to_app}      // r0 = &SVC_SWITCH_TO_APP
+    str r0, [r0]                      // *&SVC_SWITCH_TO_APP = <nonzero>
+    // It doesn't matter which SVC number we use here as it is not used in the
+    // exception handler. Data being returned from a syscall is transferred on
+    // the app's stack.
     svc 0xff
 
     // When execution returns here we have switched back to the kernel from the
@@ -348,6 +370,7 @@ pub unsafe fn switch_to_user_arm_v7m(
             out("r10") _,
             out("r11") _,
             out("r12") _,
+            svc_switch_to_app = sym cortexm::syscall::SVC_SWITCH_TO_APP,
         );
 
         user_stack
