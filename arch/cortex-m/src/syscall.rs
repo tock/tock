@@ -26,6 +26,29 @@ use crate::CortexMVariant;
 #[used]
 pub static mut SYSCALL_FIRED: UnsafeCell<usize> = UnsafeCell::new(0);
 
+/// Indicator of `svc` switch direction: kernel → user vs. user → kernel.
+///
+/// This is used in trap handlers to reliably determine whether a given trap
+/// handler runs with userspace or kernel context. When `SWITCH_TO_APP` is
+/// non-zero, we're handling an `svc` issued from `switch_to_user`, to switch
+/// *to* an app. Otherwise, we're handling an `svc` from an app, and must switch
+/// *to* the kernel.
+///
+/// [Issue 3109][issue-3109] and [PR 5189][pr-5189] show that tail-chaining of
+/// exception handlers can cause a switch from an application to the kernel to
+/// instead switch back to an application, without its SVC request ever handled.
+/// This is because we were relying on the `lr` register to determine whether
+/// we're switching from app to kernel, or kernel to app, and then setting `lr`
+/// to account for that direction respectively. In a tail-chain scenario, an
+/// interrupt can fire *in between* the `svc` call from userspace and the actual
+/// exception handler, which makes this oracle unreliable, and would cause this
+/// routine to directly switch back to the app without handling the system call.
+///
+/// [issue-3109]: https://github.com/tock/tock/issues/3109
+/// [pr-5189]: https://github.com/tock/tock/pull/5189
+#[used]
+pub static mut SVC_SWITCH_TO_APP: UnsafeCell<usize> = UnsafeCell::new(0);
+
 /// This is called in the hard fault handler. When set to 1 this means the hard
 /// fault handler was called. Marked `pub` because it is used in the cortex-m*
 /// specific handler.
