@@ -2161,6 +2161,12 @@ pub mod kernel_protection_mml_epmp {
     #[derive(Copy, Clone, Debug)]
     pub struct KernelTextRegion(pub TORRegionSpec);
 
+    /// Miscellaneous memory region for platform-specific uses.
+    ///
+    /// Configured in the PMP as a `NAPOT` region.
+    #[derive(Copy, Clone, Debug)]
+    pub struct MiscellaneousRegion(pub NAPOTRegionSpec);
+
     /// A RISC-V ePMP implementation.
     ///
     /// Supports machine-mode (kernel) memory protection by using the
@@ -2195,7 +2201,9 @@ pub mod kernel_protection_mml_epmp {
     ///   |     5 | \ Userspace TOR region #1             / | TOR   |   | ????? |
     ///   |       |                                         |       |   |       |
     ///   | 6 ... | /                                     \ |       |   |       |
-    ///   | n - 4 | \ Userspace TOR region #x             / |       |   |       |
+    ///   | n - 5 | \ Userspace TOR region #x             / |       |   |       |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 4 | OPTIONAL (miscellaneous memory)         | NAPOT | X | R/W   |
     ///   |       |                                         |       |   |       |
     ///   | n - 3 | FLASH (spanning kernel & apps)          | NAPOT | X | R     |
     ///   |       |                                         |       |   |       |
@@ -2221,11 +2229,26 @@ pub mod kernel_protection_mml_epmp {
         // Start user-mode TOR regions after the first kernel .text region:
         const TOR_REGIONS_OFFSET: usize = 1;
 
+        /// Create a [`KernelProtectionMMLEPMP`].
+        ///
+        /// This expects ranges for four common regions, plus an optional
+        /// region. The optional region can be used for chip- or
+        /// platform-specific uses cases where the kernel needs R/W access to an
+        /// additional memory region.
+        ///
+        /// # Arguments
+        ///
+        /// - `flash`: All flash on the chip.
+        /// - `ram`: RAM memory for the kernel and apps.
+        /// - `mmio`: Region of the address space used for MMIO peripherals.
+        /// - `kernel_text`: Flash region for the kernel executable.
+        /// - `miscellaneous`: Additional address space to be R/W.
         pub unsafe fn new(
             flash: FlashRegion,
             ram: RAMRegion,
             mmio: MMIORegion,
             kernel_text: KernelTextRegion,
+            miscellaneous: Option<MiscellaneousRegion>,
         ) -> Result<Self, ()> {
             for i in 0..AVAILABLE_ENTRIES {
                 // Read the entry's CSR:
@@ -2287,14 +2310,14 @@ pub mod kernel_protection_mml_epmp {
                 );
             }
 
-            // Set the kernel `.text`, flash, RAM and MMIO regions, in no
+            // Set the kernel `.text`, flash, RAM, and MMIO, and miscellaneous regions, in no
             // particular order, with the exception of `.text` and flash:
             // `.text` must precede flash, as otherwise we'd be revoking execute
             // permissions temporarily. Given that we can currently execute
             // code, this should not have any impact on our accessible memory,
             // assuming that the provided regions are not otherwise aliased.
 
-            // `.text` at n - 5 and n - 4 (TOR region):
+            // kernel `.text` at 0 and 1 (TOR region):
             write_pmpaddr_pmpcfg(
                 0,
                 (pmpcfg_octet::a::OFF
@@ -2352,6 +2375,20 @@ pub mod kernel_protection_mml_epmp {
                 flash.0.pmpaddr(),
             );
 
+            // miscellaneous (platform-specific region) at n - 4:
+            miscellaneous.map(|miscellaneous| {
+                write_pmpaddr_pmpcfg(
+                    AVAILABLE_ENTRIES - 4,
+                    (pmpcfg_octet::a::NAPOT
+                        + pmpcfg_octet::r::SET
+                        + pmpcfg_octet::w::SET
+                        + pmpcfg_octet::x::CLEAR
+                        + pmpcfg_octet::l::SET)
+                        .into(),
+                    miscellaneous.0.pmpaddr(),
+                );
+            });
+
             // Finally, attempt to enable the MSECCFG security bits, and verify
             // that they have been set correctly. If they have not been set to
             // the written value, this means that this hardware either does not
@@ -2386,8 +2423,9 @@ pub mod kernel_protection_mml_epmp {
     {
         // Ensure that the MPU_REGIONS (starting at entry, and occupying two
         // entries per region) don't overflow the available entries, excluding
-        // the 7 entries used for implementing the kernel memory protection:
-        const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 5) / 2));
+        // the 6 entries used for implementing the kernel memory protection
+        // (kernel .text (2), flash, RAM, MMIO, and misc):
+        const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 6) / 2));
 
         fn available_regions(&self) -> usize {
             // Always assume to have `MPU_REGIONS` usable TOR regions. We don't
