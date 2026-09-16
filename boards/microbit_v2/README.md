@@ -43,7 +43,8 @@ As MicroBit v2 has an on board debugger that provides several ways of programmin
 
 There are two ways for flashing the bootloader:
  1. Using the MicroBit USB drive
- 2. Using [cargo flash](https://probe.rs/docs/tools/cargo-flash/)
+There are several ways for flashing the bootloader:
+1. Using the MicroBit USB drive
  3. Using openocd
  4. Using [probe-rs](https://github.com/probe-rs/probe-rs)
 

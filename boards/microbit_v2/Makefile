@@ -7,7 +7,6 @@
 include ../Makefile.common
 
 PROBE_RS=probe-rs
-CARGO_FLASH=cargo flash
 OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
 
