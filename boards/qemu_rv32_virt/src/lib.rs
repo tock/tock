@@ -190,7 +190,9 @@ impl
 // into an ARGB_8888 format. This can consume a large amount of stack
 // space, as we allocate this buffer with `static_init!()`:
 #[allow(clippy::large_stack_frames, clippy::large_stack_arrays)]
-pub unsafe fn start() -> (
+pub unsafe fn start(
+    epmp_miscellaneous_region: Option<rv32i::pmp::kernel_protection_mml_epmp::MiscellaneousRegion>,
+) -> (
     &'static kernel::Kernel,
     QemuRv32VirtPlatform,
     &'static ChipHw,
@@ -258,18 +260,7 @@ pub unsafe fn start() -> (
             )
             .unwrap(),
         ),
-        Some(rv32i::pmp::kernel_protection_mml_epmp::MiscellaneousRegion(
-            // QEMU's "virt" machine unconditionally reserves two 32 MiB
-            // `pflash` regions at 0x2000_0000 and 0x2200_0000. We only make the
-            // first of these windows accessible to the kernel here, for use as
-            // separate, writable storage.
-            rv32i::pmp::NAPOTRegionSpec::from_start_size(
-                0x20000000 as *const u8, // start
-                // 0x02000000,              // size
-                16, // size
-            )
-            .unwrap(),
-        )),
+        epmp_miscellaneous_region,
     )
     .unwrap();
 

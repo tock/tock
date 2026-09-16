@@ -228,7 +228,22 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, base_platform, chip, peripherals) = qemu_rv32_virt_lib::start();
+    // We define an additional ePMP region to cover the flash. Writing the
+    // flash requires writing to the actual flash memory addresses.
+    let epmp_flash_region = Some(rv32i::pmp::kernel_protection_mml_epmp::MiscellaneousRegion(
+        // QEMU's "virt" machine unconditionally reserves two 32 MiB
+        // `pflash` regions at 0x2000_0000 and 0x2200_0000. We only make the
+        // first of these windows accessible to the kernel here, for use as
+        // separate, writable storage.
+        rv32i::pmp::NAPOTRegionSpec::from_start_size(
+            0x20000000 as *const u8, // start
+            0x02000000,              // size
+        )
+        .unwrap(),
+    ));
+
+    let (board_kernel, base_platform, chip, peripherals) =
+        qemu_rv32_virt_lib::start(epmp_flash_region);
 
     //--------------------------------------------------------------------------
     // VIRTIO CONSOLE (second UART)
