@@ -7,7 +7,7 @@ name = "nrf52840dk-thread-tutorial"
 version.workspace = true
 authors.workspace = true
 build = "../../build.rs"
-edition.workspace = true
+edition = "2024"
 
 [features]
 default = ["screen_ssd1306"]

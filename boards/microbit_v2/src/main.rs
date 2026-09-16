@@ -239,7 +239,7 @@ unsafe fn start() -> (
     // Initialize chip peripheral drivers
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
-        Nrf52833DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        unsafe { Nrf52833DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf) }
     );
 
     // set up circular peripheral dependencies
@@ -755,7 +755,7 @@ unsafe fn start() -> (
 
     let chip = static_init!(
         nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>,
-        nrf52833::chip::NRF52::new(nrf52833_peripherals)
+        unsafe { nrf52833::chip::NRF52::new(nrf52833_peripherals) }
     );
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
@@ -768,7 +768,7 @@ unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     // These symbols are defined in the linker script.
-    extern "C" {
+    unsafe extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
         /// End of the ROM region containing app images.
@@ -782,14 +782,18 @@ unsafe fn start() -> (
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
+        unsafe {
+            core::slice::from_raw_parts(
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            )
+        },
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            )
+        },
         &FAULT_RESPONSE,
         &process_management_capability,
     )
@@ -802,10 +806,10 @@ unsafe fn start() -> (
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, board, chip) = start();
+    let (board_kernel, board, chip) = unsafe { start() };
     board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }

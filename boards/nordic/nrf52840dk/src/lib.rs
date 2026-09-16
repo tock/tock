@@ -476,7 +476,7 @@ pub unsafe fn start_no_pconsole() -> (
             .finalize(components::segger_rtt_memory_component_static!());
 
         RTT_BUFFER.get().map(|rtt_buffer_cell| {
-            rtt_buffer_cell.replace(*core::ptr::addr_of!(rtt_memory_refs.rtt_memory))
+            rtt_buffer_cell.replace(unsafe { *core::ptr::addr_of!(rtt_memory_refs.rtt_memory) })
         });
 
         UartChannel::Rtt(rtt_memory_refs)
@@ -499,7 +499,7 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
-    let chip = static_init!(ChipHw, nrf52840::chip::NRF52::new(nrf52840_peripherals));
+    let chip = static_init!(ChipHw, unsafe { nrf52840::chip::NRF52::new(nrf52840_peripherals) });
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
@@ -985,7 +985,7 @@ pub unsafe fn start() -> (
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, AlarmHw>,
 ) {
-    let (kernel, platform, chip, peripherals, mux_alarm) = start_no_pconsole();
+    let (kernel, platform, chip, peripherals, mux_alarm) = unsafe { start_no_pconsole() };
     let _ = platform.pconsole.start();
     (kernel, platform, chip, peripherals, mux_alarm)
 }

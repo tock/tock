@@ -43,10 +43,10 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let (board_kernel, base_platform, chip, _default_peripherals, mux_uart, mux_alarm) =
-        nrf52840dk_test_base_lib::start();
+        unsafe { nrf52840dk_test_base_lib::start() };
 
     //--------------------------------------------------------------------------
     // PROCESS CONSOLE
@@ -117,7 +117,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     // These symbols are defined in the standard Tock linker script.
-    extern "C" {
+    unsafe extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
         /// End of the ROM region containing app images.
@@ -128,14 +128,18 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let app_flash = core::slice::from_raw_parts(
-        core::ptr::addr_of!(_sapps),
-        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-    );
-    let app_memory = core::slice::from_raw_parts_mut(
-        core::ptr::addr_of_mut!(_sappmem),
-        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-    );
+    let app_flash = unsafe {
+        core::slice::from_raw_parts(
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+        )
+    };
+    let app_memory = unsafe {
+        core::slice::from_raw_parts_mut(
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+        )
+    };
 
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(

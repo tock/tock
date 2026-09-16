@@ -77,7 +77,7 @@ pub unsafe fn run(mux_alarm: &'static MuxAlarm<'static, Rtc>, flash_controller: 
     // Create and run test for log storage.
     let test = static_init!(
         LogTest<VirtualMuxAlarm<'static, Rtc>>,
-        LogTest::new(log, &mut *addr_of_mut!(BUFFER), alarm, &TEST_OPS)
+        LogTest::new(log, unsafe { &mut *addr_of_mut!(BUFFER) }, alarm, &TEST_OPS)
     );
     log.set_read_client(test);
     log.set_append_client(test);

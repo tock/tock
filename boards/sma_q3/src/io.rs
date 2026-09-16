@@ -18,7 +18,9 @@ static mut WRITER: Writer = Writer::Uninitialized;
 
 /// Set the RTT memory buffer used to output panic messages.
 pub unsafe fn set_rtt_memory(rtt_memory: &'static segger::rtt::SeggerRttMemory<'static>) {
-    WRITER = Writer::WriterRtt(rtt_memory);
+    unsafe {
+        WRITER = Writer::WriterRtt(rtt_memory);
+    }
 }
 
 impl Write for Writer {
@@ -47,12 +49,14 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
     let led_kernel_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic_old(
-        &mut [led],
-        writer,
-        pi,
-        &cortexm4::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
+    unsafe {
+        debug::panic_old(
+            &mut [led],
+            writer,
+            pi,
+            &cortexm4::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }

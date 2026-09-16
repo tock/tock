@@ -16,7 +16,7 @@ use capsules_extra::test::siphash24::TestSipHash24;
 use kernel::static_init;
 
 pub unsafe fn run_siphash24(client: &'static dyn CapsuleTestClient) {
-    let t = static_init_test_siphash24(client);
+    let t = unsafe { static_init_test_siphash24(client) };
     t.run();
 }
 
@@ -33,17 +33,21 @@ unsafe fn static_init_test_siphash24(
     kernel::deferred_call::DeferredCallClient::register(sha);
 
     // Copy to the 64 byte buffer because we always hash 64 bytes.
-    for i in 0..15 {
-        HBUF[i] = HSTRING[i];
+    unsafe {
+        for i in 0..15 {
+            HBUF[i] = HSTRING[i];
+        }
     }
     let test = static_init!(
         TestSipHash24,
-        TestSipHash24::new(
-            sha,
-            &mut *addr_of_mut!(HBUF),
-            &mut *addr_of_mut!(HHASH),
-            &mut *addr_of_mut!(CHASH)
-        )
+        unsafe {
+            TestSipHash24::new(
+                sha,
+                &mut *addr_of_mut!(HBUF),
+                &mut *addr_of_mut!(HHASH),
+                &mut *addr_of_mut!(CHASH),
+            )
+        }
     );
 
     test.set_client(client);

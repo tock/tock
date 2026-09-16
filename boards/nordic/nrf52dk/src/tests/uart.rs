@@ -31,7 +31,7 @@ pub unsafe fn run(uart: &'static Uarte) {
         *b = ascii_char;
     }
 
-    transmit_entire_buffer(uart, buf);
+    unsafe { transmit_entire_buffer(uart, buf) };
     // transmit_512(uart, buf);
     // should_not_transmit(uart, buf);
     // transmit_254(uart, buf);

@@ -7,7 +7,7 @@ name = "wm1110dev"
 version.workspace = true
 authors.workspace = true
 build = "../build.rs"
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }

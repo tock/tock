@@ -10,7 +10,7 @@ authors = [
     "Dorota <gihu.dcz@porcupinefactory.org>"
 ]
 build = "../build.rs"
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 components = { path = "../components" }

@@ -14,7 +14,7 @@ use kernel::deferred_call::DeferredCallClient;
 use kernel::static_init;
 
 pub unsafe fn run_hmacsha256(client: &'static dyn CapsuleTestClient) {
-    let t = static_init_test_hmacsha256(client);
+    let t = unsafe { static_init_test_hmacsha256(client) };
     t.run();
 }
 
@@ -46,13 +46,15 @@ unsafe fn static_init_test_hmacsha256(
 
     let test = static_init!(
         TestHmacSha256<'static, HmacSha256Software<'static, Sha256Software<'static>>>,
-        TestHmacSha256::new(
-            hmacsha256,
-            &mut *addr_of_mut!(WIKI_KEY),
-            &mut *addr_of_mut!(WIKI_STR),
-            &mut *addr_of_mut!(DIGEST_DATA),
-            &*addr_of!(WIKI_HMAC)
-        )
+        unsafe {
+            TestHmacSha256::new(
+                hmacsha256,
+                &mut *addr_of_mut!(WIKI_KEY),
+                &mut *addr_of_mut!(WIKI_STR),
+                &mut *addr_of_mut!(DIGEST_DATA),
+                &*addr_of!(WIKI_HMAC),
+            )
+        }
     );
     test.set_client(client);
 

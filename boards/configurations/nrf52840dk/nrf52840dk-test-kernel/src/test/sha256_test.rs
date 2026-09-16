@@ -25,7 +25,7 @@ use capsules_extra::test::sha256::TestSha256;
 use kernel::static_init;
 
 pub unsafe fn run_sha256(client: &'static dyn CapsuleTestClient) {
-    let t = static_init_test_sha256(client);
+    let t = unsafe { static_init_test_sha256(client) };
     t.run();
 }
 
@@ -51,20 +51,24 @@ unsafe fn static_init_test_sha256(
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
     kernel::deferred_call::DeferredCallClient::register(sha);
     let bytes = b"hello ";
-    for i in 0..12 {
-        for j in 0..6 {
-            LSTRING[i * 6 + j] = bytes[j];
+    unsafe {
+        for i in 0..12 {
+            for j in 0..6 {
+                LSTRING[i * 6 + j] = bytes[j];
+            }
         }
     }
     // We expect LSTRING to hash to LHASH, so final argument is true
     let test = static_init!(
         TestSha256<Sha256Software>,
-        TestSha256::new(
-            sha,
-            &mut *addr_of_mut!(LSTRING),
-            &mut *addr_of_mut!(LHASH),
-            true
-        )
+        unsafe {
+            TestSha256::new(
+                sha,
+                &mut *addr_of_mut!(LSTRING),
+                &mut *addr_of_mut!(LHASH),
+                true,
+            )
+        }
     );
     test.set_client(client);
 

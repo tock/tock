@@ -7,7 +7,7 @@ name = "nrf52840dk"
 version.workspace = true
 authors.workspace = true
 build = "../../build.rs"
-edition.workspace = true
+edition = "2024"
 
 [lib]
 name = "nrf52840dk_lib"

@@ -34,21 +34,21 @@ use kernel::static_init;
 use nrf52840::aes::AesECB;
 
 pub unsafe fn run_aes128_ctr(aes: &'static AesECB, client: &'static dyn CapsuleTestClient) {
-    let t = static_init_test_ctr(aes, client);
+    let t = unsafe { static_init_test_ctr(aes, client) };
     aes.set_client(t);
 
     t.run();
 }
 
 pub unsafe fn run_aes128_cbc(aes: &'static AesECB, client: &'static dyn CapsuleTestClient) {
-    let t = static_init_test_cbc(aes, client);
+    let t = unsafe { static_init_test_cbc(aes, client) };
     aes.set_client(t);
 
     t.run();
 }
 
 pub unsafe fn run_aes128_ecb(aes: &'static AesECB, client: &'static dyn CapsuleTestClient) {
-    let t = static_init_test_ecb(aes, client);
+    let t = unsafe { static_init_test_ecb(aes, client) };
     aes.set_client(t);
 
     t.run();

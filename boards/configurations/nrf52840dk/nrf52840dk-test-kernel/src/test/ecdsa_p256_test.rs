@@ -51,7 +51,7 @@ pub static mut CSIG: [u8; 64] = [
 ];
 
 pub unsafe fn run_ecdsa_p256(client: &'static dyn CapsuleTestClient) {
-    let t = static_init_test_ecdsa_p256(client);
+    let t = unsafe { static_init_test_ecdsa_p256(client) };
     t.run();
 }
 
@@ -60,18 +60,20 @@ unsafe fn static_init_test_ecdsa_p256(
 ) -> &'static TestEcdsaP256Sign {
     let ecdsa = static_init!(
         EcdsaP256SignatureSigner<'static>,
-        EcdsaP256SignatureSigner::new(&mut *addr_of_mut!(SKEY)),
+        unsafe { EcdsaP256SignatureSigner::new(&mut *addr_of_mut!(SKEY)) },
     );
     kernel::deferred_call::DeferredCallClient::register(ecdsa);
 
     let test = static_init!(
         TestEcdsaP256Sign,
-        TestEcdsaP256Sign::new(
-            ecdsa,
-            &mut *addr_of_mut!(HHASH),
-            &mut *addr_of_mut!(HSIG),
-            &mut *addr_of_mut!(CSIG)
-        )
+        unsafe {
+            TestEcdsaP256Sign::new(
+                ecdsa,
+                &mut *addr_of_mut!(HHASH),
+                &mut *addr_of_mut!(HSIG),
+                &mut *addr_of_mut!(CSIG),
+            )
+        }
     );
 
     test.set_client(client);

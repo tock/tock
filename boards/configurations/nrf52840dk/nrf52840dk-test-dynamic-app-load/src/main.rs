@@ -133,7 +133,7 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        unsafe { Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf) }
     );
 
     nrf52840_peripherals
@@ -189,7 +189,7 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
@@ -211,7 +211,7 @@ pub unsafe fn main() {
 
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
-    let nrf52840_peripherals = create_peripherals();
+    let nrf52840_peripherals = unsafe { create_peripherals() };
 
     // Set up circular peripheral dependencies.
     nrf52840_peripherals.init();
@@ -236,7 +236,7 @@ pub unsafe fn main() {
     // resources (e.g. MPU, systick).
     let chip = static_init!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        nrf52840::chip::NRF52::new(nrf52840_peripherals)
+        unsafe { nrf52840::chip::NRF52::new(nrf52840_peripherals) }
     );
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
@@ -446,7 +446,7 @@ pub unsafe fn main() {
         );
 
     // These symbols are defined in the standard Tock linker script.
-    extern "C" {
+    unsafe extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
         /// End of the ROM region containing app images.
@@ -457,14 +457,18 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let app_flash = core::slice::from_raw_parts(
-        core::ptr::addr_of!(_sapps),
-        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-    );
-    let app_memory = core::slice::from_raw_parts_mut(
-        core::ptr::addr_of_mut!(_sappmem),
-        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-    );
+    let app_flash = unsafe {
+        core::slice::from_raw_parts(
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+        )
+    };
+    let app_memory = unsafe {
+        core::slice::from_raw_parts_mut(
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+        )
+    };
 
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(

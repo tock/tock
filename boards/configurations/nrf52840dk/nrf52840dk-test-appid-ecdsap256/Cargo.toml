@@ -7,7 +7,7 @@ name = "nrf52840dk-test-appid-ecdsap256"
 version.workspace = true
 authors.workspace = true
 build = "../../../build.rs"
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 nrf52840dk-test-base = { path = "../nrf52840dk-test-base" }

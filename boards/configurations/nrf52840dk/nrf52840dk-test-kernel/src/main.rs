@@ -122,7 +122,7 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        unsafe { Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf) }
     );
 
     nrf52840_peripherals
@@ -163,7 +163,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
@@ -179,7 +179,7 @@ pub unsafe fn main() {
 
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
-    let nrf52840_peripherals = create_peripherals();
+    let nrf52840_peripherals = unsafe { create_peripherals() };
 
     // Set up circular peripheral dependencies.
     nrf52840_peripherals.init();
@@ -199,7 +199,7 @@ pub unsafe fn main() {
     // resources (e.g. MPU, systick).
     let chip = static_init!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        nrf52840::chip::NRF52::new(nrf52840_peripherals)
+        unsafe { nrf52840::chip::NRF52::new(nrf52840_peripherals) }
     );
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);

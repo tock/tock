@@ -74,17 +74,17 @@ impl KernelResources<ChipHw> for Platform {
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let (board_kernel, base_platform, chip, default_peripherals, mux_alarm) =
-        nrf52840dk_lib::start();
+        unsafe { nrf52840dk_lib::start() };
 
     //--------------------------------------------------------------------------
     // IEEE 802.15.4 and UDP
     //--------------------------------------------------------------------------
 
     let (eui64_driver, ieee802154_driver, udp_driver) =
-        nrf52840dk_lib::ieee802154_udp(board_kernel, default_peripherals, mux_alarm);
+        unsafe { nrf52840dk_lib::ieee802154_udp(board_kernel, default_peripherals, mux_alarm) };
 
     let platform = Platform {
         base: base_platform,
@@ -94,7 +94,7 @@ pub unsafe fn main() {
     };
 
     // These symbols are defined in the linker script.
-    extern "C" {
+    unsafe extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
         /// End of the ROM region containing app images.
@@ -110,14 +110,18 @@ pub unsafe fn main() {
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
+        unsafe {
+            core::slice::from_raw_parts(
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            )
+        },
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            )
+        },
         &FAULT_RESPONSE,
         &process_management_capability,
     )

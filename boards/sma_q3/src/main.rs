@@ -216,7 +216,7 @@ pub unsafe fn start() -> (
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        unsafe { Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf) }
     );
 
     // set up circular peripheral dependencies
@@ -271,7 +271,7 @@ pub unsafe fn start() -> (
 
     let chip = static_init!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        nrf52840::chip::NRF52::new(nrf52840_peripherals)
+        unsafe { nrf52840::chip::NRF52::new(nrf52840_peripherals) }
     );
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
@@ -332,7 +332,7 @@ pub unsafe fn start() -> (
         // TODO: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
         // aliases reference is only used inside a panic handler, which should be OK, but maybe we
         // should use a const reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&*core::ptr::from_mut(rtt_memory.rtt_memory));
+        unsafe { self::io::set_rtt_memory(&*core::ptr::from_mut(rtt_memory.rtt_memory)) };
 
         components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
             .finalize(components::segger_rtt_component_static!(AlarmHw))
@@ -583,7 +583,7 @@ pub unsafe fn start() -> (
 
     load_processes(board_kernel, chip);
     // These symbols are defined in the linker script.
-    extern "C" {
+    unsafe extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
         /// End of the ROM region containing app images.
@@ -598,10 +598,10 @@ pub unsafe fn start() -> (
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, platform, chip) = start();
+    let (board_kernel, platform, chip) = unsafe { start() };
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

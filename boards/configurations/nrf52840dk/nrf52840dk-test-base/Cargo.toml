@@ -6,7 +6,7 @@
 name = "nrf52840dk-test-base"
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
+edition = "2024"
 
 [lib]
 name = "nrf52840dk_test_base_lib"

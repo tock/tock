@@ -15,7 +15,7 @@ use nrf52832::aes::AesECB;
 /// ```
 ///
 pub unsafe fn run(aesecb: &'static AesECB) {
-    let t = static_init_test(aesecb);
+    let t = unsafe { static_init_test(aesecb) };
     aesecb.set_client(t);
     t.run();
 }

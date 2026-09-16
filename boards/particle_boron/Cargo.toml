@@ -10,7 +10,7 @@ authors = [
     "Wilfred Mallawa <vindulawilfred@gmail.com>"
     ]
 build = "../build.rs"
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 components = { path = "../components" }

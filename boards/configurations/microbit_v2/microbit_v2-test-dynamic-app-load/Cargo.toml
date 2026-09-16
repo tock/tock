@@ -7,7 +7,7 @@ name = "microbit_v2-test-dynamic-app-load"
 version.workspace = true
 authors.workspace = true
 build = "../../../build.rs"
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 cortexm4 = { path = "../../../../arch/cortex-m4" }
