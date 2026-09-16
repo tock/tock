@@ -2161,6 +2161,12 @@ pub mod kernel_protection_mml_epmp {
     #[derive(Copy, Clone, Debug)]
     pub struct KernelTextRegion(pub TORRegionSpec);
 
+    /// Miscellaneous memory region for platform-specific uses.
+    ///
+    /// Configured in the PMP as a `NAPOT` region.
+    #[derive(Copy, Clone, Debug)]
+    pub struct MiscellaneousRegion(pub NAPOTRegionSpec);
+
     /// A RISC-V ePMP implementation.
     ///
     /// Supports machine-mode (kernel) memory protection by using the
@@ -2197,7 +2203,7 @@ pub mod kernel_protection_mml_epmp {
     ///   | 6 ... | /                                     \ |       |   |       |
     ///   | n - 5 | \ Userspace TOR region #x             / |       |   |       |
     ///   |       |                                         |       |   |       |
-    ///   | n - 4 | FLASH2 (separate storage device)        | NAPOT | X | R/W   |
+    ///   | n - 4 | OPTIONAL (miscellaneous memory)         | NAPOT | X | R/W   |
     ///   |       |                                         |       |   |       |
     ///   | n - 3 | FLASH (spanning kernel & apps)          | NAPOT | X | R     |
     ///   |       |                                         |       |   |       |
@@ -2223,12 +2229,26 @@ pub mod kernel_protection_mml_epmp {
         // Start user-mode TOR regions after the first kernel .text region:
         const TOR_REGIONS_OFFSET: usize = 1;
 
+        /// Create a [`KernelProtectionMMLEPMP`].
+        ///
+        /// This expects ranges for four common regions, plus an optional
+        /// region. The optional region can be used for chip- or
+        /// platform-specific uses cases where the kernel needs R/W access to an
+        /// additional memory region.
+        ///
+        /// # Arguments
+        ///
+        /// - `flash`: All flash on the chip.
+        /// - `ram`: RAM memory for the kernel and apps.
+        /// - `mmio`: Region of the address space used for MMIO peripherals.
+        /// - `kernel_text`: Flash region for the kernel executable.
+        /// - `optional`: Additional address space to be R/W.
         pub unsafe fn new(
             flash: FlashRegion,
             ram: RAMRegion,
             mmio: MMIORegion,
             kernel_text: KernelTextRegion,
-            flash2: Option<FlashRegion>,
+            optional: Option<MiscellaneousRegion>,
         ) -> Result<Self, ()> {
             for i in 0..AVAILABLE_ENTRIES {
                 // Read the entry's CSR:
@@ -2290,7 +2310,7 @@ pub mod kernel_protection_mml_epmp {
                 );
             }
 
-            // Set the kernel `.text`, flash, RAM and MMIO regions, in no
+            // Set the kernel `.text`, flash, RAM, and MMIO, and miscellaneous regions, in no
             // particular order, with the exception of `.text` and flash:
             // `.text` must precede flash, as otherwise we'd be revoking execute
             // permissions temporarily. Given that we can currently execute
@@ -2355,8 +2375,8 @@ pub mod kernel_protection_mml_epmp {
                 flash.0.pmpaddr(),
             );
 
-            // flash2 (separate storage device) at n - 4:
-            flash2.map(|flash2| {
+            // optional (miscellaneous platform-specific region) at n - 4:
+            optional.map(|optional| {
                 write_pmpaddr_pmpcfg(
                     AVAILABLE_ENTRIES - 4,
                     (pmpcfg_octet::a::NAPOT
@@ -2365,7 +2385,7 @@ pub mod kernel_protection_mml_epmp {
                         + pmpcfg_octet::x::CLEAR
                         + pmpcfg_octet::l::SET)
                         .into(),
-                    flash2.0.pmpaddr(),
+                    optional.0.pmpaddr(),
                 );
             });
 
