@@ -6,7 +6,7 @@
 name = "e310_g003"
 version.workspace = true
 authors.workspace = true
-edition.workspace = true
+edition = "2024"
 
 [dependencies]
 sifive = { path = "../sifive" }

@@ -19,4 +19,4 @@ resolver = "2"
 
 [workspace.package]
 authors = ["Tock Project Developers <devel@lists.tockos.org>"]
-edition = "2021"
+edition = "2024"
