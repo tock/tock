@@ -83,9 +83,11 @@ pub trait CortexMVariant {
     /// mark the interrupt as pending.
     const SYSTICK_HANDLER: unsafe extern "C" fn();
 
-    /// This is called after a `svc` instruction, both when switching to
-    /// userspace and when userspace makes a system call.
+    /// This is called after a `svc` instruction to handle userspace syscalls.
     const SVC_HANDLER: unsafe extern "C" fn();
+
+    /// This is called for PendSV exceptions to switch from kernel to userspace.
+    const PENDSV_HANDLER: unsafe extern "C" fn();
 
     /// Hard fault handler.
     const HARD_FAULT_HANDLER: unsafe extern "C" fn();
