@@ -131,12 +131,19 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
     ///   drivers.
     /// - There must not be any other code that accesses the DMA buffer and
     ///   length registers of the DMA-enabled peripherals.
-    pub unsafe fn new(ficr: &'a crate::ficr::Ficr, aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
+    pub unsafe fn new(
+        ficr: &'a crate::ficr::Ficr,
+        aes_ecb_buffer: &'static mut [u8; 48],
+        pwm_buffer: &'static mut [u16; 4],
+    ) -> Self {
         // SAFETY: See function-level doc.
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
         // SAFETY: See function-level doc.
         let uarte0_registers = unsafe { crate::uart::UarteRegistersManager::new_uarte0() };
+
+        // SAFETY: See function-level doc.
+        let pwm0_registers = unsafe { crate::pwm::PwmRegistersManager::new(PWM0_BASE, pwm_buffer) };
 
         Self {
             acomp: crate::acomp::Comparator::new(COMP_BASE),
@@ -157,7 +164,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             adc: crate::adc::Adc::new(SAADC_BASE, 3300),
             nvmc: crate::nvmc::Nvmc::new(NVMC_BASE),
             clock: crate::clock::Clock::new(CLOCK_BASE),
-            pwm0: crate::pwm::Pwm::new(PWM0_BASE),
+            pwm0: crate::pwm::Pwm::new(pwm0_registers),
             uicr: crate::uicr::Uicr::new(UICR_BASE, ficr),
             approtect: crate::approtect::Approtect::new(APPROTECT_BASE, ficr),
             ficr,

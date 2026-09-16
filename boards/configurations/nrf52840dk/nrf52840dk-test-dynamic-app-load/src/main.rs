@@ -130,6 +130,7 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let pwm_buf = static_init!([u16; 4], [0; 4]);
     let ficr = static_init!(
         nrf52840::ficr::Ficr,
         nrf52840::ficr::Ficr::new(nrf52840::chip::FICR_BASE)
@@ -137,7 +138,7 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ficr, ieee802154_ack_buf, aes_ecb_buf)
+        Nrf52840DefaultPeripherals::new(ficr, ieee802154_ack_buf, aes_ecb_buf, pwm_buf)
     );
 
     nrf52840_peripherals
