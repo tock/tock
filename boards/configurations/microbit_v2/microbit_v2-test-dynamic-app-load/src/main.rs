@@ -253,10 +253,14 @@ unsafe fn start() -> (
         [0; nrf52833::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let ficr = static_init!(
+        nrf52833::ficr::Ficr,
+        nrf52833::ficr::Ficr::new(nrf52833::chip::FICR_BASE)
+    );
     // Initialize chip peripheral drivers
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
-        Nrf52833DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        Nrf52833DefaultPeripherals::new(ficr, ieee802154_ack_buf, aes_ecb_buf)
     );
 
     // set up circular peripheral dependencies
@@ -273,9 +277,6 @@ unsafe fn start() -> (
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
-
-    // Get FICR instance to read chip properties.
-    let ficr = nrf52833::ficr::Ficr::new();
 
     //--------------------------------------------------------------------------
     // RAW 802.15.4

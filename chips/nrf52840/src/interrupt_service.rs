@@ -5,7 +5,20 @@
 //! Handle interrupts for nRF52840-specific peripherals
 
 use kernel::hil::time::Alarm;
+use kernel::utilities::StaticRef;
 use nrf52::chip::Nrf52DefaultPeripherals;
+
+const RADIO_BASE: StaticRef<crate::ieee802154_radio::RadioRegisters> =
+    unsafe { StaticRef::new(0x40001000 as *const crate::ieee802154_radio::RadioRegisters) };
+
+const USBD_BASE: StaticRef<crate::usbd::UsbdRegisters<'static>> =
+    unsafe { StaticRef::new(0x40027000 as *const crate::usbd::UsbdRegisters<'static>) };
+
+const USBD_CHIPINFO_BASE: StaticRef<crate::usbd::ChipInfoRegisters> =
+    unsafe { StaticRef::new(0x10000130 as *const crate::usbd::ChipInfoRegisters) };
+
+const USBD_USBERRATA_BASE: StaticRef<crate::usbd::UsbErrataRegisters> =
+    unsafe { StaticRef::new(0x4006E000 as *const crate::usbd::UsbErrataRegisters) };
 
 /// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
 ///
@@ -20,7 +33,7 @@ pub struct Nrf52840DefaultPeripherals<'a> {
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
 
-impl Nrf52840DefaultPeripherals<'_> {
+impl<'a> Nrf52840DefaultPeripherals<'a> {
     /// Create default peripherals for the nRF52840 microcontroller.
     ///
     /// # Safety
@@ -34,16 +47,20 @@ impl Nrf52840DefaultPeripherals<'_> {
     /// - There must not be any other code that accesses the DMA buffer and
     ///   length registers of the DMA-enabled peripherals.
     pub unsafe fn new(
+        ficr: &'a nrf52::ficr::Ficr,
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
         aes_ecb_buf: &'static mut [u8; 48],
     ) -> Self {
         // SAFETY: See function-level doc.
-        let nrf52_peripherals = unsafe { Nrf52DefaultPeripherals::new(aes_ecb_buf) };
+        let nrf52_peripherals = unsafe { Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf) };
 
         Self {
             nrf52: nrf52_peripherals,
-            ieee802154_radio: crate::ieee802154_radio::Radio::new(ieee802154_radio_ack_buf),
-            usbd: crate::usbd::Usbd::new(),
+            ieee802154_radio: crate::ieee802154_radio::Radio::new(
+                RADIO_BASE,
+                ieee802154_radio_ack_buf,
+            ),
+            usbd: crate::usbd::Usbd::new(USBD_BASE, USBD_CHIPINFO_BASE, USBD_USBERRATA_BASE),
             gpio_port: crate::gpio::nrf52840_gpio_create(),
         }
     }
