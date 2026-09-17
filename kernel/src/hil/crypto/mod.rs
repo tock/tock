@@ -34,6 +34,13 @@
 //! 5. Driver issues a sequence of asynchronous `write_xxx()` callbacks to return outputs.
 //! 6. Driver issues `xxx_done()` callback to signal completion of the operation and its outcome.
 //!
+//! For length-delimited input callbacks returning a byte count, drivers must supply a nonempty
+//! destination no larger than the remaining input. Clients must return a count in
+//! `1..=destination.len()` until all input has been supplied. Short reads are permitted, but
+//! `Ok(0)` is not a readiness indication or an end-of-input marker. Drivers must abort with
+//! [`ErrorCode::SIZE`] if the count is zero or exceeds the destination length. For zero-length
+//! input, drivers must skip input callbacks and complete the operation normally.
+//!
 //! ## Error Handling
 //!
 //! Errors may be returned to clients synchronously from entrypoint functions or asynchronously via
@@ -49,6 +56,8 @@
 //!   by the HIL implementation
 //!   * Ex: Attempting to use AES-GCM on a device that does not provide such functionality
 //! * `ErrorCode::BUSY` - An operation is already in progress
+//! * `ErrorCode::SIZE` - An invalid input/output size or a length-delimited input callback that
+//!   fails to make progress or reports more bytes than its destination can hold
 //!
 //! All `read_xxx()` and `write_xxx()` callbacks are defined to return a `Result` type, allowing the
 //! client to express any errors that may occur while reading or writing data. Whenever such errors
@@ -58,6 +67,8 @@
 //! ## Example HIL Structure
 //!
 //! ```
+//! use kernel::ErrorCode;
+//!
 //! trait Foo {
 //!     fn set_client(&self, client: &'static dyn CryptoClient);
 //!

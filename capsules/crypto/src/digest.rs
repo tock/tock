@@ -30,6 +30,9 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::{ErrorCode, ProcessId};
 
+/// Syscall driver number for the multi-algorithm digest interface.
+pub const DRIVER_NUM: usize = capsules_core::driver::NUM::Digest as usize;
+
 /// Algorithm identifiers used by command 1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(usize)]

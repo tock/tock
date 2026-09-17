@@ -48,8 +48,9 @@ pub trait Digest<A: DigestAlgorithm> {
     /// through [`DigestClient::write_digest`], followed by exactly one
     /// [`DigestClient::digest_done`] callback. Callbacks must not occur before this method returns.
     ///
-    /// Returns [`ErrorCode::BUSY`] if an operation is already in progress or [`ErrorCode::SIZE`]
-    /// if `len` exceeds an implementation limit known when this method is called. On `Ok(())`, a
+    /// Returns [`ErrorCode::BUSY`] if an operation is already in progress, [`ErrorCode::RESERVE`]
+    /// if no client is registered, or [`ErrorCode::SIZE`] if `len` exceeds an implementation
+    /// limit known when this method is called. On `Ok(())`, a
     /// completion callback will occur. On `Err`, no callbacks will occur for this request.
     fn digest(&self, len: usize) -> Result<(), ErrorCode>;
 
@@ -62,8 +63,12 @@ pub trait DigestClient<A: DigestAlgorithm> {
     /// Retrieve input to hash.
     ///
     /// The client must write input into `input` and return the number of bytes written. A driver
-    /// may issue this callback multiple times, but must not request more than the `len` passed to
-    /// [`Digest::digest`] in total.
+    /// may issue this callback multiple times, but each destination must fit within the remaining
+    /// input. The total number of bytes consumed must equal the `len` passed to [`Digest::digest`].
+    /// Follow the [crypto data movement contract](super#callback-oriented-data-movement):
+    /// return between one byte and `input.len()` bytes for each nonempty request. A zero or
+    /// oversized count terminates the operation with [`ErrorCode::SIZE`]. Empty messages do
+    /// not cause input callbacks.
     fn read_input(&self, input: &mut [u8]) -> Result<usize, ErrorCode>;
 
     /// Return the computed digest.

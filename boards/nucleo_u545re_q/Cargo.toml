@@ -18,6 +18,7 @@ stm32u5xx-unsafe = { path = "../../chips/stm32u5xx-unsafe" }
 
 
 capsules-core = { path = "../../capsules/core" }
+capsules-crypto = { path = "../../capsules/crypto" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 

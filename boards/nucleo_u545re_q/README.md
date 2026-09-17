@@ -106,3 +106,18 @@ compatible version:
 
 The kernel console is available on USART1 via the ST-LINK USB connection at 
 115200 baud.
+
+## Message Digests
+
+The digest syscall driver (`0x40007`) supports MD5, SHA-1, SHA-224, and SHA-256
+through one mutex-protected HASH peripheral. SHA-384 and SHA-512 return
+`NOSUPPORT`. Input transfers use the interrupt-driven FIFO rather than DMA.
+
+Command 1 selects the algorithm with its first argument (0, 1, 2, or 3,
+respectively). Read-only allow 0 holds the input, read-write allow 0 holds the
+digest, and subscribe 0 reports `(status, digest_length, 0)`. Empty input is
+supported. Keep both allows and their contents unchanged until completion.
+
+This replaces this board's legacy HMAC syscall (`0x40003`); the interfaces are
+not compatible. MD5 and SHA-1 are provided for compatibility, not for applications
+requiring collision resistance.

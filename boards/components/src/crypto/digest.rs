@@ -6,8 +6,8 @@
 //! capsule and must already have its deferred call registered (for example by
 //! DriverMutexComponent). Do not construct multiple mutexes for one peripheral.
 //!
-//! The driver number is board-assigned. This API is not compatible with the
-//! legacy SHA syscall driver and must not silently replace it under its number.
+//! Use [`capsules_crypto::digest::DRIVER_NUM`] for the driver number. This API is
+//! not compatible with the legacy SHA or HMAC syscall drivers.
 //!
 //! ```rust,ignore
 //! let digest = components::crypto::digest::DigestComponent::new(board_kernel, driver_num, mem_cap)
