@@ -43,7 +43,8 @@ As MicroBit v2 has an on board debugger that provides several ways of programmin
 
 There are two ways for flashing the bootloader:
  1. Using the MicroBit USB drive
- 2. Using [cargo flash](https://probe.rs/docs/tools/cargo-flash/)
+There are several ways for flashing the bootloader:
+1. Using the MicroBit USB drive
  3. Using openocd
  4. Using [probe-rs](https://github.com/probe-rs/probe-rs)
 
@@ -64,7 +65,7 @@ Drag and drop the [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/t
 
 The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
 
-### Using cargo flash
+### Using probe-rs
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
 ```bash
