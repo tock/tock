@@ -83,6 +83,7 @@ type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
     DynamicBinaryStorage<'static>,
     DynamicBinaryStorage<'static>,
     DynamicBinaryStorage<'static>,
+    DynamicBinaryStorage<'static>,
 >;
 
 type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
@@ -528,9 +529,11 @@ pub unsafe fn main() {
         dynamic_binary_storage,
         dynamic_binary_storage,
         dynamic_binary_storage,
+        dynamic_binary_storage,
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::app_loader_component_static!(
+        DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
