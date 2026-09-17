@@ -824,6 +824,23 @@ pub unsafe fn format_pmp_entries<const PHYSICAL_ENTRIES: usize>(
     Ok(())
 }
 
+/// Measure the PMP's address granularity in bytes: `1 << (G + 2)`, where `G` is
+/// the count of hardwired low `pmpaddr` bits. `None` on an all-zero readback.
+///
+/// # Safety
+///
+/// Clobbers `pmpaddr[entry]`; that entry's `pmpcfg.A` must not be NAPOT.
+unsafe fn measure_pmpaddr_granularity(entry: usize) -> Option<usize> {
+    csr::CSR.pmpaddr_set(entry, usize::MAX);
+    let readback = csr::CSR.pmpaddr_get(entry);
+    csr::CSR.pmpaddr_set(entry, 0);
+
+    if readback == 0 {
+        return None;
+    }
+    Some(1_usize << (readback.trailing_zeros() as usize + 2))
+}
+
 /// A RISC-V PMP implementation exposing a number of TOR memory protection
 /// regions to the [`PMPUserMPU`].
 ///
@@ -839,7 +856,7 @@ pub unsafe fn format_pmp_entries<const PHYSICAL_ENTRIES: usize>(
 /// - a [`TORUserPMP`] is a simple abstraction over some underlying PMP hardware
 ///   implementation, which exposes an interface to configure regions that are
 ///   active (enforced) in user-mode and can be configured for arbitrary
-///   addresses on a 4-byte granularity.
+///   addresses on a granularity of [`TORUserPMP::GRANULARITY`] bytes.
 ///
 /// - the [`PMPUserMPU`] takes this abstraction and implements the Tock kernel's
 ///   [`mpu::MPU`] trait. It worries about re-configuring memory protection when
@@ -866,6 +883,10 @@ pub trait TORUserPMP<const MAX_REGIONS: usize> {
     /// number of userspace regions does not exceed the number of hardware
     /// regions.
     const CONST_ASSERT_CHECK: ();
+
+    /// Address granularity of this PMP implementation in bytes: `1 << (G + 2)`,
+    /// where `G` is the count of hardwired low `pmpaddr` bits. Boundaries round up.
+    const GRANULARITY: usize = 4;
 
     /// The number of TOR regions currently available for userspace memory
     /// protection. Within `[0; MAX_REGIONS]`.
@@ -1012,8 +1033,8 @@ pub struct PMPUserMPU<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'st
     /// configuration to hardware.
     last_configured_for: OptionalCell<NonZeroUsize>,
     /// Underlying hardware PMP implementation, exposing a number (up to
-    /// `P::MAX_REGIONS`) of memory protection regions with a 4-byte enforcement
-    /// granularity.
+    /// `P::MAX_REGIONS`) of memory protection regions with an enforcement
+    /// granularity of [`TORUserPMP::GRANULARITY`] bytes.
     pub pmp: P,
 }
 
@@ -1110,17 +1131,15 @@ unsafe impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
         let mut start = unallocated_memory_start as usize;
         let mut size = min_region_size;
 
-        // Region start always has to align to 4 bytes. Round up to a 4 byte
-        // boundary if required:
-        start = start.next_multiple_of(4);
+        // Round the region start up to the PMP's address granularity:
+        start = start.next_multiple_of(P::GRANULARITY);
 
-        // Region size always has to align to 4 bytes. Round up to a 4 byte
-        // boundary if required:
-        size = size.next_multiple_of(4);
+        // Round the region size up to the PMP's address granularity:
+        size = size.next_multiple_of(P::GRANULARITY);
 
-        // Regions must be at least 4 bytes in size.
-        if size < 4 {
-            size = 4;
+        // Regions must be at least one granule in size.
+        if size < P::GRANULARITY {
+            size = P::GRANULARITY;
         }
 
         // Now, check to see whether the adjusted start and size still meet the
@@ -1238,17 +1257,15 @@ unsafe impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
         let mut start = unallocated_memory_start as usize;
         let mut pmp_region_size = initial_app_memory_size;
 
-        // Region start always has to align to 4 bytes. Round up to a 4 byte
-        // boundary if required:
-        start = start.next_multiple_of(4);
+        // Round the region start up to the PMP's address granularity:
+        start = start.next_multiple_of(P::GRANULARITY);
 
-        // Region size always has to align to 4 bytes. Round up to a 4 byte
-        // boundary if required:
-        pmp_region_size = pmp_region_size.next_multiple_of(4);
+        // Round the region size up to the PMP's address granularity:
+        pmp_region_size = pmp_region_size.next_multiple_of(P::GRANULARITY);
 
-        // Regions must be at least 4 bytes in size.
-        if pmp_region_size < 4 {
-            pmp_region_size = 4;
+        // Regions must be at least one granule in size.
+        if pmp_region_size < P::GRANULARITY {
+            pmp_region_size = P::GRANULARITY;
         }
 
         // We need to provide a memory block that fits both the initial app and
@@ -1311,9 +1328,9 @@ unsafe impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
         let kernel_memory_break = kernel_memory_break as usize;
 
         // Ensure that the requested app_memory_break complies with PMP
-        // alignment constraints, namely that the region's end address is 4 byte
-        // aligned:
-        app_memory_break = app_memory_break.next_multiple_of(4);
+        // alignment constraints, namely that the region's end address is
+        // aligned to the PMP's address granularity:
+        app_memory_break = app_memory_break.next_multiple_of(P::GRANULARITY);
 
         // Check if the app has run out of memory:
         if app_memory_break > kernel_memory_break {
@@ -1612,9 +1629,11 @@ pub mod simple {
     /// the runtime overhead induced through PMP configuration, at the cost of
     /// having less PMP regions available to use for userspace memory
     /// protection.
-    pub struct SimplePMP<const AVAILABLE_ENTRIES: usize>;
+    pub struct SimplePMP<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize = 4>;
 
-    impl<const AVAILABLE_ENTRIES: usize> SimplePMP<AVAILABLE_ENTRIES> {
+    impl<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize>
+        SimplePMP<AVAILABLE_ENTRIES, GRANULARITY>
+    {
         pub unsafe fn new() -> Result<Self, ()> {
             // The SimplePMP does not support locked regions, kernel memory
             // protection, or any ePMP features (using the mseccfg CSR). Ensure
@@ -1677,15 +1696,22 @@ pub mod simple {
                 );
             }
 
-            // Hardware PMP is verified to be in a compatible mode / state, and
-            // has at least `AVAILABLE_ENTRIES` entries.
+            // A wrong GRANULARITY is otherwise silent. Every entry is OFF here.
+            if super::measure_pmpaddr_granularity(0) != Some(GRANULARITY) {
+                return Err(());
+            }
+
+            // Hardware PMP is verified to be in a compatible mode / state, has
+            // at least `AVAILABLE_ENTRIES` entries, and matches `GRANULARITY`.
             Ok(SimplePMP)
         }
     }
 
-    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize> TORUserPMP<MPU_REGIONS>
-        for SimplePMP<AVAILABLE_ENTRIES>
+    impl<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize, const MPU_REGIONS: usize>
+        TORUserPMP<MPU_REGIONS> for SimplePMP<AVAILABLE_ENTRIES, GRANULARITY>
     {
+        const GRANULARITY: usize = GRANULARITY;
+
         // Ensure that the MPU_REGIONS (starting at entry, and occupying two
         // entries per region) don't overflow the available entires.
         const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= (AVAILABLE_ENTRIES / 2));
@@ -1767,7 +1793,9 @@ pub mod simple {
         }
     }
 
-    impl<const AVAILABLE_ENTRIES: usize> fmt::Display for SimplePMP<AVAILABLE_ENTRIES> {
+    impl<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize> fmt::Display
+        for SimplePMP<AVAILABLE_ENTRIES, GRANULARITY>
+    {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, " PMP hardware configuration -- entries: \r\n")?;
             unsafe { super::format_pmp_entries::<AVAILABLE_ENTRIES>(f) }
@@ -1863,9 +1891,11 @@ pub mod kernel_protection {
     /// through the [`KernelProtectionPMP::CONST_ASSERT_CHECK`] associated
     /// constant, which MUST be evaluated by the consumer of the [`TORUserPMP`]
     /// trait (usually the [`PMPUserMPU`](super::PMPUserMPU) implementation).
-    pub struct KernelProtectionPMP<const AVAILABLE_ENTRIES: usize>;
+    pub struct KernelProtectionPMP<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize = 4>;
 
-    impl<const AVAILABLE_ENTRIES: usize> KernelProtectionPMP<AVAILABLE_ENTRIES> {
+    impl<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize>
+        KernelProtectionPMP<AVAILABLE_ENTRIES, GRANULARITY>
+    {
         pub unsafe fn new(
             flash: FlashRegion,
             ram: RAMRegion,
@@ -2041,9 +2071,11 @@ pub mod kernel_protection {
         }
     }
 
-    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize> TORUserPMP<MPU_REGIONS>
-        for KernelProtectionPMP<AVAILABLE_ENTRIES>
+    impl<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize, const MPU_REGIONS: usize>
+        TORUserPMP<MPU_REGIONS> for KernelProtectionPMP<AVAILABLE_ENTRIES, GRANULARITY>
     {
+        const GRANULARITY: usize = GRANULARITY;
+
         /// Ensure that the MPU_REGIONS (starting at entry, and occupying two
         /// entries per region) don't overflow the available entires, excluding
         /// the 7 entires used for implementing the kernel memory protection.
@@ -2110,7 +2142,9 @@ pub mod kernel_protection {
         }
     }
 
-    impl<const AVAILABLE_ENTRIES: usize> fmt::Display for KernelProtectionPMP<AVAILABLE_ENTRIES> {
+    impl<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize> fmt::Display
+        for KernelProtectionPMP<AVAILABLE_ENTRIES, GRANULARITY>
+    {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, " PMP hardware configuration -- entries: \r\n")?;
             unsafe { super::format_pmp_entries::<AVAILABLE_ENTRIES>(f) }
@@ -2210,13 +2244,17 @@ pub mod kernel_protection_mml_epmp {
     /// Lockdown Mode (MML) security bit. This bit is required to ensure that
     /// any machine-mode (kernel) protection regions (lock bit set) are only
     /// accessible to kernel mode.
-    pub struct KernelProtectionMMLEPMP<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize> {
+    pub struct KernelProtectionMMLEPMP<
+        const AVAILABLE_ENTRIES: usize,
+        const MPU_REGIONS: usize,
+        const GRANULARITY: usize = 4,
+    > {
         user_pmp_enabled: Cell<bool>,
         shadow_user_pmpcfgs: [Cell<TORUserPMPCFG>; MPU_REGIONS],
     }
 
-    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize>
-        KernelProtectionMMLEPMP<AVAILABLE_ENTRIES, MPU_REGIONS>
+    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize, const GRANULARITY: usize>
+        KernelProtectionMMLEPMP<AVAILABLE_ENTRIES, MPU_REGIONS, GRANULARITY>
     {
         // Start user-mode TOR regions after the first kernel .text region:
         const TOR_REGIONS_OFFSET: usize = 1;
@@ -2381,9 +2419,12 @@ pub mod kernel_protection_mml_epmp {
         }
     }
 
-    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize> TORUserPMP<MPU_REGIONS>
-        for KernelProtectionMMLEPMP<AVAILABLE_ENTRIES, MPU_REGIONS>
+    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize, const GRANULARITY: usize>
+        TORUserPMP<MPU_REGIONS>
+        for KernelProtectionMMLEPMP<AVAILABLE_ENTRIES, MPU_REGIONS, GRANULARITY>
     {
+        const GRANULARITY: usize = GRANULARITY;
+
         // Ensure that the MPU_REGIONS (starting at entry, and occupying two
         // entries per region) don't overflow the available entries, excluding
         // the 7 entries used for implementing the kernel memory protection:
@@ -2491,8 +2532,8 @@ pub mod kernel_protection_mml_epmp {
         }
     }
 
-    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize> fmt::Display
-        for KernelProtectionMMLEPMP<AVAILABLE_ENTRIES, MPU_REGIONS>
+    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize, const GRANULARITY: usize>
+        fmt::Display for KernelProtectionMMLEPMP<AVAILABLE_ENTRIES, MPU_REGIONS, GRANULARITY>
     {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(
