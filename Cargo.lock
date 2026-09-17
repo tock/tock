@@ -70,6 +70,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "capsules-crypto"
+version = "0.2.4-dev"
+dependencies = [
+ "capsules-core",
+ "kernel",
+]
+
+[[package]]
 name = "capsules-extra"
 version = "0.2.4-dev"
 dependencies = [
@@ -114,6 +122,7 @@ name = "components"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
+ "capsules-crypto",
  "capsules-extra",
  "capsules-system",
  "kernel",
