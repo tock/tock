@@ -639,8 +639,10 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     str r2, [r0, #0]
     ldr r2, [r1, #20]         // CFSR
     str r2, [r0, #4]
+    str r2, [r1, #20]         // Clear saved bits of CFSR (write 1 to clear)
     ldr r2, [r1, #24]         // HFSR
     str r2, [r0, #8]
+    str r2, [r0, #24]         // Clear saved bits of HFSR (write 1 to clear)
     ldr r2, [r1, #32]         // MMFAR
     str r2, [r0, #12]
     ldr r2, [r1, #36]         // BFAR
