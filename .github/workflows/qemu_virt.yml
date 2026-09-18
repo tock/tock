@@ -78,3 +78,7 @@ jobs:
         # ../../../libtock-c is relative to tools/ci/qemu-virt-ci-runner/,
         # which is the working directory when cargo run executes.
         run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board qemu_rv64_virt --libtock-c ../../../libtock-c"
+
+      - name: Run hifive1 QEMU CI tests
+        shell: bash
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board hifive1 --libtock-c ../../../libtock-c"
