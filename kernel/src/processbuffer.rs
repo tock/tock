@@ -408,6 +408,9 @@ impl ReadOnlyProcessBuffer {
     }
 }
 
+// SAFETY: This implementation must be correct. The implementation of `ptr()`
+// ensures that a null pointer is returned if `len()` is 0, and a pointer to the
+// allowed buffer otherwise.
 unsafe impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
     /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
@@ -619,6 +622,9 @@ impl ReadWriteProcessBuffer {
     }
 }
 
+// SAFETY: This implementation must be correct. The implementation of `ptr()`
+// ensures that a null pointer is returned if `len()` is 0, and a pointer to the
+// allowed buffer otherwise.
 unsafe impl ReadableProcessBuffer for ReadWriteProcessBuffer {
     /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
@@ -664,14 +670,17 @@ unsafe impl ReadableProcessBuffer for ReadWriteProcessBuffer {
                     // here. For more information, refer to the
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
-                    Ok(fun(unsafe {
-                        raw_processbuf_to_roprocessslice(self.ptr, self.len)
-                    }))
+                    let ro_process_slice =
+                        unsafe { raw_processbuf_to_roprocessslice(self.ptr, self.len) };
+                    Ok(fun(ro_process_slice))
                 }),
         }
     }
 }
 
+// SAFETY: This implementation must be correct. We rely on the default
+// implementation and the correctness of the `ReadableProcessBuffer`
+// implementation.
 unsafe impl WriteableProcessBuffer for ReadWriteProcessBuffer {
     fn mut_enter<F, R>(&self, fun: F) -> Result<R, process::Error>
     where
@@ -698,9 +707,9 @@ unsafe impl WriteableProcessBuffer for ReadWriteProcessBuffer {
                     // here. For more information, refer to the
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
-                    Ok(fun(unsafe {
-                        raw_processbuf_to_rwprocessslice(self.ptr, self.len)
-                    }))
+                    let rw_process_slice =
+                        unsafe { raw_processbuf_to_rwprocessslice(self.ptr, self.len) };
+                    Ok(fun(rw_process_slice))
                 }),
         }
     }
@@ -833,7 +842,7 @@ pub struct ReadableProcessSlice {
 }
 
 fn cast_byte_slice_to_process_slice(byte_slice: &[ReadableProcessByte]) -> &ReadableProcessSlice {
-    // As ReadableProcessSlice is a transparent wrapper around its inner type,
+    // SAFETY: As ReadableProcessSlice is a transparent wrapper around its inner type,
     // [ReadableProcessByte], we can safely transmute a reference to the inner
     // type as a reference to the outer type with the same lifetime.
     unsafe { core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(byte_slice) }
