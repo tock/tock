@@ -190,7 +190,9 @@ impl
 // into an ARGB_8888 format. This can consume a large amount of stack
 // space, as we allocate this buffer with `static_init!()`:
 #[allow(clippy::large_stack_frames, clippy::large_stack_arrays)]
-pub unsafe fn start() -> (
+pub unsafe fn start(
+    epmp_miscellaneous_region: Option<rv32i::pmp::kernel_protection_mml_epmp::MiscellaneousRegion>,
+) -> (
     &'static kernel::Kernel,
     QemuRv32VirtPlatform,
     &'static qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
@@ -260,6 +262,7 @@ pub unsafe fn start() -> (
             )
             .unwrap(),
         ),
+        epmp_miscellaneous_region,
     )
     .unwrap();
 
