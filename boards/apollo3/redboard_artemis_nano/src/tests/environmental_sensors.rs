@@ -95,7 +95,7 @@ fn run_bme280_a_temperature() {
     debug!("check run BME280 Temperature... ");
     run_kernel_op(100);
 
-    let bme280 = unsafe { BME280.unwrap() };
+    let bme280 = *BME280.get().unwrap();
 
     // Make sure the device is ready for us.
     // The setup can take a little bit of time
@@ -118,7 +118,7 @@ fn run_bme280_b_humidity() {
     debug!("check run BME280 Humidity... ");
     run_kernel_op(100);
 
-    let bme280 = unsafe { BME280.unwrap() };
+    let bme280 = *BME280.get().unwrap();
 
     HumidityDriver::set_client(bme280, &CALLBACK);
     CALLBACK.reset();
@@ -137,7 +137,7 @@ fn run_ccs811_a_co2() {
     debug!("check run CCS811 CO2... ");
     run_kernel_op(100);
 
-    let ccs811 = unsafe { CCS811.unwrap() };
+    let ccs811 = *CCS811.get().unwrap();
 
     // Make sure the device is ready for us.
     // The setup can take a little bit of time
@@ -169,7 +169,7 @@ fn run_ccs811_b_tvoc() {
     debug!("check run CCS811 TVOC... ");
     run_kernel_op(100);
 
-    let ccs811 = unsafe { CCS811.unwrap() };
+    let ccs811 = *CCS811.get().unwrap();
 
     AirQualityDriver::set_client(ccs811, &CALLBACK);
     CALLBACK.reset();
