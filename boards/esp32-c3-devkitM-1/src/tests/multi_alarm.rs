@@ -24,27 +24,19 @@ use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
 
-static mut TESTS: Option<
-    [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, TimG<'static>>>; 3],
-> = None;
-
 #[test_case]
 pub fn run_multi_alarm() {
     debug!("start multi alarm test...");
-    unsafe {
-        TESTS = Some(static_init_multi_alarm_test(ALARM.unwrap()));
-        TESTS.unwrap()[0].run();
-        TESTS.unwrap()[1].run();
-        TESTS.unwrap()[2].run();
-    }
+    let tests = unsafe { static_init_multi_alarm_test(*ALARM.get().unwrap()) };
+    tests[0].run();
+    tests[1].run();
+    tests[2].run();
 
     run_kernel_op(10000);
 
-    unsafe {
-        assert!(TESTS.unwrap()[0].counter.get() > 15);
-        assert!(TESTS.unwrap()[1].counter.get() > 30);
-        assert!(TESTS.unwrap()[2].counter.get() > 80);
-    }
+    assert!(tests[0].counter.get() > 15);
+    assert!(tests[1].counter.get() > 30);
+    assert!(tests[2].counter.get() > 80);
 
     debug!("    [ok]");
     run_kernel_op(10000);

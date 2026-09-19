@@ -45,23 +45,22 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 // Test access to the peripherals
 #[cfg(test)]
-static mut PERIPHERALS: Option<&'static Esp32C3DefaultPeripherals> = None;
+static PERIPHERALS: SingleThreadValue<&'static Esp32C3DefaultPeripherals> =
+    SingleThreadValue::new();
 // Test access to scheduler
 #[cfg(test)]
-static mut SCHEDULER: Option<
-    &capsules_system::scheduler::priority::PrioritySched<ProcessManagementCapabilityObj>,
-> = None;
+static SCHEDULER: SingleThreadValue<
+    &'static capsules_system::scheduler::priority::PrioritySched<ProcessManagementCapabilityObj>,
+> = SingleThreadValue::new();
 // Test access to board
 #[cfg(test)]
-static mut BOARD: Option<&'static kernel::Kernel> = None;
+static BOARD: SingleThreadValue<&'static kernel::Kernel> = SingleThreadValue::new();
 // Test access to platform
 #[cfg(test)]
-static mut PLATFORM: Option<&'static Esp32C3Board> = None;
-// Test access to main loop capability
-#[cfg(test)]
-static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+static PLATFORM: SingleThreadValue<&'static Esp32C3Board> = SingleThreadValue::new();
 // Test access to alarm
-static mut ALARM: Option<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static>>> = None;
+static ALARM: SingleThreadValue<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static>>> =
+    SingleThreadValue::new();
 
 kernel::stack_size! {0x900}
 
@@ -272,7 +271,10 @@ unsafe fn setup() -> (
     );
     hil::time::Alarm::set_alarm_client(&peripherals.timg0, mux_alarm);
 
-    ALARM = Some(mux_alarm);
+    let _ = ALARM
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            mux_alarm,
+        );
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -485,30 +487,39 @@ use kernel::platform::watchdog::WatchDog;
 
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
+    let (board_kernel, esp32_c3_board, _chip, peripherals) = unsafe { setup() };
+
     unsafe {
-        let (board_kernel, esp32_c3_board, _chip, peripherals) = setup();
-
-        BOARD = Some(board_kernel);
-        PLATFORM = Some(&esp32_c3_board);
-        PERIPHERALS = Some(peripherals);
-        SCHEDULER = Some(
-            components::sched::priority::PriorityComponent::new(
+        let _ = BOARD
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
                 board_kernel,
-                ProcessManagementCapabilityObj {},
-            )
-            .finalize(components::priority_component_static!(
-                ProcessManagementCapabilityObj
-            )),
-        );
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+            );
+        let _ = PLATFORM
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+                esp32_c3_board,
+            );
+        let _ = PERIPHERALS
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+                peripherals,
+            );
+        let _ = SCHEDULER
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+                components::sched::priority::PriorityComponent::new(
+                    board_kernel,
+                    ProcessManagementCapabilityObj {},
+                )
+                .finalize(components::priority_component_static!(
+                    ProcessManagementCapabilityObj
+                )),
+            );
+    }
 
-        PLATFORM.map(|p| {
-            p.watchdog().setup();
-        });
+    if let Some(p) = PLATFORM.get() {
+        p.watchdog().setup();
+    }
 
-        for test in tests {
-            test();
-        }
+    for test in tests {
+        test();
     }
 
     loop {}
