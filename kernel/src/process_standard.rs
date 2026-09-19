@@ -605,20 +605,27 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         let ret = self.tasks.map_or(Err(ErrorCode::FAIL), |tasks| {
             match tasks.enqueue(task) {
                 true => {
+                    let opt_this_upcall_id = match task {
+                        Task::FunctionCall(FunctionCall {
+                            source: FunctionCallSource::Driver(upcall_id),
+                            ..
+                        }) => Some(upcall_id),
+                        Task::ReturnValue(ReturnArguments { upcall_id, .. }) => Some(upcall_id),
+                        _ => None,
+                    };
+
                     // If the process is yielded-for this task, set the ready flag.
-                    if let State::YieldedFor(yielded_upcall_id) = self.state.get() {
-                        if let Some(upcall_id) = match task {
-                            Task::FunctionCall(FunctionCall {
-                                source: FunctionCallSource::Driver(upcall_id),
-                                ..
-                            }) => Some(upcall_id),
-                            Task::ReturnValue(ReturnArguments { upcall_id, .. }) => Some(upcall_id),
-                            _ => None,
-                        } {
-                            self.is_yield_wait_for_ready
-                                .set(upcall_id == yielded_upcall_id);
-                        }
+                    //
+                    // In case the process is yielding for another upcall, don't
+                    // clear the flag; this would re-introduce the race
+                    // condition of #5195.
+                    if let State::YieldedFor(yielded_upcall_id) = self.state.get()
+                        && let Some(this_upcall_id) = opt_this_upcall_id
+                        && yielded_upcall_id == this_upcall_id
+                    {
+                        self.is_yield_wait_for_ready.set(true);
                     }
+
                     // The task has been successfully enqueued.
                     Ok(())
                 }
