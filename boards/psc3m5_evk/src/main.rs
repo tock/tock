@@ -4,7 +4,6 @@
 
 #![no_std]
 #![no_main]
-#![deny(missing_docs)]
 
 //! Tock kernel for the PSC3M5-EVK evaluation board.
 
@@ -19,11 +18,22 @@ use kernel::syscall::SyscallDriver;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{Kernel, capabilities, create_capability, static_init};
 
-use psc3::chip::{Psc3, Psc3DefaultPeripherals};
-use psc3::gpio;
+use psc3::chip::{Psc3DefaultPeripherals, Psc3Secure};
 use psc3::tcpwm::Tcpwm0;
-#[allow(unused)]
-use psc3::{BASE_VECTORS, IRQS};
+use psc3::{BASE_VECTORS_SECURE, IRQS_SECURE};
+use psc3::{chip_init, gpio};
+
+// used Ensures that the symbol is kept until the final binary
+// in board crate to allow reuse of chip crate
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[no_mangle]
+pub static _BASE_VECTORS: &[unsafe extern "C" fn(); 16] = &BASE_VECTORS_SECURE;
+
+// used Ensures that the symbol is kept until the final binary
+// in board crate to allow reuse of chip crate
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
+#[no_mangle]
+pub static _IRQS: &[unsafe extern "C" fn(); 140] = &IRQS_SECURE;
 
 mod io;
 
@@ -38,7 +48,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-type ChipHw = Psc3<'static, Psc3DefaultPeripherals<'static>>;
+type ChipHw = Psc3Secure<'static, Psc3DefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources for when a board panics used by io.rs.
@@ -83,7 +93,7 @@ impl SyscallDriverLookup for Psc3Plattform {
     }
 }
 
-impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Plattform {
+impl KernelResources<Psc3Secure<'static, Psc3DefaultPeripherals<'static>>> for Psc3Plattform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -116,7 +126,7 @@ impl KernelResources<Psc3<'static, Psc3DefaultPeripherals<'static>>> for Psc3Pla
 }
 
 // These symbols are defined in the linker script.
-extern "C" {
+unsafe extern "C" {
     /// Beginning of the ROM region containing app images.
     static _sapps: u8;
     /// End of the ROM region containing app images.
@@ -129,19 +139,43 @@ extern "C" {
     static _sstack: u8;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InitError {
+    PeripheralsNew,
+    PeripheralsInit,
+    GpioPinNotFound,
+    GpioPreconfigure,
+}
+
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-pub unsafe fn start() -> (
-    &'static kernel::Kernel,
-    Psc3Plattform,
-    &'static Psc3<'static, Psc3DefaultPeripherals<'static>>,
-) {
-    ChipHw::init();
+pub unsafe fn start() -> Result<
+    (
+        &'static kernel::Kernel,
+        Psc3Plattform,
+        &'static Psc3Secure<'static, Psc3DefaultPeripherals<'static>>,
+    ),
+    InitError,
+> {
+    /* !Only after chip_init::preinit_peripherals() was called peripheral view for debugging works! */
+    chip_init::preinit_peripherals();
 
-    // Todo set MSP limit to the start of the stack (done in infineon board support package)
-    // cortexm33::support::set_msplim(core::ptr::addr_of!(_sstack) as u32);
+    // Explicitly set vector-table. Needed when coming from secure world.
+    unsafe {
+        cortexm33::scb::set_vector_table_offset(BASE_VECTORS_SECURE.as_ptr().cast::<()>());
+    }
+
+    // Set stack limit
+    unsafe {
+        core::arch::asm!(
+            "msr msplim, {0}",
+            in(reg) core::ptr::addr_of!(_sstack)
+        );
+    }
+
+    ChipHw::init();
 
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
@@ -154,11 +188,17 @@ pub unsafe fn start() -> (
             PanicResources::new(),
         );
 
-    let peripherals = static_init!(Psc3DefaultPeripherals, Psc3DefaultPeripherals::new());
+    let peripherals = unsafe {
+        static_init!(
+            Psc3DefaultPeripherals,
+            Psc3DefaultPeripherals::new(gpio::SecurityState::Secure)
+                .map_err(|()| InitError::PeripheralsNew)?
+        )
+    };
 
-    /* Only after peripherals.sys_init() was called peripheral view for debugging works */
-    peripherals.preinit_peripherals();
-    peripherals.init();
+    peripherals
+        .init()
+        .map_err(|()| InitError::PeripheralsInit)?;
 
     const GPIO_CONFIG: gpio::PreConfig = gpio::PreConfig {
         out_val: 1,
@@ -174,15 +214,22 @@ pub unsafe fn start() -> (
         vtrip_sel: 0,
         vref_sel: 0,
         voh_sel: 0,
-        non_sec: false,
     };
 
-    peripherals
+    let debug_led_pin = peripherals
         .gpio
         .get_pin(gpio::PsocPin::P8_5)
-        .preconfigure(&GPIO_CONFIG);
+        .map_err(|()| InitError::GpioPinNotFound)?;
+    debug_led_pin
+        .preconfigure(&GPIO_CONFIG)
+        .map_err(|()| InitError::GpioPreconfigure)?;
 
-    let chip = static_init!(Psc3<Psc3DefaultPeripherals>, Psc3::new(peripherals));
+    let chip = unsafe {
+        static_init!(
+            Psc3Secure<Psc3DefaultPeripherals>,
+            Psc3Secure::new(peripherals)
+        )
+    };
     PANIC_RESOURCES.get().map(|resources| {
         resources.chip.put(chip);
     });
@@ -194,7 +241,7 @@ pub unsafe fn start() -> (
         resources.processes.put(processes.as_slice());
     });
 
-    let board_kernel = static_init!(Kernel, Kernel::new(processes.as_slice()));
+    let board_kernel = unsafe { static_init!(Kernel, Kernel::new(processes.as_slice())) };
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -257,8 +304,13 @@ pub unsafe fn start() -> (
     ));
     let _ = process_console.start();
 
-    let led_pin = peripherals.gpio.get_pin(gpio::PsocPin::P8_4);
-    led_pin.preconfigure(&GPIO_CONFIG);
+    let led_pin = peripherals
+        .gpio
+        .get_pin(gpio::PsocPin::P8_4)
+        .map_err(|()| InitError::GpioPinNotFound)?;
+    led_pin
+        .preconfigure(&GPIO_CONFIG)
+        .map_err(|()| InitError::GpioPreconfigure)?;
 
     let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, gpio::GpioPin>,
@@ -276,28 +328,28 @@ pub unsafe fn start() -> (
             gpio::GpioPin,
             // Pins in "Table 3 PSOC™ Control C3M5 Evaluation Kit board pinout" of Kit Guide
             //  Port 0 & 1:
-            01 => peripherals.gpio.get_pin(gpio::PsocPin::P0_1), // Header J5.5 (Remove R22, Mount R21)
-            10 => peripherals.gpio.get_pin(gpio::PsocPin::P1_0), // Header J24.37 (Remove R18, Mount R17)
-            11 => peripherals.gpio.get_pin(gpio::PsocPin::P1_1), // Header J5.7 (Remove R14, Mount R13)
+            01 => peripherals.gpio.get_pin(gpio::PsocPin::P0_1).map_err(|()| InitError::GpioPinNotFound)?, // Header J5.5 (Remove R22, Mount R21)
+            10 => peripherals.gpio.get_pin(gpio::PsocPin::P1_0).map_err(|()| InitError::GpioPinNotFound)?, // Header J24.37 (Remove R18, Mount R17)
+            11 => peripherals.gpio.get_pin(gpio::PsocPin::P1_1).map_err(|()| InitError::GpioPinNotFound)?, // Header J5.7 (Remove R14, Mount R13)
 
             // Port 2: General Purpose / JTAG
-            22 => peripherals.gpio.get_pin(gpio::PsocPin::P2_2), // Header J24.10
-            23 => peripherals.gpio.get_pin(gpio::PsocPin::P2_3), // Header J24.9
+            22 => peripherals.gpio.get_pin(gpio::PsocPin::P2_2).map_err(|()| InitError::GpioPinNotFound)?, // Header J24.10
+            23 => peripherals.gpio.get_pin(gpio::PsocPin::P2_3).map_err(|()| InitError::GpioPinNotFound)?, // Header J24.9
 
             // Port 3: Digital I/O Multiplexed
-            30 => peripherals.gpio.get_pin(gpio::PsocPin::P3_0), // Header J4.8 / J5.24
-            31 => peripherals.gpio.get_pin(gpio::PsocPin::P3_1), // Header J5.28 / J6.4
+            30 => peripherals.gpio.get_pin(gpio::PsocPin::P3_0).map_err(|()| InitError::GpioPinNotFound)?, // Header J4.8 / J5.24
+            31 => peripherals.gpio.get_pin(gpio::PsocPin::P3_1).map_err(|()| InitError::GpioPinNotFound)?, // Header J5.28 / J6.4
 
             // Port 4: PWM/General Purpose
-            44 => peripherals.gpio.get_pin(gpio::PsocPin::P4_4), // Header J5.36
-            45 => peripherals.gpio.get_pin(gpio::PsocPin::P4_5), // Header J5.37
+            44 => peripherals.gpio.get_pin(gpio::PsocPin::P4_4).map_err(|()| InitError::GpioPinNotFound)?, // Header J5.36
+            45 => peripherals.gpio.get_pin(gpio::PsocPin::P4_5).map_err(|()| InitError::GpioPinNotFound)?, // Header J5.37
 
             // Port 5: CAN/PWM
-            51 => peripherals.gpio.get_pin(gpio::PsocPin::P5_1), // Header J24.12
+            51 => peripherals.gpio.get_pin(gpio::PsocPin::P5_1).map_err(|()| InitError::GpioPinNotFound)?, // Header J24.12
 
             // Port 7: SPI/PWM
-            76 => peripherals.gpio.get_pin(gpio::PsocPin::P7_6), // Header J5.22 / J3.1
-            77 => peripherals.gpio.get_pin(gpio::PsocPin::P7_7), // Header J24.4
+            76 => peripherals.gpio.get_pin(gpio::PsocPin::P7_6).map_err(|()| InitError::GpioPinNotFound)?, // Header J5.22 / J3.1
+            77 => peripherals.gpio.get_pin(gpio::PsocPin::P7_7).map_err(|()| InitError::GpioPinNotFound)?, // Header J24.4
 
             // In led capsule and panic_handler
             // // Port 8: LEDs
@@ -305,8 +357,8 @@ pub unsafe fn start() -> (
             // 85 => peripherals.gpio.get_pin(gpio::PsocPin::P8_5), // User LED 1 (and Header J24.8)
 
             // Port 9: PWM/Expansion
-            91 => peripherals.gpio.get_pin(gpio::PsocPin::P9_1), // Header J5.25
-            93 => peripherals.gpio.get_pin(gpio::PsocPin::P9_3), // Header J24.3
+            91 => peripherals.gpio.get_pin(gpio::PsocPin::P9_1).map_err(|()| InitError::GpioPinNotFound)?, // Header J5.25
+            93 => peripherals.gpio.get_pin(gpio::PsocPin::P9_3).map_err(|()| InitError::GpioPinNotFound)?, // Header J24.3
         ),
         create_capability!(capabilities::MemoryAllocationCapability),
     )
@@ -316,8 +368,13 @@ pub unsafe fn start() -> (
     // BUTTON
     //--------------------------------------------------------------------------
 
-    let button_pin = peripherals.gpio.get_pin(gpio::PsocPin::P5_0);
-    button_pin.preconfigure(&GPIO_CONFIG);
+    let button_pin = peripherals
+        .gpio
+        .get_pin(gpio::PsocPin::P5_0)
+        .map_err(|()| InitError::GpioPinNotFound)?;
+    button_pin
+        .preconfigure(&GPIO_CONFIG)
+        .map_err(|()| InitError::GpioPreconfigure)?;
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
@@ -361,14 +418,18 @@ pub unsafe fn start() -> (
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
+        unsafe {
+            core::slice::from_raw_parts(
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            )
+        },
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            )
+        },
         &FAULT_RESPONSE,
         &process_management_capability,
     )
@@ -377,7 +438,7 @@ pub unsafe fn start() -> (
         kernel::debug!("{:?}", err);
     });
 
-    (board_kernel, psc3_platform, chip)
+    Ok((board_kernel, psc3_platform, chip))
 }
 
 /// Main function called after RAM initialized.
@@ -385,6 +446,16 @@ pub unsafe fn start() -> (
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, platform, chip) = start();
+    #[cfg(not(debug_assertions))]
+    let (board_kernel, platform, chip) = match unsafe { start() } {
+        Ok(res) => res,
+        Err(_) => loop {
+            core::hint::spin_loop();
+        },
+    };
+
+    #[cfg(debug_assertions)]
+    let (board_kernel, platform, chip) = unsafe { start() }.unwrap();
+
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
