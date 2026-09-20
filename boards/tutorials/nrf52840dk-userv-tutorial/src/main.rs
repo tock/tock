@@ -26,7 +26,7 @@ type Sha = capsules_extra::sha256_driver::ShaDriver<
 // --- Option B: Userspace Service SHA256 (Disabled by default) ---
 // type Sha = capsules_extra::sha256_driver::ShaDriver<
 //     'static,
-//     capsules_system::userspace_services::services::digest::ServiceInterface<32>,
+//     capsules_extra::userspace_services::services::digest::ServiceInterface<32>,
 //     32,
 // >;
 
@@ -42,7 +42,7 @@ struct Platform {
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     digest: &'static Sha,
     // Uncomment if Option B is active:
-    // userspace_services: &'static capsules_system::userspace_services::registry::Registry<2>,
+    // userspace_services: &'static capsules_extra::userspace_services::registry::Registry<2>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -57,7 +57,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::sha256_driver::DRIVER_NUM => f(Some(self.digest)),
 
             // Uncomment if Option B is active:
-            // capsules_system::userspace_services::registry::DRIVER_NUM => {
+            // capsules_extra::userspace_services::registry::DRIVER_NUM => {
             //     f(Some(self.userspace_services))
             // }
             _ => self.base.with_driver(driver_num, f),
@@ -142,17 +142,17 @@ pub unsafe fn main() {
     // === Option B: Userspace Service SHA256 (Disabled by default) ===
     // Registry capsule for communicating with userspace service applications.
     // let userspace_services = kernel::static_init!(
-    //     capsules_system::userspace_services::registry::Registry<2>,
-    //     capsules_system::userspace_services::registry::Registry::new(board_kernel.create_grant(
-    //         capsules_system::userspace_services::registry::DRIVER_NUM,
+    //     capsules_extra::userspace_services::registry::Registry<2>,
+    //     capsules_extra::userspace_services::registry::Registry::new(board_kernel.create_grant(
+    //         capsules_extra::userspace_services::registry::DRIVER_NUM,
     //         &create_capability!(capabilities::MemoryAllocationCapability)
     //     ))
     // );
 
     // // Hashing service interface to translate from HIL call to userspace service application usercall.
     // let hashing_service_interface = kernel::static_init!(
-    //     capsules_system::userspace_services::services::digest::ServiceInterface<32>,
-    //     capsules_system::userspace_services::services::digest::ServiceInterface::new(
+    //     capsules_extra::userspace_services::services::digest::ServiceInterface<32>,
+    //     capsules_extra::userspace_services::services::digest::ServiceInterface::new(
     //         userspace_services
     //     )
     // );
