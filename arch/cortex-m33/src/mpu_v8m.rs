@@ -549,11 +549,11 @@ unsafe impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
             // unallocated memory.
             let region_start = align32(unallocated_memory_start)?;
             let region_end = align32(region_start.wrapping_add(memory_size))?;
-            // Overflow: try_into checks for overflow and returns an
-            //           error if region_size < 0
-            let region_size = unsafe { region_end.offset_from(region_start) }
-                .try_into()
-                .map_err(|_err| ())?;
+            // Underflow: checked_sub checks for underflow and returns an
+            //            error if region_size < 0
+            let region_size = (region_end as usize)
+                .checked_sub(region_start as usize)
+                .ok_or(())?;
 
             // Make sure the region fits in the unallocated memory.
             if region_size > unallocated_memory_size {
@@ -562,11 +562,11 @@ unsafe impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
 
             let logical_start = region_start;
             let logical_end = align32(logical_start.wrapping_add(initial_app_memory_size))?;
-            // Overflow: try_into checks for overflow and returns an
-            //           error if logical_size < 0
-            let logical_size = unsafe { logical_end.offset_from(logical_start) }
-                .try_into()
-                .map_err(|_err| ())?;
+            // Underflow: checked_sub checks for underflow and returns an
+            //            error if logical_size < 0
+            let logical_size = (logical_end as usize)
+                .checked_sub(logical_start as usize)
+                .ok_or(())?;
 
             let region = CortexMRegion::new(
                 logical_start,
