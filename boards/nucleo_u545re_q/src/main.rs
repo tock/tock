@@ -460,7 +460,7 @@ unsafe fn start() -> (
     )
     .finalize(components::button_component_static!(stm32u545::gpio::Pin));
 
-    let pwm_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_a.pin(PinId::Pin06));
+    let pwm_pin = static_init!(stm32u545::gpio::Pin, periphs.gpio_b.pin(PinId::Pin04));
 
     let tim3_pwm_pin = static_init!(
         stm32u545::tim::PwmPin<'static>,
@@ -524,14 +524,21 @@ unsafe fn start() -> (
             0 => periphs.gpio_a.pin(PinId::Pin03), // D0
             1 => periphs.gpio_a.pin(PinId::Pin02), // D1
             2 => periphs.gpio_c.pin(PinId::Pin08), // D2
-            // D3-D6 require GPIOB
+            // D3 is used for SPI clock
+            // 3 => periphs.gpio_b.pin(PinId::Pin03), // D3
+            4 => periphs.gpio_b.pin(PinId::Pin05), // D4
+            // D4 is used for PWM
+            // 5 => periphs.gpio_b.pin(PinId::Pin04), // D5
+            6 => periphs.gpio_b.pin(PinId::Pin10), // D6
             7 => periphs.gpio_a.pin(PinId::Pin08), // D7
             8 => periphs.gpio_c.pin(PinId::Pin07), // D8
             9 => periphs.gpio_c.pin(PinId::Pin06), // D9
-            10 => periphs.gpio_c.pin(PinId::Pin09), // D10
-            11 => periphs.gpio_a.pin(PinId::Pin07), // D11
-            // 12 => D12/PA6 is used by the PWM capsule
-            // 13 => D13/PA5 is used by the LD2 LED capsule
+            // D10 - D12 are used for SPI
+            // 10 => periphs.gpio_c.pin(PinId::Pin09), // D10
+            // 11 => periphs.gpio_a.pin(PinId::Pin07), // D11
+            // 12 => periphs.gpio_a.pin(PinId::Pin06), // D12
+            // D13 is used for the LD2
+            // 13 => periphs.gpio_a.pin(PinId::Pin05), // D13
             // Pins 14 and 15 are used by I2C
             // 14 => periphs.gpio_b.pin(PinId::Pin07), // D14
             // 15 => periphs.gpio_b.pin(PinId::Pin06), // D15
