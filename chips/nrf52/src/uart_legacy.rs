@@ -162,8 +162,7 @@ impl Uart {
         self.registers.enable.write(Enable::ENABLE::OFF);
     }
 
-    /// Transmit one byte at a time and the caller is responsible for polling
-    /// [`Uart::tx_ready`]. This is used by the panic handler.
+    /// Transmit one byte and block until completion. This is used by the panic handler.
     pub fn send_byte(&self, byte: u8) {
         self.registers.event_txdrdy.write(Event::READY::CLEAR);
         self.registers.txd.write(Byte::VALUE.val(byte as u32));
