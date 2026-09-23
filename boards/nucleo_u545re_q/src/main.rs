@@ -15,10 +15,12 @@ use kernel::hil::gpio::{Configure, Output};
 use kernel::hil::symmetric_encryption::AES256;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::utilities::StaticRef;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
 use stm32u545::gpio::PinId;
+use stm32u545::usart::{USART1_BASE, UsartRegisters};
 
 pub mod io;
 
@@ -38,6 +40,10 @@ type GpioDriver = components::gpio::GpioComponentType<GpioHw>;
 
 static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterInUse>> =
     SingleThreadValue::new();
+
+/// The USART the panic handler in io.rs writes to, which is the one the console
+/// uses.
+const PANIC_USART: StaticRef<UsartRegisters> = USART1_BASE;
 
 kernel::stack_size! {0x2000}
 
