@@ -565,8 +565,9 @@ unsafe impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
             let logical_end = align32(logical_start.wrapping_add(initial_app_memory_size))?;
             // Underflow: checked_sub checks for underflow and returns an
             //            error if logical_size < 0
-            let logical_size = (logical_end as usize)
-                .checked_sub(logical_start as usize)
+            let logical_size = logical_end
+                .addr()
+                .checked_sub(logical_start.addr())
                 .ok_or(())?;
 
             let region = CortexMRegion::new(
