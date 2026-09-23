@@ -551,8 +551,9 @@ unsafe impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
             let region_end = align32(region_start.wrapping_add(memory_size))?;
             // Underflow: checked_sub checks for underflow and returns an
             //            error if region_size < 0
-            let region_size = (region_end as usize)
-                .checked_sub(region_start as usize)
+            let region_size = region_end
+                .addr()
+                .checked_sub(region_start.addr())
                 .ok_or(())?;
 
             // Make sure the region fits in the unallocated memory.
