@@ -217,11 +217,14 @@ impl<'a> Usart<'a> {
         self.clock.set(clock);
     }
 
-    /// The smallest baud rate divisor the hardware accepts, per RM0456 § 62.5.4
+    /// The smallest baud rate divisor the hardware accepts, per RM0456 § 66.5.8
     ///
     /// `BRR` resets to zero, so a value of at least this means that a baud rate
     /// was set at some point.
     const MIN_BRR: u32 = 0x10;
+
+    /// `BRR` is a 16 bit register, this is the max value + 1
+    const MAX_BRR: u32 = 0x1_0000;
 
     /// The kernel clock frequency the panic writer assumes when it has to set
     /// a baud rate itself
@@ -270,7 +273,7 @@ impl<'a> Usart<'a> {
             (256, PRESC::PRESCALER::DIV256),
         ];
 
-        let (mul, brr_min, brr_max) = (1, Self::MIN_BRR, 0x1_0000);
+        let (mul, brr_min, brr_max) = (1, Self::MIN_BRR, Self::MAX_BRR);
 
         // Find the smallest prescaler which yields a divisor in range, along
         // with the `BRR` value to write and whether it needs 8x oversampling.
