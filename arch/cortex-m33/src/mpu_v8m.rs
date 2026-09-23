@@ -549,32 +549,32 @@ unsafe impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
             // unallocated memory.
             let region_start = align32(unallocated_memory_start)?;
             let region_end = align32(region_start.wrapping_add(memory_size))?;
-            let region_size = unsafe { region_end.offset_from(region_start) };
-
-            // Check for overflow
-            if region_size < 0 {
-                return Err(());
-            }
+            // Underflow: checked_sub checks for underflow and returns an
+            //            error if region_size < 0
+            let region_size = region_end
+                .addr()
+                .checked_sub(region_start.addr())
+                .ok_or(())?;
 
             // Make sure the region fits in the unallocated memory.
-            if region_size as usize > unallocated_memory_size {
+            if region_size > unallocated_memory_size {
                 return Err(());
             }
 
             let logical_start = region_start;
             let logical_end = align32(logical_start.wrapping_add(initial_app_memory_size))?;
-            let logical_size = unsafe { logical_end.offset_from(logical_start) };
-
-            // Check for overflow
-            if logical_size < 0 {
-                return Err(());
-            }
+            // Underflow: checked_sub checks for underflow and returns an
+            //            error if logical_size < 0
+            let logical_size = logical_end
+                .addr()
+                .checked_sub(logical_start.addr())
+                .ok_or(())?;
 
             let region = CortexMRegion::new(
                 logical_start,
-                logical_size as usize,
+                logical_size,
                 region_start,
-                region_size as usize,
+                region_size,
                 0,
                 permissions,
             )
@@ -583,7 +583,7 @@ unsafe impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
             config.regions[0] = region;
             config.is_dirty.set(true);
 
-            Ok((region_start, memory_size))
+            Ok((region_start, region_size))
         };
 
         region_calculation().ok()
