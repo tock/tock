@@ -74,7 +74,7 @@ unsafe fn static_init_test_cb() -> &'static I2CSlaveCallback {
 
 #[test_case]
 fn i2c_slave_receive() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = *PERIPHERALS.get().unwrap();
     let i2c_slave = &perf.ios;
     let cb = unsafe { static_init_test_cb() };
     let received_data = cb.received_data.take().unwrap();
