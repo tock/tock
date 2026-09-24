@@ -96,7 +96,14 @@ impl KernelResources<ChipHw> for Platform {
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+///
+/// # Safety
+///
+/// ## `no_mangle`
+///
+/// We use `main` as a symbol in the arch crate's initialization routine to jump
+/// here. We guarantee no other symbol has the same name.
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_uart, mux_alarm) =
         nrf52840dk_test_base_lib::start();
