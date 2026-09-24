@@ -450,11 +450,15 @@ pub trait Process {
     /// This will fail (i.e. not do anything) if the process was not stopped.
     fn resume(&self);
 
-    /// Put this process in the fault state.
+    /// Put this process in the faulting state.
+    fn set_faulting_state(&self, reason: FaultReason);
+
+    /// Resolve the fault in a process.
     ///
-    /// The kernel will use the process's fault policy to decide what action to
+    /// Do something, most likely restart or terminate, to resolve the fault in a process.
+    /// For unknown faults, use the process's fault policy to decide what action to
     /// take in regards to the faulted process.
-    fn set_fault_state(&self);
+    fn resolve_faulting_state(&self, reason: FaultReason);
 
     /// Start a terminated process. This function can only be called on a
     /// terminated process.
@@ -985,7 +989,13 @@ pub enum State {
     /// state so it will execute correctly.
     Stopped(StoppedState),
 
-    /// The process ran, faulted while running, and is no longer runnable. For a
+    /// The process is in a transition state. Some fault has occurred, and the
+    /// process should not be run without handling it, but its resources are
+    /// not yet ready to be reaped.
+    Faulting(FaultReason),
+
+    /// The process is not running: it exited uncleanly in some way and has been
+    /// left in a faulted state, most likely for debugging or analytics.  For a
     /// faulted process to be made runnable, it must first be terminated (to
     /// clean up its state).
     Faulted,
@@ -994,6 +1004,28 @@ pub enum State {
     /// call or was terminated for some other reason (e.g., by the process
     /// console). Processes in the `Terminated` state can be run again.
     Terminated,
+}
+
+/// Reasons that a process could have faulted.
+///
+/// This is public so external implementations of `Process` can re-use these
+/// process fault states.
+///
+/// These are recorded so that the kernel can decide what response to take to a
+/// fault, and to provide debugging information on why a process faulted.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum FaultReason {
+    /// Something (e.g. exit syscall, process manager) forced process restart.
+    ForcedRestart,
+
+    /// Something (e.g. exit syscall, process manager) forced process termination.
+    ForcedTerminate,
+
+    /// While executing, the app had a userspace fault (e.g. DivZero, OOM).
+    AppError,
+
+    /// Some kernel invariant was violated and the process can no longer execute.
+    KernelError,
 }
 
 /// States a process could previously have been in when stopped.
@@ -1035,8 +1067,12 @@ pub enum FaultAction {
     /// and schedules the process to run again from its init function.
     Restart,
 
-    /// Stop the process by no longer scheduling it to run.
+    /// Stop the process by no longer scheduling it to run. This leaves process
+    /// resources intact and available for inspection.
     Stop,
+
+    /// Stop the process and free all of its resources.
+    Terminate,
 }
 
 /// Tasks that can be enqueued for a process.
