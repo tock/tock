@@ -15,7 +15,6 @@
 use capsules_core::virtualizers::virtual_spi::MuxSpiMaster;
 use components::spi::SpiComponent;
 use core::cell::Cell;
-use core::ptr::addr_of_mut;
 use kernel::ErrorCode;
 use kernel::component::Component;
 use kernel::debug;
@@ -38,11 +37,6 @@ impl SpiLoopback {
         }
     }
 }
-
-pub static mut WBUF: [u8; 256] = [0; 256];
-pub static mut RBUF: [u8; 256] = [0; 256];
-pub static mut WBUF2: [u8; 256] = [0; 256];
-pub static mut RBUF2: [u8; 256] = [0; 256];
 
 impl spi::SpiMasterClient for SpiLoopback {
     #[allow(unused_variables, dead_code)]
@@ -94,12 +88,10 @@ pub unsafe fn spi_loopback_test(
     spi.set_rate(speed)
         .expect("Failed to set SPI speed in SPI loopback test.");
 
-    let wbuf = &mut *addr_of_mut!(WBUF);
+    let wbuf: &'static mut [u8] = kernel::static_init!([u8; 256], [0; 256]);
+    let rbuf: &'static mut [u8] = kernel::static_init!([u8; 256], [0; 256]);
     let len = wbuf.len();
-    if let Err((e, _, _)) = spi.read_write_bytes(
-        (wbuf as &mut [u8]).into(),
-        Some((&mut *addr_of_mut!(RBUF) as &mut [u8]).into()),
-    ) {
+    if let Err((e, _, _)) = spi.read_write_bytes(wbuf.into(), Some(rbuf.into())) {
         panic!(
             "Could not start SPI test, error on read_write_bytes is {:?}",
             e
@@ -126,24 +118,20 @@ pub unsafe fn spi_two_loopback_test(mux: &'static MuxSpiMaster<'static, sam4l::s
     spi_fast.set_client(spicb_fast);
     spi_slow.set_client(spicb_slow);
 
-    let wbuf = &mut *addr_of_mut!(WBUF);
+    let wbuf: &'static mut [u8] = kernel::static_init!([u8; 256], [0; 256]);
+    let rbuf: &'static mut [u8] = kernel::static_init!([u8; 256], [0; 256]);
     let len = wbuf.len();
-    if let Err((e, _, _)) = spi_fast.read_write_bytes(
-        (wbuf as &mut [u8]).into(),
-        Some((&mut *addr_of_mut!(RBUF) as &mut [u8]).into()),
-    ) {
+    if let Err((e, _, _)) = spi_fast.read_write_bytes(wbuf.into(), Some(rbuf.into())) {
         panic!(
             "Could not start SPI test, error on read_write_bytes is {:?}",
             e
         );
     }
 
-    let wbuf = &mut *addr_of_mut!(WBUF);
-    let len = wbuf.len();
-    if let Err((e, _, _)) = spi_slow.read_write_bytes(
-        (wbuf as &mut [u8]).into(),
-        Some((&mut *addr_of_mut!(RBUF2) as &mut [u8]).into()),
-    ) {
+    let wbuf2: &'static mut [u8] = kernel::static_init!([u8; 256], [0; 256]);
+    let rbuf2: &'static mut [u8] = kernel::static_init!([u8; 256], [0; 256]);
+    let len = wbuf2.len();
+    if let Err((e, _, _)) = spi_slow.read_write_bytes(wbuf2.into(), Some(rbuf2.into())) {
         panic!(
             "Could not start SPI test, error on read_write_bytes is {:?}",
             e

@@ -48,8 +48,6 @@
 //! 61
 //! ```
 
-use core::ptr::addr_of_mut;
-
 use capsules_core::test::virtual_uart::TestVirtualUartReceive;
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use kernel::debug;
@@ -67,12 +65,11 @@ pub unsafe fn run_virtual_uart_receive(mux: &'static MuxUart<'static>) {
 unsafe fn static_init_test_receive_small(
     mux: &'static MuxUart<'static>,
 ) -> &'static TestVirtualUartReceive {
-    static mut SMALL: [u8; 3] = [0; 3];
     let device = static_init!(UartDevice<'static>, UartDevice::new(mux, true));
     device.setup();
     let test = static_init!(
         TestVirtualUartReceive,
-        TestVirtualUartReceive::new(device, &mut *addr_of_mut!(SMALL))
+        TestVirtualUartReceive::new(device, static_init!([u8; 3], [0; 3]))
     );
     device.set_receive_client(test);
     test
@@ -81,12 +78,11 @@ unsafe fn static_init_test_receive_small(
 unsafe fn static_init_test_receive_large(
     mux: &'static MuxUart<'static>,
 ) -> &'static TestVirtualUartReceive {
-    static mut BUFFER: [u8; 7] = [0; 7];
     let device = static_init!(UartDevice<'static>, UartDevice::new(mux, true));
     device.setup();
     let test = static_init!(
         TestVirtualUartReceive,
-        TestVirtualUartReceive::new(device, &mut *addr_of_mut!(BUFFER))
+        TestVirtualUartReceive::new(device, static_init!([u8; 7], [0; 7]))
     );
     device.set_receive_client(test);
     test
