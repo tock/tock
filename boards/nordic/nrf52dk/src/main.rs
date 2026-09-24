@@ -257,10 +257,9 @@ pub unsafe fn start() -> (
         );
 
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
-    let nrf52832_peripherals = static_init!(
-        Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new(aes_ecb_buf)
-    );
+    // SAFETY: This is the only copy and only user of the DMA peripherals.
+    let peripherals = unsafe { Nrf52832DefaultPeripherals::new(aes_ecb_buf) };
+    let nrf52832_peripherals = static_init!(Nrf52832DefaultPeripherals, peripherals);
 
     // set up circular peripheral dependencies
     nrf52832_peripherals.init();
