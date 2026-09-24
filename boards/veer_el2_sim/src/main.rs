@@ -283,7 +283,12 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
 ///
 /// # Safety
 /// Accesses memory, memory-mapped registers and CSRs.
-#[no_mangle]
+///
+/// ## `no_mangle`
+///
+/// We use `main` as a symbol in the arch crate's initialization routine to jump
+/// here. We guarantee no other symbol has the same name.
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
     let (board_kernel, veer, chip) = start();

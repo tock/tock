@@ -163,7 +163,14 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+///
+/// # Safety
+///
+/// ## `no_mangle`
+///
+/// We use `main` as a symbol in the arch crate's initialization routine to jump
+/// here. We guarantee no other symbol has the same name.
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
