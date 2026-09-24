@@ -105,7 +105,6 @@ pub unsafe fn main() {
     // memory region entirely used to store TBFs. `_sapps` starts after the
     // kernel text region and therefore is not null. We never create a mutable
     // reference to the same memory region.
-    #[allow(unused_unsafe)]
     let app_flash = unsafe { kernel::symbol_defined_slice!(_sapps, _eapps) };
 
     let process_management_capability =
