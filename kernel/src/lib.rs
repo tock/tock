@@ -92,6 +92,9 @@
 // `clippy::missing_safety_doc`: Our goal is to apply this in all of Tock,
 // but as of September 2026 we are starting with the kernel crate.
 #![deny(clippy::missing_safety_doc)]
+// `clippy::undocumented_unsafe_blocks`: Our goal is to apply this in all of
+// Tock, but as of September 2026 we are starting with the kernel crate.
+#![deny(clippy::undocumented_unsafe_blocks)]
 #![warn(unreachable_pub)]
 #![no_std]
 
