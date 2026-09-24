@@ -312,14 +312,14 @@ macro_rules! stack_size {
 
 /// Create a slice from memory defined by start and end linker symbols.
 ///
-/// This is designed to help get a slice for the region of flash used to store
-/// TBFs. The actual addresses of the region are determined by the linker and
-/// the linker script, and this macro encapsulates safely using linker symbols
-/// to create a Rust slice representing that memory region.
+/// This is designed to help convert linker-defined buffers, such as TBF ranges
+/// in flash, into native Rust types. Linker symbols are not expressable with
+/// the Rust type system, which makes converting linker symbols subtle, so we
+/// encapsulate this in a helper macro here.
 ///
 /// This macro ensures that the slice is only a `u8` slice, which ensures that
 /// every element in the slice is a valid `u8` (as a `u8` is always valid for
-/// any series of bits).
+/// any series of initialized bits).
 ///
 /// # Usage
 ///
@@ -339,10 +339,11 @@ macro_rules! stack_size {
 ///
 /// - `$sym_start` and `$sym_end` must be linker-defined symbols with valid
 ///   addresses.
-/// - `$sym_start` must not be at address 0 (null).
+/// - `$sym_start` and `$sym_end` must not be at address 0 (null).
 /// - `$sym_start` must refer to a contiguous region of memory that is at least
 ///   `addr!($sym_end) - addr!($sym_start)` bytes long and is within a single
 ///   allocation.
+/// - The memory referenced by the returned slice must be readable.
 /// - The memory referenced by the returned slice must not be mutated.
 #[macro_export]
 macro_rules! symbol_defined_slice {
@@ -361,13 +362,18 @@ macro_rules! symbol_defined_slice {
         let start = &raw const $sym_start;
         // Get the raw pointer address as a usize to calculate the region
         // length.
-        let start_address = start as usize;
+        let start_address = start.addr();
         // Get the address of the end by using a raw pointer to a zero-sized
-        // slice and then converting the pointer to a usize.
-        let end_address = &raw const $sym_end as usize;
+        // slice and then getting the address of the pointer.
+        let end_address = (&raw const $sym_end).addr();
 
-        // Compute the length. Handle the case if `$sym_start` is after
-        // `$sym_end`.
+        // Ensure that this macro fails if end_address is below start_address.
+        assert!(
+            start_address <= end_address,
+            "symbol_defined_slice macro with start symbol not before end symbol",
+        );
+
+        // Compute the length.
         let length = end_address.saturating_sub(start_address);
 
         // Create the slice from the region defined by the linker symbols.
@@ -382,7 +388,7 @@ macro_rules! symbol_defined_slice {
         // - The memory is not mutated because of the macro-level requirement.
         // - This does not exceed `isize::MAX` or wrap around because of the
         //   `saturating_sub()` to calculate the length.
-        unsafe { core::slice::from_raw_parts(start, length) }
+        core::slice::from_raw_parts(start, length)
     }};
 }
 
