@@ -97,7 +97,7 @@ unsafe fn static_init_test_cb() -> &'static OtbnTestCallback {
 
 #[test_case]
 fn otbn_run_rsa_binary() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = *PERIPHERALS.get().unwrap();
     let otbn = &perf.otbn;
     let cb = unsafe { static_init_test_cb() };
     let output = cb.output_buf.take().unwrap();

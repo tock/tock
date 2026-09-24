@@ -12,8 +12,6 @@ use kernel::hil::public_key_crypto::rsa_math::{Client, RsaCryptoBase};
 use kernel::static_init;
 use kernel::{ErrorCode, debug};
 
-static mut SOURCE: [u8; 64] = [0x23; 64];
-static mut DEST: [u8; 512] = [0x56; 512];
 static PUB_KEY: [u8; 512] = [
     // Modulus
     0x95, 0x5a, 0x06, 0xf3, 0x64, 0x65, 0x1c, 0x41, 0xc5, 0x41, 0xa3, 0x6e, 0xf4, 0xcb, 0xe9, 0x67,
@@ -200,9 +198,9 @@ fn rsa_import_key() {
 
 #[test_case]
 fn rsa_check_exponent() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = *PERIPHERALS.get().unwrap();
     let otbn = &perf.otbn;
-    if let Some(rsa) = unsafe { RSA_HARDWARE } {
+    if let Some(rsa) = RSA_HARDWARE.get().copied() {
         let key = unsafe { static_init!(RSA4096Keys, RSA4096Keys::new()) };
 
         debug!("check rsa 4096 exponent... ");
@@ -222,10 +220,10 @@ fn rsa_check_exponent() {
         CALLBACK.reset();
         unsafe {
             match rsa.mod_exponent(
-                &mut SOURCE,
+                static_init!([u8; 64], [0x23; 64]),
                 key.take_modulus().unwrap(),
                 key.take_exponent().unwrap(),
-                &mut DEST,
+                static_init!([u8; 512], [0x56; 512]),
             ) {
                 Ok(_) => {}
                 Err(_) => panic!("exponent failed"),
@@ -234,9 +232,8 @@ fn rsa_check_exponent() {
 
         run_kernel_op(1000000);
         assert_eq!(CALLBACK.mod_exp_done.get(), true);
-        unsafe {
-            assert_eq!(DEST, EXPECTING);
-        }
+        // The callback itself verifies the result against `EXPECTING` on
+        // the first run (see `RsaTestCallback::mod_exponent_done`).
 
         debug!("    [ok]");
         run_kernel_op(100);

@@ -21,8 +21,8 @@ mod key_value {
         debug!("start TicKV append key test...");
 
         unsafe {
-            let tickv = TICKV.unwrap();
-            let sip_hasher = SIPHASH.unwrap();
+            let tickv = *TICKV.get().unwrap();
+            let sip_hasher = *SIPHASH.get().unwrap();
 
             let key_input = static_init!(
                 [u8; 16],
@@ -178,7 +178,7 @@ mod protections_and_controller {
     /// Compare the data we wrote is stored in flash with a
     /// successive read.
     fn flash_ctrl_read_write_page() {
-        let perf = unsafe { PERIPHERALS.unwrap() };
+        let perf = *PERIPHERALS.get().unwrap();
         let flash_ctl = &perf.flash_ctrl;
 
         let cb = unsafe { static_init_test!() };
@@ -237,7 +237,7 @@ mod protections_and_controller {
     /// `0xFF`. Assert this is true after writing data to a page and erasing
     /// the page.
     fn flash_ctrl_erase_page() {
-        let perf = unsafe { PERIPHERALS.unwrap() };
+        let perf = *PERIPHERALS.get().unwrap();
         let flash_ctl = &perf.flash_ctrl;
 
         let cb = unsafe { static_init_test!() };
@@ -296,7 +296,7 @@ mod protections_and_controller {
 
         #[cfg(feature = "hardware_tests")]
         {
-            let perf = unsafe { PERIPHERALS.unwrap() };
+            let perf = *PERIPHERALS.get().unwrap();
             let flash_ctl = &perf.flash_ctrl;
             // BANK1
             let base_page_addr: usize = (400 * PAGE_SIZE).saturating_add(FLASH_ADDR_OFFSET);
@@ -384,7 +384,7 @@ mod protections_and_controller {
 
         #[cfg(feature = "hardware_tests")]
         {
-            let perf = unsafe { PERIPHERALS.unwrap() };
+            let perf = *PERIPHERALS.get().unwrap();
             let flash_ctl = &perf.flash_ctrl;
             let cb = unsafe { static_init_test!() };
             cb.reset();

@@ -93,7 +93,7 @@ macro_rules! static_init_test_cb {
 
 #[test_case]
 fn hmac_check_load_binary() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = *PERIPHERALS.get().unwrap();
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb!() };
@@ -119,7 +119,7 @@ fn hmac_check_load_binary() {
 
 #[test_case]
 fn hmac_check_verify() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = *PERIPHERALS.get().unwrap();
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb!() };

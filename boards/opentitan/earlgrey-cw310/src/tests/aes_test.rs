@@ -33,7 +33,7 @@ fn run_aes128_ccm() {
     run_kernel_op(100);
 
     unsafe {
-        let aes = AES.unwrap();
+        let aes = *AES.get().unwrap();
 
         let t = static_init_test_ccm(&aes);
         kernel::hil::symmetric_encryption::AESCCM::set_client(aes, t);
@@ -67,7 +67,7 @@ fn run_aes128_gcm() {
     run_kernel_op(100);
 
     unsafe {
-        let aes = AES.unwrap();
+        let aes = *AES.get().unwrap();
 
         let t = static_init_test_gcm(&aes);
         kernel::hil::symmetric_encryption::AESGCM::set_client(aes, t);
@@ -102,7 +102,7 @@ fn run_aes128_ecb() {
     run_kernel_op(100);
 
     unsafe {
-        let perf = PERIPHERALS.unwrap();
+        let perf = *PERIPHERALS.get().unwrap();
         let aes = &perf.aes;
 
         let t = static_init_test_ecb(&aes);
@@ -135,7 +135,7 @@ fn run_aes128_cbc() {
     run_kernel_op(100);
 
     unsafe {
-        let perf = PERIPHERALS.unwrap();
+        let perf = *PERIPHERALS.get().unwrap();
         let aes = &perf.aes;
 
         let t = static_init_test_cbc(&aes);
@@ -169,7 +169,7 @@ fn run_aes128_ctr() {
     run_kernel_op(100);
 
     unsafe {
-        let perf = PERIPHERALS.unwrap();
+        let perf = *PERIPHERALS.get().unwrap();
         let aes = &perf.aes;
 
         let t = static_init_test_ctr(&aes);

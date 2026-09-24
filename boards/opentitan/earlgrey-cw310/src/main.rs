@@ -115,23 +115,21 @@ static PANIC_RESOURCES: SingleThreadValue<PanicResources<ChipHw, ProcessPrinterI
 
 // Test access to the peripherals
 #[cfg(test)]
-static mut PERIPHERALS: Option<&'static EarlGreyDefaultPeripherals<ChipConfig, BoardPinmuxLayout>> =
-    None;
+static PERIPHERALS: SingleThreadValue<
+    &'static EarlGreyDefaultPeripherals<ChipConfig, BoardPinmuxLayout>,
+> = SingleThreadValue::new();
 // Test access to board
 #[cfg(test)]
-static mut BOARD: Option<&'static kernel::Kernel> = None;
+static BOARD: SingleThreadValue<&'static kernel::Kernel> = SingleThreadValue::new();
 // Test access to platform
 #[cfg(test)]
-static mut PLATFORM: Option<&'static EarlGrey> = None;
-// Test access to main loop capability
-#[cfg(test)]
-static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+static PLATFORM: SingleThreadValue<&'static EarlGrey> = SingleThreadValue::new();
 // Test access to alarm
-static mut ALARM: Option<
+static ALARM: SingleThreadValue<
     &'static MuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
-> = None;
+> = SingleThreadValue::new();
 // Test access to TicKV
-static mut TICKV: Option<
+static TICKV: SingleThreadValue<
     &capsules_extra::tickv::TicKVSystem<
         'static,
         capsules_core::virtualizers::virtual_flash::FlashUser<
@@ -141,22 +139,24 @@ static mut TICKV: Option<
         capsules_extra::sip_hash::SipHasher24<'static>,
         2048,
     >,
-> = None;
+> = SingleThreadValue::new();
 // Test access to AES
-static mut AES: Option<
+static AES: SingleThreadValue<
     &aes_gcm::Aes128Gcm<
         'static,
         virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
     >,
-> = None;
+> = SingleThreadValue::new();
 // Test access to SipHash
-static mut SIPHASH: Option<&capsules_extra::sip_hash::SipHasher24<'static>> = None;
+static SIPHASH: SingleThreadValue<&capsules_extra::sip_hash::SipHasher24<'static>> =
+    SingleThreadValue::new();
 // Test access to RSA
-static mut RSA_HARDWARE: Option<&lowrisc::rsa::OtbnRsa<'static>> = None;
+static RSA_HARDWARE: SingleThreadValue<&lowrisc::rsa::OtbnRsa<'static>> = SingleThreadValue::new();
 
 // Test access to a software SHA256
 #[cfg(test)]
-static mut SHA256SOFT: Option<&capsules_extra::sha256::Sha256Software<'static>> = None;
+static SHA256SOFT: SingleThreadValue<&capsules_extra::sha256::Sha256Software<'static>> =
+    SingleThreadValue::new();
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -477,7 +477,10 @@ unsafe fn setup() -> (
     );
     hil::time::Alarm::set_alarm_client(hardware_alarm, mux_alarm);
 
-    ALARM = Some(mux_alarm);
+    let _ = ALARM
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            mux_alarm,
+        );
 
     // Alarm
     let virtual_alarm_user = static_init!(
@@ -659,7 +662,10 @@ unsafe fn setup() -> (
         capsules_extra::sip_hash::SipHasher24::new()
     );
     kernel::deferred_call::DeferredCallClient::register(sip_hash);
-    SIPHASH = Some(sip_hash);
+    let _ = SIPHASH
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            sip_hash,
+        );
 
     // TicKV
     let tickv = components::tickv::TicKVComponent::new(
@@ -678,7 +684,8 @@ unsafe fn setup() -> (
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
     sip_hash.set_client(tickv);
-    TICKV = Some(tickv);
+    let _ = TICKV
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(tickv);
 
     let kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
         components::tickv_kv_store_component_static!(
@@ -796,7 +803,10 @@ unsafe fn setup() -> (
             )
         );
         peripherals.otbn.set_client(rsa_hardware);
-        RSA_HARDWARE = Some(rsa_hardware);
+        let _ = RSA_HARDWARE
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+                rsa_hardware,
+            );
     } else {
         debug!("Unable to find otbn-rsa, disabling RSA support");
     }
@@ -857,7 +867,10 @@ unsafe fn setup() -> (
         AES128
     ));
 
-    AES = Some(gcm_client);
+    let _ = AES
+        .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+            gcm_client,
+        );
 
     #[cfg(test)]
     {
@@ -866,7 +879,10 @@ unsafe fn setup() -> (
         let sha_soft = static_init!(Sha256Software<'static>, Sha256Software::new());
         kernel::deferred_call::DeferredCallClient::register(sha_soft);
 
-        SHA256SOFT = Some(sha_soft);
+        let _ = SHA256SOFT
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+                sha_soft,
+            );
     }
 
     hil::symmetric_encryption::AESGCM::set_client(gcm_client, aes);
@@ -950,21 +966,29 @@ use kernel::platform::watchdog::WatchDog;
 
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
+    let (board_kernel, earlgrey, _chip, peripherals) = unsafe { setup() };
+
     unsafe {
-        let (board_kernel, earlgrey, _chip, peripherals) = setup();
+        let _ = BOARD
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+                board_kernel,
+            );
+        let _ = PLATFORM
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+                earlgrey,
+            );
+        let _ = PERIPHERALS
+            .bind_to_thread_unsafe::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(
+                peripherals,
+            );
+    }
 
-        BOARD = Some(board_kernel);
-        PLATFORM = Some(&earlgrey);
-        PERIPHERALS = Some(peripherals);
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+    if let Some(p) = PLATFORM.get() {
+        p.watchdog().setup();
+    }
 
-        PLATFORM.map(|p| {
-            p.watchdog().setup();
-        });
-
-        for test in tests {
-            test();
-        }
+    for test in tests {
+        test();
     }
 
     // Exit QEMU with a return code of 0

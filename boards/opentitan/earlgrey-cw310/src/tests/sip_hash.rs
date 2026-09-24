@@ -173,7 +173,7 @@ unsafe fn static_init_test_cb() -> &'static SipHashTestCallback {
 
 #[test_case]
 fn sip_hasher_2_4() {
-    let sip_hasher = unsafe { SIPHASH.unwrap() };
+    let sip_hasher = *SIPHASH.get().unwrap();
     let cb = unsafe { static_init_test_cb() };
 
     debug!("check SipHash 2-4... ");

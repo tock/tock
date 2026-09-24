@@ -17,7 +17,7 @@ fn run_csrng_entropy32() {
     run_kernel_op(100);
 
     unsafe {
-        let perf = PERIPHERALS.unwrap();
+        let perf = *PERIPHERALS.get().unwrap();
         let rng = &perf.rng;
 
         let t = static_init!(TestEntropy32<'static>, TestEntropy32::new(rng));

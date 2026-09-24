@@ -12,8 +12,6 @@ use kernel::hil::public_key_crypto::rsa_math::{Client, RsaCryptoBase};
 use kernel::static_init;
 use kernel::{ErrorCode, debug};
 
-static mut SOURCE: [u8; 64] = [0x23; 64];
-static mut DEST: [u8; 256] = [0x56; 256];
 static PUB_KEY: [u8; 256] = [
     // Modulus
     0xc9, 0x03, 0x2e, 0x93, 0x05, 0x1c, 0xe8, 0x6b, 0x0f, 0x41, 0x5c, 0x7e, 0x2d, 0x1e, 0x3b, 0xee,
@@ -116,9 +114,9 @@ static CALLBACK: RsaTestCallback = RsaTestCallback::new();
 
 #[test_case]
 fn rsa_check_exponent() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = *PERIPHERALS.get().unwrap();
     let otbn = &perf.otbn;
-    if let Some(rsa) = unsafe { RSA_HARDWARE } {
+    if let Some(rsa) = RSA_HARDWARE.get().copied() {
         let key = unsafe { static_init!(RSA2048Keys, RSA2048Keys::new()) };
 
         debug!("check rsa exponent... ");
@@ -138,10 +136,10 @@ fn rsa_check_exponent() {
         CALLBACK.reset();
         unsafe {
             match rsa.mod_exponent(
-                &mut SOURCE,
+                static_init!([u8; 64], [0x23; 64]),
                 key.take_modulus().unwrap(),
                 key.take_exponent().unwrap(),
-                &mut DEST,
+                static_init!([u8; 256], [0x56; 256]),
             ) {
                 Ok(_) => {}
                 Err(_) => panic!("exponent failed"),
@@ -150,9 +148,8 @@ fn rsa_check_exponent() {
 
         run_kernel_op(120000);
         assert_eq!(CALLBACK.mod_exp_done.get(), true);
-        unsafe {
-            assert_eq!(DEST, EXPECTING);
-        }
+        // The callback itself verifies the result against `EXPECTING` on
+        // the first run (see `RsaTestCallback::mod_exponent_done`).
 
         debug!("    [ok]");
         run_kernel_op(100);
@@ -161,13 +158,11 @@ fn rsa_check_exponent() {
     }
 }
 
-static mut PUB_EXPONENT: [u8; 4] = [0x0; 4];
-
 #[test_case]
 fn rsa_check_exponent_one() {
-    let perf = unsafe { PERIPHERALS.unwrap() };
+    let perf = *PERIPHERALS.get().unwrap();
     let otbn = &perf.otbn;
-    if let Some(rsa) = unsafe { RSA_HARDWARE } {
+    if let Some(rsa) = RSA_HARDWARE.get().copied() {
         let key = unsafe { static_init!(RSA2048Keys, RSA2048Keys::new()) };
 
         debug!("check rsa exponent one... ");
@@ -186,12 +181,13 @@ fn rsa_check_exponent_one() {
 
         CALLBACK.reset();
         unsafe {
-            PUB_EXPONENT.copy_from_slice(&key.public_exponent().unwrap().to_be_bytes());
+            let pub_exponent = static_init!([u8; 4], [0x0; 4]);
+            pub_exponent.copy_from_slice(&key.public_exponent().unwrap().to_be_bytes());
             match rsa.mod_exponent(
-                &mut SOURCE,
+                static_init!([u8; 64], [0x23; 64]),
                 key.take_modulus().unwrap(),
-                &mut PUB_EXPONENT,
-                &mut DEST,
+                pub_exponent,
+                static_init!([u8; 256], [0x56; 256]),
             ) {
                 Ok(_) => {}
                 Err(e) => panic!("exponent failed: {:?}", e),

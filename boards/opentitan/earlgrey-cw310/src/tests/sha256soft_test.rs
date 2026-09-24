@@ -15,7 +15,7 @@ use kernel::static_init;
 fn sha256software_verify() {
     debug!("start SHA256 verify test");
 
-    let sha = unsafe { SHA256SOFT.unwrap() };
+    let sha = *SHA256SOFT.get().unwrap();
 
     let lstring = unsafe { static_init!([u8; 72], [0; 72]) };
     let bytes = b"hello ";
