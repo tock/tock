@@ -30,7 +30,6 @@ use kernel::ErrorCode;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use core::ptr::addr_of_mut;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::create_capability;
 use kernel::debug;
@@ -48,24 +47,26 @@ pub const DST_ADDR: IPAddr = IPAddr([
 /* 6LoWPAN Constants */
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
 static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16];
-static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
 const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
 const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
 
 pub const TEST_DELAY_MS: u32 = 10000;
 pub const TEST_LOOP: bool = false;
 
-static mut ICMP_PAYLOAD: [u8; 10] = [0; 10];
-
-pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0_u8; radio::MAX_BUF_SIZE];
-
-//Use a global variable option, initialize as None, then actually initialize in initialize all
+// Length, in bytes, of the (`static_init!`-allocated) ICMP payload buffer
+// reused across every packet sent by this test.
+const ICMP_PAYLOAD_LEN: usize = 10;
 
 pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
     alarm: &'a A,
     test_counter: Cell<usize>,
     icmp_sender: &'a dyn ICMP6Sender<'a>,
     net_cap: &'static NetworkCapability,
+    // Pointer to the payload buffer reused for every `send()` call.
+    // `ICMP6Sender::send()` only borrows this buffer for the duration of the
+    // (synchronous) call, so it is sound to hand out a fresh `&'static mut`
+    // to it on each invocation.
+    payload_ptr: *mut u8,
 }
 
 type Rf233 = capsules_extra::rf233::RF233<
@@ -124,19 +125,25 @@ pub unsafe fn run(
 
     let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
 
+    let icmp_payload: &'static mut [u8; ICMP_PAYLOAD_LEN] =
+        static_init!([u8; ICMP_PAYLOAD_LEN], [0; ICMP_PAYLOAD_LEN]);
+    let payload_ptr: *mut u8 = icmp_payload.as_mut_ptr();
+
     let ip_pyld: IPPayload = IPPayload {
         header: TransportHeader::ICMP(icmp_hdr),
-        payload: &mut *addr_of_mut!(ICMP_PAYLOAD),
+        payload: icmp_payload,
     };
 
     let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
 
+    let rf233_buf: &'static mut [u8] =
+        static_init!([u8; radio::MAX_BUF_SIZE], [0_u8; radio::MAX_BUF_SIZE]);
     let ip6_sender = static_init!(
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         IP6SendStruct::new(
             ip6_dg,
             ipsender_virtual_alarm,
-            &mut *addr_of_mut!(RF233_BUF),
+            rf233_buf,
             sixlowpan_tx,
             radio_mac,
             DST_MAC_ADDR,
@@ -167,7 +174,8 @@ pub unsafe fn run(
             //radio_mac,
             alarm,
             icmp_send_struct,
-            net_cap
+            net_cap,
+            payload_ptr
         )
     );
 
@@ -200,12 +208,14 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
         alarm: &'a A,
         icmp_sender: &'a dyn ICMP6Sender<'a>,
         net_cap: &'static NetworkCapability,
+        payload_ptr: *mut u8,
     ) -> LowpanICMPTest<'a, A> {
         LowpanICMPTest {
             alarm,
             test_counter: Cell::new(0),
             icmp_sender,
             net_cap,
+            payload_ptr,
         }
     }
 
@@ -253,14 +263,15 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
 
     fn send_next(&self) {
         let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
-        let _ = unsafe {
-            self.icmp_sender.send(
-                DST_ADDR,
-                icmp_hdr,
-                &mut *addr_of_mut!(ICMP_PAYLOAD),
-                self.net_cap,
-            )
-        };
+        // SAFETY: `payload_ptr` points to a `ICMP_PAYLOAD_LEN`-byte buffer
+        // allocated once via `static_init!` in `run()`. `ICMP6Sender::send()`
+        // only borrows the buffer for the duration of this (synchronous)
+        // call, so handing out a fresh `&'static mut` to it here is sound.
+        let payload: &'static mut [u8] =
+            unsafe { core::slice::from_raw_parts_mut(self.payload_ptr, ICMP_PAYLOAD_LEN) };
+        let _ = self
+            .icmp_sender
+            .send(DST_ADDR, icmp_hdr, payload, self.net_cap);
     }
 }
 
