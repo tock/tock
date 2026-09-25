@@ -9,8 +9,10 @@ use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
 use crate::clocks::Clocks;
+use crate::dma;
 use crate::gpio::{RPPins, SIO};
 use crate::interrupts;
+use crate::pio::Pio;
 use crate::spi;
 use crate::ticks::Ticks;
 use crate::timer::RPTimer;
@@ -118,7 +120,12 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
 }
 
 pub struct Rp2350DefaultPeripherals<'a> {
+    pub dma: dma::Dma<'a>,
     pub pins: RPPins<'a>,
+    /// PIO0. PIO1 and PIO2 exist on this chip and are not held here, because
+    /// nothing drives them yet: each holds four state machines, and each of
+    /// those three client cells and two state cells.
+    pub pio0: Pio,
     pub sio: SIO,
     pub spi0: spi::Spi<'a>,
     pub ticks: Ticks,
@@ -131,7 +138,9 @@ pub struct Rp2350DefaultPeripherals<'a> {
 impl Rp2350DefaultPeripherals<'_> {
     pub fn new(clocks: &'static Clocks) -> Self {
         Self {
+            dma: dma::Dma::new(),
             pins: RPPins::new(),
+            pio0: crate::pio::new_pio0(),
             sio: SIO::new(),
             spi0: spi::new_spi0(clocks),
             ticks: Ticks::new(),
@@ -153,6 +162,26 @@ impl Rp2350DefaultPeripherals<'_> {
 impl InterruptService for Rp2350DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
+            interrupts::DMA_IRQ_0 => {
+                self.dma.handle_interrupt(dma::Irq::Irq0);
+                true
+            }
+            interrupts::DMA_IRQ_1 => {
+                self.dma.handle_interrupt(dma::Irq::Irq1);
+                true
+            }
+            interrupts::DMA_IRQ_2 => {
+                self.dma.handle_interrupt(dma::Irq::Irq2);
+                true
+            }
+            interrupts::DMA_IRQ_3 => {
+                self.dma.handle_interrupt(dma::Irq::Irq3);
+                true
+            }
+            interrupts::PIO0_IRQ_0 => {
+                self.pio0.handle_interrupt();
+                true
+            }
             interrupts::TIMER0_IRQ_0 => {
                 self.timer0.handle_interrupt();
                 true
