@@ -56,7 +56,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // Reserved
     unhandled_interrupt,
     // PendSv
-    unhandled_interrupt,
+    CortexM4F::PENDSV_HANDLER,
     // SysTick
     CortexM4F::SYSTICK_HANDLER,
 ];

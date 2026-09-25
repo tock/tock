@@ -64,58 +64,13 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
 ///
 /// # Safety
 ///
-/// - INPUTS:
-///   - This reads the `lr`, which is part of the calling convention.
-/// - OUTPUTS:
-///   - This writes to `r0`, a caller-saved register.
-///   - This writes to `r2`, a caller-saved register.
-///   - This writes to `r3`, a caller-saved register.
-/// - This does not fall-through, it branches in both arms of the branch.
+/// TODO
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[unsafe(naked)]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-    // First check to see which direction we are going in. If the link register
-    // (containing EXC_RETURN) has a 1 in the SPSEL bit (meaning the
-    // alternative/process stack was in use) then we are coming from a process
-    // which has called a syscall.
-    ubfx r0, lr, #2, #1               // r0 = (LR & (0x1<<2)) >> 2
-    cmp r0, #0                        // r0 (SPSEL bit) =≟ 0
-    bne 100f // to_kernel             // if SPSEL == 1, jump to to_kernel
-
-    // If we get here, then this is a context switch from the kernel to the
-    // application. Use the CONTROL register to set the thread mode to
-    // unprivileged to run the application.
-    //
-    // CONTROL[2]: FPCA (Floating-Point Context Active)
-    //   0 = No active floating-point context
-    //   1 = Floating-point context active (FPU registers saved on exception entry)
-    // CONTROL[1]: SPSEL (Stack Pointer Select)
-    //   0 = Main Stack Pointer (MSP) is used
-    //   1 = Process Stack Pointer (PSP) is used
-    // CONTROL[0]: nPriv (Priviledged Mode?)
-    //   0 = Privileged in thread mode
-    //   1 = User state in thread mode <--------- set to this here
-    //
-    // Do not change other CONTROL bits.
-    mrs r0, CONTROL                   // r0 = CONTROL
-    orr r0, #1                        // r0 = r0 | 0x1
-    msr CONTROL, r0                   // CONTROL.nPriv = 1
-    // CONTROL writes must be followed by an Instruction Synchronization Barrier
-    // (ISB). https://developer.arm.com/documentation/dai0321/latest
-    isb
-
-    // The link register is set to the `EXC_RETURN` value on exception entry. To
-    // ensure we execute using the process stack we set the SPSEL bit to 1
-    // to use the alternate (process) stack.
-    orr lr, lr, #4                    // LR = LR | 0b100
-
-    // Switch to the app.
-    bx lr
-
-100: // to_kernel
     // An application called a syscall. We mark this in the global variable
     // `SYSCALL_FIRED` which is stored in the syscall file.
     // `UserspaceKernelBoundary` will use this variable to decide why the app
@@ -154,6 +109,53 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     bx lr
         ",
         syscall_fired = sym cortexm::syscall::SYSCALL_FIRED,
+    );
+}
+
+/// Handler of PendSV exceptions on ARMv7-M.
+///
+/// For documentation of this function, please see
+/// `CortexMVariant::PENDSV_HANDLER`.
+///
+/// # Safety
+///
+/// TODO
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[unsafe(naked)]
+pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
+    // This is a context switch from the kernel to the application. Use the
+    // CONTROL register to set the thread mode to unprivileged to run the
+    // application.
+    //
+    // CONTROL[2]: FPCA (Floating-Point Context Active)
+    //   0 = No active floating-point context
+    //   1 = Floating-point context active (FPU registers saved on exception entry)
+    // CONTROL[1]: SPSEL (Stack Pointer Select)
+    //   0 = Main Stack Pointer (MSP) is used
+    //   1 = Process Stack Pointer (PSP) is used
+    // CONTROL[0]: nPriv (Priviledged Mode?)
+    //   0 = Privileged in thread mode
+    //   1 = User state in thread mode <--------- set to this here
+    //
+    // Do not change other CONTROL bits.
+    mrs r0, CONTROL                   // r0 = CONTROL
+    orr r0, #1                        // r0 = r0 | 0x1
+    msr CONTROL, r0                   // CONTROL.nPriv = 1
+    // CONTROL writes must be followed by an Instruction Synchronization Barrier
+    // (ISB). https://developer.arm.com/documentation/dai0321/latest
+    isb
+
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we execute using the process stack we set the SPSEL bit to 1
+    // to use the alternate (process) stack.
+    orr lr, lr, #4                    // LR = LR | 0b100
+
+    // Switch to the app.
+    bx lr
+        ",
     );
 }
 
@@ -315,11 +317,28 @@ pub unsafe fn switch_to_user_arm_v7m(
     // register.
     ldmia r1, {{r4-r11}}              // r4 = r1[0], r5 = r1[1], ...
 
-    // Generate a SVC exception to handle the context switch from kernel to
-    // userspace. It doesn't matter which SVC number we use here as it is not
-    // used in the exception handler. Data being returned from a syscall is
-    // transferred on the app's stack.
-    svc 0xff
+    // Generate a PendSV exception to handle the context switch from kernel to
+    // userspace. For the PendSV to be taken immediately, we must ensure this
+    // code runs in Thread, not Handler mode; interrupts are globally enabled;
+    // BASEPRI is lower than PendSV priority; PendSV priority is set correctly
+    // (higher than any masked level). We issue a data and instruction
+    // synchronization barrier to force the CPU to handle this.
+    //
+    // We clobber `r0`, as that's saved to the PSP, and `lr` as the only other
+    // free register available. The surrounding Rust-generated prologue and
+    // epilogue will save this register.
+    ldr r0, =0xE000ED04               // r0 = &ICSR
+    mov lr, #(1 << 28)                // lr = PENDSVSET
+    str lr, [r0]                      // *&ICSR = PENDSVSET
+    // Necessary, from the ARM Cortex-M Programming Guide to Memory Barrier
+    // Instructions (Application Note 321): 'if a pended interrupt request needs
+    // to be recognized immediately after being enabled in the NVIC, add a DSB
+    // instruction and then an ISB instruction', combined with this statement
+    // from the ARMv7-M Architecture Reference Manual: 'To guarantee that the
+    // side effects of a previous SCS access are visible, software can execute a
+    // DSB instruction followed by an ISB instruction.' (ICSR is an SCS reg)
+    dsb                               // Data Synchronization Barrier
+    isb                               // Instruction Synchronization Barrier
 
     // When execution returns here we have switched back to the kernel from the
     // application.
@@ -340,6 +359,7 @@ pub unsafe fn switch_to_user_arm_v7m(
             ",
             inout("r0") user_stack,
             in("r1") process_regs,
+            out("lr") _,
             out("r2") _,
             out("r3") _,
             out("r4") _,
@@ -708,6 +728,11 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
 
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
+    unimplemented!()
+}
+
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+pub unsafe extern "C" fn pendsv_handler_arm_v7m() {
     unimplemented!()
 }
 
