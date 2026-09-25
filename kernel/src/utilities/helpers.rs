@@ -332,7 +332,7 @@ macro_rules! stack_size {
 /// // refer to a memory region entirely used to store TBFs. `_sapps` starts
 /// // after the kernel text region and therefore is not null. We never
 /// // create a mutable reference to the same memory region.
-/// let app_flash = kernel::symbol_defined_slice!(_sapps, _eapps);
+/// let app_flash = unsafe { kernel::symbol_defined_slice!(_sapps, _eapps) };
 /// ```
 ///
 /// # Safety
