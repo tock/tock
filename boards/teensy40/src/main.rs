@@ -391,7 +391,14 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static ChipHw) {
 }
 
 /// Main function called after RAM initialized.
-#[no_mangle]
+///
+/// # Safety
+///
+/// ## `no_mangle`
+///
+/// We use `main` as a symbol in the arch crate's initialization routine to jump
+/// here. We guarantee no other symbol has the same name.
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
