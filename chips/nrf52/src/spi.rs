@@ -14,9 +14,6 @@
 //! * ✓ init
 //! * ✓ is_busy
 //! * ✓ read_write_bytes
-//! * write_byte
-//! * read_byte
-//! * read_write_byte
 //! * ✓ specify_chip_select
 //! * ✓ set_rate
 //! * ✓ get_rate
@@ -406,18 +403,6 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
 
         self.registers.tasks_start.write(TASK::TASK::SET);
         Ok(())
-    }
-
-    fn write_byte(&self, _val: u8) -> Result<(), ErrorCode> {
-        unimplemented!("SPI: Use `read_write_bytes()` instead.");
-    }
-
-    fn read_byte(&self) -> Result<u8, ErrorCode> {
-        unimplemented!("SPI: Use `read_write_bytes()` instead.");
-    }
-
-    fn read_write_byte(&self, _val: u8) -> Result<u8, ErrorCode> {
-        unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
 
     // Tell the SPI peripheral what to use as a chip select pin.

@@ -644,21 +644,6 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         Ok(())
     }
 
-    fn write_byte(&self, _val: u8) -> Result<(), ErrorCode> {
-        //Use `read_write_bytes()` instead.
-        Err(ErrorCode::FAIL)
-    }
-
-    fn read_byte(&self) -> Result<u8, ErrorCode> {
-        //Use `read_write_bytes()` instead.
-        Err(ErrorCode::FAIL)
-    }
-
-    fn read_write_byte(&self, _val: u8) -> Result<u8, ErrorCode> {
-        //Use `read_write_bytes()` instead.
-        Err(ErrorCode::FAIL)
-    }
-
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
