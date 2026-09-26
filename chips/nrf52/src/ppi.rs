@@ -41,11 +41,8 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{FieldValue, ReadWrite, register_bitfields};
 
-const PPI_BASE: StaticRef<PpiRegisters> =
-    unsafe { StaticRef::new(0x4001F000 as *const PpiRegisters) };
-
 #[repr(C)]
-struct PpiRegisters {
+pub struct PpiRegisters {
     tasks_chg0_en: ReadWrite<u32, Control::Register>,
     tasks_chg0_dis: ReadWrite<u32, Control::Register>,
     tasks_chg1_en: ReadWrite<u32, Control::Register>,
@@ -159,10 +156,8 @@ pub struct Ppi {
 }
 
 impl Ppi {
-    pub const fn new() -> Ppi {
-        Ppi {
-            registers: PPI_BASE,
-        }
+    pub const fn new(registers: StaticRef<PpiRegisters>) -> Ppi {
+        Ppi { registers }
     }
 
     pub fn enable(&self, channels: FieldValue<u32, Channel::Register>) {

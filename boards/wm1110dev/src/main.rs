@@ -216,11 +216,15 @@ pub unsafe fn start() -> (
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let ficr = static_init!(
+        nrf52840::ficr::Ficr,
+        nrf52840::ficr::Ficr::new(nrf52840::chip::FICR_BASE)
+    );
 
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
+        Nrf52840DefaultPeripherals::new(ficr, ieee802154_ack_buf, aes_ecb_buf)
     );
 
     // set up circular peripheral dependencies
@@ -242,6 +246,8 @@ pub unsafe fn start() -> (
         BUTTON_RST_PIN,
         nrf52840::uicr::Regulator0Output::DEFAULT,
         &base_peripherals.nvmc,
+        &base_peripherals.uicr,
+        &base_peripherals.approtect,
     )
     .finalize(());
 
