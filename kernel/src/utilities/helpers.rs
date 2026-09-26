@@ -323,7 +323,7 @@ macro_rules! stack_size {
 ///
 /// # Usage
 ///
-/// ```rust
+/// ```rust,ignore
 /// // Get a slice over the region of flash containing TBFs.
 /// //
 /// // The `_sapps` and `_eapps` symbols are defined by the linker.
