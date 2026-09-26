@@ -54,7 +54,7 @@ enum State {
 }
 
 pub struct Isl29035<'a, A: time::Alarm<'a>> {
-    i2c: &'a dyn I2CDevice,
+    i2c: &'a dyn I2CDevice<'a>,
     alarm: &'a A,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
@@ -62,7 +62,11 @@ pub struct Isl29035<'a, A: time::Alarm<'a>> {
 }
 
 impl<'a, A: time::Alarm<'a>> Isl29035<'a, A> {
-    pub fn new(i2c: &'a dyn I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Isl29035<'a, A> {
+    pub fn new(
+        i2c: &'a dyn I2CDevice<'a>,
+        alarm: &'a A,
+        buffer: &'static mut [u8],
+    ) -> Isl29035<'a, A> {
         Isl29035 {
             i2c,
             alarm,

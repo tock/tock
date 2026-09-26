@@ -65,7 +65,7 @@ enum Operation {
 
 pub struct Ccs811<'a> {
     buffer: TakeCell<'static, [u8]>,
-    i2c: &'a dyn I2CDevice,
+    i2c: &'a dyn I2CDevice<'a>,
     client: OptionalCell<&'a dyn AirQualityClient>,
     state: Cell<DeviceState>,
     op: Cell<Operation>,
@@ -76,7 +76,7 @@ pub struct Ccs811<'a> {
 }
 
 impl<'a> Ccs811<'a> {
-    pub fn new(i2c: &'a dyn I2CDevice, buffer: &'static mut [u8]) -> Self {
+    pub fn new(i2c: &'a dyn I2CDevice<'a>, buffer: &'static mut [u8]) -> Self {
         Self {
             buffer: TakeCell::new(buffer),
             i2c,

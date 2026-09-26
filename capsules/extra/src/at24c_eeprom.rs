@@ -74,7 +74,7 @@ enum State {
 }
 
 pub struct AT24C<'a> {
-    i2c: &'a dyn I2CDevice,
+    i2c: &'a dyn I2CDevice<'a>,
     buffer: TakeCell<'static, [u8]>,
     client_page: TakeCell<'a, EEPROMPage>,
     flash_client: OptionalCell<&'a dyn hil::flash::Client<AT24C<'a>>>,
@@ -82,7 +82,7 @@ pub struct AT24C<'a> {
 }
 
 impl<'a> AT24C<'a> {
-    pub fn new(i2c: &'a dyn I2CDevice, buffer: &'static mut [u8]) -> Self {
+    pub fn new(i2c: &'a dyn I2CDevice<'a>, buffer: &'static mut [u8]) -> Self {
         Self {
             i2c,
             buffer: TakeCell::new(buffer),
