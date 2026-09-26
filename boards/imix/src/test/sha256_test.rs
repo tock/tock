@@ -29,14 +29,6 @@ pub unsafe fn run_sha256() {
     t.run();
 }
 
-// HSTRING is "hello world" and HHASH is the SHA-256 hash of this string.
-pub static mut HSTRING: [u8; 11] = *b"hello world";
-
-pub static mut HHASH: [u8; 32] = [
-    0xB9, 0x4D, 0x27, 0xB9, 0x93, 0x4D, 0x3E, 0x08, 0xA5, 0x2E, 0x52, 0xD7, 0xDA, 0x7D, 0xAB, 0xFA,
-    0xC4, 0x84, 0xEF, 0xE3, 0x7A, 0x53, 0x80, 0xEE, 0x90, 0x88, 0xF7, 0xAC, 0xE2, 0xEF, 0xCD, 0xE9,
-];
-
 unsafe fn static_init_test_sha256() -> &'static TestSha256<'static, Sha256Software<'static>> {
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
     kernel::deferred_call::DeferredCallClient::register(sha);
