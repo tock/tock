@@ -186,14 +186,14 @@ pub enum UartChannel<'a> {
 pub struct UartChannelComponent {
     uart_channel: UartChannel<'static>,
     mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    uarte0: &'static nrf52::uart::Uarte<'static>,
+    uarte0: &'static nrf52::uarte::Uarte<'static>,
 }
 
 impl UartChannelComponent {
     pub fn new(
         uart_channel: UartChannel<'static>,
         mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-        uarte0: &'static nrf52::uart::Uarte<'static>,
+        uarte0: &'static nrf52::uarte::Uarte<'static>,
     ) -> Self {
         Self {
             uart_channel,
