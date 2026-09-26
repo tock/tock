@@ -848,16 +848,6 @@ unsafe fn start() -> (
     debug!("Initialization complete. Entering main loop");
 
     extern "C" {
-        /// Beginning of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
-        static _sapps: u8;
-
-        /// End of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
-        static _eapps: u8;
-
         /// Beginning of the RAM region for app memory.
         ///
         /// This symbol is defined in the linker script.
@@ -872,10 +862,11 @@ unsafe fn start() -> (
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
+        // SAFETY: The linker script ensures the symbols are valid and refer to a
+        // memory region entirely used to store TBFs. `_sapps` starts after the
+        // kernel text region and therefore is not null. We never create a mutable
+        // reference to the same memory region.
+        unsafe { kernel::symbol_defined_slice!(_sapps, _eapps) },
         core::slice::from_raw_parts_mut(
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,

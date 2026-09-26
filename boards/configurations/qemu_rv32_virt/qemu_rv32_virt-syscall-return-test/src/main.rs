@@ -146,16 +146,15 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     extern "C" {
-        static _sapps: u8;
-        static _eapps: u8;
         static mut _sappmem: u8;
         static _eappmem: u8;
     }
 
-    let app_flash = core::slice::from_raw_parts(
-        core::ptr::addr_of!(_sapps),
-        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-    );
+    // SAFETY: The linker script ensures the symbols are valid and refer to a
+    // memory region entirely used to store TBFs. `_sapps` starts after the
+    // kernel text region and therefore is not null. We never create a mutable
+    // reference to the same memory region.
+    let app_flash = unsafe { kernel::symbol_defined_slice!(_sapps, _eapps) };
     let app_memory = core::slice::from_raw_parts_mut(
         core::ptr::addr_of_mut!(_sappmem),
         core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,

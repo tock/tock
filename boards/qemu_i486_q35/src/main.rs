@@ -575,10 +575,6 @@ unsafe extern "cdecl" fn main() {
 
     // These symbols are defined in the linker script.
     extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
         /// Beginning of the RAM region for app memory.
         static mut _sappmem: u8;
         /// End of the RAM region for app memory.
@@ -590,10 +586,11 @@ unsafe extern "cdecl" fn main() {
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            ptr::addr_of!(_sapps),
-            ptr::addr_of!(_eapps) as usize - ptr::addr_of!(_sapps) as usize,
-        ),
+        // SAFETY: The linker script ensures the symbols are valid and refer to a
+        // memory region entirely used to store TBFs. `_sapps` starts after the
+        // kernel text region and therefore is not null. We never create a mutable
+        // reference to the same memory region.
+        unsafe { kernel::symbol_defined_slice!(_sapps, _eapps) },
         core::slice::from_raw_parts_mut(
             ptr::addr_of_mut!(_sappmem),
             ptr::addr_of!(_eappmem) as usize - ptr::addr_of!(_sappmem) as usize,
