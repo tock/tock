@@ -16,6 +16,12 @@ pub mod mpu {
     const MPU_BASE_ADDRESS: StaticRef<cortexm::mpu::MpuRegisters> =
         unsafe { StaticRef::new(0xE000ED90 as *const cortexm::mpu::MpuRegisters) };
 
+    /// Create a new MPU for the Cortex-M7 hardware.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure the hardware is a valid Cortex-M7 chip and that the
+    /// MPU hardware exists to enforce memory protection.
     pub unsafe fn new() -> MPU {
         unsafe { MPU::new(MPU_BASE_ADDRESS) }
     }
