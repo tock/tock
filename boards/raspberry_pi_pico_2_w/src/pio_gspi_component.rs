@@ -1,15 +1,21 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OxidOS Automotive 2025.
+// Copyright Tock Contributors 2026.
+
+//! Builds the half duplex SPI transport the CYW43439 radio is reached over.
+//!
+//! The same shape as `boards/raspberry_pi_pico_w`'s component, over this
+//! chip's types. `rp2350::pio_gspi::PioGSpi` is the shared transport with the
+//! RP2350's DMA channel and pin type filled in, so only the names differ.
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use rp2040::gpio::RPGpioPin;
-use rp2040::pio_gspi::PioGSpi;
-use rp2040::{dma, pio, pio_gspi};
+use rp2350::gpio::RPGpioPin;
+use rp2350::pio_gspi::PioGSpi;
+use rp2350::{dma, pio, pio_gspi};
 
 macro_rules! pio_gpsi_component_static {
-    () => {{ kernel::static_buf!(rp2040::pio_gspi::PioGSpi<'static>) }};
+    () => {{ kernel::static_buf!(rp2350::pio_gspi::PioGSpi<'static>) }};
 }
 pub(super) use pio_gpsi_component_static;
 
