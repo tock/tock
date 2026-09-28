@@ -1,5 +1,5 @@
-STM32 Nucleo-64 development board with STM32F429ZI MCU
-======================================================
+STM32 Nucleo-144 development board with STM32F429ZI MCU
+=======================================================
 
 For more details [visit NUCLEO-F429ZI
 website](https://www.st.com/en/evaluation-tools/nucleo-f429zi.html).
