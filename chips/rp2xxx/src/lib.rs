@@ -11,10 +11,13 @@
 //!
 //! Peripherals that only look alike are *not* here. `clocks`, `gpio` and `uart`
 //! each diverge by hundreds of lines between the two chips and stay in their
-//! own crates.
+//! own crates. `pads` is the exception within GPIO rather than a softening of
+//! that rule: the pad control register really is identical on both chips, so
+//! the two enums describing it are shared while everything around them is not.
 
 #![no_std]
 
+pub mod pads;
 pub mod spi;
 
 /// Access to the peripheral clock, `clk_peri`.

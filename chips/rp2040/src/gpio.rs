@@ -14,6 +14,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+pub use rp2xxx::pads::{DriveStrength, SlewRate};
 
 use crate::chip::Processor;
 #[repr(C)]
@@ -394,24 +395,6 @@ enum_from_primitive! {
        USB = 9,
        NULL = 0x1f
     }
-}
-
-/// Slew rate of an output
-#[derive(Debug, Eq, PartialEq)]
-pub enum SlewRate {
-    /// Fast slew rate.
-    Fast = 1,
-    /// Slow slew rate.
-    Slow = 0,
-}
-
-/// Drive Strength of a GPIO Pin
-#[derive(Debug, Eq, PartialEq)]
-pub enum DriveStrength {
-    Drive2mA = 0,
-    Drive4ma = 1,
-    Drive8ma = 2,
-    Drive12ma = 3,
 }
 
 pub struct RPGpioPin<'a> {
