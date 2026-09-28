@@ -3,7 +3,7 @@
 /* Copyright Tock Contributors 2023.                                  */
 
 /* Memory layout for the STM32F446RE
- * rom = 2MB (LENGTH = 0x02000000)
+ * rom = 2MB (LENGTH = 0x00200000)
  * kernel = 256KB
  * user = 256KB
  * ram = 192KB */
