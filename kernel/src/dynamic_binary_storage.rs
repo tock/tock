@@ -25,7 +25,7 @@ use crate::utilities::cells::{OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 
 /// Expected buffer length for storing application binaries.
-pub const BUF_LEN: usize = 512;
+pub const BUF_LEN: usize = 4096;
 
 /// The number of bytes in the TBF header for a padding app.
 const PADDING_TBF_HEADER_LENGTH: usize = 16;
@@ -38,6 +38,7 @@ pub enum State {
     Load,
     Abort,
     Unload(Result<(), ErrorCode>, usize),
+    Uninstall,
     PaddingWrite,
     Fail,
 }
@@ -51,6 +52,8 @@ struct ProcessLoadMetadata {
     next_app_start_addr: usize,
     padding_requirement: PaddingRequirement,
     setup_padding: bool,
+    erase_chunk_offset: usize,
+    uninstall_app_end_address: usize,
 }
 
 /// This interface supports flashing binaries at runtime.
@@ -152,6 +155,25 @@ pub trait DynamicProcessUnloadClient {
     fn unload_done(&self, result: Result<(), ErrorCode>, app_handle: usize);
 }
 
+/// This interface supports uninstalling processes during runtime.
+pub trait DynamicProcessUninstall {
+    /// Call to uninstall an application binary with a specified `app_handle`.
+    /// `app_handle` is defined by the return value of the `Unload()` operation.
+    fn uninstall_with_app_handle(&self, app_handle: usize) -> Result<(), ErrorCode>;
+
+    /// Sets a client for the SequentialDynamicProcessUninstall Object
+    ///
+    /// When the client operation is done, it calls the `uninstall_done()`
+    /// function.
+    fn set_uninstall_client(&self, client: &'static dyn DynamicProcessUninstallClient);
+}
+
+/// The callback for dynamic process unloading.
+pub trait DynamicProcessUninstallClient {
+    /// Removed application binary from storage.
+    fn uninstall_done(&self, result: Result<(), ErrorCode>);
+}
+
 /// Dynamic process loading machine.
 pub struct SequentialDynamicBinaryStorage<
     'a,
@@ -167,6 +189,7 @@ pub struct SequentialDynamicBinaryStorage<
     storage_client: OptionalCell<&'static dyn DynamicBinaryStoreClient>,
     load_client: OptionalCell<&'static dyn DynamicProcessLoadClient>,
     unload_client: OptionalCell<&'static dyn DynamicProcessUnloadClient>,
+    uninstall_client: OptionalCell<&'static dyn DynamicProcessUninstallClient>,
     process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
     deferred_call: DeferredCall,
@@ -189,6 +212,7 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             storage_client: OptionalCell::empty(),
             load_client: OptionalCell::empty(),
             unload_client: OptionalCell::empty(),
+            uninstall_client: OptionalCell::empty(),
             process_metadata: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             deferred_call: DeferredCall::new(),
@@ -239,7 +263,9 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             // If we are going to write the padding header, we already know
             // where to write in flash, so we don't have to add the start
             // address
-            State::Setup | State::Load | State::PaddingWrite | State::Abort => Ok(offset),
+            State::Setup | State::Load | State::PaddingWrite | State::Abort | State::Uninstall => {
+                Ok(offset)
+            }
             // We aren't supposed to be able to write unless we are in one of
             // the first two write states
             _ => Err(ErrorCode::FAIL),
@@ -364,6 +390,10 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             buffer[13] = buffer[1] ^ buffer[5] ^ buffer[9];
             buffer[14] = buffer[2] ^ buffer[6] ^ buffer[10];
             buffer[15] = buffer[3] ^ buffer[7] ^ buffer[11];
+
+            for i in 16..BUF_LEN {
+                buffer[i] = 0xff_u8;
+            }
         });
 
         self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
@@ -374,9 +404,9 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                 true => {
                     // Write the header only if there are more than 16 bytes.
                     // available in the flash.
-                    let mut padding_slice = SubSliceMut::new(buffer);
-                    padding_slice.slice(..PADDING_TBF_HEADER_LENGTH);
-                    // We are only writing the header, so 16 bytes is enough.
+                    let padding_slice = SubSliceMut::new(buffer);
+                    // padding_slice.slice(..PADDING_TBF_HEADER_LENGTH);
+                    // // We are only writing the header, so 16 bytes is enough.
                     self.write_buffer(padding_slice, offset)
                         .map_err(|(e, buf)| {
                             self.buffer.replace(buf.take());
@@ -385,6 +415,31 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
                 }
                 false => Err(ErrorCode::NOMEM),
             }
+        })
+    }
+
+    /// Function to erase a chunk of non-volatile storage.
+    /// Takes in arguments for the offset and chunk size.
+    fn erase_chunk(&self, offset: usize, chunk_size: usize) -> Result<(), ErrorCode> {
+        self.buffer.map(|buffer| {
+            for i in 0..chunk_size {
+                buffer[i] = 0xff_u8;
+            }
+        });
+
+        // We risk the chance of skipping a page on reset
+        if let Some(mut metadata) = self.process_metadata.get() {
+            metadata.erase_chunk_offset = offset + chunk_size;
+            self.process_metadata.set(metadata);
+        }
+
+        // If power cycle happens here
+        self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
+            let erase_chunk = SubSliceMut::new(buffer);
+            self.write_buffer(erase_chunk, offset).map_err(|(e, buf)| {
+                self.buffer.replace(buf.take());
+                e
+            })
         })
     }
 }
@@ -493,6 +548,22 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
             }
             State::Unload(_, _) => {
                 self.buffer.replace(buffer);
+            }
+            State::Uninstall => {
+                self.buffer.replace(buffer);
+                if let Some(metadata) = self.process_metadata.get() {
+                    if metadata.erase_chunk_offset < metadata.uninstall_app_end_address {
+                        // We are still within the bounds of this application, so let
+                        // us erase it.
+                        let _ = self.erase_chunk(metadata.erase_chunk_offset, BUF_LEN);
+                    } else {
+                        // Reset metadata and let client know we are done uninstalling the app.
+                        self.reset_process_loading_metadata();
+                        self.uninstall_client.map(|client| {
+                            client.uninstall_done(Ok(()));
+                        });
+                    }
+                }
             }
             State::Idle => {
                 self.buffer.replace(buffer);
@@ -776,6 +847,64 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                 };
 
                 result
+            }
+            _ => {
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                Err(ErrorCode::BUSY)
+            }
+        }
+    }
+}
+
+/// Uninstall interface exposed to the app_loader capsule
+impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileStorage<'b>>
+    DynamicProcessUninstall for SequentialDynamicBinaryStorage<'_, 'b, C, D, F>
+{
+    fn set_uninstall_client(&self, client: &'static dyn DynamicProcessUninstallClient) {
+        self.uninstall_client.set(client);
+    }
+
+    fn uninstall_with_app_handle(&self, app_handle: usize) -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Idle => {
+                self.state.set(State::Uninstall);
+                self.process_metadata.set(ProcessLoadMetadata::default());
+
+                // This relation is true for this implementation, however,
+                // app_handle could encompass other identifiers.
+                let application_binary_address = app_handle;
+
+                let application_binary_size =
+                    match self.loader_driver.fetch_application_binary_size(app_handle) {
+                        Ok(app_size) => app_size as usize,
+                        Err(_) => {
+                            self.reset_process_loading_metadata();
+                            return Err(ErrorCode::FAIL);
+                        }
+                    };
+
+                let padding_result =
+                    self.write_padding_app(application_binary_size, application_binary_address);
+                let _ = match padding_result {
+                    Ok(()) => {
+                        if let Some(mut metadata) = self.process_metadata.get() {
+                            metadata.erase_chunk_offset = application_binary_address + BUF_LEN;
+                            metadata.uninstall_app_end_address =
+                                application_binary_address + application_binary_size;
+                            self.process_metadata.set(metadata);
+                        }
+                        Ok(())
+                    }
+                    Err(_) => {
+                        // This means we were unable to write the
+                        // padding app.
+                        self.reset_process_loading_metadata();
+                        Err(ErrorCode::FAIL)
+                    }
+                };
+                padding_result
             }
             _ => {
                 // We are in the wrong mode of operation. Ideally we should never reach
