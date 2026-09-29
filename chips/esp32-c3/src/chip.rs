@@ -373,6 +373,8 @@ pub extern "C" fn _start_trap_vectored() -> ! {
     // range of vectored traps.
     naked_asm!(
         "
+      .option push
+      .option norvc
         j {start_trap}
         j {start_trap}
         j {start_trap}
@@ -405,6 +407,7 @@ pub extern "C" fn _start_trap_vectored() -> ! {
         j {start_trap}
         j {start_trap}
         j {start_trap}
+      .option pop
         ",
         start_trap = sym rv32i::_start_trap,
     );
