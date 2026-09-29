@@ -1242,7 +1242,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         app_handle: usize,
     ) -> Result<u32, ProcessBinaryError> {
         let flash = self.flash_bank.get();
-        let application_binary_address = app_handle - flash.as_ptr() as usize;
+        let application_binary_address = app_handle - flash.as_ptr().addr();
 
         // Might want to verify if the app is valid with check_new_binary_validity() either here, or before returning the size
         let test_header_slice = flash
