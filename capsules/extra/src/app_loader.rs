@@ -100,8 +100,10 @@ mod upcall {
     pub const ABORT_DONE: usize = 4;
     /// Unload done callback.
     pub const UNLOAD_DONE: usize = 5;
+    /// Uninstall Done callback.
+    pub const UNINSTALL_DONE: usize = 6;
     /// Number of upcalls.
-    pub const COUNT: u8 = 6;
+    pub const COUNT: u8 = 7;
 }
 
 // Ids for read-only allow buffers
@@ -125,11 +127,13 @@ pub struct AppLoader<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    U: dynamic_binary_storage::DynamicProcessUninstall + 'static,
 > {
     // The underlying driver for the process flashing and loading.
     storage_driver: &'static S,
     load_driver: &'static L,
     unload_driver: &'static T,
+    uninstall_driver: &'static U,
     // Per-app state.
     apps: Grant<
         App,
@@ -149,7 +153,8 @@ impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-> AppLoader<S, L, T>
+    U: dynamic_binary_storage::DynamicProcessUninstall + 'static,
+> AppLoader<S, L, T, U>
 {
     pub fn new(
         grant: Grant<
@@ -161,13 +166,15 @@ impl<
         storage_driver: &'static S,
         load_driver: &'static L,
         unload_driver: &'static T,
+        uninstall_driver: &'static U,
         buffer: &'static mut [u8],
-    ) -> AppLoader<S, L, T> {
+    ) -> AppLoader<S, L, T, U> {
         AppLoader {
             apps: grant,
             storage_driver,
             load_driver,
             unload_driver,
+            uninstall_driver,
             buffer: TakeCell::new(buffer),
             current_process: OptionalCell::empty(),
             new_app_length: Cell::new(0),
@@ -253,7 +260,8 @@ impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-> dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L, T>
+    U: dynamic_binary_storage::DynamicProcessUninstall + 'static,
+> dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L, T, U>
 {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self, result: Result<(), ErrorCode>) {
@@ -317,7 +325,8 @@ impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-> dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L, T>
+    U: dynamic_binary_storage::DynamicProcessUninstall + 'static,
+> dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L, T, U>
 {
     /// Let the requesting app know we are done loading the new process
     ///
@@ -364,7 +373,8 @@ impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-> dynamic_binary_storage::DynamicProcessUnloadClient for AppLoader<S, L, T>
+    U: dynamic_binary_storage::DynamicProcessUninstall + 'static,
+> dynamic_binary_storage::DynamicProcessUnloadClient for AppLoader<S, L, T, U>
 {
     /// Let the app know we have unloaded the target process
     /// and return an opaque identifier for the process binary
@@ -384,12 +394,36 @@ impl<
     }
 }
 
+impl<
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    T: dynamic_binary_storage::DynamicProcessUnload + 'static,
+    U: dynamic_binary_storage::DynamicProcessUninstall + 'static,
+> dynamic_binary_storage::DynamicProcessUninstallClient for AppLoader<S, L, T, U>
+{
+    /// Let the app know we have uninstalled the target application
+    /// binary.
+    fn uninstall_done(&self, result: Result<(), ErrorCode>) {
+        self.current_process.map(|processid| {
+            let _ = self.apps.enter(processid, move |app, kernel_data| {
+                // And then signal the app.
+                app.pending_command = false;
+
+                self.current_process.take();
+                let _ = kernel_data
+                    .schedule_upcall(upcall::UNINSTALL_DONE, (into_statuscode(result), 0, 0));
+            });
+        });
+    }
+}
+
 /// Provide an interface for userland.
 impl<
     S: dynamic_binary_storage::DynamicBinaryStore + 'static,
     L: dynamic_binary_storage::DynamicProcessLoad + 'static,
     T: dynamic_binary_storage::DynamicProcessUnload + 'static,
-> SyscallDriver for AppLoader<S, L, T>
+    U: dynamic_binary_storage::DynamicProcessUninstall + 'static,
+> SyscallDriver for AppLoader<S, L, T, U>
 {
     /// Command interface.
     ///
@@ -431,6 +465,9 @@ impl<
     /// - `6`: Request kernel to unload a processs
     ///  - Returns Ok(()) when the application is successfully scheduled for unload
     ///  - Returns ErrorCode::FAIL when the unload fails
+    /// - `7`: Request kernel to uninstall an application binary
+    ///  - Returns Ok(()) when application is scheduled for uninstall
+    ///  - Returns ErrorCode::FAIL when uninstall fails.
     ///
     /// The driver returns ErrorCode::INVAL if any operation is called before the
     /// preceeding operation was invoked. For example, `write()` cannot be called before
@@ -564,6 +601,21 @@ impl<
                 };
                 let res = self.unload_driver.unload(shortid);
                 match res {
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => {
+                        self.current_process.take();
+                        CommandReturn::failure(e)
+                    }
+                }
+            }
+            7 => {
+                // Request the kernel to uninstall an application binary
+                // by specifying its `app_handle`
+                // (usually defined by the return value of `Unload`, but
+                // can be extensible).
+
+                let result = self.uninstall_driver.uninstall_with_app_handle(arg1);
+                match result {
                     Ok(()) => CommandReturn::success(),
                     Err(e) => {
                         self.current_process.take();
