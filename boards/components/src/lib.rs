@@ -93,6 +93,7 @@ pub mod sh1106;
 pub mod sha;
 pub mod sht3x;
 pub mod sht4x;
+pub mod shtc3;
 pub mod si7021;
 pub mod signature_verify_in_memory_keys;
 pub mod siphash;
