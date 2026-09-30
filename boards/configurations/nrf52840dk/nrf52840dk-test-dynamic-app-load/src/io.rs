@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2024.
 
 use kernel::hil::uart;
-use nrf52840::uart_legacy::{Uart, UartPanicWriterConfig};
+use nrf52840::uart::{Uart, UartPanicWriterConfig};
 
 #[cfg(not(test))]
 #[panic_handler]
