@@ -776,7 +776,7 @@ mod tests {
 
     #[test]
     fn baud_rate_divider_calculation() {
-        use crate::uart::Uarte;
+        use crate::uarte::Uarte;
 
         assert_eq!(Uarte::get_divider_for_baud(0), Err(ErrorCode::INVAL));
         assert_eq!(
