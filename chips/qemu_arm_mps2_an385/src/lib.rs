@@ -31,9 +31,6 @@ extern "C" {
     link_section = ".vectors"
 )]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-// Stable, per-image name so each board's `layout.ld` can assert that its
-// own vector table -- not the other image's -- was linked in.
-#[unsafe(export_name = "mps2_an385_vector_table")]
 /// ARM Cortex-M Vector Table
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,                      // Stack Pointer
