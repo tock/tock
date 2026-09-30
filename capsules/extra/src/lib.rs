@@ -99,6 +99,7 @@ pub mod sha256;
 pub mod sha256_driver;
 pub mod sht3x;
 pub mod sht4x;
+pub mod shtc3;
 pub mod si7021;
 pub mod signature_verify_in_memory_keys;
 pub mod sip_hash;

@@ -46,6 +46,7 @@ These implement a driver to setup and read various physical sensors.
   sensor.
 - **[SHT3x](src/sht3x.rs)**: Temperature and humidity sensor.
 - **[SHT4x](src/sht4x.rs)**: Temperature and humidity sensor.
+- **[SHTC3](src/shtc3.rs)**: Temperature and humidity sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
 - **[SK68XX](src/sk68xx.rs)**: Tri-color, single-wire LED.
 - **[STM32 Temperature](src/temperature_stm.rs)**: Analog STM32 temperature
