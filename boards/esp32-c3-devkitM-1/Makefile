@@ -14,7 +14,7 @@ install: flash
 
 .PHONY: init
 init:
-	tockloader local-board set esp32_c3_devkitm1 --binary-path esp32_c3_devkitm1.bin --arch rv32imc --app-address 0x403B0000 --flash-address 0x40380000
+	tockloader local-board set esp32_c3_devkitm1 --binary-path esp32_c3_devkitm1.bin --arch rv32imc --app-address 0x403B8000 --flash-address 0x40380000
 
 # Write the kernel to the flash file with tockloader
 .PHONY: write-kernel
