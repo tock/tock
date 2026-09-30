@@ -23,6 +23,10 @@ merges pull requests for the main Tock repository.
       - [`ci-all`](#ci-all)
 - [Comments and Review Criteria](#comments-and-review-criteria)
   * [General Review Principles](#general-review-principles)
+  * [`unsafe` Code](#unsafe-code)
+    + [Declaration of `unsafe` Functions, Associated Functions, and Methods](#declaration-of-unsafe-functions-associated-functions-and-methods)
+    + [Implementation of `unsafe` Trait Methods](#implementation-of-unsafe-trait-methods)
+    + [`unsafe` Code Blocks](#unsafe-code-blocks)
   * [Review Guide by Repository Subsystem](#review-guide-by-repository-subsystem)
     + [Core Kernel (`/kernel` crate) Not Including HILs](#core-kernel-kernel-crate-not-including-hils)
     + [HILs](#hils)
@@ -301,6 +305,132 @@ review principles that will be used when evaluating pull requests.
 - Uses of `#inline` directives should explain in an adjacent comment why they
   are needed.
 
+### `unsafe` Code
+
+All `unsafe` usage MUST be accompanied by Safety comments. These comments
+discuss exactly why the `unsafe` code is necessary and what checks are needed
+and completed to ensure the use of `unsafe` does not trigger undefined
+behavior.
+
+The core of these comments are invariants which `unsafe` code expects to be
+upheld.
+
+- Invariants should be succinct and specific.
+- Invariants should be minimal in scope.
+
+There are several fundamental types of `unsafe` code, each with their own
+template for Safety comments:
+
+#### Declaration of `unsafe` Functions, Associated Functions, and Methods
+
+On function and method declarations, the primary purpose of the `unsafe`
+keyword is to indicate that there are invariants the **caller** of the
+function is obligated to uphold.
+
+- The Safety comment for a function MUST express all of the invariants a
+  caller is assumed to uphold.
+
+`unsafe fn`s must use the following template for a Safety comment:
+
+    /// High-level summary of function behavior.
+    ///
+    /// [optional]: Additional non-safety documentation.
+    ///
+    /// # Safety
+    ///
+    /// Caller requirements for the use of this function to be safe.
+
+Here is an example of a Safety comment for a method declaration:
+
+    /// Set the return value the process will see after a syscall.
+    ///
+    /// This should only be called after a process has called a syscall.
+    ///
+    /// The process to set the return value for is specified by the `state`
+    /// value. The `return_value` is the value that should be passed to the
+    /// process so that when it resumes executing it knows the return value of
+    /// the syscall it called.
+    ///
+    /// # Safety
+    ///
+    /// [`accessible_memory_start`, `app_brk`) define a range of valid,
+    /// readable, and writeable memory that belongs to this process. This
+    /// function has exclusive access to this memory range during operation.
+    ///
+    /// - `accessible_memory_start` must be a valid pointer to process memory.
+    /// - `app_brk - 1` must be a valid pointer to process memory.
+    /// - `app_brk` > `accessible_memory_start`.
+    /// - `accessible_memory_start` is aligned to the native word type.
+    /// - No Rust references exist to [`accessible_memory_start`, `app_brk`).
+    unsafe fn set_syscall_return_value(
+        &self,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut Self::StoredState,
+        return_value: SyscallReturn,
+    ) -> Result<(), ()>;
+
+
+#### Implementation of `unsafe` Trait Methods
+
+For a trait method being implemented, you should **not** include a Safety
+comment, as the canonical reference is in the trait definition. Comments with
+additional information regarding how this specific implementation adheres to
+the callee requirements should generally be included in the implementation
+body. Method `impl`s MUST NOT introduce any new caller Safety requirements.
+
+#### `unsafe` Code Blocks
+
+Rust requires that whenever an implementation performs an `unsafe` operation
+it be encapsulated in an `unsafe` code block. Generally, `unsafe` code blocks
+should be minimal and restricted to one operation.
+
+We do not enforce strictly one operation per block (i.e.,
+[clippy's multiple_unsafe_ops_per_block][clippy-mult-unsafe]) and permit
+grouping of operations where the _reasoning_ around all of the grouped
+`unsafe` operations are the same. When multiple operations are grouped in one
+block, the Safety comment must explain how each operation's invariants are
+upheld.
+
+Each `unsafe` code block must have its own Safety comment that adheres to the
+following template:
+
+    // [optional]: Any generic code comments unrelated to Safety concerns.
+    //
+    // SAFETY: Explanation of how all required safety requirements are met.
+
+The following is an example of a common-case Safety comment:
+
+    // Get a reference to the slice of `GrantPointerEntry`s.
+    //
+    // SAFETY: This is safe, as `grant_pointers_memory_location` is aligned to a
+    // `GrantPointerEntry`, and we ensured there is space for
+    // `grant_ptrs_num` of `GrantPointerEntry`s allocated.
+    let grant_pointers_uninit: &mut [MaybeUninit<GrantPointerEntry>] =
+        unsafe { slice::from_raw_parts_mut(grant_pointers_memory_location, grant_ptrs_num) };
+
+The following is an example of a grouped Safety comment. The multiple
+requirements are listed.
+
+    // SAFETY: These pointer reads require offsetting the pointer and then
+    // using it to access memory. These both require the pointers to remain
+    // valid, point to allocated memory, and be aligned.
+    // - The memory is valid and allocated because we ensured there is room
+    //   for the stack frame at the stack pointer and that it is within
+    //   process memory.
+    // - We verified the `new_stack_pointer` is properly aligned, and the
+    //   offset pointers will be aligned as well.
+    let (r0, r1, r2, r3, yield_pc, psr) = unsafe {
+        (
+            ptr::read(new_stack_pointer.add(0)),
+            ptr::read(new_stack_pointer.add(1)),
+            ptr::read(new_stack_pointer.add(2)),
+            ptr::read(new_stack_pointer.add(3)),
+            ptr::read(new_stack_pointer.add(6)),
+            ptr::read(new_stack_pointer.add(7)),
+        )
+    };
+
 ### Review Guide by Repository Subsystem
 
 In addition to general code review practices, certain review principles are only
@@ -322,11 +452,6 @@ included in the source file directly (often with a `//` comment). This leaves a
 clear trace of how key design decisions in Tock were decided and why certain
 aspects may not use the most intuitive design. This helps avoid re-hashing
 discussions and assist new users with understanding the kernel.
-
-All `unsafe` usage MUST be accompanied by a comment starting with `### Safety`
-that discusses exactly why the unsafe code is necessary and what checks are
-needed and completed to ensure the use of `unsafe` does not trigger undefined
-behavior.
 
 All new exports from the core kernel crate must be carefully examined. Certain
 functionality is only safe within the core kernel. As essentially every crate in
@@ -495,3 +620,8 @@ of the component.
 
 Other repositories under [tock/](https://github.com/tock) are either
 experimental or archived.
+
+
+
+[rust-valid-ptr]: https://doc.rust-lang.org/std/ptr/index.html
+[clippy-mult-unsafe]: https://rust-lang.github.io/rust-clippy/master/index.html#multiple_unsafe_ops_per_block
