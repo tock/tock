@@ -4,29 +4,31 @@
 
 //! A dummy SPI client to test the SPI implementation
 
-use core::ptr::addr_of_mut;
-
 use kernel::ErrorCode;
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::{self, SpiMaster};
+use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 
 #[allow(unused_variables, dead_code)]
 pub struct DummyCB {
     val: u8,
     spi: &'static sam4l::spi::SpiHw<'static>,
+    // The buffer used for the continuous echo transfer started in the first
+    // `read_write_done` callback. It is handed to the SPI driver and comes
+    // back to us as the `write` parameter of every later callback.
+    a5: TakeCell<'static, [u8]>,
 }
 
 impl DummyCB {
-    pub fn new(spi: &'static sam4l::spi::SpiHw<'static>) -> Self {
-        Self { val: 0x55_u8, spi }
+    pub fn new(spi: &'static sam4l::spi::SpiHw<'static>, a5: &'static mut [u8]) -> Self {
+        Self {
+            val: 0x55_u8,
+            spi,
+            a5: TakeCell::new(a5),
+        }
     }
 }
-
-pub static mut FLOP: bool = false;
-pub static mut BUF1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-pub static mut BUF2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
-pub static mut A5: [u8; 16] = [0xA5; 16];
 
 impl spi::SpiMasterClient for DummyCB {
     #[allow(unused_variables, dead_code)]
@@ -36,21 +38,15 @@ impl spi::SpiMasterClient for DummyCB {
         read: Option<SubSliceMut<'static, u8>>,
         status: Result<usize, ErrorCode>,
     ) {
-        unsafe {
-            // do actual stuff
-            // TODO verify SPI return value
-            let _ = self
-                .spi
-                .read_write_bytes((&mut *addr_of_mut!(A5) as &mut [u8]).into(), None);
-
-            // FLOP = !FLOP;
-            // let len: usize = BUF1.len();
-            // if FLOP {
-            //     sam4l::spi::SPI.read_write_bytes(&mut BUF1, Some(&mut BUF2), len);
-            // } else {
-            //     sam4l::spi::SPI.read_write_bytes(&mut BUF2, Some(&mut BUF1), len);
-            // }
-        }
+        // do actual stuff
+        // TODO verify SPI return value
+        //
+        // On the first callback (triggered by the initial BUF1/BUF2
+        // transfer in `spi_dummy_test`), switch over to the dedicated A5
+        // buffer. On every later callback, `write` already is that same
+        // buffer being returned to us by the driver.
+        let buf = self.a5.take().unwrap_or_else(|| write.take());
+        let _ = self.spi.read_write_bytes(buf.into(), None);
     }
 }
 
@@ -79,7 +75,8 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw<'static>) {
     pin2.make_output();
     pin2.set();
 
-    let spicb = kernel::static_init!(DummyCB, DummyCB::new(spi));
+    let a5_buf: &'static mut [u8] = kernel::static_init!([u8; 16], [0xA5; 16]);
+    let spicb = kernel::static_init!(DummyCB, DummyCB::new(spi, a5_buf));
     spi.specify_chip_select(sam4l::spi::Peripheral::Peripheral0)
         .unwrap();
     spi.set_client(spicb);
@@ -87,12 +84,10 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw<'static>) {
     spi.init().unwrap();
     spi.set_baud_rate(200000);
 
-    let buf2 = &mut *addr_of_mut!(BUF2);
+    let buf1 = kernel::static_init!([u8; 8], [0, 0, 0, 0, 0, 0, 0, 0]);
+    let buf2 = kernel::static_init!([u8; 8], [8, 7, 6, 5, 4, 3, 2, 1]);
     let len = buf2.len();
-    if spi.read_write_bytes(
-        (buf2 as &mut [u8]).into(),
-        Some((&mut *addr_of_mut!(BUF1) as &mut [u8]).into()),
-    ) != Ok(())
+    if spi.read_write_bytes((buf2 as &mut [u8]).into(), Some((buf1 as &mut [u8]).into())) != Ok(())
     {
         loop {
             spi.write_byte(0xA5).unwrap();
