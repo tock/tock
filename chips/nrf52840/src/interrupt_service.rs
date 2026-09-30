@@ -50,9 +50,10 @@ impl<'a> Nrf52840DefaultPeripherals<'a> {
         ficr: &'a nrf52::ficr::Ficr,
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
         aes_ecb_buf: &'static mut [u8; 48],
+        pwm_buf: &'static mut [u16; 4],
     ) -> Self {
         // SAFETY: See function-level doc.
-        let nrf52_peripherals = unsafe { Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf) };
+        let nrf52_peripherals = unsafe { Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf, pwm_buf) };
 
         Self {
             nrf52: nrf52_peripherals,
