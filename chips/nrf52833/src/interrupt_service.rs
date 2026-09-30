@@ -3,7 +3,11 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::hil::time::Alarm;
+use kernel::utilities::StaticRef;
 use nrf52::chip::Nrf52DefaultPeripherals;
+
+const RADIO_BASE: StaticRef<crate::ieee802154_radio::RadioRegisters> =
+    unsafe { StaticRef::new(0x40001000 as *const crate::ieee802154_radio::RadioRegisters) };
 
 /// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
 ///
@@ -15,14 +19,18 @@ pub struct Nrf52833DefaultPeripherals<'a> {
     pub ieee802154_radio: crate::ieee802154_radio::Radio<'a>,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
-impl Nrf52833DefaultPeripherals<'_> {
+impl<'a> Nrf52833DefaultPeripherals<'a> {
     pub unsafe fn new(
+        ficr: &'a nrf52::ficr::Ficr,
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
         aes_ecb_buf: &'static mut [u8; 48],
     ) -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(aes_ecb_buf),
-            ieee802154_radio: crate::ieee802154_radio::Radio::new(ieee802154_radio_ack_buf),
+            nrf52: Nrf52DefaultPeripherals::new(ficr, aes_ecb_buf),
+            ieee802154_radio: crate::ieee802154_radio::Radio::new(
+                RADIO_BASE,
+                ieee802154_radio_ack_buf,
+            ),
             gpio_port: crate::gpio::nrf52833_gpio_create(),
         }
     }
