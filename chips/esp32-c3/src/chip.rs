@@ -26,9 +26,41 @@ pub const INTC_BASE: StaticRef<IntcRegisters> =
 
 pub static mut INTC: Intc = Intc::new(INTC_BASE);
 
+/// Number of PMP entries available for the "User MPU" implementation.
+///
+/// Tock uses TOR regions, so each region actually occupies two of these
+/// entries; see [`USER_PMP_ENTRIES`].
+///
+/// The ESP32-C3 chip actually has 16 entries, but it's got a bug: when taking a
+/// trap from user-mode, it faults. It seems like this fault only occurs if the
+/// trap vector table is not accessible to user-mode in the PMP. This behavior
+/// is not compliant with the RISC-V PMP spec. We configure the bottom 2 entries
+/// of the PMP to grant execute-only access to user-mode, which fixes this
+/// issue.
+///
+/// This does not provide execute permissions for the rest of the kernel text,
+/// and the trap vector only contains jumps to the trap handler.
+const USER_PMP_ENTRIES: usize = 14;
+
+/// Process MPU regions, two (TOR) PMP entries each.
+///
+/// See [`USER_MPU_REGIONS`].
+const USER_MPU_REGIONS: usize = USER_PMP_ENTRIES / 2;
+
+/// Size of the vector table at `mtvec`.
+///
+/// See [`_start_trap_vectored`]. We set up one jump per trap, 32 different
+/// traps in total, all non-compressed RISC-V instructions that are 4 byte long.
+///
+/// We use this value to work around a CPU bug in the ESP32-C3, to allow apps to
+/// execute the trap vector. We don't give execute permissions to the rest of
+/// kernel text, and the trap vector itself just contains jumps to a single
+/// unified handler, so this should be OK.
+const TRAP_VECTOR_TABLE_LEN: usize = 32 * 4;
+
 pub struct Esp32C3<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
-    pub pmp: PMPUserMPU<8, SimplePMP<16>>,
+    pub pmp: PMPUserMPU<USER_MPU_REGIONS, SimplePMP<USER_PMP_ENTRIES>>,
     intc: &'a Intc,
     pic_interrupt_service: &'a I,
 }
@@ -79,9 +111,31 @@ impl InterruptService for Esp32C3DefaultPeripherals<'_> {
 
 impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
     pub unsafe fn new(pic_interrupt_service: &'a I) -> Self {
+        let pmp = SimplePMP::new().unwrap();
+
+        // The ESP32-C3 seems to have a CPU bug where it requires the PMP to be
+        // configured to give user-mode execute permissions on the trap vector;
+        // otherwise it just faults. See the comment on [`USER_PMP_ENTRIES`].
+        // This dedicates the last two regions (which aren't accessible through
+        // `SimplePMP`) to that purpose.
+        let mtvec_addr = _start_trap_vectored as extern "C" fn() -> ! as usize;
+        let (bottom, top) = (USER_PMP_ENTRIES, USER_PMP_ENTRIES + 1);
+        CSR.pmpaddr_set(bottom, mtvec_addr >> 2);
+        CSR.pmpaddr_set(top, (mtvec_addr + TRAP_VECTOR_TABLE_LEN) >> 2);
+
+        // Configure the last two entries' pmpcfg. Second to last will remain
+        // off, as the start address of a TOR region.
+        let pmpcfg = CSR.pmpconfig_get(3) & 0x0000_ffff;
+        const TOR_EXECUTE: usize =
+            // pmpcfg[4:3] = 0b01 -> TOR
+            0b01 << 3
+            // pmpcfg[2] = 1 -> execute
+            | 1 << 2;
+        CSR.pmpconfig_set(3, pmpcfg | TOR_EXECUTE << 24);
+
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
+            pmp: PMPUserMPU::new(pmp),
             intc: &*addr_of!(INTC),
             pic_interrupt_service,
         }
@@ -109,7 +163,7 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
 }
 
 impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
-    type MPU = PMPUserMPU<8, SimplePMP<16>>;
+    type MPU = PMPUserMPU<USER_MPU_REGIONS, SimplePMP<USER_PMP_ENTRIES>>;
     type UserspaceKernelBoundary = SysCall;
     type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
@@ -319,6 +373,8 @@ pub extern "C" fn _start_trap_vectored() -> ! {
     // range of vectored traps.
     naked_asm!(
         "
+      .option push
+      .option norvc
         j {start_trap}
         j {start_trap}
         j {start_trap}
@@ -351,6 +407,7 @@ pub extern "C" fn _start_trap_vectored() -> ! {
         j {start_trap}
         j {start_trap}
         j {start_trap}
+      .option pop
         ",
         start_trap = sym rv32i::_start_trap,
     );
