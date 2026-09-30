@@ -7,6 +7,7 @@
 #![no_std]
 
 pub mod chip;
+pub mod i2c;
 pub mod intc;
 pub mod interrupts;
 pub mod rng;
