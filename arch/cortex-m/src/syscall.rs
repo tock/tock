@@ -262,7 +262,7 @@ impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
 pub struct SysCall<A: CortexMVariant>(PhantomData<A>);
 
 impl<A: CortexMVariant> SysCall<A> {
-    pub const unsafe fn new() -> SysCall<A> {
+    pub const fn new() -> SysCall<A> {
         SysCall(PhantomData)
     }
 }

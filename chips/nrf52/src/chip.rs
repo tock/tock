@@ -41,9 +41,12 @@ pub struct NRF52<'a, I: InterruptService + 'a> {
 }
 
 impl<'a, I: InterruptService + 'a> NRF52<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+    pub fn new(interrupt_service: &'a I) -> Self {
+        // SAFETY: All nRF52 chips are Cortex-M4F cores with valid MPU hardware.
+        let mpu = unsafe { cortexm4f::mpu::new() };
+
         Self {
-            mpu: cortexm4f::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }
