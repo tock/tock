@@ -1,0 +1,27 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "esp32-c3-devkit-rust-2"
+version.workspace = true
+authors.workspace = true
+build = "../build.rs"
+edition = "2024"
+
+[dependencies]
+components = { path = "../components" }
+rv32i = { path = "../../arch/rv32i" }
+kernel = { path = "../../kernel" }
+esp32 = { path = "../../chips/esp32" }
+esp32-c3 = { path = "../../chips/esp32-c3" }
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true
