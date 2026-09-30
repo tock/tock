@@ -7,7 +7,7 @@ use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart;
 use nrf52840::gpio::Pin;
-use nrf52840::uart_legacy::{Uart, UartPanicWriterConfig};
+use nrf52840::uart::{Uart, UartPanicWriterConfig};
 
 const LED2_R_PIN: Pin = Pin::P0_13;
 
