@@ -15,12 +15,16 @@ use rv32i::csr::{self, CSR, mcause, mtvec::mtvec};
 use rv32i::pmp::{PMPUserMPU, simple::SimplePMP};
 use rv32i::syscall::SysCall;
 
+use crate::i2c;
 use crate::intc::{Intc, IntcRegisters};
 use crate::interrupts;
 use crate::rng;
 use crate::sysreg;
 use crate::timg;
 use crate::usb_serial_jtag;
+
+pub const I2C0_BASE: StaticRef<i2c::I2cRegisters> =
+    unsafe { StaticRef::new(0x6001_3000 as *const i2c::I2cRegisters) };
 
 pub const INTC_BASE: StaticRef<IntcRegisters> =
     unsafe { StaticRef::new(0x600C_2000 as *const IntcRegisters) };
@@ -78,6 +82,7 @@ pub struct Esp32C3DefaultPeripherals<'a> {
     pub rtc_cntl: esp32::rtc_cntl::RtcCntl,
     pub sysreg: sysreg::SysReg,
     pub rng: rng::Rng<'a>,
+    pub i2c: i2c::I2c<'a>,
 }
 
 impl Esp32C3DefaultPeripherals<'_> {
@@ -91,6 +96,7 @@ impl Esp32C3DefaultPeripherals<'_> {
             rtc_cntl: esp32::rtc_cntl::RtcCntl::new(esp32::rtc_cntl::RTC_CNTL_BASE),
             sysreg: sysreg::SysReg::new(),
             rng: rng::Rng::new(),
+            i2c: i2c::I2c::new(I2C0_BASE),
         }
     }
 
@@ -109,6 +115,8 @@ impl InterruptService for Esp32C3DefaultPeripherals<'_> {
             interrupts::IRQ_TIMER2 => self.timg1.handle_interrupt(),
 
             interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => self.gpio.handle_interrupt(),
+
+            interrupts::IRQ_I2C_EXT0 => self.i2c.handle_interrupt(),
 
             _ => return false,
         }

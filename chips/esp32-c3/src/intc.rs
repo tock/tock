@@ -19,6 +19,8 @@ register_structs! {
         (0x058 => _reserved2),
         (0x068 => usb_intr_map: ReadWrite<u32>),
         (0x06C => _reserved6),
+        (0x074 => i2c_ext0_intr_map: ReadWrite<u32>),
+        (0x078 => _reserved7),
         (0x080 => timg0_intr_map: ReadWrite<u32>),
         (0x084 => _reserved3),
         (0x088 => timg1_intr_map: ReadWrite<u32>),
@@ -83,6 +85,9 @@ impl Intc {
             self.registers
                 .usb_intr_map
                 .set(interrupts::IRQ_USB_SERIAL_JTAG);
+            self.registers
+                .i2c_ext0_intr_map
+                .set(interrupts::IRQ_I2C_EXT0);
         });
     }
 
