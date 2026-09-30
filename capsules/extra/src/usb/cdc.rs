@@ -12,6 +12,7 @@ use core::cmp;
 use super::descriptors;
 use super::descriptors::Buffer64;
 use super::descriptors::CdcInterfaceDescriptor;
+use super::descriptors::Descriptor;
 use super::descriptors::EndpointAddress;
 use super::descriptors::EndpointDescriptor;
 use super::descriptors::InterfaceDescriptor;
@@ -429,11 +430,13 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                     // D1: Carrier control for half duplex modems.
                     //     - 0 -> Deactivate carrier
                     //     - 1 -> Activate carrier
-                    //
-                    // We connect only when DTR is asserted, which happens only when a terminal has actually opened the port.
-                    // Windows's serial driver sends this request with DTR 0 long before any terminal actually opens the port,
-                    // treating that as connected works but queues console output with no terminal open.
-                    self.set_connecting_state(false, setup_data.value & 1 != 0);
+                    let dtr = setup_data.value & 1 == 1;
+
+                    // We ignore this message towards our state machine if DTR is false.
+                    // Linux and MAC only send this message when DTR is true. Windows
+                    // sends this multiple times, and only when something is actually
+                    // listening does it set DTR to true.
+                    self.set_connecting_state(false, dtr);
 
                     self.ctrl_state.set(CtrlState::SetControlLineState);
                 }
@@ -452,13 +455,13 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
     /// Handle a Control In transaction
     fn ctrl_in(&'a self, endpoint: usize) -> hil::usb::CtrlInResult {
         if self.ctrl_state.get() == CtrlState::GetLineCoding {
-            // There is no actual UART being configured, so we
-            // report out fixed line coding to the host.
-            descriptors::CdcAcmSetLineCodingData::default().put(&self.client_ctrl.ctrl_buffer.buf);
-            hil::usb::CtrlInResult::Packet(7, true)
-        } else {
-            self.client_ctrl.ctrl_in(endpoint)
+            // Send back the default Line Coding descriptor.
+            self.client_ctrl.prepare_ctrl_in(endpoint, |buf| {
+                descriptors::CdcAcmSetLineCodingData::default().write_to(buf)
+            });
         }
+
+        self.client_ctrl.ctrl_in(endpoint)
     }
 
     /// Handle a Control Out transaction
