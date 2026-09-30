@@ -236,11 +236,10 @@ unsafe fn start() -> (
         [0; nrf52833::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    // SAFETY: This is the only copy and only user of the DMA peripherals.
+    let peripherals = unsafe { Nrf52833DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf) };
     // Initialize chip peripheral drivers
-    let nrf52833_peripherals = static_init!(
-        Nrf52833DefaultPeripherals,
-        Nrf52833DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf)
-    );
+    let nrf52833_peripherals = static_init!(Nrf52833DefaultPeripherals, peripherals);
 
     // set up circular peripheral dependencies
     nrf52833_peripherals.init();
