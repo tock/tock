@@ -44,7 +44,7 @@ pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
 const VALID_COMMANDS_STR: &[u8] =
-    b"help status list stop start fault boot terminate process kernel reset panic console-start console-stop\r\n";
+    b"help status list stop start fault boot terminate process kernel reset panic hardfault console-start console-stop\r\n";
 
 /// Escape character for ANSI escape sequences.
 const ESC: u8 = b'\x1B';
@@ -1005,6 +1005,8 @@ impl<
                             );
                         } else if clean_str.starts_with("panic") {
                             panic!("Process Console forced a kernel panic.");
+                        } else if clean_str.starts_with("hardfault") {
+                            kernel::debug::hardfault();
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
                             let _ = self.write_bytes(VALID_COMMANDS_STR);
