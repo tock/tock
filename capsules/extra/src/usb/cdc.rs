@@ -504,17 +504,11 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
         // Here we check to see if we just got connected to a CDC client. If so,
         // we do a delay before transmitting if needed.
         if let State::Connecting {
-            // It's better to ignore line coding here because it requires the host
-            // to send SET_LINE_CODING with a baud rate of 115200.
-            // Linux does this by default, but Windows does not:
-            // the driver reads GET_LINE_CODING and sends that same value back to SET_LINE_CODING,
-            // blocking the device in Connecting.
-            // So we just rely on DTR here.
-            line_coding: _,
+            line_coding,
             line_state,
         } = self.state.get()
         {
-            if line_state {
+            if line_coding && line_state {
                 self.state.set(State::ConnectingDelay);
 
                 // Wait a 100 ms before sending data.
