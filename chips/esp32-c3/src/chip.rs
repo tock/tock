@@ -20,9 +20,13 @@ use crate::interrupts;
 use crate::rng;
 use crate::sysreg;
 use crate::timg;
+use crate::usb_serial_jtag;
 
 pub const INTC_BASE: StaticRef<IntcRegisters> =
     unsafe { StaticRef::new(0x600C_2000 as *const IntcRegisters) };
+
+pub const USB_SERIAL_JTAG_BASE: StaticRef<usb_serial_jtag::UsbSerialJtagRegisters> =
+    unsafe { StaticRef::new(0x6004_3000 as *const usb_serial_jtag::UsbSerialJtagRegisters) };
 
 pub static mut INTC: Intc = Intc::new(INTC_BASE);
 
@@ -67,6 +71,7 @@ pub struct Esp32C3<'a, I: InterruptService + 'a> {
 
 pub struct Esp32C3DefaultPeripherals<'a> {
     pub uart0: esp32::uart::Uart<'a>,
+    pub usb_serial_jtag: usb_serial_jtag::UsbSerialJtag<'a>,
     pub timg0: timg::TimG<'a>,
     pub timg1: timg::TimG<'a>,
     pub gpio: esp32::gpio::Port<'a>,
@@ -79,6 +84,7 @@ impl Esp32C3DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             uart0: esp32::uart::Uart::new(esp32::uart::UART0_BASE),
+            usb_serial_jtag: usb_serial_jtag::UsbSerialJtag::new(USB_SERIAL_JTAG_BASE),
             timg0: timg::TimG::new(timg::TIMG0_BASE, timg::ClockSource::Pll),
             timg1: timg::TimG::new(timg::TIMG1_BASE, timg::ClockSource::Pll),
             gpio: esp32::gpio::Port::new(),
@@ -97,6 +103,7 @@ impl InterruptService for Esp32C3DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::IRQ_UART0 => self.uart0.handle_interrupt(),
+            interrupts::IRQ_USB_SERIAL_JTAG => self.usb_serial_jtag.handle_interrupt(),
 
             interrupts::IRQ_TIMER1 => self.timg0.handle_interrupt(),
             interrupts::IRQ_TIMER2 => self.timg1.handle_interrupt(),

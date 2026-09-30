@@ -11,6 +11,7 @@ pub mod intc;
 pub mod interrupts;
 pub mod rng;
 pub mod sysreg;
+pub mod usb_serial_jtag;
 
 pub mod timg {
     pub use esp32::timg::{ClockSource, TIMG0_BASE, TIMG1_BASE};
