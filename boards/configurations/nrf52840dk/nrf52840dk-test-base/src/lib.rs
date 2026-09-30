@@ -21,10 +21,15 @@ use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 
 // The nRF52840DK LEDs (see back of board)
-const LED1_PIN: Pin = Pin::P0_13;
-const LED2_PIN: Pin = Pin::P0_14;
-const LED3_PIN: Pin = Pin::P0_15;
-const LED4_PIN: Pin = Pin::P0_16;
+
+/// LED1: top left
+pub const LED1_PIN: Pin = Pin::P0_13;
+/// LED2: top right
+pub const LED2_PIN: Pin = Pin::P0_14;
+/// LED3: bottom left
+pub const LED3_PIN: Pin = Pin::P0_15;
+/// LED4: bottom right
+pub const LED4_PIN: Pin = Pin::P0_16;
 
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
