@@ -581,6 +581,8 @@ impl Kernel {
                     // kernel-private memory. Invoking this function is safe
                     // here, as we always call `enable_app_mpu` above before
                     // switching back to a process.
+                    //
+                    // unsafe-requirements: calling unsafe Tock method `disable_app_mpu`
                     unsafe {
                         chip.mpu().disable_app_mpu();
                     }
@@ -664,6 +666,8 @@ impl Kernel {
                                         // SAFETY: This is NOT safe. This is a known issue with this
                                         // implementation of IPC:
                                         // <https://github.com/tock/tock/issues/1993>.
+                                        //
+                                        // unsafe-requirements: calling unsafe Tock method `schedule_upcall`
                                         unsafe {
                                             let _ = ipc.schedule_upcall(
                                                 process.processid(),
@@ -850,6 +854,8 @@ impl Kernel {
                         // SAFETY: This is fine as long as no references to the
                         // process's memory exist. We do not have a reference,
                         // so we can safely call `set_byte()`.
+                        //
+                        // unsafe-requirements: calling unsafe Tock method `set_byte`
                         unsafe {
                             process.set_byte(ptr, has_tasks as u8);
                         }

@@ -654,6 +654,8 @@ pub unsafe fn encode_upcall_trd104_ptr(
     a3: *mut u32,
 ) {
     // SAFETY: All safety invariants must be upheld by the function caller.
+    //
+    // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
     unsafe {
         core::ptr::write(a0, upcall.argument0 as u32);
         core::ptr::write(a1, upcall.argument1 as u32);
@@ -695,6 +697,8 @@ pub unsafe fn encode_upcall_trd64bit_ptr(
     a3: *mut u64,
 ) {
     // SAFETY: All safety invariants must be upheld by the function caller.
+    //
+    // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
     unsafe {
         // The TRD specifies that arguments 0, 1, and 2 are u32s. So, we cast to
         // u32 to ensure we are not using the upper bits, and then cast to u64

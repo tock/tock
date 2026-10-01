@@ -34,6 +34,8 @@ impl<T> StaticRef<T> {
     /// - `*ptr` must be valid for the program duration.
     pub const unsafe fn new(ptr: *const T) -> StaticRef<T> {
         // SAFETY: `ptr` is non-null as promised by the caller.
+        //
+        // unsafe-requirements: calling unsafe function `new_unchecked`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-call
         unsafe {
             StaticRef {
                 ptr: NonNull::new_unchecked(ptr.cast_mut()),

@@ -9,6 +9,8 @@
 pub fn mut_slice_as_maybeuninit<T>(buffer: &mut [T]) -> &mut [core::mem::MaybeUninit<T>] {
     // SAFETY: `MaybeUninit<T>` has the same size and alignment as `T`.
     let maybeuninit_buf: &mut [core::mem::MaybeUninit<T>] =
+        //
+        // unsafe-requirements: calling unsafe function `from_raw_parts_mut`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts_mut.html
         unsafe { core::slice::from_raw_parts_mut(buffer.as_mut_ptr().cast(), buffer.len()) };
     maybeuninit_buf
 }
