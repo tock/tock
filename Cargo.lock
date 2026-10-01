@@ -54,10 +54,8 @@ dependencies = [
 name = "capsules-aes-gcm"
 version = "0.2.4-dev"
 dependencies = [
- "enum_primitive",
  "ghash",
  "kernel",
- "tickv",
 ]
 
 [[package]]
@@ -66,7 +64,6 @@ version = "0.2.4-dev"
 dependencies = [
  "enum_primitive",
  "kernel",
- "tickv",
 ]
 
 [[package]]
@@ -139,7 +136,6 @@ name = "cortexm0"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm",
- "kernel",
 ]
 
 [[package]]
@@ -201,7 +197,6 @@ name = "cortexv7m"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm",
- "kernel",
 ]
 
 [[package]]
@@ -277,8 +272,6 @@ version = "0.2.4-dev"
 dependencies = [
  "e310x",
  "kernel",
- "rv32i",
- "sifive",
 ]
 
 [[package]]
@@ -287,8 +280,6 @@ version = "0.2.4-dev"
 dependencies = [
  "e310x",
  "kernel",
- "rv32i",
- "sifive",
 ]
 
 [[package]]
@@ -654,7 +645,6 @@ name = "lowrisc"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
- "rv32i",
 ]
 
 [[package]]
@@ -748,7 +738,6 @@ name = "msp432"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
- "enum_primitive",
  "kernel",
 ]
 
@@ -813,7 +802,6 @@ dependencies = [
 name = "nrf52832"
 version = "0.2.4-dev"
 dependencies = [
- "cortexm4f",
  "kernel",
  "nrf52",
 ]
@@ -822,7 +810,6 @@ dependencies = [
 name = "nrf52833"
 version = "0.2.4-dev"
 dependencies = [
- "cortexm4f",
  "kernel",
  "nrf52",
 ]
@@ -831,7 +818,6 @@ dependencies = [
 name = "nrf52840"
 version = "0.2.4-dev"
 dependencies = [
- "cortexm4f",
  "kernel",
  "nrf52",
 ]
@@ -1247,7 +1233,6 @@ name = "psc3"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
- "enum_primitive",
  "kernel",
 ]
 
@@ -1270,7 +1255,6 @@ name = "psoc62xa"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm0p",
- "enum_primitive",
  "kernel",
 ]
 
@@ -1563,8 +1547,6 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv",
- "riscv-csr",
- "tock-registers",
 ]
 
 [[package]]
@@ -1573,8 +1555,6 @@ version = "0.2.4-dev"
 dependencies = [
  "kernel",
  "riscv",
- "riscv-csr",
- "tock-registers",
 ]
 
 [[package]]
@@ -1680,7 +1660,6 @@ name = "stm32f401cc"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
- "enum_primitive",
  "kernel",
  "stm32f4xx",
 ]
@@ -1690,7 +1669,6 @@ name = "stm32f412g"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
- "enum_primitive",
  "kernel",
  "stm32f4xx",
 ]
@@ -1728,7 +1706,6 @@ name = "stm32f429zi"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
- "enum_primitive",
  "kernel",
  "stm32f4xx",
 ]
@@ -1738,7 +1715,6 @@ name = "stm32f446re"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm4f",
- "enum_primitive",
  "kernel",
  "stm32f4xx",
 ]
@@ -1757,7 +1733,6 @@ name = "stm32u545"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm33",
- "kernel",
  "stm32u5xx",
 ]
 
@@ -1783,7 +1758,6 @@ name = "stm32wle5jc"
 version = "0.2.4-dev"
 dependencies = [
  "cortexm4",
- "enum_primitive",
  "kernel",
  "stm32wle5xx",
 ]
@@ -1958,7 +1932,6 @@ name = "x86"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
- "tock-cells",
  "tock-registers",
 ]
 

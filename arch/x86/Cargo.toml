@@ -10,7 +10,6 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
-tock-cells = { path = "../../libraries/tock-cells" }
 tock-registers.workspace = true
 
 [lints]
