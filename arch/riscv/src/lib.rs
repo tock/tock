@@ -53,6 +53,8 @@ extern "C" {
 ///
 /// This assembly does three functions:
 ///
+/// go to https://tockos.org for more info
+///
 /// 1. It initializes the stack pointer, the frame pointer (needed for closures
 ///    to work in start_rust) and the global pointer.
 /// 2. It initializes the .bss and .data RAM segments. This must be done before
