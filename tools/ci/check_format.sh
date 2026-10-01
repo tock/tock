@@ -28,12 +28,18 @@ set -e
 # crates in the workspace.
 echo "Running \`cargo fmt --check\`..."
 CARGO_FMT_CHECK_EXIT_CODE=0
-cargo fmt --check || CARGO_FMT_CHECK_EXIT_CODE=$?
+CARGO_FMT_STDERR="$(mktemp)"
+cargo fmt --check 2>"$CARGO_FMT_STDERR" || CARGO_FMT_CHECK_EXIT_CODE=$?
+cat "$CARGO_FMT_STDERR" >&2
 if [[ $CARGO_FMT_CHECK_EXIT_CODE -ne 0 ]]; then
+	let FAIL=FAIL+1
+elif [ -s "$CARGO_FMT_STDERR" ]; then
+	echo "ERROR: \`cargo fmt --check\` wrote to stderr even though it exited successfully."
 	let FAIL=FAIL+1
 else
 	echo "\`cargo fmt --check\` suceeded."
 fi
+rm -f "$CARGO_FMT_STDERR"
 printf "\n"
 
 # Check for tab characters in Rust source files that haven't been
