@@ -11,6 +11,7 @@ pub mod bus8080;
 pub mod buzzer;
 pub mod can;
 pub mod crc;
+pub mod crypto;
 pub mod dac;
 pub mod date_time;
 pub mod digest;
