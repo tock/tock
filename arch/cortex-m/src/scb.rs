@@ -270,6 +270,8 @@ register_bitfields![u32,
     ]
 ];
 
+//
+// unsafe-requirements: calling unsafe Tock function `new`
 const SCB: StaticRef<ScbRegisters> = unsafe { StaticRef::new(0xE000ED00 as *const ScbRegisters) };
 
 /// Allow the core to go into deep sleep on WFI.

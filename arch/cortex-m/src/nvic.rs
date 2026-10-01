@@ -120,6 +120,8 @@ register_bitfields![u32,
 
 /// The NVIC peripheral in MMIO space.
 const NVIC: StaticRef<NvicRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0xe000e000 as *const NvicRegisters) };
 
 /// Number of valid NVIC_XXXX registers.
