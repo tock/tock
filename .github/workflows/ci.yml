@@ -40,6 +40,8 @@ jobs:
         run:  make ci-job-markdown-toc
       - name:      ci-job-readme-check
         run:  make ci-job-readme-check
+      - name:      ci-job-machete
+        run:  make ci-job-machete
 
   ci-clippy:
     strategy:

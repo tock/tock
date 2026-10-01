@@ -296,7 +296,8 @@ ci-runner-github:\
 ci-runner-github-format:\
 	ci-job-format\
 	ci-job-markdown-toc\
-	ci-job-readme-check
+	ci-job-readme-check\
+	ci-job-machete
 	$(call banner,CI-Runner: GitHub format runner DONE)
 
 .PHONY: ci-runner-github-clippy
@@ -397,6 +398,31 @@ endef
 .PHONY: ci-job-readme-check
 ci-job-readme-check:
 	$(call ci_job_readme_check)
+
+
+define ci_setup_machete
+	$(call banner,CI-Setup: Install cargo-machete)
+	cargo install cargo-machete
+endef
+
+.PHONY: ci-setup-machete
+ci-setup-machete:
+	$(call ci_setup_helper,\
+		cargo machete --version &> /dev/null && echo yes,\
+		Install 'cargo-machete' using cargo,\
+		ci_setup_machete,\
+		CI_JOB_MACHETE)
+
+define ci_job_machete
+	$(call banner,CI-Job: Unused Dependencies (cargo-machete))
+	# Run `cargo machete` on all Tock crates other than boards.
+	# Because boards use components, dependencies can be hidden by macros.
+	@cargo machete arch capsules chips kernel libraries tools
+endef
+
+.PHONY: ci-job-machete
+ci-job-machete: ci-setup-machete
+	$(if $(CI_JOB_MACHETE),$(call ci_job_machete))
 
 
 
