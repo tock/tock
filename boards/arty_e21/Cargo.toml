@@ -17,7 +17,6 @@ arty_e21_chip = { path = "../../chips/arty_e21_chip" }
 sifive = { path = "../../chips/sifive" }
 
 capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 [build-dependencies]
