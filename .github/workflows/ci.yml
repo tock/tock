@@ -188,3 +188,14 @@ jobs:
       - uses: actions/checkout@v7
       - name:      ci-job-flux
         run:  make ci-job-flux
+
+  ci-docs:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+      - name:      ci-job-docs
+        run:  make ci-job-docs
