@@ -126,11 +126,9 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
         // Configure the last two entries' pmpcfg. Second to last will remain
         // off, as the start address of a TOR region.
         let pmpcfg = CSR.pmpconfig_get(3) & 0x0000_ffff;
-        const TOR_EXECUTE: usize =
-            // pmpcfg[4:3] = 0b01 -> TOR
-            0b01 << 3
-            // pmpcfg[2] = 1 -> execute
-            | 1 << 2;
+        // pmpcfg[4:3] = 0b01 -> TOR
+        // pmpcfg[2] = 1 -> execute
+        const TOR_EXECUTE: usize = 0b01 << 3 | 1 << 2;
         CSR.pmpconfig_set(3, pmpcfg | TOR_EXECUTE << 24);
 
         Self {
