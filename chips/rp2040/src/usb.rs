@@ -1549,11 +1549,13 @@ impl<'a> UsbCtrl<'a> {
             .ep_out_buf_ctrl
             .modify(EP_BUFFER_CONTROL::DATA_PID0::SET);
 
-        self.dpsram.ep_buf_ctrl[0].ep_in_buf_ctrl.modify(
-            EP_BUFFER_CONTROL::AVAILABLE0::SET
-                + EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(64)
-                + EP_BUFFER_CONTROL::DATA_PID0::CLEAR,
-        );
+        // we leave EP0 IN unarmed at bus reset. we have nothing legitimate to send until the
+        // host sends a SETUP packet and usb_handle_setup_packet() has a respondse
+        //
+        // this used to reply to the first IN token of the data stage with whatever
+        // happened to be in the register, and kept ownership of the buffer while
+        // transmit_in_ep0() was filling it, which violates usb 2.0 spec
+        self.dpsram.ep_buf_ctrl[0].ep_in_buf_ctrl.set(0);
         self.registers.buff_status.set(0);
         self.registers.addr_endp.modify(ADDR_ENDP::ADDRESS.val(0));
 
@@ -1876,6 +1878,12 @@ impl<'a> UsbCtrl<'a> {
                             if size == 0 {
                                 // Directly handle a 0 length setup request.
                                 self.send_empty_in(endpoint);
+                                // we have to move to ReadStatus here to have
+                                // handle_ep0datadone() complete the transfer as the only
+                                // transaction left in this transfer is the IN status stage
+                                self.descriptors[endpoint]
+                                    .state
+                                    .set(EndpointState::Ctrl(CtrlState::ReadStatus));
                             } else {
                                 match self.dpsram.setup_h.read(SETUP_H::BM_REQUEST_TYPE) >> 7 {
                                     0 => {
@@ -1936,8 +1944,10 @@ impl<'a> UsbCtrl<'a> {
             }
 
             CtrlState::Init => {
-                self.send_empty_in(0);
-                self.complete_ctrl_status();
+                // the transfer that this IN packet belonged to is already completed
+                // (transmit_in_ep0() finishes a control read the moment it hands over the last packer)
+                // so we can safely ignore this IN token and move on
+                // for the data stage of the next control transfer
             }
         }
 
@@ -1975,15 +1985,6 @@ impl<'a> UsbCtrl<'a> {
 
                 // Now we can handle it and pass it to the client to see
                 // what the client returns.
-
-                if self.dpsram.ep0_buffer0[0].get() == 128
-                    && self.dpsram.ep0_buffer0[1].get() == 37
-                    && self.dpsram.ep0_buffer0[2].get() == 0
-                {
-                    self.dpsram.ep0_buffer0[0].set(0);
-                    self.dpsram.ep0_buffer0[1].set(194);
-                    self.dpsram.ep0_buffer0[2].set(1);
-                }
 
                 self.transmit_out_ep0();
                 self.client.map(|client| {
