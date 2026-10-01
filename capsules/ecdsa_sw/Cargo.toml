@@ -12,3 +12,6 @@ edition = "2024"
 kernel = { path = "../../kernel" }
 capsules-core = { path = "../core" }
 p256 = { version = "0.13.0", default-features = false, features = ["ecdsa"] }
+
+[lints]
+workspace = true
