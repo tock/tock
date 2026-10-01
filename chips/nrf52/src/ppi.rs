@@ -42,6 +42,8 @@ use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{FieldValue, ReadWrite, register_bitfields};
 
 const PPI_BASE: StaticRef<PpiRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4001F000 as *const PpiRegisters) };
 
 #[repr(C)]

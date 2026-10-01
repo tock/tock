@@ -335,4 +335,6 @@ impl<'a> analog_comparator::AnalogComparator<'a> for Comparator<'a> {
 }
 
 const ACOMP_BASE: StaticRef<CompRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40013000 as *const CompRegisters) };

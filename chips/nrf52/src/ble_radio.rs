@@ -52,6 +52,8 @@ use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitf
 use nrf5x::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
 
 #[repr(C)]
@@ -640,6 +642,9 @@ impl<'a> Radio<'a> {
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
                     self.radio_off();
+                    //
+                    // unsafe-requirements: accessing mutable static `PAYLOAD`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+                    // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
                     unsafe {
                         self.rx_client.map(|client| {
                             // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
@@ -685,6 +690,9 @@ impl<'a> Radio<'a> {
     fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
         // set payload
         for (i, c) in buf.as_ref().iter().enumerate() {
+            //
+            // unsafe-requirements: accessing mutable static `PAYLOAD`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+            // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
             unsafe {
                 PAYLOAD[i] = *c;
             }

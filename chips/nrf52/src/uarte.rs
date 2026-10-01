@@ -25,6 +25,8 @@ use nrf5x::pinmux;
 const UARTE_MAX_BUFFER_SIZE: usize = 0xff;
 
 pub const UARTE0_BASE: StaticRef<crate::uarte::UarteRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40002000 as *const crate::uarte::UarteRegisters) };
 
 #[repr(C)]
@@ -203,6 +205,8 @@ impl UarteRegistersManager {
         // # Safety
         //
         // The architecture-provided version is correct for the nRF52.
+        //
+        // unsafe-requirements: calling unsafe Tock function `new`
         let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
         // Create DmaSlice for the TX buffer. This ensures that we can soundly
@@ -236,6 +240,8 @@ impl UarteRegistersManager {
             // # Safety
             //
             // The architecture-provided version is correct for the nRF52.
+            //
+            // unsafe-requirements: calling unsafe Tock function `new`
             let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
             // # Safety
@@ -271,6 +277,8 @@ impl UarteRegistersManager {
         // # Safety
         //
         // The architecture-provided version is correct for the nRF52.
+        //
+        // unsafe-requirements: calling unsafe Tock function `new`
         let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
         // Create DmaSlice for the RX buffer. This ensures that we can soundly
@@ -304,6 +312,8 @@ impl UarteRegistersManager {
             // # Safety
             //
             // The architecture-provided version is correct for the nRF52.
+            //
+            // unsafe-requirements: calling unsafe Tock function `new`
             let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
             // # Safety

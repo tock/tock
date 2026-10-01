@@ -12,6 +12,8 @@ use kernel::utilities::registers::{
 };
 
 const POWER_BASE: StaticRef<PowerRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40000000 as *const PowerRegisters) };
 
 // Note: only the nrf52833+ have 9 banks, but we create all of them to avoid

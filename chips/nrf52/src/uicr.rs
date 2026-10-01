@@ -16,6 +16,8 @@ use kernel::utilities::registers::{ReadWrite, register_bitfields};
 use crate::gpio::Pin;
 
 const UICR_BASE: StaticRef<UicrRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x10001200 as *const UicrRegisters) };
 
 #[repr(C)]
