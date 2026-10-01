@@ -289,7 +289,8 @@ ci-runner-github:\
 	ci-runner-github-build\
 	ci-runner-github-tests\
 	ci-runner-github-flux\
-	ci-runner-github-qemu
+	ci-runner-github-qemu\
+	ci-runner-github-docs
 	$(call banner,CI-Runner: All GitHub runners DONE)
 
 .PHONY: ci-runner-github-format
@@ -334,6 +335,11 @@ ci-runner-github-flux:\
 ci-runner-github-qemu:\
 	ci-job-qemu
 	$(call banner,CI-Runner: GitHub qemu runner DONE)
+
+.PHONY: ci-runner-github-docs
+ci-runner-github-docs:\
+	ci-job-docs
+	$(call banner,CI-Runner: GitHub docs runner DONE)
 
 
 # n.b. this runs from .github/workflows/docs.yml, which also uploads the
@@ -664,6 +670,13 @@ endef
 .PHONY: ci-job-qemu-virt
 ci-job-qemu-virt:
 	$(call ci_job_qemu_virt)
+
+
+### ci-runner-github-docs jobs:
+.PHONY: ci-job-docs
+ci-job-docs:
+	$(call banner,CI-Job: Doc Warnings)
+	@tools/build/check_docs.sh
 
 
 ### ci-runner-docs jobs:
