@@ -9,7 +9,6 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-cortexm4f = { path = "../../arch/cortex-m4f" }
 kernel = { path = "../../kernel" }
 nrf52 = { path = "../nrf52" }
 
