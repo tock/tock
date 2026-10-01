@@ -55,12 +55,28 @@ pub unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-    ldr r0, 100f // EXC_RETURN_MSP
-    cmp lr, r0
-    bne 300f // to_kernel
+    // First check to see which direction we are going in.
+    //
+    // We use `SVC_SWITCH_TO_APP`, which is set by the `switch_to_user` code,
+    // to reliably determine if we should switch from kernel to user, or if this
+    // is an `svc` issued from a userspace app. Upon switching to an app, we're
+    // responsible for clearing `SVC_SWITCH_TO_APP`.
+    //
+    // This used to use the link register (containing EXC_RETURN)'s SPSEL bit,
+    // but that turns out to be unreliable with tail-chained exception handlers.
+    // See the doc comment on `SVC_SWITCH_TO_APP` for more information.
+    ldr r0, ={svc_switch_to_app}      // r0 = &SVC_SWITCH_TO_APP
+    ldr r1, [r0]                      // r1 = SVC_SWITCH_TO_APP
+    cmp r1, #0                        // r1 == 0 (coming from app)
+    beq 300f // to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
-    // application. Set thread mode to unprivileged to run the application.
+    // application. We must clear `SVC_SWITCH_TO_APP`, such that we reliably
+    // recognize the next `svc` as coming from an app.
+    movs r1, #0                       // r1 = 0 (coming from app)
+    str r1, [r0]                      // *&SVC_SWITCH_TO_APP = 0
+
+    // Set thread mode to unprivileged to run the application.
     //
     // On v6m:
     //  - CONTROL[0] is nPriv, which we want to set to 1 here
@@ -95,6 +111,7 @@ pub unsafe extern "C" fn svc_handler() {
     .word 0xFFFFFFFD
         ",
         syscall_fired = sym cortexm::syscall::SYSCALL_FIRED,
+        svc_switch_to_app = sym cortexm::syscall::SVC_SWITCH_TO_APP,
     );
 }
 

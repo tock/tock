@@ -265,9 +265,27 @@ unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-    ldr r0, 200f // EXC_RETURN_MSP
-    cmp lr, r0
-    bne 100f
+    // First check to see which direction we are going in.
+    //
+    // We use `SVC_SWITCH_TO_APP`, which is set by the `switch_to_user` code,
+    // to reliably determine if we should switch from kernel to user, or if this
+    // is an `svc` issued from a userspace app. Upon switching to an app, we're
+    // responsible for clearing `SVC_SWITCH_TO_APP`.
+    //
+    // This used to use the link register (containing EXC_RETURN)'s SPSEL bit,
+    // but that turns out to be unreliable with tail-chained exception handlers.
+    // See the doc comment on `SVC_SWITCH_TO_APP` for more information.
+    ldr r0, ={svc_switch_to_app}      // r0 = &SVC_SWITCH_TO_APP
+    ldr r1, [r0]                      // r1 = SVC_SWITCH_TO_APP
+    cmp r1, #0                        // r1 == 0 (coming from app)
+    beq 100f // to_kernel
+
+    // If we get here, then this is a context switch from the kernel to the
+    // application. We must clear `SVC_SWITCH_TO_APP`, such that we reliably
+    // recognize the next `svc` as coming from an app.
+    movs r1, #0                       // r1 = 0 (coming from app)
+    str r1, [r0]                      // *&SVC_SWITCH_TO_APP = 0
+
     // On v6m:
     //  - CONTROL[0] is nPriv, which we want to set to 1 here
     //  - CONTROL[1] is SPSEL, but **ignores writes in handler mode**
@@ -305,6 +323,7 @@ unsafe extern "C" fn svc_handler() {
     .word 0xFFFFFFFD
         ",
         syscall_fired = sym cortexm::syscall::SYSCALL_FIRED,
+        svc_switch_to_app = sym cortexm::syscall::SVC_SWITCH_TO_APP,
     );
 }
 
@@ -503,8 +522,18 @@ impl cortexm::CortexMVariant for CortexM0 {
     // Load bottom of stack into Process Stack Pointer
     msr psp, r0
 
-    // SWITCH
-    svc 0xff // It doesn't matter which SVC number we use here
+    // Indicate that the next `svc` instruction intends to switch from kernel to
+    // an app, and then generate the SVC exception. See the documentation of
+    // `SVC_SWITCH_TO_APP` for more information. `r0` should be free to use
+    // here, as we've saved it at PSP. We use `r0` as a non-zero value, as
+    // Rust's references are guaranteed to have non-zero addresses. There is no
+    // other meaning in the value we write here.
+    ldr r0, ={svc_switch_to_app}      // r0 = &SVC_SWITCH_TO_APP
+    str r0, [r0]                      // *&SVC_SWITCH_TO_APP = <nonzero>
+    // It doesn't matter which SVC number we use here as it is not used in the
+    // exception handler. Data being returned from a syscall is transferred on
+    // the app's stack.
+    svc 0xff
 
     // Store non-hardware-stacked registers in process_regs
     // r1 still points to process_regs because we are clobbering all
@@ -541,6 +570,7 @@ impl cortexm::CortexMVariant for CortexM0 {
                 out("r10") _,
                 out("r11") _,
                 out("r12") _,
+                svc_switch_to_app = sym cortexm::syscall::SVC_SWITCH_TO_APP,
             );
         }
 
