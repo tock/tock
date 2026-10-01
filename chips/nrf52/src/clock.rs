@@ -127,6 +127,8 @@ register_bitfields! [u32,
 ];
 
 const CLOCK_BASE: StaticRef<ClockRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40000000 as *const ClockRegisters) };
 
 /// Interrupt sources

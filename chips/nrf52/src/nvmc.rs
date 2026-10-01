@@ -18,6 +18,8 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 const NVMC_BASE: StaticRef<NvmcRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };
 
 #[repr(C)]
@@ -272,6 +274,9 @@ impl Nvmc {
     fn is_page_blank(&self, page_number: usize) -> bool {
         let address = (page_number * PAGE_SIZE) as *const u32;
         for i in 0..(PAGE_SIZE / 4) {
+            //
+            // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
+            // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
             if unsafe { core::ptr::read(address.add(i)) } != 0xFFFFFFFF {
                 return false;
             }
@@ -301,6 +306,9 @@ impl Nvmc {
     ) -> Result<(), (ErrorCode, &'static mut NrfPage)> {
         // Actually do a copy from flash into the buffer.
         let mut byte: *const u8 = (page_number * PAGE_SIZE) as *const u8;
+        //
+        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
         unsafe {
             for i in 0..buffer.len() {
                 buffer[i] = *byte;
@@ -340,6 +348,8 @@ impl Nvmc {
                 | (data[i + 3] as u32) << 24;
 
             let address = ((page_number * PAGE_SIZE) + i) as u32;
+            //
+            // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
             let location = unsafe { &*(address as *const ReadWrite<u32>) };
             location.set(word);
             while !self.registers.ready.is_set(Ready::READY) {}

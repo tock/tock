@@ -14,24 +14,38 @@ use kernel::utilities::StaticRef;
 //
 
 const AESECB_BASE: StaticRef<crate::aes::AesEcbRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4000E000 as *const crate::aes::AesEcbRegisters) };
 
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40011000 as *const crate::rtc::RtcRegisters) };
 
 const TEMP_BASE: StaticRef<crate::temperature::TempRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4000C000 as *const crate::temperature::TempRegisters) };
 
 const TIMER0_BASE: StaticRef<crate::timer::TimerRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40008000 as *const crate::timer::TimerRegisters) };
 
 const TIMER1_BASE: StaticRef<crate::timer::TimerRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40009000 as *const crate::timer::TimerRegisters) };
 
 const TIMER2_BASE: StaticRef<crate::timer::TimerRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4000A000 as *const crate::timer::TimerRegisters) };
 
 const RNG_BASE: StaticRef<crate::trng::RngRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4000D000 as *const crate::trng::RngRegisters) };
 
 pub struct NRF52<'a, I: InterruptService + 'a> {
@@ -91,9 +105,13 @@ impl Nrf52DefaultPeripherals<'_> {
     ///   length registers of the DMA-enabled peripherals.
     pub unsafe fn new(aes_ecb_buffer: &'static mut [u8; 48]) -> Self {
         // SAFETY: See function-level doc.
+        //
+        // unsafe-requirements: calling unsafe Tock function `new`
         let aes_registers = unsafe { crate::aes::AesEcbRegistersManager::new(AESECB_BASE) };
 
         // SAFETY: See function-level doc.
+        //
+        // unsafe-requirements: calling unsafe Tock function `new_uarte0`
         let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new_uarte0() };
 
         Self {
@@ -160,6 +178,8 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         //
         // We are setting up the nRF52 chip, so these memory locations are valid
         // on the nRF52 and this is OK to call.
+        //
+        // unsafe-requirements: calling unsafe Tock function `fix_errata`
         unsafe {
             crate::crt1::fix_errata();
         }

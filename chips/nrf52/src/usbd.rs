@@ -58,12 +58,18 @@ macro_rules! internal_err {
 }
 
 const CHIPINFO_BASE: StaticRef<ChipInfoRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x10000130 as *const ChipInfoRegisters) };
 
 const USBD_BASE: StaticRef<UsbdRegisters<'static>> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40027000 as *const UsbdRegisters<'static>) };
 
 const USBERRATA_BASE: StaticRef<UsbErrataRegisters> =
+    //
+    // unsafe-requirements: calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4006E000 as *const UsbErrataRegisters) };
 
 const NUM_ENDPOINTS: usize = 8;
