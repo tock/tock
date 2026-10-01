@@ -16,7 +16,6 @@ kernel = { path = "../../kernel" }
 stm32wle5jc = { path = "../../chips/stm32wle5jc" }
 
 capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 [build-dependencies]

@@ -17,7 +17,6 @@ kernel = { path = "../../kernel" }
 veer_el2 = { path = "../../chips/veer_el2" }
 
 capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 [build-dependencies]

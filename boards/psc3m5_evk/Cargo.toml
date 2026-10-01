@@ -16,7 +16,6 @@ psc3 = { path = "../../chips/psc3" }
 components = { path = "../components" }
 
 capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 [build-dependencies]

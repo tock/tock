@@ -16,7 +16,6 @@ psoc62xa = { path = "../../chips/psoc62xa" }
 components = { path = "../components" }
 
 capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 [build-dependencies]

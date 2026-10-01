@@ -17,7 +17,6 @@ version = "0.2.4-dev"
 dependencies = [
  "arty_e21_chip",
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "kernel",
@@ -235,7 +234,6 @@ name = "cy8cproto_62_4243_w"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "cortexm0p",
@@ -479,7 +477,6 @@ name = "hifive1"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "e310_g002",
@@ -494,7 +491,6 @@ name = "hifive_inventor"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "e310_g003",
@@ -579,7 +575,6 @@ name = "litex_arty"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "kernel",
@@ -593,7 +588,6 @@ name = "litex_sim"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "kernel",
@@ -616,7 +610,6 @@ name = "lora_e5_mini"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "cortexm4",
@@ -655,7 +648,6 @@ dependencies = [
  "capsules-system",
  "components",
  "cortexm33",
- "enum_primitive",
  "kernel",
  "lpc55s6x",
  "segger",
@@ -699,7 +691,6 @@ dependencies = [
  "kernel",
  "nrf52",
  "nrf52833",
- "nrf52_components",
  "tock_build_scripts",
 ]
 
@@ -715,7 +706,6 @@ dependencies = [
  "kernel",
  "nrf52",
  "nrf52833",
- "nrf52_components",
  "tock_build_scripts",
 ]
 
@@ -724,7 +714,6 @@ name = "msp-exp432p401r"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "cortexm4",
@@ -1055,8 +1044,6 @@ name = "nrf52_components"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
- "capsules-system",
  "components",
  "cortexm4",
  "kernel",
@@ -1136,7 +1123,6 @@ dependencies = [
  "cortexm33",
  "kernel",
  "stm32u545",
- "stm32u5xx-unsafe",
  "tock_build_scripts",
 ]
 
@@ -1241,7 +1227,6 @@ name = "psc3m5_evk"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "cortexm33",
@@ -1263,7 +1248,6 @@ name = "qemu_i486_q35"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "kernel",
@@ -1286,7 +1270,6 @@ dependencies = [
  "kernel",
  "qemu_rv32_virt_chip",
  "rv32i",
- "sifive",
  "tock_build_scripts",
 ]
 
@@ -1346,7 +1329,6 @@ dependencies = [
  "kernel",
  "qemu_rv64_virt_chip",
  "rv64i",
- "sifive",
  "tock_build_scripts",
 ]
 
@@ -1419,7 +1401,6 @@ name = "raspberry_pi_pico_2"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "cortexm33",
@@ -1478,7 +1459,6 @@ name = "redboard_redv"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "e310_g002",
@@ -1624,7 +1604,6 @@ dependencies = [
  "capsules-system",
  "components",
  "cortexm4",
- "enum_primitive",
  "kernel",
  "nrf52840",
  "nrf52_components",
@@ -1793,7 +1772,6 @@ name = "teensy40"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "cortexm7",
@@ -1866,7 +1844,6 @@ name = "veer_el2_sim"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "kernel",
@@ -1902,7 +1879,6 @@ name = "weact-f401ccu6"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
- "capsules-extra",
  "capsules-system",
  "components",
  "cortexm4",
