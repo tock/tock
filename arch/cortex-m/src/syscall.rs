@@ -120,6 +120,8 @@ pub fn get_global_syscall_fired() -> usize {
     // This is safe as long as the static memory is defined, of the correct
     // size, and aligned correctly. We ensure these conditions are met by
     // creating the variable as an Rust type in an `UnsafeCell`.
+    //
+    // unsafe-requirements: inline assembly: https://doc.rust-lang.org/reference/inline-assembly.html
     unsafe {
         core::arch::asm!(
             "
@@ -349,6 +351,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         // To offset the pointer there must be valid memory pointed to by `sp`.
         // We verified that there is space for four u32s on the stack before
         // hitting the `app_brk`.
+        //
+        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
         let (r0, r1, r2, r3) = unsafe { (sp.add(0), sp.add(1), sp.add(2), sp.add(3)) };
 
         // # Safety
@@ -371,6 +375,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
+        //
+        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
         let (r0_ref, r1_ref, r2_ref, r3_ref) = unsafe { (&mut *r0, &mut *r1, &mut *r2, &mut *r3) };
 
         kernel::utilities::arch_helpers::encode_syscall_return_trd104(
@@ -422,6 +428,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         // `SVC_FRAME_SIZE` of memory at `stack_bottom` so we can create
         // pointers to u32s in that memory. The pointers are valid memory in the
         // process's memory space and well-aligned to a u32.
+        //
+        // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
+        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
         unsafe {
             ptr::write(stack_bottom.add(7), state.psr); // ............ -> APSR
             ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); // -> PC
@@ -447,6 +456,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
         let new_stack_pointer =
+            //
+            // unsafe-requirements: calling unsafe Tock function `switch_to_user`
             unsafe { A::switch_to_user(state.psp as *const usize, &mut state.regs) };
 
         // We need to keep track of the current stack pointer.
@@ -479,6 +490,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // service frame so we can safely create pointers to that memory on
             // the process stack. The pointers are to valid memory in the
             // process stack.
+            //
+            // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
+            // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
             let (r0, r1, r2, r3) = unsafe {
                 // Save these fields after a syscall. If this is a synchronous
                 // syscall (i.e. we return a value to the app immediately) then this
@@ -507,6 +521,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // see is one past the instruction that caused the SVC entry, so
             // decrementing the PC as a pointer and reading that memory will be
             // valid per the architecture rules.
+            //
+            // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
+            // unsafe-requirements: calling unsafe method `sub`: https://doc.rust-lang.org/core/primitive.pointer.html#method.sub
             let svc_instr = unsafe {
                 // The svc instruction is the last instruction before the PC, and
                 // should be 16 bits. Get a pointer to the instruction before the PC
@@ -572,6 +589,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // stack to store these values we are creating pointers to. We
             // ensured the pointers point to valid stack memory we can read
             // from.
+            //
+            // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
+            // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
             unsafe {
                 let r0 = ptr::read(stack_pointer.add(0));
                 let r1 = ptr::read(stack_pointer.add(1));

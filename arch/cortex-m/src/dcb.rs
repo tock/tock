@@ -93,6 +93,8 @@ register_bitfields![u32,
     ],
 ];
 
+//
+// unsafe-requirements: calling unsafe Tock function `new`
 const DCB: StaticRef<DcbRegisters> = unsafe { StaticRef::new(0xE000EDF0 as *const DcbRegisters) };
 
 /// Enable the Debug and Trace unit `DWT`.
