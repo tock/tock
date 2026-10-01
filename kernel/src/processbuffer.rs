@@ -72,6 +72,9 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
     // we cannot build this struct safely from an intermediate
     // `[ReadableProcessByte]` slice reference, as we cannot dereference this
     // unsized type.
+    //
+    // unsafe-requirements: calling unsafe function `from_raw_parts`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
+    // unsafe-requirements: calling unsafe function `transmute`: https://doc.rust-lang.org/core/mem/fn.transmute.html
     unsafe {
         core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(
             // Create a slice of `ReadableProcessByte`s from the supplied
@@ -140,6 +143,9 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
     // `#[repr(transparent)]` wrapper around `[Cell<u8>]`. However, we cannot
     // build this struct safely from an intermediate `[WriteableProcessByte]`
     // slice reference, as we cannot dereference this unsized type.
+    //
+    // unsafe-requirements: calling unsafe function `from_raw_parts`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
+    // unsafe-requirements: calling unsafe function `transmute`: https://doc.rust-lang.org/core/mem/fn.transmute.html
     unsafe {
         core::mem::transmute::<&[Cell<u8>], &WriteableProcessSlice>(
             // Create a slice of `Cell<u8>`s from the supplied pointer. `Cell<u8>`
@@ -392,6 +398,8 @@ impl ReadOnlyProcessBuffer {
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
         // SAFETY: See function description.
+        //
+        // unsafe-requirements: calling unsafe Tock function `new`
         unsafe { Self::new(ptr, len, process_id) }
     }
 
@@ -456,6 +464,8 @@ unsafe impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
                     // here. For more information, refer to the
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
+                    //
+                    // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_roprocessslice`
                     Ok(fun(unsafe {
                         raw_processbuf_to_roprocessslice(self.ptr, self.len)
                     }))
@@ -493,6 +503,8 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// be access for a certain duration.
     pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
         // SAFETY: See function description.
+        //
+        // unsafe-requirements: calling unsafe Tock function `new`
         unsafe {
             Self {
                 buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
@@ -585,6 +597,8 @@ impl ReadWriteProcessBuffer {
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
         // SAFETY: See function description.
+        //
+        // unsafe-requirements: calling unsafe Tock function `new`
         unsafe { Self::new(ptr, len, process_id) }
     }
 
@@ -671,6 +685,8 @@ unsafe impl ReadableProcessBuffer for ReadWriteProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     let ro_process_slice =
+                        //
+                        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_roprocessslice`
                         unsafe { raw_processbuf_to_roprocessslice(self.ptr, self.len) };
                     Ok(fun(ro_process_slice))
                 }),
@@ -708,6 +724,8 @@ unsafe impl WriteableProcessBuffer for ReadWriteProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     let rw_process_slice =
+                        //
+                        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
                         unsafe { raw_processbuf_to_rwprocessslice(self.ptr, self.len) };
                     Ok(fun(rw_process_slice))
                 }),
@@ -740,6 +758,8 @@ impl ReadWriteProcessBufferRef<'_> {
     /// be access for a certain duration.
     pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
         // SAFETY: See function description.
+        //
+        // unsafe-requirements: calling unsafe Tock function `new`
         unsafe {
             Self {
                 buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
@@ -845,6 +865,8 @@ fn cast_byte_slice_to_process_slice(byte_slice: &[ReadableProcessByte]) -> &Read
     // SAFETY: As ReadableProcessSlice is a transparent wrapper around its inner type,
     // [ReadableProcessByte], we can safely transmute a reference to the inner
     // type as a reference to the outer type with the same lifetime.
+    //
+    // unsafe-requirements: calling unsafe function `transmute`: https://doc.rust-lang.org/core/mem/fn.transmute.html
     unsafe { core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(byte_slice) }
 }
 
@@ -855,6 +877,8 @@ impl<'a> From<&'a [u8]> for &'a ReadableProcessSlice {
         // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be
         // the same. This also extends the lifetime of the buffer, so aliasing
         // rules are thus maintained properly.
+        //
+        // unsafe-requirements: calling unsafe function `transmute`: https://doc.rust-lang.org/core/mem/fn.transmute.html
         unsafe { core::mem::transmute(val) }
     }
 }
@@ -867,6 +891,8 @@ impl<'a> From<&'a mut [u8]> for &'a ReadableProcessSlice {
         // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be
         // the same. This also extends the mutable lifetime of the buffer, so
         // aliasing rules are thus maintained properly.
+        //
+        // unsafe-requirements: calling unsafe function `transmute`: https://doc.rust-lang.org/core/mem/fn.transmute.html
         unsafe { core::mem::transmute(val) }
     }
 }
@@ -1043,6 +1069,8 @@ fn cast_cell_slice_to_process_slice(cell_slice: &[Cell<u8>]) -> &WriteableProces
     // SAFETY: As WriteableProcessSlice is a transparent wrapper around its inner type,
     // [Cell<u8>], we can safely transmute a reference to the inner type as the
     // outer type with the same lifetime.
+    //
+    // unsafe-requirements: calling unsafe function `transmute`: https://doc.rust-lang.org/core/mem/fn.transmute.html
     unsafe { core::mem::transmute(cell_slice) }
 }
 
@@ -1054,6 +1082,8 @@ impl<'a> From<&'a mut [u8]> for &'a WriteableProcessSlice {
         // SAFETY: The layout of a [u8] and WriteableProcessSlice are guaranteed to be
         // the same. This also extends the mutable lifetime of the buffer, so
         // aliasing rules are thus maintained properly.
+        //
+        // unsafe-requirements: calling unsafe function `transmute`: https://doc.rust-lang.org/core/mem/fn.transmute.html
         unsafe { core::mem::transmute(val) }
     }
 }
@@ -1283,6 +1313,8 @@ mod miri_tests {
     fn test_basic_read_write() {
         let memory = [const { UnsafeCell::new(0u8) }; 16];
         let ptr = get_backing_memory_ptr(&memory);
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
 
         // Test writing via the slice
@@ -1306,7 +1338,11 @@ mod miri_tests {
         let ptr = get_backing_memory_ptr(&memory);
 
         // Create two overlapping slices
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice1 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice2 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
 
         slice1[0].set(10);
@@ -1336,7 +1372,11 @@ mod miri_tests {
         let ptr = get_backing_memory_ptr(&memory);
 
         // Create two overlapping slices
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_roprocessslice`
         let slice1 = unsafe { raw_processbuf_to_roprocessslice(ptr, memory.len()) };
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice2 = unsafe { raw_processbuf_to_rwprocessslice(ptr, memory.len()) };
 
         slice2[0].set(20);
@@ -1357,6 +1397,8 @@ mod miri_tests {
     #[test]
     fn test_zero_length_null_ptr_ro() {
         // Should be safe to create a 0-len slice from a null pointer
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_roprocessslice`
         let slice = unsafe { raw_processbuf_to_roprocessslice(core::ptr::null_mut(), 0) };
         assert_eq!(slice.len(), 0);
         assert!(slice.get(0).is_none());
@@ -1380,6 +1422,8 @@ mod miri_tests {
     fn test_zero_length_non_null_ptr_ro() {
         // Should be safe to create a 0-len slice from any arbitrary
         // non-null pointer:
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_roprocessslice`
         let slice = unsafe {
             raw_processbuf_to_roprocessslice(
                 // Under strict provenance, we cannot simply cast an arbitrary
@@ -1413,6 +1457,8 @@ mod miri_tests {
     #[test]
     fn test_zero_length_null_ptr_rw() {
         // Should be safe to create a 0-len slice from a null pointer
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice = unsafe { raw_processbuf_to_rwprocessslice(core::ptr::null_mut(), 0) };
         assert_eq!(slice.len(), 0);
         assert!(slice.get(0).is_none());
@@ -1436,6 +1482,8 @@ mod miri_tests {
     fn test_zero_length_non_null_ptr_rw() {
         // Should be safe to create a 0-len slice from any arbitrary
         // non-null pointer:
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice = unsafe {
             raw_processbuf_to_rwprocessslice(
                 // Under strict provenance, we cannot simply cast an arbitrary
@@ -1470,6 +1518,8 @@ mod miri_tests {
     fn test_out_of_bounds_ro() {
         let memory = [const { UnsafeCell::new(0u8) }; 4];
         let ptr = get_backing_memory_ptr(&memory);
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_roprocessslice`
         let slice = unsafe { raw_processbuf_to_roprocessslice(ptr, 4) };
 
         assert!(slice.get(3).is_some());
@@ -1485,6 +1535,8 @@ mod miri_tests {
     fn test_out_of_bounds_panic_ro() {
         let memory = [const { UnsafeCell::new(0u8) }; 4];
         let ptr = get_backing_memory_ptr(&memory);
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_roprocessslice`
         let slice = unsafe { raw_processbuf_to_roprocessslice(ptr, 4) };
 
         assert_eq!(slice[3].get(), 0);
@@ -1497,6 +1549,8 @@ mod miri_tests {
     fn test_out_of_bounds_rw() {
         let memory = [const { UnsafeCell::new(0u8) }; 4];
         let ptr = get_backing_memory_ptr(&memory);
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
 
         assert!(slice.get(3).is_some());
@@ -1512,6 +1566,8 @@ mod miri_tests {
     fn test_out_of_bounds_panic_rw() {
         let memory = [const { UnsafeCell::new(0u8) }; 4];
         let ptr = get_backing_memory_ptr(&memory);
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
 
         assert_eq!(slice[3].get(), 0);
@@ -1527,6 +1583,8 @@ mod miri_tests {
         let src_data = [10, 20, 30, 40];
         let mut dst_data = [0u8; 4];
 
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
 
         // Copy into slice
@@ -1548,6 +1606,8 @@ mod miri_tests {
         let ptr = get_backing_memory_ptr(&memory);
         let mut small_dst = [0u8; 2];
 
+        //
+        // unsafe-requirements: calling unsafe Tock function `raw_processbuf_to_rwprocessslice`
         let slice = unsafe { raw_processbuf_to_rwprocessslice(ptr, 4) };
         slice.copy_to_slice(&mut small_dst);
     }

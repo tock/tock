@@ -34,6 +34,8 @@ impl CopyOrErr for [u8] {
             // SAFETY: `self` is valid for `self.len()` elements by definition,
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
+            //
+            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }
@@ -50,6 +52,8 @@ impl CopyOrErr for [u16] {
             // SAFETY: `self` is valid for `self.len()` elements by definition,
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
+            //
+            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }
@@ -66,6 +70,8 @@ impl CopyOrErr for [u32] {
             // SAFETY: `self` is valid for `self.len()` elements by definition,
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
+            //
+            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }
@@ -82,6 +88,8 @@ impl CopyOrErr for [u64] {
             // SAFETY: `self` is valid for `self.len()` elements by definition,
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
+            //
+            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }
@@ -98,6 +106,8 @@ impl CopyOrErr for [usize] {
             // SAFETY: `self` is valid for `self.len()` elements by definition,
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
+            //
+            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }

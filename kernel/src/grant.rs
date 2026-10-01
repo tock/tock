@@ -283,6 +283,8 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
         // SAFETY: The safety requirement for the function ensures that `base_ptr` is
         // well aligned and there is an initialized counters structure there.
+        //
+        // unsafe-requirements: calling unsafe method `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
         let counters_val = unsafe { counters_ptr.read() };
 
         // Parse the counters field for each of the fields
@@ -294,6 +296,8 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // SAFETY: The safety requirement for the function ensures that `base_ptr` is
         // well aligned and there are initialized arrays of saved upcalls and
         // allows above the counters.
+        //
+        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
         let (upcalls_array, allow_ro_array, allow_rw_array) = unsafe {
             let upcalls_array: *mut SavedUpcall = counters_ptr.add(1).cast();
             let allow_ro_array: *mut SavedAllowRo = upcalls_array.add(upcalls_num as usize).cast();
@@ -341,6 +345,8 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // SAFETY: Callers guarantee that the `base_ptr` is well aligned to the kernel
         // managed grant structure and these pointers reconstruct that grant
         // structure.
+        //
+        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
         let (upcalls_array, allow_ro_array, allow_rw_array) = unsafe {
             let upcalls_array: *mut SavedUpcall = counters_ptr.add(1).cast();
             let allow_ro_array: *mut SavedAllowRo =
@@ -353,6 +359,9 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // SAFETY: Callers guarantee that the `base_ptr` is well aligned to the kernel
         // managed grant structure and there is enough memory to hold the entire
         // grant structure. That ensures writing the grant structure is safe.
+        //
+        // unsafe-requirements: calling unsafe Tock function `write_default_array`
+        // unsafe-requirements: calling unsafe method `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
         unsafe {
             counters_ptr.write(counter);
             write_default_array(upcalls_array, upcalls_num_val.0.into());
@@ -419,6 +428,9 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // SAFETY: The location of the grant data T is the last element in the entire
         // grant region. Caller must verify that memory is accessible and well
         // aligned to T.
+        //
+        // unsafe-requirements: calling unsafe function `new_unchecked`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-call
+        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
         unsafe {
             let grant_t_size_usize: usize = grant_t_size.0;
             NonNull::new_unchecked(base_ptr.as_ptr().add(grant_size - grant_t_size_usize))
@@ -430,6 +442,8 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     fn get_counter_offset(&self, offset_bits: usize) -> usize {
         // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object requires that the
         // pointers are well aligned and point to valid memory.
+        //
+        // unsafe-requirements: calling unsafe method `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
         let counters_val = unsafe { self.counters_ptr.read() };
         (counters_val >> offset_bits) & 0xFF
     }
@@ -456,6 +470,8 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     fn get_upcalls_slice(&mut self) -> &mut [SavedUpcall] {
         // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the upcall array is valid.
+        //
+        // unsafe-requirements: calling unsafe function `from_raw_parts_mut`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts_mut.html
         unsafe { slice::from_raw_parts_mut(self.upcalls_array, self.get_upcalls_number()) }
     }
 
@@ -464,6 +480,8 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     fn get_allow_ro_slice(&mut self) -> &mut [SavedAllowRo] {
         // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the RO allow array is valid.
+        //
+        // unsafe-requirements: calling unsafe function `from_raw_parts_mut`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts_mut.html
         unsafe { slice::from_raw_parts_mut(self.allow_ro_array, self.get_allow_ro_number()) }
     }
 
@@ -472,6 +490,8 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     fn get_allow_rw_slice(&mut self) -> &mut [SavedAllowRw] {
         // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the RW allow array is valid.
+        //
+        // unsafe-requirements: calling unsafe function `from_raw_parts_mut`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts_mut.html
         unsafe { slice::from_raw_parts_mut(self.allow_rw_array, self.get_allow_rw_number()) }
     }
 
@@ -482,16 +502,22 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the upcall array is valid.
         let upcall_slice =
+            //
+            // unsafe-requirements: calling unsafe function `from_raw_parts`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
             unsafe { slice::from_raw_parts(self.upcalls_array, self.get_upcalls_number()) };
 
         // SAFETY: Creating a `EnteredGrantKernelManagedLayout` object ensures that the
         // pointer to the RO allow array is valid.
         let allow_ro_slice =
+            //
+            // unsafe-requirements: calling unsafe function `from_raw_parts`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
             unsafe { slice::from_raw_parts(self.allow_ro_array, self.get_allow_ro_number()) };
 
         // SAFETY: Creating a `KernelManagedLayout` object ensures that the pointer to
         // the RW allow array is valid.
         let allow_rw_slice =
+            //
+            // unsafe-requirements: calling unsafe function `from_raw_parts`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
             unsafe { slice::from_raw_parts(self.allow_rw_array, self.get_allow_rw_number()) };
 
         (upcall_slice, allow_ro_slice, allow_rw_slice)
@@ -507,6 +533,8 @@ impl Drop for EnteredGrantKernelManagedLayout<'_> {
         // access the actual memory of a grant, and we are calling
         // `leave_grant()` from its `drop()` method, we are sure there will be
         // no remaining references to the grant.
+        //
+        // unsafe-requirements: calling unsafe Tock method `leave_grant`
         unsafe {
             self.process.leave_grant(self.grant_num);
         }
@@ -695,6 +723,8 @@ impl<'a> GrantKernelData<'a> {
                 // The lifetime of the ReadOnlyProcessBuffer is bound to the
                 // lifetime of self, which correctly limits dereferencing this
                 // saved pointer to only when it is valid.
+                //
+                // unsafe-requirements: calling unsafe Tock function `new`
                 unsafe {
                     Ok(ReadOnlyProcessBufferRef::new(
                         saved_ro.ptr,
@@ -734,6 +764,8 @@ impl<'a> GrantKernelData<'a> {
                 // The lifetime of the ReadWriteProcessBuffer is bound to the
                 // lifetime of self, which correctly limits dereferencing this
                 // saved pointer to only when it is valid.
+                //
+                // unsafe-requirements: calling unsafe Tock function `new`
                 unsafe {
                     Ok(ReadWriteProcessBufferRef::new(
                         saved_rw.ptr,
@@ -812,6 +844,9 @@ impl Default for SavedAllowRw {
 /// overwritten without being `Drop`ed first.
 unsafe fn write_default_array<T: Default>(base: *mut T, num: usize) {
     // SAFETY: See function description.
+    //
+    // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+    // unsafe-requirements: calling unsafe method `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
     unsafe {
         for i in 0..num {
             base.add(i).write(T::default());
@@ -840,6 +875,8 @@ fn enter_grant_kernel_managed(
     let grant_base_ptr = process.enter_grant(grant_num).or(Err(ErrorCode::NOMEM))?;
     // SAFETY: We know that this pointer is well aligned and initialized with meaningful
     // data when the grant region was allocated.
+    //
+    // unsafe-requirements: calling unsafe Tock function `read_from_base`
     let layout = unsafe {
         EnteredGrantKernelManagedLayout::read_from_base(grant_base_ptr, process, grant_num)
     };
@@ -923,6 +960,8 @@ pub(crate) fn allow_ro(
             // SAFETY: The pointer has already been validated to be within application
             // memory before storing the values in the saved slice.
             let old_allow =
+                //
+                // unsafe-requirements: calling unsafe Tock function `new`
                 unsafe { ReadOnlyProcessBuffer::new(saved.ptr, saved.len, process.processid()) };
 
             // Replace old values with current buffer.
@@ -969,6 +1008,8 @@ pub(crate) fn allow_rw(
             // SAFETY: The pointer has already been validated to be within application
             // memory before storing the values in the saved slice.
             let old_allow =
+                //
+                // unsafe-requirements: calling unsafe Tock function `new`
                 unsafe { ReadWriteProcessBuffer::new(saved.ptr, saved.len, process.processid()) };
 
             // Replace old values with current buffer.
@@ -1122,6 +1163,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                     //   `EnteredGrantKernelManagedLayout::grant_size`.
                     // - There are no proper rust references that map to these
                     //   addresses.
+                    //
+                    // unsafe-requirements: calling unsafe Tock function `initialize_from_counts`
                     unsafe {
                         let _layout = EnteredGrantKernelManagedLayout::initialize_from_counts(
                             grant_ptr,
@@ -1135,6 +1178,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
 
                     // SAFETY: The grant pointer points to an alloc that is alloc_size
                     // large and is at least as aligned as grant_t_align.
+                    //
+                    // unsafe-requirements: calling unsafe Tock function `offset_of_grant_data_t`
                     unsafe {
                         Ok((
                             Some(EnteredGrantKernelManagedLayout::offset_of_grant_data_t(
@@ -1185,6 +1230,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             //    between the upcall array and the T object such that the T
             //    object starts a multiple of `align_of<T>` from the
             //    beginning of the allocation.
+            //
+            // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
             unsafe {
                 // Convert untyped `*mut u8` allocation to allocated type.
                 let new_region = NonNull::cast::<T>(allocated_ptr);
@@ -1448,6 +1495,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         // Parse layout of entire grant allocation using the known base pointer.
         //
         // SAFETY: Grant pointer is well aligned and points to initialized data.
+        //
+        // unsafe-requirements: calling unsafe Tock function `read_from_base`
         let layout = unsafe {
             EnteredGrantKernelManagedLayout::read_from_base(grant_ptr, self.process, self.grant_num)
         };
@@ -1466,6 +1515,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         //   Mutable reference to this memory are only created through the
         //   kernel in the syscall interface which is serialized in time with
         //   this call.
+        //
+        // unsafe-requirements: calling unsafe Tock function `offset_of_grant_data_t`
         let grant_data = unsafe {
             EnteredGrantKernelManagedLayout::offset_of_grant_data_t(
                 grant_ptr,
@@ -1567,6 +1618,8 @@ impl<T> CustomGrant<T> {
                 // other references because the only way to create a reference
                 // is using this `enter()` function, and it can only be called
                 // once (because of the `&mut self` requirement).
+                //
+                // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
                 let custom_grant = unsafe { &mut *grant_ptr };
                 let borrowed = GrantData::new(custom_grant);
                 Ok(fun(borrowed))
@@ -1604,6 +1657,8 @@ impl GrantRegionAllocator {
 
         // SAFETY: Writing to this pointer is safe as long as the pointer is valid
         // and aligned. `alloc_raw()` guarantees these constraints are met.
+        //
+        // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
         unsafe {
             // We use `ptr::write` to avoid `Drop`ping the uninitialized memory
             // in case `T` implements the `Drop` trait.
@@ -1635,6 +1690,9 @@ impl GrantRegionAllocator {
         for i in 0..NUM_ITEMS {
             // SAFETY: The allocate function guarantees that `ptr` points to memory
             // large enough to allocate `num_items` copies of the object.
+            //
+            // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
+            // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
             unsafe {
                 write(typed_ptr.as_ptr().add(i), init(i));
             }

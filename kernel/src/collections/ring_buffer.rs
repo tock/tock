@@ -55,6 +55,8 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
             // SAFETY: Reinterprets &[MaybeUninit<T>] as &[T]. MaybeUninit<T> has the same layout as
             // T, and every element in the returned slice falls within [head, tail) which has been
             // written by enqueue/push, so reading those elements as T is valid.
+            //
+            // unsafe-requirements: calling unsafe function `from_raw_parts`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
             unsafe { core::slice::from_raw_parts(s.as_ptr().cast::<T>(), s.len()) }
         };
 
@@ -102,6 +104,8 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
                 // assume it is initialized because we verified that the index is
                 // within the populated elements of the ring. Our invariant is that
                 // any index with head and tail _must_ be initialized.
+                //
+                // unsafe-requirements: calling unsafe method `assume_init`: https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init
                 unsafe { e.assume_init() }
             })
         }
@@ -122,6 +126,8 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
                 // assume it is initialized because we verified that the index is
                 // within the populated elements of the ring. Our invariant is that
                 // any index with head and tail _must_ be initialized.
+                //
+                // unsafe-requirements: calling unsafe method `assume_init_ref`: https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init_ref
                 unsafe { e.assume_init_ref() }
             })
         }
