@@ -402,6 +402,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp32-c3-devkit-rust-2"
+version = "0.2.4-dev"
+dependencies = [
+ "capsules-core",
+ "capsules-extra",
+ "capsules-system",
+ "components",
+ "esp32",
+ "esp32-c3",
+ "kernel",
+ "rv32i",
+ "tock_build_scripts",
+]
+
+[[package]]
 name = "ff"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
