@@ -12,7 +12,6 @@ edition.workspace = true
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
 stm32wle5xx = { path = "../stm32wle5xx"}
-enum_primitive = { path = "../../libraries/enum_primitive" }
 
 [lints]
 workspace = true
