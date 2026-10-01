@@ -202,7 +202,14 @@ unsafe fn create_peripherals() -> &'static mut Stm32wle5jcDefaultPeripherals<'st
 /// Main function
 ///
 /// This is called after RAM initialization is complete.
-#[no_mangle]
+///
+/// # Safety
+///
+/// ## `no_mangle`
+///
+/// We use `main` as a symbol in the arch crate's initialization routine to jump
+/// here. We guarantee no other symbol has the same name.
+#[unsafe(no_mangle)]
 pub unsafe fn main() {
     // Initialize deferred calls very early.
     kernel::deferred_call::initialize_deferred_call_state::<
