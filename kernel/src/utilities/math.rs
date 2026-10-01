@@ -4,8 +4,6 @@
 
 //! Helper functions for common mathematical operations.
 
-use core::f32;
-
 /// Represents an integral power-of-two as an exponent.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PowerOfTwo(u32);
@@ -101,14 +99,14 @@ fn ln_1to2_series_approximation(x: f32) -> f32 {
                 * x_working)
             * x_working;
     // ln(2) * n + ln(y)
-    let result: f32 = (base2_exponent as f32) * f32::consts::LN_2 + ln_1to2_polynomial;
+    let result: f32 = (base2_exponent as f32) * core::f32::consts::LN_2 + ln_1to2_polynomial;
     if x_less_than_1 { -result } else { result }
 }
 
 /// Compute the base 10 logarithm of `f`.
 pub fn log10(x: f32) -> f32 {
     // Using change of base log10(x) = ln(x)/ln(10)
-    let ln10_recip = f32::consts::LOG10_E;
+    let ln10_recip = core::f32::consts::LOG10_E;
     let fract_base_ln = ln10_recip;
     let value_ln = ln_1to2_series_approximation(x);
     value_ln * fract_base_ln
