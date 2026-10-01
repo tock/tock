@@ -192,6 +192,8 @@ Other capsules that implement reusable logic.
 - **[SipHash](src/sip_hash.rs)**: SipHash software hash.
 - **[TicKV](src/tickv.rs)**: Key-value storage.
 - **[TicKV KV Store](src/tickv_kv_store.rs)**: Provide `hil::kv::KV` with TickV.
+- **[Uart RX Buffer](src/uart_rx_buffer.rs)**: Buffer UART receive to ensure
+    the UART device continuously has a ready RX buffer.
 - **[Virtual KV](src/virtualizers/virtual_kv.rs)**: Virtualize access to KV with
   permissions.
 - **[Virtual Screen Split](src/virtualizers/screen/virtual_screen_split.rs)**:
