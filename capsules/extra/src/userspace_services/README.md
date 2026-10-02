@@ -1,8 +1,8 @@
 # Overview
 
-The userspace service architecture enables application-layer code to offer service-level functionality to clients with a structured interface for invoking operations and communicating data. This allows both the service and the client to evolve and change independent of each other due to abiding by a well-defined interface.
-Applications offering service-level functionality, userspace service applications, are available for use by the entire platform and run as application-layer code that is individually deployable just as other applications are.
-The architecture achieves a decoupling of service code from both the OS and the consumer of the service.
+The userspace service architecture enables application-layer code to offer kernel HIL implementations to clients with a structured interface for invoking operations and communicating data. This allows both the service and the client to evolve and change independent of each other due to abiding by a well-defined interface.
+Applications offering kernel HIL implementations, userspace service applications, implement and offer HIL functionality while running as application-layer code that is individually deployable just as other applications are.
+The architecture achieves a decoupling of service code from both the OS and the consumer of the service by relying on the stability of the HIL trait.
 Changes in the userspace service application do not cascade into requiring changes to client code.
 Changes in the userspace service application code do not require an OS-level modification or update.
 
@@ -17,9 +17,9 @@ Changes in the userspace service application code do not require an OS-level mod
 
 There are three major components to the userspace services architecture:
 
-- the **registry**, which tracks and mediates communication with all userspace service applications;
-- the **userspace service application**, which offers service-level functionality from userspace;
-- and the **service interface**, which maps HIL functions to calls to the userspace application.
+- the **registry**, a capsule which tracks and mediates communication with all userspace service applications;
+- the **userspace service application**, an application which offers service-level functionality from userspace;
+- and the **service interface**, a capsule which maps HIL functions to calls to the userspace application.
 
 These components build on Tock’s design for applications, capsules, HILs, syscalls, and upcalls to realize userspace services.
 Below is an overview diagram of the architecture depicting the three major components of userspace services and a client userspace application using the userspace service.
@@ -82,6 +82,17 @@ However, because the userspace service application runs in userspace and uses th
 service interfaces implement the HIL interface instead. The service interface maps HIL trait function calls to communication with the userspace service application
 (through function calls to the Registry which will ultimately make upcalls to and receive syscalls from the userspace service application).
 The service interface is specific to a HIL.
+
+## Limitations
+
+### Synchronous and asynchronous error returns
+
+Because calls to and returns from userspace service operations are asynchronous,
+errors beyond those for validation and semantics
+(which the service interface can check for)
+will also arrive asynchronously.
+This can have the effect of turning a previously synchronous error into an asynchronous error
+thereby changing the set of error values that a HIL function returns synchronously and asynchronously.
 
 # Data Flow
 
@@ -182,10 +193,10 @@ using them to communicate data between the service interface’s HIL client and 
 
 Upon receiving a function call from its HIL client, the service interface maps arguments received from the HIL client to arguments to pass to the userspace service (through the Registry).
 The service interface achieves this by either serializing bytes (for intrinsic data types that fit in a `usize`)
-or passing the buffers containing data received from the HIL client.
+or passing the buffers containing data received from the HIL client for copying to the userspace service application's buffers.
 The Registry receives this data through a call to the `usercall` function on the `UserspaceServiceAccess` trait.
 
-When a userspace service operation completes, the Registry makes a callback to the service interface through the `UserspaceServiceClient` trait function `usercall_done`.
+When a userspace service application completes an operation, it invokes a command syscall to the Registry which, in turn, makes a callback to the service interface through the `UserspaceServiceClient` trait function `usercall_done`.
 The `usercall_done` function provides the service interface implementing it with access to the read-only buffers provided by the userspace service.
 These buffers contain the serialized data returned by the userspace service.
 The service interface provides these results to its HIL client through HIL-client-specific functions.
