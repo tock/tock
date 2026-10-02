@@ -19,6 +19,7 @@ use crate::{
         GPDMA1_CH14_IRQ, GPDMA1_CH15_IRQ, HASH_IRQ, I2C1_ER_IRQ, I2C1_EV_IRQ, PKA_IRQ, SPI1_IRQ,
         TIM2_IRQ, USART1_IRQ,
     },
+    pkc,
     pwr::{self, VoltageScale},
     rcc::{
         self,
@@ -28,7 +29,7 @@ use crate::{
             Usart1sel,
         },
     },
-    rsa, rtc, spi, tim, usart,
+    rtc, spi, tim, usart,
 };
 
 use core::fmt::Write;
@@ -60,7 +61,7 @@ pub struct Stm32u5xxDefaultPeripherals<'a> {
     pub gpio_a: gpio::Port<'a>,
     pub gpio_b: gpio::Port<'a>,
     pub gpio_c: gpio::Port<'a>,
-    pub pka: rsa::Pka<'a>,
+    pub pka: pkc::pka::Pka<'a>,
     pub dac: dac::Dac,
     pub crc: crc::CRC<'a>,
     pub hash: hash::hash::Hash<'a>,
@@ -84,7 +85,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
             gpio_a: gpio::Port::new(gpio::GPIO_A_BASE, exti, gpio::GpioPort::PortA),
             gpio_b: gpio::Port::new(gpio::GPIO_B_BASE, exti, gpio::GpioPort::PortB),
             gpio_c: gpio::Port::new(gpio::GPIO_C_BASE, exti, gpio::GpioPort::PortC),
-            pka: rsa::Pka::new(rsa::PKA_BASE),
+            pka: pkc::pka::Pka::new(pkc::constants::PKA_BASE),
             dac: dac::Dac::new(dac::DAC_BASE),
             crc: crc::CRC::new(crc::CRC_BASE),
             hash: hash::hash::Hash::new(hash::regs::HASH_BASE),
