@@ -109,12 +109,16 @@ pub fn track_linker_script<P: AsRef<Path>>(path: P) {
         return;
     }
 
-    assert!(path.is_file(), "expected path {path:?} to be a file");
+    assert!(
+        path.is_file(),
+        "expected path {} to be a file",
+        path.display()
+    );
 
     println!("cargo:rerun-if-changed={}", path.display());
 
     // Find all the `INCLUDE <relative path>` lines in the linker script.
-    let link_script = fs::read_to_string(path).expect("failed to read {path:?}");
+    let link_script = fs::read_to_string(path).expect("failed to read path");
     let includes = link_script
         .lines()
         .filter_map(|line| line.strip_prefix("INCLUDE").map(str::trim));
