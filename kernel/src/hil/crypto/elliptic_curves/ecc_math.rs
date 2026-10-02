@@ -5,7 +5,7 @@
 //! Interface for Math Operations with long numbers modulo some other number
 use crate::{ErrorCode, hil::crypto::elliptic_curves::ecc_constants::Curve};
 
-/// Upcall from the `MathCryptoBase` trait.
+/// Upcall from the `EccCrypto` trait.
 pub trait EccClient {
     /// Retrieve scalar.
     ///
@@ -41,6 +41,8 @@ pub trait EccCrypto<'a, const P_SIZE: usize, C: Curve<P_SIZE>> {
     /// Initiate a point doubling operation
     ///
     /// The input is retrieved through [`Client`] callbacks if and only if `use_curve_generator` is false.
+    /// If `use_curve_generator` is true, the point to be doubled will be the `GENERATOR` constant
+    /// in `Curve<P_SIZE>`
     /// The driver returns exactly 2 * `P_SIZE` bytes of output, then issues exactly
     /// one [`EccClient::operation_done`] callback.
     ///
@@ -53,6 +55,8 @@ pub trait EccCrypto<'a, const P_SIZE: usize, C: Curve<P_SIZE>> {
     /// The input is retrieved through [`Client`] callbacks. The driver returns
     /// exactly 2 * `P_SIZE` bytes of output, then issues exactly one [`EccClient::operation_done`]
     /// callback. If `use_curve_generator` is false, the `read_second_point` callback will be used.
+    /// If `use_curve_generator` is true, the second point of the addition will be the `GENERATOR` constant
+    /// in `Curve<P_SIZE>`.
     ///
     /// Returns [`ErrorCode::BUSY`] if an operation is in progress
     /// On `Ok(())`, a completion callback will occur. On `Err`, no callbacks will occur for this
@@ -63,6 +67,8 @@ pub trait EccCrypto<'a, const P_SIZE: usize, C: Curve<P_SIZE>> {
     /// The input is retrieved through [`Client`] callbacks. The driver returns
     /// exactly 2 * `P_SIZE` bytes of output, then issues exactly one [`EccClient::operation_done`]
     /// callback. If `use_curve_generator` is false, the `read_point` callback will be used.
+    /// If `use_curve_generator` is true, the point to be multiplied by the scalar will be the `GENERATOR`
+    /// constant in `Curve<P_SIZE>`
     ///
     /// Returns [`ErrorCode::BUSY`] if an operation is in progress
     /// On `Ok(())`, a completion callback will occur. On `Err`, no callbacks will occur for this

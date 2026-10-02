@@ -23,7 +23,7 @@ pub trait OpModulo {
     fn modulo() -> Self;
 }
 
-/// Upcall from the `MathCryptoBase` trait.
+/// Upcall from the `ModularArithmetic` trait.
 pub trait MathClient<Op> {
     /// Retrieve modulus.
     ///
@@ -47,12 +47,12 @@ pub trait MathClient<Op> {
     fn write_number(&self, num: &[u8]) -> Result<(), ErrorCode>;
     /// Signal completion of an arithmetic operation.
     ///
-    /// This callback occurs exactly once after a request accepted by [`MathCryptoBase`]. If a data
+    /// This callback occurs exactly once after a request accepted by [`ModularArithmetic`]. If a data
     /// callback returns an error, the driver must abort and report that error through `result`.
     fn computation_completed(&self, result: Result<(), ErrorCode>);
 }
 
-pub trait MathCryptoBase<'a, Op> {
+pub trait ModularArithmetic<'a, Op> {
     /// Set the `Client` client to be called on completion.
     fn set_client(&self, client: &'a dyn MathClient<Op>);
     /// Clear any confidential data.

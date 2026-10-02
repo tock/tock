@@ -6,7 +6,7 @@ use core::cell::Cell;
 
 use kernel::hil::crypto::elliptic_curves::ecc_constants::{Curve, NistP256Constants, P_256_P_SIZE};
 use kernel::hil::crypto::elliptic_curves::ecc_math::{EccClient, EccCrypto, VerifyEccPoint};
-use kernel::hil::crypto::modular_arithmetic::{MathClient, MathCryptoBase};
+use kernel::hil::crypto::modular_arithmetic::{MathClient, ModularArithmetic};
 use kernel::hil::public_key_crypto::rsa_math::{Client, RsaCryptoBase};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -551,7 +551,7 @@ impl<'a> VerifyEccPoint<'a, P_256_P_SIZE, NistP256Constants> for Pka<'a> {
     }
 }
 
-impl<'a> MathCryptoBase<'a, SupportedOp> for Pka<'a> {
+impl<'a> ModularArithmetic<'a, SupportedOp> for Pka<'a> {
     fn set_client(&self, client: &'a dyn MathClient<SupportedOp>) {
         self.math_client.replace(client);
     }
