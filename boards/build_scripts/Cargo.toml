@@ -8,3 +8,6 @@ description = """Helper functions for compiling Tock boards."""
 version.workspace = true
 authors.workspace = true
 edition = "2024"
+
+[lints]
+workspace = true
