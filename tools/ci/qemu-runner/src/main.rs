@@ -39,6 +39,58 @@ fn hifive1() -> Result<(), Error> {
     Ok(())
 }
 
+fn mps2_an385() -> Result<(), Error> {
+    // First, build the board if needed
+    // n.b. rexpect's `exp_eof` does not actually block main thread, so use
+    // the standard Rust process library mechanism instead.
+    let mut build = Command::new("make")
+        .arg("-C")
+        .arg("../../../boards/qemu_arm_mps2/an385")
+        .spawn()
+        .expect("failed to spawn build");
+    assert!(build.wait().unwrap().success());
+
+    let mut p = spawn(
+        "make qemu -C ../../../boards/qemu_arm_mps2/an385",
+        Some(10_000),
+    )?;
+
+    p.exp_string("QEMU MPS2 AN385 (Cortex-M3) initialization complete.")?;
+    p.exp_string("Entering main loop.")?;
+
+    // Test completed, kill QEMU
+    kill_qemu(&mut p)?;
+
+    p.exp_string("QEMU: Terminated")?;
+    Ok(())
+}
+
+fn mps2_an386() -> Result<(), Error> {
+    // First, build the board if needed
+    // n.b. rexpect's `exp_eof` does not actually block main thread, so use
+    // the standard Rust process library mechanism instead.
+    let mut build = Command::new("make")
+        .arg("-C")
+        .arg("../../../boards/qemu_arm_mps2/an386")
+        .spawn()
+        .expect("failed to spawn build");
+    assert!(build.wait().unwrap().success());
+
+    let mut p = spawn(
+        "make qemu -C ../../../boards/qemu_arm_mps2/an386",
+        Some(10_000),
+    )?;
+
+    p.exp_string("QEMU MPS2 AN386 (Cortex-M4) initialization complete.")?;
+    p.exp_string("Entering main loop.")?;
+
+    // Test completed, kill QEMU
+    kill_qemu(&mut p)?;
+
+    p.exp_string("QEMU: Terminated")?;
+    Ok(())
+}
+
 fn earlgrey_cw310() -> Result<(), Error> {
     // First, build the board if needed
     // n.b. rexpect's `exp_eof` does not actually block main thread, so use
@@ -77,6 +129,14 @@ fn main() {
     println!("Running hifive1 tests...");
     hifive1().unwrap_or_else(|e| panic!("hifive1 job failed with {}", e));
     println!("hifive1 SUCCESS.");
+    println!("");
+    println!("Running mps2_an385 tests...");
+    mps2_an385().unwrap_or_else(|e| panic!("mps2_an385 job failed with {}", e));
+    println!("mps2_an385 SUCCESS.");
+    println!("");
+    println!("Running mps2_an386 tests...");
+    mps2_an386().unwrap_or_else(|e| panic!("mps2_an386 job failed with {}", e));
+    println!("mps2_an386 SUCCESS.");
     println!("");
     println!("Running earlgrey_cw310 tests...");
     earlgrey_cw310().unwrap_or_else(|e| panic!("earlgrey_cw310 job failed with {}", e));
