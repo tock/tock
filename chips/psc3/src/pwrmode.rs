@@ -550,50 +550,34 @@ PPU_AIDR [
 ]
 ];
 
-const PWRMODE_BASE: StaticRef<PwrmodeRegisters> =
+const PWRMODE: StaticRef<PwrmodeRegisters> =
     unsafe { StaticRef::new(0x42210000 as *const PwrmodeRegisters) };
-
-pub struct PwrMode {
-    registers: StaticRef<PwrmodeRegisters>,
-}
 
 pub type PwrPolicy = PPU_PWPR::PWR_POLICY::Value;
 
-impl PwrMode {
-    pub const fn new() -> PwrMode {
-        PwrMode {
-            registers: PWRMODE_BASE,
-        }
-    }
+/// Initializes the PPU
+pub fn ppu_init() {
+    PWRMODE
+        .ppu_main_iesr
+        .write(PPU_IESR::DEVACTIVE00_EDGE::Disabled); // disable all
+    PWRMODE.ppu_main_imr.write(
+        PPU_IMR::STA_POLICY_TRN_IRQ_MASK::SET
+            + PPU_IMR::STA_ACCEPT_IRQ_MASK::SET
+            + PPU_IMR::STA_DENY_IRQ_MASK::SET
+            + PPU_IMR::EMU_ACCEPT_IRQ_MASK::SET
+            + PPU_IMR::EMU_DENY_IRQ_MASK::SET
+            + PPU_IMR::LOCKED_IRQ_MASK::SET,
+    ); // mask accept events to avoid wakeup
+    PWRMODE
+        .ppu_main_isr
+        .write(PPU_ISR::STA_POLICY_TRN_IRQ::CLEAR);
+}
 
-    /// Initializes the PPU
-    pub fn ppu_init(&self) {
-        self.registers
-            .ppu_main_iesr
-            .write(PPU_IESR::DEVACTIVE00_EDGE::Disabled); // disable all
-        self.registers.ppu_main_imr.write(
-            PPU_IMR::STA_POLICY_TRN_IRQ_MASK::SET
-                + PPU_IMR::STA_ACCEPT_IRQ_MASK::SET
-                + PPU_IMR::STA_DENY_IRQ_MASK::SET
-                + PPU_IMR::EMU_ACCEPT_IRQ_MASK::SET
-                + PPU_IMR::EMU_DENY_IRQ_MASK::SET
-                + PPU_IMR::LOCKED_IRQ_MASK::SET,
-        ); // mask accept events to avoid wakeup
-        self.registers
-            .ppu_main_isr
-            .write(PPU_ISR::STA_POLICY_TRN_IRQ::CLEAR);
-    }
+/// Enables dynamic power mode transitions with the specified minimum dynamic power mode.
+pub fn ppu_dynamic_enable(min_dyn_state: PwrPolicy) {
+    PWRMODE
+        .ppu_main_pwpr
+        .modify(PPU_PWPR::PWR_DYN_EN::SET + PPU_PWPR::PWR_POLICY.val(min_dyn_state as u32));
 
-    /// Enables dynamic power mode transitions with the specified minimum dynamic power mode.
-    pub fn ppu_dynamic_enable(&self, min_dyn_state: PwrPolicy) {
-        self.registers
-            .ppu_main_pwpr
-            .modify(PPU_PWPR::PWR_DYN_EN::SET + PPU_PWPR::PWR_POLICY.val(min_dyn_state as u32));
-
-        while !self
-            .registers
-            .ppu_main_pwsr
-            .is_set(PPU_PWSR::PWR_DYN_STATUS)
-        {}
-    }
+    while !PWRMODE.ppu_main_pwsr.is_set(PPU_PWSR::PWR_DYN_STATUS) {}
 }
