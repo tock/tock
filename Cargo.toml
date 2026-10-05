@@ -4,6 +4,8 @@
 
 [workspace]
 members = [
+    "chips/shakti_c",
+    "boards/shakti_c_sim",
     "arch/cortex-m",
     "arch/cortex-v7m",
     "arch/cortex-m0",
