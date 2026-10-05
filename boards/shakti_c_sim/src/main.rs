@@ -23,14 +23,13 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::debug::PanicResources;
-use kernel::hil::time::{Alarm, Time};
+use kernel::hil::time::Time;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{ProcessId, debug, static_init};
 
-use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use shakti_c::chip::{ShaktiC, ShaktiCClint};
 
 mod io;
@@ -43,8 +42,7 @@ const SIMCTL_DRIVER_NUM: usize = 0x9000;
 
 type ShaktiCChip = ShaktiC<'static>;
 type SchedulerInUse = capsules_system::scheduler::round_robin::RoundRobinSched<'static>;
-type AlarmDriverInUse =
-    capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, ShaktiCClint<'static>>>;
+type AlarmDriver = components::alarm::AlarmDriverComponentType<ShaktiCClint<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
 /// Resources the panic handler in `io.rs` needs to print CPU + process state.
@@ -66,15 +64,15 @@ const SIM_FINISH: *mut u32 = 0x0002_000C as *mut u32;
 /// `debug!()` output is buffered twice over, and both buffers must be drained
 /// before the machine is halted or the last lines are lost:
 ///
-/// 1. The debug writer hands a single output buffer to the UART mux at a time
-///    and only refills it from the deferred call that completes the previous
-///    transmission, so back-to-back `debug!()` calls leave bytes in the debug
-///    ring buffer. Servicing the pending deferred calls drains it; each chip
-///    transmit is synchronous, so this terminates once the ring is empty.
-/// 2. The async `transmit_buffer` path only waits for `tx_full` to clear before
-///    each write, so the last bytes are still in the UART's hardware FIFO when
-///    it returns. `transmit_sync` additionally waits on `transmission_done`;
-///    calling it with an empty slice waits without emitting anything.
+///  1. The debug writer hands a single output buffer to the UART mux at a time
+///     and only refills it from the deferred call that completes the previous
+///     transmission, so back-to-back `debug!()` calls leave bytes in the debug
+///     ring buffer. Servicing the pending deferred calls drains it; each chip
+///     transmit is synchronous, so this terminates once the ring is empty.
+///  2. The async `transmit_buffer` path only waits for `tx_full` to clear before
+///     each write, so the last bytes are still in the UART's hardware FIFO when
+///     it returns. `transmit_sync` additionally waits on `transmission_done`;
+///     calling it with an empty slice waits without emitting anything.
 unsafe fn sim_finish() -> ! {
     while kernel::deferred_call::DeferredCall::has_tasks() {
         let _ = kernel::deferred_call::DeferredCall::service_next_pending();
@@ -107,7 +105,7 @@ impl SyscallDriver for SimControl {
                 // t_before: the app has armed the alarm and is about to yield.
                 let t = self.timer.now().into_u64();
                 self.t_before.set(t);
-                debug!("t_before  mtime={:#018x}", t);
+                debug!("t_before mtime={:#018x}", t);
                 CommandReturn::success()
             }
             1 => {
@@ -115,7 +113,7 @@ impl SyscallDriver for SimControl {
                 let t = self.timer.now().into_u64();
                 let dt = t.wrapping_sub(self.t_before.get());
                 debug!("process resumed after alarm-fired upcall");
-                debug!("t_after   mtime={:#018x}", t);
+                debug!("t_after mtime={:#018x}", t);
                 debug!("elapsed ticks (10 MHz) = {:#018x}", dt);
                 debug!("*** STAGE 5 PASS ***");
                 unsafe { sim_finish() };
@@ -133,7 +131,7 @@ impl SyscallDriver for SimControl {
 
 struct ShaktiCSim {
     scheduler: &'static SchedulerInUse,
-    alarm: &'static AlarmDriverInUse,
+    alarm: &'static AlarmDriver,
     simctl: &'static SimControl,
 }
 
@@ -188,6 +186,23 @@ impl KernelResources<ShaktiCChip> for ShaktiCSim {
 /// Accesses memory-mapped registers and CSRs, and performs one-time static init.
 #[no_mangle]
 pub unsafe fn main() {
+    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+
+    board_kernel.kernel_loop(&board, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
+}
+
+/// Set up the chip, capsules and the single test process.
+///
+/// Kept out of `main()` and out of line so the (large) board-setup stack frame
+/// is released before `kernel_loop` runs, rather than being held for the
+/// lifetime of the kernel.
+///
+/// # Safety
+/// Accesses memory-mapped registers and CSRs, and performs one-time static init.
+#[inline(never)]
+unsafe fn start() -> (&'static kernel::Kernel, ShaktiCSim, &'static ShaktiCChip) {
     use rv64i::csr;
 
     // Point mtvec at _start_trap and mark mscratch = 0 (kernel mode).
@@ -246,26 +261,17 @@ pub unsafe fn main() {
     let chip = static_init!(ShaktiCChip, ShaktiC::new(timer));
     PANIC_RESOURCES.get().map(|r| r.chip.put(chip));
 
-    // Alarm stack: MuxAlarm over the CLINT, a user VirtualMuxAlarm, and the
-    // AlarmDriver (driver 0).
-    let mux_alarm = static_init!(MuxAlarm<ShaktiCClint>, MuxAlarm::new(timer));
-    Alarm::set_alarm_client(timer, mux_alarm);
-
-    let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<ShaktiCClint>,
-        VirtualMuxAlarm::new(mux_alarm)
+    // Alarm stack: MuxAlarm over the CLINT, then the AlarmDriver (driver 0).
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(timer).finalize(
+        components::alarm_mux_component_static!(ShaktiCClint<'static>),
     );
-    virtual_alarm_user.setup();
-
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let alarm = static_init!(
-        AlarmDriverInUse,
-        capsules_core::alarm::AlarmDriver::new(
-            virtual_alarm_user,
-            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
-        )
-    );
-    Alarm::set_alarm_client(virtual_alarm_user, alarm);
+    let alarm = components::alarm::AlarmDriverComponent::new(
+        board_kernel,
+        capsules_core::alarm::DRIVER_NUM,
+        mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::alarm_component_static!(ShaktiCClint<'static>));
 
     let simctl = static_init!(
         SimControl,
@@ -323,9 +329,9 @@ pub unsafe fn main() {
         sim_finish();
     }
 
-    // Enable machine-timer interrupts and enter the kernel loop.
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
+
     let board = ShaktiCSim {
         scheduler,
         alarm,
@@ -338,6 +344,6 @@ pub unsafe fn main() {
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     debug!("alarm wired (driver 0); mtimer IRQ enabled; entering kernel_loop");
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
-    board_kernel.kernel_loop(&board, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
+
+    (board_kernel, board, chip)
 }

@@ -24,13 +24,40 @@ libtock-rs RV64 target yet).
 
 ## Running
 
-1. Build the kernel with `make` (above).
-2. Produce the memory image your SHAKTI C-Class Verilator build loads: convert
-   the kernel ELF to hex (e.g. `<elf2hex ...>`) and place the app TBF at the app
-   region base `0x8010_0000`.
-3. Start the Verilator simulation with that image (`<your sim invocation>`).
-   Kernel output appears on the SoC UART; on `*** STAGE 5 PASS ***` the board
-   writes `1` to `0x0002_000C` and the simulation self-exits.
+Two things live outside this tree and have to be pointed at:
+
+- **`elf2hex`** — the Berkeley/fesvr-style tool, invoked as
+  `elf2hex <bytes-per-row> <rows> <elf> [base]`, which is the form used
+  throughout the C-Class documentation. SiFive's
+  [elf2hex](https://github.com/sifive/elf2hex) takes `--bit-width`/`--input`
+  instead and is **not** a drop-in substitute; set `ELF2HEX` to whichever
+  binary provides the positional form.
+- **the simulator** — `out`, `boot.MSB` and `boot.LSB`, built out of the
+  c-class repository (see its `docs/source/simulating.rst`). Point
+  `SHAKTI_BIN` at the directory holding them.
+
+The SoC loads a single flat image, `code.mem`, into main memory at
+`0x8000_0000`. Since the app region is inside that same memory, the kernel and
+the app TBF are combined into that one image — `tools/splice_tbf.py` rewrites
+the rows covering the app region.
+
+```shell
+# Build code.mem only
+$ make APP=/path/to/app.tbf hex
+
+# Build it and run the simulation
+$ make APP=/path/to/app.tbf SHAKTI_BIN=/path/to/c-class/bin sim
+```
+
+Both targets write into `target/riscv64imac-unknown-none-elf/sim/`. The
+simulator's own output goes to `sim.log` there, and the SoC UART output — the
+kernel's `debug!()` lines — to `app_log`, which `make sim` prints. On
+`*** STAGE 5 PASS ***` the board writes `1` to `0x0002_000C` and the simulation
+self-exits.
+
+Overridable variables: `ELF2HEX`, `ELF2HEX_WIDTH` (default 8),
+`ELF2HEX_ROWS` (4194304), `RAM_BASE` (`0x80000000`), `APP_BASE`
+(`0x80100000`), `SIM_TIMEOUT` (250s).
 
 If a process faults or the kernel panics, the standard Tock panic handler prints
 the panic banner, kernel version, RISC-V CPU state, and a per-process dump over
@@ -41,3 +68,7 @@ the same UART, then ends the simulation.
 - The SoC UART is polled (no interrupt line in the sim), so output is synchronous.
 - No PLIC in this Test-SoC; the only interrupt source is the CLINT (machine
   timer / software), which drives the Alarm capsule.
+- The chip crate reads `mtime` as a single 64-bit register, which is the natural
+  access on RV64. (A 32-bit read of the upper half was also broken on this SoC
+  when this board was written; that has since been fixed upstream in
+  [`shaktiproject/uncore/devices`](https://gitlab.com/shaktiproject/uncore/devices).)
