@@ -492,9 +492,8 @@ fn test_runner(tests: &[&dyn Fn()]) {
     let _ = PERIPHERALS
         .bind_to_thread::<<ChipHw as kernel::platform::chip::Chip>::ThreadIdProvider>(peripherals);
 
-    if let Some(p) = PLATFORM.get() {
-        p.watchdog().setup();
-    }
+    let p = PLATFORM.get().unwrap();
+    p.watchdog().setup();
 
     for test in tests {
         test();

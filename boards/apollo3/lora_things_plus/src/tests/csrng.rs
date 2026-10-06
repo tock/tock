@@ -21,12 +21,11 @@ fn run_csrng_entropy32() {
 
     let rng = *ATECC508A.get().unwrap();
 
-    unsafe {
-        let t = static_init!(TestEntropy32<'static>, TestEntropy32::new(rng));
-        rng.set_client(t);
+    let t = unsafe { static_init!(TestEntropy32<'static>, TestEntropy32::new(rng)) };
+    rng.set_client(t);
 
-        t.run();
-    }
+    t.run();
+
     run_kernel_op(10_000);
     debug!("    [ok]");
     run_kernel_op(100);

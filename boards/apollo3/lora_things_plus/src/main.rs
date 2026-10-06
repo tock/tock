@@ -222,21 +222,20 @@ struct LoRaThingsPlus {
 
 #[cfg(feature = "atecc508a")]
 fn atecc508a_wakeup() {
-    if let Some(peripherals) = PERIPHERALS.get() {
-        peripherals.gpio_port[6].make_output();
-        peripherals.gpio_port[6].clear();
+    let peripherals = PERIPHERALS.get().unwrap();
+    peripherals.gpio_port[6].make_output();
+    peripherals.gpio_port[6].clear();
 
-        // The ATECC508A requires the SDA line to be low for at least 60us
-        // to wake up.
-        for _i in 0..700 {
-            cortexm4::support::nop();
-        }
-
-        // Enable SDA and SCL for I2C (exposed via Qwiic)
-        let _ = &peripherals
-            .gpio_port
-            .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
+    // The ATECC508A requires the SDA line to be low for at least 60us
+    // to wake up.
+    for _i in 0..700 {
+        cortexm4::support::nop();
     }
+
+    // Enable SDA and SCL for I2C (exposed via Qwiic)
+    let _ = &peripherals
+        .gpio_port
+        .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
 }
 
 #[cfg(feature = "atecc508a")]
@@ -1044,9 +1043,8 @@ fn test_runner(tests: &[&dyn Fn()]) {
         sf_lora_thing_plus_board,
     );
 
-    if let Some(p) = PLATFORM.get() {
-        p.watchdog().setup();
-    }
+    let p = PLATFORM.get().unwrap();
+    p.watchdog().setup();
 
     for test in tests {
         test();

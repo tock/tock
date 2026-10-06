@@ -39,7 +39,7 @@ impl<'a> I2CHwSlaveClient for I2CSlaveCallback {
     fn command_complete(
         &self,
         buffer: &'static mut [u8],
-        length: usize,
+        _length: usize,
         transmission_type: SlaveTransmissionType,
     ) {
         match transmission_type {
