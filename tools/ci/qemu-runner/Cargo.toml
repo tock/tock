@@ -9,4 +9,4 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-rexpect = "0.4.0"
+rexpect = "0.7.1"

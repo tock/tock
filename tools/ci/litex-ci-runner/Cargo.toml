@@ -9,7 +9,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-rexpect = "0.4.0"
+rexpect = "0.7.1"
 uuid = { version = "0.8.2", features = [ "v4" ] }
 
 [dependencies.litex_simctrl]

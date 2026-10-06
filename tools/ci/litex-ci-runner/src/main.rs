@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use rexpect::errors::Error;
-use rexpect::process::signal::Signal;
+use rexpect::error::Error;
+use rexpect::process::Signal;
 use rexpect::session::PtySession;
 use rexpect::spawn;
 
@@ -111,7 +111,7 @@ where
     let res = pty_fn(&mut p);
 
     // Test completed, kill the simulation
-    p.process
+    p.process_mut()
         .kill(Signal::SIGINT)
         .expect("failed to kill the simulation");
 
