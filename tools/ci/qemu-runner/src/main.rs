@@ -4,7 +4,7 @@
 
 use std::process::Command;
 
-use rexpect::errors::Error;
+use rexpect::error::Error;
 use rexpect::session::PtySession;
 use rexpect::spawn;
 

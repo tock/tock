@@ -9,5 +9,5 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-rexpect = "0.4"
-serialport = "3.3.0"
+rexpect = "0.7.1"
+serialport = "4.10.1"

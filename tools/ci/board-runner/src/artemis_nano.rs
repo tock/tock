@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use rexpect::errors::Error;
+use rexpect::error::Error;
 use rexpect::spawn_stream;
-use serialport::prelude::*;
-use serialport::SerialPortSettings;
+use serialport::{DataBits, FlowControl, Parity, StopBits};
 use std::env;
 use std::fs::OpenOptions;
 use std::process::{Command, Stdio};
@@ -15,15 +14,6 @@ use std::{thread, time};
 fn artemis_nano_flash(
     app_name: &str,
 ) -> Result<rexpect::session::StreamSession<std::boxed::Box<dyn serialport::SerialPort>>, Error> {
-    let s = SerialPortSettings {
-        baud_rate: 115200,
-        data_bits: DataBits::Eight,
-        flow_control: FlowControl::None,
-        parity: Parity::None,
-        stop_bits: StopBits::One,
-        timeout: Duration::from_millis(1000),
-    };
-
     // Flash the app
     let mut build = Command::new("make")
         .arg("-C")
@@ -42,7 +32,14 @@ fn artemis_nano_flash(
     // Open the first serialport available.
     let port_name = &serialport::available_ports().expect("No serial port")[0].port_name;
     println!("Connecting to redboard_artemis_nano port: {:?}", port_name);
-    let port = serialport::open_with_settings(port_name, &s).expect("Failed to open serial port");
+    let port = serialport::new(port_name, 115200)
+        .data_bits(DataBits::Eight)
+        .flow_control(FlowControl::None)
+        .parity(Parity::None)
+        .stop_bits(StopBits::One)
+        .timeout(Duration::from_millis(1000))
+        .open()
+        .expect("Failed to open serial port");
 
     // Clone the port
     let port_clone = port.try_clone().expect("Failed to clone");
