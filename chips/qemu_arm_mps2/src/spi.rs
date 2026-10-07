@@ -168,23 +168,6 @@ impl<'a> Spi<'a> {
         self.registers.cr1.modify(CR1::Sse::SET);
     }
 
-    /// Shift one byte out and return the byte shifted in, leaving the device
-    /// disabled and the receive FIFO drained.
-    ///
-    /// The PL022 only shifts data out while SSE is set, and nothing else on
-    /// the synchronous path leaves it set: `init()` never enables the device.
-    /// Without enabling it here a write would land in the TX FIFO and never
-    /// be sent.
-    fn transfer_byte_sync(&self, val: u8) -> u8 {
-        self.enable();
-        while !self.registers.sr.is_set(SR::Tnf) {}
-        self.registers.dr.write(DR::Data.val(val as u32));
-        while !self.registers.sr.is_set(SR::Rne) {}
-        let byte = self.registers.dr.read(DR::Data) as u8;
-        self.disable();
-        byte
-    }
-
     fn disable(&self) {
         self.registers.cr1.modify(CR1::Sse::CLEAR);
     }
@@ -316,23 +299,6 @@ impl<'a> SpiMaster<'a> for Spi<'a> {
 
         self.transfer_state.set(state);
         Ok(())
-    }
-
-    fn write_byte(&self, val: u8) -> Result<(), ErrorCode> {
-        // With loopback-only SPI, our write pushes a read we should drop here
-        // in the interest of looking like regular SPI for this interface.
-        self.read_write_byte(val).map(|_| ())
-    }
-
-    fn read_byte(&self) -> Result<u8, ErrorCode> {
-        self.read_write_byte(0)
-    }
-
-    fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
-        if self.is_busy() {
-            return Err(ErrorCode::BUSY);
-        }
-        Ok(self.transfer_byte_sync(val))
     }
 
     fn specify_chip_select(&self, _cs: Self::ChipSelect) -> Result<(), ErrorCode> {
