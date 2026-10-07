@@ -466,6 +466,40 @@ pub fn panic_blink_forever<L: hil::led::Led>(leds: &mut [&L]) -> ! {
     }
 }
 
+/// Trigger a hardware fault in the kernel by executing an undefined
+/// instruction.
+///
+/// This is useful to test correct fault behavior. For instance, this was used
+/// to verify the following Tock PR: https://github.com/tock/tock/pull/5194
+///
+/// On architectures without such an instruction here, this falls back to a
+/// regular panic.
+pub fn hardfault() -> ! {
+    // SAFETY: executing an undefined instruction traps into the kernel's fault
+    // handler, which never returns to this code.
+    unsafe {
+        core::arch::asm!(
+            #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+            "udf #0",
+            #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+            "unimp",
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            "ud2",
+            options(noreturn, nomem, nostack)
+        );
+    }
+
+    #[cfg(not(any(
+        target_arch = "arm",
+        target_arch = "aarch64",
+        target_arch = "riscv32",
+        target_arch = "riscv64",
+        target_arch = "x86",
+        target_arch = "x86_64",
+    )))]
+    panic!("hardfault() is not supported on this architecture")
+}
+
 // panic! support routines
 ///////////////////////////////////////////////////////////////////
 
