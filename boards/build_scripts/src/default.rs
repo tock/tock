@@ -118,7 +118,9 @@ pub fn track_linker_script<P: AsRef<Path>>(path: P) {
     println!("cargo:rerun-if-changed={}", path.display());
 
     // Find all the `INCLUDE <relative path>` lines in the linker script.
-    let link_script = fs::read_to_string(path).expect("failed to read path");
+    let Ok(link_script) = fs::read_to_string(path) else {
+        panic!("failed to read {}", path.display());
+    };
     let includes = link_script
         .lines()
         .filter_map(|line| line.strip_prefix("INCLUDE").map(str::trim));
