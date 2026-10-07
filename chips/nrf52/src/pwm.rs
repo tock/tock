@@ -7,7 +7,7 @@
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::dma_slice::DmaSliceMut;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
@@ -170,14 +170,21 @@ register_bitfields![u32,
     ]
 ];
 
+/// State management for the buffer used by DMA.
+///
+/// The buffer contents describe the PWM configuration. While a DMA transaction
+/// is active, it is held in a `DmaSlice` to uphold soundness requirements.
+enum DutyCyclesBuffer {
+    Idle(&'static mut [u16]),
+    DmaActive(DmaSliceMut<'static, u16>),
+}
+
 /// Wrapper for managing MMIO for the PWM peripheral.
 pub struct PwmRegistersManager {
     /// MMIO registers for the PWM peripheral.
     registers: StaticRef<PwmRegisters>,
     /// Buffer that describes the PWM configuration.
-    duty_cycles: MapCell<&'static mut [u16]>,
-    /// Holding place for the duty cycle buffer while held by DMA.
-    duty_cycles_dma: MapCell<DmaSliceMut<'static, u16>>,
+    duty_cycles: OptionalCell<DutyCyclesBuffer>,
 }
 
 impl PwmRegistersManager {
@@ -196,25 +203,18 @@ impl PwmRegistersManager {
     ) -> Self {
         Self {
             registers,
-            duty_cycles: MapCell::new(duty_cycles),
-            duty_cycles_dma: MapCell::empty(),
+            duty_cycles: OptionalCell::new(DutyCyclesBuffer::Idle(duty_cycles)),
         }
-    }
-
-    /// Whether the DMA hardware is active.
-    fn is_active(&self) -> bool {
-        self.duty_cycles_dma.is_some()
     }
 
     /// Start PWM using the DMA hardware.
     pub fn start(&self, dc_out: u16) {
-        // If PWM is already running, we need to stop it an retrieve the DMAed
-        // buffer.
-        if self.is_active() {
-            self.stop();
-        }
+        // Make sure hardware is idle first (no-op if already idle); the check
+        // is in the start of the `stop` method, no reason to check active
+        // state twice by looking here first.
+        self.stop();
 
-        if let Some(buf) = self.duty_cycles.take() {
+        if let Some(DutyCyclesBuffer::Idle(buf)) = self.duty_cycles.take() {
             // Setup the duty cycles.
             buf[0] = dc_out;
 
@@ -243,7 +243,7 @@ impl PwmRegistersManager {
             self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
 
             // Save the DmaSliceMut while the DMA hardware may access it.
-            self.duty_cycles_dma.replace(dma_slice);
+            self.duty_cycles.set(DutyCyclesBuffer::DmaActive(dma_slice));
 
             // Start PWM.
             self.registers.tasks_seqstart[0].write(TASK::TASK::SET);
@@ -252,14 +252,10 @@ impl PwmRegistersManager {
 
     /// Stop PWM pulse generation and reclaim the duty cycle buffer.
     pub fn stop(&self) {
-        if !self.is_active() {
-            return;
-        }
+        if let Some(DutyCyclesBuffer::DmaActive(dma_slice)) = self.duty_cycles.take() {
+            // Stop the PWM hardware.
+            self.registers.tasks_stop.write(TASK::TASK::SET);
 
-        // Stop the PWM hardware.
-        self.registers.tasks_stop.write(TASK::TASK::SET);
-
-        if let Some(dma_slice) = self.duty_cycles_dma.take() {
             // # Safety
             //
             // The architecture-provided version is correct for the nRF52.
@@ -268,7 +264,7 @@ impl PwmRegistersManager {
             // SAFETY: We stopped the PWM hardware which ends its use of the
             // duty cycles buffer.
             let buf = unsafe { dma_slice.take(fence) };
-            self.duty_cycles.replace(buf);
+            self.duty_cycles.set(DutyCyclesBuffer::Idle(buf));
         }
     }
 }
