@@ -7,8 +7,10 @@
 
 //! SPI using the Programmable Input Output (PIO) hardware.
 use crate::clocks::{self};
+use crate::gpio::{RPGpio, RPGpioPin};
 use crate::pio::{Pio, PioRxClient, PioTxClient, SMNumber, StateMachineConfiguration};
 use core::cell::Cell;
+use enum_primitive::cast::FromPrimitive;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::cs::{ChipSelectPolar, Polarity};
@@ -315,7 +317,8 @@ impl<'a> hil::spi::SpiMaster<'a> for PioSpi<'a> {
             ..Default::default()
         };
 
-        self.pio.spi_program_init(
+        spi_program_init(
+            self.pio,
             self.sm_number,
             self.clock_pin,
             self.in_pin,
@@ -569,4 +572,44 @@ impl DeferredCallClient for PioSpi<'_> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
+}
+
+/// Load and start the SPI program on one state machine.
+///
+/// Order matters on the clock pin: it is made an output and then a side-set
+/// pin, and both have to happen before the data pin is configured, or the
+/// side-set setup overwrites the output direction.
+fn spi_program_init(
+    pio: &Pio,
+    sm_number: SMNumber,
+    clock_pin: u32,
+    in_pin: u32,
+    out_pin: u32,
+    config: &StateMachineConfiguration,
+) {
+    let sm = pio.sm(sm_number);
+    sm.config(config);
+    pio.gpio_init(&RPGpioPin::new(
+        RPGpio::from_u32(clock_pin).expect("GPIO pin must be 0 to 29"),
+    ));
+    pio.gpio_init(&RPGpioPin::new(
+        RPGpio::from_u32(in_pin).expect("GPIO pin must be 0 to 29"),
+    ));
+    pio.gpio_init(&RPGpioPin::new(
+        RPGpio::from_u32(out_pin).expect("GPIO pin must be 0 to 29"),
+    ));
+    sm.set_enabled(false);
+
+    // Important: make the sideset pin an output pin then make it a side set pin
+    // and make sure to do all of this BEFORE setting the outpin as an outpin
+    sm.set_out_pins(clock_pin, 1);
+    sm.set_pins_dirs(clock_pin, 1, true);
+    sm.set_side_set_pins(clock_pin, 1, false, false); // Do not switch pin dirs again, it will mess with the output settings
+
+    sm.set_pins_dirs(out_pin, 1, true);
+    sm.set_out_pins(out_pin, config.out_pins_count);
+
+    sm.init();
+    sm.clear_fifos();
+    sm.set_enabled(true);
 }
