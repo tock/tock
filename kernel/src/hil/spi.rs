@@ -244,11 +244,11 @@ pub trait SpiMasterClient {
 /// SpiMaster::specify_chip_select(2);
 /// SpiMaster::set_phase(ClockPhase::SampleTrailing);
 /// SpiMaster::specify_chip_select(1);
-/// SpiMaster::write_byte(0); // Uses SampleLeading
+/// SpiMaster::read_write_bytes(...); // Uses SampleLeading
 /// ```
 ///
 /// will have a [`ClockPhase::SampleLeading`] phase in the final
-/// [`SpiMaster::write_byte`] call, because the configuration of chip select 1
+/// [`SpiMaster::read_write_bytes`] call, because the configuration of chip select 1
 /// is saved, and restored when chip select is set back to 1.
 ///
 /// If additional chip selects are needed, they can be performed with GPIO and
@@ -259,11 +259,11 @@ pub trait SpiMasterClient {
 /// specify_chip_select(0);
 /// set_phase(ClockPhase::SampleLeading);
 /// pin_a.clear(); // Select A
-/// write_byte(0xaa); // Uses SampleLeading
+/// read_write_bytes(...); // Uses SampleLeading
 /// pin_a.set(); // Unselect A
 /// set_phase(ClockPhase::SampleTrailing);
 /// pin_b.clear(); // Select B
-/// write_byte(0xaa); // Uses SampleTrailing
+/// read_write_bytes(...); // Uses SampleTrailing
 /// ```
 pub trait SpiMaster<'a> {
     /// Chip select is an associated type because different SPI buses may have
