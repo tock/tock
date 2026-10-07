@@ -534,7 +534,7 @@ impl<'a, T: 'a + ?Sized> GrantData<'a, T> {
     /// Only one can [`GrantData`] per underlying object can be created at a
     /// time. Otherwise, there would be multiple mutable references to the same
     /// object which is undefined behavior.
-    fn new(data: &'a mut T) -> GrantData<'a, T> {
+    fn new(data: &'a mut T) -> Self {
         GrantData { data }
     }
 }
@@ -590,7 +590,7 @@ impl<'a> GrantKernelData<'a> {
         allow_rw: &'a [SavedAllowRw],
         driver_num: usize,
         process: &'a dyn Process,
-    ) -> GrantKernelData<'a> {
+    ) -> Self {
         Self {
             upcalls,
             allow_ro,
@@ -1519,7 +1519,7 @@ pub struct CustomGrant<T> {
 impl<T> CustomGrant<T> {
     /// Creates a new [`CustomGrant`].
     fn new(identifier: ProcessCustomGrantIdentifier, processid: ProcessId) -> Self {
-        CustomGrant {
+        Self {
             identifier,
             processid,
             _phantom: PhantomData,

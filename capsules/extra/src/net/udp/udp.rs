@@ -27,8 +27,8 @@ pub struct UDPHeader {
 }
 
 impl Default for UDPHeader {
-    fn default() -> UDPHeader {
-        UDPHeader {
+    fn default() -> Self {
+        Self {
             src_port: 0,
             dst_port: 0,
             len: 8,
@@ -38,8 +38,8 @@ impl Default for UDPHeader {
 }
 
 impl UDPHeader {
-    pub fn new() -> UDPHeader {
-        UDPHeader::default()
+    pub fn new() -> Self {
+        Self::default()
     }
     // TODO: Always returns size of UDP header
     pub fn get_offset(&self) -> usize {
@@ -113,7 +113,7 @@ impl UDPHeader {
     /// # Return Value
     ///
     /// This function returns a `UDPHeader` struct wrapped in an SResult
-    pub fn decode(buf: &[u8]) -> SResult<UDPHeader> {
+    pub fn decode(buf: &[u8]) -> SResult<Self> {
         stream_len_cond!(buf, 8);
         let mut udp_header = Self::new();
         let off = 0;

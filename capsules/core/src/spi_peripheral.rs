@@ -72,7 +72,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiPeripheral<'a, S> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> SpiPeripheral<'a, S> {
+    ) -> Self {
         SpiPeripheral {
             spi_slave,
             busy: Cell::new(false),

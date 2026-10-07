@@ -77,7 +77,7 @@ pub struct AT24C<'a> {
     i2c: &'a dyn I2CDevice,
     buffer: TakeCell<'static, [u8]>,
     client_page: TakeCell<'a, EEPROMPage>,
-    flash_client: OptionalCell<&'a dyn hil::flash::Client<AT24C<'a>>>,
+    flash_client: OptionalCell<&'a dyn hil::flash::Client<Self>>,
     state: Cell<State>,
 }
 

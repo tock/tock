@@ -25,7 +25,7 @@ pub struct VirtIORng<'a, 'b, F: DmaFence> {
 }
 
 impl<'a, 'b, F: DmaFence> VirtIORng<'a, 'b, F> {
-    pub fn new(virtqueue: &'a SplitVirtqueue<'a, 'b, 1, F>) -> VirtIORng<'a, 'b, F> {
+    pub fn new(virtqueue: &'a SplitVirtqueue<'a, 'b, 1, F>) -> Self {
         VirtIORng {
             virtqueue,
             buffer_capacity: Cell::new(0),

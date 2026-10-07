@@ -83,7 +83,7 @@ pub struct SHT3x<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
 }
 
 impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> SHT3x<'a, A, I> {
-    pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> SHT3x<'a, A, I> {
+    pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> Self {
         SHT3x {
             i2c,
             humidity_client: OptionalCell::empty(),

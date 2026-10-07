@@ -80,8 +80,8 @@ pub struct AonTimer {
 }
 
 impl AonTimer {
-    pub const fn new(base: StaticRef<AonTimerRegisters>, aon_clk_freq: u32) -> AonTimer {
-        AonTimer {
+    pub const fn new(base: StaticRef<AonTimerRegisters>, aon_clk_freq: u32) -> Self {
+        Self {
             registers: base,
             aon_clk_freq,
         }

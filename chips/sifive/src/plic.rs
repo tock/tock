@@ -115,7 +115,7 @@ pub struct Plic<const TOTAL_INTS: usize = 51> {
 
 impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
     pub const fn new(base: StaticRef<PlicRegisters>) -> Self {
-        Plic {
+        Self {
             registers: RegsWrapper::new(base, TOTAL_INTS),
             saved: [
                 Cell::new(LocalRegisterCopy::new(0)),

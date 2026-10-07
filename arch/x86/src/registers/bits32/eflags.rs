@@ -66,10 +66,10 @@ impl EFlags {
     /// # Arguments
     ///  * `index` - index in GDT or LDT array.
     ///  * `rpl` - Requested privilege level of the selector
-    pub fn new() -> EFlags {
+    pub fn new() -> Self {
         let mut flags = LocalRegisterCopy::new(0);
         flags.write(EFLAGS::FLAGS_A1::SET);
-        EFlags(flags)
+        Self(flags)
     }
 }
 

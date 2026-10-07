@@ -31,11 +31,11 @@ use kernel::scheduler::{Scheduler, SchedulingDecision};
 /// Each node holds a pointer to a slot in the processes array
 pub struct RoundRobinProcessNode<'a> {
     proc: &'static ProcessSlot,
-    next: ListLink<'a, RoundRobinProcessNode<'a>>,
+    next: ListLink<'a, Self>,
 }
 
 impl<'a> RoundRobinProcessNode<'a> {
-    pub const fn new(proc: &'static ProcessSlot) -> RoundRobinProcessNode<'a> {
+    pub const fn new(proc: &'static ProcessSlot) -> Self {
         RoundRobinProcessNode {
             proc,
             next: ListLink::empty(),
@@ -43,8 +43,8 @@ impl<'a> RoundRobinProcessNode<'a> {
     }
 }
 
-impl<'a> ListNode<'a, RoundRobinProcessNode<'a>> for RoundRobinProcessNode<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, RoundRobinProcessNode<'a>> {
+impl<'a> ListNode<'a, Self> for RoundRobinProcessNode<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }
@@ -60,11 +60,11 @@ pub struct RoundRobinSched<'a> {
 impl<'a> RoundRobinSched<'a> {
     /// How long a process can run before being pre-empted
     const DEFAULT_TIMESLICE_US: u32 = 10000;
-    pub const fn new() -> RoundRobinSched<'a> {
+    pub const fn new() -> Self {
         Self::new_with_time(Self::DEFAULT_TIMESLICE_US)
     }
 
-    pub const fn new_with_time(time_us: u32) -> RoundRobinSched<'a> {
+    pub const fn new_with_time(time_us: u32) -> Self {
         RoundRobinSched {
             time_remaining: Cell::new(time_us),
             timeslice_length: time_us,

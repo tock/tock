@@ -44,8 +44,8 @@ pub struct RoundRobinComponent<const NUM_PROCS: usize> {
 }
 
 impl<const NUM_PROCS: usize> RoundRobinComponent<NUM_PROCS> {
-    pub fn new(processes: &'static ProcessArray<NUM_PROCS>) -> RoundRobinComponent<NUM_PROCS> {
-        RoundRobinComponent { processes }
+    pub fn new(processes: &'static ProcessArray<NUM_PROCS>) -> Self {
+        Self { processes }
     }
 }
 

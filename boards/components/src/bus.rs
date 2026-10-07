@@ -79,8 +79,8 @@ pub struct Bus8080BusComponent<B: 'static + bus8080::Bus8080<'static>> {
 }
 
 impl<B: 'static + bus8080::Bus8080<'static>> Bus8080BusComponent<B> {
-    pub fn new(bus: &'static B) -> Bus8080BusComponent<B> {
-        Bus8080BusComponent { bus }
+    pub fn new(bus: &'static B) -> Self {
+        Self { bus }
     }
 }
 
@@ -111,8 +111,8 @@ impl<S: 'static + spi::SpiMaster<'static>> SpiMasterBusComponent<S> {
         baud_rate: u32,
         clock_phase: ClockPhase,
         clock_polarity: ClockPolarity,
-    ) -> SpiMasterBusComponent<S> {
-        SpiMasterBusComponent {
+    ) -> Self {
+        Self {
             spi_mux,
             chip_select,
             baud_rate,
@@ -157,8 +157,8 @@ pub struct I2CMasterBusComponent<I: 'static + i2c::I2CMaster<'static>> {
 }
 
 impl<I: 'static + i2c::I2CMaster<'static>> I2CMasterBusComponent<I> {
-    pub fn new(i2c_mux: &'static MuxI2C<'static, I>, address: u8) -> I2CMasterBusComponent<I> {
-        I2CMasterBusComponent { i2c_mux, address }
+    pub fn new(i2c_mux: &'static MuxI2C<'static, I>, address: u8) -> Self {
+        Self { i2c_mux, address }
     }
 }
 

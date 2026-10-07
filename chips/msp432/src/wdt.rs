@@ -88,8 +88,8 @@ pub struct Wdt {
 }
 
 impl Wdt {
-    pub const fn new() -> Wdt {
-        Wdt {
+    pub const fn new() -> Self {
+        Self {
             registers: WATCHDOG_BASE,
         }
     }

@@ -48,8 +48,8 @@ impl<C: 'static + Crc<'static>, CAP: MemoryAllocationCapability + 'static> CrcCo
         driver_num: usize,
         crc: &'static C,
         mem_cap: CAP,
-    ) -> CrcComponent<C, CAP> {
-        CrcComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             crc,

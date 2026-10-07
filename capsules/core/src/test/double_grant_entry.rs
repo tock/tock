@@ -79,10 +79,8 @@ pub struct TestGrantDoubleEntry {
 }
 
 impl TestGrantDoubleEntry {
-    pub fn new(
-        grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> TestGrantDoubleEntry {
-        TestGrantDoubleEntry { grant }
+    pub fn new(grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>) -> Self {
+        Self { grant }
     }
 }
 

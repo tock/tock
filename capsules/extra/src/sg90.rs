@@ -14,7 +14,7 @@ pub struct Sg90<'a, P: hil::pwm::PwmPin> {
 }
 
 impl<'a, P: hil::pwm::PwmPin> Sg90<'a, P> {
-    pub fn new(pwm_pin: &'a P) -> Sg90<'a, P> {
+    pub fn new(pwm_pin: &'a P) -> Self {
         Sg90 {
             pwm_pin,
             current_angle: Cell::new(None),

@@ -209,12 +209,12 @@ pub struct I2CDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBu
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, I2CDevice<'a, I, S>>,
+    next: ListLink<'a, Self>,
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
 impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CDevice<'a, I, S> {
-    pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> I2CDevice<'a, I, S> {
+    pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> Self {
         I2CDevice {
             mux,
             addr,
@@ -240,10 +240,10 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CClient for I2CDevice
     }
 }
 
-impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, I2CDevice<'a, I, S>>
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, Self>
     for I2CDevice<'a, I, S>
 {
-    fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a, I, S>> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }
@@ -312,12 +312,12 @@ pub struct SMBusDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> {
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, SMBusDevice<'a, I, S>>,
+    next: ListLink<'a, Self>,
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
 impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> SMBusDevice<'a, I, S> {
-    pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> SMBusDevice<'a, I, S> {
+    pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> Self {
         if mux.smbus.is_none() {
             panic!("There is no SMBus to attach to");
         }
@@ -347,10 +347,10 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CClient for SMBusDevi
     }
 }
 
-impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, SMBusDevice<'a, I, S>>
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, Self>
     for SMBusDevice<'a, I, S>
 {
-    fn next(&'a self) -> &'a ListLink<'a, SMBusDevice<'a, I, S>> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

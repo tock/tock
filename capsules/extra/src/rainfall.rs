@@ -65,7 +65,7 @@ impl<'a, H: hil::sensors::RainFallDriver<'a>> RainFallSensor<'a, H> {
     pub fn new(
         driver: &'a H,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> RainFallSensor<'a, H> {
+    ) -> Self {
         RainFallSensor {
             driver,
             apps: grant,

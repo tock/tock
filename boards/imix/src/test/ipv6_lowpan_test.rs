@@ -236,11 +236,7 @@ pub unsafe fn initialize_all(
 }
 
 impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
-    pub fn new(
-        sixlowpan_tx: TxState<'a>,
-        radio: &'a dyn MacDevice<'a>,
-        alarm: &'a A,
-    ) -> LowpanTest<'a, A> {
+    pub fn new(sixlowpan_tx: TxState<'a>, radio: &'a dyn MacDevice<'a>, alarm: &'a A) -> Self {
         LowpanTest {
             alarm,
             sixlowpan_tx,

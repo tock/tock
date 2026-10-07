@@ -366,7 +366,7 @@ impl<'a> Lpuart<'a> {
         clock: LpuartClock<'a>,
         tx_dma_source: dma::DmaHardwareSource,
         rx_dma_source: dma::DmaHardwareSource,
-    ) -> Lpuart<'a> {
+    ) -> Self {
         Lpuart {
             registers: base_addr,
             clock,

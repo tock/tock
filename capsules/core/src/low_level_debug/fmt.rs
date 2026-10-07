@@ -68,7 +68,7 @@ struct WriteAdapter<'b> {
 }
 
 impl<'b> WriteAdapter<'b> {
-    pub fn new(buffer: &'b mut [u8]) -> WriteAdapter<'b> {
+    pub fn new(buffer: &'b mut [u8]) -> Self {
         WriteAdapter { buffer, used: 0 }
     }
 

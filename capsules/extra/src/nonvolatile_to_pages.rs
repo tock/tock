@@ -79,7 +79,7 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
 }
 
 impl<'a, F: hil::flash::Flash> NonvolatileToPages<'a, F> {
-    pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> NonvolatileToPages<'a, F> {
+    pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> Self {
         NonvolatileToPages {
             driver,
             client: OptionalCell::empty(),

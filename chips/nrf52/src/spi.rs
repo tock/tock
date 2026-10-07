@@ -192,46 +192,46 @@ pub enum Frequency {
 }
 
 impl Frequency {
-    pub fn from_register(reg: u32) -> Option<Frequency> {
+    pub fn from_register(reg: u32) -> Option<Self> {
         match reg {
-            0x02000000 => Some(Frequency::K125),
-            0x04000000 => Some(Frequency::K250),
-            0x08000000 => Some(Frequency::K500),
-            0x10000000 => Some(Frequency::M1),
-            0x20000000 => Some(Frequency::M2),
-            0x40000000 => Some(Frequency::M4),
-            0x80000000 => Some(Frequency::M8),
+            0x02000000 => Some(Self::K125),
+            0x04000000 => Some(Self::K250),
+            0x08000000 => Some(Self::K500),
+            0x10000000 => Some(Self::M1),
+            0x20000000 => Some(Self::M2),
+            0x40000000 => Some(Self::M4),
+            0x80000000 => Some(Self::M8),
             _ => None,
         }
     }
 
     pub fn into_spi_rate(&self) -> u32 {
         match *self {
-            Frequency::K125 => 125_000,
-            Frequency::K250 => 250_000,
-            Frequency::K500 => 500_000,
-            Frequency::M1 => 1_000_000,
-            Frequency::M2 => 2_000_000,
-            Frequency::M4 => 4_000_000,
-            Frequency::M8 => 8_000_000,
+            Self::K125 => 125_000,
+            Self::K250 => 250_000,
+            Self::K500 => 500_000,
+            Self::M1 => 1_000_000,
+            Self::M2 => 2_000_000,
+            Self::M4 => 4_000_000,
+            Self::M8 => 8_000_000,
         }
     }
 
-    pub fn from_spi_rate(freq: u32) -> Frequency {
+    pub fn from_spi_rate(freq: u32) -> Self {
         if freq < 250_000 {
-            Frequency::K125
+            Self::K125
         } else if freq < 500_000 {
-            Frequency::K250
+            Self::K250
         } else if freq < 1_000_000 {
-            Frequency::K500
+            Self::K500
         } else if freq < 2_000_000 {
-            Frequency::M1
+            Self::M1
         } else if freq < 4_000_000 {
-            Frequency::M2
+            Self::M2
         } else if freq < 8_000_000 {
-            Frequency::M4
+            Self::M4
         } else {
-            Frequency::M8
+            Self::M8
         }
     }
 }
@@ -251,7 +251,7 @@ pub struct SPIM<'a> {
 }
 
 impl<'a> SPIM<'a> {
-    pub const fn new(instance: usize) -> SPIM<'a> {
+    pub const fn new(instance: usize) -> Self {
         SPIM {
             registers: INSTANCES[instance],
             client: OptionalCell::empty(),

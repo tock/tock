@@ -152,7 +152,7 @@ impl<'a> SeggerRttMemory<'a> {
         up_buffer: &'a [InMemoryRegister<u8>],
         down_buffer_name: &'a [u8],
         down_buffer: &'a [InMemoryRegister<u8>],
-    ) -> SeggerRttMemory<'a> {
+    ) -> Self {
         SeggerRttMemory {
             // This field is a magic value that must be set to "SEGGER RTT" for the debugger to
             // recognize it when scanning the memory.
@@ -223,7 +223,7 @@ pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
 }
 
 impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
-    pub fn new(alarm: &'a A, config: &'a mut SeggerRttMemory<'a>) -> SeggerRtt<'a, A> {
+    pub fn new(alarm: &'a A, config: &'a mut SeggerRttMemory<'a>) -> Self {
         SeggerRtt {
             alarm,
             config: TakeCell::new(config),
@@ -402,7 +402,7 @@ impl core::fmt::Write for RttPanicWriter<'_> {
 }
 
 impl<'a> kernel::platform::chip::PanicWriter for SeggerRttMemory<'a> {
-    type Config = &'a SeggerRttMemory<'a>;
+    type Config = &'a Self;
 
     fn create_panic_writer(
         config: Self::Config,

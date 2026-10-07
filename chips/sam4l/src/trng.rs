@@ -58,7 +58,7 @@ pub struct Trng<'a> {
 const KEY: u32 = 0x524e47;
 
 impl<'a> Trng<'a> {
-    pub const fn new() -> Trng<'a> {
+    pub const fn new() -> Self {
         Trng {
             regs: BASE_ADDRESS,
             client: OptionalCell::empty(),

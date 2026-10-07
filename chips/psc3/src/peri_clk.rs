@@ -241,8 +241,8 @@ pub struct PeriPClk {
 }
 
 impl PeriPClk {
-    pub const fn new() -> PeriPClk {
-        PeriPClk {
+    pub const fn new() -> Self {
+        Self {
             registers: PERI_PCLK_BASE,
         }
     }

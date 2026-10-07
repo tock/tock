@@ -41,15 +41,15 @@ pub enum ProcessCheckError {
 impl fmt::Debug for ProcessCheckError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ProcessCheckError::CredentialsNotAccepted => {
+            Self::CredentialsNotAccepted => {
                 write!(f, "No credentials accepted")
             }
 
-            ProcessCheckError::CredentialsRejected(index) => {
+            Self::CredentialsRejected(index) => {
                 write!(f, "Credential {} rejected", index)
             }
 
-            ProcessCheckError::InternalError => write!(f, "Error in kernel. Likely a bug."),
+            Self::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }
     }
 }
@@ -294,7 +294,7 @@ impl ProcessCheckerMachine {
         loop {
             let footer_index = self.footer_index.get();
 
-            let check_result = ProcessCheckerMachine::check_footer(&pb, policy, footer_index);
+            let check_result = Self::check_footer(&pb, policy, footer_index);
 
             if config::CONFIG.debug_process_credentials {
                 debug!(

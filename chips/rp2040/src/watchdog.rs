@@ -109,7 +109,7 @@ pub struct Watchdog<'a> {
 }
 
 impl<'a> Watchdog<'a> {
-    pub const fn new(resets: &'a resets::Resets) -> Watchdog<'a> {
+    pub const fn new(resets: &'a resets::Resets) -> Self {
         Watchdog {
             registers: WATCHDOG_BASE,
             resets,

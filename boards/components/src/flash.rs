@@ -40,8 +40,8 @@ pub struct FlashMuxComponent<F: 'static + Flash + HasClient<'static, MuxFlash<'s
 }
 
 impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> FlashMuxComponent<F> {
-    pub fn new(flash: &'static F) -> FlashMuxComponent<F> {
-        FlashMuxComponent { flash }
+    pub fn new(flash: &'static F) -> Self {
+        Self { flash }
     }
 }
 

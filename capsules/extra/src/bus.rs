@@ -84,17 +84,17 @@ pub struct BusAddr64LE(u64);
 
 impl From<BusAddr8> for BusAddr8080 {
     fn from(value: BusAddr8) -> Self {
-        BusAddr8080::BusAddr8(value.0)
+        Self::BusAddr8(value.0)
     }
 }
 impl From<BusAddr16BE> for BusAddr8080 {
     fn from(value: BusAddr16BE) -> Self {
-        BusAddr8080::BusAddr16BE(value.0)
+        Self::BusAddr16BE(value.0)
     }
 }
 impl From<BusAddr16LE> for BusAddr8080 {
     fn from(value: BusAddr16LE) -> Self {
-        BusAddr8080::BusAddr16LE(value.0)
+        Self::BusAddr16LE(value.0)
     }
 }
 
@@ -190,10 +190,10 @@ impl BusAddr for BusAddr64LE {
 impl DataWidth {
     pub fn width_in_bytes(&self) -> usize {
         match self {
-            DataWidth::Bits8 => 1,
-            DataWidth::Bits16BE | DataWidth::Bits16LE => 2,
-            DataWidth::Bits32BE | DataWidth::Bits32LE => 4,
-            DataWidth::Bits64BE | DataWidth::Bits64LE => 8,
+            Self::Bits8 => 1,
+            Self::Bits16BE | Self::Bits16LE => 2,
+            Self::Bits32BE | Self::Bits32LE => 4,
+            Self::Bits64BE | Self::Bits64LE => 8,
         }
     }
 }
@@ -263,7 +263,7 @@ pub struct SpiMasterBus<'a, S: SpiMasterDevice<'a>> {
 }
 
 impl<'a, S: SpiMasterDevice<'a>> SpiMasterBus<'a, S> {
-    pub fn new(spi: &'a S, addr_buffer: &'static mut [u8]) -> SpiMasterBus<'a, S> {
+    pub fn new(spi: &'a S, addr_buffer: &'static mut [u8]) -> Self {
         SpiMasterBus {
             spi,
             read_write_buffer: OptionalCell::empty(),
@@ -427,7 +427,7 @@ pub struct I2CMasterBus<'a, I: I2CDevice> {
 }
 
 impl<'a, I: I2CDevice> I2CMasterBus<'a, I> {
-    pub fn new(i2c: &'a I, addr_buffer: &'static mut [u8]) -> I2CMasterBus<'a, I> {
+    pub fn new(i2c: &'a I, addr_buffer: &'static mut [u8]) -> Self {
         I2CMasterBus {
             i2c,
             len: Cell::new(0),
@@ -544,7 +544,7 @@ pub struct Bus8080Bus<'a, B: Bus8080<'static>> {
 }
 
 impl<'a, B: Bus8080<'static>> Bus8080Bus<'a, B> {
-    pub fn new(bus: &'a B) -> Bus8080Bus<'a, B> {
+    pub fn new(bus: &'a B) -> Self {
         Bus8080Bus {
             bus,
             client: OptionalCell::empty(),

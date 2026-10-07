@@ -244,7 +244,7 @@ impl<'a> Eic<'a> {
         }
     }
 
-    pub const fn new() -> Eic<'a> {
+    pub const fn new() -> Self {
         Eic {
             callbacks: [
                 OptionalCell::empty(),

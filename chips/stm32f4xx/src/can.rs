@@ -433,9 +433,9 @@ pub enum CanInterruptMode {
 impl From<CanState> for can::State {
     fn from(state: CanState) -> Self {
         match state {
-            CanState::Initialization | CanState::Sleep => can::State::Disabled,
-            CanState::Normal => can::State::Running,
-            CanState::RunningError(err) => can::State::Error(err),
+            CanState::Initialization | CanState::Sleep => Self::Disabled,
+            CanState::Normal => Self::Running,
+            CanState::RunningError(err) => Self::Error(err),
         }
     }
 }
@@ -472,7 +472,7 @@ pub struct Can<'a> {
 }
 
 impl<'a> Can<'a> {
-    pub fn new(clocks: &'a dyn Stm32f4Clocks, registers: StaticRef<Registers>) -> Can<'a> {
+    pub fn new(clocks: &'a dyn Stm32f4Clocks, registers: StaticRef<Registers>) -> Self {
         Can {
             registers,
             clock: CanClock(phclk::PeripheralClock::new(

@@ -112,7 +112,7 @@ pub struct Temp<'a> {
 }
 
 impl<'a> Temp<'a> {
-    pub const fn new(registers: StaticRef<TempRegisters>) -> Temp<'a> {
+    pub const fn new(registers: StaticRef<TempRegisters>) -> Self {
         Temp {
             registers,
             client: OptionalCell::empty(),

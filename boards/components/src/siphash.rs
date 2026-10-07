@@ -19,8 +19,8 @@ pub type Siphasher24ComponentType = capsules_extra::sip_hash::SipHasher24<'stati
 pub struct Siphasher24Component {}
 
 impl Siphasher24Component {
-    pub fn new() -> Siphasher24Component {
-        Siphasher24Component {}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 

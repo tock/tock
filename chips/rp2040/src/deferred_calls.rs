@@ -17,10 +17,10 @@ pub enum DeferredCallTask {
 impl TryFrom<usize> for DeferredCallTask {
     type Error = ();
 
-    fn try_from(value: usize) -> Result<DeferredCallTask, ()> {
+    fn try_from(value: usize) -> Result<Self, ()> {
         match value {
-            0 => Ok(DeferredCallTask::DateTimeGet),
-            1 => Ok(DeferredCallTask::DateTimeSet),
+            0 => Ok(Self::DateTimeGet),
+            1 => Ok(Self::DateTimeSet),
             _ => Err(()),
         }
     }
@@ -28,6 +28,6 @@ impl TryFrom<usize> for DeferredCallTask {
 
 impl From<DeferredCallTask> for usize {
     fn from(val: DeferredCallTask) -> Self {
-        val as usize
+        val as Self
     }
 }

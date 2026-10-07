@@ -88,8 +88,8 @@ impl Kernel {
     /// Crucially, the processes included in the `processes` array MUST be valid
     /// to execute. Any credential checks or validation MUST happen before the
     /// `Process` object is included in this array.
-    pub const fn new(processes: &'static [ProcessSlot]) -> Kernel {
-        Kernel {
+    pub const fn new(processes: &'static [ProcessSlot]) -> Self {
+        Self {
             processes,
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),

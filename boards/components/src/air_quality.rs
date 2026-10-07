@@ -42,8 +42,8 @@ impl<
         driver_num: usize,
         temp_sensor: &'static T,
         mem_cap: CAP,
-    ) -> AirQualityComponent<T, CAP> {
-        AirQualityComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             temp_sensor,

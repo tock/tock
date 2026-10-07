@@ -199,9 +199,9 @@ pub trait SelectInput {
 impl From<MuxedPads> for PinmuxInsel {
     fn from(pad: MuxedPads) -> Self {
         // Add 2 to skip constant ConstantZero and ConstantOne.
-        match PinmuxInsel::try_from(pad as u32 + PINMUX_MIO_PERIPH_INSEL_IDX_OFFSET as u32) {
+        match Self::try_from(pad as u32 + PINMUX_MIO_PERIPH_INSEL_IDX_OFFSET as u32) {
             Ok(select) => select,
-            Err(_) => PinmuxInsel::ConstantZero,
+            Err(_) => Self::ConstantZero,
         }
     }
 }
@@ -262,14 +262,14 @@ impl PadConfig {
     /// Connect Pad to internal peripheral I/O using pinmux multiplexers
     pub fn connect(&self) {
         match *self {
-            PadConfig::Unconnected => {}
-            PadConfig::Input(pad, peripheral_in) => {
+            Self::Unconnected => {}
+            Self::Input(pad, peripheral_in) => {
                 peripheral_in.connect_input(PinmuxInsel::from(pad));
             }
-            PadConfig::Output(pad, peripheral_out) => {
+            Self::Output(pad, peripheral_out) => {
                 pad.connect_output(peripheral_out);
             }
-            PadConfig::InOut(pad, peripheral_in, peripheral_out) => {
+            Self::InOut(pad, peripheral_in, peripheral_out) => {
                 peripheral_in.connect_input(PinmuxInsel::from(pad));
                 pad.connect_output(peripheral_out);
             }
@@ -279,10 +279,10 @@ impl PadConfig {
     /// Disconnect pad from internal input and connect to always Low signal
     pub fn disconnect_input(&self) {
         match *self {
-            PadConfig::Unconnected => {}
-            PadConfig::Input(_pad, peripheral_in) => peripheral_in.connect_low(),
-            PadConfig::Output(_pad, _peripheral_out) => {}
-            PadConfig::InOut(_pad, peripheral_in, _peripheral_out) => {
+            Self::Unconnected => {}
+            Self::Input(_pad, peripheral_in) => peripheral_in.connect_low(),
+            Self::Output(_pad, _peripheral_out) => {}
+            Self::InOut(_pad, peripheral_in, _peripheral_out) => {
                 peripheral_in.connect_low();
             }
         }
@@ -291,10 +291,10 @@ impl PadConfig {
     // Disconnect pad from internal output and connect to Hi-Z
     pub fn disconnect_output(&self) {
         match *self {
-            PadConfig::Unconnected => {}
-            PadConfig::Input(_pad, _peripheral_in) => {}
-            PadConfig::Output(pad, _peripheral_out) => pad.connect_high_z(),
-            PadConfig::InOut(pad, _peripheral_in, _peripheral_out) => {
+            Self::Unconnected => {}
+            Self::Input(_pad, _peripheral_in) => {}
+            Self::Output(pad, _peripheral_out) => pad.connect_high_z(),
+            Self::InOut(pad, _peripheral_in, _peripheral_out) => {
                 pad.connect_high_z();
             }
         }
@@ -304,14 +304,14 @@ impl PadConfig {
     /// and connect to internal Hi-Z/Low signal
     pub fn disconnect(&self) {
         match *self {
-            PadConfig::Unconnected => {}
-            PadConfig::Input(_pad, peripheral_in) => {
+            Self::Unconnected => {}
+            Self::Input(_pad, peripheral_in) => {
                 peripheral_in.connect_low();
             }
-            PadConfig::Output(pad, _peripheral_out) => {
+            Self::Output(pad, _peripheral_out) => {
                 pad.connect_high_z();
             }
-            PadConfig::InOut(pad, peripheral_in, _peripheral_out) => {
+            Self::InOut(pad, peripheral_in, _peripheral_out) => {
                 peripheral_in.connect_low();
                 pad.connect_high_z();
             }
@@ -322,41 +322,39 @@ impl PadConfig {
     /// associated with this connection
     pub fn get_pad(&self) -> Option<Pad> {
         match *self {
-            PadConfig::Unconnected => None,
-            PadConfig::Input(pad, _) => Some(Pad::Mio(pad)),
-            PadConfig::Output(pad, _) => Some(Pad::Mio(pad)),
-            PadConfig::InOut(pad, _, _) => Some(Pad::Mio(pad)),
+            Self::Unconnected => None,
+            Self::Input(pad, _) => Some(Pad::Mio(pad)),
+            Self::Output(pad, _) => Some(Pad::Mio(pad)),
+            Self::InOut(pad, _, _) => Some(Pad::Mio(pad)),
         }
     }
 }
 
 impl From<PadConfig> for Configuration {
-    fn from(pad: PadConfig) -> Configuration {
+    fn from(pad: PadConfig) -> Self {
         match pad {
-            PadConfig::Unconnected => Configuration::Other,
+            PadConfig::Unconnected => Self::Other,
             PadConfig::Input(_pad, peripheral_in) => match peripheral_in.get_selector() {
-                PinmuxInsel::ConstantZero => Configuration::LowPower,
-                PinmuxInsel::ConstantOne => Configuration::Function,
-                _ => Configuration::Input,
+                PinmuxInsel::ConstantZero => Self::LowPower,
+                PinmuxInsel::ConstantOne => Self::Function,
+                _ => Self::Input,
             },
             PadConfig::Output(pad, _peripheral_out) => match pad.get_selector() {
-                PinmuxOutsel::ConstantZero => Configuration::Function,
-                PinmuxOutsel::ConstantOne => Configuration::Function,
-                PinmuxOutsel::ConstantHighZ => Configuration::LowPower,
-                _ => Configuration::Output,
+                PinmuxOutsel::ConstantZero => Self::Function,
+                PinmuxOutsel::ConstantOne => Self::Function,
+                PinmuxOutsel::ConstantHighZ => Self::LowPower,
+                _ => Self::Output,
             },
             PadConfig::InOut(pad, peripheral_in, _peripheral_out) => {
                 let input_selector = peripheral_in.get_selector();
                 let output_selector = pad.get_selector();
                 match (input_selector, output_selector) {
-                    (PinmuxInsel::ConstantZero, PinmuxOutsel::ConstantHighZ) => {
-                        Configuration::LowPower
-                    }
+                    (PinmuxInsel::ConstantZero, PinmuxOutsel::ConstantHighZ) => Self::LowPower,
                     (
                         PinmuxInsel::ConstantOne | PinmuxInsel::ConstantZero,
                         PinmuxOutsel::ConstantZero | PinmuxOutsel::ConstantOne,
-                    ) => Configuration::Function,
-                    (_, _) => Configuration::InputOutput,
+                    ) => Self::Function,
+                    (_, _) => Self::InputOutput,
                 }
             }
         }

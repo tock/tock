@@ -57,8 +57,8 @@ impl<A: 'static + can::Can, CAP: MemoryAllocationCapability + 'static> CanCompon
         driver_num: usize,
         can: &'static A,
         mem_cap: CAP,
-    ) -> CanComponent<A, CAP> {
-        CanComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             can,

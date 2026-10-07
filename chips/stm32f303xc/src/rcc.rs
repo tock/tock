@@ -391,8 +391,8 @@ pub struct Rcc {
 }
 
 impl Rcc {
-    pub const fn new() -> Rcc {
-        Rcc {
+    pub const fn new() -> Self {
+        Self {
             registers: RCC_BASE,
         }
     }

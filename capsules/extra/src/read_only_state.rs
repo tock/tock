@@ -55,7 +55,7 @@ impl<'a, T: Time> ReadOnlyStateDriver<'a, T> {
     pub fn new(
         timer: &'a T,
         grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> ReadOnlyStateDriver<'a, T> {
+    ) -> Self {
         ReadOnlyStateDriver { timer, apps: grant }
     }
 }

@@ -43,20 +43,20 @@ pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
     /// elapsed.
     armed: Cell<bool>,
     /// Next alarm in the list.
-    next: ListLink<'a, VirtualMuxAlarm<'a, A>>,
+    next: ListLink<'a, Self>,
     /// Alarm client for this node in the list.
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
-impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
-    fn next(&self) -> &'a ListLink<'_, VirtualMuxAlarm<'a, A>> {
+impl<'a, A: Alarm<'a>> ListNode<'a, Self> for VirtualMuxAlarm<'a, A> {
+    fn next(&self) -> &'a ListLink<'_, Self> {
         &self.next
     }
 }
 
 impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
     /// After calling new, always call setup()
-    pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> VirtualMuxAlarm<'a, A> {
+    pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> Self {
         let zero = A::Ticks::from(0);
         VirtualMuxAlarm {
             mux: mux_alarm,
@@ -213,7 +213,7 @@ pub struct MuxAlarm<'a, A: Alarm<'a>> {
 }
 
 impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
-    pub const fn new(alarm: &'a A) -> MuxAlarm<'a, A> {
+    pub const fn new(alarm: &'a A) -> Self {
         MuxAlarm {
             virtual_alarms: List::new(),
             enabled: Cell::new(0),

@@ -129,7 +129,7 @@ pub struct Aes<'a> {
 }
 
 impl<'a> Aes<'a> {
-    pub fn new() -> Aes<'a> {
+    pub fn new() -> Self {
         Aes {
             registers: AES_BASE,
             client: OptionalCell::empty(),

@@ -151,7 +151,7 @@ pub struct Ios<'a> {
 }
 
 impl<'a> Ios<'a> {
-    pub fn new() -> Ios<'a> {
+    pub fn new() -> Self {
         Ios {
             registers: IOS_BASE,
             i2c_slave_client: OptionalCell::empty(),

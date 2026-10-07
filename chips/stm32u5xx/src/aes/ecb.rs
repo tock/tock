@@ -85,7 +85,7 @@ pub struct Aes<'a, K: AESKeySize> {
 
 impl<'a, K: AESKeySize> Aes<'a, K> {
     // default mode: ECB , encrypting
-    pub const fn new(base: AesRegistersManager) -> Aes<'a, K> {
+    pub const fn new(base: AesRegistersManager) -> Self {
         Aes {
             register_manager: base,
             mode: Cell::new(AESMode::ECB),

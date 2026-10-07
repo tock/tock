@@ -443,7 +443,7 @@ impl DmaElement for u8 {
 }
 
 impl DmaElement for u16 {
-    const DATA_TRANSFER_ID: u16 = 1;
+    const DATA_TRANSFER_ID: Self = 1;
 }
 
 impl DmaElement for u32 {
@@ -460,7 +460,7 @@ impl DmaChannel {
     /// Note that channels 0 through 3 are the only channels capable of periodic
     /// transfers. Consider reserving these channels for that use case.
     pub(crate) const fn new(channel: usize) -> Self {
-        DmaChannel {
+        Self {
             base: DMA_BASE,
             mux: DMA_MUX_BASE,
             channel,

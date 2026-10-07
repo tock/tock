@@ -514,7 +514,7 @@ impl DeferredCallClient for Rtc<'_> {
 }
 
 impl<'a> Rtc<'a> {
-    pub fn new(base: StaticRef<RtcRegisters>) -> Rtc<'a> {
+    pub fn new(base: StaticRef<RtcRegisters>) -> Self {
         Rtc {
             registers: base,
             clock: OptionalCell::empty(),

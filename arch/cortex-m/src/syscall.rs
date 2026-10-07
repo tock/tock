@@ -257,13 +257,13 @@ fn write_usize_to_u8_slice(val: usize, slice: &mut [u8], index: usize) {
 
 impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
     type Error = ErrorCode;
-    fn try_from(ss: &[u8]) -> Result<CortexMStoredState, Self::Error> {
-        if ss.len() == size_of::<CortexMStoredState>() + METADATA_LEN * USIZE_SZ
+    fn try_from(ss: &[u8]) -> Result<Self, Self::Error> {
+        if ss.len() == size_of::<Self>() + METADATA_LEN * USIZE_SZ
             && usize_from_u8_slice(ss, VERSION_IDX)? == VERSION
             && usize_from_u8_slice(ss, SIZE_IDX)? == STORED_STATE_SIZE
             && usize_from_u8_slice(ss, TAG_IDX)? == u32::from_le_bytes(TAG) as usize
         {
-            let mut res = CortexMStoredState {
+            let mut res = Self {
                 regs: [0; 8],
                 yield_pc: usize_from_u8_slice(ss, YIELDPC_IDX)?,
                 psr: usize_from_u8_slice(ss, PSR_IDX)?,
@@ -285,8 +285,8 @@ impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
 pub struct SysCall<A: CortexMVariant>(PhantomData<A>);
 
 impl<A: CortexMVariant> SysCall<A> {
-    pub const unsafe fn new() -> SysCall<A> {
-        SysCall(PhantomData)
+    pub const unsafe fn new() -> Self {
+        Self(PhantomData)
     }
 }
 

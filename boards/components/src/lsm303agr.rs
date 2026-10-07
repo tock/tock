@@ -73,8 +73,8 @@ impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'st
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         mem_cap: CAP,
-    ) -> Lsm303agrI2CComponent<I, CAP> {
-        Lsm303agrI2CComponent {
+    ) -> Self {
+        Self {
             i2c_mux,
             accelerometer_i2c_address: accelerometer_i2c_address
                 .unwrap_or(lsm303xx::ACCELEROMETER_BASE_ADDRESS),

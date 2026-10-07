@@ -60,27 +60,27 @@ impl From<tock_tbf::types::TbfParseError> for ProcessBinaryError {
     /// We note that the process binary error is because a TBF header failed to
     /// parse, and just pass through the parse error.
     fn from(error: tock_tbf::types::TbfParseError) -> Self {
-        ProcessBinaryError::TbfHeaderParseFailure(error)
+        Self::TbfHeaderParseFailure(error)
     }
 }
 
 impl fmt::Debug for ProcessBinaryError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ProcessBinaryError::TbfHeaderNotFound => {
+            Self::TbfHeaderNotFound => {
                 write!(f, "Could not find TBF header")
             }
 
-            ProcessBinaryError::TbfHeaderParseFailure(tbf_parse_error) => {
+            Self::TbfHeaderParseFailure(tbf_parse_error) => {
                 writeln!(f, "Error parsing TBF header")?;
                 write!(f, "{:?}", tbf_parse_error)
             }
 
-            ProcessBinaryError::NotEnoughFlash => {
+            Self::NotEnoughFlash => {
                 write!(f, "Not enough flash available for TBF")
             }
 
-            ProcessBinaryError::IncorrectFlashAddress {
+            Self::IncorrectFlashAddress {
                 actual_address,
                 expected_address,
             } => write!(
@@ -89,7 +89,7 @@ impl fmt::Debug for ProcessBinaryError {
                 actual_address, expected_address
             ),
 
-            ProcessBinaryError::IncompatibleKernelVersion { version } => match version {
+            Self::IncompatibleKernelVersion { version } => match version {
                 Some((major, minor)) => write!(
                     f,
                     "Process is incompatible with the kernel. Running: {}.{}, Requested: {}.{}",
@@ -101,11 +101,11 @@ impl fmt::Debug for ProcessBinaryError {
                 None => write!(f, "Process did not provide a TBF kernel version header"),
             },
 
-            ProcessBinaryError::NotEnabledProcess => {
+            Self::NotEnabledProcess => {
                 write!(f, "Process marked not enabled")
             }
 
-            ProcessBinaryError::Padding => {
+            Self::Padding => {
                 write!(f, "Process item is just padding")
             }
         }

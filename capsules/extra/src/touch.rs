@@ -64,8 +64,8 @@ pub struct App {
 }
 
 impl Default for App {
-    fn default() -> App {
-        App {
+    fn default() -> Self {
+        Self {
             ack: true,
             dropped_events: 0,
             x: 0,
@@ -96,7 +96,7 @@ impl<'a> Touch<'a> {
         multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
         screen: Option<&'a dyn hil::screen::Screen<'a>>,
         grant: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
-    ) -> Touch<'a> {
+    ) -> Self {
         Touch {
             touch,
             multi_touch,

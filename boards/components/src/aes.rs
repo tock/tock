@@ -162,8 +162,8 @@ impl<
         aes: &'static A,
 
         mem_cap: CAP,
-    ) -> AesDriverComponent<K, A, CAP> {
-        AesDriverComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             aes,

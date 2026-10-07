@@ -64,8 +64,8 @@ pub struct AlarmMuxComponent<A: 'static + time::Alarm<'static>> {
 }
 
 impl<A: 'static + time::Alarm<'static>> AlarmMuxComponent<A> {
-    pub fn new(alarm: &'static A) -> AlarmMuxComponent<A> {
-        AlarmMuxComponent { alarm }
+    pub fn new(alarm: &'static A) -> Self {
+        Self { alarm }
     }
 }
 
@@ -99,8 +99,8 @@ impl<A: 'static + time::Alarm<'static>, CAP: MemoryAllocationCapability + 'stati
         driver_num: usize,
         mux: &'static MuxAlarm<'static, A>,
         mem_cap: CAP,
-    ) -> AlarmDriverComponent<A, CAP> {
-        AlarmDriverComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             alarm_mux: mux,

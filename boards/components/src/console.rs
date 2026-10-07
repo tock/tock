@@ -73,11 +73,8 @@ pub struct UartMuxComponent<const RX_BUF_LEN: usize> {
 }
 
 impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
-    pub fn new(
-        uart: &'static dyn uart::Uart<'static>,
-        baud_rate: u32,
-    ) -> UartMuxComponent<RX_BUF_LEN> {
-        UartMuxComponent { uart, baud_rate }
+    pub fn new(uart: &'static dyn uart::Uart<'static>, baud_rate: u32) -> Self {
+        Self { uart, baud_rate }
     }
 }
 
@@ -144,8 +141,8 @@ impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize, CAP: MemoryAllocationCapa
         driver_num: usize,
         uart_mux: &'static MuxUart,
         mem_cap: CAP,
-    ) -> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN, CAP> {
-        ConsoleComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             uart_mux,
@@ -224,8 +221,8 @@ impl<A: 'static + time::Alarm<'static>, CAP: MemoryAllocationCapability + 'stati
         retry_timer: u32,
         write_timer: u32,
         mem_cap: CAP,
-    ) -> ConsoleOrderedComponent<A, CAP> {
-        ConsoleOrderedComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             uart_mux,

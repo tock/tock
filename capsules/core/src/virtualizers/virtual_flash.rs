@@ -81,7 +81,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'_, F> {
 }
 
 impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
-    pub const fn new(flash: &'a F) -> MuxFlash<'a, F> {
+    pub const fn new(flash: &'a F) -> Self {
         MuxFlash {
             flash,
             users: List::new(),
@@ -149,12 +149,12 @@ pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
     mux: &'a MuxFlash<'a, F>,
     buffer: TakeCell<'static, F::Page>,
     operation: Cell<Op>,
-    next: ListLink<'a, FlashUser<'a, F>>,
-    client: OptionalCell<&'a dyn hil::flash::Client<FlashUser<'a, F>>>,
+    next: ListLink<'a, Self>,
+    client: OptionalCell<&'a dyn hil::flash::Client<Self>>,
 }
 
 impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
-    pub fn new(mux: &'a MuxFlash<'a, F>) -> FlashUser<'a, F> {
+    pub fn new(mux: &'a MuxFlash<'a, F>) -> Self {
         FlashUser {
             mux,
             buffer: TakeCell::empty(),
@@ -202,8 +202,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'_, F> {
     }
 }
 
-impl<'a, F: hil::flash::Flash> ListNode<'a, FlashUser<'a, F>> for FlashUser<'a, F> {
-    fn next(&'a self) -> &'a ListLink<'a, FlashUser<'a, F>> {
+impl<'a, F: hil::flash::Flash> ListNode<'a, Self> for FlashUser<'a, F> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

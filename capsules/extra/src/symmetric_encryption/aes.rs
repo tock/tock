@@ -75,7 +75,7 @@ impl<
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> AesDriver<'static, A, K> {
+    ) -> Self {
         AesDriver {
             aes,
             active: Cell::new(false),

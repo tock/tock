@@ -46,8 +46,8 @@ pub struct Rtc {
 }
 
 impl Rtc {
-    pub const fn new(base: StaticRef<RtcRegisters>) -> Rtc {
-        Rtc { registers: base }
+    pub const fn new(base: StaticRef<RtcRegisters>) -> Self {
+        Self { registers: base }
     }
 
     /// Disable the RTC so it does not generate interrupts.

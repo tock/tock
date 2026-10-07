@@ -196,7 +196,7 @@ impl AppRegionHeader {
 
         let xor = version_and_length ^ shortid;
 
-        Some(AppRegionHeader {
+        Some(Self {
             version_and_length,
             shortid,
             xor,
@@ -216,7 +216,7 @@ impl AppRegionHeader {
         let xor_slice = bytes[8..12].try_into().ok()?;
         let xor = u32::from_le_bytes(xor_slice);
 
-        Some(AppRegionHeader {
+        Some(Self {
             version_and_length,
             shortid,
             xor,
@@ -308,9 +308,9 @@ pub enum NvmCommand {
 impl NvmCommand {
     fn offset(&self) -> usize {
         match self {
-            NvmCommand::Read { offset } => *offset,
-            NvmCommand::Write { offset } => *offset,
-            NvmCommand::GetSize => 0,
+            Self::Read { offset } => *offset,
+            Self::Write { offset } => *offset,
+            Self::GetSize => 0,
         }
     }
 

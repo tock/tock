@@ -18,19 +18,19 @@ impl PowerOfTwo {
     }
 
     /// Converts a number two the nearest [`PowerOfTwo`] less-than-or-equal to it.
-    pub fn floor<F: Into<u32>>(f: F) -> PowerOfTwo {
-        PowerOfTwo(log_base_two(f.into()))
+    pub fn floor<F: Into<u32>>(f: F) -> Self {
+        Self(log_base_two(f.into()))
     }
 
     /// Converts a number two the nearest [`PowerOfTwo`] greater-than-or-equal to
     /// it.
-    pub fn ceiling<F: Into<u32>>(f: F) -> PowerOfTwo {
-        PowerOfTwo(log_base_two(f.into().next_power_of_two()))
+    pub fn ceiling<F: Into<u32>>(f: F) -> Self {
+        Self(log_base_two(f.into().next_power_of_two()))
     }
 
     /// Creates a new [`PowerOfTwo`] representing the number zero.
-    pub fn zero() -> PowerOfTwo {
-        PowerOfTwo(0)
+    pub fn zero() -> Self {
+        Self(0)
     }
 
     /// Converts a [`PowerOfTwo`] to a number.

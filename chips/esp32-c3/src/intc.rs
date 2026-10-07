@@ -63,7 +63,7 @@ pub struct Intc {
 
 impl Intc {
     pub const fn new(base: StaticRef<IntcRegisters>) -> Self {
-        Intc {
+        Self {
             registers: base,
             saved: Cell::new(LocalRegisterCopy::new(0)),
         }

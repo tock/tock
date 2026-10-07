@@ -346,7 +346,7 @@ pub struct LPCTimer<'a> {
 }
 
 impl<'a> LPCTimer<'a> {
-    pub const fn new() -> LPCTimer<'a> {
+    pub const fn new() -> Self {
         LPCTimer {
             registers: CTIMER0_BASE,
             client: OptionalCell::empty(),

@@ -56,8 +56,8 @@ pub struct SysInfo {
 }
 
 impl SysInfo {
-    pub const fn new() -> SysInfo {
-        SysInfo {
+    pub const fn new() -> Self {
+        Self {
             registers: SYSINFO_BASE,
         }
     }

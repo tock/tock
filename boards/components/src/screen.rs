@@ -161,8 +161,8 @@ impl<const SCREEN_BUF_LEN: usize, CAP: MemoryAllocationCapability + 'static>
         screen: &'static dyn kernel::hil::screen::Screen,
         screen_setup: Option<&'static dyn kernel::hil::screen::ScreenSetup>,
         mem_cap: CAP,
-    ) -> ScreenComponent<SCREEN_BUF_LEN, CAP> {
-        ScreenComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             screen,
@@ -241,8 +241,8 @@ impl<
         screen: &'static S,
         apps_regions: &'static [capsules_extra::screen::screen_shared::AppScreenRegion],
         mem_cap: CAP,
-    ) -> ScreenSharedComponent<SCREEN_BUF_LEN, S, CAP> {
-        ScreenSharedComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             screen,

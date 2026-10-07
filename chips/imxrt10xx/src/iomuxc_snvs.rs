@@ -167,8 +167,8 @@ pub struct IomuxcSnvs {
 }
 
 impl IomuxcSnvs {
-    pub const fn new() -> IomuxcSnvs {
-        IomuxcSnvs {
+    pub const fn new() -> Self {
+        Self {
             registers: IOMUXC_SNVS_BASE,
         }
     }

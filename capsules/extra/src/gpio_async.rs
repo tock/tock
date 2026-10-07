@@ -67,7 +67,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     pub fn new(
         ports: &'a [&'a Port],
         grants: Grant<App, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> GPIOAsync<'a, Port> {
+    ) -> Self {
         GPIOAsync {
             ports,
             grants,

@@ -38,11 +38,11 @@ pub enum Error {
 impl From<Error> for ErrorCode {
     fn from(val: Error) -> Self {
         match val {
-            Error::AddressNak | Error::DataNak => ErrorCode::NOACK,
-            Error::ArbitrationLost => ErrorCode::RESERVE,
-            Error::Overrun => ErrorCode::SIZE,
-            Error::NotSupported => ErrorCode::NOSUPPORT,
-            Error::Busy => ErrorCode::BUSY,
+            Error::AddressNak | Error::DataNak => Self::NOACK,
+            Error::ArbitrationLost => Self::RESERVE,
+            Error::Overrun => Self::SIZE,
+            Error::NotSupported => Self::NOSUPPORT,
+            Error::Busy => Self::BUSY,
         }
     }
 }
@@ -50,12 +50,12 @@ impl From<Error> for ErrorCode {
 impl Display for Error {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         let display_str = match *self {
-            Error::AddressNak => "I2C Address Not Acknowledged",
-            Error::DataNak => "I2C Data Not Acknowledged",
-            Error::ArbitrationLost => "I2C Bus Arbitration Lost",
-            Error::Overrun => "I2C receive overrun",
-            Error::NotSupported => "I2C/SMBus command not supported",
-            Error::Busy => "I2C/SMBus is busy",
+            Self::AddressNak => "I2C Address Not Acknowledged",
+            Self::DataNak => "I2C Data Not Acknowledged",
+            Self::ArbitrationLost => "I2C Bus Arbitration Lost",
+            Self::Overrun => "I2C receive overrun",
+            Self::NotSupported => "I2C/SMBus command not supported",
+            Self::Busy => "I2C/SMBus is busy",
         };
         write!(fmt, "{}", display_str)
     }

@@ -1399,7 +1399,7 @@ impl Rcc {
         }
 
         // Select RTC clock source
-        let source_num = Rcc::source_into_u32(source);
+        let source_num = Self::source_into_u32(source);
         self.registers.bdcr.modify(BDCR::RTCSEL.val(source_num));
 
         // Enable RTC clock
@@ -1423,7 +1423,7 @@ pub(crate) enum PLLP {
 impl From<PLLP> for usize {
     // (variant_value + 1) * 2 = X for X in DivideByX
     fn from(item: PLLP) -> Self {
-        (item as usize + 1) << 1
+        (item as Self + 1) << 1
     }
 }
 
@@ -1498,7 +1498,7 @@ pub enum AHBPrescaler {
 }
 
 impl From<AHBPrescaler> for usize {
-    fn from(item: AHBPrescaler) -> usize {
+    fn from(item: AHBPrescaler) -> Self {
         match item {
             AHBPrescaler::DivideBy1 => 1,
             AHBPrescaler::DivideBy2 => 2,

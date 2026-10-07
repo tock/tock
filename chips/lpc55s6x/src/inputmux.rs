@@ -264,7 +264,7 @@ enum_from_primitive! {
 
 impl Inputmux {
     pub const fn new() -> Self {
-        Inputmux {
+        Self {
             registers: INPUTMUX_BASE,
         }
     }

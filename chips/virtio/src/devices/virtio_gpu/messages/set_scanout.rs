@@ -52,6 +52,6 @@ impl VirtIOGPUResp for SetScanoutResp {
         ctrl_header: CtrlHeader,
         _src: &mut impl Iterator<Item = u8>,
     ) -> Result<Self, ErrorCode> {
-        Ok(SetScanoutResp { ctrl_header })
+        Ok(Self { ctrl_header })
     }
 }

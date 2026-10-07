@@ -68,7 +68,7 @@ impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
         i2c_address: u8,
         alarm_mux: &'static MuxAlarm<'static, A>,
     ) -> Self {
-        DFRobotRainFallSensorComponent {
+        Self {
             i2c_mux: i2c,
             i2c_address,
             alarm_mux,

@@ -100,8 +100,8 @@ pub struct App {
 }
 
 impl Default for App {
-    fn default() -> App {
-        App {
+    fn default() -> Self {
+        Self {
             pending_command: false,
             command: ScreenCommand::Nop,
             width: 0,
@@ -127,7 +127,7 @@ impl<'a> Screen<'a> {
         screen_setup: Option<&'a dyn hil::screen::ScreenSetup<'a>>,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
-    ) -> Screen<'a> {
+    ) -> Self {
         Screen {
             screen,
             screen_setup,

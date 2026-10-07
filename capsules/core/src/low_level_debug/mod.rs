@@ -37,7 +37,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
         buffer: &'static mut [u8],
         uart: &'u U,
         grant: Grant<AppData, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> LowLevelDebug<'u, U> {
+    ) -> Self {
         LowLevelDebug {
             buffer: Cell::new(Some(buffer)),
             grant,

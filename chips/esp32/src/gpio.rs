@@ -152,7 +152,7 @@ impl<'a> GpioPin<'a> {
         gpio_base: StaticRef<GpioRegisters>,
         iomux_base: StaticRef<IoMuxRegisters>,
         pin: Field<u32, pins::Register>,
-    ) -> GpioPin<'a> {
+    ) -> Self {
         GpioPin {
             registers: gpio_base,
             iomux_registers: iomux_base,

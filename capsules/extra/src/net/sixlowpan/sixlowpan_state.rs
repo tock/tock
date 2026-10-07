@@ -344,7 +344,7 @@ impl<'a> TxState<'a> {
     ///
     /// `sixlowpan` - A reference to a `SixlowpanState` object, which contains
     /// global state for the entire Sixlowpan layer.
-    pub fn new(sixlowpan: &'a dyn SixlowpanState<'a>) -> TxState<'a> {
+    pub fn new(sixlowpan: &'a dyn SixlowpanState<'a>) -> Self {
         TxState {
             // Externally settable fields
             src_pan: Cell::new(0),
@@ -646,11 +646,11 @@ pub struct RxState<'a> {
     // The time when packet reassembly started for the current packet.
     start_time: Cell<u32>,
 
-    next: ListLink<'a, RxState<'a>>,
+    next: ListLink<'a, Self>,
 }
 
-impl<'a> ListNode<'a, RxState<'a>> for RxState<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, RxState<'a>> {
+impl<'a> ListNode<'a, Self> for RxState<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }
@@ -662,7 +662,7 @@ impl<'a> RxState<'a> {
     ///
     /// `packet` - A buffer for reassembling an IPv6 packet. Currently, we
     /// assume this to be 1280 bytes long (the minimum IPv6 MTU size).
-    pub fn new(packet: &'static mut [u8]) -> RxState<'a> {
+    pub fn new(packet: &'static mut [u8]) -> Self {
         RxState {
             packet: TakeCell::new(packet),
             bitmap: MapCell::new(Bitmap::new()),
@@ -881,7 +881,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// * `clock` - A implementation of `Alarm` used for tracking the timing of
     ///   frame arrival. The clock should be continue running during sleep and
     ///   have an accuracy of at least 60 seconds.
-    pub fn new(ctx_store: C, clock: &'a A) -> Sixlowpan<'a, A, C> {
+    pub fn new(ctx_store: C, clock: &'a A) -> Self {
         Sixlowpan {
             ctx_store,
             clock,

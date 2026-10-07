@@ -166,7 +166,7 @@ impl<'a, I: i2c::I2CDevice> Lsm303dlhcI2C<'a, I> {
         i2c_magnetometer: &'a I,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Lsm303dlhcI2C<'a, I> {
+    ) -> Self {
         // setup and return struct
         Lsm303dlhcI2C {
             config_in_progress: Cell::new(false),

@@ -119,7 +119,7 @@ impl<'t, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimerUptime<'t, R,
     /// [`LiteXTimer`]. If this register is not present (i.e. the
     /// uptime feature is disabled), this will result in undefined
     /// behavior.
-    pub const unsafe fn new(timer: &'t LiteXTimer<'t, R, F>) -> LiteXTimerUptime<'t, R, F> {
+    pub const unsafe fn new(timer: &'t LiteXTimer<'t, R, F>) -> Self {
         LiteXTimerUptime { timer }
     }
 }
@@ -358,10 +358,7 @@ pub struct LiteXAlarm<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> {
 }
 
 impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, R, F> {
-    pub fn new(
-        uptime: &'t LiteXTimerUptime<'t, R, F>,
-        timer: &'t LiteXTimer<'t, R, F>,
-    ) -> LiteXAlarm<'t, 'c, R, F> {
+    pub fn new(uptime: &'t LiteXTimerUptime<'t, R, F>, timer: &'t LiteXTimer<'t, R, F>) -> Self {
         LiteXAlarm {
             uptime,
             timer,

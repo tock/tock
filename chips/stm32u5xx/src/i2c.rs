@@ -297,10 +297,10 @@ pub enum I2cStatus {
 impl fmt::Display for I2cStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            I2cStatus::Idle => write!(f, "IDLE"),
-            I2cStatus::Writing => write!(f, "WRITING"),
-            I2cStatus::Reading => write!(f, "READING"),
-            I2cStatus::WritingReading => write!(f, "WRITING_READING"),
+            Self::Idle => write!(f, "IDLE"),
+            Self::Writing => write!(f, "WRITING"),
+            Self::Reading => write!(f, "READING"),
+            Self::WritingReading => write!(f, "WRITING_READING"),
         }
     }
 }
@@ -314,8 +314,8 @@ pub enum I2cDirection {
 impl fmt::Display for I2cDirection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            I2cDirection::To => write!(f, "TO"),
-            I2cDirection::From => write!(f, "FROM"),
+            Self::To => write!(f, "TO"),
+            Self::From => write!(f, "FROM"),
         }
     }
 }

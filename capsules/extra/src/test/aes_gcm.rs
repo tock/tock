@@ -29,7 +29,7 @@ pub struct Test<'a, A: AESGCM<'a, AES128>> {
 }
 
 impl<'a, A: AESGCM<'a, AES128>> Test<'a, A> {
-    pub fn new(aes_gcm: &'a A, buf: &'static mut [u8]) -> Test<'a, A> {
+    pub fn new(aes_gcm: &'a A, buf: &'static mut [u8]) -> Self {
         Test {
             aes_gcm,
             buf: TakeCell::new(buf),

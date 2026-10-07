@@ -347,7 +347,7 @@ impl ReadOnlyProcessBuffer {
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
     pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
-        ReadOnlyProcessBuffer {
+        Self {
             ptr,
             len,
             process_id: Some(process_id),
@@ -466,7 +466,7 @@ unsafe impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 
 impl Default for ReadOnlyProcessBuffer {
     fn default() -> Self {
-        ReadOnlyProcessBuffer {
+        Self {
             ptr: core::ptr::null_mut::<u8>(),
             len: 0,
             process_id: None,
@@ -540,7 +540,7 @@ impl ReadWriteProcessBuffer {
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
     pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
-        ReadWriteProcessBuffer {
+        Self {
             ptr,
             len,
             process_id: Some(process_id),
@@ -936,10 +936,7 @@ impl ReadableProcessSlice {
     }
 
     /// Iterate the slice in chunks.
-    pub fn chunks(
-        &self,
-        chunk_size: usize,
-    ) -> impl core::iter::Iterator<Item = &ReadableProcessSlice> {
+    pub fn chunks(&self, chunk_size: usize) -> impl core::iter::Iterator<Item = &Self> {
         self.slice
             .chunks(chunk_size)
             .map(cast_byte_slice_to_process_slice)
@@ -957,14 +954,14 @@ impl ReadableProcessSlice {
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
     #[deprecated = "Use ReadableProcessSlice::get instead"]
-    pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&ReadableProcessSlice> {
+    pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&Self> {
         range.get(self)
     }
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
     #[deprecated = "Use ReadableProcessSlice::get instead"]
-    pub fn get_to(&self, range: RangeTo<usize>) -> Option<&ReadableProcessSlice> {
+    pub fn get_to(&self, range: RangeTo<usize>) -> Option<&Self> {
         range.get(self)
     }
 }
@@ -1177,10 +1174,7 @@ impl WriteableProcessSlice {
     }
 
     /// Iterate over the slice in chunks.
-    pub fn chunks(
-        &self,
-        chunk_size: usize,
-    ) -> impl core::iter::Iterator<Item = &WriteableProcessSlice> {
+    pub fn chunks(&self, chunk_size: usize) -> impl core::iter::Iterator<Item = &Self> {
         self.slice
             .chunks(chunk_size)
             .map(cast_cell_slice_to_process_slice)
@@ -1198,14 +1192,14 @@ impl WriteableProcessSlice {
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
     #[deprecated = "Use WriteableProcessSlice::get instead"]
-    pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&WriteableProcessSlice> {
+    pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&Self> {
         range.get(self)
     }
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
     #[deprecated = "Use WriteableProcessSlice::get instead"]
-    pub fn get_to(&self, range: RangeTo<usize>) -> Option<&WriteableProcessSlice> {
+    pub fn get_to(&self, range: RangeTo<usize>) -> Option<&Self> {
         range.get(self)
     }
 }

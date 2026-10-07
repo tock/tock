@@ -287,7 +287,6 @@ cognitive_complexity = "allow"
 branches_sharing_code = "allow"
 
 
-use_self = "allow"
 or_fun_call = "allow"
 missing_const_for_fn = "allow"
 equatable_if_let = "allow"

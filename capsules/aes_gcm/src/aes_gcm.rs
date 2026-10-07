@@ -51,7 +51,7 @@ pub struct Aes128Gcm<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<
 }
 
 impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>> Aes128Gcm<'a, A> {
-    pub fn new(aes: &'a A, crypt_buf: &'static mut [u8]) -> Aes128Gcm<'a, A> {
+    pub fn new(aes: &'a A, crypt_buf: &'static mut [u8]) -> Self {
         Aes128Gcm {
             aes,
 

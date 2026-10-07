@@ -167,8 +167,8 @@ pub trait ClockClient {
 
 impl Clock {
     /// Constructor
-    pub const fn new() -> Clock {
-        Clock {
+    pub const fn new() -> Self {
+        Self {
             registers: CLOCK_BASE,
             client: OptionalCell::empty(),
         }

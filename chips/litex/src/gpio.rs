@@ -63,10 +63,7 @@ pub struct LiteXGPIOController<'client, R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<'client, R: LiteXSoCRegisterConfiguration> LiteXGPIOController<'client, R> {
-    pub fn new(
-        base: StaticRef<LiteXGPIORegisters<R>>,
-        gpio_count: usize,
-    ) -> LiteXGPIOController<'client, R> {
+    pub fn new(base: StaticRef<LiteXGPIORegisters<R>>, gpio_count: usize) -> Self {
         // The number of GPIOs may not be larger than the bit width of
         // the supplied register layout
         //
@@ -248,10 +245,7 @@ pub struct LiteXGPIOPin<'controller, 'client, R: LiteXSoCRegisterConfiguration> 
 }
 
 impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> LiteXGPIOPin<'controller, 'client, R> {
-    fn new(
-        controller: &'controller LiteXGPIOController<'client, R>,
-        index: usize,
-    ) -> LiteXGPIOPin<'controller, 'client, R> {
+    fn new(controller: &'controller LiteXGPIOController<'client, R>, index: usize) -> Self {
         LiteXGPIOPin { controller, index }
     }
 

@@ -98,8 +98,8 @@ pub struct Dbg {
 }
 
 impl Dbg {
-    pub const fn new() -> Dbg {
-        Dbg {
+    pub const fn new() -> Self {
+        Self {
             registers: DBG_BASE,
         }
     }

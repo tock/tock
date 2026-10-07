@@ -46,8 +46,8 @@ impl<T: 'static + hil::sensors::RainFallDriver<'static>, CAP: MemoryAllocationCa
         driver_num: usize,
         sensor: &'static T,
         mem_cap: CAP,
-    ) -> RainFallComponent<T, CAP> {
-        RainFallComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             sensor,

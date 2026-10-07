@@ -49,7 +49,7 @@ impl<'a, I: i2c::I2CMaster<'a>> I2CMasterDriver<'a, I> {
         i2c: &'a I,
         buf: &'static mut [u8],
         apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
-    ) -> I2CMasterDriver<'a, I> {
+    ) -> Self {
         I2CMasterDriver {
             i2c,
             buf: TakeCell::new(buf),

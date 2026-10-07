@@ -211,8 +211,8 @@ pub enum UartClockSelection {
 }
 
 impl Ccm {
-    pub const fn new() -> Ccm {
-        Ccm {
+    pub const fn new() -> Self {
+        Self {
             registers: CCM_BASE,
         }
     }

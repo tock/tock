@@ -924,7 +924,7 @@ pub struct GpioPin<'a> {
 }
 
 impl<'a> GpioPin<'a> {
-    pub const fn new(base: StaticRef<GpioRegisters>, pin: Pin) -> GpioPin<'a> {
+    pub const fn new(base: StaticRef<GpioRegisters>, pin: Pin) -> Self {
         GpioPin {
             registers: base,
             pin,

@@ -61,8 +61,8 @@ pub struct ClkGen {
 }
 
 impl ClkGen {
-    pub const fn new() -> ClkGen {
-        ClkGen {
+    pub const fn new() -> Self {
+        Self {
             registers: CLKGEN_BASE,
         }
     }

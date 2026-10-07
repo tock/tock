@@ -59,8 +59,8 @@ impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> SHT3xCom
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         alarm_mux: &'static MuxAlarm<'static, A>,
-    ) -> SHT3xComponent<A, I> {
-        SHT3xComponent {
+    ) -> Self {
+        Self {
             i2c_mux,
             i2c_address,
             alarm_mux,

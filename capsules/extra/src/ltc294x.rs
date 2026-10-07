@@ -153,7 +153,7 @@ impl<'a, I: i2c::I2CDevice> LTC294X<'a, I> {
         i2c: &'a I,
         interrupt_pin: Option<&'a dyn gpio::InterruptPin<'a>>,
         buffer: &'static mut [u8],
-    ) -> LTC294X<'a, I> {
+    ) -> Self {
         LTC294X {
             i2c,
             interrupt_pin,
@@ -451,7 +451,7 @@ impl<'a, I: i2c::I2CDevice> LTC294XDriver<'a, I> {
     pub fn new(
         ltc: &'a LTC294X<'a, I>,
         grants: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> LTC294XDriver<'a, I> {
+    ) -> Self {
         LTC294XDriver {
             ltc294x: ltc,
             grants,

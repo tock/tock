@@ -132,7 +132,7 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
         buffer: &'static mut [u8],
         apps_regions: &'a [AppScreenRegion],
-    ) -> ScreenShared<'a, S> {
+    ) -> Self {
         ScreenShared {
             screen,
             apps: grant,

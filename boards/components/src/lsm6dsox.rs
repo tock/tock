@@ -73,8 +73,8 @@ impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'st
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         mem_cap: CAP,
-    ) -> Lsm6dsoxtrI2CComponent<I, CAP> {
-        Lsm6dsoxtrI2CComponent {
+    ) -> Self {
+        Self {
             i2c_mux,
             i2c_address,
             board_kernel,

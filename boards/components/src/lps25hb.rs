@@ -52,7 +52,7 @@ impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'st
         driver_num: usize,
         mem_cap: CAP,
     ) -> Self {
-        Lps25hbComponent {
+        Self {
             i2c_mux,
             i2c_address,
             interrupt_pin,

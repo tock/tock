@@ -76,8 +76,8 @@ impl SysTick {
     ///
     /// Use this constructor if the core implementation has a pre-calibration
     /// value in hardware.
-    pub fn new() -> SysTick {
-        SysTick {
+    pub fn new() -> Self {
+        Self {
             hertz: Cell::new(0),
             external_clock: false,
         }
@@ -91,7 +91,7 @@ impl SysTick {
     /// * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU
     ///   speed.
-    pub fn new_with_calibration(clock_speed: u32) -> SysTick {
+    pub fn new_with_calibration(clock_speed: u32) -> Self {
         Self {
             hertz: Cell::new(clock_speed),
             external_clock: false,
@@ -108,8 +108,8 @@ impl SysTick {
     /// * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU
     ///   speed.
-    pub fn new_with_calibration_and_external_clock(clock_speed: u32) -> SysTick {
-        let mut res = SysTick::new();
+    pub fn new_with_calibration_and_external_clock(clock_speed: u32) -> Self {
+        let mut res = Self::new();
         res.hertz.set(clock_speed);
         res.external_clock = true;
         res

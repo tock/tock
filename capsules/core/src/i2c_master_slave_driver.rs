@@ -86,7 +86,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> I2CMasterSlaveDriver<'a, I> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> I2CMasterSlaveDriver<'a, I> {
+    ) -> Self {
         I2CMasterSlaveDriver {
             i2c,
             listening: Cell::new(false),

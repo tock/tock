@@ -114,13 +114,13 @@ pub enum Error {
 impl From<Error> for ErrorCode {
     fn from(val: Error) -> Self {
         match val {
-            Error::ArbitrationLost => ErrorCode::RESERVE,
-            Error::BusOff => ErrorCode::OFF,
-            Error::Form => ErrorCode::INVAL,
-            Error::BitRecessive | Error::BitDominant => ErrorCode::BUSY,
-            Error::Ack | Error::Transmission => ErrorCode::NOACK,
+            Error::ArbitrationLost => Self::RESERVE,
+            Error::BusOff => Self::OFF,
+            Error::Form => Self::INVAL,
+            Error::BitRecessive | Error::BitDominant => Self::BUSY,
+            Error::Ack | Error::Transmission => Self::NOACK,
             Error::Crc | Error::SetBySoftware | Error::Warning | Error::Passive | Error::Stuff => {
-                ErrorCode::FAIL
+                Self::FAIL
             }
         }
     }

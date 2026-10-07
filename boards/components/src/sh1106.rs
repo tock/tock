@@ -49,8 +49,8 @@ impl<I: hil::i2c::I2CMaster<'static> + 'static> Sh1106Component<I> {
     pub fn new(
         i2c_device: &'static capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I>,
         use_charge_pump: bool,
-    ) -> Sh1106Component<I> {
-        Sh1106Component {
+    ) -> Self {
+        Self {
             i2c_device,
             use_charge_pump,
         }

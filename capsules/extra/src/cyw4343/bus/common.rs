@@ -18,13 +18,13 @@ pub(crate) enum BackplaneTask {
 
 impl BackplaneTask {
     pub(crate) const fn write(addr: RegAddr, val: u32, len: RegLen) -> Self {
-        BackplaneTask::Write(len, addr, val)
+        Self::Write(len, addr, val)
     }
 
     // `jmp` is a function that should return the value of the next index from the
     // operations list based on the current operation's result.
     pub(crate) const fn read(addr: RegAddr, len: RegLen, jmp: Option<fn(u32, &mut u8)>) -> Self {
-        BackplaneTask::Read(len, addr, jmp)
+        Self::Read(len, addr, jmp)
     }
 }
 

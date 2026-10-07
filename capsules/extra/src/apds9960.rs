@@ -123,7 +123,7 @@ impl<'a, I: i2c::I2CDevice> APDS9960<'a, I> {
         i2c: &'a I,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-    ) -> APDS9960<'a, I> {
+    ) -> Self {
         // setup and return struct
         APDS9960 {
             i2c,

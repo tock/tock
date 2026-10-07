@@ -484,25 +484,25 @@ pub enum TlvType {
 impl From<u8> for TlvType {
     fn from(tlv_type: u8) -> Self {
         match tlv_type {
-            0 => TlvType::SourceAddress,
-            1 => TlvType::Mode,
-            2 => TlvType::Timeout,
-            3 => TlvType::Challenge,
-            4 => TlvType::Response,
-            5 => TlvType::LinkLayerFrameCounter,
-            8 => TlvType::MleFrameCounter,
-            10 => TlvType::Address16,
-            11 => TlvType::LeaderData,
-            12 => TlvType::NetworkData,
-            13 => TlvType::TlvRequest,
-            14 => TlvType::ScanMask,
-            15 => TlvType::Connectivity,
-            16 => TlvType::LinkMargin,
-            17 => TlvType::Status,
-            18 => TlvType::Version,
-            24 => TlvType::ActiveOperationalDataset,
-            25 => TlvType::PendingOperationalDataset,
-            _ => TlvType::NotPresent,
+            0 => Self::SourceAddress,
+            1 => Self::Mode,
+            2 => Self::Timeout,
+            3 => Self::Challenge,
+            4 => Self::Response,
+            5 => Self::LinkLayerFrameCounter,
+            8 => Self::MleFrameCounter,
+            10 => Self::Address16,
+            11 => Self::LeaderData,
+            12 => Self::NetworkData,
+            13 => Self::TlvRequest,
+            14 => Self::ScanMask,
+            15 => Self::Connectivity,
+            16 => Self::LinkMargin,
+            17 => Self::Status,
+            18 => Self::Version,
+            24 => Self::ActiveOperationalDataset,
+            25 => Self::PendingOperationalDataset,
+            _ => Self::NotPresent,
         }
     }
 }
@@ -510,24 +510,24 @@ impl From<u8> for TlvType {
 impl From<&Tlv<'_>> for TlvType {
     fn from(tlv: &Tlv<'_>) -> Self {
         match *tlv {
-            Tlv::SourceAddress(_) => TlvType::SourceAddress,
-            Tlv::Mode(_) => TlvType::Mode,
-            Tlv::Timeout(_) => TlvType::Timeout,
-            Tlv::Challenge(_) => TlvType::Challenge,
-            Tlv::Response(_) => TlvType::Response,
-            Tlv::LinkLayerFrameCounter(_) => TlvType::LinkLayerFrameCounter,
-            Tlv::MleFrameCounter(_) => TlvType::MleFrameCounter,
-            Tlv::Address16(_) => TlvType::Address16,
-            Tlv::LeaderData { .. } => TlvType::LeaderData,
-            Tlv::NetworkData(_) => TlvType::NetworkData,
-            Tlv::TlvRequest(_) => TlvType::TlvRequest,
-            Tlv::ScanMask(_) => TlvType::ScanMask,
-            Tlv::Connectivity { .. } => TlvType::Connectivity,
-            Tlv::LinkMargin(_) => TlvType::LinkMargin,
-            Tlv::Status(_) => TlvType::Status,
-            Tlv::Version(_) => TlvType::Version,
-            Tlv::ActiveOperationalDataset(_) => TlvType::ActiveOperationalDataset,
-            Tlv::PendingOperationalDataset(_) => TlvType::PendingOperationalDataset,
+            Tlv::SourceAddress(_) => Self::SourceAddress,
+            Tlv::Mode(_) => Self::Mode,
+            Tlv::Timeout(_) => Self::Timeout,
+            Tlv::Challenge(_) => Self::Challenge,
+            Tlv::Response(_) => Self::Response,
+            Tlv::LinkLayerFrameCounter(_) => Self::LinkLayerFrameCounter,
+            Tlv::MleFrameCounter(_) => Self::MleFrameCounter,
+            Tlv::Address16(_) => Self::Address16,
+            Tlv::LeaderData { .. } => Self::LeaderData,
+            Tlv::NetworkData(_) => Self::NetworkData,
+            Tlv::TlvRequest(_) => Self::TlvRequest,
+            Tlv::ScanMask(_) => Self::ScanMask,
+            Tlv::Connectivity { .. } => Self::Connectivity,
+            Tlv::LinkMargin(_) => Self::LinkMargin,
+            Tlv::Status(_) => Self::Status,
+            Tlv::Version(_) => Self::Version,
+            Tlv::ActiveOperationalDataset(_) => Self::ActiveOperationalDataset,
+            Tlv::PendingOperationalDataset(_) => Self::PendingOperationalDataset,
         }
     }
 }
@@ -734,10 +734,10 @@ pub enum NetworkDataTlvType {
 impl From<u8> for NetworkDataTlvType {
     fn from(tlv_type: u8) -> Self {
         match tlv_type {
-            1 => NetworkDataTlvType::Prefix,
-            4 => NetworkDataTlvType::CommissioningData,
-            5 => NetworkDataTlvType::Service,
-            _ => NetworkDataTlvType::NotPresent,
+            1 => Self::Prefix,
+            4 => Self::CommissioningData,
+            5 => Self::Service,
+            _ => Self::NotPresent,
         }
     }
 }
@@ -745,9 +745,9 @@ impl From<u8> for NetworkDataTlvType {
 impl From<&NetworkDataTlv<'_>> for NetworkDataTlvType {
     fn from(network_data_tlv: &NetworkDataTlv<'_>) -> Self {
         match *network_data_tlv {
-            NetworkDataTlv::Prefix { .. } => NetworkDataTlvType::Prefix,
-            NetworkDataTlv::CommissioningData { .. } => NetworkDataTlvType::CommissioningData,
-            NetworkDataTlv::Service { .. } => NetworkDataTlvType::Service,
+            NetworkDataTlv::Prefix { .. } => Self::Prefix,
+            NetworkDataTlv::CommissioningData { .. } => Self::CommissioningData,
+            NetworkDataTlv::Service { .. } => Self::Service,
         }
     }
 }
@@ -866,10 +866,10 @@ pub enum PrefixSubTlvType {
 impl From<u8> for PrefixSubTlvType {
     fn from(tlv_type: u8) -> Self {
         match tlv_type {
-            0 => PrefixSubTlvType::HasRoute,
-            2 => PrefixSubTlvType::BorderRouter,
-            3 => PrefixSubTlvType::SixLoWpanId,
-            _ => PrefixSubTlvType::NotPresent,
+            0 => Self::HasRoute,
+            2 => Self::BorderRouter,
+            3 => Self::SixLoWpanId,
+            _ => Self::NotPresent,
         }
     }
 }
@@ -877,9 +877,9 @@ impl From<u8> for PrefixSubTlvType {
 impl From<&PrefixSubTlv<'_>> for PrefixSubTlvType {
     fn from(prefix_sub_tlv: &PrefixSubTlv<'_>) -> Self {
         match *prefix_sub_tlv {
-            PrefixSubTlv::HasRoute(_) => PrefixSubTlvType::HasRoute,
-            PrefixSubTlv::BorderRouter(_) => PrefixSubTlvType::BorderRouter,
-            PrefixSubTlv::SixLoWpanId { .. } => PrefixSubTlvType::SixLoWpanId,
+            PrefixSubTlv::HasRoute(_) => Self::HasRoute,
+            PrefixSubTlv::BorderRouter(_) => Self::BorderRouter,
+            PrefixSubTlv::SixLoWpanId { .. } => Self::SixLoWpanId,
         }
     }
 }
@@ -902,14 +902,14 @@ impl HasRouteTlvValue {
     }
 
     /// Deserializes Has Route TLV value from `buf` and returns it.
-    pub fn decode(buf: &[u8]) -> SResult<HasRouteTlvValue> {
+    pub fn decode(buf: &[u8]) -> SResult<Self> {
         stream_len_cond!(buf, 3);
         let (offset, r_border_router_16) = dec_try!(buf; decode_u16);
         let (offset, last_byte) = dec_try!(buf, offset; decode_u8);
         let r_preference = last_byte >> 6;
         stream_done!(
             offset,
-            HasRouteTlvValue {
+            Self {
                 r_border_router_16,
                 r_preference,
             }
@@ -948,12 +948,12 @@ impl BorderRouterTlvValue {
     }
 
     /// Deserializes Border Route TLV value from `buf` and returns it.
-    pub fn decode(buf: &[u8]) -> SResult<BorderRouterTlvValue> {
+    pub fn decode(buf: &[u8]) -> SResult<Self> {
         let (offset, p_border_router_16) = dec_try!(buf; decode_u16);
         let (offset, p_bits) = dec_try!(buf, offset; decode_u16);
         stream_done!(
             offset,
-            BorderRouterTlvValue {
+            Self {
                 p_border_router_16,
                 p_bits,
             }
@@ -975,7 +975,7 @@ impl ServiceSubTlv {
     /// Service sub-TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
         match *self {
-            ServiceSubTlv::Server {
+            Self::Server {
                 s_server_16,
                 s_server_data,
             } => {
@@ -1002,7 +1002,7 @@ impl ServiceSubTlv {
     /// otherwise.
     /// `SResult::Error` is returned if the type field does not match any
     /// implemented TLV type.
-    pub fn decode(buf: &[u8]) -> SResult<(ServiceSubTlv, bool)> {
+    pub fn decode(buf: &[u8]) -> SResult<(Self, bool)> {
         let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
         let tlv_type_raw = tlv_type_field >> 1;
         let tlv_type = ServiceSubTlvType::from(tlv_type_raw);
@@ -1016,7 +1016,7 @@ impl ServiceSubTlv {
                 stream_done!(
                     offset,
                     (
-                        ServiceSubTlv::Server {
+                        Self::Server {
                             s_server_16,
                             s_server_data,
                         },
@@ -1040,8 +1040,8 @@ pub enum ServiceSubTlvType {
 impl From<u8> for ServiceSubTlvType {
     fn from(tlv_type: u8) -> Self {
         match tlv_type {
-            6 => ServiceSubTlvType::Server,
-            _ => ServiceSubTlvType::NotPresent,
+            6 => Self::Server,
+            _ => Self::NotPresent,
         }
     }
 }
@@ -1049,7 +1049,7 @@ impl From<u8> for ServiceSubTlvType {
 impl From<&ServiceSubTlv> for ServiceSubTlvType {
     fn from(service_sub_tlv: &ServiceSubTlv) -> Self {
         match *service_sub_tlv {
-            ServiceSubTlv::Server { .. } => ServiceSubTlvType::Server,
+            ServiceSubTlv::Server { .. } => Self::Server,
         }
     }
 }
@@ -1407,25 +1407,25 @@ pub enum NetworkManagementTlvType {
 impl From<u8> for NetworkManagementTlvType {
     fn from(type_num: u8) -> Self {
         match type_num {
-            0 => NetworkManagementTlvType::Channel,
-            1 => NetworkManagementTlvType::PanId,
-            2 => NetworkManagementTlvType::ExtendedPanId,
-            3 => NetworkManagementTlvType::NetworkName,
-            4 => NetworkManagementTlvType::Pskc,
-            5 => NetworkManagementTlvType::NetworkMasterKey,
-            6 => NetworkManagementTlvType::NetworkKeySequenceCounter,
-            7 => NetworkManagementTlvType::NetworkMeshLocalPrefix,
-            8 => NetworkManagementTlvType::SteeringData,
-            9 => NetworkManagementTlvType::BorderAgentLocator,
-            10 => NetworkManagementTlvType::CommissionerId,
-            11 => NetworkManagementTlvType::CommissionerSessionId,
-            12 => NetworkManagementTlvType::SecurityPolicy,
-            14 => NetworkManagementTlvType::ActiveTimestamp,
-            15 => NetworkManagementTlvType::CommissionerUdpPort,
-            51 => NetworkManagementTlvType::PendingTimestamp,
-            52 => NetworkManagementTlvType::DelayTimer,
-            53 => NetworkManagementTlvType::ChannelMask,
-            _ => NetworkManagementTlvType::NotPresent,
+            0 => Self::Channel,
+            1 => Self::PanId,
+            2 => Self::ExtendedPanId,
+            3 => Self::NetworkName,
+            4 => Self::Pskc,
+            5 => Self::NetworkMasterKey,
+            6 => Self::NetworkKeySequenceCounter,
+            7 => Self::NetworkMeshLocalPrefix,
+            8 => Self::SteeringData,
+            9 => Self::BorderAgentLocator,
+            10 => Self::CommissionerId,
+            11 => Self::CommissionerSessionId,
+            12 => Self::SecurityPolicy,
+            14 => Self::ActiveTimestamp,
+            15 => Self::CommissionerUdpPort,
+            51 => Self::PendingTimestamp,
+            52 => Self::DelayTimer,
+            53 => Self::ChannelMask,
+            _ => Self::NotPresent,
         }
     }
 }
@@ -1433,38 +1433,24 @@ impl From<u8> for NetworkManagementTlvType {
 impl From<&NetworkManagementTlv<'_>> for NetworkManagementTlvType {
     fn from(network_mgmt_tlv: &NetworkManagementTlv<'_>) -> Self {
         match *network_mgmt_tlv {
-            NetworkManagementTlv::Channel { .. } => NetworkManagementTlvType::Channel,
-            NetworkManagementTlv::PanId(_) => NetworkManagementTlvType::PanId,
-            NetworkManagementTlv::ExtendedPanId(_) => NetworkManagementTlvType::ExtendedPanId,
-            NetworkManagementTlv::NetworkName(_) => NetworkManagementTlvType::NetworkName,
-            NetworkManagementTlv::Pskc(_) => NetworkManagementTlvType::Pskc,
-            NetworkManagementTlv::NetworkMasterKey(_) => NetworkManagementTlvType::NetworkMasterKey,
-            NetworkManagementTlv::NetworkKeySequenceCounter(_) => {
-                NetworkManagementTlvType::NetworkKeySequenceCounter
-            }
-            NetworkManagementTlv::NetworkMeshLocalPrefix(_) => {
-                NetworkManagementTlvType::NetworkMeshLocalPrefix
-            }
-            NetworkManagementTlv::SteeringData(_) => NetworkManagementTlvType::SteeringData,
-            NetworkManagementTlv::BorderAgentLocator(_) => {
-                NetworkManagementTlvType::BorderAgentLocator
-            }
-            NetworkManagementTlv::CommissionerId(_) => NetworkManagementTlvType::CommissionerId,
-            NetworkManagementTlv::CommissionerSessionId(_) => {
-                NetworkManagementTlvType::CommissionerSessionId
-            }
-            NetworkManagementTlv::SecurityPolicy { .. } => NetworkManagementTlvType::SecurityPolicy,
-            NetworkManagementTlv::ActiveTimestamp { .. } => {
-                NetworkManagementTlvType::ActiveTimestamp
-            }
-            NetworkManagementTlv::CommissionerUdpPort(_) => {
-                NetworkManagementTlvType::CommissionerUdpPort
-            }
-            NetworkManagementTlv::PendingTimestamp { .. } => {
-                NetworkManagementTlvType::PendingTimestamp
-            }
-            NetworkManagementTlv::DelayTimer(_) => NetworkManagementTlvType::DelayTimer,
-            NetworkManagementTlv::ChannelMask(_) => NetworkManagementTlvType::ChannelMask,
+            NetworkManagementTlv::Channel { .. } => Self::Channel,
+            NetworkManagementTlv::PanId(_) => Self::PanId,
+            NetworkManagementTlv::ExtendedPanId(_) => Self::ExtendedPanId,
+            NetworkManagementTlv::NetworkName(_) => Self::NetworkName,
+            NetworkManagementTlv::Pskc(_) => Self::Pskc,
+            NetworkManagementTlv::NetworkMasterKey(_) => Self::NetworkMasterKey,
+            NetworkManagementTlv::NetworkKeySequenceCounter(_) => Self::NetworkKeySequenceCounter,
+            NetworkManagementTlv::NetworkMeshLocalPrefix(_) => Self::NetworkMeshLocalPrefix,
+            NetworkManagementTlv::SteeringData(_) => Self::SteeringData,
+            NetworkManagementTlv::BorderAgentLocator(_) => Self::BorderAgentLocator,
+            NetworkManagementTlv::CommissionerId(_) => Self::CommissionerId,
+            NetworkManagementTlv::CommissionerSessionId(_) => Self::CommissionerSessionId,
+            NetworkManagementTlv::SecurityPolicy { .. } => Self::SecurityPolicy,
+            NetworkManagementTlv::ActiveTimestamp { .. } => Self::ActiveTimestamp,
+            NetworkManagementTlv::CommissionerUdpPort(_) => Self::CommissionerUdpPort,
+            NetworkManagementTlv::PendingTimestamp { .. } => Self::PendingTimestamp,
+            NetworkManagementTlv::DelayTimer(_) => Self::DelayTimer,
+            NetworkManagementTlv::ChannelMask(_) => Self::ChannelMask,
         }
     }
 }
@@ -1497,14 +1483,14 @@ impl ChannelMaskEntry {
     }
 
     /// Deserializes Channel Mask Entry from `buf` and returns it.
-    pub fn decode(buf: &[u8]) -> SResult<ChannelMaskEntry> {
+    pub fn decode(buf: &[u8]) -> SResult<Self> {
         let (offset, channel_page) = dec_try!(buf; decode_u8);
         let (offset, mask_length) = dec_try!(buf, offset; decode_u8);
         let mut channel_mask = [0u8; MAX_VALUE_FIELD_LENGTH];
         let offset = dec_consume!(buf, offset; decode_bytes_be, &mut channel_mask);
         stream_done!(
             offset,
-            ChannelMaskEntry {
+            Self {
                 channel_page,
                 mask_length,
                 channel_mask,

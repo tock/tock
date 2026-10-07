@@ -662,7 +662,7 @@ impl DmaConfig {
 }
 
 impl<'a> DmaChannel<'a> {
-    pub fn new(chan_nr: usize) -> DmaChannel<'a> {
+    pub fn new(chan_nr: usize) -> Self {
         DmaChannel {
             registers: DMA_BASE,
             chan_nr,

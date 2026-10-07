@@ -96,7 +96,7 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> ShaDriver<'a, H, DIGEST_LEN> {
+    ) -> Self {
         ShaDriver {
             sha,
             apps: grant,

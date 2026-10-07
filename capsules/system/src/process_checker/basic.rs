@@ -101,11 +101,8 @@ pub struct AppCheckerSha256 {
 }
 
 impl AppCheckerSha256 {
-    pub fn new(
-        hash: &'static dyn Sha256Verifier<'static>,
-        buffer: &'static mut [u8; 32],
-    ) -> AppCheckerSha256 {
-        AppCheckerSha256 {
+    pub fn new(hash: &'static dyn Sha256Verifier<'static>, buffer: &'static mut [u8; 32]) -> Self {
+        Self {
             hasher: hash,
             client: OptionalCell::empty(),
             hash: TakeCell::new(buffer),
@@ -279,7 +276,7 @@ pub struct AppCheckerRsaSimulated<'a> {
 }
 
 impl<'a> AppCheckerRsaSimulated<'a> {
-    pub fn new() -> AppCheckerRsaSimulated<'a> {
+    pub fn new() -> Self {
         Self {
             deferred_call: DeferredCall::new(),
             client: OptionalCell::empty(),

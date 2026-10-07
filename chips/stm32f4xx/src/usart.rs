@@ -258,7 +258,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         clock: UsartClock<'a>,
         tx_dma_pid: DMA::Peripheral,
         rx_dma_pid: DMA::Peripheral,
-    ) -> Usart<'a, DMA> {
+    ) -> Self {
         Usart {
             registers: base_addr,
             clock,

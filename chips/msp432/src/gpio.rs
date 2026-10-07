@@ -332,7 +332,7 @@ pub struct Pin<'a> {
 }
 
 impl<'a> Pin<'a> {
-    const fn new(pin: PinNr) -> Pin<'a> {
+    const fn new(pin: PinNr) -> Self {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         let p = (pin as u8) / PINS_PER_PORT;
         Pin {
@@ -345,7 +345,7 @@ impl<'a> Pin<'a> {
 }
 
 impl<'a> IntPin<'a> {
-    pub const fn new(pin: IntPinNr) -> IntPin<'a> {
+    pub const fn new(pin: IntPinNr) -> Self {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         let p = (pin as u8) / PINS_PER_PORT;
         IntPin {

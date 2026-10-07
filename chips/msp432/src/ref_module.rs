@@ -130,8 +130,8 @@ pub trait AnalogReference {
 }
 
 impl Ref {
-    pub const fn new() -> Ref {
-        Ref {
+    pub const fn new() -> Self {
+        Self {
             registers: REF_BASE,
             ref_voltage: Cell::new(ReferenceVoltage::Volt1_2),
         }

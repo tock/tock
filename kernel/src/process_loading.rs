@@ -73,19 +73,19 @@ pub enum ProcessLoadError {
 impl fmt::Debug for ProcessLoadError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ProcessLoadError::NotEnoughMemory => {
+            Self::NotEnoughMemory => {
                 write!(f, "Not able to provide RAM requested by app")
             }
 
-            ProcessLoadError::MpuInvalidFlashLength => {
+            Self::MpuInvalidFlashLength => {
                 write!(f, "App flash length not supported by MPU")
             }
 
-            ProcessLoadError::MpuConfigurationError => {
+            Self::MpuConfigurationError => {
                 write!(f, "Configuring the MPU failed")
             }
 
-            ProcessLoadError::MemoryAddressMismatch {
+            Self::MemoryAddressMismatch {
                 actual_address,
                 expected_address,
             } => write!(
@@ -94,21 +94,21 @@ impl fmt::Debug for ProcessLoadError {
                 actual_address, expected_address
             ),
 
-            ProcessLoadError::NoProcessSlot => {
+            Self::NoProcessSlot => {
                 write!(f, "Nowhere to store the loaded process")
             }
 
-            ProcessLoadError::BinaryError(binary_error) => {
+            Self::BinaryError(binary_error) => {
                 writeln!(f, "Error parsing process binary")?;
                 write!(f, "{:?}", binary_error)
             }
 
-            ProcessLoadError::CheckError(check_error) => {
+            Self::CheckError(check_error) => {
                 writeln!(f, "Error checking process")?;
                 write!(f, "{:?}", check_error)
             }
 
-            ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
+            Self::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }
     }
 }

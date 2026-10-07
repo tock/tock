@@ -30,7 +30,7 @@ pub struct TemperatureRp2040<'a, A: adc::AdcChannel<'a>> {
 impl<'a, A: adc::AdcChannel<'a>> TemperatureRp2040<'a, A> {
     /// slope - device specific slope found in datasheet
     /// v_27 - voltage at 27 degrees Celsius found in datasheet
-    pub fn new(adc: &'a A, slope: f32, v_27: f32) -> TemperatureRp2040<'a, A> {
+    pub fn new(adc: &'a A, slope: f32, v_27: f32) -> Self {
         TemperatureRp2040 {
             adc,
             slope,

@@ -25,7 +25,7 @@ pub struct TestRandom<'a> {
 }
 
 impl<'a> TestRandom<'a> {
-    pub fn new(random: &'a dyn rng::Random<'a>) -> TestRandom<'a> {
+    pub fn new(random: &'a dyn rng::Random<'a>) -> Self {
         TestRandom { random }
     }
 
@@ -46,7 +46,7 @@ pub struct TestRng<'a> {
 }
 
 impl<'a> TestRng<'a> {
-    pub fn new(rng: &'a dyn rng::Rng<'a>) -> TestRng<'a> {
+    pub fn new(rng: &'a dyn rng::Rng<'a>) -> Self {
         TestRng {
             rng,
             pool: Cell::new([0xeeeeeeee; ELEMENTS]),
@@ -109,7 +109,7 @@ pub struct TestEntropy32<'a> {
 }
 
 impl<'a> TestEntropy32<'a> {
-    pub fn new(egen: &'a dyn entropy::Entropy32<'a>) -> TestEntropy32<'a> {
+    pub fn new(egen: &'a dyn entropy::Entropy32<'a>) -> Self {
         TestEntropy32 {
             egen,
             pool: Cell::new([0xeeeeeeee; ELEMENTS]),
@@ -172,7 +172,7 @@ pub struct TestEntropy8<'a> {
 }
 
 impl<'a> TestEntropy8<'a> {
-    pub fn new(egen: &'a dyn entropy::Entropy8<'a>) -> TestEntropy8<'a> {
+    pub fn new(egen: &'a dyn entropy::Entropy8<'a>) -> Self {
         TestEntropy8 {
             egen,
             pool: Cell::new([0xee; ELEMENTS]),

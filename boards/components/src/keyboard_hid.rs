@@ -85,8 +85,8 @@ impl<U: 'static + hil::usb::UsbController<'static>, CAP: MemoryAllocationCapabil
         product_id: u16,
         strings: &'static [&'static str; 3],
         mem_cap: CAP,
-    ) -> KeyboardHidComponent<U, CAP> {
-        KeyboardHidComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             usb,

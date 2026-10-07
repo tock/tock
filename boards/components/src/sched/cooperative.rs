@@ -43,8 +43,8 @@ pub struct CooperativeComponent<const NUM_PROCS: usize> {
 }
 
 impl<const NUM_PROCS: usize> CooperativeComponent<NUM_PROCS> {
-    pub fn new(processes: &'static ProcessArray<NUM_PROCS>) -> CooperativeComponent<NUM_PROCS> {
-        CooperativeComponent { processes }
+    pub fn new(processes: &'static ProcessArray<NUM_PROCS>) -> Self {
+        Self { processes }
     }
 }
 

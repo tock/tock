@@ -82,8 +82,8 @@ impl<A: 'static + time::Alarm<'static>> HD44780Component<A> {
         data_5_pin: &'static dyn kernel::hil::gpio::Pin,
         data_6_pin: &'static dyn kernel::hil::gpio::Pin,
         data_7_pin: &'static dyn kernel::hil::gpio::Pin,
-    ) -> HD44780Component<A> {
-        HD44780Component {
+    ) -> Self {
+        Self {
             alarm_mux,
             width,
             height,

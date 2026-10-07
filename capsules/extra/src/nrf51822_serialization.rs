@@ -105,7 +105,7 @@ impl<'a> Nrf51822Serialization<'a> {
         reset_pin: &'a dyn hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-    ) -> Nrf51822Serialization<'a> {
+    ) -> Self {
         Nrf51822Serialization {
             uart,
             reset_pin,

@@ -234,8 +234,8 @@ pub struct Nvic(u32);
 
 impl Nvic {
     /// Creates a new `Nvic`.
-    pub const fn new(idx: u32) -> Nvic {
-        Nvic(idx)
+    pub const fn new(idx: u32) -> Self {
+        Self(idx)
     }
 
     /// Enable the interrupt

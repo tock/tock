@@ -79,7 +79,7 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> PressureSensor<'a, T> {
     pub fn new(
         driver: &'a T,
         apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> PressureSensor<'a, T> {
+    ) -> Self {
         PressureSensor {
             driver,
             apps,

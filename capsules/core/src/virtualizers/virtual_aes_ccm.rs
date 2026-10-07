@@ -122,8 +122,8 @@ impl CryptFunctionParameters {
         mic_len: usize,
         confidential: bool,
         encrypting: bool,
-    ) -> CryptFunctionParameters {
-        CryptFunctionParameters {
+    ) -> Self {
+        Self {
             buf,
             a_off,
             m_off,
@@ -232,7 +232,7 @@ impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> symmetric_encryption::Cl
 pub struct VirtualAES128CCM<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> {
     mux: &'a MuxAES128CCM<'a, A>,
     aes: &'a A,
-    next: ListLink<'a, VirtualAES128CCM<'a, A>>,
+    next: ListLink<'a, Self>,
 
     crypt_buf: TakeCell<'static, [u8]>,
     crypt_auth_len: Cell<usize>,
@@ -252,10 +252,7 @@ pub struct VirtualAES128CCM<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> {
 }
 
 impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> VirtualAES128CCM<'a, A> {
-    pub fn new(
-        mux: &'a MuxAES128CCM<'a, A>,
-        crypt_buf: &'static mut [u8],
-    ) -> VirtualAES128CCM<'a, A> {
+    pub fn new(mux: &'a MuxAES128CCM<'a, A>, crypt_buf: &'static mut [u8]) -> Self {
         VirtualAES128CCM {
             mux,
             aes: mux.aes,
@@ -897,10 +894,10 @@ impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> symmetric_encryption::Cl
 }
 
 // Fit in the linked list
-impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> ListNode<'a, VirtualAES128CCM<'a, A>>
+impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB> ListNode<'a, Self>
     for VirtualAES128CCM<'a, A>
 {
-    fn next(&'a self) -> &'a ListLink<'a, VirtualAES128CCM<'a, A>> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

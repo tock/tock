@@ -90,8 +90,8 @@ pub struct PwrMgr {
 }
 
 impl PwrMgr {
-    pub const fn new(base: StaticRef<PwrMgrRegisters>) -> PwrMgr {
-        PwrMgr { registers: base }
+    pub const fn new(base: StaticRef<PwrMgrRegisters>) -> Self {
+        Self { registers: base }
     }
 
     pub fn check_clock_propagation(&self) -> bool {

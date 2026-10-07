@@ -166,7 +166,7 @@ impl EscState {
             (Bracket, b'3') => Bracket3,
             (Bracket3, b'~') => Complete(Delete),
             _ => {
-                if EscState::terminator_esc_char(data) {
+                if Self::terminator_esc_char(data) {
                     UnrecognizedDone
                 } else {
                     Unrecognized
@@ -178,13 +178,13 @@ impl EscState {
     /// Checks if the escape state machine is in the middle
     /// of an escape sequence
     fn in_progress(&self) -> bool {
-        matches!(self, EscState::Bracket) || matches!(self, EscState::Bracket3)
+        matches!(self, Self::Bracket) || matches!(self, Self::Bracket3)
     }
 
     /// Checks if the escape state machine is at the start
     /// of processing an escape sequence
     fn has_started(&self) -> bool {
-        matches!(self, EscState::Started)
+        matches!(self, Self::Started)
     }
 
     fn terminator_esc_char(data: u8) -> bool {
@@ -325,7 +325,7 @@ impl Command {
 
 impl Default for Command {
     fn default() -> Self {
-        Command {
+        Self {
             buf: [EOL; COMMAND_BUF_LEN],
             len: 0,
         }
@@ -405,8 +405,8 @@ pub struct ConsoleWriter {
     size: usize,
 }
 impl ConsoleWriter {
-    pub fn new() -> ConsoleWriter {
-        ConsoleWriter {
+    pub fn new() -> Self {
+        Self {
             buf: [EOL; 500],
             size: 0,
         }
@@ -455,7 +455,7 @@ impl<
         kernel_addresses: KernelAddresses,
         reset_function: Option<fn() -> !>,
         capability: C,
-    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
+    ) -> Self {
         ProcessConsole {
             uart,
             alarm,

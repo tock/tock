@@ -198,7 +198,7 @@ pub struct Pka<'a> {
 }
 
 impl<'a> Pka<'a> {
-    pub const fn new(base: StaticRef<PkaRegisters>) -> Pka<'a> {
+    pub const fn new(base: StaticRef<PkaRegisters>) -> Self {
         Pka {
             registers: base,
 

@@ -67,7 +67,7 @@ impl<'a, I: i2c::I2CDevice> Ft6x06<'a, I> {
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
         events: &'static mut [TouchEvent],
-    ) -> Ft6x06<'a, I> {
+    ) -> Self {
         // setup and return struct
         interrupt_pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
         Ft6x06 {

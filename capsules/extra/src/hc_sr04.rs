@@ -70,7 +70,7 @@ impl<'a, A: Alarm<'a>> HcSr04<'a, A> {
         trig: &'a dyn kernel::hil::gpio::Pin,
         echo: &'a dyn kernel::hil::gpio::InterruptPin<'a>,
         alarm: &'a A,
-    ) -> HcSr04<'a, A> {
+    ) -> Self {
         // Setup and return struct.
         HcSr04 {
             trig,

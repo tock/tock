@@ -128,8 +128,8 @@ impl From<WdtClockSource> for FieldValue<u32, Control::Register> {
 }
 
 impl Wdt {
-    pub const fn new() -> Wdt {
-        Wdt {
+    pub const fn new() -> Self {
+        Self {
             enabled: Cell::new(false),
         }
     }

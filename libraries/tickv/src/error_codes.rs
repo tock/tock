@@ -47,7 +47,7 @@ pub enum ErrorCode {
 }
 
 impl From<ErrorCode> for isize {
-    fn from(original: ErrorCode) -> isize {
+    fn from(original: ErrorCode) -> Self {
         match original {
             ErrorCode::UnsupportedVersion => -1,
             ErrorCode::CorruptData => -2,
@@ -69,7 +69,7 @@ impl From<ErrorCode> for isize {
 }
 
 impl From<ErrorCode> for usize {
-    fn from(original: ErrorCode) -> usize {
-        isize::from(original) as usize
+    fn from(original: ErrorCode) -> Self {
+        isize::from(original) as Self
     }
 }

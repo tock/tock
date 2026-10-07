@@ -49,8 +49,8 @@ impl<I: hil::i2c::I2CMaster<'static> + 'static> Ssd1306Component<I> {
     pub fn new(
         i2c_device: &'static capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I>,
         use_charge_pump: bool,
-    ) -> Ssd1306Component<I> {
-        Ssd1306Component {
+    ) -> Self {
+        Self {
             i2c_device,
             use_charge_pump,
         }

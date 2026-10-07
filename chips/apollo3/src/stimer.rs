@@ -100,7 +100,7 @@ pub struct STimer<'a> {
 
 impl<'a> STimer<'a> {
     // Unsafe bc of use of STIMER_BASE internally
-    pub fn new() -> STimer<'a> {
+    pub fn new() -> Self {
         let timer = STimer {
             registers: STIMER_BASE,
             client: OptionalCell::empty(),

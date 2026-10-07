@@ -50,8 +50,8 @@ impl<A: 'static + time::Alarm<'static>, const NUM_PROCS: usize> MLFQComponent<A,
     pub fn new(
         alarm_mux: &'static MuxAlarm<'static, A>,
         processes: &'static ProcessArray<NUM_PROCS>,
-    ) -> MLFQComponent<A, NUM_PROCS> {
-        MLFQComponent {
+    ) -> Self {
+        Self {
             alarm_mux,
             processes,
         }

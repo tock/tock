@@ -57,7 +57,7 @@ pub struct Plic {
 
 impl Plic {
     pub const fn new(base: StaticRef<PlicRegisters>) -> Self {
-        Plic {
+        Self {
             registers: base,
             saved: [
                 Cell::new(LocalRegisterCopy::new(0)),

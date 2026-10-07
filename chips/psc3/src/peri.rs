@@ -169,7 +169,7 @@ pub struct Peri {
 
 impl Peri {
     pub const fn new() -> Self {
-        Peri {
+        Self {
             registers: PERI_BASE,
         }
     }

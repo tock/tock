@@ -53,7 +53,7 @@ pub struct SyscallReturnTest {
 
 impl SyscallReturnTest {
     pub fn new(grant: Grant<App, UpcallCount<1>, AllowRoCount<1>, AllowRwCount<1>>) -> Self {
-        SyscallReturnTest { apps: grant }
+        Self { apps: grant }
     }
 }
 

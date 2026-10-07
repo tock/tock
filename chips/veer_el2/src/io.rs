@@ -17,7 +17,7 @@ pub struct SemihostUart<'a> {
 }
 
 impl<'a> SemihostUart<'a> {
-    pub fn new() -> SemihostUart<'a> {
+    pub fn new() -> Self {
         SemihostUart {
             deferred_call: DeferredCall::new(),
             tx_client: OptionalCell::empty(),

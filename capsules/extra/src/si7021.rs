@@ -108,7 +108,7 @@ pub struct SI7021<'a, A: time::Alarm<'a>, I: i2c::I2CDevice> {
 }
 
 impl<'a, A: time::Alarm<'a>, I: i2c::I2CDevice> SI7021<'a, A, I> {
-    pub fn new(i2c: &'a I, alarm: &'a A, buffer: &'static mut [u8]) -> SI7021<'a, A, I> {
+    pub fn new(i2c: &'a I, alarm: &'a A, buffer: &'static mut [u8]) -> Self {
         // setup and return struct
         SI7021 {
             i2c,

@@ -351,8 +351,8 @@ impl<const L: usize> RsaPrivKeyMut for RSAKeys<L> {
 pub struct RSA2048Keys(RSAKeys<256>);
 
 impl RSA2048Keys {
-    pub const fn new() -> RSA2048Keys {
-        RSA2048Keys(RSAKeys::<256>::new())
+    pub const fn new() -> Self {
+        Self(RSAKeys::<256>::new())
     }
 }
 
@@ -449,8 +449,8 @@ impl RsaPrivKey for RSA2048Keys {
 pub struct RSA2048KeysMut(RSAKeys<256>);
 
 impl RSA2048KeysMut {
-    pub const fn new() -> RSA2048KeysMut {
-        RSA2048KeysMut(RSAKeys::<256>::new())
+    pub const fn new() -> Self {
+        Self(RSAKeys::<256>::new())
     }
 }
 
@@ -545,8 +545,8 @@ impl RsaPrivKeyMut for RSA2048KeysMut {
 pub struct RSA4096Keys(RSAKeys<512>);
 
 impl RSA4096Keys {
-    pub const fn new() -> RSA4096Keys {
-        RSA4096Keys(RSAKeys::<512>::new())
+    pub const fn new() -> Self {
+        Self(RSAKeys::<512>::new())
     }
 }
 
@@ -643,8 +643,8 @@ impl RsaPrivKey for RSA4096Keys {
 pub struct RSA4096KeysMut(RSAKeys<512>);
 
 impl RSA4096KeysMut {
-    pub const fn new() -> RSA4096KeysMut {
-        RSA4096KeysMut(RSAKeys::<512>::new())
+    pub const fn new() -> Self {
+        Self(RSAKeys::<512>::new())
     }
 }
 

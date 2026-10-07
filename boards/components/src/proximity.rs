@@ -42,8 +42,8 @@ impl<P: hil::sensors::ProximityDriver<'static>, CAP: MemoryAllocationCapability 
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         mem_cap: CAP,
-    ) -> ProximityComponent<P, CAP> {
-        ProximityComponent {
+    ) -> Self {
+        Self {
             sensor,
             board_kernel,
             driver_num,

@@ -56,7 +56,7 @@ pub struct Bme280Component<I: 'static + i2c::I2CMaster<'static>> {
 
 impl<I: 'static + i2c::I2CMaster<'static>> Bme280Component<I> {
     pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
-        Bme280Component {
+        Self {
             i2c_mux: i2c,
             i2c_address,
         }

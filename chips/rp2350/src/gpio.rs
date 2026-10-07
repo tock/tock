@@ -1279,7 +1279,7 @@ pub struct RPGpioPin<'a> {
 
 #[allow(dead_code)]
 impl<'a> RPGpioPin<'a> {
-    pub const fn new(pin: RPGpio) -> RPGpioPin<'a> {
+    pub const fn new(pin: RPGpio) -> Self {
         RPGpioPin {
             pin: pin as usize,
             client: OptionalCell::empty(),

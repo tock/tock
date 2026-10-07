@@ -110,8 +110,8 @@ impl Upcall {
         upcall_id: UpcallId,
         appdata: MachineRegister,
         fn_ptr: CapabilityPtr,
-    ) -> Upcall {
-        Upcall {
+    ) -> Self {
+        Self {
             process_id,
             upcall_id,
             appdata,

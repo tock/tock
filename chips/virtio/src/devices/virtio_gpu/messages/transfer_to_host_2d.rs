@@ -54,6 +54,6 @@ impl VirtIOGPUResp for TransferToHost2DResp {
         ctrl_header: CtrlHeader,
         _src: &mut impl Iterator<Item = u8>,
     ) -> Result<Self, ErrorCode> {
-        Ok(TransferToHost2DResp { ctrl_header })
+        Ok(Self { ctrl_header })
     }
 }

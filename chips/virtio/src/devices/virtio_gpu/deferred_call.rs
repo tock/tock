@@ -18,11 +18,11 @@ pub struct PendingDeferredCallMask(Cell<usize>);
 
 impl PendingDeferredCallMask {
     pub fn new() -> Self {
-        PendingDeferredCallMask(Cell::new(0))
+        Self(Cell::new(0))
     }
 
-    pub fn get_copy_and_clear(&self) -> PendingDeferredCallMask {
-        let old = PendingDeferredCallMask(self.0.clone());
+    pub fn get_copy_and_clear(&self) -> Self {
+        let old = Self(self.0.clone());
         self.0.set(0);
         old
     }

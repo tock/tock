@@ -194,7 +194,7 @@ impl<'a> Fxos8700cq<'a> {
         i2c: &'a dyn I2CDevice,
         interrupt_pin1: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-    ) -> Fxos8700cq<'a> {
+    ) -> Self {
         Fxos8700cq {
             i2c,
             interrupt_pin1,

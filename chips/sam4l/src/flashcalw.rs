@@ -413,7 +413,7 @@ pub struct FLASHCALW {
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
-    client: OptionalCell<&'static dyn hil::flash::Client<FLASHCALW>>,
+    client: OptionalCell<&'static dyn hil::flash::Client<Self>>,
     current_state: Cell<FlashState>,
     buffer: TakeCell<'static, Sam4lPage>,
     deferred_call: DeferredCall,
@@ -425,8 +425,8 @@ const PAGE_SIZE: u32 = 512;
 const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
 
 impl FLASHCALW {
-    pub fn new(ahb_clk: pm::HSBClock, hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock) -> FLASHCALW {
-        FLASHCALW {
+    pub fn new(ahb_clk: pm::HSBClock, hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock) -> Self {
+        Self {
             registers: FLASHCALW_ADDRESS,
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),

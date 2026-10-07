@@ -67,7 +67,7 @@ pub struct ScreenSplitUser<'a, S: hil::screen::Screen<'a>> {
     /// Screen client.
     client: OptionalCell<&'a dyn hil::screen::ScreenClient>,
     /// Track the list of screen split users.
-    next: ListLink<'a, ScreenSplitUser<'a, S>>,
+    next: ListLink<'a, Self>,
 }
 
 impl<'a, S: hil::screen::Screen<'a>> ScreenSplitUser<'a, S> {
@@ -106,10 +106,8 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenSplitUser<'a, S> {
     }
 }
 
-impl<'a, S: hil::screen::Screen<'a>> ListNode<'a, ScreenSplitUser<'a, S>>
-    for ScreenSplitUser<'a, S>
-{
-    fn next(&'a self) -> &'a ListLink<'a, ScreenSplitUser<'a, S>> {
+impl<'a, S: hil::screen::Screen<'a>> ListNode<'a, Self> for ScreenSplitUser<'a, S> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

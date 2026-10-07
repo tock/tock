@@ -347,8 +347,8 @@ pub enum SlewRate {
 }
 
 impl Iomuxc {
-    pub const fn new() -> Iomuxc {
-        Iomuxc {
+    pub const fn new() -> Self {
+        Self {
             registers: IOMUXC_BASE,
         }
     }

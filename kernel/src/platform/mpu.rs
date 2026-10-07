@@ -34,8 +34,8 @@ pub struct Region {
 
 impl Region {
     /// Create a new MPU region with a given starting point and length in bytes.
-    pub fn new(start_address: *const u8, size: usize) -> Region {
-        Region {
+    pub fn new(start_address: *const u8, size: usize) -> Self {
+        Self {
             start_address,
             size,
         }

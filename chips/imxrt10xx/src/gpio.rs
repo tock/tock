@@ -397,19 +397,19 @@ impl<'a> Port<'a, 32> {
             ],
         )
     }
-    const fn gpio1(ccm: &'a ccm::Ccm) -> GPIO1<'a> {
+    const fn gpio1(ccm: &'a ccm::Ccm) -> Self {
         Self::new_32(
             GPIO1_BASE,
             PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO1)),
         )
     }
-    const fn gpio2(ccm: &'a ccm::Ccm) -> GPIO2<'a> {
+    const fn gpio2(ccm: &'a ccm::Ccm) -> Self {
         Self::new_32(
             GPIO2_BASE,
             PortClock(ccm::PeripheralClock::ccgr0(ccm, ccm::HCLK0::GPIO2)),
         )
     }
-    const fn gpio4(ccm: &'a ccm::Ccm) -> GPIO4<'a> {
+    const fn gpio4(ccm: &'a ccm::Ccm) -> Self {
         Self::new_32(
             GPIO4_BASE,
             PortClock(ccm::PeripheralClock::ccgr3(ccm, ccm::HCLK3::GPIO4)),
@@ -454,7 +454,7 @@ impl<'a> Port<'a, 28> {
             ],
         )
     }
-    const fn gpio3(ccm: &'a ccm::Ccm) -> GPIO3<'a> {
+    const fn gpio3(ccm: &'a ccm::Ccm) -> Self {
         Self::new_28(
             GPIO3_BASE,
             PortClock(ccm::PeripheralClock::ccgr2(ccm, ccm::HCLK2::GPIO3)),
@@ -474,7 +474,7 @@ impl<'a> Port<'a, 3> {
             ],
         )
     }
-    const fn gpio5(ccm: &'a ccm::Ccm) -> GPIO5<'a> {
+    const fn gpio5(ccm: &'a ccm::Ccm) -> Self {
         Self::new_3(
             GPIO5_BASE,
             PortClock(ccm::PeripheralClock::ccgr1(ccm, ccm::HCLK1::GPIO5)),
@@ -558,11 +558,11 @@ trait U32Ext {
 
 impl U32Ext for u32 {
     #[inline(always)]
-    fn set_bit(self, offset: usize) -> u32 {
+    fn set_bit(self, offset: usize) -> Self {
         self | (1 << offset)
     }
     #[inline(always)]
-    fn clear_bit(self, offset: usize) -> u32 {
+    fn clear_bit(self, offset: usize) -> Self {
         self & !(1 << offset)
     }
     #[inline(always)]

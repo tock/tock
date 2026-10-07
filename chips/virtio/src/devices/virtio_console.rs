@@ -56,7 +56,7 @@ impl<'a, F: DmaFence> VirtIOConsole<'a, F> {
         txqueue: &'a SplitVirtqueue<'static, 'static, 1, F>,
         rxqueue: &'a SplitVirtqueue<'static, 'static, 1, F>,
         rx_chunk: &'static mut u8,
-    ) -> VirtIOConsole<'a, F> {
+    ) -> Self {
         txqueue.enable_used_callbacks();
         rxqueue.enable_used_callbacks();
 

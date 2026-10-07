@@ -40,8 +40,8 @@ impl<T: 'static + hil::sensors::PressureDriver<'static>, CAP: MemoryAllocationCa
         driver_num: usize,
         pressure_sensor: &'static T,
         mem_cap: CAP,
-    ) -> PressureComponent<T, CAP> {
-        PressureComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             pressure_sensor,

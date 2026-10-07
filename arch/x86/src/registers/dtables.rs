@@ -25,8 +25,8 @@ pub struct DescriptorTablePointer<Entry> {
 }
 
 impl<T> Default for DescriptorTablePointer<T> {
-    fn default() -> DescriptorTablePointer<T> {
-        DescriptorTablePointer {
+    fn default() -> Self {
+        Self {
             limit: 0,
             base: core::ptr::null(),
         }
@@ -40,7 +40,7 @@ impl<T> DescriptorTablePointer<T> {
         // Section 6.10 "Interrupt Descriptor Table (IDT)".
         let len = size_of::<T>() - 1;
         assert!(len < 0x10000);
-        DescriptorTablePointer {
+        Self {
             base: core::ptr::from_ref::<T>(tbl),
             limit: len as u16,
         }
@@ -52,7 +52,7 @@ impl<T> DescriptorTablePointer<T> {
         // Section 6.10 "Interrupt Descriptor Table (IDT)".
         let len = core::mem::size_of_val(slice) - 1;
         assert!(len < 0x10000);
-        DescriptorTablePointer {
+        Self {
             base: slice.as_ptr(),
             limit: len as u16,
         }

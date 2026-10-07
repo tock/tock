@@ -130,8 +130,8 @@ pub struct App {
 }
 
 impl Default for App {
-    fn default() -> App {
-        App {
+    fn default() -> Self {
+        Self {
             app_buf_offset: Cell::new(0),
             samples_remaining: Cell::new(0),
             samples_outstanding: Cell::new(0),
@@ -142,8 +142,8 @@ impl Default for App {
 }
 
 impl Default for AppSys {
-    fn default() -> AppSys {
-        AppSys {
+    fn default() -> Self {
+        Self {
             pending_command: false,
             command: OptionalCell::empty(),
             channel: 0,
@@ -171,7 +171,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
         adc_buf3: &'static mut [u16; 128],
-    ) -> AdcDedicated<'a, A> {
+    ) -> Self {
         AdcDedicated {
             // ADC driver
             adc,
@@ -634,7 +634,7 @@ impl<'a> AdcVirtualized<'a> {
     pub fn new(
         drivers: &'a [&'a dyn hil::adc::AdcChannel<'a>],
         grant: Grant<AppSys, UpcallCount<2>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> AdcVirtualized<'a> {
+    ) -> Self {
         AdcVirtualized {
             drivers,
             apps: grant,

@@ -28,7 +28,7 @@ pub struct Rng<'a> {
 }
 
 impl<'a> Rng<'a> {
-    pub fn new() -> Rng<'a> {
+    pub fn new() -> Self {
         Rng {
             register: RNG_DATA_REG,
             client: OptionalCell::empty(),

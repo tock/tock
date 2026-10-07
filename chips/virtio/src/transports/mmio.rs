@@ -130,8 +130,8 @@ pub struct VirtIOMMIODevice {
 }
 
 impl VirtIOMMIODevice {
-    pub const fn new(regs: StaticRef<VirtIOMMIODeviceRegisters>) -> VirtIOMMIODevice {
-        VirtIOMMIODevice {
+    pub const fn new(regs: StaticRef<VirtIOMMIODeviceRegisters>) -> Self {
+        Self {
             regs,
             device_type: OptionalCell::empty(),
             queues: OptionalCell::empty(),

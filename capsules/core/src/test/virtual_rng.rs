@@ -24,7 +24,7 @@ pub struct TestRng<'a> {
 }
 
 impl<'a> TestRng<'a> {
-    pub fn new(device_id: usize, device: &'a VirtualRngMasterDevice<'a>) -> TestRng<'a> {
+    pub fn new(device_id: usize, device: &'a VirtualRngMasterDevice<'a>) -> Self {
         TestRng {
             device_id,
             device,

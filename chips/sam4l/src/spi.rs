@@ -180,8 +180,8 @@ pub enum Peripheral {
     Peripheral3,
 }
 
-impl spi::cs::IntoChipSelect<Peripheral, spi::cs::ActiveLow> for Peripheral {
-    fn into_cs(self) -> Peripheral {
+impl spi::cs::IntoChipSelect<Self, spi::cs::ActiveLow> for Peripheral {
+    fn into_cs(self) -> Self {
         self
     }
 }
@@ -237,7 +237,7 @@ type SpiRegisterManager<'a, 'm> = PeripheralManager<'m, SpiHw<'a>, pm::Clock>;
 
 impl<'a> SpiHw<'a> {
     /// Creates a new SPI object, with peripheral 0 selected
-    pub const fn new(pm: &'a pm::PowerManager) -> SpiHw<'a> {
+    pub const fn new(pm: &'a pm::PowerManager) -> Self {
         SpiHw {
             client: OptionalCell::empty(),
             dma_read: OptionalCell::empty(),

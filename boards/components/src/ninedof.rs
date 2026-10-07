@@ -44,12 +44,8 @@ pub struct NineDofComponent<CAP: MemoryAllocationCapability + 'static> {
 }
 
 impl<CAP: MemoryAllocationCapability + 'static> NineDofComponent<CAP> {
-    pub fn new(
-        board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
-        mem_cap: CAP,
-    ) -> NineDofComponent<CAP> {
-        NineDofComponent {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, mem_cap: CAP) -> Self {
+        Self {
             board_kernel,
             driver_num,
             mem_cap,

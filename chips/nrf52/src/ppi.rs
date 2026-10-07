@@ -159,8 +159,8 @@ pub struct Ppi {
 }
 
 impl Ppi {
-    pub const fn new() -> Ppi {
-        Ppi {
+    pub const fn new() -> Self {
+        Self {
             registers: PPI_BASE,
         }
     }

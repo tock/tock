@@ -47,8 +47,8 @@ pub struct App {
 }
 
 impl Default for App {
-    fn default() -> App {
-        App {
+    fn default() -> Self {
+        Self {
             pending_command: false,
             command: NineDofCommand::Exists,
             arg1: 0,
@@ -66,7 +66,7 @@ impl<'a> NineDof<'a> {
     pub fn new(
         drivers: &'a [&'a dyn hil::sensors::NineDof<'a>],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> NineDof<'a> {
+    ) -> Self {
         NineDof {
             drivers,
             apps: grant,

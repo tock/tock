@@ -64,7 +64,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
         analog_comparator: &'a A,
         channels: &'a [&'a <A as hil::analog_comparator::AnalogComparator<'a>>::Channel],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> AnalogComparator<'a, A> {
+    ) -> Self {
         AnalogComparator {
             // Analog Comparator driver
             analog_comparator,

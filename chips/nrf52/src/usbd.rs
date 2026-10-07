@@ -634,16 +634,14 @@ pub enum EndpointState {
 impl EndpointState {
     fn ctrl_state(self) -> CtrlState {
         match self {
-            EndpointState::Ctrl(state) => state,
+            Self::Ctrl(state) => state,
             _ => panic!("Expected EndpointState::Ctrl"),
         }
     }
 
     fn bulk_state(self) -> (TransferType, Option<BulkInState>, Option<BulkOutState>) {
         match self {
-            EndpointState::Bulk(transfer_type, in_state, out_state) => {
-                (transfer_type, in_state, out_state)
-            }
+            Self::Bulk(transfer_type, in_state, out_state) => (transfer_type, in_state, out_state),
             _ => panic!("Expected EndpointState::Bulk"),
         }
     }

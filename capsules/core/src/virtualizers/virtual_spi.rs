@@ -157,7 +157,7 @@ struct SpiConfiguration<'a, Spi: hil::spi::SpiMaster<'a>> {
 // https://stackoverflow.com/questions/63132174/how-do-i-fix-the-method-clone-exists-but-the-following-trait-bounds-were-not
 impl<'a, Spi: hil::spi::SpiMaster<'a>> Copy for SpiConfiguration<'a, Spi> {}
 impl<'a, Spi: hil::spi::SpiMaster<'a>> Clone for SpiConfiguration<'a, Spi> {
-    fn clone(&self) -> SpiConfiguration<'a, Spi> {
+    fn clone(&self) -> Self {
         *self
     }
 }
@@ -168,15 +168,12 @@ pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster<'a>> {
     txbuffer: MapCell<SubSliceMut<'static, u8>>,
     rxbuffer: MapCell<SubSliceMut<'static, u8>>,
     operation: Cell<Op>,
-    next: ListLink<'a, VirtualSpiMasterDevice<'a, Spi>>,
+    next: ListLink<'a, Self>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 }
 
 impl<'a, Spi: hil::spi::SpiMaster<'a>> VirtualSpiMasterDevice<'a, Spi> {
-    pub fn new(
-        mux: &'a MuxSpiMaster<'a, Spi>,
-        chip_select: Spi::ChipSelect,
-    ) -> VirtualSpiMasterDevice<'a, Spi> {
+    pub fn new(mux: &'a MuxSpiMaster<'a, Spi>, chip_select: Spi::ChipSelect) -> Self {
         VirtualSpiMasterDevice {
             mux,
             configuration: Cell::new(SpiConfiguration {
@@ -214,10 +211,8 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> hil::spi::SpiMasterClient
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster<'a>> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
-    for VirtualSpiMasterDevice<'a, Spi>
-{
-    fn next(&'a self) -> &'a ListLink<'a, VirtualSpiMasterDevice<'a, Spi>> {
+impl<'a, Spi: hil::spi::SpiMaster<'a>> ListNode<'a, Self> for VirtualSpiMasterDevice<'a, Spi> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }
@@ -324,7 +319,7 @@ pub struct SpiSlaveDevice<'a, Spi: hil::spi::SpiSlave<'a>> {
 }
 
 impl<'a, Spi: hil::spi::SpiSlave<'a>> SpiSlaveDevice<'a, Spi> {
-    pub const fn new(spi: &'a Spi) -> SpiSlaveDevice<'a, Spi> {
+    pub const fn new(spi: &'a Spi) -> Self {
         SpiSlaveDevice {
             spi,
             client: OptionalCell::empty(),

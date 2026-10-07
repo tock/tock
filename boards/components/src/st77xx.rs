@@ -94,8 +94,8 @@ impl<
         dc: Option<&'static P>,
         reset: Option<&'static P>,
         screen: &'static ST77XXScreen,
-    ) -> ST77XXComponent<A, B, P> {
-        ST77XXComponent {
+    ) -> Self {
+        Self {
             alarm_mux,
             bus,
             dc,

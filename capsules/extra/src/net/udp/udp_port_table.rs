@@ -95,8 +95,8 @@ impl fmt::Debug for UdpPortManager {
 impl UdpSocket {
     // important that this function is not public. If it were, capsules could
     // obtain access to ports bound by other capsules
-    fn new(idx: usize, pt: &'static UdpPortManager) -> UdpSocket {
-        UdpSocket {
+    fn new(idx: usize, pt: &'static UdpPortManager) -> Self {
+        Self {
             idx,
             port_table: pt,
         }
@@ -126,8 +126,8 @@ pub struct UdpPortBindingTx {
 }
 
 impl UdpPortBindingTx {
-    fn new(idx: usize, port: u16) -> UdpPortBindingTx {
-        UdpPortBindingTx { idx, port }
+    fn new(idx: usize, port: u16) -> Self {
+        Self { idx, port }
     }
 
     pub fn get_port(&self) -> u16 {
@@ -136,8 +136,8 @@ impl UdpPortBindingTx {
 }
 
 impl UdpPortBindingRx {
-    fn new(idx: usize, port: u16) -> UdpPortBindingRx {
-        UdpPortBindingRx { idx, port }
+    fn new(idx: usize, port: u16) -> Self {
+        Self { idx, port }
     }
 
     pub fn get_port(&self) -> u16 {
@@ -151,8 +151,8 @@ impl UdpPortManager {
         _cap: &dyn CreatePortTableCapability,
         used_kernel_ports: &'static mut [Option<SocketBindingEntry>],
         udp_vis: &'static UdpVisibilityCapability,
-    ) -> UdpPortManager {
-        UdpPortManager {
+    ) -> Self {
+        Self {
             port_array: TakeCell::new(used_kernel_ports),
             user_ports: OptionalCell::empty(),
             udp_vis,

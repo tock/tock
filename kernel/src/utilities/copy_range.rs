@@ -18,7 +18,7 @@ pub struct CopyRange<Idx> {
 
 impl<Idx> From<Range<Idx>> for CopyRange<Idx> {
     fn from(r: Range<Idx>) -> Self {
-        CopyRange {
+        Self {
             start: r.start,
             end: r.end,
         }
@@ -27,7 +27,7 @@ impl<Idx> From<Range<Idx>> for CopyRange<Idx> {
 
 impl<Idx> From<CopyRange<Idx>> for Range<Idx> {
     fn from(c: CopyRange<Idx>) -> Self {
-        Range {
+        Self {
             start: c.start,
             end: c.end,
         }

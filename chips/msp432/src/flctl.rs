@@ -832,8 +832,8 @@ pub struct FlCtl {
 }
 
 impl FlCtl {
-    pub const fn new() -> FlCtl {
-        FlCtl {
+    pub const fn new() -> Self {
+        Self {
             registers: FLCTL_BASE,
         }
     }

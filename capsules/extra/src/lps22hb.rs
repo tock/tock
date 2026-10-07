@@ -87,7 +87,7 @@ pub struct Lps22hb<'a, I: I2CDevice> {
 }
 
 impl<'a, I: I2CDevice> Lps22hb<'a, I> {
-    pub fn new(i2c_bus: &'a I, buffer: &'static mut [u8]) -> Lps22hb<'a, I> {
+    pub fn new(i2c_bus: &'a I, buffer: &'static mut [u8]) -> Self {
         Lps22hb {
             buffer: TakeCell::new(buffer),
             i2c_bus,

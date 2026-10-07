@@ -33,20 +33,20 @@ pub struct VirtualTimer<'a, A: Alarm<'a>> {
     /// Current mode of this timer.
     mode: Cell<Mode>,
     /// Next timer in the list.
-    next: ListLink<'a, VirtualTimer<'a, A>>,
+    next: ListLink<'a, Self>,
     /// Timer client for this node in the list.
     client: OptionalCell<&'a dyn time::TimerClient>,
 }
 
-impl<'a, A: Alarm<'a>> ListNode<'a, VirtualTimer<'a, A>> for VirtualTimer<'a, A> {
-    fn next(&self) -> &'a ListLink<'_, VirtualTimer<'a, A>> {
+impl<'a, A: Alarm<'a>> ListNode<'a, Self> for VirtualTimer<'a, A> {
+    fn next(&self) -> &'a ListLink<'_, Self> {
         &self.next
     }
 }
 
 impl<'a, A: Alarm<'a>> VirtualTimer<'a, A> {
     /// After calling new, always call setup()
-    pub fn new(mux_timer: &'a MuxTimer<'a, A>) -> VirtualTimer<'a, A> {
+    pub fn new(mux_timer: &'a MuxTimer<'a, A>) -> Self {
         let zero = A::Ticks::from(0);
         VirtualTimer {
             mux: mux_timer,
@@ -192,7 +192,7 @@ pub struct MuxTimer<'a, A: Alarm<'a>> {
 }
 
 impl<'a, A: Alarm<'a>> MuxTimer<'a, A> {
-    pub const fn new(alarm: &'a VirtualMuxAlarm<'a, A>) -> MuxTimer<'a, A> {
+    pub const fn new(alarm: &'a VirtualMuxAlarm<'a, A>) -> Self {
         MuxTimer {
             timers: List::new(),
             enabled: Cell::new(0),

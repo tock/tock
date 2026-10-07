@@ -28,8 +28,8 @@ pub enum BusAddr8080 {
 impl BusWidth {
     pub fn width_in_bytes(&self) -> usize {
         match self {
-            BusWidth::Bits8 => 1,
-            BusWidth::Bits16BE | BusWidth::Bits16LE => 2,
+            Self::Bits8 => 1,
+            Self::Bits16BE | Self::Bits16LE => 2,
         }
     }
 }

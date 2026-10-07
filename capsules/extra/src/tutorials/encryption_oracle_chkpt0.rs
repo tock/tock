@@ -9,6 +9,6 @@ pub struct EncryptionOracleDriver {}
 impl EncryptionOracleDriver {
     /// Create a new instance of our encryption oracle userspace driver:
     pub fn new() -> Self {
-        EncryptionOracleDriver {}
+        Self {}
     }
 }

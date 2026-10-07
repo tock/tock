@@ -78,7 +78,7 @@ pub struct SHT4x<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
 }
 
 impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> SHT4x<'a, A, I> {
-    pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> SHT4x<'a, A, I> {
+    pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> Self {
         SHT4x {
             i2c,
             humidity_client: OptionalCell::empty(),

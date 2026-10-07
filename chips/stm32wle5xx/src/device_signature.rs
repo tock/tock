@@ -32,8 +32,8 @@ pub struct Uid64 {
 }
 
 impl Uid64 {
-    pub const fn new() -> Uid64 {
-        Uid64 {
+    pub const fn new() -> Self {
+        Self {
             registers: UID64_BASE,
         }
     }

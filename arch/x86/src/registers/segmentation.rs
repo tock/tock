@@ -42,8 +42,8 @@ impl SegmentSelector {
     /// # Arguments
     ///  * `index` - index in GDT or LDT array.
     ///  * `rpl` - Requested privilege level of the selector
-    pub const fn new(index: u16, rpl: Ring) -> SegmentSelector {
-        SegmentSelector(LocalRegisterCopy::new(index << 3 | (rpl as u16)))
+    pub const fn new(index: u16, rpl: Ring) -> Self {
+        Self(LocalRegisterCopy::new(index << 3 | (rpl as u16)))
     }
 
     /// Returns segment selector's index in GDT or LDT.
@@ -52,8 +52,8 @@ impl SegmentSelector {
     }
 
     /// Make a new segment selector from a untyped u16 value.
-    pub fn from_raw(bits: u16) -> SegmentSelector {
-        SegmentSelector(LocalRegisterCopy::new(bits))
+    pub fn from_raw(bits: u16) -> Self {
+        Self(LocalRegisterCopy::new(bits))
     }
 
     pub fn bits(&self) -> u16 {
@@ -71,7 +71,7 @@ pub struct Descriptor {
 }
 
 impl Descriptor {
-    pub const NULL: Descriptor = Descriptor { lower: 0, upper: 0 };
+    pub const NULL: Self = Self { lower: 0, upper: 0 };
 
     pub(crate) fn apply_builder_settings(&mut self, builder: &DescriptorBuilder) {
         if let Some(ring) = builder.dpl {
@@ -291,30 +291,30 @@ pub trait GateDescriptorBuilder<Size> {
 }
 
 impl GateDescriptorBuilder<u32> for DescriptorBuilder {
-    fn tss_descriptor(base: u64, limit: u64, available: bool) -> DescriptorBuilder {
+    fn tss_descriptor(base: u64, limit: u64, available: bool) -> Self {
         let typ = match available {
             true => DescriptorType::System32(SystemDescriptorTypes32::TssAvailable32),
             false => DescriptorType::System32(SystemDescriptorTypes32::TssBusy32),
         };
-        DescriptorBuilder::with_base_limit(base, limit).set_type(typ)
+        Self::with_base_limit(base, limit).set_type(typ)
     }
 
-    fn call_gate_descriptor(selector: SegmentSelector, offset: u32) -> DescriptorBuilder {
-        DescriptorBuilder::with_selector_offset(selector, offset.into()).set_type(
-            DescriptorType::System32(SystemDescriptorTypes32::CallGate32),
-        )
+    fn call_gate_descriptor(selector: SegmentSelector, offset: u32) -> Self {
+        Self::with_selector_offset(selector, offset.into()).set_type(DescriptorType::System32(
+            SystemDescriptorTypes32::CallGate32,
+        ))
     }
 
-    fn interrupt_descriptor(selector: SegmentSelector, offset: u32) -> DescriptorBuilder {
-        DescriptorBuilder::with_selector_offset(selector, offset.into()).set_type(
-            DescriptorType::System32(SystemDescriptorTypes32::InterruptGate32),
-        )
+    fn interrupt_descriptor(selector: SegmentSelector, offset: u32) -> Self {
+        Self::with_selector_offset(selector, offset.into()).set_type(DescriptorType::System32(
+            SystemDescriptorTypes32::InterruptGate32,
+        ))
     }
 
-    fn trap_gate_descriptor(selector: SegmentSelector, offset: u32) -> DescriptorBuilder {
-        DescriptorBuilder::with_selector_offset(selector, offset.into()).set_type(
-            DescriptorType::System32(SystemDescriptorTypes32::TrapGate32),
-        )
+    fn trap_gate_descriptor(selector: SegmentSelector, offset: u32) -> Self {
+        Self::with_selector_offset(selector, offset.into()).set_type(DescriptorType::System32(
+            SystemDescriptorTypes32::TrapGate32,
+        ))
     }
 }
 
@@ -325,14 +325,12 @@ pub trait SegmentDescriptorBuilder<Size> {
 }
 
 impl SegmentDescriptorBuilder<u32> for DescriptorBuilder {
-    fn code_descriptor(base: u32, limit: u32, cst: CodeSegmentType) -> DescriptorBuilder {
-        DescriptorBuilder::with_base_limit(base.into(), limit.into())
-            .set_type(DescriptorType::Code(cst))
+    fn code_descriptor(base: u32, limit: u32, cst: CodeSegmentType) -> Self {
+        Self::with_base_limit(base.into(), limit.into()).set_type(DescriptorType::Code(cst))
     }
 
-    fn data_descriptor(base: u32, limit: u32, dst: DataSegmentType) -> DescriptorBuilder {
-        DescriptorBuilder::with_base_limit(base.into(), limit.into())
-            .set_type(DescriptorType::Data(dst))
+    fn data_descriptor(base: u32, limit: u32, dst: DataSegmentType) -> Self {
+        Self::with_base_limit(base.into(), limit.into()).set_type(DescriptorType::Data(dst))
     }
 }
 
@@ -370,8 +368,8 @@ pub struct DescriptorBuilder {
 
 impl DescriptorBuilder {
     /// Start building a new descriptor with a base and limit.
-    pub(crate) fn with_base_limit(base: u64, limit: u64) -> DescriptorBuilder {
-        DescriptorBuilder {
+    pub(crate) fn with_base_limit(base: u64, limit: u64) -> Self {
+        Self {
             base_limit: Some((base, limit)),
             selector_offset: None,
             typ: None,
@@ -385,11 +383,8 @@ impl DescriptorBuilder {
     }
 
     /// Start building a new descriptor with a segment selector and offset.
-    pub(crate) fn with_selector_offset(
-        selector: SegmentSelector,
-        offset: u64,
-    ) -> DescriptorBuilder {
-        DescriptorBuilder {
+    pub(crate) fn with_selector_offset(selector: SegmentSelector, offset: u64) -> Self {
+        Self {
             base_limit: None,
             selector_offset: Some((selector, offset)),
             typ: None,
@@ -403,36 +398,36 @@ impl DescriptorBuilder {
     }
 
     /// The segment limit is interpreted in 4-KByte units if this is set.
-    pub fn limit_granularity_4kb(mut self) -> DescriptorBuilder {
+    pub fn limit_granularity_4kb(mut self) -> Self {
         self.limit_granularity_4k = true;
         self
     }
 
     /// Indicates whether the segment is present in memory (set) or not present (clear).
-    pub fn present(mut self) -> DescriptorBuilder {
+    pub fn present(mut self) -> Self {
         self.present = true;
         self
     }
 
     /// Specifies the privilege level of the segment.
-    pub fn dpl(mut self, dpl: Ring) -> DescriptorBuilder {
+    pub fn dpl(mut self, dpl: Ring) -> Self {
         self.dpl = Some(dpl);
         self
     }
 
     /// Toggle the AVL bit.
-    pub fn avl(mut self) -> DescriptorBuilder {
+    pub fn avl(mut self) -> Self {
         self.avl = true;
         self
     }
 
     /// Set default operation size (false for 16bit segment, true for 32bit segments).
-    pub fn db(mut self) -> DescriptorBuilder {
+    pub fn db(mut self) -> Self {
         self.db = true;
         self
     }
 
-    pub(crate) fn set_type(mut self, typ: DescriptorType) -> DescriptorBuilder {
+    pub(crate) fn set_type(mut self, typ: DescriptorType) -> Self {
         self.typ = Some(typ);
         self
     }

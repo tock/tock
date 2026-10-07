@@ -19,7 +19,7 @@ pub struct TestAlarmEdgeCases<'a, A: 'a> {
 }
 
 impl<'a, A: Alarm<'a>> TestAlarmEdgeCases<'a, A> {
-    pub fn new(alarm: &'a A) -> TestAlarmEdgeCases<'a, A> {
+    pub fn new(alarm: &'a A) -> Self {
         TestAlarmEdgeCases {
             alarm,
             counter: Cell::new(0),

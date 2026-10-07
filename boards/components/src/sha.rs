@@ -118,8 +118,8 @@ pub type ShaSoftware256ComponentType = capsules_extra::sha256::Sha256Software<'s
 pub struct ShaSoftware256Component {}
 
 impl ShaSoftware256Component {
-    pub fn new() -> ShaSoftware256Component {
-        ShaSoftware256Component {}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 

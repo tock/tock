@@ -57,7 +57,7 @@ impl<
         hash_buffer: &'static mut [u8; HASH_LEN],
         signature_buffer: &'static mut [u8; SIGNATURE_LEN],
         credential_type: TbfFooterV2CredentialsType,
-    ) -> AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN> {
+    ) -> Self {
         Self {
             hasher,
             verifier,

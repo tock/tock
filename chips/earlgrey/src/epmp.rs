@@ -526,7 +526,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         }
 
         // The ePMP hardware was correctly configured, build the ePMP struct:
-        Ok(EarlGreyEPMP {
+        Ok(Self {
             user_pmp_enabled: Cell::new(false),
             shadow_user_pmpcfgs: [const { Cell::new(TORUserPMPCFG::OFF) };
                 TOR_USER_REGIONS_DEBUG_DISABLE],
@@ -682,7 +682,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         }
 
         // The ePMP hardware was correctly configured, build the ePMP struct:
-        Ok(EarlGreyEPMP {
+        Ok(Self {
             user_pmp_enabled: Cell::new(false),
             shadow_user_pmpcfgs: [const { Cell::new(TORUserPMPCFG::OFF) };
                 TOR_USER_REGIONS_DEBUG_DISABLE],
@@ -855,7 +855,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         csr::CSR.pmpcfg2.set(0x8d81800);
 
         // The ePMP hardware was correctly configured, build the ePMP struct:
-        let epmp = EarlGreyEPMP {
+        let epmp = Self {
             user_pmp_enabled: Cell::new(false),
             shadow_user_pmpcfgs: [const { Cell::new(TORUserPMPCFG::OFF) };
                 TOR_USER_REGIONS_DEBUG_DISABLE],

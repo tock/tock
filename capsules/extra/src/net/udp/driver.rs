@@ -95,7 +95,7 @@ impl UDPEndpoint {
     /// This function returns the new offset into the buffer wrapped in an
     /// SResult.
     pub fn encode(&self, buf: &mut [u8], offset: usize) -> SResult<usize> {
-        stream_len_cond!(buf, size_of::<UDPEndpoint>() + offset);
+        stream_len_cond!(buf, size_of::<Self>() + offset);
 
         let mut off = offset;
         for i in 0..16 {
@@ -163,7 +163,7 @@ impl<'a> UDPDriver<'a> {
         kernel_buffer: SubSliceMut<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
         net_cap: &'static NetworkCapability,
-    ) -> UDPDriver<'a> {
+    ) -> Self {
         UDPDriver {
             sender,
             apps: grant,

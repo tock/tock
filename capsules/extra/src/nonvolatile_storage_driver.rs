@@ -122,8 +122,8 @@ pub struct App {
 }
 
 impl Default for App {
-    fn default() -> App {
-        App {
+    fn default() -> Self {
+        Self {
             pending_command: false,
             command: NonvolatileCommand::UserspaceRead,
             offset: 0,
@@ -186,7 +186,7 @@ impl<'a> NonvolatileStorage<'a> {
         kernel_start_address: usize,
         kernel_length: usize,
         buffer: &'static mut [u8],
-    ) -> NonvolatileStorage<'a> {
+    ) -> Self {
         NonvolatileStorage {
             driver,
             apps: grant,

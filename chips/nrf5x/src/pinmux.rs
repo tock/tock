@@ -17,8 +17,8 @@ pub struct Pinmux(Pin);
 
 impl Pinmux {
     /// Creates a new `Pinmux` wrapping the numbered pin.
-    pub fn new(pin: Pin) -> Pinmux {
-        Pinmux(pin)
+    pub fn new(pin: Pin) -> Self {
+        Self(pin)
     }
 }
 

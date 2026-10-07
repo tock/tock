@@ -108,7 +108,7 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
         buzzer: &'a B,
         max_duration_ms: usize,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Buzzer<'a, B> {
+    ) -> Self {
         Buzzer {
             buzzer,
             apps: grant,

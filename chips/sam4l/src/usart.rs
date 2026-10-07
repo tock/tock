@@ -299,7 +299,7 @@ pub struct USARTRegManager<'a> {
 static IS_PANICING: AtomicBool = AtomicBool::new(false);
 
 impl<'a> USARTRegManager<'a> {
-    fn real_new(usart: &'a USART) -> USARTRegManager<'a> {
+    fn real_new(usart: &'a USART) -> Self {
         if !pm::is_clock_enabled(usart.clock) {
             pm::enable_clock(usart.clock);
         }
@@ -312,11 +312,11 @@ impl<'a> USARTRegManager<'a> {
         }
     }
 
-    fn new(usart: &'a USART) -> USARTRegManager<'a> {
+    fn new(usart: &'a USART) -> Self {
         USARTRegManager::real_new(usart)
     }
 
-    pub fn panic_new(usart: &'a USART) -> USARTRegManager<'a> {
+    pub fn panic_new(usart: &'a USART) -> Self {
         IS_PANICING.store(true, Ordering::Relaxed);
         USARTRegManager::real_new(usart)
     }

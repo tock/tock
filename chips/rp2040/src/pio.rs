@@ -656,8 +656,8 @@ impl StateMachine {
         registers: StaticRef<PioRegisters>,
         xor_registers: StaticRef<PioRegisters>,
         set_registers: StaticRef<PioRegisters>,
-    ) -> StateMachine {
-        StateMachine {
+    ) -> Self {
+        Self {
             sm_number: sm_id,
             registers,
             xor_registers,
@@ -1305,7 +1305,7 @@ pub struct StateMachineConfiguration {
 
 impl Default for StateMachineConfiguration {
     fn default() -> Self {
-        StateMachineConfiguration {
+        Self {
             out_pins_count: 32,
             out_pins_base: 0,
             set_pins_count: 0,
@@ -1683,38 +1683,38 @@ mod examples {
     };
 
     impl RPGpio {
-        fn from_u32(value: u32) -> RPGpio {
+        fn from_u32(value: u32) -> Self {
             match value {
-                0 => RPGpio::GPIO0,
-                1 => RPGpio::GPIO1,
-                2 => RPGpio::GPIO2,
-                3 => RPGpio::GPIO3,
-                4 => RPGpio::GPIO4,
-                5 => RPGpio::GPIO5,
-                6 => RPGpio::GPIO6,
-                7 => RPGpio::GPIO7,
-                8 => RPGpio::GPIO8,
-                9 => RPGpio::GPIO9,
-                10 => RPGpio::GPIO10,
-                11 => RPGpio::GPIO11,
-                12 => RPGpio::GPIO12,
-                13 => RPGpio::GPIO13,
-                14 => RPGpio::GPIO14,
-                15 => RPGpio::GPIO15,
-                16 => RPGpio::GPIO16,
-                17 => RPGpio::GPIO17,
-                18 => RPGpio::GPIO18,
-                19 => RPGpio::GPIO19,
-                20 => RPGpio::GPIO20,
-                21 => RPGpio::GPIO21,
-                22 => RPGpio::GPIO22,
-                23 => RPGpio::GPIO23,
-                24 => RPGpio::GPIO24,
-                25 => RPGpio::GPIO25,
-                26 => RPGpio::GPIO26,
-                27 => RPGpio::GPIO27,
-                28 => RPGpio::GPIO28,
-                29 => RPGpio::GPIO29,
+                0 => Self::GPIO0,
+                1 => Self::GPIO1,
+                2 => Self::GPIO2,
+                3 => Self::GPIO3,
+                4 => Self::GPIO4,
+                5 => Self::GPIO5,
+                6 => Self::GPIO6,
+                7 => Self::GPIO7,
+                8 => Self::GPIO8,
+                9 => Self::GPIO9,
+                10 => Self::GPIO10,
+                11 => Self::GPIO11,
+                12 => Self::GPIO12,
+                13 => Self::GPIO13,
+                14 => Self::GPIO14,
+                15 => Self::GPIO15,
+                16 => Self::GPIO16,
+                17 => Self::GPIO17,
+                18 => Self::GPIO18,
+                19 => Self::GPIO19,
+                20 => Self::GPIO20,
+                21 => Self::GPIO21,
+                22 => Self::GPIO22,
+                23 => Self::GPIO23,
+                24 => Self::GPIO24,
+                25 => Self::GPIO25,
+                26 => Self::GPIO26,
+                27 => Self::GPIO27,
+                28 => Self::GPIO28,
+                29 => Self::GPIO29,
                 _ => panic!(
                     "Unknown value for GPIO pin: {} (should be from 0 to 29)",
                     value

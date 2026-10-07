@@ -60,8 +60,8 @@ impl<
         driver_num: usize,
         storage: &'static F,
         mem_cap: CAP,
-    ) -> AppFlashComponent<F, BUF_LEN, CAP> {
-        AppFlashComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             storage,

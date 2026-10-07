@@ -100,10 +100,10 @@ pub struct IP6Header {
 }
 
 impl Default for IP6Header {
-    fn default() -> IP6Header {
+    fn default() -> Self {
         let version = 0x60;
         let hop_limit = 255;
-        IP6Header {
+        Self {
             version_class_flow: [version, 0, 0, 0],
             payload_len: 0,
             next_header: ip6_nh::NO_NEXT,
@@ -117,8 +117,8 @@ impl Default for IP6Header {
 impl IP6Header {
     /// This function returns an IP6Header struct initialized to the default
     /// values.
-    pub fn new() -> IP6Header {
-        IP6Header::default()
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// This function is used to transform a raw buffer into an IP6Header
@@ -132,7 +132,7 @@ impl IP6Header {
     ///
     /// - `SResult<IP6Header>` - The resulting decoded IP6Header struct wrapped
     ///   in an SResult
-    pub fn decode(buf: &[u8]) -> SResult<IP6Header> {
+    pub fn decode(buf: &[u8]) -> SResult<Self> {
         // TODO: Let size of header be a constant
         stream_len_cond!(buf, 40);
 
@@ -336,7 +336,7 @@ impl<'a> IPPayload<'a> {
     ///
     /// - `header` - A `TransportHeader` for the `IPPayload`
     /// - `payload` - A reference to a mutable buffer for the raw payload
-    pub fn new(header: TransportHeader, payload: &'a mut [u8]) -> IPPayload<'a> {
+    pub fn new(header: TransportHeader, payload: &'a mut [u8]) -> Self {
         IPPayload { header, payload }
     }
 
@@ -436,7 +436,7 @@ impl<'a> IP6Packet<'a> {
     /// # Arguments
     ///
     /// - `payload` - The `IPPayload` struct for the `IP6Packet`
-    pub fn new(payload: IPPayload<'a>) -> IP6Packet<'a> {
+    pub fn new(payload: IPPayload<'a>) -> Self {
         IP6Packet {
             header: IP6Header::default(),
             payload,

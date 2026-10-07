@@ -59,8 +59,8 @@ impl<
         driver_num: usize,
         hmac: &'static A,
         mem_cap: CAP,
-    ) -> HmacComponent<A, L, CAP> {
-        HmacComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             hmac,
@@ -132,8 +132,8 @@ pub struct HmacSha256SoftwareComponent<
 impl<S: digest::Sha256 + digest::DigestDataHash<'static, 32> + digest::Digest<'static, 32>>
     HmacSha256SoftwareComponent<S>
 {
-    pub fn new(sha_256: &'static S) -> HmacSha256SoftwareComponent<S> {
-        HmacSha256SoftwareComponent { sha_256 }
+    pub fn new(sha_256: &'static S) -> Self {
+        Self { sha_256 }
     }
 }
 

@@ -57,8 +57,8 @@ impl AcChannel {
     /// Create a new AC channel.
     ///
     /// - `channel`: Channel enum representing the channel number
-    pub const fn new(channel: Channel) -> AcChannel {
-        AcChannel {
+    pub const fn new(channel: Channel) -> Self {
+        Self {
             chan_num: ((channel as u8) & 0x0F) as u32,
         }
     }
@@ -278,7 +278,7 @@ pub struct Acifc<'a> {
 
 /// Implement constructor for struct Acifc
 impl<'a> Acifc<'a> {
-    pub const fn new() -> Acifc<'a> {
+    pub const fn new() -> Self {
         Acifc {
             client: Cell::new(None),
         }

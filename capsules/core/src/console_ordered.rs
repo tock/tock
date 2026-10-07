@@ -160,7 +160,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         atomic_size: usize,
         retry_timer: u32,
         write_timer: u32,
-    ) -> ConsoleOrdered<'a, A> {
+    ) -> Self {
         ConsoleOrdered {
             uart,
             apps: grant,

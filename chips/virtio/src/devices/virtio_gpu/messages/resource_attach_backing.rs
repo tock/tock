@@ -79,6 +79,6 @@ impl VirtIOGPUResp for ResourceAttachBackingResp {
         ctrl_header: CtrlHeader,
         _src: &mut impl Iterator<Item = u8>,
     ) -> Result<Self, ErrorCode> {
-        Ok(ResourceAttachBackingResp { ctrl_header })
+        Ok(Self { ctrl_header })
     }
 }

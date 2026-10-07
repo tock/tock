@@ -53,8 +53,8 @@ impl<I: 'static + i2c::I2CMaster<'static>> Fxos8700Component<I> {
         i2c: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         gpio: &'static dyn hil::gpio::InterruptPin<'static>,
-    ) -> Fxos8700Component<I> {
-        Fxos8700Component {
+    ) -> Self {
+        Self {
             i2c_mux: i2c,
             i2c_address,
             gpio,

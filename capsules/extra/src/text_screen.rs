@@ -60,8 +60,8 @@ pub struct App {
 }
 
 impl Default for App {
-    fn default() -> App {
-        App {
+    fn default() -> Self {
+        Self {
             pending_command: false,
             write_len: 0,
             command: TextScreenCommand::Idle,
@@ -83,7 +83,7 @@ impl<'a> TextScreen<'a> {
         text_screen: &'static dyn hil::text_screen::TextScreen,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
-    ) -> TextScreen<'a> {
+    ) -> Self {
         TextScreen {
             text_screen,
             apps: grant,

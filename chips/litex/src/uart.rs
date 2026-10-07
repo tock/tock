@@ -109,7 +109,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
     pub fn new(
         uart_base: StaticRef<LiteXUartRegisters<R>>,
         phy_args: Option<(StaticRef<LiteXUartPhyRegisters<R>>, u32)>,
-    ) -> LiteXUart<'a, R> {
+    ) -> Self {
         LiteXUart {
             uart_regs: uart_base,
             phy: phy_args,

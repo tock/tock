@@ -236,14 +236,14 @@ impl From<RPGpio> for ChannelNumber {
     fn from(gpio: RPGpio) -> Self {
         match gpio as u8 >> 1 & 0b111 {
             // Because of the bitwise AND, there are only eight possible values
-            0 => ChannelNumber::Ch0,
-            1 => ChannelNumber::Ch1,
-            2 => ChannelNumber::Ch2,
-            3 => ChannelNumber::Ch3,
-            4 => ChannelNumber::Ch4,
-            5 => ChannelNumber::Ch5,
-            6 => ChannelNumber::Ch6,
-            _ => ChannelNumber::Ch7,
+            0 => Self::Ch0,
+            1 => Self::Ch1,
+            2 => Self::Ch2,
+            3 => Self::Ch3,
+            4 => Self::Ch4,
+            5 => Self::Ch5,
+            6 => Self::Ch6,
+            _ => Self::Ch7,
         }
     }
 }
@@ -265,8 +265,8 @@ impl From<RPGpio> for ChannelPin {
     fn from(gpio: RPGpio) -> Self {
         match gpio as u8 & 0b0000_0001 {
             // Because of the bitwise AND, there are only two possible values
-            0 => ChannelPin::A,
-            _ => ChannelPin::B,
+            0 => Self::A,
+            _ => Self::B,
         }
     }
 }
@@ -297,7 +297,7 @@ impl Default for PwmChannelConfiguration {
     // + compare values for both pins are set 0 (0% duty cycle)
     // + top value is set to its maximum value
     fn default() -> Self {
-        PwmChannelConfiguration {
+        Self {
             en: false,
             ph_correct: false,
             a_inv: false,

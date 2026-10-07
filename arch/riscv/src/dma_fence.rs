@@ -40,7 +40,7 @@ impl RiscvCoherentDmaFence {
     /// are required. By using `unsafe`, callers of this function promise that
     /// the resulting instance is not used for non-coherent DMA mappings.
     pub unsafe fn new() -> Self {
-        RiscvCoherentDmaFence { _private: () }
+        Self { _private: () }
     }
 }
 

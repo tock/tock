@@ -196,7 +196,7 @@ impl DeferredCallClient for Rtc<'_> {
 }
 
 impl<'a> Rtc<'a> {
-    pub fn new(clocks: &'a clocks::Clocks) -> Rtc<'a> {
+    pub fn new(clocks: &'a clocks::Clocks) -> Self {
         Rtc {
             registers: RTC_BASE,
             client: OptionalCell::empty(),

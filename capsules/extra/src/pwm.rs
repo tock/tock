@@ -29,7 +29,7 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
     pub fn new(
         pwm_pins: &'a [&'a dyn hil::pwm::PwmPin; NUM_PINS],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Pwm<'a, NUM_PINS> {
+    ) -> Self {
         assert!(u16::try_from(NUM_PINS).is_ok());
         Pwm {
             pwm_pins,

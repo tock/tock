@@ -52,8 +52,8 @@ impl<D: 'static + date_time::DateTime<'static>, CAP: MemoryAllocationCapability 
         driver_num: usize,
         rtc: &'static D,
         mem_cap: CAP,
-    ) -> DateTimeComponent<D, CAP> {
-        DateTimeComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             rtc,

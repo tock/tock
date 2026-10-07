@@ -174,8 +174,8 @@ pub struct Pcm {
 }
 
 impl Pcm {
-    pub const fn new() -> Pcm {
-        Pcm {
+    pub const fn new() -> Self {
+        Self {
             registers: PCM_BASE,
         }
     }

@@ -55,8 +55,8 @@ pub struct Approtect {
 }
 
 impl Approtect {
-    pub const fn new() -> Approtect {
-        Approtect {
+    pub const fn new() -> Self {
+        Self {
             registers: APPROTECT_BASE,
         }
     }

@@ -48,48 +48,36 @@ impl TryFrom<u32> for CtrlType {
     fn try_from(int: u32) -> Result<Self, Self::Error> {
         match int {
             /* 2d commands */
-            v if v == CtrlType::CmdGetDisplayInfo as u32 => Ok(CtrlType::CmdGetDisplayInfo),
-            v if v == CtrlType::CmdResourceCreate2d as u32 => Ok(CtrlType::CmdResourceCreate2d),
-            v if v == CtrlType::CmdResourceUref as u32 => Ok(CtrlType::CmdResourceUref),
-            v if v == CtrlType::CmdSetScanout as u32 => Ok(CtrlType::CmdSetScanout),
-            v if v == CtrlType::CmdResourceFlush as u32 => Ok(CtrlType::CmdResourceFlush),
-            v if v == CtrlType::CmdTransferToHost2d as u32 => Ok(CtrlType::CmdTransferToHost2d),
-            v if v == CtrlType::CmdResourceAttachBacking as u32 => {
-                Ok(CtrlType::CmdResourceAttachBacking)
-            }
-            v if v == CtrlType::CmdResourceDetachBacking as u32 => {
-                Ok(CtrlType::CmdResourceDetachBacking)
-            }
-            v if v == CtrlType::CmdGetCapsetInfo as u32 => Ok(CtrlType::CmdGetCapsetInfo),
-            v if v == CtrlType::CmdGetCapset as u32 => Ok(CtrlType::CmdGetCapset),
-            v if v == CtrlType::CmdGetEdid as u32 => Ok(CtrlType::CmdGetEdid),
+            v if v == Self::CmdGetDisplayInfo as u32 => Ok(Self::CmdGetDisplayInfo),
+            v if v == Self::CmdResourceCreate2d as u32 => Ok(Self::CmdResourceCreate2d),
+            v if v == Self::CmdResourceUref as u32 => Ok(Self::CmdResourceUref),
+            v if v == Self::CmdSetScanout as u32 => Ok(Self::CmdSetScanout),
+            v if v == Self::CmdResourceFlush as u32 => Ok(Self::CmdResourceFlush),
+            v if v == Self::CmdTransferToHost2d as u32 => Ok(Self::CmdTransferToHost2d),
+            v if v == Self::CmdResourceAttachBacking as u32 => Ok(Self::CmdResourceAttachBacking),
+            v if v == Self::CmdResourceDetachBacking as u32 => Ok(Self::CmdResourceDetachBacking),
+            v if v == Self::CmdGetCapsetInfo as u32 => Ok(Self::CmdGetCapsetInfo),
+            v if v == Self::CmdGetCapset as u32 => Ok(Self::CmdGetCapset),
+            v if v == Self::CmdGetEdid as u32 => Ok(Self::CmdGetEdid),
 
             /* cursor commands */
-            v if v == CtrlType::CmdUpdateCursor as u32 => Ok(CtrlType::CmdUpdateCursor),
-            v if v == CtrlType::CmdMoveCursor as u32 => Ok(CtrlType::CmdMoveCursor),
+            v if v == Self::CmdUpdateCursor as u32 => Ok(Self::CmdUpdateCursor),
+            v if v == Self::CmdMoveCursor as u32 => Ok(Self::CmdMoveCursor),
 
             /* success responses */
-            v if v == CtrlType::RespOkNoData as u32 => Ok(CtrlType::RespOkNoData),
-            v if v == CtrlType::RespOkDisplayInfo as u32 => Ok(CtrlType::RespOkDisplayInfo),
-            v if v == CtrlType::RespOkCapsetInfo as u32 => Ok(CtrlType::RespOkCapsetInfo),
-            v if v == CtrlType::RespOkCapset as u32 => Ok(CtrlType::RespOkCapset),
-            v if v == CtrlType::RespOkEdid as u32 => Ok(CtrlType::RespOkEdid),
+            v if v == Self::RespOkNoData as u32 => Ok(Self::RespOkNoData),
+            v if v == Self::RespOkDisplayInfo as u32 => Ok(Self::RespOkDisplayInfo),
+            v if v == Self::RespOkCapsetInfo as u32 => Ok(Self::RespOkCapsetInfo),
+            v if v == Self::RespOkCapset as u32 => Ok(Self::RespOkCapset),
+            v if v == Self::RespOkEdid as u32 => Ok(Self::RespOkEdid),
 
             /* error responses */
-            v if v == CtrlType::RespErrUnspec as u32 => Ok(CtrlType::RespErrUnspec),
-            v if v == CtrlType::RespErrOutOfMemory as u32 => Ok(CtrlType::RespErrOutOfMemory),
-            v if v == CtrlType::RespErrInvalidScanoutId as u32 => {
-                Ok(CtrlType::RespErrInvalidScanoutId)
-            }
-            v if v == CtrlType::RespErrInvalidResourceId as u32 => {
-                Ok(CtrlType::RespErrInvalidResourceId)
-            }
-            v if v == CtrlType::RespErrInvalidContextId as u32 => {
-                Ok(CtrlType::RespErrInvalidContextId)
-            }
-            v if v == CtrlType::RespErrInvalidParameter as u32 => {
-                Ok(CtrlType::RespErrInvalidParameter)
-            }
+            v if v == Self::RespErrUnspec as u32 => Ok(Self::RespErrUnspec),
+            v if v == Self::RespErrOutOfMemory as u32 => Ok(Self::RespErrOutOfMemory),
+            v if v == Self::RespErrInvalidScanoutId as u32 => Ok(Self::RespErrInvalidScanoutId),
+            v if v == Self::RespErrInvalidResourceId as u32 => Ok(Self::RespErrInvalidResourceId),
+            v if v == Self::RespErrInvalidContextId as u32 => Ok(Self::RespErrInvalidContextId),
+            v if v == Self::RespErrInvalidParameter as u32 => Ok(Self::RespErrInvalidParameter),
 
             _ => Err(()),
         }
@@ -133,7 +121,7 @@ impl CtrlHeader {
         let ctx_id = u32::from_le_bytes(bytes_from_iter(src)?);
         let padding = u32::from_le_bytes(bytes_from_iter(src)?);
 
-        Ok(CtrlHeader {
+        Ok(Self {
             ctrl_type,
             flags,
             fence_id,

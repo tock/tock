@@ -58,7 +58,7 @@ impl SetupData {
         if p.len() < 8 {
             return None;
         }
-        Some(SetupData {
+        Some(Self {
             request_type: DeviceRequestType(p[0].get()),
             request_code: p[1].get(),
             value: get_u16(p[2].get(), p[3].get()),
@@ -277,10 +277,10 @@ pub enum FeatureSelector {
 impl FeatureSelector {
     fn get(value: u16) -> Self {
         match value {
-            1 => FeatureSelector::DeviceRemoteWakeup,
-            0 => FeatureSelector::EndpointHalt,
-            2 => FeatureSelector::TestMode,
-            _ => FeatureSelector::Unknown,
+            1 => Self::DeviceRemoteWakeup,
+            0 => Self::EndpointHalt,
+            2 => Self::TestMode,
+            _ => Self::Unknown,
         }
     }
 }
@@ -346,7 +346,7 @@ pub struct DeviceDescriptor {
 
 impl Default for DeviceDescriptor {
     fn default() -> Self {
-        DeviceDescriptor {
+        Self {
             usb_release: 0x0200,
             class: 0,
             subclass: 0,
@@ -577,7 +577,7 @@ pub struct ConfigurationDescriptor {
 
 impl Default for ConfigurationDescriptor {
     fn default() -> Self {
-        ConfigurationDescriptor {
+        Self {
             num_interfaces: 1,
             configuration_value: 1,
             string_index: 0,
@@ -611,7 +611,7 @@ pub struct ConfigurationAttributes(u8);
 
 impl ConfigurationAttributes {
     pub fn new(is_self_powered: bool, supports_remote_wakeup: bool) -> Self {
-        ConfigurationAttributes(
+        Self(
             (1 << 7)
                 | if is_self_powered { 1 << 6 } else { 0 }
                 | if supports_remote_wakeup { 1 << 5 } else { 0 },
@@ -620,7 +620,7 @@ impl ConfigurationAttributes {
 }
 
 impl From<ConfigurationAttributes> for u8 {
-    fn from(ca: ConfigurationAttributes) -> u8 {
+    fn from(ca: ConfigurationAttributes) -> Self {
         ca.0
     }
 }
@@ -637,7 +637,7 @@ pub struct InterfaceDescriptor {
 
 impl Default for InterfaceDescriptor {
     fn default() -> Self {
-        InterfaceDescriptor {
+        Self {
             interface_number: 0,
             alternate_setting: 0,
             num_endpoints: 0,      // (exluding default control endpoint)
@@ -672,7 +672,7 @@ pub struct EndpointAddress(u8);
 
 impl EndpointAddress {
     pub fn new(endpoint: usize, direction: TransferDirection) -> Self {
-        EndpointAddress(
+        Self(
             endpoint as u8 & 0xf
                 | match direction {
                     TransferDirection::HostToDevice => 0,
@@ -685,7 +685,7 @@ impl EndpointAddress {
     // in const functions. As we need to initialize static endpoint addresses for the USB client
     // capsule, this function offers a workaround to have a const constructor.
     pub const fn new_const(endpoint: usize, direction: TransferDirection) -> Self {
-        EndpointAddress(endpoint as u8 & 0xf | (direction as u8) << 7)
+        Self(endpoint as u8 & 0xf | (direction as u8) << 7)
     }
 }
 
@@ -889,7 +889,7 @@ impl CdcAcmSetLineCodingData {
         if p.len() < 7 {
             return None;
         }
-        Some(CdcAcmSetLineCodingData {
+        Some(Self {
             baud_rate: get_u32(p[0].get(), p[1].get(), p[2].get(), p[3].get()),
             stop_bits: p[4].get(),
             parity: p[5].get(),

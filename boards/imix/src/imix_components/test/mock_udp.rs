@@ -75,8 +75,8 @@ impl MockUDPComponent {
         dst_port: u16,
         net_cap: &'static NetworkCapability,
         udp_vis: &'static UdpVisibilityCapability,
-    ) -> MockUDPComponent {
-        MockUDPComponent {
+    ) -> Self {
+        Self {
             udp_send_mux,
             udp_recv_mux,
             bound_port_table,

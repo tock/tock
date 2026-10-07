@@ -70,8 +70,8 @@ pub struct SeggerRttMemoryRefs<'a> {
 pub struct SeggerRttMemoryComponent {}
 
 impl SeggerRttMemoryComponent {
-    pub fn new() -> SeggerRttMemoryComponent {
-        SeggerRttMemoryComponent {}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -112,8 +112,8 @@ impl<A: 'static + time::Alarm<'static>> SeggerRttComponent<A> {
     pub fn new(
         mux_alarm: &'static MuxAlarm<'static, A>,
         rtt_memory_refs: SeggerRttMemoryRefs<'static>,
-    ) -> SeggerRttComponent<A> {
-        SeggerRttComponent {
+    ) -> Self {
+        Self {
             mux_alarm,
             rtt_memory_refs,
         }

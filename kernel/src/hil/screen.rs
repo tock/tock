@@ -48,19 +48,19 @@ impl Add for ScreenRotation {
 
     fn add(self, other: Self) -> Self {
         match (self, other) {
-            (ScreenRotation::Normal, _) => other,
-            (_, ScreenRotation::Normal) => self,
-            (ScreenRotation::Rotated90, ScreenRotation::Rotated90) => ScreenRotation::Rotated180,
-            (ScreenRotation::Rotated90, ScreenRotation::Rotated180) => ScreenRotation::Rotated270,
-            (ScreenRotation::Rotated90, ScreenRotation::Rotated270) => ScreenRotation::Normal,
+            (Self::Normal, _) => other,
+            (_, Self::Normal) => self,
+            (Self::Rotated90, Self::Rotated90) => Self::Rotated180,
+            (Self::Rotated90, Self::Rotated180) => Self::Rotated270,
+            (Self::Rotated90, Self::Rotated270) => Self::Normal,
 
-            (ScreenRotation::Rotated180, ScreenRotation::Rotated90) => ScreenRotation::Rotated270,
-            (ScreenRotation::Rotated180, ScreenRotation::Rotated180) => ScreenRotation::Normal,
-            (ScreenRotation::Rotated180, ScreenRotation::Rotated270) => ScreenRotation::Rotated90,
+            (Self::Rotated180, Self::Rotated90) => Self::Rotated270,
+            (Self::Rotated180, Self::Rotated180) => Self::Normal,
+            (Self::Rotated180, Self::Rotated270) => Self::Rotated90,
 
-            (ScreenRotation::Rotated270, ScreenRotation::Rotated90) => ScreenRotation::Normal,
-            (ScreenRotation::Rotated270, ScreenRotation::Rotated180) => ScreenRotation::Rotated90,
-            (ScreenRotation::Rotated270, ScreenRotation::Rotated270) => ScreenRotation::Rotated180,
+            (Self::Rotated270, Self::Rotated90) => Self::Normal,
+            (Self::Rotated270, Self::Rotated180) => Self::Rotated90,
+            (Self::Rotated270, Self::Rotated270) => Self::Rotated180,
         }
     }
 }
@@ -70,23 +70,23 @@ impl Sub for ScreenRotation {
 
     fn sub(self, other: Self) -> Self {
         match (self, other) {
-            (_, ScreenRotation::Normal) => self,
+            (_, Self::Normal) => self,
 
-            (ScreenRotation::Normal, ScreenRotation::Rotated90) => ScreenRotation::Rotated270,
-            (ScreenRotation::Normal, ScreenRotation::Rotated180) => ScreenRotation::Rotated180,
-            (ScreenRotation::Normal, ScreenRotation::Rotated270) => ScreenRotation::Rotated90,
+            (Self::Normal, Self::Rotated90) => Self::Rotated270,
+            (Self::Normal, Self::Rotated180) => Self::Rotated180,
+            (Self::Normal, Self::Rotated270) => Self::Rotated90,
 
-            (ScreenRotation::Rotated90, ScreenRotation::Rotated90) => ScreenRotation::Normal,
-            (ScreenRotation::Rotated90, ScreenRotation::Rotated180) => ScreenRotation::Rotated270,
-            (ScreenRotation::Rotated90, ScreenRotation::Rotated270) => ScreenRotation::Rotated180,
+            (Self::Rotated90, Self::Rotated90) => Self::Normal,
+            (Self::Rotated90, Self::Rotated180) => Self::Rotated270,
+            (Self::Rotated90, Self::Rotated270) => Self::Rotated180,
 
-            (ScreenRotation::Rotated180, ScreenRotation::Rotated90) => ScreenRotation::Rotated90,
-            (ScreenRotation::Rotated180, ScreenRotation::Rotated180) => ScreenRotation::Normal,
-            (ScreenRotation::Rotated180, ScreenRotation::Rotated270) => ScreenRotation::Rotated270,
+            (Self::Rotated180, Self::Rotated90) => Self::Rotated90,
+            (Self::Rotated180, Self::Rotated180) => Self::Normal,
+            (Self::Rotated180, Self::Rotated270) => Self::Rotated270,
 
-            (ScreenRotation::Rotated270, ScreenRotation::Rotated90) => ScreenRotation::Rotated180,
-            (ScreenRotation::Rotated270, ScreenRotation::Rotated180) => ScreenRotation::Rotated90,
-            (ScreenRotation::Rotated270, ScreenRotation::Rotated270) => ScreenRotation::Normal,
+            (Self::Rotated270, Self::Rotated90) => Self::Rotated180,
+            (Self::Rotated270, Self::Rotated180) => Self::Rotated90,
+            (Self::Rotated270, Self::Rotated270) => Self::Normal,
         }
     }
 }

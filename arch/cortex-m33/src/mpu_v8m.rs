@@ -324,7 +324,7 @@ impl CortexMRegion {
         region_size: usize,
         region_num: usize,
         permissions: mpu::Permissions,
-    ) -> Option<CortexMRegion> {
+    ) -> Option<Self> {
         // Logical size must be above minimum size for cortexM MPU regions and
         // and less than the size of the underlying physical region
         if logical_size < CORTEXM_MIN_REGION_SIZE || region_size < logical_size {
@@ -364,7 +364,7 @@ impl CortexMRegion {
             + MPU_RLAR::PXN::Disable
             + MPU_RLAR::ATTRINDX.val(0);
 
-        Some(CortexMRegion {
+        Some(Self {
             location: Some((region_start, region_start.wrapping_add(region_size))),
             rbar_value,
             rlar_value,
@@ -372,8 +372,8 @@ impl CortexMRegion {
         })
     }
 
-    fn empty(region_num: usize) -> CortexMRegion {
-        CortexMRegion {
+    fn empty(region_num: usize) -> Self {
+        Self {
             location: None,
             rbar_value: MPU_RBAR::BASE.val(0),
             rlar_value: MPU_RLAR::ENABLE::CLEAR,

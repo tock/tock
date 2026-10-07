@@ -108,7 +108,7 @@ pub struct KVPermissionsMuxComponent<V: hil::kv::KVPermissions<'static> + 'stati
 }
 
 impl<V: hil::kv::KVPermissions<'static>> KVPermissionsMuxComponent<V> {
-    pub fn new(kv: &'static V) -> KVPermissionsMuxComponent<V> {
+    pub fn new(kv: &'static V) -> Self {
         Self { kv }
     }
 }
@@ -147,7 +147,7 @@ pub struct VirtualKVPermissionsComponent<V: hil::kv::KVPermissions<'static> + 's
 }
 
 impl<V: hil::kv::KVPermissions<'static>> VirtualKVPermissionsComponent<V> {
-    pub fn new(mux_kv: &'static MuxKVPermissions<'static, V>) -> VirtualKVPermissionsComponent<V> {
+    pub fn new(mux_kv: &'static MuxKVPermissions<'static, V>) -> Self {
         Self { mux_kv }
     }
 }

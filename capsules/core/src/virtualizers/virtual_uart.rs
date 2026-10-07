@@ -211,7 +211,7 @@ impl uart::ReceiveClient for MuxUart<'_> {
 }
 
 impl<'a> MuxUart<'a> {
-    pub fn new(uart: &'a dyn uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
+    pub fn new(uart: &'a dyn uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> Self {
         MuxUart {
             uart,
             speed,
@@ -346,13 +346,13 @@ pub struct UartDevice<'a> {
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     operation: OptionalCell<Operation>,
-    next: ListLink<'a, UartDevice<'a>>,
+    next: ListLink<'a, Self>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
 }
 
 impl<'a> UartDevice<'a> {
-    pub fn new(mux: &'a MuxUart<'a>, receiver: bool) -> UartDevice<'a> {
+    pub fn new(mux: &'a MuxUart<'a>, receiver: bool) -> Self {
         UartDevice {
             state: Cell::new(UartDeviceReceiveState::Idle),
             mux,
@@ -410,8 +410,8 @@ impl uart::ReceiveClient for UartDevice<'_> {
     }
 }
 
-impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, UartDevice<'a>> {
+impl<'a> ListNode<'a, Self> for UartDevice<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

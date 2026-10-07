@@ -19,23 +19,23 @@ pub enum MacAddress {
 impl MacAddress {
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         match *self {
-            MacAddress::Short(ref short_addr) => encode_u16(buf, short_addr.to_be()),
-            MacAddress::Long(ref long_addr) => encode_bytes_be(buf, long_addr),
+            Self::Short(ref short_addr) => encode_u16(buf, short_addr.to_be()),
+            Self::Long(ref long_addr) => encode_bytes_be(buf, long_addr),
         }
     }
 
-    pub fn decode(buf: &[u8], mode: AddressMode) -> SResult<Option<MacAddress>> {
+    pub fn decode(buf: &[u8], mode: AddressMode) -> SResult<Option<Self>> {
         match mode {
             AddressMode::NotPresent => stream_done!(0, None),
             AddressMode::Short => {
                 let (off, short_addr_be) = dec_try!(buf; decode_u16);
                 let short_addr = u16::from_be(short_addr_be);
-                stream_done!(off, Some(MacAddress::Short(short_addr)));
+                stream_done!(off, Some(Self::Short(short_addr)));
             }
             AddressMode::Long => {
                 let mut long_addr = [0u8; 8];
                 let off = dec_consume!(buf; decode_bytes_be, &mut long_addr);
-                stream_done!(off, Some(MacAddress::Long(long_addr)));
+                stream_done!(off, Some(Self::Long(long_addr)));
             }
         }
     }
@@ -71,15 +71,15 @@ pub enum FrameType {
 }
 
 impl FrameType {
-    pub fn from_fcf(fcf: u16) -> Option<FrameType> {
+    pub fn from_fcf(fcf: u16) -> Option<Self> {
         match fcf & frame_control::FRAME_TYPE_MASK {
-            0b000 => Some(FrameType::Beacon),
-            0b001 => Some(FrameType::Data),
-            0b010 => Some(FrameType::Acknowledgement),
-            0b011 => Some(FrameType::MACCommand),
-            0b101 => Some(FrameType::Multipurpose),
-            0b110 => Some(FrameType::Fragment),
-            0b111 => Some(FrameType::Extended),
+            0b000 => Some(Self::Beacon),
+            0b001 => Some(Self::Data),
+            0b010 => Some(Self::Acknowledgement),
+            0b011 => Some(Self::MACCommand),
+            0b101 => Some(Self::Multipurpose),
+            0b110 => Some(Self::Fragment),
+            0b111 => Some(Self::Extended),
             _ => None,
         }
     }
@@ -95,11 +95,11 @@ pub enum FrameVersion {
 }
 
 impl FrameVersion {
-    pub fn from_fcf(fcf: u16) -> Option<FrameVersion> {
+    pub fn from_fcf(fcf: u16) -> Option<Self> {
         match fcf & frame_control::FRAME_VERSION_MASK {
-            0x0000 => Some(FrameVersion::V2003),
-            0x1000 => Some(FrameVersion::V2006),
-            0x2000 => Some(FrameVersion::V2015),
+            0x0000 => Some(Self::V2003),
+            0x1000 => Some(Self::V2006),
+            0x2000 => Some(Self::V2015),
             _ => None,
         }
     }
@@ -116,21 +116,21 @@ pub enum AddressMode {
 impl<'a> From<&'a Option<MacAddress>> for AddressMode {
     fn from(opt_addr: &'a Option<MacAddress>) -> Self {
         match *opt_addr {
-            None => AddressMode::NotPresent,
+            None => Self::NotPresent,
             Some(addr) => match addr {
-                MacAddress::Short(_) => AddressMode::Short,
-                MacAddress::Long(_) => AddressMode::Long,
+                MacAddress::Short(_) => Self::Short,
+                MacAddress::Long(_) => Self::Long,
             },
         }
     }
 }
 
 impl AddressMode {
-    pub fn from_mode(mode: u16) -> Option<AddressMode> {
+    pub fn from_mode(mode: u16) -> Option<Self> {
         match mode {
-            0b00 => Some(AddressMode::NotPresent),
-            0b10 => Some(AddressMode::Short),
-            0b11 => Some(AddressMode::Long),
+            0b00 => Some(Self::NotPresent),
+            0b10 => Some(Self::Short),
+            0b11 => Some(Self::Long),
             _ => None,
         }
     }
@@ -157,31 +157,31 @@ pub enum SecurityLevel {
 }
 
 impl SecurityLevel {
-    pub fn from_scf(scf: u8) -> Option<SecurityLevel> {
+    pub fn from_scf(scf: u8) -> Option<Self> {
         match scf & security_control::SECURITY_LEVEL_MASK {
-            0b000 => Some(SecurityLevel::None),
-            0b001 => Some(SecurityLevel::Mic32),
-            0b010 => Some(SecurityLevel::Mic64),
-            0b011 => Some(SecurityLevel::Mic128),
-            0b101 => Some(SecurityLevel::EncMic32),
-            0b110 => Some(SecurityLevel::EncMic64),
-            0b111 => Some(SecurityLevel::EncMic128),
+            0b000 => Some(Self::None),
+            0b001 => Some(Self::Mic32),
+            0b010 => Some(Self::Mic64),
+            0b011 => Some(Self::Mic128),
+            0b101 => Some(Self::EncMic32),
+            0b110 => Some(Self::EncMic64),
+            0b111 => Some(Self::EncMic128),
             _ => None,
         }
     }
 
     pub fn encryption_needed(&self) -> bool {
         match *self {
-            SecurityLevel::EncMic32 | SecurityLevel::EncMic64 | SecurityLevel::EncMic128 => true,
+            Self::EncMic32 | Self::EncMic64 | Self::EncMic128 => true,
             _ => false,
         }
     }
 
     pub fn mic_len(&self) -> usize {
         match *self {
-            SecurityLevel::Mic32 | SecurityLevel::EncMic32 => 4,
-            SecurityLevel::Mic64 | SecurityLevel::EncMic64 => 8,
-            SecurityLevel::Mic128 | SecurityLevel::EncMic128 => 16,
+            Self::Mic32 | Self::EncMic32 => 4,
+            Self::Mic64 | Self::EncMic64 => 8,
+            Self::Mic128 | Self::EncMic128 => 16,
             _ => 0,
         }
     }
@@ -197,12 +197,12 @@ pub enum KeyIdMode {
 }
 
 impl KeyIdMode {
-    pub fn from_scf(scf: u8) -> Option<KeyIdMode> {
+    pub fn from_scf(scf: u8) -> Option<Self> {
         match scf & security_control::KEY_ID_MODE_MASK {
-            0x00 => Some(KeyIdMode::Implicit),
-            0x08 => Some(KeyIdMode::Index),
-            0x10 => Some(KeyIdMode::Source4Index),
-            0x18 => Some(KeyIdMode::Source8Index),
+            0x00 => Some(Self::Implicit),
+            0x08 => Some(Self::Index),
+            0x10 => Some(Self::Source4Index),
+            0x18 => Some(Self::Source8Index),
             _ => panic!("Unreachable case because of mask"),
         }
     }
@@ -219,13 +219,13 @@ pub enum KeyId {
 impl KeyId {
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         let off = match *self {
-            KeyId::Implicit => 0,
-            KeyId::Index(index) => enc_consume!(buf; encode_u8, index),
-            KeyId::Source4Index(ref src, index) => {
+            Self::Implicit => 0,
+            Self::Index(index) => enc_consume!(buf; encode_u8, index),
+            Self::Source4Index(ref src, index) => {
                 let off = enc_consume!(buf; encode_bytes_be, src);
                 enc_consume!(buf, off; encode_u8, index)
             }
-            KeyId::Source8Index(ref src, index) => {
+            Self::Source8Index(ref src, index) => {
                 let off = enc_consume!(buf; encode_bytes_be, src);
                 enc_consume!(buf, off; encode_u8, index)
             }
@@ -233,24 +233,24 @@ impl KeyId {
         stream_done!(off);
     }
 
-    pub fn decode(buf: &[u8], mode: KeyIdMode) -> SResult<KeyId> {
+    pub fn decode(buf: &[u8], mode: KeyIdMode) -> SResult<Self> {
         match mode {
-            KeyIdMode::Implicit => stream_done!(0, KeyId::Implicit),
+            KeyIdMode::Implicit => stream_done!(0, Self::Implicit),
             KeyIdMode::Index => {
                 let (off, index) = dec_try!(buf; decode_u8);
-                stream_done!(off, KeyId::Index(index));
+                stream_done!(off, Self::Index(index));
             }
             KeyIdMode::Source4Index => {
                 let mut src = [0u8; 4];
                 let off = dec_consume!(buf; decode_bytes_be, &mut src);
                 let (off, index) = dec_try!(buf, off; decode_u8);
-                stream_done!(off, KeyId::Source4Index(src, index));
+                stream_done!(off, Self::Source4Index(src, index));
             }
             KeyIdMode::Source8Index => {
                 let mut src = [0u8; 8];
                 let off = dec_consume!(buf; decode_bytes_be, &mut src);
                 let (off, index) = dec_try!(buf, off; decode_u8);
-                stream_done!(off, KeyId::Source8Index(src, index));
+                stream_done!(off, Self::Source8Index(src, index));
             }
         }
     }
@@ -259,10 +259,10 @@ impl KeyId {
 impl<'a> From<&'a KeyId> for KeyIdMode {
     fn from(key_id: &'a KeyId) -> Self {
         match *key_id {
-            KeyId::Implicit => KeyIdMode::Implicit,
-            KeyId::Index(_) => KeyIdMode::Index,
-            KeyId::Source4Index(_, _) => KeyIdMode::Source4Index,
-            KeyId::Source8Index(_, _) => KeyIdMode::Source8Index,
+            KeyId::Implicit => Self::Implicit,
+            KeyId::Index(_) => Self::Index,
+            KeyId::Source4Index(_, _) => Self::Source4Index,
+            KeyId::Source8Index(_, _) => Self::Source8Index,
         }
     }
 }
@@ -304,7 +304,7 @@ impl Security {
         stream_done!(off);
     }
 
-    pub fn decode(buf: &[u8]) -> SResult<Security> {
+    pub fn decode(buf: &[u8]) -> SResult<Self> {
         // Security control field
         let (off, scf) = dec_try!(buf; decode_u8);
         let level = stream_from_option!(SecurityLevel::from_scf(scf));
@@ -326,7 +326,7 @@ impl Security {
 
         stream_done!(
             off,
-            Security {
+            Self {
                 level,
                 asn_in_nonce,
                 frame_counter,

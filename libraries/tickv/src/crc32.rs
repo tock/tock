@@ -376,7 +376,7 @@ impl Crc32 {
     pub const fn new() -> Self {
         let crc = Crc::new();
         let value = crc.init();
-        Crc32 {
+        Self {
             crc,
             value: Cell::new(value),
         }

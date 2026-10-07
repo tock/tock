@@ -163,8 +163,8 @@ struct AlarmData {
 }
 
 impl AlarmData {
-    fn new() -> AlarmData {
-        AlarmData {
+    fn new() -> Self {
+        Self {
             expiration: Expiration::Disabled,
         }
     }
@@ -204,8 +204,8 @@ pub struct App {
 }
 
 impl Default for App {
-    fn default() -> App {
-        App {
+    fn default() -> Self {
+        Self {
             alarm_data: AlarmData::new(),
             address: [0; PACKET_ADDR_LEN],
             pdu_type: ADV_NONCONN_IND,
@@ -357,7 +357,7 @@ where
         >,
         tx_buf: &'static mut [u8],
         alarm: &'a A,
-    ) -> BLE<'a, B, A> {
+    ) -> Self {
         BLE {
             radio,
             busy: Cell::new(false),

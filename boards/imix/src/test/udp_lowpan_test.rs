@@ -236,7 +236,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         port_table: &'static UdpPortManager,
         mock_udp1: &'static MockUdp<'a, A>,
         mock_udp2: &'static MockUdp<'a, A>,
-    ) -> LowpanTest<'a, A> {
+    ) -> Self {
         LowpanTest {
             alarm,
             test_counter: Cell::new(0),

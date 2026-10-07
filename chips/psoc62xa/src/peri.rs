@@ -181,8 +181,8 @@ pub struct Peri {
 }
 
 impl Peri {
-    pub const fn new() -> Peri {
-        Peri {
+    pub const fn new() -> Self {
+        Self {
             registers: PERI_BASE,
         }
     }

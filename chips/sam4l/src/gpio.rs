@@ -303,7 +303,7 @@ pub struct GPIOPin<'a> {
 }
 
 impl<'a> GPIOPin<'a> {
-    pub const fn new(pin: Pin) -> GPIOPin<'a> {
+    pub const fn new(pin: Pin) -> Self {
         GPIOPin {
             port: unsafe {
                 StaticRef::new(

@@ -227,7 +227,7 @@ where
     H: 'a + PeripheralManagement<C>,
     C: 'a + ClockInterface,
 {
-    pub fn new(peripheral_hardware: &'a H) -> PeripheralManager<'a, H, C> {
+    pub fn new(peripheral_hardware: &'a H) -> Self {
         let registers = peripheral_hardware.get_registers();
         let clock = peripheral_hardware.get_clock();
         peripheral_hardware.before_peripheral_access(clock, registers);

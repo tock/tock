@@ -91,13 +91,13 @@ fn write_usize_to_u8_slice(val: usize, slice: &mut [u8], index: usize) {
 
 impl core::convert::TryFrom<&[u8]> for RiscvStoredState {
     type Error = ErrorCode;
-    fn try_from(ss: &[u8]) -> Result<RiscvStoredState, Self::Error> {
+    fn try_from(ss: &[u8]) -> Result<Self, Self::Error> {
         if ss.len() == STORED_STATE_SIZE + METADATA_LEN * USIZE_SZ
             && usize_from_u8_slice(ss, VERSION_IDX)? == VERSION
             && usize_from_u8_slice(ss, SIZE_IDX)? == STORED_STATE_SIZE
             && usize_from_u8_slice(ss, TAG_IDX)? == usize::from_le_bytes(TAG)
         {
-            let mut res = RiscvStoredState {
+            let mut res = Self {
                 regs: [0; 31],
                 pc: (usize_from_u8_slice(ss, PC_IDX)?),
                 mcause: usize_from_u8_slice(ss, MCAUSE_IDX)?,
@@ -262,8 +262,8 @@ fn encode_upcall_helper(
 pub struct SysCall(());
 
 impl SysCall {
-    pub const unsafe fn new() -> SysCall {
-        SysCall(())
+    pub const unsafe fn new() -> Self {
+        Self(())
     }
 }
 

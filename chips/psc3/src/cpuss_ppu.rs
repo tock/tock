@@ -470,8 +470,8 @@ pub struct CpussPpu {
 pub type PwrPolicy = PWPR::PWR_POLICY::Value;
 
 impl CpussPpu {
-    pub const fn new() -> CpussPpu {
-        CpussPpu {
+    pub const fn new() -> Self {
+        Self {
             registers: CPUSS_PPU_BASE,
         }
     }

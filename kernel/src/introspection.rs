@@ -28,8 +28,8 @@ pub struct KernelInfo {
 }
 
 impl KernelInfo {
-    pub fn new(kernel: &'static Kernel) -> KernelInfo {
-        KernelInfo { kernel }
+    pub fn new(kernel: &'static Kernel) -> Self {
+        Self { kernel }
     }
 
     /// Returns how many processes have been loaded on this platform. This is

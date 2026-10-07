@@ -130,7 +130,7 @@ impl<'a, Can: can::Can> CanCapsule<'a, Can> {
         >,
         can_tx: &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE],
         can_rx: &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE],
-    ) -> CanCapsule<'a, Can> {
+    ) -> Self {
         CanCapsule {
             can,
             can_tx: TakeCell::new(can_tx),

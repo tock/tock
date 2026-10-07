@@ -37,7 +37,7 @@ pub struct I2c<'a> {
 }
 
 impl<'a> I2c<'a> {
-    pub fn new(base: StaticRef<I2cRegisters>, clock_period_nanos: u32) -> I2c<'a> {
+    pub fn new(base: StaticRef<I2cRegisters>, clock_period_nanos: u32) -> Self {
         I2c {
             registers: base,
             clock_period_nanos,

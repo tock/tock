@@ -115,14 +115,14 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
         buffer: &'static mut [u8],
         alarm: &'static A,
         ops: &'static [TestOp],
-    ) -> LogTest<A> {
+    ) -> Self {
         debug!(
             "Log recovered from flash (Start and end entry IDs: {:?} to {:?})",
             log.log_start(),
             log.log_end()
         );
 
-        LogTest {
+        Self {
             log,
             buffer: TakeCell::new(buffer),
             alarm,

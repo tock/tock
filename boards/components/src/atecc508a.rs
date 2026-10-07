@@ -48,7 +48,7 @@ pub struct Atecc508aComponent<I: 'static + i2c::I2CMaster<'static>> {
 
 impl<I: 'static + i2c::I2CMaster<'static>> Atecc508aComponent<I> {
     pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8, wakeup_device: fn()) -> Self {
-        Atecc508aComponent {
+        Self {
             i2c_mux: i2c,
             i2c_address,
             wakeup_device,

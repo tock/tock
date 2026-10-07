@@ -206,7 +206,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> L3gd20Spi<'a, S> {
         txbuffer: &'static mut [u8; L3GD20_TX_SIZE],
         rxbuffer: &'static mut [u8; L3GD20_RX_SIZE],
         grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> L3gd20Spi<'a, S> {
+    ) -> Self {
         // setup and return struct
         L3gd20Spi {
             spi,

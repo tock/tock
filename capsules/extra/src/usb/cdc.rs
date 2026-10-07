@@ -103,10 +103,10 @@ enum CDCCntrlMessage {
 impl From<u8> for CDCCntrlMessage {
     fn from(num: u8) -> Self {
         match num {
-            0x20 => CDCCntrlMessage::SetLineCoding,
-            0x22 => CDCCntrlMessage::SetControlLineState,
-            0x23 => CDCCntrlMessage::SendBreak,
-            _ => CDCCntrlMessage::NotSupported,
+            0x20 => Self::SetLineCoding,
+            0x22 => Self::SetControlLineState,
+            0x23 => Self::SendBreak,
+            _ => Self::NotSupported,
         }
     }
 }

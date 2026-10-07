@@ -73,7 +73,7 @@ pub struct PwmBuzzer<'a, A: hil::time::Alarm<'a>, P: hil::pwm::PwmPin> {
 }
 
 impl<'a, A: hil::time::Alarm<'a>, P: hil::pwm::PwmPin> PwmBuzzer<'a, A, P> {
-    pub fn new(pwm_pin: &'a P, alarm: &'a A, max_duration_ms: usize) -> PwmBuzzer<'a, A, P> {
+    pub fn new(pwm_pin: &'a P, alarm: &'a A, max_duration_ms: usize) -> Self {
         PwmBuzzer {
             pwm_pin,
             alarm,

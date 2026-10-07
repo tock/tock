@@ -139,7 +139,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
         crc: &'a C,
         crc_buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
-    ) -> CrcDriver<'a, C> {
+    ) -> Self {
         CrcDriver {
             crc,
             crc_buffer: TakeCell::new(crc_buffer),

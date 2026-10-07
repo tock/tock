@@ -31,52 +31,52 @@ impl CommandReturn {
 
     /// Command error
     pub fn failure(rc: ErrorCode) -> Self {
-        CommandReturn(SyscallReturn::Failure(rc))
+        Self(SyscallReturn::Failure(rc))
     }
 
     /// Command error with an additional 32-bit data field
     pub fn failure_u32(rc: ErrorCode, data0: u32) -> Self {
-        CommandReturn(SyscallReturn::FailureU32(rc, data0))
+        Self(SyscallReturn::FailureU32(rc, data0))
     }
 
     /// Command error with two additional 32-bit data fields
     pub fn failure_u32_u32(rc: ErrorCode, data0: u32, data1: u32) -> Self {
-        CommandReturn(SyscallReturn::FailureU32U32(rc, data0, data1))
+        Self(SyscallReturn::FailureU32U32(rc, data0, data1))
     }
 
     /// Command error with an additional 64-bit data field
     pub fn failure_u64(rc: ErrorCode, data0: u64) -> Self {
-        CommandReturn(SyscallReturn::FailureU64(rc, data0))
+        Self(SyscallReturn::FailureU64(rc, data0))
     }
 
     /// Successful command
     pub fn success() -> Self {
-        CommandReturn(SyscallReturn::Success)
+        Self(SyscallReturn::Success)
     }
 
     /// Successful command with an additional 32-bit data field
     pub fn success_u32(data0: u32) -> Self {
-        CommandReturn(SyscallReturn::SuccessU32(data0))
+        Self(SyscallReturn::SuccessU32(data0))
     }
 
     /// Successful command with two additional 32-bit data fields
     pub fn success_u32_u32(data0: u32, data1: u32) -> Self {
-        CommandReturn(SyscallReturn::SuccessU32U32(data0, data1))
+        Self(SyscallReturn::SuccessU32U32(data0, data1))
     }
 
     /// Successful command with three additional 32-bit data fields
     pub fn success_u32_u32_u32(data0: u32, data1: u32, data2: u32) -> Self {
-        CommandReturn(SyscallReturn::SuccessU32U32U32(data0, data1, data2))
+        Self(SyscallReturn::SuccessU32U32U32(data0, data1, data2))
     }
 
     /// Successful command with an additional 64-bit data field
     pub fn success_u64(data0: u64) -> Self {
-        CommandReturn(SyscallReturn::SuccessU64(data0))
+        Self(SyscallReturn::SuccessU64(data0))
     }
 
     /// Successful command with an additional 64-bit and 32-bit data field
     pub fn success_u32_u64(data0: u32, data1: u64) -> Self {
-        CommandReturn(SyscallReturn::SuccessU32U64(data0, data1))
+        Self(SyscallReturn::SuccessU32U64(data0, data1))
     }
 
     /// Returns true if this [`CommandReturn`] is of type
@@ -225,15 +225,15 @@ impl CommandReturn {
 impl From<Result<(), ErrorCode>> for CommandReturn {
     fn from(rc: Result<(), ErrorCode>) -> Self {
         match rc {
-            Ok(()) => CommandReturn::success(),
-            Err(e) => CommandReturn::failure(e),
+            Ok(()) => Self::success(),
+            Err(e) => Self::failure(e),
         }
     }
 }
 
 impl From<process::Error> for CommandReturn {
     fn from(perr: process::Error) -> Self {
-        CommandReturn::failure(perr.into())
+        Self::failure(perr.into())
     }
 }
 

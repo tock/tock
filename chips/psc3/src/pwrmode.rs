@@ -560,8 +560,8 @@ pub struct PwrMode {
 pub type PwrPolicy = PPU_PWPR::PWR_POLICY::Value;
 
 impl PwrMode {
-    pub const fn new() -> PwrMode {
-        PwrMode {
+    pub const fn new() -> Self {
+        Self {
             registers: PWRMODE_BASE,
         }
     }

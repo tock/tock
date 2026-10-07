@@ -423,7 +423,7 @@ impl<'a> Pin<'a> {
         pin: PinId,
         exti: &'a Exti<'a>,
         port_id: GpioPort,
-    ) -> Pin<'a> {
+    ) -> Self {
         Pin {
             registers: base,
             pin,
@@ -926,22 +926,22 @@ impl<'a> gpio::Interrupt<'a> for Pin<'a> {
 impl From<PinId> for LineId {
     fn from(pin: PinId) -> Self {
         match pin {
-            PinId::Pin00 => LineId::Line00,
-            PinId::Pin01 => LineId::Line01,
-            PinId::Pin02 => LineId::Line02,
-            PinId::Pin03 => LineId::Line03,
-            PinId::Pin04 => LineId::Line04,
-            PinId::Pin05 => LineId::Line05,
-            PinId::Pin06 => LineId::Line06,
-            PinId::Pin07 => LineId::Line07,
-            PinId::Pin08 => LineId::Line08,
-            PinId::Pin09 => LineId::Line09,
-            PinId::Pin10 => LineId::Line10,
-            PinId::Pin11 => LineId::Line11,
-            PinId::Pin12 => LineId::Line12,
-            PinId::Pin13 => LineId::Line13,
-            PinId::Pin14 => LineId::Line14,
-            PinId::Pin15 => LineId::Line15,
+            PinId::Pin00 => Self::Line00,
+            PinId::Pin01 => Self::Line01,
+            PinId::Pin02 => Self::Line02,
+            PinId::Pin03 => Self::Line03,
+            PinId::Pin04 => Self::Line04,
+            PinId::Pin05 => Self::Line05,
+            PinId::Pin06 => Self::Line06,
+            PinId::Pin07 => Self::Line07,
+            PinId::Pin08 => Self::Line08,
+            PinId::Pin09 => Self::Line09,
+            PinId::Pin10 => Self::Line10,
+            PinId::Pin11 => Self::Line11,
+            PinId::Pin12 => Self::Line12,
+            PinId::Pin13 => Self::Line13,
+            PinId::Pin14 => Self::Line14,
+            PinId::Pin15 => Self::Line15,
         }
     }
 }

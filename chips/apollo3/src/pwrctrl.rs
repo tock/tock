@@ -75,8 +75,8 @@ pub struct PwrCtrl {
 }
 
 impl PwrCtrl {
-    pub const fn new() -> PwrCtrl {
-        PwrCtrl {
+    pub const fn new() -> Self {
+        Self {
             registers: PWRCTRL_BASE,
         }
     }

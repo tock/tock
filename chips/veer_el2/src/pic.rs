@@ -110,7 +110,7 @@ pub struct Pic {
 
 impl Pic {
     pub const fn new(base: StaticRef<PicRegisters>) -> Self {
-        Pic {
+        Self {
             registers: base,
             meivt: ReadWriteRiscvCsr::new(),
             meipt: ReadWriteRiscvCsr::new(),

@@ -99,7 +99,7 @@ impl<'a> GpioPin<'a> {
         pin: Field<u32, pins::Register>,
         set: FieldValue<u32, pins::Register>,
         clear: FieldValue<u32, pins::Register>,
-    ) -> GpioPin<'a> {
+    ) -> Self {
         GpioPin {
             registers: base,
             pin,

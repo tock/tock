@@ -41,11 +41,11 @@ struct MfProcState {
 pub struct MLFQProcessNode<'a> {
     proc: &'static ProcessSlot,
     state: MfProcState,
-    next: ListLink<'a, MLFQProcessNode<'a>>,
+    next: ListLink<'a, Self>,
 }
 
 impl<'a> MLFQProcessNode<'a> {
-    pub fn new(proc: &'static ProcessSlot) -> MLFQProcessNode<'a> {
+    pub fn new(proc: &'static ProcessSlot) -> Self {
         MLFQProcessNode {
             proc,
             state: MfProcState::default(),
@@ -54,8 +54,8 @@ impl<'a> MLFQProcessNode<'a> {
     }
 }
 
-impl<'a> ListNode<'a, MLFQProcessNode<'a>> for MLFQProcessNode<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, MLFQProcessNode<'a>> {
+impl<'a> ListNode<'a, Self> for MLFQProcessNode<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

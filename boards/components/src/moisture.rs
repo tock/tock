@@ -46,8 +46,8 @@ impl<T: 'static + hil::sensors::MoistureDriver<'static>, CAP: MemoryAllocationCa
         driver_num: usize,
         sensor: &'static T,
         mem_cap: CAP,
-    ) -> MoistureComponent<T, CAP> {
-        MoistureComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             sensor,

@@ -125,12 +125,12 @@ enum KeyIdModeUserland {
 }
 
 impl KeyIdModeUserland {
-    pub fn from_u8(byte: u8) -> Option<KeyIdModeUserland> {
+    pub fn from_u8(byte: u8) -> Option<Self> {
         match byte {
-            0 => Some(KeyIdModeUserland::Implicit),
-            1 => Some(KeyIdModeUserland::Index),
-            2 => Some(KeyIdModeUserland::Source4Index),
-            3 => Some(KeyIdModeUserland::Source8Index),
+            0 => Some(Self::Implicit),
+            1 => Some(Self::Index),
+            2 => Some(Self::Source4Index),
+            3 => Some(Self::Source8Index),
             _ => None,
         }
     }
@@ -182,10 +182,10 @@ fn decode_key_id(buf: &[u8]) -> SResult<KeyId> {
 impl From<&KeyId> for KeyIdModeUserland {
     fn from(key_id: &KeyId) -> Self {
         match *key_id {
-            KeyId::Implicit => KeyIdModeUserland::Implicit,
-            KeyId::Index(_) => KeyIdModeUserland::Index,
-            KeyId::Source4Index(_, _) => KeyIdModeUserland::Source4Index,
-            KeyId::Source8Index(_, _) => KeyIdModeUserland::Source8Index,
+            KeyId::Implicit => Self::Implicit,
+            KeyId::Index(_) => Self::Index,
+            KeyId::Source4Index(_, _) => Self::Source4Index,
+            KeyId::Source8Index(_, _) => Self::Source8Index,
         }
     }
 }
@@ -199,7 +199,7 @@ struct KeyDescriptor {
 
 impl Default for KeyDescriptor {
     fn default() -> Self {
-        KeyDescriptor {
+        Self {
             level: SecurityLevel::None,
             key_id: KeyId::Implicit,
             key: [0; 16],
@@ -208,13 +208,13 @@ impl Default for KeyDescriptor {
 }
 
 impl KeyDescriptor {
-    fn decode(buf: &[u8]) -> SResult<KeyDescriptor> {
+    fn decode(buf: &[u8]) -> SResult<Self> {
         stream_len_cond!(buf, 27);
         let level = stream_from_option!(SecurityLevel::from_scf(buf[0]));
         let (_, key_id) = dec_try!(buf, 1; decode_key_id);
         let mut key = [0u8; 16];
         let off = dec_consume!(buf, 11; decode_bytes, &mut key);
-        stream_done!(off, KeyDescriptor { level, key_id, key });
+        stream_done!(off, Self { level, key_id, key });
     }
 }
 

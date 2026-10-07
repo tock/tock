@@ -95,7 +95,7 @@ impl<'a> ProximitySensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::ProximityDriver<'a>,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> ProximitySensor<'a> {
+    ) -> Self {
         ProximitySensor {
             driver,
             apps: grant,

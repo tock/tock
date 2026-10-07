@@ -187,7 +187,7 @@ pub struct MX25R6435F<
     hold_pin: Option<&'a P>,
     txbuffer: MapCell<SubSliceMut<'static, u8>>,
     rxbuffer: MapCell<SubSliceMut<'static, u8>>,
-    client: OptionalCell<&'a dyn hil::flash::Client<MX25R6435F<'a, S, P, A>>>,
+    client: OptionalCell<&'a dyn hil::flash::Client<Self>>,
     client_sector: TakeCell<'static, Mx25r6435fSector>,
 }
 
@@ -205,7 +205,7 @@ impl<
         rxbuffer: &'static mut [u8],
         write_protect_pin: Option<&'a P>,
         hold_pin: Option<&'a P>,
-    ) -> MX25R6435F<'a, S, P, A> {
+    ) -> Self {
         MX25R6435F {
             spi,
             alarm,

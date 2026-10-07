@@ -36,7 +36,7 @@ pub mod ip6_nh {
 pub struct IPAddr(pub [u8; 16]);
 
 impl PartialEq for IPAddr {
-    fn eq(&self, other: &IPAddr) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
@@ -44,15 +44,15 @@ impl PartialEq for IPAddr {
 impl Eq for IPAddr {}
 
 impl IPAddr {
-    pub fn new() -> IPAddr {
+    pub fn new() -> Self {
         // Defaults to the unspecified address
-        IPAddr([0; 16])
+        Self([0; 16])
     }
 
     /// Method for generating a new ipv6 link local address from a short or extended 15.4 MAC address
     /// Based off of section 3.2.2 of rfc 6282
-    pub fn generate_from_mac(mac_addr: MacAddress) -> IPAddr {
-        let mut ip_addr = IPAddr([0; 16]);
+    pub fn generate_from_mac(mac_addr: MacAddress) -> Self {
+        let mut ip_addr = Self([0; 16]);
         match mac_addr {
             MacAddress::Long(ref long_addr) => {
                 ip_addr.set_unicast_link_local();

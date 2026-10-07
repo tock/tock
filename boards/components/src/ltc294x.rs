@@ -57,7 +57,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Ltc294xComponent<I> {
         i2c_address: u8,
         interrupt_pin: Option<&'static dyn gpio::InterruptPin<'static>>,
     ) -> Self {
-        Ltc294xComponent {
+        Self {
             i2c_mux,
             i2c_address,
             interrupt_pin,
@@ -108,7 +108,7 @@ impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'st
         driver_num: usize,
         mem_cap: CAP,
     ) -> Self {
-        Ltc294xDriverComponent {
+        Self {
             ltc294x,
             board_kernel,
             driver_num,

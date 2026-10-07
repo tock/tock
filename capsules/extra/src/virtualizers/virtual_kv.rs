@@ -53,7 +53,7 @@ enum Operation {
 
 pub struct VirtualKVPermissions<'a, V: kv::KVPermissions<'a>> {
     mux_kv: &'a MuxKVPermissions<'a, V>,
-    next: ListLink<'a, VirtualKVPermissions<'a, V>>,
+    next: ListLink<'a, Self>,
 
     client: OptionalCell<&'a dyn kv::KVClient>,
     operation: OptionalCell<Operation>,
@@ -63,16 +63,14 @@ pub struct VirtualKVPermissions<'a, V: kv::KVPermissions<'a>> {
     valid_ids: OptionalCell<StoragePermissions>,
 }
 
-impl<'a, V: kv::KVPermissions<'a>> ListNode<'a, VirtualKVPermissions<'a, V>>
-    for VirtualKVPermissions<'a, V>
-{
-    fn next(&self) -> &'a ListLink<'_, VirtualKVPermissions<'a, V>> {
+impl<'a, V: kv::KVPermissions<'a>> ListNode<'a, Self> for VirtualKVPermissions<'a, V> {
+    fn next(&self) -> &'a ListLink<'_, Self> {
         &self.next
     }
 }
 
 impl<'a, V: kv::KVPermissions<'a>> VirtualKVPermissions<'a, V> {
-    pub fn new(mux_kv: &'a MuxKVPermissions<'a, V>) -> VirtualKVPermissions<'a, V> {
+    pub fn new(mux_kv: &'a MuxKVPermissions<'a, V>) -> Self {
         Self {
             mux_kv,
             next: ListLink::empty(),
@@ -247,7 +245,7 @@ pub struct MuxKVPermissions<'a, V: kv::KVPermissions<'a>> {
 }
 
 impl<'a, V: kv::KVPermissions<'a>> MuxKVPermissions<'a, V> {
-    pub fn new(kv: &'a V) -> MuxKVPermissions<'a, V> {
+    pub fn new(kv: &'a V) -> Self {
         Self {
             kv,
             inflight: OptionalCell::empty(),

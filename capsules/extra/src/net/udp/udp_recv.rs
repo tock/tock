@@ -29,7 +29,7 @@ pub struct MuxUdpReceiver<'a> {
 }
 
 impl<'a> MuxUdpReceiver<'a> {
-    pub fn new() -> MuxUdpReceiver<'a> {
+    pub fn new() -> Self {
         MuxUdpReceiver {
             rcvr_list: List::new(),
             driver: OptionalCell::empty(),
@@ -118,17 +118,17 @@ pub trait UDPRecvClient {
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a dyn UDPRecvClient>,
     binding: MapCell<UdpPortBindingRx>,
-    next: ListLink<'a, UDPReceiver<'a>>,
+    next: ListLink<'a, Self>,
 }
 
-impl<'a> ListNode<'a, UDPReceiver<'a>> for UDPReceiver<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, UDPReceiver<'a>> {
+impl<'a> ListNode<'a, Self> for UDPReceiver<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }
 
 impl<'a> UDPReceiver<'a> {
-    pub fn new() -> UDPReceiver<'a> {
+    pub fn new() -> Self {
         UDPReceiver {
             client: OptionalCell::empty(),
             binding: MapCell::empty(),

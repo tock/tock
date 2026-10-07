@@ -183,7 +183,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
         buffer: &'static mut [u8],
         alarm: &'static A,
         ops: &'static [TestOp],
-    ) -> LogTest<A> {
+    ) -> Self {
         // Recover test state.
         let read_val = entry_id_to_test_value(log.next_read_entry_id());
         let write_val = entry_id_to_test_value(log.log_end());
@@ -196,7 +196,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
             write_val
         );
 
-        LogTest {
+        Self {
             log,
             buffer: TakeCell::new(buffer),
             alarm,

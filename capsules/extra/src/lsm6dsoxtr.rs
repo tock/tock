@@ -192,7 +192,7 @@ impl<'a, I: i2c::I2CDevice> Lsm6dsoxtrI2C<'a, I> {
         i2c: &'a I,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Lsm6dsoxtrI2C<'a, I> {
+    ) -> Self {
         Lsm6dsoxtrI2C {
             i2c,
             state: Cell::new(State::Idle),

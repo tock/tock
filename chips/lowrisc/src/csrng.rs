@@ -109,7 +109,7 @@ impl Iterator for CsRngIter<'_, '_> {
 }
 
 impl<'a> CsRng<'a> {
-    pub const fn new(base: StaticRef<CsRngRegisters>) -> CsRng<'a> {
+    pub const fn new(base: StaticRef<CsRngRegisters>) -> Self {
         CsRng {
             registers: base,
             client: OptionalCell::empty(),

@@ -42,8 +42,8 @@ impl<S: 'static + hil::sensors::SoundPressure<'static>, CAP: MemoryAllocationCap
         driver_num: usize,
         sound_sensor: &'static S,
         mem_cap: CAP,
-    ) -> SoundPressureComponent<S, CAP> {
-        SoundPressureComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             sound_sensor,

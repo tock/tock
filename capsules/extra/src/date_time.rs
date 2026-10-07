@@ -180,7 +180,7 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
     pub fn new(
         date_time: &'a DateTime,
         grant: Grant<AppData, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> DateTimeCapsule<'a, DateTime> {
+    ) -> Self {
         DateTimeCapsule {
             date_time,
             apps: grant,

@@ -322,8 +322,8 @@ pub struct Ficr {
 }
 
 impl Ficr {
-    pub const fn new() -> Ficr {
-        Ficr {
+    pub const fn new() -> Self {
+        Self {
             registers: FICR_BASE,
         }
     }

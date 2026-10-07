@@ -110,8 +110,8 @@ pub struct McuCtrl {
 }
 
 impl McuCtrl {
-    pub const fn new() -> McuCtrl {
-        McuCtrl {
+    pub const fn new() -> Self {
+        Self {
             registers: MCUCTRL_BASE,
         }
     }

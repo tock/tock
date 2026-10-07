@@ -56,7 +56,7 @@ impl<'a> AirQualitySensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::AirQualityDriver<'a>,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> AirQualitySensor<'a> {
+    ) -> Self {
         AirQualitySensor {
             driver,
             apps: grant,

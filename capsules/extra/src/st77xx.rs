@@ -243,7 +243,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
         buffer: &'static mut [u8],
         sequence_buffer: &'static mut [SendCommand],
         screen: &'static ST77XXScreen,
-    ) -> ST77XX<'a, A, B, P> {
+    ) -> Self {
         dc.map(|dc| dc.make_output());
         reset.map(|reset| reset.make_output());
         ST77XX {

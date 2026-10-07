@@ -372,7 +372,7 @@ impl<'a> GPIOPin<'a> {
         pin: Pin,
         gpiote_registers: StaticRef<GpioteRegisters>,
         gpio_registers: StaticRef<GpioRegisters>,
-    ) -> GPIOPin<'a> {
+    ) -> Self {
         GPIOPin {
             pin: ((pin as usize) % GPIO_PER_PORT) as u8,
             port: ((pin as usize) / GPIO_PER_PORT) as u8,

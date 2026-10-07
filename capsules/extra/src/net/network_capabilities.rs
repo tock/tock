@@ -41,11 +41,11 @@ pub enum AddrRange {
 impl AddrRange {
     pub fn is_addr_valid(&self, addr: IPAddr) -> bool {
         match self {
-            AddrRange::Any => true,
-            AddrRange::NoAddrs => false,
-            AddrRange::AddrSet(allowed_addrs) => allowed_addrs.contains(&addr),
-            AddrRange::Addr(allowed_addr) => addr == *allowed_addr, //TODO: refs?
-            AddrRange::Subnet(allowed_addr, prefix_len) => {
+            Self::Any => true,
+            Self::NoAddrs => false,
+            Self::AddrSet(allowed_addrs) => allowed_addrs.contains(&addr),
+            Self::Addr(allowed_addr) => addr == *allowed_addr, //TODO: refs?
+            Self::Subnet(allowed_addr, prefix_len) => {
                 let full_bytes: usize = prefix_len / 8;
                 let remainder_bits: usize = prefix_len % 8;
                 // initial bytes -- TODO: edge case
@@ -74,11 +74,11 @@ pub enum PortRange {
 impl PortRange {
     pub fn is_port_valid(&self, port: u16) -> bool {
         match self {
-            PortRange::Any => true,
-            PortRange::NoPorts => false,
-            PortRange::PortSet(allowed_ports) => allowed_ports.contains(&port), // TODO: check refs
-            PortRange::Range(low, high) => *low <= port && port <= *high,
-            PortRange::Port(allowed_port) => port == *allowed_port,
+            Self::Any => true,
+            Self::NoPorts => false,
+            Self::PortSet(allowed_ports) => allowed_ports.contains(&port), // TODO: check refs
+            Self::Range(low, high) => *low <= port && port <= *high,
+            Self::Port(allowed_port) => port == *allowed_port,
         }
     }
 }
@@ -94,18 +94,14 @@ pub struct IpVisibilityCapability {
 }
 
 impl UdpVisibilityCapability {
-    pub fn new(
-        _create_net_cap: &dyn NetworkCapabilityCreationCapability,
-    ) -> UdpVisibilityCapability {
-        UdpVisibilityCapability { _priv: () }
+    pub fn new(_create_net_cap: &dyn NetworkCapabilityCreationCapability) -> Self {
+        Self { _priv: () }
     }
 }
 
 impl IpVisibilityCapability {
-    pub fn new(
-        _create_net_cap: &dyn NetworkCapabilityCreationCapability,
-    ) -> IpVisibilityCapability {
-        IpVisibilityCapability { _priv: () }
+    pub fn new(_create_net_cap: &dyn NetworkCapabilityCreationCapability) -> Self {
+        Self { _priv: () }
     }
 }
 
@@ -127,8 +123,8 @@ impl NetworkCapability {
         remote_ports: PortRange,
         local_ports: PortRange,
         _create_net_cap: &dyn NetworkCapabilityCreationCapability,
-    ) -> NetworkCapability {
-        NetworkCapability {
+    ) -> Self {
+        Self {
             remote_addrs,
             remote_ports,
             local_ports,

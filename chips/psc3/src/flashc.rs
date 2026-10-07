@@ -1114,8 +1114,8 @@ pub struct FlashC {
 }
 
 impl FlashC {
-    pub const fn new() -> FlashC {
-        FlashC {
+    pub const fn new() -> Self {
+        Self {
             registers: FLASHC_BASE,
         }
     }

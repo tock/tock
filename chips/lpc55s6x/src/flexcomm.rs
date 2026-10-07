@@ -130,7 +130,7 @@ pub struct Flexcomm {
 
 impl Flexcomm {
     pub const fn new(base_addr: usize) -> Self {
-        Flexcomm {
+        Self {
             regs: unsafe { StaticRef::new(base_addr as *const FlexcommRegisters) },
         }
     }
@@ -148,7 +148,7 @@ impl Flexcomm {
             _ => return None,
         };
 
-        Some(Flexcomm {
+        Some(Self {
             regs: { base_addr },
         })
     }

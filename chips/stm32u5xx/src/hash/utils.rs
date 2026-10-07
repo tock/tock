@@ -29,10 +29,10 @@ pub enum Mode {
 impl Mode {
     pub fn get_digest_len(&self) -> usize {
         match self {
-            Mode::MD5 => 4,
-            Mode::SHA1 => 5,
-            Mode::SHA2_224 => 7,
-            Mode::SHA2_256 => 8,
+            Self::MD5 => 4,
+            Self::SHA1 => 5,
+            Self::SHA2_224 => 7,
+            Self::SHA2_256 => 8,
         }
     }
 }
@@ -127,7 +127,7 @@ pub struct Leftover {
 
 impl Leftover {
     pub fn new() -> Self {
-        Leftover {
+        Self {
             buffer: Cell::new(None),
             index: Cell::new(0),
         }

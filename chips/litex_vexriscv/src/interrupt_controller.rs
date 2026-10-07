@@ -18,7 +18,7 @@ pub struct VexRiscvInterruptController {
 impl VexRiscvInterruptController {
     /// Construct a new VexRiscvInterruptController instance
     pub const fn new() -> Self {
-        VexRiscvInterruptController {
+        Self {
             saved_interrupts: Cell::new(0),
         }
     }

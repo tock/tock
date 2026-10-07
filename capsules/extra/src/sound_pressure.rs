@@ -82,7 +82,7 @@ impl<'a> SoundPressureSensor<'a> {
     pub fn new(
         driver: &'a dyn hil::sensors::SoundPressure<'a>,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> SoundPressureSensor<'a> {
+    ) -> Self {
         SoundPressureSensor {
             driver,
             apps: grant,

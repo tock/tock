@@ -86,7 +86,7 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> Spi<'a, S> {
+    ) -> Self {
         Spi {
             spi_master,
             busy: Cell::new(false),

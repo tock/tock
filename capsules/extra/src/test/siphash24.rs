@@ -30,7 +30,7 @@ impl TestSipHash24 {
         hash: &'static mut [u8; 8],
         correct_hash: &'static mut [u8; 8],
     ) -> Self {
-        TestSipHash24 {
+        Self {
             hasher,
             data: TakeCell::new(data),
             hash: TakeCell::new(hash),

@@ -121,16 +121,16 @@ impl<T: Copy> MapCell<T> {
 
 impl<T> MapCell<T> {
     /// Creates an empty `MapCell`.
-    pub const fn empty() -> MapCell<T> {
-        MapCell {
+    pub const fn empty() -> Self {
+        Self {
             val: UnsafeCell::new(MaybeUninit::uninit()),
             occupied: Cell::new(MapCellState::Uninit),
         }
     }
 
     /// Creates a new `MapCell` containing `value`.
-    pub const fn new(value: T) -> MapCell<T> {
-        MapCell {
+    pub const fn new(value: T) -> Self {
+        Self {
             val: UnsafeCell::new(MaybeUninit::new(value)),
             occupied: Cell::new(MapCellState::Init),
         }

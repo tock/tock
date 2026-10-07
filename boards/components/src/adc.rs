@@ -58,7 +58,7 @@ pub struct AdcMuxComponent<A: 'static + adc::Adc<'static>> {
 
 impl<A: 'static + adc::Adc<'static>> AdcMuxComponent<A> {
     pub fn new(adc: &'static A) -> Self {
-        AdcMuxComponent { adc }
+        Self { adc }
     }
 }
 
@@ -82,7 +82,7 @@ pub struct AdcComponent<A: 'static + adc::Adc<'static>> {
 
 impl<A: 'static + adc::Adc<'static>> AdcComponent<A> {
     pub fn new(mux: &'static MuxAdc<'static, A>, channel: A::Channel) -> Self {
-        AdcComponent {
+        Self {
             adc_mux: mux,
             channel,
         }
@@ -112,7 +112,7 @@ pub struct AdcVirtualComponent<CAP: MemoryAllocationCapability + 'static> {
 
 impl<CAP: MemoryAllocationCapability + 'static> AdcVirtualComponent<CAP> {
     pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, mem_cap: CAP) -> Self {
-        AdcVirtualComponent {
+        Self {
             board_kernel,
             driver_num,
             mem_cap,
@@ -171,8 +171,8 @@ impl<
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         mem_cap: CAP,
-    ) -> AdcDedicatedComponent<A, CAP> {
-        AdcDedicatedComponent {
+    ) -> Self {
+        Self {
             adc,
             channels,
             board_kernel,

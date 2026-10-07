@@ -127,7 +127,7 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> KVStoreDriver<'a, V> {
+    ) -> Self {
         KVStoreDriver {
             kv,
             apps: grant,

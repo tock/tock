@@ -478,7 +478,7 @@ pub struct Ticks32(u32);
 
 impl From<u32> for Ticks32 {
     fn from(val: u32) -> Self {
-        Ticks32(val)
+        Self(val)
     }
 }
 
@@ -496,11 +496,11 @@ impl Ticks for Ticks32 {
     }
 
     fn wrapping_add(self, other: Self) -> Self {
-        Ticks32(self.0.wrapping_add(other.0))
+        Self(self.0.wrapping_add(other.0))
     }
 
     fn wrapping_sub(self, other: Self) -> Self {
-        Ticks32(self.0.wrapping_sub(other.0))
+        Self(self.0.wrapping_sub(other.0))
     }
 
     fn within_range(self, start: Self, end: Self) -> bool {
@@ -509,7 +509,7 @@ impl Ticks for Ticks32 {
 
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
-        Ticks32(0xFFFFFFFF)
+        Self(0xFFFFFFFF)
     }
 
     /// Returns the half the maximum value of this type, which should be (2^width-1).
@@ -567,7 +567,7 @@ impl Ticks24 {
 
 impl From<u32> for Ticks24 {
     fn from(val: u32) -> Self {
-        Ticks24(val & Self::MASK)
+        Self(val & Self::MASK)
     }
 }
 
@@ -585,11 +585,11 @@ impl Ticks for Ticks24 {
     }
 
     fn wrapping_add(self, other: Self) -> Self {
-        Ticks24(self.0.wrapping_add(other.0) & Self::MASK)
+        Self(self.0.wrapping_add(other.0) & Self::MASK)
     }
 
     fn wrapping_sub(self, other: Self) -> Self {
-        Ticks24(self.0.wrapping_sub(other.0) & Self::MASK)
+        Self(self.0.wrapping_sub(other.0) & Self::MASK)
     }
 
     fn within_range(self, start: Self, end: Self) -> bool {
@@ -598,7 +598,7 @@ impl Ticks for Ticks24 {
 
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
-        Ticks24(Self::MASK)
+        Self(Self::MASK)
     }
 
     /// Returns the half the maximum value of this type, which should be (2^width-1).
@@ -652,13 +652,13 @@ pub struct Ticks16(u16);
 
 impl From<u16> for Ticks16 {
     fn from(val: u16) -> Self {
-        Ticks16(val)
+        Self(val)
     }
 }
 
 impl From<u32> for Ticks16 {
     fn from(val: u32) -> Self {
-        Ticks16((val & 0xffff) as u16)
+        Self((val & 0xffff) as u16)
     }
 }
 
@@ -682,11 +682,11 @@ impl Ticks for Ticks16 {
     }
 
     fn wrapping_add(self, other: Self) -> Self {
-        Ticks16(self.0.wrapping_add(other.0))
+        Self(self.0.wrapping_add(other.0))
     }
 
     fn wrapping_sub(self, other: Self) -> Self {
-        Ticks16(self.0.wrapping_sub(other.0))
+        Self(self.0.wrapping_sub(other.0))
     }
 
     fn within_range(self, start: Self, end: Self) -> bool {
@@ -695,7 +695,7 @@ impl Ticks for Ticks16 {
 
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
-        Ticks16(0xFFFF)
+        Self(0xFFFF)
     }
 
     /// Returns the half the maximum value of this type, which should be (2^width-1).
@@ -755,13 +755,13 @@ impl Ticks64 {
 
 impl From<u32> for Ticks64 {
     fn from(val: u32) -> Self {
-        Ticks64(val as u64)
+        Self(val as u64)
     }
 }
 
 impl From<u64> for Ticks64 {
     fn from(val: u64) -> Self {
-        Ticks64(val)
+        Self(val)
     }
 }
 
@@ -779,11 +779,11 @@ impl Ticks for Ticks64 {
     }
 
     fn wrapping_add(self, other: Self) -> Self {
-        Ticks64(self.0.wrapping_add(other.0))
+        Self(self.0.wrapping_add(other.0))
     }
 
     fn wrapping_sub(self, other: Self) -> Self {
-        Ticks64(self.0.wrapping_sub(other.0))
+        Self(self.0.wrapping_sub(other.0))
     }
 
     fn within_range(self, start: Self, end: Self) -> bool {
@@ -792,7 +792,7 @@ impl Ticks for Ticks64 {
 
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
-        Ticks64(!0u64)
+        Self(!0u64)
     }
 
     /// Returns the half the maximum value of this type, which should be (2^width-1).

@@ -44,7 +44,7 @@ enum FlashState {
 ///   hold exactly `PAGE_WORDS * 4` bytes.
 pub struct Pflash<'a, const WORDS: usize, const PAGE_WORDS: usize, P: 'static + Default> {
     registers: StaticRef<[ReadWrite<u32>; WORDS]>,
-    client: OptionalCell<&'a dyn hil::flash::Client<Pflash<'a, WORDS, PAGE_WORDS, P>>>,
+    client: OptionalCell<&'a dyn hil::flash::Client<Self>>,
     buffer: TakeCell<'static, P>,
     state: Cell<FlashState>,
     deferred_call: DeferredCall,
@@ -221,7 +221,7 @@ impl<
     const WORDS: usize,
     const PAGE_WORDS: usize,
     P: 'static + Default + AsMut<[u8]>,
-    C: hil::flash::Client<Pflash<'a, WORDS, PAGE_WORDS, P>>,
+    C: hil::flash::Client<Self>,
 > hil::flash::HasClient<'a, C> for Pflash<'a, WORDS, PAGE_WORDS, P>
 {
     fn set_client(&'a self, client: &'a C) {

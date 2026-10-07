@@ -21,7 +21,7 @@ pub struct I2CMasterSlaveCombo<'a, M: I2CMaster<'a>, S: I2CSlave<'a>> {
 }
 
 impl<'a, M: I2CMaster<'a>, S: I2CSlave<'a>> I2CMasterSlaveCombo<'a, M, S> {
-    pub fn new(i2c_master: &'a M, i2c_slave: &'a S) -> I2CMasterSlaveCombo<'a, M, S> {
+    pub fn new(i2c_master: &'a M, i2c_slave: &'a S) -> Self {
         I2CMasterSlaveCombo {
             i2c_master,
             i2c_slave,

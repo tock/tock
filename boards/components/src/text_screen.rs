@@ -56,8 +56,8 @@ impl<const SCREEN_BUF_LEN: usize, CAP: MemoryAllocationCapability + 'static>
         driver_num: usize,
         text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
         mem_cap: CAP,
-    ) -> TextScreenComponent<SCREEN_BUF_LEN, CAP> {
-        TextScreenComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             text_screen,

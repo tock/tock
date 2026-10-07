@@ -21,9 +21,9 @@ pub enum Trap {
 impl From<LocalRegisterCopy<usize, mcause::Register>> for Trap {
     fn from(val: LocalRegisterCopy<usize, mcause::Register>) -> Self {
         if val.is_set(mcause::is_interrupt) {
-            Trap::Interrupt(Interrupt::from_reason(val.read(mcause::reason)))
+            Self::Interrupt(Interrupt::from_reason(val.read(mcause::reason)))
         } else {
-            Trap::Exception(Exception::from_reason(val.read(mcause::reason)))
+            Self::Exception(Exception::from_reason(val.read(mcause::reason)))
         }
     }
 }
@@ -73,16 +73,16 @@ impl Interrupt {
     fn from_reason(val: usize) -> Self {
         let mcause = LocalRegisterCopy::<usize, mcause::Register>::new(val);
         match mcause.read(mcause::reason) {
-            0 => Interrupt::UserSoft,
-            1 => Interrupt::SupervisorSoft,
-            3 => Interrupt::MachineSoft,
-            4 => Interrupt::UserTimer,
-            5 => Interrupt::SupervisorTimer,
-            7 => Interrupt::MachineTimer,
-            8 => Interrupt::UserExternal,
-            9 => Interrupt::SupervisorExternal,
-            11 => Interrupt::MachineExternal,
-            val => Interrupt::Unknown(val),
+            0 => Self::UserSoft,
+            1 => Self::SupervisorSoft,
+            3 => Self::MachineSoft,
+            4 => Self::UserTimer,
+            5 => Self::SupervisorTimer,
+            7 => Self::MachineTimer,
+            8 => Self::UserExternal,
+            9 => Self::SupervisorExternal,
+            11 => Self::MachineExternal,
+            val => Self::Unknown(val),
         }
     }
 }
@@ -91,21 +91,21 @@ impl Exception {
     fn from_reason(val: usize) -> Self {
         let mcause = LocalRegisterCopy::<usize, mcause::Register>::new(val);
         match mcause.read(mcause::reason) {
-            0 => Exception::InstructionMisaligned,
-            1 => Exception::InstructionFault,
-            2 => Exception::IllegalInstruction,
-            3 => Exception::Breakpoint,
-            4 => Exception::LoadMisaligned,
-            5 => Exception::LoadFault,
-            6 => Exception::StoreMisaligned,
-            7 => Exception::StoreFault,
-            8 => Exception::UserEnvCall,
-            9 => Exception::SupervisorEnvCall,
-            11 => Exception::MachineEnvCall,
-            12 => Exception::InstructionPageFault,
-            13 => Exception::LoadPageFault,
-            15 => Exception::StorePageFault,
-            _ => Exception::Unknown,
+            0 => Self::InstructionMisaligned,
+            1 => Self::InstructionFault,
+            2 => Self::IllegalInstruction,
+            3 => Self::Breakpoint,
+            4 => Self::LoadMisaligned,
+            5 => Self::LoadFault,
+            6 => Self::StoreMisaligned,
+            7 => Self::StoreFault,
+            8 => Self::UserEnvCall,
+            9 => Self::SupervisorEnvCall,
+            11 => Self::MachineEnvCall,
+            12 => Self::InstructionPageFault,
+            13 => Self::LoadPageFault,
+            15 => Self::StorePageFault,
+            _ => Self::Unknown,
         }
     }
 }

@@ -19,42 +19,42 @@ pub enum SResult<Output = (), Error = ()> {
 impl<Output, Error> SResult<Output, Error> {
     pub fn is_done(&self) -> bool {
         match *self {
-            SResult::Done(_, _) => true,
+            Self::Done(_, _) => true,
             _ => false,
         }
     }
 
     pub fn is_needed(&self) -> bool {
         match *self {
-            SResult::Needed(_) => true,
+            Self::Needed(_) => true,
             _ => false,
         }
     }
 
     pub fn is_err(&self) -> bool {
         match *self {
-            SResult::Error(_) => true,
+            Self::Error(_) => true,
             _ => false,
         }
     }
 
     pub fn done(self) -> Option<(usize, Output)> {
         match self {
-            SResult::Done(offset, out) => Some((offset, out)),
+            Self::Done(offset, out) => Some((offset, out)),
             _ => None,
         }
     }
 
     pub fn needed(self) -> Option<usize> {
         match self {
-            SResult::Needed(bytes) => Some(bytes),
+            Self::Needed(bytes) => Some(bytes),
             _ => None,
         }
     }
 
     pub fn err(self) -> Option<Error> {
         match self {
-            SResult::Error(err) => Some(err),
+            Self::Error(err) => Some(err),
             _ => None,
         }
     }

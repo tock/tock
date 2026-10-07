@@ -101,16 +101,16 @@ pub enum SyscallClass {
 impl TryFrom<u8> for SyscallClass {
     type Error = u8;
 
-    fn try_from(syscall_class_id: u8) -> Result<SyscallClass, u8> {
+    fn try_from(syscall_class_id: u8) -> Result<Self, u8> {
         match syscall_class_id {
-            0 => Ok(SyscallClass::Yield),
-            1 => Ok(SyscallClass::Subscribe),
-            2 => Ok(SyscallClass::Command),
-            3 => Ok(SyscallClass::ReadWriteAllow),
-            4 => Ok(SyscallClass::ReadOnlyAllow),
-            5 => Ok(SyscallClass::Memop),
-            6 => Ok(SyscallClass::Exit),
-            7 => Ok(SyscallClass::UserspaceReadableAllow),
+            0 => Ok(Self::Yield),
+            1 => Ok(Self::Subscribe),
+            2 => Ok(Self::Command),
+            3 => Ok(Self::ReadWriteAllow),
+            4 => Ok(Self::ReadOnlyAllow),
+            5 => Ok(Self::Memop),
+            6 => Ok(Self::Exit),
+            7 => Ok(Self::UserspaceReadableAllow),
             i => Err(i),
         }
     }
@@ -133,9 +133,9 @@ pub enum YieldVariant {
 impl core::fmt::Display for YieldVariant {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let name = match self {
-            YieldVariant::NoWait { ptr: _ } => "NoWait",
-            YieldVariant::Wait => "Wait",
-            YieldVariant::WaitFor {
+            Self::NoWait { ptr: _ } => "NoWait",
+            Self::Wait => "Wait",
+            Self::WaitFor {
                 driver_number: _,
                 subdriver_number: _,
             } => "WaitFor",
@@ -239,31 +239,31 @@ impl Syscall {
     /// Get the `driver_number` for the syscall classes that use driver numbers.
     pub fn driver_number(&self) -> Option<usize> {
         match *self {
-            Syscall::Subscribe {
+            Self::Subscribe {
                 driver_number,
                 subdriver_number: _,
                 upcall_ptr: _,
                 appdata: _,
             } => Some(driver_number),
-            Syscall::Command {
+            Self::Command {
                 driver_number,
                 subdriver_number: _,
                 arg0: _,
                 arg1: _,
             } => Some(driver_number),
-            Syscall::ReadWriteAllow {
+            Self::ReadWriteAllow {
                 driver_number,
                 subdriver_number: _,
                 allow_address: _,
                 allow_size: _,
             } => Some(driver_number),
-            Syscall::UserspaceReadableAllow {
+            Self::UserspaceReadableAllow {
                 driver_number,
                 subdriver_number: _,
                 allow_address: _,
                 allow_size: _,
             } => Some(driver_number),
-            Syscall::ReadOnlyAllow {
+            Self::ReadOnlyAllow {
                 driver_number,
                 subdriver_number: _,
                 allow_address: _,
@@ -277,31 +277,31 @@ impl Syscall {
     /// numbers.
     pub fn subdriver_number(&self) -> Option<usize> {
         match *self {
-            Syscall::Subscribe {
+            Self::Subscribe {
                 driver_number: _,
                 subdriver_number,
                 upcall_ptr: _,
                 appdata: _,
             } => Some(subdriver_number),
-            Syscall::Command {
+            Self::Command {
                 driver_number: _,
                 subdriver_number,
                 arg0: _,
                 arg1: _,
             } => Some(subdriver_number),
-            Syscall::ReadWriteAllow {
+            Self::ReadWriteAllow {
                 driver_number: _,
                 subdriver_number,
                 allow_address: _,
                 allow_size: _,
             } => Some(subdriver_number),
-            Syscall::UserspaceReadableAllow {
+            Self::UserspaceReadableAllow {
                 driver_number: _,
                 subdriver_number,
                 allow_address: _,
                 allow_size: _,
             } => Some(subdriver_number),
-            Syscall::ReadOnlyAllow {
+            Self::ReadOnlyAllow {
                 driver_number: _,
                 subdriver_number,
                 allow_address: _,
@@ -428,27 +428,27 @@ impl SyscallReturn {
     /// Returns true if the [`SyscallReturn`] is any success type.
     pub(crate) fn is_success(&self) -> bool {
         match self {
-            SyscallReturn::Success => true,
-            SyscallReturn::SuccessU32(_) => true,
-            SyscallReturn::SuccessU32U32(_, _) => true,
-            SyscallReturn::SuccessU32U32U32(_, _, _) => true,
-            SyscallReturn::SuccessU64(_) => true,
-            SyscallReturn::SuccessU32U64(_, _) => true,
-            SyscallReturn::SuccessAddr(_) => true,
-            SyscallReturn::SuccessPtr(_) => true,
-            SyscallReturn::AllowReadWriteSuccess(_, _) => true,
-            SyscallReturn::UserspaceReadableAllowSuccess(_, _) => true,
-            SyscallReturn::AllowReadOnlySuccess(_, _) => true,
-            SyscallReturn::SubscribeSuccess(_, _) => true,
-            SyscallReturn::Failure(_) => false,
-            SyscallReturn::FailureU32(_, _) => false,
-            SyscallReturn::FailureU32U32(_, _, _) => false,
-            SyscallReturn::FailureU64(_, _) => false,
-            SyscallReturn::AllowReadWriteFailure(_, _, _) => false,
-            SyscallReturn::UserspaceReadableAllowFailure(_, _, _) => false,
-            SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
-            SyscallReturn::SubscribeFailure(_, _, _) => false,
-            SyscallReturn::YieldWaitFor(_, _, _) => true,
+            Self::Success => true,
+            Self::SuccessU32(_) => true,
+            Self::SuccessU32U32(_, _) => true,
+            Self::SuccessU32U32U32(_, _, _) => true,
+            Self::SuccessU64(_) => true,
+            Self::SuccessU32U64(_, _) => true,
+            Self::SuccessAddr(_) => true,
+            Self::SuccessPtr(_) => true,
+            Self::AllowReadWriteSuccess(_, _) => true,
+            Self::UserspaceReadableAllowSuccess(_, _) => true,
+            Self::AllowReadOnlySuccess(_, _) => true,
+            Self::SubscribeSuccess(_, _) => true,
+            Self::Failure(_) => false,
+            Self::FailureU32(_, _) => false,
+            Self::FailureU32U32(_, _, _) => false,
+            Self::FailureU64(_, _) => false,
+            Self::AllowReadWriteFailure(_, _, _) => false,
+            Self::UserspaceReadableAllowFailure(_, _, _) => false,
+            Self::AllowReadOnlyFailure(_, _, _) => false,
+            Self::SubscribeFailure(_, _, _) => false,
+            Self::YieldWaitFor(_, _, _) => true,
         }
     }
 }

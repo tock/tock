@@ -164,8 +164,8 @@ struct Descriptor {
 }
 
 impl Descriptor {
-    pub fn new() -> Descriptor {
-        Descriptor {
+    pub fn new() -> Self {
+        Self {
             addr: InMemoryRegister::new(0),
             ctrl: InMemoryRegister::new(TCR::default().0),
             _res: [0; 2],
@@ -181,7 +181,7 @@ struct TCR(u32);
 
 impl TCR {
     const fn new(enable_interrupt: bool, trwidth: TrWidth, btsize: u16) -> Self {
-        TCR((!enable_interrupt as u32) << 27 | (trwidth as u32) << 24 | (btsize as u32))
+        Self((!enable_interrupt as u32) << 27 | (trwidth as u32) << 24 | (btsize as u32))
     }
 
     const fn default() -> Self {

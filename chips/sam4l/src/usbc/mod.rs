@@ -257,7 +257,7 @@ pub struct Requests {
 
 impl Requests {
     pub const fn new() -> Self {
-        Requests {
+        Self {
             resume_in: false,
             resume_out: false,
         }
@@ -345,7 +345,7 @@ pub enum BankIndex {
 }
 
 impl From<BankIndex> for usize {
-    fn from(bi: BankIndex) -> usize {
+    fn from(bi: BankIndex) -> Self {
         match bi {
             BankIndex::Bank0 => 0,
             BankIndex::Bank1 => 1,
@@ -356,8 +356,8 @@ impl From<BankIndex> for usize {
 pub struct EndpointIndex(u8);
 
 impl EndpointIndex {
-    pub fn new(index: usize) -> EndpointIndex {
-        EndpointIndex(index as u8 & 0xf)
+    pub fn new(index: usize) -> Self {
+        Self(index as u8 & 0xf)
     }
 
     pub fn to_u32(self) -> u32 {
@@ -366,8 +366,8 @@ impl EndpointIndex {
 }
 
 impl From<EndpointIndex> for usize {
-    fn from(ei: EndpointIndex) -> usize {
-        ei.0 as usize
+    fn from(ei: EndpointIndex) -> Self {
+        ei.0 as Self
     }
 }
 
@@ -392,8 +392,8 @@ pub struct Bank {
 }
 
 impl Bank {
-    pub const fn new() -> Bank {
-        Bank {
+    pub const fn new() -> Self {
+        Self {
             addr: InMemoryRegister::new(0),
             packet_size: InMemoryRegister::new(0),
             control_status: InMemoryRegister::new(0),

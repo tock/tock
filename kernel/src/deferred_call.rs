@@ -205,7 +205,7 @@ impl DeferredCall {
         if let Some(ctr) = CTR.get() {
             let idx = ctr.get();
             ctr.set(idx + 1);
-            DeferredCall { idx }
+            Self { idx }
         } else {
             // If this panic occurs, the platform did not call
             // `initialize_deferred_call_state()` or

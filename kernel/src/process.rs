@@ -95,7 +95,7 @@ pub struct ProcessId {
 }
 
 impl PartialEq for ProcessId {
-    fn eq(&self, other: &ProcessId) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.identifier == other.identifier
     }
 }
@@ -128,8 +128,8 @@ impl fmt::Debug for ProcessId {
 impl ProcessId {
     /// Create a new `ProcessId` object based on the app identifier and its
     /// index in the processes array.
-    pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> ProcessId {
-        ProcessId {
+    pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> Self {
+        Self {
             kernel,
             index,
             identifier,
@@ -146,8 +146,8 @@ impl ProcessId {
         identifier: usize,
         index: usize,
         _capability: &dyn capabilities::ExternalProcessCapability,
-    ) -> ProcessId {
-        ProcessId {
+    ) -> Self {
+        Self {
             kernel,
             index,
             identifier,
@@ -260,7 +260,7 @@ pub enum ShortId {
 impl PartialEq for ShortId {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (ShortId::Fixed(a), ShortId::Fixed(b)) => a == b,
+            (Self::Fixed(a), Self::Fixed(b)) => a == b,
             _ => false,
         }
     }
@@ -268,10 +268,10 @@ impl PartialEq for ShortId {
 impl Eq for ShortId {}
 
 impl core::convert::From<Option<core::num::NonZeroU32>> for ShortId {
-    fn from(id: Option<core::num::NonZeroU32>) -> ShortId {
+    fn from(id: Option<core::num::NonZeroU32>) -> Self {
         match id {
-            Some(fixed) => ShortId::Fixed(fixed),
-            None => ShortId::LocallyUnique,
+            Some(fixed) => Self::Fixed(fixed),
+            None => Self::LocallyUnique,
         }
     }
 }
@@ -279,10 +279,10 @@ impl core::convert::From<Option<core::num::NonZeroU32>> for ShortId {
 impl core::fmt::Display for ShortId {
     fn fmt(&self, fmt: &mut core::fmt::Formatter) -> fmt::Result {
         match *self {
-            ShortId::LocallyUnique => {
+            Self::LocallyUnique => {
                 write!(fmt, "Unique")
             }
-            ShortId::Fixed(id) => {
+            Self::Fixed(id) => {
                 write!(fmt, "0x{:<8x} ", id)
             }
         }
@@ -918,7 +918,7 @@ pub enum Error {
 }
 
 impl<T> From<Error> for Result<T, ErrorCode> {
-    fn from(err: Error) -> Result<T, ErrorCode> {
+    fn from(err: Error) -> Self {
         match err {
             Error::OutOfMemory => Err(ErrorCode::NOMEM),
             Error::AddressOutOfBounds => Err(ErrorCode::INVAL),
@@ -931,14 +931,14 @@ impl<T> From<Error> for Result<T, ErrorCode> {
 }
 
 impl From<Error> for ErrorCode {
-    fn from(err: Error) -> ErrorCode {
+    fn from(err: Error) -> Self {
         match err {
-            Error::OutOfMemory => ErrorCode::NOMEM,
-            Error::AddressOutOfBounds => ErrorCode::INVAL,
-            Error::NoSuchApp => ErrorCode::INVAL,
-            Error::InactiveApp => ErrorCode::FAIL,
-            Error::KernelError => ErrorCode::FAIL,
-            Error::AlreadyInUse => ErrorCode::FAIL,
+            Error::OutOfMemory => Self::NOMEM,
+            Error::AddressOutOfBounds => Self::INVAL,
+            Error::NoSuchApp => Self::INVAL,
+            Error::InactiveApp => Self::FAIL,
+            Error::KernelError => Self::FAIL,
+            Error::AlreadyInUse => Self::FAIL,
         }
     }
 }

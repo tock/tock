@@ -355,7 +355,7 @@ pub enum FlashRegion {
 
 pub struct FlashCtrl<'a> {
     registers: StaticRef<FlashCtrlRegisters>,
-    flash_client: OptionalCell<&'a dyn hil::flash::Client<FlashCtrl<'a>>>,
+    flash_client: OptionalCell<&'a dyn hil::flash::Client<Self>>,
     data_configured: Cell<bool>,
     info_configured: Cell<bool>,
     read_buf: TakeCell<'static, LowRiscPage>,

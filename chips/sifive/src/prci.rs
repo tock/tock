@@ -64,8 +64,8 @@ pub struct Prci {
 }
 
 impl Prci {
-    pub const fn new(base: StaticRef<PrciRegisters>) -> Prci {
-        Prci {
+    pub const fn new(base: StaticRef<PrciRegisters>) -> Self {
+        Self {
             registers: base,
             current_frequency: Cell::new(ClockFrequency::Freq16Mhz),
         }

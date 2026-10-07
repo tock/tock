@@ -44,30 +44,30 @@ pub enum ErrorCode {
 }
 
 impl From<ErrorCode> for usize {
-    fn from(err: ErrorCode) -> usize {
-        err as usize
+    fn from(err: ErrorCode) -> Self {
+        err as Self
     }
 }
 
-impl TryFrom<Result<(), ErrorCode>> for ErrorCode {
+impl TryFrom<Result<(), Self>> for ErrorCode {
     type Error = ();
 
-    fn try_from(rc: Result<(), ErrorCode>) -> Result<Self, Self::Error> {
+    fn try_from(rc: Result<(), Self>) -> Result<Self, Self::Error> {
         match rc {
             Ok(()) => Err(()),
-            Err(ErrorCode::FAIL) => Ok(ErrorCode::FAIL),
-            Err(ErrorCode::BUSY) => Ok(ErrorCode::BUSY),
-            Err(ErrorCode::ALREADY) => Ok(ErrorCode::ALREADY),
-            Err(ErrorCode::OFF) => Ok(ErrorCode::OFF),
-            Err(ErrorCode::RESERVE) => Ok(ErrorCode::RESERVE),
-            Err(ErrorCode::INVAL) => Ok(ErrorCode::INVAL),
-            Err(ErrorCode::SIZE) => Ok(ErrorCode::SIZE),
-            Err(ErrorCode::CANCEL) => Ok(ErrorCode::CANCEL),
-            Err(ErrorCode::NOMEM) => Ok(ErrorCode::NOMEM),
-            Err(ErrorCode::NOSUPPORT) => Ok(ErrorCode::NOSUPPORT),
-            Err(ErrorCode::NODEVICE) => Ok(ErrorCode::NODEVICE),
-            Err(ErrorCode::UNINSTALLED) => Ok(ErrorCode::UNINSTALLED),
-            Err(ErrorCode::NOACK) => Ok(ErrorCode::NOACK),
+            Err(Self::FAIL) => Ok(Self::FAIL),
+            Err(Self::BUSY) => Ok(Self::BUSY),
+            Err(Self::ALREADY) => Ok(Self::ALREADY),
+            Err(Self::OFF) => Ok(Self::OFF),
+            Err(Self::RESERVE) => Ok(Self::RESERVE),
+            Err(Self::INVAL) => Ok(Self::INVAL),
+            Err(Self::SIZE) => Ok(Self::SIZE),
+            Err(Self::CANCEL) => Ok(Self::CANCEL),
+            Err(Self::NOMEM) => Ok(Self::NOMEM),
+            Err(Self::NOSUPPORT) => Ok(Self::NOSUPPORT),
+            Err(Self::NODEVICE) => Ok(Self::NODEVICE),
+            Err(Self::UNINSTALLED) => Ok(Self::UNINSTALLED),
+            Err(Self::NOACK) => Ok(Self::NOACK),
         }
     }
 }

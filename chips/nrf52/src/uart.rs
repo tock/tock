@@ -110,8 +110,8 @@ pub struct Uart {
 }
 
 impl Uart {
-    pub fn new(regs: StaticRef<UartRegisters>) -> Uart {
-        Uart { registers: regs }
+    pub fn new(regs: StaticRef<UartRegisters>) -> Self {
+        Self { registers: regs }
     }
 
     fn initialize(&self, txd: Pin, rxd: Pin, cts: Option<Pin>, rts: Option<Pin>) {
@@ -242,7 +242,7 @@ impl kernel::platform::chip::PanicWriter for Uart {
     ) -> impl IoWrite + core::fmt::Write {
         use uart::Configure as _;
 
-        let inner = Uart::new(UART0_BASE);
+        let inner = Self::new(UART0_BASE);
         inner.initialize(config.txd, config.rxd, config.cts, config.rts);
         let _ = inner.configure(config.params);
         UartPanicWriter { inner }

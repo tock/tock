@@ -61,8 +61,8 @@ impl Default for TaskStateSegment {
 }
 
 impl TaskStateSegment {
-    pub const fn new() -> TaskStateSegment {
-        TaskStateSegment {
+    pub const fn new() -> Self {
+        Self {
             link: 0,
             reserved0: 0,
             esp0: 0,
@@ -99,7 +99,7 @@ impl TaskStateSegment {
             reserved9: 0,
             ldtr: 0,
             reserved10: 0,
-            iobp_offset: size_of::<TaskStateSegment>() as u16,
+            iobp_offset: size_of::<Self>() as u16,
         }
     }
 }

@@ -15,8 +15,8 @@ use kernel::utilities::binary_write::BinaryWrite;
 pub struct ProcessPrinterText {}
 
 impl ProcessPrinterText {
-    pub fn new() -> ProcessPrinterText {
-        ProcessPrinterText {}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 

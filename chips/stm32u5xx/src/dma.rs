@@ -253,8 +253,8 @@ pub enum ChannelId {
 }
 
 impl From<ChannelId> for usize {
-    fn from(val: ChannelId) -> usize {
-        val as usize
+    fn from(val: ChannelId) -> Self {
+        val as Self
     }
 }
 
@@ -369,7 +369,7 @@ impl DmaPeripheral {
         PaddingAlignmentMode,
     ) {
         match self {
-            DmaPeripheral::Usart1Tx => (
+            Self::Usart1Tx => (
                 USART1_TDR,
                 GPDMA_REQ_USART1_TX,
                 DmaDirection::MemoryToPeripheral,
@@ -381,7 +381,7 @@ impl DmaPeripheral {
                 ),
                 PaddingAlignmentMode::PaddedLeftTruncated,
             ),
-            DmaPeripheral::Usart1Rx => (
+            Self::Usart1Rx => (
                 USART1_RDR,
                 GPDMA_REQ_USART1_RX,
                 DmaDirection::PeripheralToMemory,
@@ -393,7 +393,7 @@ impl DmaPeripheral {
                 ),
                 PaddingAlignmentMode::PaddedLeftTruncated,
             ),
-            DmaPeripheral::Hash => (
+            Self::Hash => (
                 HASH_DIN,
                 GPDMA_REQ_HASH_IN,
                 DmaDirection::MemoryToPeripheral,
@@ -405,7 +405,7 @@ impl DmaPeripheral {
                 ),
                 PaddingAlignmentMode::PackedUnpacked,
             ),
-            DmaPeripheral::AESIN => (
+            Self::AESIN => (
                 AES_DINR,
                 GPDMA_REQ_AES_IN,
                 DmaDirection::MemoryToPeripheral,
@@ -417,7 +417,7 @@ impl DmaPeripheral {
                 ),
                 PaddingAlignmentMode::PackedUnpacked,
             ),
-            DmaPeripheral::AESOUT => (
+            Self::AESOUT => (
                 AES_DOUTR,
                 GPDMA_REQ_AES_OUT,
                 DmaDirection::PeripheralToMemory,
@@ -429,7 +429,7 @@ impl DmaPeripheral {
                 ),
                 PaddingAlignmentMode::PackedUnpacked,
             ),
-            DmaPeripheral::Spi1Tx => (
+            Self::Spi1Tx => (
                 SPI1_TXDR,
                 GPDMA_REQ_SPI1_TX,
                 DmaDirection::MemoryToPeripheral,
@@ -441,7 +441,7 @@ impl DmaPeripheral {
                 ),
                 PaddingAlignmentMode::PaddedLeftTruncated,
             ),
-            DmaPeripheral::Spi1Rx => (
+            Self::Spi1Rx => (
                 SPI1_RXDR,
                 GPDMA_REQ_SPI1_RX,
                 DmaDirection::PeripheralToMemory,
@@ -453,7 +453,7 @@ impl DmaPeripheral {
                 ),
                 PaddingAlignmentMode::PaddedLeftTruncated,
             ),
-            DmaPeripheral::I2c1Tx => (
+            Self::I2c1Tx => (
                 I2C1_TXDR,
                 GPDMA_REQ_I2C1_TX,
                 DmaDirection::MemoryToPeripheral,
@@ -465,7 +465,7 @@ impl DmaPeripheral {
                 ),
                 PaddingAlignmentMode::PaddedLeftTruncated,
             ),
-            DmaPeripheral::I2c1Rx => (
+            Self::I2c1Rx => (
                 I2C1_RXDR,
                 GPDMA_REQ_I2C1_RX,
                 DmaDirection::PeripheralToMemory,

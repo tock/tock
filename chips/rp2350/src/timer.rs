@@ -174,7 +174,7 @@ pub struct RPTimer<'a> {
 }
 
 impl<'a> RPTimer<'a> {
-    pub const fn new_timer0() -> RPTimer<'a> {
+    pub const fn new_timer0() -> Self {
         RPTimer {
             registers: TIMER0_BASE,
             client: OptionalCell::empty(),

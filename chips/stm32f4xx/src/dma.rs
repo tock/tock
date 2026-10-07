@@ -1411,12 +1411,12 @@ impl Dma1Peripheral {
     // to enable interrupt on the NVIC.
     pub fn get_stream_irqn(&self) -> u32 {
         match self {
-            Dma1Peripheral::SPI3_TX => nvic::DMA1_Stream7,
-            Dma1Peripheral::USART2_TX => nvic::DMA1_Stream6,
-            Dma1Peripheral::USART2_RX => nvic::DMA1_Stream5,
-            Dma1Peripheral::USART3_TX => nvic::DMA1_Stream3,
-            Dma1Peripheral::SPI3_RX => nvic::DMA1_Stream2,
-            Dma1Peripheral::USART3_RX => nvic::DMA1_Stream1,
+            Self::SPI3_TX => nvic::DMA1_Stream7,
+            Self::USART2_TX => nvic::DMA1_Stream6,
+            Self::USART2_RX => nvic::DMA1_Stream5,
+            Self::USART3_TX => nvic::DMA1_Stream3,
+            Self::SPI3_RX => nvic::DMA1_Stream2,
+            Self::USART3_RX => nvic::DMA1_Stream1,
         }
     }
 
@@ -1426,14 +1426,14 @@ impl Dma1Peripheral {
 }
 
 impl From<Dma1Peripheral> for StreamId {
-    fn from(pid: Dma1Peripheral) -> StreamId {
+    fn from(pid: Dma1Peripheral) -> Self {
         match pid {
-            Dma1Peripheral::SPI3_TX => StreamId::Stream7,
-            Dma1Peripheral::USART2_TX => StreamId::Stream6,
-            Dma1Peripheral::USART2_RX => StreamId::Stream5,
-            Dma1Peripheral::USART3_TX => StreamId::Stream3,
-            Dma1Peripheral::SPI3_RX => StreamId::Stream2,
-            Dma1Peripheral::USART3_RX => StreamId::Stream1,
+            Dma1Peripheral::SPI3_TX => Self::Stream7,
+            Dma1Peripheral::USART2_TX => Self::Stream6,
+            Dma1Peripheral::USART2_RX => Self::Stream5,
+            Dma1Peripheral::USART3_TX => Self::Stream3,
+            Dma1Peripheral::SPI3_RX => Self::Stream2,
+            Dma1Peripheral::USART3_RX => Self::Stream1,
         }
     }
 }
@@ -1449,27 +1449,27 @@ impl StreamPeripheral for Dma1Peripheral {
 
     fn channel_id(&self) -> ChannelId {
         match self {
-            Dma1Peripheral::SPI3_TX => {
+            Self::SPI3_TX => {
                 // SPI3_RX Stream 7, Channel 0
                 ChannelId::Channel0
             }
-            Dma1Peripheral::USART2_TX => {
+            Self::USART2_TX => {
                 // USART2_TX Stream 6, Channel 4
                 ChannelId::Channel4
             }
-            Dma1Peripheral::USART2_RX => {
+            Self::USART2_RX => {
                 // USART2_RX Stream 5, Channel 4
                 ChannelId::Channel4
             }
-            Dma1Peripheral::USART3_TX => {
+            Self::USART3_TX => {
                 // USART3_TX Stream 3, Channel 4
                 ChannelId::Channel4
             }
-            Dma1Peripheral::SPI3_RX => {
+            Self::SPI3_RX => {
                 // SPI3_RX Stream 2, Channel 0
                 ChannelId::Channel0
             }
-            Dma1Peripheral::USART3_RX => {
+            Self::USART3_RX => {
                 // USART3_RX Stream 1, Channel 4
                 ChannelId::Channel4
             }
@@ -1478,23 +1478,23 @@ impl StreamPeripheral for Dma1Peripheral {
 
     fn direction(&self) -> Direction {
         match self {
-            Dma1Peripheral::SPI3_TX => Direction::MemoryToPeripheral,
-            Dma1Peripheral::USART2_TX => Direction::MemoryToPeripheral,
-            Dma1Peripheral::USART2_RX => Direction::PeripheralToMemory,
-            Dma1Peripheral::USART3_TX => Direction::MemoryToPeripheral,
-            Dma1Peripheral::SPI3_RX => Direction::PeripheralToMemory,
-            Dma1Peripheral::USART3_RX => Direction::PeripheralToMemory,
+            Self::SPI3_TX => Direction::MemoryToPeripheral,
+            Self::USART2_TX => Direction::MemoryToPeripheral,
+            Self::USART2_RX => Direction::PeripheralToMemory,
+            Self::USART3_TX => Direction::MemoryToPeripheral,
+            Self::SPI3_RX => Direction::PeripheralToMemory,
+            Self::USART3_RX => Direction::PeripheralToMemory,
         }
     }
 
     fn address(&self) -> u32 {
         match self {
-            Dma1Peripheral::SPI3_TX => spi::get_address_dr(spi::SPI3_BASE),
-            Dma1Peripheral::USART2_TX => usart::get_address_dr(usart::USART2_BASE),
-            Dma1Peripheral::USART2_RX => usart::get_address_dr(usart::USART2_BASE),
-            Dma1Peripheral::USART3_TX => usart::get_address_dr(usart::USART3_BASE),
-            Dma1Peripheral::SPI3_RX => spi::get_address_dr(spi::SPI3_BASE),
-            Dma1Peripheral::USART3_RX => usart::get_address_dr(usart::USART3_BASE),
+            Self::SPI3_TX => spi::get_address_dr(spi::SPI3_BASE),
+            Self::USART2_TX => usart::get_address_dr(usart::USART2_BASE),
+            Self::USART2_RX => usart::get_address_dr(usart::USART2_BASE),
+            Self::USART3_TX => usart::get_address_dr(usart::USART3_BASE),
+            Self::SPI3_RX => spi::get_address_dr(spi::SPI3_BASE),
+            Self::USART3_RX => usart::get_address_dr(usart::USART3_BASE),
         }
     }
 }
@@ -1591,8 +1591,8 @@ impl Dma2Peripheral {
     // to enable interrupt on the NVIC.
     pub fn get_stream_irqn(&self) -> u32 {
         match self {
-            Dma2Peripheral::USART1_TX => nvic::DMA2_Stream7,
-            Dma2Peripheral::USART1_RX => nvic::DMA2_Stream5, // could also be Stream 2, chosen arbitrarily
+            Self::USART1_TX => nvic::DMA2_Stream7,
+            Self::USART1_RX => nvic::DMA2_Stream5, // could also be Stream 2, chosen arbitrarily
         }
     }
 
@@ -1602,10 +1602,10 @@ impl Dma2Peripheral {
 }
 
 impl From<Dma2Peripheral> for StreamId {
-    fn from(pid: Dma2Peripheral) -> StreamId {
+    fn from(pid: Dma2Peripheral) -> Self {
         match pid {
-            Dma2Peripheral::USART1_TX => StreamId::Stream7,
-            Dma2Peripheral::USART1_RX => StreamId::Stream5,
+            Dma2Peripheral::USART1_TX => Self::Stream7,
+            Dma2Peripheral::USART1_RX => Self::Stream5,
         }
     }
 }
@@ -1622,23 +1622,23 @@ impl StreamPeripheral for Dma2Peripheral {
     fn channel_id(&self) -> ChannelId {
         match self {
             // USART1_TX Stream 7, Channel 4
-            Dma2Peripheral::USART1_TX => ChannelId::Channel4,
+            Self::USART1_TX => ChannelId::Channel4,
             // USART1_RX Stream 5, Channel 4
-            Dma2Peripheral::USART1_RX => ChannelId::Channel4,
+            Self::USART1_RX => ChannelId::Channel4,
         }
     }
 
     fn direction(&self) -> Direction {
         match self {
-            Dma2Peripheral::USART1_TX => Direction::MemoryToPeripheral,
-            Dma2Peripheral::USART1_RX => Direction::PeripheralToMemory,
+            Self::USART1_TX => Direction::MemoryToPeripheral,
+            Self::USART1_RX => Direction::PeripheralToMemory,
         }
     }
 
     fn address(&self) -> u32 {
         match self {
-            Dma2Peripheral::USART1_TX => usart::get_address_dr(usart::USART1_BASE),
-            Dma2Peripheral::USART1_RX => usart::get_address_dr(usart::USART1_BASE),
+            Self::USART1_TX => usart::get_address_dr(usart::USART1_BASE),
+            Self::USART1_RX => usart::get_address_dr(usart::USART1_BASE),
         }
     }
 }

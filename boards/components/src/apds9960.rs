@@ -40,7 +40,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Apds9960Component<I> {
         i2c_address: u8,
         interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
     ) -> Self {
-        Apds9960Component {
+        Self {
             i2c_mux,
             i2c_address,
             interrupt_pin,

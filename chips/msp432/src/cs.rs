@@ -258,8 +258,8 @@ pub struct ClockSystem {
 }
 
 impl ClockSystem {
-    pub const fn new() -> ClockSystem {
-        ClockSystem { registers: CS_BASE }
+    pub const fn new() -> Self {
+        Self { registers: CS_BASE }
     }
 
     fn set_mclk_48mhz(&self) {

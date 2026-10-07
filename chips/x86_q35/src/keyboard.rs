@@ -134,7 +134,7 @@ impl CmdEntry {
         if seq.is_empty() || seq.len() > CMD_MAX_LEN {
             return None;
         }
-        let mut e = CmdEntry::empty();
+        let mut e = Self::empty();
         e.bytes[..seq.len()].copy_from_slice(seq);
         e.len = seq.len() as u8;
         Some(e)
@@ -148,7 +148,7 @@ impl crate::cmd_fifo::FifoItem for CmdEntry {
 
 impl Default for CmdEntry {
     fn default() -> Self {
-        CmdEntry::empty()
+        Self::empty()
     }
 }
 

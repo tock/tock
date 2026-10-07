@@ -55,8 +55,8 @@ pub struct CacheCtrl {
 }
 
 impl CacheCtrl {
-    pub const fn new() -> CacheCtrl {
-        CacheCtrl {
+    pub const fn new() -> Self {
+        Self {
             registers: CACHECTRL_BASE,
         }
     }

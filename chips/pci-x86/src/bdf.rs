@@ -25,7 +25,7 @@ impl Bdf {
         let bdf = ((bus as u32) << 16)
             | (((device as u32) & 0x1F) << 11)
             | (((function as u32) & 0x07) << 8);
-        Bdf(bdf)
+        Self(bdf)
     }
 
     /// Returns the bus number component of this BDF.

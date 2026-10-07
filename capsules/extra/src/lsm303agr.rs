@@ -173,7 +173,7 @@ struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings {
+        Self {
             accel_data_rate: Lsm303AccelDataRate::DataRate1Hz,
             low_power: false,
             accel_scale: Lsm303Scale::Scale2G,

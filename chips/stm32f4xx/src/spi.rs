@@ -180,7 +180,7 @@ impl<'a> Spi<'a> {
         clock: SpiClock<'a>,
         tx_dma_pid: Dma1Peripheral,
         rx_dma_pid: Dma1Peripheral,
-    ) -> Spi<'a> {
+    ) -> Self {
         Spi {
             registers: base_addr,
             clock,

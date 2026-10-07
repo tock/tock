@@ -32,7 +32,7 @@ impl From<core::array::TryFromSliceError> for InitialTbfParseError {
     // slices, this conversion should never fail. If it does, then this is a bug
     // in this library that must be fixed.
     fn from(_error: core::array::TryFromSliceError) -> Self {
-        InitialTbfParseError::UnableToParse
+        Self::UnableToParse
     }
 }
 
@@ -77,26 +77,26 @@ impl From<core::array::TryFromSliceError> for TbfParseError {
     // slices, this conversion should never fail. If it does, then this is a bug
     // in this library that must be fixed.
     fn from(_error: core::array::TryFromSliceError) -> Self {
-        TbfParseError::InternalError
+        Self::InternalError
     }
 }
 
 impl fmt::Debug for TbfParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TbfParseError::NotEnoughFlash => write!(f, "Buffer too short to parse TBF header"),
-            TbfParseError::UnsupportedVersion(version) => {
+            Self::NotEnoughFlash => write!(f, "Buffer too short to parse TBF header"),
+            Self::UnsupportedVersion(version) => {
                 write!(f, "TBF version {} unsupported", version)
             }
-            TbfParseError::ChecksumMismatch(app, calc) => write!(
+            Self::ChecksumMismatch(app, calc) => write!(
                 f,
                 "Checksum verification failed: app:{:#x}, calc:{:#x}",
                 app, calc
             ),
-            TbfParseError::BadTlvEntry(tipe) => write!(f, "TLV entry type {} is invalid", tipe),
-            TbfParseError::BadProcessName => write!(f, "Process name not UTF-8"),
-            TbfParseError::InternalError => write!(f, "Internal kernel error. This is a bug."),
-            TbfParseError::TooManyEntries(tipe) => {
+            Self::BadTlvEntry(tipe) => write!(f, "TLV entry type {} is invalid", tipe),
+            Self::BadProcessName => write!(f, "Process name not UTF-8"),
+            Self::InternalError => write!(f, "Internal kernel error. This is a bug."),
+            Self::TooManyEntries(tipe) => {
                 write!(
                     f,
                     "There are too many variable entries of {} for Tock to parse",
@@ -282,11 +282,11 @@ impl TbfFooterV2Credentials {
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Base {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2Base, Self::Error> {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
         if b.len() < 16 {
             return Err(TbfParseError::InternalError);
         }
-        Ok(TbfHeaderV2Base {
+        Ok(Self {
             version: u16::from_le_bytes(
                 b.get(0..2)
                     .ok_or(TbfParseError::InternalError)?
@@ -319,19 +319,19 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Base {
 impl core::convert::TryFrom<u16> for TbfHeaderTypes {
     type Error = TbfParseError;
 
-    fn try_from(h: u16) -> Result<TbfHeaderTypes, Self::Error> {
+    fn try_from(h: u16) -> Result<Self, Self::Error> {
         match h {
-            1 => Ok(TbfHeaderTypes::TbfHeaderMain),
-            2 => Ok(TbfHeaderTypes::TbfHeaderWriteableFlashRegions),
-            3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
-            5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
-            6 => Ok(TbfHeaderTypes::TbfHeaderPermissions),
-            7 => Ok(TbfHeaderTypes::TbfHeaderStoragePermissions),
-            8 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
-            9 => Ok(TbfHeaderTypes::TbfHeaderProgram),
-            10 => Ok(TbfHeaderTypes::TbfHeaderShortId),
-            128 => Ok(TbfHeaderTypes::TbfFooterCredentials),
-            _ => Ok(TbfHeaderTypes::Unknown),
+            1 => Ok(Self::TbfHeaderMain),
+            2 => Ok(Self::TbfHeaderWriteableFlashRegions),
+            3 => Ok(Self::TbfHeaderPackageName),
+            5 => Ok(Self::TbfHeaderFixedAddresses),
+            6 => Ok(Self::TbfHeaderPermissions),
+            7 => Ok(Self::TbfHeaderStoragePermissions),
+            8 => Ok(Self::TbfHeaderKernelVersion),
+            9 => Ok(Self::TbfHeaderProgram),
+            10 => Ok(Self::TbfHeaderShortId),
+            128 => Ok(Self::TbfFooterCredentials),
+            _ => Ok(Self::Unknown),
         }
     }
 }
@@ -339,8 +339,8 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
 impl core::convert::TryFrom<&[u8]> for TbfTlv {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfTlv, Self::Error> {
-        Ok(TbfTlv {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self {
             tipe: u16::from_le_bytes(
                 b.get(0..2)
                     .ok_or(TbfParseError::InternalError)?
@@ -359,12 +359,12 @@ impl core::convert::TryFrom<&[u8]> for TbfTlv {
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Main {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2Main, Self::Error> {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
         // For 3 or more fields, this shortcut check reduces code size
         if b.len() < 12 {
             return Err(TbfParseError::InternalError);
         }
-        Ok(TbfHeaderV2Main {
+        Ok(Self {
             init_fn_offset: u32::from_le_bytes(
                 b.get(0..4)
                     .ok_or(TbfParseError::InternalError)?
@@ -386,12 +386,12 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Main {
 
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
     type Error = TbfParseError;
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2Program, Self::Error> {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
         // For 3 or more fields, this shortcut check reduces code size
         if b.len() < 20 {
             return Err(TbfParseError::InternalError);
         }
-        Ok(TbfHeaderV2Program {
+        Ok(Self {
             init_fn_offset: u32::from_le_bytes(
                 b.get(0..4)
                     .ok_or(TbfParseError::InternalError)?
@@ -424,8 +424,8 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2WriteableFlashRegion {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2WriteableFlashRegion, Self::Error> {
-        Ok(TbfHeaderV2WriteableFlashRegion {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self {
             writeable_flash_region_offset: u32::from_le_bytes(
                 b.get(0..4)
                     .ok_or(TbfParseError::InternalError)?
@@ -443,8 +443,8 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2WriteableFlashRegion {
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2FixedAddresses {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2FixedAddresses, Self::Error> {
-        Ok(TbfHeaderV2FixedAddresses {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self {
             start_process_ram: u32::from_le_bytes(
                 b.get(0..4)
                     .ok_or(TbfParseError::InternalError)?
@@ -462,12 +462,12 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2FixedAddresses {
 impl core::convert::TryFrom<&[u8]> for TbfHeaderDriverPermission {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderDriverPermission, Self::Error> {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
         // For 3 or more fields, this shortcut check reduces code size
         if b.len() < 16 {
             return Err(TbfParseError::InternalError);
         }
-        Ok(TbfHeaderDriverPermission {
+        Ok(Self {
             driver_number: u32::from_le_bytes(
                 b.get(0..4)
                     .ok_or(TbfParseError::InternalError)?
@@ -490,7 +490,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderDriverPermission {
 impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermissions<L> {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2StoragePermissions<L>, Self::Error> {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
         let mut read_end = 6;
 
         let write_id = core::num::NonZeroU32::new(u32::from_le_bytes(
@@ -545,7 +545,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermiss
             }
         }
 
-        Ok(TbfHeaderV2StoragePermissions {
+        Ok(Self {
             write_id,
             read_length,
             read_ids,
@@ -558,8 +558,8 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermiss
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2KernelVersion, Self::Error> {
-        Ok(TbfHeaderV2KernelVersion {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self {
             major: u16::from_le_bytes(
                 b.get(0..2)
                     .ok_or(TbfParseError::InternalError)?
@@ -577,8 +577,8 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2ShortId {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2ShortId, Self::Error> {
-        Ok(TbfHeaderV2ShortId {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self {
             short_id: core::num::NonZeroU32::new(u32::from_le_bytes(
                 b.get(0..4)
                     .ok_or(TbfParseError::InternalError)?
@@ -591,7 +591,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2ShortId {
 impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
     type Error = TbfParseError;
 
-    fn try_from(b: &'static [u8]) -> Result<TbfFooterV2Credentials, Self::Error> {
+    fn try_from(b: &'static [u8]) -> Result<Self, Self::Error> {
         let format = u32::from_le_bytes(
             b.get(0..4)
                 .ok_or(TbfParseError::InternalError)?
@@ -623,7 +623,7 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
         let data = &b
             .get(4..(length + 4))
             .ok_or(TbfParseError::NotEnoughFlash)?;
-        Ok(TbfFooterV2Credentials {
+        Ok(Self {
             format: ftype,
             data,
         })

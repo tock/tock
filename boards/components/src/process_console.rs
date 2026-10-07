@@ -109,8 +109,8 @@ impl<
         process_printer: &'static dyn ProcessPrinter,
         reset_function: Option<fn() -> !>,
         capability: C,
-    ) -> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C> {
-        ProcessConsoleComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             uart_mux,
             alarm_mux,

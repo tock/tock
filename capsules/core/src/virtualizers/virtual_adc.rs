@@ -36,7 +36,7 @@ impl<'a, A: hil::adc::Adc<'a>> hil::adc::Client for MuxAdc<'a, A> {
 }
 
 impl<'a, A: hil::adc::Adc<'a>> MuxAdc<'a, A> {
-    pub const fn new(adc: &'a A) -> MuxAdc<'a, A> {
+    pub const fn new(adc: &'a A) -> Self {
         MuxAdc {
             adc,
             devices: List::new(),
@@ -82,12 +82,12 @@ pub struct AdcDevice<'a, A: hil::adc::Adc<'a>> {
     mux: &'a MuxAdc<'a, A>,
     channel: A::Channel,
     operation: OptionalCell<Operation>,
-    next: ListLink<'a, AdcDevice<'a, A>>,
+    next: ListLink<'a, Self>,
     client: OptionalCell<&'a dyn hil::adc::Client>,
 }
 
 impl<'a, A: hil::adc::Adc<'a>> AdcDevice<'a, A> {
-    pub const fn new(mux: &'a MuxAdc<'a, A>, channel: A::Channel) -> AdcDevice<'a, A> {
+    pub const fn new(mux: &'a MuxAdc<'a, A>, channel: A::Channel) -> Self {
         AdcDevice {
             mux,
             channel,
@@ -102,8 +102,8 @@ impl<'a, A: hil::adc::Adc<'a>> AdcDevice<'a, A> {
     }
 }
 
-impl<'a, A: hil::adc::Adc<'a>> ListNode<'a, AdcDevice<'a, A>> for AdcDevice<'a, A> {
-    fn next(&'a self) -> &'a ListLink<'a, AdcDevice<'a, A>> {
+impl<'a, A: hil::adc::Adc<'a>> ListNode<'a, Self> for AdcDevice<'a, A> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

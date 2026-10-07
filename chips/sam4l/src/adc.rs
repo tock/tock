@@ -72,8 +72,8 @@ impl AdcChannel {
     ///
     /// - `channel`: Channel enum representing the channel number and whether it
     ///   is internal
-    pub const fn new(channel: Channel) -> AdcChannel {
-        AdcChannel {
+    pub const fn new(channel: Channel) -> Self {
+        Self {
             chan_num: ((channel as u8) & 0x0F) as u32,
             internal: (((channel as u8) >> 4) & 0x01) as u32,
         }

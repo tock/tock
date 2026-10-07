@@ -168,8 +168,8 @@ impl<
         unload_driver: &'static T,
         uninstall_driver: &'static U,
         buffer: &'static mut [u8],
-    ) -> AppLoader<S, L, T, U> {
-        AppLoader {
+    ) -> Self {
+        Self {
             apps: grant,
             storage_driver,
             load_driver,

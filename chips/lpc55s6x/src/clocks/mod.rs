@@ -59,8 +59,8 @@ pub struct Clock {
 }
 
 impl Clock {
-    pub fn new() -> Clock {
-        Clock {
+    pub fn new() -> Self {
+        Self {
             syscon: &SYSCON_BASE,
         }
     }

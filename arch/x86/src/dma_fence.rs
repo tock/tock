@@ -36,7 +36,7 @@ impl X86DmaFence {
     /// promise that the resulting instance is not used to fence DMA memory
     /// accesses over write-combining memory.
     pub unsafe fn new() -> Self {
-        X86DmaFence { _private: () }
+        Self { _private: () }
     }
 }
 

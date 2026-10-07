@@ -57,7 +57,7 @@ pub struct TicKVKVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + 
 }
 
 impl<'a, K: KVSystem<'a, K = T>, T: KeyType> TicKVKVStore<'a, K, T> {
-    pub fn new(kv: &'a K, key: &'static mut T) -> TicKVKVStore<'a, K, T> {
+    pub fn new(kv: &'a K, key: &'static mut T) -> Self {
         Self {
             kv,
             hashed_key: TakeCell::new(key),

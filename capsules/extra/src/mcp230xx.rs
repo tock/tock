@@ -154,7 +154,7 @@ impl<'a, I: hil::i2c::I2CDevice> MCP230xx<'a, I> {
         buffer: &'static mut [u8],
         bank_size: u8,
         number_of_banks: u8,
-    ) -> MCP230xx<'a, I> {
+    ) -> Self {
         MCP230xx {
             i2c,
             state: Cell::new(State::Idle),

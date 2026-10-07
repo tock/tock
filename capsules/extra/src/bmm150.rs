@@ -73,7 +73,7 @@ pub struct BMM150<'a, I: I2CDevice> {
 }
 
 impl<'a, I: I2CDevice> BMM150<'a, I> {
-    pub fn new(buffer: &'static mut [u8], i2c: &'a I) -> BMM150<'a, I> {
+    pub fn new(buffer: &'static mut [u8], i2c: &'a I) -> Self {
         BMM150 {
             buffer: TakeCell::new(buffer),
             i2c,

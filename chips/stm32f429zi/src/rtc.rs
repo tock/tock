@@ -397,7 +397,7 @@ const RTC_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40002800 as *const RtcRegisters) };
 
 impl<'a> Rtc<'a> {
-    pub fn new(clocks: &'a dyn Stm32f4Clocks) -> Rtc<'a> {
+    pub fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Rtc {
             registers: RTC_BASE,
             client: OptionalCell::empty(),

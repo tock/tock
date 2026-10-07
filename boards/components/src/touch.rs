@@ -61,8 +61,8 @@ impl<CAP: MemoryAllocationCapability + 'static> TouchComponent<CAP> {
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen<'static>>,
         mem_cap: CAP,
-    ) -> TouchComponent<CAP> {
-        TouchComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             touch,
@@ -115,8 +115,8 @@ impl<CAP: MemoryAllocationCapability + 'static> MultiTouchComponent<CAP> {
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
         screen: Option<&'static dyn kernel::hil::screen::Screen>,
         mem_cap: CAP,
-    ) -> MultiTouchComponent<CAP> {
-        MultiTouchComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             multi_touch,

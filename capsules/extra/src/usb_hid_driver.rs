@@ -39,7 +39,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> UsbHidDriver<'a, U> {
         send_buffer: &'static mut [u8; 64],
         recv_buffer: &'static mut [u8; 64],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
-    ) -> UsbHidDriver<'a, U> {
+    ) -> Self {
         UsbHidDriver {
             usb,
             app: grant,

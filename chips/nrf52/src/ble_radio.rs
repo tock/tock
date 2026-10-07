@@ -545,7 +545,7 @@ pub struct Radio<'a> {
 }
 
 impl<'a> Radio<'a> {
-    pub const fn new() -> Radio<'a> {
+    pub const fn new() -> Self {
         Radio {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),

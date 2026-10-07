@@ -217,7 +217,7 @@ pub struct Uart16550<'a> {
 }
 
 impl<'a> Uart16550<'a> {
-    pub fn new(regs: StaticRef<Uart16550Registers>) -> Uart16550<'a> {
+    pub fn new(regs: StaticRef<Uart16550Registers>) -> Self {
         // Disable all interrupts when constructing the UART
         regs.ier.write(
             IER::ModemStatusRegisterChange::CLEAR

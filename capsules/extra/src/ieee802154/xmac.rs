@@ -174,7 +174,7 @@ impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> XMac<'a, R, A> {
         alarm: &'a A,
         rng: &'a dyn Rng<'a>,
         mac_buf: &'static mut [u8],
-    ) -> XMac<'a, R, A> {
+    ) -> Self {
         XMac {
             radio,
             alarm,

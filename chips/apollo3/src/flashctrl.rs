@@ -165,7 +165,7 @@ enum Operation {
 }
 
 pub struct FlashCtrl<'a> {
-    flash_client: OptionalCell<&'a dyn hil::flash::Client<FlashCtrl<'a>>>,
+    flash_client: OptionalCell<&'a dyn hil::flash::Client<Self>>,
     read_buf: TakeCell<'static, Apollo3Page>,
     write_buf: TakeCell<'static, Apollo3Page>,
 

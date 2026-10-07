@@ -18,19 +18,19 @@ pub struct PAddr(pub u32);
 
 impl From<u32> for PAddr {
     fn from(num: u32) -> Self {
-        PAddr(num)
+        Self(num)
     }
 }
 
 impl From<usize> for PAddr {
     fn from(num: usize) -> Self {
-        PAddr(num as u32)
+        Self(num as u32)
     }
 }
 
 impl From<i32> for PAddr {
     fn from(num: i32) -> Self {
-        PAddr(num as u32)
+        Self(num as u32)
     }
 }
 
@@ -49,10 +49,10 @@ impl Into<usize> for PAddr {
 }
 
 impl ops::Rem for PAddr {
-    type Output = PAddr;
+    type Output = Self;
 
-    fn rem(self, rhs: PAddr) -> Self::Output {
-        PAddr(self.0 % rhs.0)
+    fn rem(self, rhs: Self) -> Self::Output {
+        Self(self.0 % rhs.0)
     }
 }
 
@@ -76,7 +76,7 @@ impl ops::BitAnd for PAddr {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self {
-        PAddr(self.0 & rhs.0)
+        Self(self.0 & rhs.0)
     }
 }
 
@@ -89,10 +89,10 @@ impl ops::BitAnd<u32> for PAddr {
 }
 
 impl ops::BitOr for PAddr {
-    type Output = PAddr;
+    type Output = Self;
 
-    fn bitor(self, rhs: PAddr) -> Self::Output {
-        PAddr(self.0 | rhs.0)
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
     }
 }
 
@@ -199,7 +199,7 @@ impl PDEntry {
     /// # Implementation notes
     ///
     /// This doesn't support PSE-36 or PSE-40.
-    pub fn new(pt: PAddr, flags: LocalRegisterCopy<u32, PDFLAGS::Register>) -> PDEntry {
+    pub fn new(pt: PAddr, flags: LocalRegisterCopy<u32, PDFLAGS::Register>) -> Self {
         let mask = if flags.is_set(PDFLAGS::PS) {
             ADDRESS_MASK_PSE
         } else {
@@ -208,7 +208,7 @@ impl PDEntry {
         let pt_val = pt & mask;
         assert_eq!(pt_val, pt.into());
         assert_eq!(pt % BASE_PAGE_SIZE, 0);
-        PDEntry(pt_val | flags.get())
+        Self(pt_val | flags.get())
     }
 
     /// Retrieves the physical address in this entry.
@@ -244,11 +244,11 @@ impl PTEntry {
     ///
     ///  * `page` - The physical address of the backing 4 KiB page.
     ///  * `flags`- Additional flags for the entry.
-    pub fn new(page: PAddr, flags: LocalRegisterCopy<u32, PTFLAGS::Register>) -> PTEntry {
+    pub fn new(page: PAddr, flags: LocalRegisterCopy<u32, PTFLAGS::Register>) -> Self {
         let page_val = page & ADDRESS_MASK;
         assert_eq!(page_val, page.into());
         assert_eq!(page % BASE_PAGE_SIZE, 0);
-        PTEntry(page_val | flags.get())
+        Self(page_val | flags.get())
     }
 
     /// Retrieves the physical address in this entry.

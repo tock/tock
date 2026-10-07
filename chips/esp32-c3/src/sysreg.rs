@@ -69,7 +69,7 @@ pub struct SysReg {
 
 impl SysReg {
     pub const fn new() -> Self {
-        SysReg {
+        Self {
             registers: SYS_REG_BASE,
         }
     }

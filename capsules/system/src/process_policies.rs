@@ -77,8 +77,8 @@ pub struct ThresholdRestartFaultPolicy {
 }
 
 impl ThresholdRestartFaultPolicy {
-    pub const fn new(threshold: usize) -> ThresholdRestartFaultPolicy {
-        ThresholdRestartFaultPolicy { threshold }
+    pub const fn new(threshold: usize) -> Self {
+        Self { threshold }
     }
 }
 
@@ -102,8 +102,8 @@ pub struct ThresholdRestartThenPanicFaultPolicy {
 }
 
 impl ThresholdRestartThenPanicFaultPolicy {
-    pub const fn new(threshold: usize) -> ThresholdRestartThenPanicFaultPolicy {
-        ThresholdRestartThenPanicFaultPolicy { threshold }
+    pub const fn new(threshold: usize) -> Self {
+        Self { threshold }
     }
 }
 

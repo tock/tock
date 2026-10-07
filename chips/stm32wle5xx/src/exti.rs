@@ -406,7 +406,7 @@ pub struct Exti<'a> {
 }
 
 impl<'a> Exti<'a> {
-    pub const fn new(syscfg: &'a syscfg::Syscfg) -> Exti<'a> {
+    pub const fn new(syscfg: &'a syscfg::Syscfg) -> Self {
         Exti {
             registers: EXTI_BASE,
             line_gpiopin_map: [

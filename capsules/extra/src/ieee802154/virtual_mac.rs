@@ -73,7 +73,7 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
 }
 
 impl<'a, M: device::MacDevice<'a>> MuxMac<'a, M> {
-    pub const fn new(mac: &'a M) -> MuxMac<'a, M> {
+    pub const fn new(mac: &'a M) -> Self {
         MuxMac {
             mac,
             users: List::new(),
@@ -203,7 +203,7 @@ enum Op {
 pub struct MacUser<'a, M: device::MacDevice<'a>> {
     mux: &'a MuxMac<'a, M>,
     operation: MapCell<Op>,
-    next: ListLink<'a, MacUser<'a, M>>,
+    next: ListLink<'a, Self>,
     tx_client: OptionalCell<&'a dyn device::TxClient>,
     rx_client: OptionalCell<&'a dyn device::RxClient>,
 }
@@ -241,8 +241,8 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
     }
 }
 
-impl<'a, M: device::MacDevice<'a>> ListNode<'a, MacUser<'a, M>> for MacUser<'a, M> {
-    fn next(&'a self) -> &'a ListLink<'a, MacUser<'a, M>> {
+impl<'a, M: device::MacDevice<'a>> ListNode<'a, Self> for MacUser<'a, M> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

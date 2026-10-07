@@ -24,11 +24,11 @@ use kernel::scheduler::{Scheduler, SchedulingDecision};
 /// A node in the linked list the scheduler uses to track processes
 pub struct CoopProcessNode<'a> {
     proc: &'static ProcessSlot,
-    next: ListLink<'a, CoopProcessNode<'a>>,
+    next: ListLink<'a, Self>,
 }
 
 impl<'a> CoopProcessNode<'a> {
-    pub fn new(proc: &'static ProcessSlot) -> CoopProcessNode<'a> {
+    pub fn new(proc: &'static ProcessSlot) -> Self {
         CoopProcessNode {
             proc,
             next: ListLink::empty(),
@@ -36,8 +36,8 @@ impl<'a> CoopProcessNode<'a> {
     }
 }
 
-impl<'a> ListNode<'a, CoopProcessNode<'a>> for CoopProcessNode<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, CoopProcessNode<'a>> {
+impl<'a> ListNode<'a, Self> for CoopProcessNode<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }
@@ -48,7 +48,7 @@ pub struct CooperativeSched<'a> {
 }
 
 impl<'a> CooperativeSched<'a> {
-    pub const fn new() -> CooperativeSched<'a> {
+    pub const fn new() -> Self {
         CooperativeSched {
             processes: List::new(),
         }

@@ -29,8 +29,8 @@ impl UartDebugWriter {
         uart: &'static dyn hil::uart::Transmit,
         out_buffer: &'static mut [u8],
         internal_buffer: &'static mut RingBuffer<'static, u8>,
-    ) -> UartDebugWriter {
-        UartDebugWriter {
+    ) -> Self {
+        Self {
             uart,
             output_buffer: TakeCell::new(out_buffer),
             internal_buffer: TakeCell::new(internal_buffer),

@@ -61,9 +61,9 @@ pub struct Pwr {
 }
 
 impl Pwr {
-    pub fn new() -> Pwr {
+    pub fn new() -> Self {
         assert_eq!(core::mem::size_of::<PwrRegisters>(), 0x94);
-        Pwr { registers: PWR }
+        Self { registers: PWR }
     }
 
     pub fn is_rfbusys(&self) -> bool {

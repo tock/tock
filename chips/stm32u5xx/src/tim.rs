@@ -413,7 +413,7 @@ pub struct Tim2<'a> {
 
 impl<'a> Tim2<'a> {
     /// Creates a new instance of the driver.
-    pub const fn new(base: StaticRef<TimRegisters>) -> Tim2<'a> {
+    pub const fn new(base: StaticRef<TimRegisters>) -> Self {
         Tim2 {
             registers: base,
             clock: OptionalCell::empty(),
@@ -547,7 +547,7 @@ pub struct Pwm<'a> {
 }
 
 impl<'a> Pwm<'a> {
-    pub const fn new(base: StaticRef<TimRegisters>) -> Pwm<'a> {
+    pub const fn new(base: StaticRef<TimRegisters>) -> Self {
         Pwm {
             registers: base,
             clock: OptionalCell::empty(),

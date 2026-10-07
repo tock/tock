@@ -89,7 +89,7 @@ impl<'a, PAD> GpioPin<'a, PAD> {
         gpio_base: StaticRef<GpioRegisters>,
         padctl: PAD,
         pin: Field<u32, pins::Register>,
-    ) -> GpioPin<'a, PAD> {
+    ) -> Self {
         GpioPin {
             gpio_registers: gpio_base,
             padctl,

@@ -232,49 +232,35 @@ impl From<SyscallReturn> for TRD104SyscallReturn {
     fn from(syscall_return: SyscallReturn) -> Self {
         match syscall_return {
             // Identical variants:
-            SyscallReturn::Failure(a) => TRD104SyscallReturn::Failure(a),
-            SyscallReturn::FailureU32(a, b) => TRD104SyscallReturn::FailureU32(a, b),
-            SyscallReturn::FailureU32U32(a, b, c) => TRD104SyscallReturn::FailureU32U32(a, b, c),
-            SyscallReturn::FailureU64(a, b) => TRD104SyscallReturn::FailureU64(a, b),
-            SyscallReturn::Success => TRD104SyscallReturn::Success,
-            SyscallReturn::SuccessU32(a) => TRD104SyscallReturn::SuccessU32(a),
-            SyscallReturn::SuccessU32U32(a, b) => TRD104SyscallReturn::SuccessU32U32(a, b),
-            SyscallReturn::SuccessU32U32U32(a, b, c) => {
-                TRD104SyscallReturn::SuccessU32U32U32(a, b, c)
-            }
-            SyscallReturn::SuccessU64(a) => TRD104SyscallReturn::SuccessU64(a),
-            SyscallReturn::SuccessU32U64(a, b) => TRD104SyscallReturn::SuccessU32U64(a, b),
-            SyscallReturn::AllowReadWriteSuccess(a, b) => {
-                TRD104SyscallReturn::AllowReadWriteSuccess(a, b)
-            }
-            SyscallReturn::AllowReadWriteFailure(a, b, c) => {
-                TRD104SyscallReturn::AllowReadWriteFailure(a, b, c)
-            }
+            SyscallReturn::Failure(a) => Self::Failure(a),
+            SyscallReturn::FailureU32(a, b) => Self::FailureU32(a, b),
+            SyscallReturn::FailureU32U32(a, b, c) => Self::FailureU32U32(a, b, c),
+            SyscallReturn::FailureU64(a, b) => Self::FailureU64(a, b),
+            SyscallReturn::Success => Self::Success,
+            SyscallReturn::SuccessU32(a) => Self::SuccessU32(a),
+            SyscallReturn::SuccessU32U32(a, b) => Self::SuccessU32U32(a, b),
+            SyscallReturn::SuccessU32U32U32(a, b, c) => Self::SuccessU32U32U32(a, b, c),
+            SyscallReturn::SuccessU64(a) => Self::SuccessU64(a),
+            SyscallReturn::SuccessU32U64(a, b) => Self::SuccessU32U64(a, b),
+            SyscallReturn::AllowReadWriteSuccess(a, b) => Self::AllowReadWriteSuccess(a, b),
+            SyscallReturn::AllowReadWriteFailure(a, b, c) => Self::AllowReadWriteFailure(a, b, c),
             SyscallReturn::UserspaceReadableAllowSuccess(a, b) => {
-                TRD104SyscallReturn::UserspaceReadableAllowSuccess(a, b)
+                Self::UserspaceReadableAllowSuccess(a, b)
             }
             SyscallReturn::UserspaceReadableAllowFailure(a, b, c) => {
-                TRD104SyscallReturn::UserspaceReadableAllowFailure(a, b, c)
+                Self::UserspaceReadableAllowFailure(a, b, c)
             }
-            SyscallReturn::AllowReadOnlySuccess(a, b) => {
-                TRD104SyscallReturn::AllowReadOnlySuccess(a, b)
-            }
-            SyscallReturn::AllowReadOnlyFailure(a, b, c) => {
-                TRD104SyscallReturn::AllowReadOnlyFailure(a, b, c)
-            }
-            SyscallReturn::SubscribeSuccess(a, b) => TRD104SyscallReturn::SubscribeSuccess(a, b),
-            SyscallReturn::SubscribeFailure(a, b, c) => {
-                TRD104SyscallReturn::SubscribeFailure(a, b, c)
-            }
+            SyscallReturn::AllowReadOnlySuccess(a, b) => Self::AllowReadOnlySuccess(a, b),
+            SyscallReturn::AllowReadOnlyFailure(a, b, c) => Self::AllowReadOnlyFailure(a, b, c),
+            SyscallReturn::SubscribeSuccess(a, b) => Self::SubscribeSuccess(a, b),
+            SyscallReturn::SubscribeFailure(a, b, c) => Self::SubscribeFailure(a, b, c),
             SyscallReturn::YieldWaitFor(a, b, c) => {
-                TRD104SyscallReturn::YieldWaitFor(a as u32, b as u32, c as u32)
+                Self::YieldWaitFor(a as u32, b as u32, c as u32)
             }
 
             // Compatibility mapping:
-            SyscallReturn::SuccessAddr(a) => TRD104SyscallReturn::SuccessU32(a as u32),
-            SyscallReturn::SuccessPtr(a) => {
-                TRD104SyscallReturn::SuccessU32(a.as_ptr::<()>() as u32)
-            }
+            SyscallReturn::SuccessAddr(a) => Self::SuccessU32(a as u32),
+            SyscallReturn::SuccessPtr(a) => Self::SuccessU32(a.as_ptr::<()>() as u32),
         }
     }
 }
@@ -459,49 +445,33 @@ impl From<SyscallReturn> for TRDRiscv64bitSyscallReturn {
     /// architectures implementing the ABI as specified in the TRD.
     fn from(syscall_return: SyscallReturn) -> Self {
         match syscall_return {
-            SyscallReturn::Failure(a) => TRDRiscv64bitSyscallReturn::Failure(a),
-            SyscallReturn::FailureU32(a, b) => TRDRiscv64bitSyscallReturn::FailureU32(a, b),
-            SyscallReturn::FailureU32U32(a, b, c) => {
-                TRDRiscv64bitSyscallReturn::FailureU32U32(a, b, c)
-            }
-            SyscallReturn::FailureU64(a, b) => TRDRiscv64bitSyscallReturn::FailureU64(a, b),
-            SyscallReturn::Success => TRDRiscv64bitSyscallReturn::Success,
-            SyscallReturn::SuccessU32(a) => TRDRiscv64bitSyscallReturn::SuccessU32(a),
-            SyscallReturn::SuccessU32U32(a, b) => TRDRiscv64bitSyscallReturn::SuccessU32U32(a, b),
-            SyscallReturn::SuccessU32U32U32(a, b, c) => {
-                TRDRiscv64bitSyscallReturn::SuccessU32U32U32(a, b, c)
-            }
-            SyscallReturn::SuccessU64(a) => TRDRiscv64bitSyscallReturn::SuccessU64(a),
-            SyscallReturn::SuccessU32U64(a, b) => TRDRiscv64bitSyscallReturn::SuccessU32U64(a, b),
-            SyscallReturn::AllowReadWriteSuccess(a, b) => {
-                TRDRiscv64bitSyscallReturn::AllowReadWriteSuccess(a, b)
-            }
-            SyscallReturn::AllowReadWriteFailure(a, b, c) => {
-                TRDRiscv64bitSyscallReturn::AllowReadWriteFailure(a, b, c)
-            }
+            SyscallReturn::Failure(a) => Self::Failure(a),
+            SyscallReturn::FailureU32(a, b) => Self::FailureU32(a, b),
+            SyscallReturn::FailureU32U32(a, b, c) => Self::FailureU32U32(a, b, c),
+            SyscallReturn::FailureU64(a, b) => Self::FailureU64(a, b),
+            SyscallReturn::Success => Self::Success,
+            SyscallReturn::SuccessU32(a) => Self::SuccessU32(a),
+            SyscallReturn::SuccessU32U32(a, b) => Self::SuccessU32U32(a, b),
+            SyscallReturn::SuccessU32U32U32(a, b, c) => Self::SuccessU32U32U32(a, b, c),
+            SyscallReturn::SuccessU64(a) => Self::SuccessU64(a),
+            SyscallReturn::SuccessU32U64(a, b) => Self::SuccessU32U64(a, b),
+            SyscallReturn::AllowReadWriteSuccess(a, b) => Self::AllowReadWriteSuccess(a, b),
+            SyscallReturn::AllowReadWriteFailure(a, b, c) => Self::AllowReadWriteFailure(a, b, c),
             SyscallReturn::UserspaceReadableAllowSuccess(a, b) => {
-                TRDRiscv64bitSyscallReturn::UserspaceReadableAllowSuccess(a, b)
+                Self::UserspaceReadableAllowSuccess(a, b)
             }
             SyscallReturn::UserspaceReadableAllowFailure(a, b, c) => {
-                TRDRiscv64bitSyscallReturn::UserspaceReadableAllowFailure(a, b, c)
+                Self::UserspaceReadableAllowFailure(a, b, c)
             }
-            SyscallReturn::AllowReadOnlySuccess(a, b) => {
-                TRDRiscv64bitSyscallReturn::AllowReadOnlySuccess(a, b)
-            }
-            SyscallReturn::AllowReadOnlyFailure(a, b, c) => {
-                TRDRiscv64bitSyscallReturn::AllowReadOnlyFailure(a, b, c)
-            }
-            SyscallReturn::SubscribeSuccess(a, b) => {
-                TRDRiscv64bitSyscallReturn::SubscribeSuccess(a, b)
-            }
-            SyscallReturn::SubscribeFailure(a, b, c) => {
-                TRDRiscv64bitSyscallReturn::SubscribeFailure(a, b, c)
-            }
+            SyscallReturn::AllowReadOnlySuccess(a, b) => Self::AllowReadOnlySuccess(a, b),
+            SyscallReturn::AllowReadOnlyFailure(a, b, c) => Self::AllowReadOnlyFailure(a, b, c),
+            SyscallReturn::SubscribeSuccess(a, b) => Self::SubscribeSuccess(a, b),
+            SyscallReturn::SubscribeFailure(a, b, c) => Self::SubscribeFailure(a, b, c),
             SyscallReturn::YieldWaitFor(a, b, c) => {
-                TRDRiscv64bitSyscallReturn::YieldWaitFor(a as u32, b as u32, c as u32)
+                Self::YieldWaitFor(a as u32, b as u32, c as u32)
             }
-            SyscallReturn::SuccessAddr(a) => TRDRiscv64bitSyscallReturn::SuccessAddr(a),
-            SyscallReturn::SuccessPtr(a) => TRDRiscv64bitSyscallReturn::SuccessPtr(a),
+            SyscallReturn::SuccessAddr(a) => Self::SuccessAddr(a),
+            SyscallReturn::SuccessPtr(a) => Self::SuccessPtr(a),
         }
     }
 }

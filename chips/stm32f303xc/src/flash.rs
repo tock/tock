@@ -279,7 +279,7 @@ pub enum FlashState {
 
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
-    client: OptionalCell<&'static dyn hil::flash::Client<Flash>>,
+    client: OptionalCell<&'static dyn hil::flash::Client<Self>>,
     buffer: TakeCell<'static, StmF303Page>,
     state: Cell<FlashState>,
     write_counter: Cell<usize>,
@@ -288,8 +288,8 @@ pub struct Flash {
 }
 
 impl Flash {
-    pub fn new() -> Flash {
-        Flash {
+    pub fn new() -> Self {
+        Self {
             registers: FLASH_BASE,
             client: OptionalCell::empty(),
             buffer: TakeCell::empty(),

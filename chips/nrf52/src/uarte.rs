@@ -344,7 +344,7 @@ pub struct UARTParams {
 impl<'a> Uarte<'a> {
     /// Constructor
     // This should only be constructed once
-    pub fn new(registers: UarteRegistersManager) -> Uarte<'a> {
+    pub fn new(registers: UarteRegistersManager) -> Self {
         Uarte {
             registers,
             tx_client: OptionalCell::empty(),

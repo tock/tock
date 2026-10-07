@@ -63,8 +63,8 @@ impl<
         uart: &'static U,
         reset_pin: &'static G,
         mem_cap: CAP,
-    ) -> Nrf51822Component<U, G, CAP> {
-        Nrf51822Component {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             uart,

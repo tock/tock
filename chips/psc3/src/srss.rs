@@ -154,8 +154,8 @@ pub struct Srss {
 }
 
 impl Srss {
-    pub const fn new() -> Srss {
-        Srss {
+    pub const fn new() -> Self {
+        Self {
             registers: SRSS_BASE,
         }
     }

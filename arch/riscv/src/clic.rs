@@ -136,8 +136,8 @@ pub struct Clic {
 }
 
 impl Clic {
-    pub const fn new(in_use_interrupts: u64) -> Clic {
-        Clic {
+    pub const fn new(in_use_interrupts: u64) -> Self {
+        Self {
             registers: CLIC_BASE,
             in_use_interrupts,
         }

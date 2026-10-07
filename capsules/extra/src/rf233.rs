@@ -1043,7 +1043,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
         sleep: &'a dyn gpio::Pin,
         irq: &'a dyn gpio::InterruptPin<'a>,
         channel: radio::RadioChannel,
-    ) -> RF233<'a, S> {
+    ) -> Self {
         RF233 {
             spi,
             reset_pin: reset,

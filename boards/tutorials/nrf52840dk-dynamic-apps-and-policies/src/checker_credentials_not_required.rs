@@ -21,7 +21,7 @@ pub struct AppCheckerCredentialsNotRequired<
 impl<'a, C: kernel::process_checker::AppCredentialsPolicy<'static>>
     AppCheckerCredentialsNotRequired<'a, C>
 {
-    pub fn new(checker: &'a C) -> AppCheckerCredentialsNotRequired<'a, C> {
+    pub fn new(checker: &'a C) -> Self {
         Self { checker }
     }
 }

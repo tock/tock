@@ -83,7 +83,7 @@ impl<'a> AppFlash<'a> {
             AllowRwCount<0>,
         >,
         buffer: &'static mut [u8],
-    ) -> AppFlash<'a> {
+    ) -> Self {
         AppFlash {
             driver,
             apps: grant,

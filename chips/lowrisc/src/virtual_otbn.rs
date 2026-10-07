@@ -13,19 +13,19 @@ use kernel::utilities::cells::OptionalCell;
 
 pub struct VirtualMuxAccel<'a> {
     mux: &'a MuxAccel<'a>,
-    next: ListLink<'a, VirtualMuxAccel<'a>>,
+    next: ListLink<'a, Self>,
     client: OptionalCell<&'a dyn Client<'a>>,
     id: u32,
 }
 
-impl<'a> ListNode<'a, VirtualMuxAccel<'a>> for VirtualMuxAccel<'a> {
-    fn next(&self) -> &'a ListLink<'_, VirtualMuxAccel<'a>> {
+impl<'a> ListNode<'a, Self> for VirtualMuxAccel<'a> {
+    fn next(&self) -> &'a ListLink<'_, Self> {
         &self.next
     }
 }
 
 impl<'a> VirtualMuxAccel<'a> {
-    pub fn new(mux_accel: &'a MuxAccel<'a>) -> VirtualMuxAccel<'a> {
+    pub fn new(mux_accel: &'a MuxAccel<'a>) -> Self {
         let id = mux_accel.next_id.get();
         mux_accel.next_id.set(id + 1);
 
@@ -114,7 +114,7 @@ pub struct MuxAccel<'a> {
 }
 
 impl<'a> MuxAccel<'a> {
-    pub const fn new(accel: &'a Otbn<'a>) -> MuxAccel<'a> {
+    pub const fn new(accel: &'a Otbn<'a>) -> Self {
         MuxAccel {
             accel,
             running: Cell::new(false),

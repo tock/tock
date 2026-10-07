@@ -37,8 +37,8 @@ pub struct AccelMuxComponent {
 }
 
 impl AccelMuxComponent {
-    pub fn new(otbn: &'static Otbn<'static>) -> AccelMuxComponent {
-        AccelMuxComponent { otbn }
+    pub fn new(otbn: &'static Otbn<'static>) -> Self {
+        Self { otbn }
     }
 }
 
@@ -56,8 +56,8 @@ pub struct OtbnComponent {
 }
 
 impl OtbnComponent {
-    pub fn new(mux_otbn: &'static MuxAccel<'static>) -> OtbnComponent {
-        OtbnComponent { mux_otbn }
+    pub fn new(mux_otbn: &'static MuxAccel<'static>) -> Self {
+        Self { mux_otbn }
     }
 }
 

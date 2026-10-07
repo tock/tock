@@ -54,7 +54,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         udp_dgram: SubSliceMut<'static, u8>,
         dst_port: u16,
         net_cap: &'static NetworkCapability,
-    ) -> MockUdp<'a, A> {
+    ) -> Self {
         MockUdp {
             id,
             alarm,

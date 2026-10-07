@@ -200,8 +200,8 @@ pub trait DMAClient {
 }
 
 impl DMAChannel {
-    pub fn new(channel: DMAChannelNum) -> DMAChannel {
-        DMAChannel {
+    pub fn new(channel: DMAChannelNum) -> Self {
+        Self {
             registers: unsafe {
                 StaticRef::new(
                     (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE) as *const DMARegisters,

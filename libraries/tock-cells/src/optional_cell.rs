@@ -14,15 +14,15 @@ pub struct OptionalCell<T> {
 
 impl<T> OptionalCell<T> {
     /// Create a new OptionalCell.
-    pub const fn new(val: T) -> OptionalCell<T> {
-        OptionalCell {
+    pub const fn new(val: T) -> Self {
+        Self {
             value: Cell::new(Some(val)),
         }
     }
 
     /// Create an empty `OptionalCell` (contains just `None`).
-    pub const fn empty() -> OptionalCell<T> {
-        OptionalCell {
+    pub const fn empty() -> Self {
+        Self {
             value: Cell::new(None),
         }
     }
@@ -250,6 +250,6 @@ impl<T: Copy> OptionalCell<T> {
 impl<T> Default for OptionalCell<T> {
     /// Returns an empty [`OptionalCell`].
     fn default() -> Self {
-        OptionalCell::empty()
+        Self::empty()
     }
 }

@@ -87,8 +87,8 @@ impl<
         chip_select: CS,
         mux_alarm: &'static MuxAlarm<'static, A>,
         mux_spi: &'static MuxSpiMaster<'static, S>,
-    ) -> Mx25r6435fComponent<S, P, A> {
-        Mx25r6435fComponent {
+    ) -> Self {
+        Self {
             write_protect_pin,
             hold_pin,
             chip_select: chip_select.into_cs(),

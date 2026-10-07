@@ -63,7 +63,7 @@ pub struct PmpConfigCSRIter {
 
 impl PmpConfigCSRIter {
     pub fn from_pmpcfg_entry_offset(start_entry: usize) -> Self {
-        PmpConfigCSRIter {
+        Self {
             current_entry: start_entry,
             pmpcfg_csr_value: None,
         }
@@ -219,7 +219,7 @@ impl Iterator for PmpConfigCSRIter {
 pub struct TORUserPMPCFG(LocalRegisterCopy<u8, pmpcfg_octet::Register>);
 
 impl TORUserPMPCFG {
-    pub const OFF: TORUserPMPCFG = TORUserPMPCFG(LocalRegisterCopy::new(0));
+    pub const OFF: Self = Self(LocalRegisterCopy::new(0));
 
     /// Extract the `u8` representation of the [`pmpcfg_octet`] register.
     pub fn get(self) -> u8 {
@@ -232,7 +232,7 @@ impl TORUserPMPCFG {
     }
 }
 
-impl PartialEq<TORUserPMPCFG> for TORUserPMPCFG {
+impl PartialEq<Self> for TORUserPMPCFG {
     fn eq(&self, other: &Self) -> bool {
         self.0.get() == other.0.get()
     }
@@ -260,7 +260,7 @@ impl From<mpu::Permissions> for TORUserPMPCFG {
             }
         };
 
-        TORUserPMPCFG(LocalRegisterCopy::new(
+        Self(LocalRegisterCopy::new(
             (fv + pmpcfg_octet::l::CLEAR + pmpcfg_octet::a::TOR).value,
         ))
     }
@@ -306,7 +306,7 @@ impl NAPOTRegionSpec {
         // Prevent the `&-masking with zero` lint error in case of RV32
         // The redundant checks in this case are optimized out by the compiler on any 1-3,z opt-level
         #[allow(clippy::bad_bit_mask)]
-        (pmpaddr & !PMPADDR_MASK == 0).then_some(NAPOTRegionSpec { pmpaddr })
+        (pmpaddr & !PMPADDR_MASK == 0).then_some(Self { pmpaddr })
     }
 
     /// Construct a new [`NAPOTRegionSpec`] from a start address and size.
@@ -397,14 +397,14 @@ impl TORRegionSpec {
     /// include any address outside of the 56 bit physical address space and, in
     /// this case, returns `None` (tests whether any of the 10 most significant
     /// bits of either `pmpaddr` are non-zero).
-    pub fn from_pmpaddr_csrs(pmpaddr_a: usize, pmpaddr_b: usize) -> Option<TORRegionSpec> {
+    pub fn from_pmpaddr_csrs(pmpaddr_a: usize, pmpaddr_b: usize) -> Option<Self> {
         // Prevent the `&-masking with zero` lint error in case of RV32
         // The redundant checks in this case are optimized out by the compiler on any 1-3,z opt-level
         #[allow(clippy::bad_bit_mask)]
         ((pmpaddr_a < pmpaddr_b)
             && (pmpaddr_a & !PMPADDR_MASK == 0)
             && (pmpaddr_b & !PMPADDR_MASK == 0))
-            .then_some(TORRegionSpec {
+            .then_some(Self {
                 pmpaddr_a,
                 pmpaddr_b,
             })
@@ -1046,7 +1046,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> PMPUserMPU<
         #[allow(clippy::let_unit_value)]
         let _: () = P::CONST_ASSERT_CHECK;
 
-        PMPUserMPU {
+        Self {
             config_count: Cell::new(NonZeroUsize::MIN),
             last_configured_for: OptionalCell::empty(),
             pmp,
@@ -1703,7 +1703,7 @@ pub mod simple {
 
             // Hardware PMP is verified to be in a compatible mode / state, has
             // at least `AVAILABLE_ENTRIES` entries, and matches `GRANULARITY`.
-            Ok(SimplePMP)
+            Ok(Self)
         }
     }
 
@@ -2067,7 +2067,7 @@ pub mod kernel_protection {
             );
 
             // Setup complete
-            Ok(KernelProtectionPMP)
+            Ok(Self)
         }
     }
 
@@ -2449,7 +2449,7 @@ pub mod kernel_protection_mml_epmp {
             }
 
             // Setup complete
-            Ok(KernelProtectionMMLEPMP {
+            Ok(Self {
                 user_pmp_enabled: Cell::new(false),
                 shadow_user_pmpcfgs: [const { Cell::new(TORUserPMPCFG::OFF) }; MPU_REGIONS],
             })

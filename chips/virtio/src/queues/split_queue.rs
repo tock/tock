@@ -64,8 +64,8 @@ pub struct VirtqueueDescriptor {
 }
 
 impl Default for VirtqueueDescriptor {
-    fn default() -> VirtqueueDescriptor {
-        VirtqueueDescriptor {
+    fn default() -> Self {
+        Self {
             addr: InMemoryRegister::new(0),
             len: InMemoryRegister::new(0),
             flags: InMemoryRegister::new(0),
@@ -92,7 +92,7 @@ pub struct VirtqueueDescriptors<const MAX_QUEUE_SIZE: usize>([VirtqueueDescripto
 
 impl<const MAX_QUEUE_SIZE: usize> Default for VirtqueueDescriptors<MAX_QUEUE_SIZE> {
     fn default() -> Self {
-        VirtqueueDescriptors(core::array::from_fn(|_| VirtqueueDescriptor::default()))
+        Self(core::array::from_fn(|_| VirtqueueDescriptor::default()))
     }
 }
 
@@ -141,14 +141,14 @@ pub struct VirtqueueAvailableRing<const MAX_QUEUE_SIZE: usize> {
 }
 
 impl Default for VirtqueueAvailableElement {
-    fn default() -> VirtqueueAvailableElement {
-        VirtqueueAvailableElement(InMemoryRegister::new(0))
+    fn default() -> Self {
+        Self(InMemoryRegister::new(0))
     }
 }
 
 impl<const MAX_QUEUE_SIZE: usize> Default for VirtqueueAvailableRing<MAX_QUEUE_SIZE> {
     fn default() -> Self {
-        VirtqueueAvailableRing {
+        Self {
             flags: InMemoryRegister::new(0),
             idx: InMemoryRegister::new(0),
             ring: core::array::from_fn(|_| VirtqueueAvailableElement::default()),
@@ -191,7 +191,7 @@ pub struct VirtqueueUsedRing<const MAX_QUEUE_SIZE: usize> {
 
 impl<const MAX_QUEUE_SIZE: usize> Default for VirtqueueUsedRing<MAX_QUEUE_SIZE> {
     fn default() -> Self {
-        VirtqueueUsedRing {
+        Self {
             flags: InMemoryRegister::new(0),
             idx: InMemoryRegister::new(0),
             ring: core::array::from_fn(|_| VirtqueueUsedElement::default()),
@@ -214,8 +214,8 @@ pub struct VirtqueueUsedElement {
 }
 
 impl Default for VirtqueueUsedElement {
-    fn default() -> VirtqueueUsedElement {
-        VirtqueueUsedElement {
+    fn default() -> Self {
+        Self {
             id: InMemoryRegister::new(0),
             len: InMemoryRegister::new(0),
         }
@@ -237,8 +237,8 @@ struct AvailableRingHelper {
 }
 
 impl AvailableRingHelper {
-    pub fn new(max_elements: usize) -> AvailableRingHelper {
-        AvailableRingHelper {
+    pub fn new(max_elements: usize) -> Self {
+        Self {
             max_elements: Cell::new(max_elements),
             start: Cell::new(0),
             end: Cell::new(0),

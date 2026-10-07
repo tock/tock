@@ -125,7 +125,7 @@ pub struct ReadWriteRiscvCsr<T: UIntLike, R: RegisterLongName, const V: usize> {
 
 impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
     pub const fn new() -> Self {
-        ReadWriteRiscvCsr {
+        Self {
             associated_register: PhantomData,
             associated_length: PhantomData,
         }

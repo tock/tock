@@ -49,8 +49,8 @@ pub struct Watchdog {
 }
 
 impl Watchdog {
-    pub const fn new(base: StaticRef<WatchdogRegisters>) -> Watchdog {
-        Watchdog { registers: base }
+    pub const fn new(base: StaticRef<WatchdogRegisters>) -> Self {
+        Self { registers: base }
     }
 
     fn unlock(&self) {

@@ -409,8 +409,8 @@ pub struct SysCtl {
 }
 
 impl SysCtl {
-    pub const fn new() -> SysCtl {
-        SysCtl {
+    pub const fn new() -> Self {
+        Self {
             registers: SYSCTL_BASE,
         }
     }

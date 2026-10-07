@@ -56,8 +56,8 @@ impl Channel {
     /// Create a new AC channel.
     ///
     /// - `channel`: Channel enum representing the channel number
-    pub const fn new(channel: ChannelNumber) -> Channel {
-        Channel {
+    pub const fn new(channel: ChannelNumber) -> Self {
+        Self {
             _chan_num: (channel as u32) & 0x0F,
         }
     }

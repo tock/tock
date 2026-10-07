@@ -52,6 +52,6 @@ impl VirtIOGPUResp for ResourceFlushResp {
         ctrl_header: CtrlHeader,
         _src: &mut impl Iterator<Item = u8>,
     ) -> Result<Self, ErrorCode> {
-        Ok(ResourceFlushResp { ctrl_header })
+        Ok(Self { ctrl_header })
     }
 }

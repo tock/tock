@@ -75,7 +75,7 @@ impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
     Isl29035Component<A, I>
 {
     pub fn new(i2c: &'static MuxI2C<'static, I>, alarm: &'static MuxAlarm<'static, A>) -> Self {
-        Isl29035Component {
+        Self {
             i2c_mux: i2c,
             alarm_mux: alarm,
         }
@@ -131,7 +131,7 @@ impl<L: 'static + hil::sensors::AmbientLight<'static>, CAP: MemoryAllocationCapa
         light_sensor: &'static L,
         mem_cap: CAP,
     ) -> Self {
-        AmbientLightComponent {
+        Self {
             board_kernel,
             driver_num,
             light_sensor,

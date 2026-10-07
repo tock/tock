@@ -82,7 +82,7 @@ impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static
     I2CMuxComponent<I, S>
 {
     pub fn new(i2c: &'static I, smbus: Option<&'static S>) -> Self {
-        I2CMuxComponent { i2c, smbus }
+        Self { i2c, smbus }
     }
 }
 
@@ -109,7 +109,7 @@ pub struct I2CComponent<I: 'static + i2c::I2CMaster<'static>> {
 
 impl<I: 'static + i2c::I2CMaster<'static>> I2CComponent<I> {
     pub fn new(mux: &'static MuxI2C<'static, I>, address: u8) -> Self {
-        I2CComponent {
+        Self {
             i2c_mux: mux,
             address,
         }
@@ -149,7 +149,7 @@ impl<I: 'static + i2c::I2CMasterSlave<'static>, CAP: MemoryAllocationCapability 
         i2c: &'static I,
         mem_cap: CAP,
     ) -> Self {
-        I2CMasterSlaveDriverComponent {
+        Self {
             board_kernel,
             driver_num,
             i2c,
@@ -213,7 +213,7 @@ impl<I: 'static + i2c::I2CMaster<'static>, CAP: MemoryAllocationCapability + 'st
         i2c: &'static I,
         mem_cap: CAP,
     ) -> Self {
-        I2CMasterDriverComponent {
+        Self {
             board_kernel,
             driver_num,
             i2c,

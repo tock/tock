@@ -92,7 +92,7 @@ impl<'a, T: hil::sensors::Distance<'a>> DistanceSensor<'a, T> {
     pub fn new(
         driver: &'a T,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> DistanceSensor<'a, T> {
+    ) -> Self {
         DistanceSensor {
             driver,
             apps: grant,

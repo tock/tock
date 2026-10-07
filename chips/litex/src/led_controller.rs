@@ -31,7 +31,7 @@ pub struct LiteXLedController<R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<R: LiteXSoCRegisterConfiguration> LiteXLedController<R> {
-    pub fn new(base: StaticRef<LiteXLedRegisters<R>>, led_count: usize) -> LiteXLedController<R> {
+    pub fn new(base: StaticRef<LiteXLedRegisters<R>>, led_count: usize) -> Self {
         // The number of leds may not be larger than the bit width of
         // the supplied register layout
         //
@@ -41,7 +41,7 @@ impl<R: LiteXSoCRegisterConfiguration> LiteXLedController<R> {
             "LiteXLedController register width insufficient to support the requested LED count"
         );
 
-        LiteXLedController {
+        Self {
             regs: base,
             led_count,
             led_references: Cell::new(0),
@@ -134,7 +134,7 @@ pub struct LiteXLed<'a, R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<'a, R: LiteXSoCRegisterConfiguration> LiteXLed<'a, R> {
-    fn new(controller: &'a LiteXLedController<R>, index: usize) -> LiteXLed<'a, R> {
+    fn new(controller: &'a LiteXLedController<R>, index: usize) -> Self {
         LiteXLed { controller, index }
     }
 

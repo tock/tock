@@ -62,7 +62,7 @@ pub struct Isl29035<'a, A: time::Alarm<'a>> {
 }
 
 impl<'a, A: time::Alarm<'a>> Isl29035<'a, A> {
-    pub fn new(i2c: &'a dyn I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Isl29035<'a, A> {
+    pub fn new(i2c: &'a dyn I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Self {
         Isl29035 {
             i2c,
             alarm,

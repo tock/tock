@@ -57,8 +57,8 @@ pub struct Pwm {
 }
 
 impl Pwm {
-    pub const fn new(base: StaticRef<PwmRegisters>) -> Pwm {
-        Pwm { registers: base }
+    pub const fn new(base: StaticRef<PwmRegisters>) -> Self {
+        Self { registers: base }
     }
 
     /// Disable the PWM so it does not generate interrupts.

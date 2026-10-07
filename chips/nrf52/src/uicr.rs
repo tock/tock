@@ -126,21 +126,21 @@ pub enum Regulator0Output {
 impl From<u32> for Regulator0Output {
     fn from(val: u32) -> Self {
         match val & 7 {
-            0 => Regulator0Output::V1_8,
-            1 => Regulator0Output::V2_1,
-            2 => Regulator0Output::V2_4,
-            3 => Regulator0Output::V2_7,
-            4 => Regulator0Output::V3_0,
-            5 => Regulator0Output::V3_3,
-            7 => Regulator0Output::DEFAULT,
-            _ => Regulator0Output::DEFAULT, // Invalid value, fall back to DEFAULT
+            0 => Self::V1_8,
+            1 => Self::V2_1,
+            2 => Self::V2_4,
+            3 => Self::V2_7,
+            4 => Self::V3_0,
+            5 => Self::V3_3,
+            7 => Self::DEFAULT,
+            _ => Self::DEFAULT, // Invalid value, fall back to DEFAULT
         }
     }
 }
 
 impl Uicr {
-    pub const fn new() -> Uicr {
-        Uicr {
+    pub const fn new() -> Self {
+        Self {
             registers: UICR_BASE,
         }
     }

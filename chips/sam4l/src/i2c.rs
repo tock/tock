@@ -641,7 +641,7 @@ impl<'a> I2CHw<'a> {
         dma_rx: DMAPeripheral,
         dma_tx: DMAPeripheral,
         pm: &'static pm::PowerManager,
-    ) -> I2CHw<'a> {
+    ) -> Self {
         I2CHw {
             master_mmio_address: base_addr,
             slave_mmio_address: slave_base_addr,

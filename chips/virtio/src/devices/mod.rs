@@ -53,38 +53,38 @@ pub enum VirtIODeviceType {
 impl VirtIODeviceType {
     /// Try to create a [`VirtIODeviceType`] enum variant from a supplied
     /// numeric device ID.
-    pub fn from_device_id(id: u32) -> Option<VirtIODeviceType> {
+    pub fn from_device_id(id: u32) -> Option<Self> {
         use VirtIODeviceType as DT;
 
         match id {
-            1 => Some(DT::NetworkCard),
-            2 => Some(DT::BlockDevice),
-            3 => Some(DT::Console),
-            4 => Some(DT::EntropySource),
-            5 => Some(DT::TraditionalMemoryBallooning),
-            6 => Some(DT::IoMemory),
-            7 => Some(DT::RPMSG),
-            8 => Some(DT::SCSIHost),
-            9 => Some(DT::Transport9P),
-            10 => Some(DT::Mac80211Wlan),
-            11 => Some(DT::RPROCSerial),
-            12 => Some(DT::VirtIOCAIF),
-            13 => Some(DT::MemoryBalloon),
-            16 => Some(DT::GPUDevice),
-            17 => Some(DT::TimerClockDevice),
-            18 => Some(DT::InputDevice),
-            19 => Some(DT::SocketDevice),
-            20 => Some(DT::CryptoDevice),
-            21 => Some(DT::SignalDistributionModule),
-            22 => Some(DT::PstoreDevice),
-            23 => Some(DT::IOMMUDevice),
-            24 => Some(DT::MemoryDevice),
+            1 => Some(Self::NetworkCard),
+            2 => Some(Self::BlockDevice),
+            3 => Some(Self::Console),
+            4 => Some(Self::EntropySource),
+            5 => Some(Self::TraditionalMemoryBallooning),
+            6 => Some(Self::IoMemory),
+            7 => Some(Self::RPMSG),
+            8 => Some(Self::SCSIHost),
+            9 => Some(Self::Transport9P),
+            10 => Some(Self::Mac80211Wlan),
+            11 => Some(Self::RPROCSerial),
+            12 => Some(Self::VirtIOCAIF),
+            13 => Some(Self::MemoryBalloon),
+            16 => Some(Self::GPUDevice),
+            17 => Some(Self::TimerClockDevice),
+            18 => Some(Self::InputDevice),
+            19 => Some(Self::SocketDevice),
+            20 => Some(Self::CryptoDevice),
+            21 => Some(Self::SignalDistributionModule),
+            22 => Some(Self::PstoreDevice),
+            23 => Some(Self::IOMMUDevice),
+            24 => Some(Self::MemoryDevice),
             _ => None,
         }
     }
 
     /// Convert a [`VirtIODeviceType`] variant to its corresponding device ID.
-    pub fn to_device_id(device_type: VirtIODeviceType) -> u32 {
+    pub fn to_device_id(device_type: Self) -> u32 {
         device_type as u32
     }
 }

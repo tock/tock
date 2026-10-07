@@ -175,7 +175,7 @@ impl<S: 'static + spi::SpiMaster<'static>, CAP: MemoryAllocationCapability + 'st
         driver_num: usize,
         mem_cap: CAP,
     ) -> Self {
-        SpiSyscallComponent {
+        Self {
             board_kernel,
             spi_mux: mux,
             chip_select,
@@ -226,7 +226,7 @@ impl<S: 'static + spi::SpiSlave<'static>, CAP: MemoryAllocationCapability + 'sta
         driver_num: usize,
         mem_cap: CAP,
     ) -> Self {
-        SpiSyscallPComponent {
+        Self {
             board_kernel,
             spi_slave: slave,
             driver_num,
@@ -274,7 +274,7 @@ impl<
 > SpiComponent<S, CS, AP>
 {
     pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: CS) -> Self {
-        SpiComponent {
+        Self {
             spi_mux: mux,
             _phantom: PhantomData,
             chip_select,
@@ -320,7 +320,7 @@ impl<S: 'static + spi::SpiSlave<'static>, CAP: MemoryAllocationCapability + 'sta
         driver_num: usize,
         mem_cap: CAP,
     ) -> Self {
-        SpiPeripheralComponent {
+        Self {
             board_kernel,
             device,
             driver_num,

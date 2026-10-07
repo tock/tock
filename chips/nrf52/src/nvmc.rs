@@ -201,7 +201,7 @@ pub enum FlashState {
 
 pub struct Nvmc {
     registers: StaticRef<NvmcRegisters>,
-    client: OptionalCell<&'static dyn hil::flash::Client<Nvmc>>,
+    client: OptionalCell<&'static dyn hil::flash::Client<Self>>,
     buffer: TakeCell<'static, NrfPage>,
     state: Cell<FlashState>,
     deferred_call: DeferredCall,

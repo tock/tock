@@ -279,7 +279,7 @@ impl CortexMRegion {
         region_num: usize,
         subregions: Option<(usize, usize)>,
         permissions: mpu::Permissions,
-    ) -> Option<CortexMRegion> {
+    ) -> Option<Self> {
         // Logical size must be above minimum size for cortexM MPU regions and
         // and less than the size of the underlying physical region
         if logical_size < CORTEXM_MIN_REGION_SIZE || region_size < logical_size {
@@ -335,15 +335,15 @@ impl CortexMRegion {
             attributes += RegionAttributes::SRD.val(mask as u32);
         }
 
-        Some(CortexMRegion {
+        Some(Self {
             location: Some((logical_start, logical_size)),
             base_address,
             attributes,
         })
     }
 
-    fn empty(region_num: usize) -> CortexMRegion {
-        CortexMRegion {
+    fn empty(region_num: usize) -> Self {
+        Self {
             location: None,
             base_address: RegionBaseAddress::VALID::UseRBAR
                 + RegionBaseAddress::REGION.val(region_num as u32),

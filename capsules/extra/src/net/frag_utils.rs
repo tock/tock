@@ -9,8 +9,8 @@ pub struct Bitmap {
 }
 
 impl Bitmap {
-    pub fn new() -> Bitmap {
-        Bitmap {
+    pub fn new() -> Self {
+        Self {
             map: [0; BITMAP_SIZE],
         }
     }

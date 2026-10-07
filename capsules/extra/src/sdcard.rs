@@ -262,7 +262,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         detect_pin: Option<&'static dyn hil::gpio::InterruptPin<'a>>,
         txbuffer: &'static mut [u8; 515],
         rxbuffer: &'static mut [u8; 515],
-    ) -> SDCard<'a, A> {
+    ) -> Self {
         // initialize buffers
         for byte in txbuffer.iter_mut() {
             *byte = 0xFF;
@@ -1505,7 +1505,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> SDCardDriver<'a, A> {
+    ) -> Self {
         // return new SDCardDriver
         SDCardDriver {
             sdcard,

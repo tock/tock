@@ -62,7 +62,7 @@ impl<
         driver_num: usize,
         mem_cap: CAP,
     ) -> Self {
-        Mlx90614SMBusComponent {
+        Self {
             i2c_mux: i2c,
             i2c_address,
             board_kernel,

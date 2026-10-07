@@ -103,11 +103,7 @@ pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice<'a>> {
 }
 
 impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
-    pub fn new(
-        spi: &'a S,
-        txbuffer: &'static mut [u8],
-        rxbuffer: &'static mut [u8],
-    ) -> FM25CL<'a, S> {
+    pub fn new(spi: &'a S, txbuffer: &'static mut [u8], rxbuffer: &'static mut [u8]) -> Self {
         // setup and return struct
         FM25CL {
             spi,

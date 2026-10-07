@@ -180,8 +180,8 @@ pub struct Pwm {
 }
 
 impl Pwm {
-    pub const fn new() -> Pwm {
-        Pwm {
+    pub const fn new() -> Self {
+        Self {
             registers: PWM0_BASE,
         }
     }

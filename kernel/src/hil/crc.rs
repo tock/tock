@@ -58,9 +58,9 @@ pub enum CrcOutput {
 impl CrcOutput {
     pub fn algorithm(&self) -> CrcAlgorithm {
         match self {
-            CrcOutput::Crc32(_) => CrcAlgorithm::Crc32,
-            CrcOutput::Crc32C(_) => CrcAlgorithm::Crc32C,
-            CrcOutput::Crc16CCITT(_) => CrcAlgorithm::Crc16CCITT,
+            Self::Crc32(_) => CrcAlgorithm::Crc32,
+            Self::Crc32C(_) => CrcAlgorithm::Crc32C,
+            Self::Crc16CCITT(_) => CrcAlgorithm::Crc16CCITT,
         }
     }
 }

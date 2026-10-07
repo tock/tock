@@ -66,7 +66,7 @@ impl InterruptPoller {
     /// singleton.
     pub fn access<F, R>(f: F) -> R
     where
-        F: FnOnce(&InterruptPoller) -> R,
+        F: FnOnce(&Self) -> R,
     {
         support::with_interrupts_disabled(|| {
             // Safety: Interrupts are disabled within this closure, so we can safely access the

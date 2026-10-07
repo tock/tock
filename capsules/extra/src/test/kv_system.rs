@@ -57,7 +57,7 @@ impl<'a, S: KVSystem<'static>, T: KeyType> KVSystemTest<'a, S, T> {
         kv_system: &'a S,
         value: SubSliceMut<'static, u8>,
         static_buf: &'static mut [u8; 4],
-    ) -> KVSystemTest<'a, S, T> {
+    ) -> Self {
         debug!("---Starting TicKV Tests---");
 
         Self {

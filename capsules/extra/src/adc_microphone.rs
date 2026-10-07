@@ -31,7 +31,7 @@ impl<'a, P: gpio::Pin> AdcMicrophone<'a, P> {
         adc: &'a dyn adc::AdcChannel<'a>,
         enable_pin: Option<&'a P>,
         spl_buffer: &'a mut [u16],
-    ) -> AdcMicrophone<'a, P> {
+    ) -> Self {
         enable_pin.map(|pin| pin.make_output());
         AdcMicrophone {
             adc,

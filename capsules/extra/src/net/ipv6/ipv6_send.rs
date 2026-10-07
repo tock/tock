@@ -182,7 +182,7 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         dst_mac_addr: MacAddress,
         src_mac_addr: MacAddress,
         ip_vis: &'static IpVisibilityCapability,
-    ) -> IP6SendStruct<'a, A> {
+    ) -> Self {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),
             alarm,

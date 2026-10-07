@@ -25,7 +25,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     ///
     /// The provided `ring` is assumed to be uninitialized and the ring starts
     /// empty.
-    pub fn new(ring: &'a mut [MaybeUninit<T>]) -> RingBuffer<'a, T> {
+    pub fn new(ring: &'a mut [MaybeUninit<T>]) -> Self {
         RingBuffer {
             head: 0,
             tail: 0,

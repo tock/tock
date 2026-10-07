@@ -29,8 +29,8 @@ const ALARM_CALLBACK_NUM: usize = 0;
 const NUM_UPCALLS: u8 = 1;
 
 impl<T: Ticks> Default for AlarmData<T> {
-    fn default() -> AlarmData<T> {
-        AlarmData { expiration: None }
+    fn default() -> Self {
+        Self { expiration: None }
     }
 }
 
@@ -49,7 +49,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
             AllowRoCount<0>,
             AllowRwCount<0>,
         >,
-    ) -> AlarmDriver<'a, A> {
+    ) -> Self {
         AlarmDriver {
             alarm,
             app_alarms: grant,

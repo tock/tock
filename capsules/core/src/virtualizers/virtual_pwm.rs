@@ -36,7 +36,7 @@ pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
 }
 
 impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
-    pub const fn new(pwm: &'a P) -> MuxPwm<'a, P> {
+    pub const fn new(pwm: &'a P) -> Self {
         MuxPwm {
             pwm,
             devices: List::new(),
@@ -112,11 +112,11 @@ pub struct PwmPinUser<'a, P: hil::pwm::Pwm> {
     mux: &'a MuxPwm<'a, P>,
     pin: P::Pin,
     operation: OptionalCell<Operation>,
-    next: ListLink<'a, PwmPinUser<'a, P>>,
+    next: ListLink<'a, Self>,
 }
 
 impl<'a, P: hil::pwm::Pwm> PwmPinUser<'a, P> {
-    pub const fn new(mux: &'a MuxPwm<'a, P>, pin: P::Pin) -> PwmPinUser<'a, P> {
+    pub const fn new(mux: &'a MuxPwm<'a, P>, pin: P::Pin) -> Self {
         PwmPinUser {
             mux,
             pin,
@@ -130,8 +130,8 @@ impl<'a, P: hil::pwm::Pwm> PwmPinUser<'a, P> {
     }
 }
 
-impl<'a, P: hil::pwm::Pwm> ListNode<'a, PwmPinUser<'a, P>> for PwmPinUser<'a, P> {
-    fn next(&'a self) -> &'a ListLink<'a, PwmPinUser<'a, P>> {
+impl<'a, P: hil::pwm::Pwm> ListNode<'a, Self> for PwmPinUser<'a, P> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }

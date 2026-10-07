@@ -160,7 +160,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
         recv_buffer: SubSliceMut<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
         net_cap: &'static NetworkCapability,
-    ) -> ThreadNetworkDriver<'a, A> {
+    ) -> Self {
         ThreadNetworkDriver {
             sender,
             aes_crypto,

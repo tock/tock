@@ -226,7 +226,7 @@ impl<'a, F: Flash> TickFSFlashCtrl<'a, F> {
         flash: &'a F,
         flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
-    ) -> TickFSFlashCtrl<'a, F> {
+    ) -> Self {
         Self {
             flash,
             flash_read_buffer: TakeCell::new(flash_read_buffer),
@@ -314,7 +314,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVSystem<'a, F, 
         flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
         flash_size: usize,
-    ) -> TicKVSystem<'a, F, H, PAGE_SIZE> {
+    ) -> Self {
         let tickv = AsyncTicKV::<TickFSFlashCtrl<F>, PAGE_SIZE>::new(
             TickFSFlashCtrl::new(flash, flash_read_buffer, region_offset),
             tickfs_read_buf,

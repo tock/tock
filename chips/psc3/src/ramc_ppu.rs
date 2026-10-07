@@ -461,8 +461,8 @@ pub struct RamcPpu {
 }
 
 impl RamcPpu {
-    pub const fn new() -> RamcPpu {
-        RamcPpu {
+    pub const fn new() -> Self {
+        Self {
             registers: RAMC_PPU0_BASE,
         }
     }

@@ -300,8 +300,8 @@ impl PartialEq for AdcChannelSetup {
 }
 
 impl AdcChannelSetup {
-    pub fn new(channel: AdcChannel) -> AdcChannelSetup {
-        AdcChannelSetup {
+    pub fn new(channel: AdcChannel) -> Self {
+        Self {
             channel,
             gain: AdcChannelGain::Gain1_4,
             resp: AdcChannelResistor::Bypass,
@@ -316,8 +316,8 @@ impl AdcChannelSetup {
         resp: AdcChannelResistor,
         resn: AdcChannelResistor,
         sampling_time: AdcChannelSamplingTime,
-    ) -> AdcChannelSetup {
-        AdcChannelSetup {
+    ) -> Self {
+        Self {
             channel,
             gain,
             resp,

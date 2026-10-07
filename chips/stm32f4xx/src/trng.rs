@@ -58,10 +58,7 @@ pub struct Trng<'a> {
 }
 
 impl<'a> Trng<'a> {
-    pub const fn new(
-        registers: StaticRef<RngRegisters>,
-        clocks: &'a dyn Stm32f4Clocks,
-    ) -> Trng<'a> {
+    pub const fn new(registers: StaticRef<RngRegisters>, clocks: &'a dyn Stm32f4Clocks) -> Self {
         Trng {
             registers,
             clock: RngClock(phclk::PeripheralClock::new(

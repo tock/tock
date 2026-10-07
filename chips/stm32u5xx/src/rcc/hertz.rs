@@ -40,14 +40,14 @@ pub(crate) trait Prescaler {
 }
 
 impl<T: Prescaler> Div<T> for Hertz {
-    type Output = Hertz;
+    type Output = Self;
     fn div(self, rhs: T) -> Self::Output {
         self * rhs.denom() / rhs.num()
     }
 }
 
 impl<T: Prescaler> Mul<T> for Hertz {
-    type Output = Hertz;
+    type Output = Self;
     fn mul(self, rhs: T) -> Self::Output {
         self * rhs.num() / rhs.denom()
     }
@@ -69,50 +69,50 @@ pub const fn mhz(megahertz: u32) -> Hertz {
 }
 
 impl Mul<u32> for Hertz {
-    type Output = Hertz;
+    type Output = Self;
     fn mul(self, rhs: u32) -> Self::Output {
-        Hertz(self.0 * rhs)
+        Self(self.0 * rhs)
     }
 }
 
 impl Div<u32> for Hertz {
-    type Output = Hertz;
+    type Output = Self;
     fn div(self, rhs: u32) -> Self::Output {
-        Hertz(self.0 / rhs)
+        Self(self.0 / rhs)
     }
 }
 
 impl Mul<u16> for Hertz {
-    type Output = Hertz;
+    type Output = Self;
     fn mul(self, rhs: u16) -> Self::Output {
         self * (rhs as u32)
     }
 }
 
 impl Div<u16> for Hertz {
-    type Output = Hertz;
+    type Output = Self;
     fn div(self, rhs: u16) -> Self::Output {
         self / (rhs as u32)
     }
 }
 
 impl Mul<u8> for Hertz {
-    type Output = Hertz;
+    type Output = Self;
     fn mul(self, rhs: u8) -> Self::Output {
         self * (rhs as u32)
     }
 }
 
 impl Div<u8> for Hertz {
-    type Output = Hertz;
+    type Output = Self;
     fn div(self, rhs: u8) -> Self::Output {
         self / (rhs as u32)
     }
 }
 
-impl Div<Hertz> for Hertz {
+impl Div<Self> for Hertz {
     type Output = u32;
-    fn div(self, rhs: Hertz) -> Self::Output {
+    fn div(self, rhs: Self) -> Self::Output {
         self.0 / rhs.0
     }
 }

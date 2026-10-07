@@ -292,7 +292,7 @@ pub struct Ssd1306<'a, I: hil::i2c::I2CDevice> {
 }
 
 impl<'a, I: hil::i2c::I2CDevice> Ssd1306<'a, I> {
-    pub fn new(i2c: &'a I, buffer: &'static mut [u8], enable_charge_pump: bool) -> Ssd1306<'a, I> {
+    pub fn new(i2c: &'a I, buffer: &'static mut [u8], enable_charge_pump: bool) -> Self {
         Ssd1306 {
             i2c,
             state: Cell::new(State::Idle),

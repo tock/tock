@@ -22,8 +22,8 @@ macro_rules! process_printer_text_component_static {
 pub struct ProcessPrinterTextComponent {}
 
 impl ProcessPrinterTextComponent {
-    pub fn new() -> ProcessPrinterTextComponent {
-        ProcessPrinterTextComponent {}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 

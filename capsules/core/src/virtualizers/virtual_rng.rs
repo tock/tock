@@ -23,7 +23,7 @@ pub struct MuxRngMaster<'a> {
 }
 
 impl<'a> MuxRngMaster<'a> {
-    pub const fn new(rng: &'a dyn Rng<'a>) -> MuxRngMaster<'a> {
+    pub const fn new(rng: &'a dyn Rng<'a>) -> Self {
         MuxRngMaster {
             rng,
             devices: List::new(),
@@ -95,20 +95,20 @@ pub struct VirtualRngMasterDevice<'a> {
     mux: &'a MuxRngMaster<'a>,
 
     // Pointer to next element in the list of devices
-    next: ListLink<'a, VirtualRngMasterDevice<'a>>,
+    next: ListLink<'a, Self>,
     client: OptionalCell<&'a dyn Client>,
     operation: Cell<Op>,
 }
 
 // Implement ListNode trait for virtual rng device
-impl<'a> ListNode<'a, VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
-    fn next(&self) -> &'a ListLink<'_, VirtualRngMasterDevice<'a>> {
+impl<'a> ListNode<'a, Self> for VirtualRngMasterDevice<'a> {
+    fn next(&self) -> &'a ListLink<'_, Self> {
         &self.next
     }
 }
 
 impl<'a> VirtualRngMasterDevice<'a> {
-    pub const fn new(mux: &'a MuxRngMaster<'a>) -> VirtualRngMasterDevice<'a> {
+    pub const fn new(mux: &'a MuxRngMaster<'a>) -> Self {
         VirtualRngMasterDevice {
             mux,
             next: ListLink::empty(),
@@ -118,8 +118,8 @@ impl<'a> VirtualRngMasterDevice<'a> {
     }
 }
 
-impl<'a> PartialEq<VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
-    fn eq(&self, other: &VirtualRngMasterDevice<'a>) -> bool {
+impl<'a> PartialEq<Self> for VirtualRngMasterDevice<'a> {
+    fn eq(&self, other: &Self) -> bool {
         // Check whether two rng devices point to the same device
         core::ptr::eq(self, other)
     }

@@ -113,7 +113,7 @@ impl<
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> HmacDriver<'a, H, DIGEST_LEN> {
+    ) -> Self {
         HmacDriver {
             hmac,
             active: Cell::new(false),

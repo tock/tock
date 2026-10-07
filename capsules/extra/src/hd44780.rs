@@ -162,7 +162,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         alarm: &'a A,
         width: u8,
         height: u8,
-    ) -> HD44780<'a, A> {
+    ) -> Self {
         rs_pin.make_output();
         en_pin.make_output();
         data_4_pin.make_output();

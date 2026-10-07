@@ -114,7 +114,7 @@ pub struct Trng<'a> {
 }
 
 impl<'a> Trng<'a> {
-    pub const fn new(registers: StaticRef<RngRegisters>) -> Trng<'a> {
+    pub const fn new(registers: StaticRef<RngRegisters>) -> Self {
         Trng {
             registers,
             client: OptionalCell::empty(),

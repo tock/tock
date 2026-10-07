@@ -80,7 +80,7 @@ pub struct Rect {
 
 impl Rect {
     pub const fn empty() -> Self {
-        Rect {
+        Self {
             x: 0,
             y: 0,
             width: 0,

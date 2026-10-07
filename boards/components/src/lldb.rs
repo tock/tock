@@ -57,8 +57,8 @@ impl<CAP: MemoryAllocationCapability + 'static> LowLevelDebugComponent<CAP> {
         driver_num: usize,
         uart_mux: &'static MuxUart,
         mem_cap: CAP,
-    ) -> LowLevelDebugComponent<CAP> {
-        LowLevelDebugComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             uart_mux,

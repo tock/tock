@@ -16,7 +16,7 @@ pub enum SuccessCode {
 }
 
 impl From<SuccessCode> for isize {
-    fn from(original: SuccessCode) -> isize {
+    fn from(original: SuccessCode) -> Self {
         match original {
             SuccessCode::Complete => -1,
             SuccessCode::Written => -2,
@@ -26,7 +26,7 @@ impl From<SuccessCode> for isize {
 }
 
 impl From<SuccessCode> for usize {
-    fn from(original: SuccessCode) -> usize {
-        isize::from(original) as usize
+    fn from(original: SuccessCode) -> Self {
+        isize::from(original) as Self
     }
 }

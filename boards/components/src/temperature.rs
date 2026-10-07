@@ -44,8 +44,8 @@ impl<
         driver_num: usize,
         temp_sensor: &'static T,
         mem_cap: CAP,
-    ) -> TemperatureComponent<T, CAP> {
-        TemperatureComponent {
+    ) -> Self {
+        Self {
             board_kernel,
             driver_num,
             temp_sensor,

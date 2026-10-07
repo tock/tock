@@ -398,22 +398,22 @@ impl RadioChannel {
     /// A 1 byte number corresponding to the channel number.
     pub fn get_channel_number(&self) -> u8 {
         match *self {
-            RadioChannel::Channel11 => 11,
-            RadioChannel::Channel12 => 12,
-            RadioChannel::Channel13 => 13,
-            RadioChannel::Channel14 => 14,
-            RadioChannel::Channel15 => 15,
-            RadioChannel::Channel16 => 16,
-            RadioChannel::Channel17 => 17,
-            RadioChannel::Channel18 => 18,
-            RadioChannel::Channel19 => 19,
-            RadioChannel::Channel20 => 20,
-            RadioChannel::Channel21 => 21,
-            RadioChannel::Channel22 => 22,
-            RadioChannel::Channel23 => 23,
-            RadioChannel::Channel24 => 24,
-            RadioChannel::Channel25 => 25,
-            RadioChannel::Channel26 => 26,
+            Self::Channel11 => 11,
+            Self::Channel12 => 12,
+            Self::Channel13 => 13,
+            Self::Channel14 => 14,
+            Self::Channel15 => 15,
+            Self::Channel16 => 16,
+            Self::Channel17 => 17,
+            Self::Channel18 => 18,
+            Self::Channel19 => 19,
+            Self::Channel20 => 20,
+            Self::Channel21 => 21,
+            Self::Channel22 => 22,
+            Self::Channel23 => 23,
+            Self::Channel24 => 24,
+            Self::Channel25 => 25,
+            Self::Channel26 => 26,
         }
     }
 }
@@ -430,24 +430,24 @@ impl TryFrom<u8> for RadioChannel {
     ///
     /// Returns `Ok(RadioChannel)` if `val` is a valid IEEE 802.15.4 2.4 GHz
     /// channel number. Otherwise, returns `Err(())`.
-    fn try_from(val: u8) -> Result<RadioChannel, ()> {
+    fn try_from(val: u8) -> Result<Self, ()> {
         match val {
-            11 => Ok(RadioChannel::Channel11),
-            12 => Ok(RadioChannel::Channel12),
-            13 => Ok(RadioChannel::Channel13),
-            14 => Ok(RadioChannel::Channel14),
-            15 => Ok(RadioChannel::Channel15),
-            16 => Ok(RadioChannel::Channel16),
-            17 => Ok(RadioChannel::Channel17),
-            18 => Ok(RadioChannel::Channel18),
-            19 => Ok(RadioChannel::Channel19),
-            20 => Ok(RadioChannel::Channel20),
-            21 => Ok(RadioChannel::Channel21),
-            22 => Ok(RadioChannel::Channel22),
-            23 => Ok(RadioChannel::Channel23),
-            24 => Ok(RadioChannel::Channel24),
-            25 => Ok(RadioChannel::Channel25),
-            26 => Ok(RadioChannel::Channel26),
+            11 => Ok(Self::Channel11),
+            12 => Ok(Self::Channel12),
+            13 => Ok(Self::Channel13),
+            14 => Ok(Self::Channel14),
+            15 => Ok(Self::Channel15),
+            16 => Ok(Self::Channel16),
+            17 => Ok(Self::Channel17),
+            18 => Ok(Self::Channel18),
+            19 => Ok(Self::Channel19),
+            20 => Ok(Self::Channel20),
+            21 => Ok(Self::Channel21),
+            22 => Ok(Self::Channel22),
+            23 => Ok(Self::Channel23),
+            24 => Ok(Self::Channel24),
+            25 => Ok(Self::Channel25),
+            26 => Ok(Self::Channel26),
             _ => Err(()),
         }
     }

@@ -124,7 +124,7 @@ impl<'a> Console<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> Console<'a> {
+    ) -> Self {
         Console {
             uart,
             apps: grant,

@@ -125,7 +125,7 @@ pub struct SubGhzRadioBusy {
 
 impl SubGhzRadioBusy {
     pub fn new(pwr: &'static crate::pwr::Pwr) -> Self {
-        SubGhzRadioBusy { pwr }
+        Self { pwr }
     }
 }
 

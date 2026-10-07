@@ -66,8 +66,8 @@ impl<A: 'static + adc::Adc<'static>, P: 'static + gpio::Pin, const BUF_LEN: usiz
         adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
         adc_channel: A::Channel,
         pin: Option<&'static P>,
-    ) -> AdcMicrophoneComponent<A, P, BUF_LEN> {
-        AdcMicrophoneComponent {
+    ) -> Self {
+        Self {
             adc_mux,
             adc_channel,
             pin,

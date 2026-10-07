@@ -64,7 +64,7 @@ impl<'a, F: DmaFence> VirtIONet<'a, F> {
         rxqueue: &'a SplitVirtqueue<'static, 'static, 2, F>,
         rx_header: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-    ) -> VirtIONet<'a, F> {
+    ) -> Self {
         txqueue.enable_used_callbacks();
         rxqueue.enable_used_callbacks();
 

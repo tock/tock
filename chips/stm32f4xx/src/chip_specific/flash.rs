@@ -69,6 +69,6 @@ impl RegisterToFlashLatency for FlashLatency16 {
 
 impl From<FlashLatency16> for u32 {
     fn from(val: FlashLatency16) -> Self {
-        val as u32
+        val as Self
     }
 }

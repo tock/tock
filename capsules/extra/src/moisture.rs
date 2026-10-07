@@ -75,7 +75,7 @@ impl<'a, H: hil::sensors::MoistureDriver<'a>> MoistureSensor<'a, H> {
     pub fn new(
         driver: &'a H,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> MoistureSensor<'a, H> {
+    ) -> Self {
         MoistureSensor {
             driver,
             apps: grant,

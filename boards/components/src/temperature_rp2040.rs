@@ -42,8 +42,8 @@ impl<A: 'static + adc::Adc<'static>> TemperatureRp2040Component<A> {
         adc_channel: A::Channel,
         slope: f32,
         v_27: f32,
-    ) -> TemperatureRp2040Component<A> {
-        TemperatureRp2040Component {
+    ) -> Self {
+        Self {
             adc_mux,
             adc_channel,
             slope,

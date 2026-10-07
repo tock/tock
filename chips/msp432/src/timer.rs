@@ -266,7 +266,7 @@ pub struct TimerA<'a> {
 }
 
 impl<'a> TimerA<'a> {
-    pub const fn new(base: StaticRef<TimerRegisters>) -> TimerA<'a> {
+    pub const fn new(base: StaticRef<TimerRegisters>) -> Self {
         TimerA {
             registers: base,
             mode: Cell::new(TimerMode::Disabled),

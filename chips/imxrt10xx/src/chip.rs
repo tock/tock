@@ -19,7 +19,7 @@ pub struct Imxrt10xx<I: InterruptService + 'static> {
 
 impl<I: InterruptService + 'static> Imxrt10xx<I> {
     pub unsafe fn new(interrupt_service: &'static I) -> Self {
-        Imxrt10xx {
+        Self {
             mpu: cortexm7::mpu::new(),
             userspace_kernel_boundary: cortexm7::syscall::SysCall::new(),
             interrupt_service,

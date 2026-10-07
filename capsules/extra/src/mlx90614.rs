@@ -82,7 +82,7 @@ impl<'a, S: i2c::SMBusDevice> Mlx90614SMBus<'a, S> {
         smbus_temp: &'a S,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Mlx90614SMBus<'a, S> {
+    ) -> Self {
         Mlx90614SMBus {
             smbus_temp,
             temperature_client: OptionalCell::empty(),

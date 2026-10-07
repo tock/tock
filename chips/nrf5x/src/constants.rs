@@ -96,17 +96,17 @@ pub enum TxPower {
 impl TryFrom<u8> for TxPower {
     type Error = ();
 
-    fn try_from(val: u8) -> Result<TxPower, ()> {
+    fn try_from(val: u8) -> Result<Self, ()> {
         match val {
-            4 => Ok(TxPower::Positive4dBM),
-            3 => Ok(TxPower::Positive3dBM),
-            0 => Ok(TxPower::ZerodBm),
-            0xFC => Ok(TxPower::Negative4dBm),
-            0xF8 => Ok(TxPower::Negative8dBm),
-            0xF4 => Ok(TxPower::Negative12dBm),
-            0xF0 => Ok(TxPower::Negative16dBm),
-            0xEC => Ok(TxPower::Negative20dBm),
-            0xD8 => Ok(TxPower::Negative40dBm),
+            4 => Ok(Self::Positive4dBM),
+            3 => Ok(Self::Positive3dBM),
+            0 => Ok(Self::ZerodBm),
+            0xFC => Ok(Self::Negative4dBm),
+            0xF8 => Ok(Self::Negative8dBm),
+            0xF4 => Ok(Self::Negative12dBm),
+            0xF0 => Ok(Self::Negative16dBm),
+            0xEC => Ok(Self::Negative20dBm),
+            0xD8 => Ok(Self::Negative40dBm),
             _ => Err(()),
         }
     }

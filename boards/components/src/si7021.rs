@@ -65,7 +65,7 @@ impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
         alarm: &'static MuxAlarm<'static, A>,
         i2c_address: u8,
     ) -> Self {
-        SI7021Component {
+        Self {
             i2c_mux: i2c,
             alarm_mux: alarm,
             i2c_address,

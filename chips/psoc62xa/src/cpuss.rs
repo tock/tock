@@ -531,8 +531,8 @@ pub struct Cpuss {
 }
 
 impl Cpuss {
-    pub const fn new() -> Cpuss {
-        Cpuss {
+    pub const fn new() -> Self {
+        Self {
             registers: CPUSS_BASE,
         }
     }

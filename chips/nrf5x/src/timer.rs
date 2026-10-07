@@ -212,8 +212,8 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub const fn new(registers: StaticRef<TimerRegisters>) -> Timer {
-        Timer {
+    pub const fn new(registers: StaticRef<TimerRegisters>) -> Self {
+        Self {
             registers,
             client: OptionalCell::empty(),
         }
@@ -263,7 +263,7 @@ const CC_CAPTURE: usize = 0;
 const CC_COMPARE: usize = 1;
 
 impl<'a> TimerAlarm<'a> {
-    pub const fn new(registers: StaticRef<TimerRegisters>) -> TimerAlarm<'a> {
+    pub const fn new(registers: StaticRef<TimerRegisters>) -> Self {
         TimerAlarm {
             registers,
             client: OptionalCell::empty(),

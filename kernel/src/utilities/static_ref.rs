@@ -32,10 +32,10 @@ impl<T> StaticRef<T> {
     ///
     /// - `ptr` must be aligned, non-null, and dereferencable as `T`.
     /// - `*ptr` must be valid for the program duration.
-    pub const unsafe fn new(ptr: *const T) -> StaticRef<T> {
+    pub const unsafe fn new(ptr: *const T) -> Self {
         // SAFETY: `ptr` is non-null as promised by the caller.
         unsafe {
-            StaticRef {
+            Self {
                 ptr: NonNull::new_unchecked(ptr.cast_mut()),
             }
         }

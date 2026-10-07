@@ -28,8 +28,8 @@ impl SerialNum {
     /// Returns a struct that can read the serial number of the sam4l
     /// This function aliases the memory location of the underlying serial num address, but because
     /// this struct only provides read operations of the serial number, this is okay.
-    pub fn new() -> SerialNum {
-        SerialNum {
+    pub fn new() -> Self {
+        Self {
             regs: SERIAL_NUM_ADDRESS,
         }
     }

@@ -69,7 +69,7 @@ pub struct ICMP6SendStruct<'a, T: IP6Sender<'a>> {
 }
 
 impl<'a, T: IP6Sender<'a>> ICMP6SendStruct<'a, T> {
-    pub fn new(ip_send_struct: &'a T) -> ICMP6SendStruct<'a, T> {
+    pub fn new(ip_send_struct: &'a T) -> Self {
         ICMP6SendStruct {
             ip_send_struct,
             client: OptionalCell::empty(),

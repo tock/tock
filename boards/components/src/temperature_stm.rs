@@ -42,8 +42,8 @@ impl<A: 'static + adc::Adc<'static>> TemperatureSTMComponent<A> {
         adc_channel: A::Channel,
         slope: f32,
         v_25: f32,
-    ) -> TemperatureSTMComponent<A> {
-        TemperatureSTMComponent {
+    ) -> Self {
+        Self {
             adc_mux,
             adc_channel,
             slope,

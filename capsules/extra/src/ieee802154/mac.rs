@@ -90,7 +90,7 @@ pub struct AwakeMac<'a, R: radio::Radio<'a>> {
 }
 
 impl<'a, R: radio::Radio<'a>> AwakeMac<'a, R> {
-    pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
+    pub fn new(radio: &'a R) -> Self {
         AwakeMac {
             radio,
             tx_client: OptionalCell::empty(),

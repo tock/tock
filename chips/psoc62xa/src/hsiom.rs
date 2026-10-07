@@ -628,8 +628,8 @@ pub struct Hsiom {
 }
 
 impl Hsiom {
-    pub const fn new() -> Hsiom {
-        Hsiom {
+    pub const fn new() -> Self {
+        Self {
             registers: HSIOM_BASE,
         }
     }

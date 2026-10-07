@@ -474,7 +474,7 @@ pub struct Exti<'a> {
 }
 
 impl<'a> Exti<'a> {
-    pub const fn new(syscfg: &'a syscfg::Syscfg<'a>) -> Exti<'a> {
+    pub const fn new(syscfg: &'a syscfg::Syscfg<'a>) -> Self {
         Exti {
             registers: EXTI_BASE,
             clock: ExtiClock(syscfg),

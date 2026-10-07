@@ -68,6 +68,6 @@ impl VirtIOGPUResp for ResourceCreate2DResp {
         ctrl_header: CtrlHeader,
         _src: &mut impl Iterator<Item = u8>,
     ) -> Result<Self, ErrorCode> {
-        Ok(ResourceCreate2DResp { ctrl_header })
+        Ok(Self { ctrl_header })
     }
 }

@@ -89,10 +89,7 @@ pub struct KVStorePermissions<'a, K: kv::KV<'a>> {
 }
 
 impl<'a, K: kv::KV<'a>> KVStorePermissions<'a, K> {
-    pub fn new(
-        kv: &'a K,
-        header_value: &'static mut [u8; HEADER_LENGTH],
-    ) -> KVStorePermissions<'a, K> {
+    pub fn new(kv: &'a K, header_value: &'static mut [u8; HEADER_LENGTH]) -> Self {
         Self {
             kv,
             header_value: TakeCell::new(header_value),

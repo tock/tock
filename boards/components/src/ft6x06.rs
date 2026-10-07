@@ -53,8 +53,8 @@ impl<I: 'static + i2c::I2CMaster<'static>> Ft6x06Component<I> {
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         pin: &'static dyn gpio::InterruptPin,
-    ) -> Ft6x06Component<I> {
-        Ft6x06Component {
+    ) -> Self {
+        Self {
             i2c_mux,
             i2c_address,
             interrupt_pin: pin,

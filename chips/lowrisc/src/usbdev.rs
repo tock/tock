@@ -296,7 +296,7 @@ pub enum BankIndex {
 }
 
 impl From<BankIndex> for usize {
-    fn from(bi: BankIndex) -> usize {
+    fn from(bi: BankIndex) -> Self {
         match bi {
             BankIndex::Bank0 => 0,
             BankIndex::Bank1 => 1,
@@ -332,7 +332,7 @@ struct Buffer {
 
 impl Buffer {
     pub const fn new(id: usize) -> Self {
-        Buffer { id, free: true }
+        Self { id, free: true }
     }
 }
 

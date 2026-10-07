@@ -107,7 +107,7 @@ pub struct UartParams {
 }
 
 impl<'a> Uart<'a> {
-    pub fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
+    pub fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Self {
         Uart {
             registers: base,
             clock_frequency,

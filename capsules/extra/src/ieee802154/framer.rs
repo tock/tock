@@ -351,11 +351,7 @@ pub struct Framer<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> {
 }
 
 impl<'a, M: Mac<'a>, A: AESCCM<'a, AES128>> Framer<'a, M, A> {
-    pub fn new(
-        mac: &'a M,
-        aes_ccm: &'a A,
-        crypt_buf: SubSliceMut<'static, u8>,
-    ) -> Framer<'a, M, A> {
+    pub fn new(mac: &'a M, aes_ccm: &'a A, crypt_buf: SubSliceMut<'static, u8>) -> Self {
         Framer {
             mac,
             aes_ccm,

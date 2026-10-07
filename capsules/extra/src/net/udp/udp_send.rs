@@ -49,7 +49,7 @@ pub struct MuxUdpSender<'a, T: IP6Sender<'a>> {
 }
 
 impl<'a, T: IP6Sender<'a>> MuxUdpSender<'a, T> {
-    pub fn new(ip6_sender: &'a dyn IP6Sender<'a>) -> MuxUdpSender<'a, T> {
+    pub fn new(ip6_sender: &'a dyn IP6Sender<'a>) -> Self {
         // similar to UdpSendStruct new()
         MuxUdpSender {
             sender_list: List::new(),
@@ -256,7 +256,7 @@ pub trait UDPSender<'a> {
 pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     udp_mux_sender: &'a MuxUdpSender<'a, T>,
     client: OptionalCell<&'a dyn UDPSendClient>,
-    next: ListLink<'a, UDPSendStruct<'a, T>>,
+    next: ListLink<'a, Self>,
     tx_buffer: MapCell<SubSliceMut<'static, u8>>,
     next_dest: Cell<IPAddr>,
     next_th: OptionalCell<TransportHeader>,
@@ -265,8 +265,8 @@ pub struct UDPSendStruct<'a, T: IP6Sender<'a>> {
     net_cap: OptionalCell<&'static NetworkCapability>,
 }
 
-impl<'a, T: IP6Sender<'a>> ListNode<'a, UDPSendStruct<'a, T>> for UDPSendStruct<'a, T> {
-    fn next(&'a self) -> &'a ListLink<'a, UDPSendStruct<'a, T>> {
+impl<'a, T: IP6Sender<'a>> ListNode<'a, Self> for UDPSendStruct<'a, T> {
+    fn next(&'a self) -> &'a ListLink<'a, Self> {
         &self.next
     }
 }
@@ -361,7 +361,7 @@ impl<'a, T: IP6Sender<'a>> UDPSendStruct<'a, T> {
     pub fn new(
         udp_mux_sender: &'a MuxUdpSender<'a, T>, /*binding: UdpPortBindingTx*/
         udp_vis: &'static UdpVisibilityCapability,
-    ) -> UDPSendStruct<'a, T> {
+    ) -> Self {
         UDPSendStruct {
             udp_mux_sender,
             client: OptionalCell::empty(),
