@@ -17,7 +17,6 @@ components = { path = "../components" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 
 capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 [build-dependencies]

@@ -10,8 +10,6 @@ edition = "2024"
 
 [dependencies]
 kernel = { path = "../../kernel" }
-tock-registers.workspace = true
-riscv-csr = { path = "../../libraries/riscv-csr" }
 riscv = { path = "../riscv" }
 
 

@@ -16,7 +16,6 @@ kernel = { path = "../../kernel" }
 imxrt10xx = { path = "../../chips/imxrt10xx" }
 
 capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
 [build-dependencies]
