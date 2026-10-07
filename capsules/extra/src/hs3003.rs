@@ -54,7 +54,7 @@ use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{HumidityClient, HumidityDriver, TemperatureClient, TemperatureDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 
-pub struct Hs3003<'a, I: I2CDevice> {
+pub struct Hs3003<'a, I: I2CDevice<'a>> {
     buffer: TakeCell<'static, [u8]>,
     i2c: &'a I,
     temperature_client: OptionalCell<&'a dyn TemperatureClient>,
@@ -64,7 +64,7 @@ pub struct Hs3003<'a, I: I2CDevice> {
     pending_humidity: Cell<bool>,
 }
 
-impl<'a, I: I2CDevice> Hs3003<'a, I> {
+impl<'a, I: I2CDevice<'a>> Hs3003<'a, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8]) -> Self {
         Hs3003 {
             buffer: TakeCell::new(buffer),
@@ -95,7 +95,7 @@ impl<'a, I: I2CDevice> Hs3003<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> TemperatureDriver<'a> for Hs3003<'a, I> {
+impl<'a, I: I2CDevice<'a>> TemperatureDriver<'a> for Hs3003<'a, I> {
     fn set_client(&self, client: &'a dyn TemperatureClient) {
         self.temperature_client.set(client);
     }
@@ -110,7 +110,7 @@ impl<'a, I: I2CDevice> TemperatureDriver<'a> for Hs3003<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> HumidityDriver<'a> for Hs3003<'a, I> {
+impl<'a, I: I2CDevice<'a>> HumidityDriver<'a> for Hs3003<'a, I> {
     fn set_client(&self, client: &'a dyn HumidityClient) {
         self.humidity_client.set(client);
     }
@@ -132,7 +132,7 @@ enum State {
     Read,
 }
 
-impl<I: I2CDevice> I2CClient for Hs3003<'_, I> {
+impl<'a, I: I2CDevice<'a>> I2CClient for Hs3003<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.state.set(State::Sleep);

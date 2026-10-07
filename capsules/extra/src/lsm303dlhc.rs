@@ -138,7 +138,7 @@ enum State {
     ReadMagnetometerXYZ,
 }
 
-pub struct Lsm303dlhcI2C<'a, I: i2c::I2CDevice> {
+pub struct Lsm303dlhcI2C<'a, I: i2c::I2CDevice<'a>> {
     config_in_progress: Cell<bool>,
     i2c_accelerometer: &'a I,
     i2c_magnetometer: &'a I,
@@ -160,7 +160,7 @@ pub struct Lsm303dlhcI2C<'a, I: i2c::I2CDevice> {
 #[derive(Default)]
 pub struct App {}
 
-impl<'a, I: i2c::I2CDevice> Lsm303dlhcI2C<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> Lsm303dlhcI2C<'a, I> {
     pub fn new(
         i2c_accelerometer: &'a I,
         i2c_magnetometer: &'a I,
@@ -398,7 +398,7 @@ impl<'a, I: i2c::I2CDevice> Lsm303dlhcI2C<'a, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> i2c::I2CClient for Lsm303dlhcI2C<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::IsPresent => {
@@ -617,7 +617,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> SyscallDriver for Lsm303dlhcI2C<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> SyscallDriver for Lsm303dlhcI2C<'a, I> {
     fn command(
         &self,
         command_num: usize,
@@ -727,7 +727,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for Lsm303dlhcI2C<'_, I> {
     }
 }
 
-impl<'a, I: i2c::I2CDevice> sensors::NineDof<'a> for Lsm303dlhcI2C<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> sensors::NineDof<'a> for Lsm303dlhcI2C<'a, I> {
     fn set_client(&self, nine_dof_client: &'a dyn sensors::NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);
     }
@@ -741,7 +741,7 @@ impl<'a, I: i2c::I2CDevice> sensors::NineDof<'a> for Lsm303dlhcI2C<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CDevice> sensors::TemperatureDriver<'a> for Lsm303dlhcI2C<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> sensors::TemperatureDriver<'a> for Lsm303dlhcI2C<'a, I> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

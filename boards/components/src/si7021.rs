@@ -24,6 +24,7 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::si7021::SI7021;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 use kernel::hil::time::{self, Alarm};
 
 // Setup static space for the objects.

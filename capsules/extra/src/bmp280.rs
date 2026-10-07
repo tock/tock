@@ -139,11 +139,11 @@ impl State {
 }
 
 /// Complies with the reading and writing protocol used by the sensor.
-struct I2cWrapper<'a, I: i2c::I2CDevice> {
+struct I2cWrapper<'a, I: i2c::I2CDevice<'a>> {
     i2c: &'a I,
 }
 
-impl<I: i2c::I2CDevice> I2cWrapper<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> I2cWrapper<'a, I> {
     fn write<const COUNT: usize>(
         &self,
         buffer: &'static mut [u8],
@@ -178,7 +178,7 @@ impl<I: i2c::I2CDevice> I2cWrapper<'_, I> {
     }
 }
 
-pub struct Bmp280<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
+pub struct Bmp280<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> {
     i2c: I2cWrapper<'a, I>,
     temperature_client: OptionalCell<&'a dyn hil::sensors::TemperatureClient>,
     // This might be better as a `RefCell`,
@@ -194,7 +194,7 @@ pub struct Bmp280<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
     alarm: &'a A,
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> Bmp280<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> Bmp280<'a, A, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> Self {
         Self {
             i2c: I2cWrapper { i2c },
@@ -328,7 +328,7 @@ impl I2cOperation {
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for Bmp280<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> i2c::I2CClient for Bmp280<'a, A, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         let mut temp_readout = None;
         let mut i2c_op = I2cOperation::Disable;
@@ -469,7 +469,9 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for Bmp280<'a, A, I> {
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> hil::sensors::TemperatureDriver<'a> for Bmp280<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> hil::sensors::TemperatureDriver<'a>
+    for Bmp280<'a, A, I>
+{
     fn set_client(&self, client: &'a dyn hil::sensors::TemperatureClient) {
         self.temperature_client.set(client)
     }
@@ -479,7 +481,9 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> hil::sensors::TemperatureDriver<'a> fo
     }
 }
 
-impl<'a, A: hil::time::Alarm<'a>, I: i2c::I2CDevice> hil::time::AlarmClient for Bmp280<'a, A, I> {
+impl<'a, A: hil::time::Alarm<'a>, I: i2c::I2CDevice<'a>> hil::time::AlarmClient
+    for Bmp280<'a, A, I>
+{
     fn alarm(&self) {
         self.handle_alarm()
     }

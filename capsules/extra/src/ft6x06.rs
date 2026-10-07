@@ -50,7 +50,7 @@ enum_from_primitive! {
     }
 }
 
-pub struct Ft6x06<'a, I: i2c::I2CDevice> {
+pub struct Ft6x06<'a, I: i2c::I2CDevice<'a>> {
     i2c: &'a I,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     touch_client: OptionalCell<&'a dyn touch::TouchClient>,
@@ -61,7 +61,7 @@ pub struct Ft6x06<'a, I: i2c::I2CDevice> {
     events: TakeCell<'static, [TouchEvent]>,
 }
 
-impl<'a, I: i2c::I2CDevice> Ft6x06<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> Ft6x06<'a, I> {
     pub fn new(
         i2c: &'a I,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
@@ -83,7 +83,7 @@ impl<'a, I: i2c::I2CDevice> Ft6x06<'a, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> i2c::I2CClient for Ft6x06<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> i2c::I2CClient for Ft6x06<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         self.num_touches.set((buffer[1] & 0x0F) as usize);
         self.touch_client.map(|client| {
@@ -168,7 +168,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Ft6x06<'_, I> {
     }
 }
 
-impl<I: i2c::I2CDevice> gpio::Client for Ft6x06<'_, I> {
+impl<'a, I: i2c::I2CDevice<'a>> gpio::Client for Ft6x06<'a, I> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin.disable_interrupts();
@@ -187,7 +187,7 @@ impl<I: i2c::I2CDevice> gpio::Client for Ft6x06<'_, I> {
     }
 }
 
-impl<'a, I: i2c::I2CDevice> touch::Touch<'a> for Ft6x06<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> touch::Touch<'a> for Ft6x06<'a, I> {
     fn enable(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
@@ -201,13 +201,13 @@ impl<'a, I: i2c::I2CDevice> touch::Touch<'a> for Ft6x06<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CDevice> touch::Gesture<'a> for Ft6x06<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> touch::Gesture<'a> for Ft6x06<'a, I> {
     fn set_client(&self, client: &'a dyn touch::GestureClient) {
         self.gesture_client.replace(client);
     }
 }
 
-impl<'a, I: i2c::I2CDevice> touch::MultiTouch<'a> for Ft6x06<'a, I> {
+impl<'a, I: i2c::I2CDevice<'a>> touch::MultiTouch<'a> for Ft6x06<'a, I> {
     fn enable(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
