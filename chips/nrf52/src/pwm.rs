@@ -218,9 +218,7 @@ impl PwmRegistersManager {
             // Setup the duty cycles.
             buf[0] = dc_out;
 
-            // # Safety
-            //
-            // The architecture-provided version is correct for the nRF52.
+            // SAFETY: The architecture-provided version is correct for the nRF52.
             let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
             // Create the DmaSliceMut for the duty cycle buffer. This ensures that
@@ -256,9 +254,7 @@ impl PwmRegistersManager {
             // Stop the PWM hardware.
             self.registers.tasks_stop.write(TASK::TASK::SET);
 
-            // # Safety
-            //
-            // The architecture-provided version is correct for the nRF52.
+            // SAFETY: The architecture-provided version is correct for the nRF52.
             let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
             // SAFETY: We stopped the PWM hardware which ends its use of the
