@@ -3,11 +3,12 @@
 // Copyright Tock Contributors 2022.
 
 //! Test the software implementation of ECDSA over the P256 curve by signing a
-//! hash and checking it against the expected signature value. Since the
-//! implementation of EcdsaP256SignatureSigner uses the deterministic nonce
-//! generation algorithm as detailed in RFC 6979, the signature output by
-//! this test will always be the same, meaning we can simply test it against
-//! a known correct value.
+//! hash and checking it against the expected signature value.
+//!
+//! Since the implementation of EcdsaP256SignatureSigner uses the deterministic
+//! nonce generation algorithm as detailed in RFC 6979, the signature output by
+//! this test will always be the same, meaning we can simply test it against a
+//! known correct value.
 
 use crate::p256_signer::EcdsaP256SignatureSigner;
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient, CapsuleTestError};
