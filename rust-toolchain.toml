@@ -6,6 +6,7 @@
 channel = "nightly-2026-07-21"
 components = ["miri", "llvm-tools", "rust-src", "rustfmt", "clippy", "rust-analyzer"]
 targets = ["thumbv6m-none-eabi",
+           "thumbv7m-none-eabi",
            "thumbv7em-none-eabi",
            "thumbv7em-none-eabihf",
            "thumbv8m.main-none-eabi",
