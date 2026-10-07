@@ -197,8 +197,7 @@ impl PwmRegistersManager {
     /// This controls DMA hardware. As such, it must be unique. This requires:
     ///
     /// - This constructor must be called at most once.
-    /// - There must not be any other code that accesses the DMA buffer and
-    ///   length registers.
+    /// - No other code accesses DMA-related registers.
     pub unsafe fn new(
         registers: StaticRef<PwmRegisters>,
         duty_cycles: &'static mut [u16; 4],
