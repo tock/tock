@@ -54,8 +54,6 @@ impl VirtIODeviceType {
     /// Try to create a [`VirtIODeviceType`] enum variant from a supplied
     /// numeric device ID.
     pub fn from_device_id(id: u32) -> Option<Self> {
-        use VirtIODeviceType as DT;
-
         match id {
             1 => Some(Self::NetworkCard),
             2 => Some(Self::BlockDevice),
