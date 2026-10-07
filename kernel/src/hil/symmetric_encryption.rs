@@ -4,8 +4,6 @@
 // Copyright OxidOS Automotive 2026.
 
 //! Interface for symmetric-cipher encryption
-//!
-//! see boards/imix/src/aes_test.rs for example usage
 
 use crate::ErrorCode;
 

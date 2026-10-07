@@ -54,7 +54,6 @@ but the approximate definitions:
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
 | [Hail](hail/README.md)                                            | ARM Cortex-M4    | SAM4LC8BA      | Bootloader | tockloader                  | No            |
-| [Imix](imix/README.md)                                            | ARM Cortex-M4    | SAM4LC8CA      | Bootloader | tockloader                  | No            |
 | [Nordic nRF52840-DK](nordic/nrf52840dk/README.md)                 | ARM Cortex-M4    | nRF52840       | jLink      | tockloader                  | No            |
 | [Nano 33 BLE](nano33ble/README.md)                                | ARM Cortex-M4    | nRF52840       | Bootloader | tockloader                  | No            |
 | [Nano 33 BLE Rev2](nano33ble_rev2/README.md)                      | ARM Cortex-M4    | nRF52840       | Bootloader | tockloader                  | No            |

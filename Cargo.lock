@@ -510,20 +510,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "imix"
-version = "0.2.4-dev"
-dependencies = [
- "capsules-core",
- "capsules-extra",
- "capsules-system",
- "components",
- "cortexm4",
- "kernel",
- "sam4l",
- "tock_build_scripts",
-]
-
-[[package]]
 name = "imxrt1050-evkb"
 version = "0.2.4-dev"
 dependencies = [

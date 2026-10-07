@@ -25,7 +25,6 @@ members = [
     "boards/hail",
     "boards/hifive_inventor",
     "boards/hifive1",
-    "boards/imix",
     "boards/imxrt1050-evkb",
     "boards/lpc55s69-evk",
     "boards/litex/arty",
