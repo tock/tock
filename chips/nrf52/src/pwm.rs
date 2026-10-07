@@ -8,7 +8,8 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::dma_slice::DmaSliceMut;
+use kernel::utilities::dma_slice::DmaSubSliceMutImmut;
+use kernel::utilities::leasable_buffer::SubSliceMutImmut;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
@@ -173,10 +174,11 @@ register_bitfields![u32,
 /// State management for the buffer used by DMA.
 ///
 /// The buffer contents describe the PWM configuration. While a DMA transaction
-/// is active, it is held in a `DmaSlice` to uphold soundness requirements.
+/// is active, the buffer is held in a `DmaSubSliceMutImmut` to uphold
+/// soundness requirements.
 enum DutyCyclesBuffer {
     Idle(&'static mut [u16]),
-    DmaActive(DmaSliceMut<'static, u16>),
+    DmaActive(DmaSubSliceMutImmut<'static, u16>),
 }
 
 /// Wrapper for managing MMIO for the PWM peripheral.
@@ -221,9 +223,14 @@ impl PwmRegistersManager {
             // SAFETY: The architecture-provided version is correct for the nRF52.
             let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
 
-            // Create the DmaSliceMut for the duty cycle buffer. This ensures that
-            // we can soundly share it with the DMA hardware.
-            let dma_slice = DmaSliceMut::new_static(buf, fence);
+            // Create the dma slice for the duty cycle buffer. This ensures
+            // that we can soundly share it with the DMA hardware.
+            //
+            // TODO: This is a bit awkward; ideally we would just pass `buf` to
+            // a `DmaSliceMutImmut`, but it has no `take` method currently to
+            // retrieve the underlying buffer, so we go through the sub slice
+            // path so that we can get it back out.
+            let dma_slice = DmaSubSliceMutImmut::new(SubSliceMutImmut::from(buf), fence);
 
             // Provide the buffer pointer to the hardware DMA engine.
             self.registers.seq0.seq_ptr.set(dma_slice.ptr_addr() as u32);
@@ -240,7 +247,7 @@ impl PwmRegistersManager {
             // Clear any stale STOPPED event.
             self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
 
-            // Save the DmaSliceMut while the DMA hardware may access it.
+            // Save the dma slice while the DMA hardware may access it.
             self.duty_cycles.set(DutyCyclesBuffer::DmaActive(dma_slice));
 
             // Start PWM.
@@ -254,13 +261,10 @@ impl PwmRegistersManager {
             // Stop the PWM hardware.
             self.registers.tasks_stop.write(TASK::TASK::SET);
 
-            // SAFETY: The architecture-provided version is correct for the nRF52.
-            let fence = unsafe { cortexm4f::dma_fence::CortexMDmaFence::new() };
-
-            // SAFETY: We stopped the PWM hardware which ends its use of the
-            // duty cycles buffer.
-            let buf = unsafe { dma_slice.take(fence) };
-            self.duty_cycles.set(DutyCyclesBuffer::Idle(buf));
+            // n.b., this never fails, we only store a `Mutable` slice in here
+            if let SubSliceMutImmut::Mutable(ssm) = dma_slice.take() {
+                self.duty_cycles.set(DutyCyclesBuffer::Idle(ssm.take()));
+            }
         }
     }
 }
