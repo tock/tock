@@ -250,7 +250,7 @@ pub struct SPIM<'a> {
     transfer_len: Cell<usize>,
 }
 
-impl<'a> SPIM<'a> {
+impl SPIM<'_> {
     pub const fn new(instance: usize) -> Self {
         SPIM {
             registers: INSTANCES[instance],

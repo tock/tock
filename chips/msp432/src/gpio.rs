@@ -331,7 +331,7 @@ pub struct Pin<'a> {
     phantom: PhantomData<&'a ()>,
 }
 
-impl<'a> Pin<'a> {
+impl Pin<'_> {
     const fn new(pin: PinNr) -> Self {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         let p = (pin as u8) / PINS_PER_PORT;
@@ -344,7 +344,7 @@ impl<'a> Pin<'a> {
     }
 }
 
-impl<'a> IntPin<'a> {
+impl IntPin<'_> {
     pub const fn new(pin: IntPinNr) -> Self {
         let pin_nr = (pin as u8) % PINS_PER_PORT;
         let p = (pin as u8) / PINS_PER_PORT;

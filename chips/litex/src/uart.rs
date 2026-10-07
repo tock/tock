@@ -105,7 +105,7 @@ pub struct LiteXUart<'a, R: LiteXSoCRegisterConfiguration> {
     initialized: Cell<bool>,
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
+impl<R: LiteXSoCRegisterConfiguration> LiteXUart<'_, R> {
     pub fn new(
         uart_base: StaticRef<LiteXUartRegisters<R>>,
         phy_args: Option<(StaticRef<LiteXUartPhyRegisters<R>>, u32)>,

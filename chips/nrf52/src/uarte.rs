@@ -341,7 +341,7 @@ pub struct UARTParams {
     pub baud_rate: u32,
 }
 
-impl<'a> Uarte<'a> {
+impl Uarte<'_> {
     /// Constructor
     // This should only be constructed once
     pub fn new(registers: UarteRegistersManager) -> Self {

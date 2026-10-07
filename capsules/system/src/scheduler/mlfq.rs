@@ -44,7 +44,7 @@ pub struct MLFQProcessNode<'a> {
     next: ListLink<'a, Self>,
 }
 
-impl<'a> MLFQProcessNode<'a> {
+impl MLFQProcessNode<'_> {
     pub fn new(proc: &'static ProcessSlot) -> Self {
         MLFQProcessNode {
             proc,

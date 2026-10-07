@@ -57,7 +57,7 @@ pub struct Trng<'a> {
 
 const KEY: u32 = 0x524e47;
 
-impl<'a> Trng<'a> {
+impl Trng<'_> {
     pub const fn new() -> Self {
         Trng {
             regs: BASE_ADDRESS,

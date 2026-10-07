@@ -78,7 +78,7 @@ pub struct TextScreen<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> TextScreen<'a> {
+impl TextScreen<'_> {
     pub fn new(
         text_screen: &'static dyn hil::text_screen::TextScreen,
         buffer: &'static mut [u8],

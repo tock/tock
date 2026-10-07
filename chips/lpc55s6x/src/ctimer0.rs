@@ -345,7 +345,7 @@ pub struct LPCTimer<'a> {
     armed: Cell<bool>,
 }
 
-impl<'a> LPCTimer<'a> {
+impl LPCTimer<'_> {
     pub const fn new() -> Self {
         LPCTimer {
             registers: CTIMER0_BASE,

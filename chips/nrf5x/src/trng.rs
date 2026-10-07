@@ -113,7 +113,7 @@ pub struct Trng<'a> {
     randomness: Cell<u32>,
 }
 
-impl<'a> Trng<'a> {
+impl Trng<'_> {
     pub const fn new(registers: StaticRef<RngRegisters>) -> Self {
         Trng {
             registers,

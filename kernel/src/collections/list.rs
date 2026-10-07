@@ -8,7 +8,7 @@ use core::cell::Cell;
 
 pub struct ListLink<'a, T: 'a + ?Sized>(Cell<Option<&'a T>>);
 
-impl<'a, T: ?Sized> ListLink<'a, T> {
+impl<T: ?Sized> ListLink<'_, T> {
     pub const fn empty() -> Self {
         ListLink(Cell::new(None))
     }

@@ -357,7 +357,7 @@ pub struct LiteXAlarm<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> {
     alarm_time: OptionalCell<<LiteXTimerUptime<'t, R, F> as Time>::Ticks>,
 }
 
-impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, R, F> {
+impl<'t, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, '_, R, F> {
     pub fn new(uptime: &'t LiteXTimerUptime<'t, R, F>, timer: &'t LiteXTimer<'t, R, F>) -> Self {
         LiteXAlarm {
             uptime,

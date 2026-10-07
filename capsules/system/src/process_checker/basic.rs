@@ -275,7 +275,7 @@ pub struct AppCheckerRsaSimulated<'a> {
     binary: OptionalCell<&'a [u8]>,
 }
 
-impl<'a> AppCheckerRsaSimulated<'a> {
+impl AppCheckerRsaSimulated<'_> {
     pub fn new() -> Self {
         Self {
             deferred_call: DeferredCall::new(),

@@ -83,7 +83,7 @@ pub struct Aes<'a, K: AESKeySize> {
     pub(crate) _phantom: PhantomData<K>,
 }
 
-impl<'a, K: AESKeySize> Aes<'a, K> {
+impl<K: AESKeySize> Aes<'_, K> {
     // default mode: ECB , encrypting
     pub const fn new(base: AesRegistersManager) -> Self {
         Aes {

@@ -544,7 +544,7 @@ pub struct Radio<'a> {
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> Radio<'a> {
+impl Radio<'_> {
     pub const fn new() -> Self {
         Radio {
             registers: RADIO_BASE,

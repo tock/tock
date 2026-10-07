@@ -27,7 +27,7 @@ pub struct CoopProcessNode<'a> {
     next: ListLink<'a, Self>,
 }
 
-impl<'a> CoopProcessNode<'a> {
+impl CoopProcessNode<'_> {
     pub fn new(proc: &'static ProcessSlot) -> Self {
         CoopProcessNode {
             proc,
@@ -47,7 +47,7 @@ pub struct CooperativeSched<'a> {
     pub processes: List<'a, CoopProcessNode<'a>>,
 }
 
-impl<'a> CooperativeSched<'a> {
+impl CooperativeSched<'_> {
     pub const fn new() -> Self {
         CooperativeSched {
             processes: List::new(),

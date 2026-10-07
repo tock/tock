@@ -513,7 +513,7 @@ impl DeferredCallClient for Rtc<'_> {
     }
 }
 
-impl<'a> Rtc<'a> {
+impl Rtc<'_> {
     pub fn new(base: StaticRef<RtcRegisters>) -> Self {
         Rtc {
             registers: base,

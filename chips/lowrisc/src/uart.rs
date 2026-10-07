@@ -54,7 +54,7 @@ fn div_round_bounded(a: u64, b: u64) -> Result<u64, ErrorCode> {
     }
 }
 
-impl<'a> Uart<'a> {
+impl Uart<'_> {
     pub fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Self {
         Uart {
             registers: base,

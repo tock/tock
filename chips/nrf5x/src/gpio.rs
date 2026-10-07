@@ -367,7 +367,7 @@ pub struct GPIOPin<'a> {
     allocated_channel: OptionalCell<usize>,
 }
 
-impl<'a> GPIOPin<'a> {
+impl GPIOPin<'_> {
     pub const fn new(
         pin: Pin,
         gpiote_registers: StaticRef<GpioteRegisters>,

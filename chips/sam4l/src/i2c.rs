@@ -633,7 +633,7 @@ const fn create_twims_clocks(
 
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
-impl<'a> I2CHw<'a> {
+impl I2CHw<'_> {
     fn new(
         base_addr: StaticRef<TWIMRegisters>,
         slave_base_addr: Option<StaticRef<TWISRegisters>>,

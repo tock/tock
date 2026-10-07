@@ -216,7 +216,7 @@ pub struct Uart16550<'a> {
     rx_index: Cell<usize>,
 }
 
-impl<'a> Uart16550<'a> {
+impl Uart16550<'_> {
     pub fn new(regs: StaticRef<Uart16550Registers>) -> Self {
         // Disable all interrupts when constructing the UART
         regs.ier.write(

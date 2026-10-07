@@ -165,7 +165,7 @@ pub struct Aes<'a> {
     stop_index: Cell<usize>,
 }
 
-impl<'a> Aes<'a> {
+impl Aes<'_> {
     pub fn new() -> Self {
         Aes {
             registers: AES_BASE,

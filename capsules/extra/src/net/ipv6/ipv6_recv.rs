@@ -57,7 +57,7 @@ impl<'a> IP6Receiver<'a> for IP6RecvStruct<'a> {
     }
 }
 
-impl<'a> IP6RecvStruct<'a> {
+impl IP6RecvStruct<'_> {
     pub fn new() -> Self {
         IP6RecvStruct {
             client: OptionalCell::empty(),

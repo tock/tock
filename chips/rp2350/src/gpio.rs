@@ -1278,7 +1278,7 @@ pub struct RPGpioPin<'a> {
 }
 
 #[allow(dead_code)]
-impl<'a> RPGpioPin<'a> {
+impl RPGpioPin<'_> {
     pub const fn new(pin: RPGpio) -> Self {
         RPGpioPin {
             pin: pin as usize,

@@ -277,7 +277,7 @@ pub struct Acifc<'a> {
 }
 
 /// Implement constructor for struct Acifc
-impl<'a> Acifc<'a> {
+impl Acifc<'_> {
     pub const fn new() -> Self {
         Acifc {
             client: Cell::new(None),

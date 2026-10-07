@@ -173,7 +173,7 @@ pub struct RPTimer<'a> {
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
 }
 
-impl<'a> RPTimer<'a> {
+impl RPTimer<'_> {
     pub const fn new_timer0() -> Self {
         RPTimer {
             registers: TIMER0_BASE,

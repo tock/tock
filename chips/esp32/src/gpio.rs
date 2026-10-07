@@ -147,7 +147,7 @@ pub struct GpioPin<'a> {
     client: OptionalCell<&'a dyn gpio::Client>,
 }
 
-impl<'a> GpioPin<'a> {
+impl GpioPin<'_> {
     pub const fn new(
         gpio_base: StaticRef<GpioRegisters>,
         iomux_base: StaticRef<IoMuxRegisters>,

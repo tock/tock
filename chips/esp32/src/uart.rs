@@ -219,7 +219,7 @@ pub struct Uart<'a> {
     rx_len: Cell<usize>,
 }
 
-impl<'a> Uart<'a> {
+impl Uart<'_> {
     pub fn new(base: StaticRef<UartRegisters>) -> Self {
         Uart {
             registers: base,

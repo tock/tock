@@ -34,7 +34,7 @@ pub struct RoundRobinProcessNode<'a> {
     next: ListLink<'a, Self>,
 }
 
-impl<'a> RoundRobinProcessNode<'a> {
+impl RoundRobinProcessNode<'_> {
     pub const fn new(proc: &'static ProcessSlot) -> Self {
         RoundRobinProcessNode {
             proc,
@@ -57,7 +57,7 @@ pub struct RoundRobinSched<'a> {
     last_rescheduled: Cell<bool>,
 }
 
-impl<'a> RoundRobinSched<'a> {
+impl RoundRobinSched<'_> {
     /// How long a process can run before being pre-empted
     const DEFAULT_TIMESLICE_US: u32 = 10000;
     pub const fn new() -> Self {

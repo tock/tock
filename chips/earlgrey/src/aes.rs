@@ -128,7 +128,7 @@ pub struct Aes<'a> {
     deferred_call: DeferredCall,
 }
 
-impl<'a> Aes<'a> {
+impl Aes<'_> {
     pub fn new() -> Self {
         Aes {
             registers: AES_BASE,

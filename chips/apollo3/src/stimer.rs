@@ -98,7 +98,7 @@ pub struct STimer<'a> {
     client: OptionalCell<&'a dyn AlarmClient>,
 }
 
-impl<'a> STimer<'a> {
+impl STimer<'_> {
     // Unsafe bc of use of STIMER_BASE internally
     pub fn new() -> Self {
         let timer = STimer {

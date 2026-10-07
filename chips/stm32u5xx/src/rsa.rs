@@ -197,7 +197,7 @@ pub struct Pka<'a> {
     result: TakeCell<'static, [u8]>,
 }
 
-impl<'a> Pka<'a> {
+impl Pka<'_> {
     pub const fn new(base: StaticRef<PkaRegisters>) -> Self {
         Pka {
             registers: base,

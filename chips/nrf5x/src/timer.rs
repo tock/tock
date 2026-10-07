@@ -262,7 +262,7 @@ pub struct TimerAlarm<'a> {
 const CC_CAPTURE: usize = 0;
 const CC_COMPARE: usize = 1;
 
-impl<'a> TimerAlarm<'a> {
+impl TimerAlarm<'_> {
     pub const fn new(registers: StaticRef<TimerRegisters>) -> Self {
         TimerAlarm {
             registers,

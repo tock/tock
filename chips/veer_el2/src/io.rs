@@ -16,7 +16,7 @@ pub struct SemihostUart<'a> {
     tx_len: Cell<usize>,
 }
 
-impl<'a> SemihostUart<'a> {
+impl SemihostUart<'_> {
     pub fn new() -> Self {
         SemihostUart {
             deferred_call: DeferredCall::new(),

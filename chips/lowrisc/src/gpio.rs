@@ -84,7 +84,7 @@ pub struct GpioPin<'a, PAD> {
     client: OptionalCell<&'a dyn gpio::Client>,
 }
 
-impl<'a, PAD> GpioPin<'a, PAD> {
+impl<PAD> GpioPin<'_, PAD> {
     pub const fn new(
         gpio_base: StaticRef<GpioRegisters>,
         padctl: PAD,

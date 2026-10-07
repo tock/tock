@@ -111,7 +111,7 @@ pub struct Temp<'a> {
     client: OptionalCell<&'a dyn kernel::hil::sensors::TemperatureClient>,
 }
 
-impl<'a> Temp<'a> {
+impl Temp<'_> {
     pub const fn new(registers: StaticRef<TempRegisters>) -> Self {
         Temp {
             registers,

@@ -93,7 +93,7 @@ pub struct GpioPin<'a> {
     client: OptionalCell<&'a dyn hil::gpio::Client>,
 }
 
-impl<'a> GpioPin<'a> {
+impl GpioPin<'_> {
     pub const fn new(
         base: StaticRef<GpioRegisters>,
         pin: Field<u32, pins::Register>,

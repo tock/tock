@@ -265,7 +265,7 @@ pub struct TimerA<'a> {
     alarm_client: OptionalCell<&'a dyn AlarmClient>,
 }
 
-impl<'a> TimerA<'a> {
+impl TimerA<'_> {
     pub const fn new(base: StaticRef<TimerRegisters>) -> Self {
         TimerA {
             registers: base,

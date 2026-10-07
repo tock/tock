@@ -411,7 +411,7 @@ pub struct Tim2<'a> {
     client: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
-impl<'a> Tim2<'a> {
+impl Tim2<'_> {
     /// Creates a new instance of the driver.
     pub const fn new(base: StaticRef<TimRegisters>) -> Self {
         Tim2 {
@@ -546,7 +546,7 @@ pub struct Pwm<'a> {
     _phantom: core::marker::PhantomData<&'a ()>,
 }
 
-impl<'a> Pwm<'a> {
+impl Pwm<'_> {
     pub const fn new(base: StaticRef<TimRegisters>) -> Self {
         Pwm {
             registers: base,

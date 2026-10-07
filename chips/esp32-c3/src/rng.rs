@@ -27,7 +27,7 @@ pub struct Rng<'a> {
     deferred_call: DeferredCall,
 }
 
-impl<'a> Rng<'a> {
+impl Rng<'_> {
     pub fn new() -> Self {
         Rng {
             register: RNG_DATA_REG,

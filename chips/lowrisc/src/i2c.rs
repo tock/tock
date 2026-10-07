@@ -36,7 +36,7 @@ pub struct I2c<'a> {
     read_index: Cell<usize>,
 }
 
-impl<'a> I2c<'a> {
+impl I2c<'_> {
     pub fn new(base: StaticRef<I2cRegisters>, clock_period_nanos: u32) -> Self {
         I2c {
             registers: base,

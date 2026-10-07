@@ -108,7 +108,7 @@ impl Iterator for CsRngIter<'_, '_> {
     }
 }
 
-impl<'a> CsRng<'a> {
+impl CsRng<'_> {
     pub const fn new(base: StaticRef<CsRngRegisters>) -> Self {
         CsRng {
             registers: base,

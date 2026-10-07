@@ -422,7 +422,7 @@ pub struct RPGpioPin<'a> {
     sio_registers: StaticRef<SIORegisters>,
 }
 
-impl<'a> RPGpioPin<'a> {
+impl RPGpioPin<'_> {
     pub const fn new(pin: RPGpio) -> Self {
         RPGpioPin {
             pin: pin as usize,
