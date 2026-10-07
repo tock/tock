@@ -23,6 +23,8 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	elf2uf2-rs $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2
 	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Nano RP2040 Flash Drive Folder; fi
 
+# objcopy leaves .stack's (NOLOAD) segment claiming file content for SRAM,
+# which the UF2 tools refuse. The flashed image does not need the section.
 .PHONY: flash-app
 flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 ifeq ($(APP),)
@@ -30,5 +32,6 @@ ifeq ($(APP),)
 endif
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
+	arm-none-eabi-objcopy -R .stack $(KERNEL_WITH_APP)
 	elf2uf2-rs $(KERNEL_WITH_APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2
 	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Nano RP2040 Flash Drive Folder; fi
