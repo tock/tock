@@ -124,7 +124,7 @@ pub const KERNEL_PATCH_VERSION: u16 = 0;
 /// A value other than `0` indicates that this is a development revision, before
 /// (older than) the next release described by [`KERNEL_MAJOR_VERSION`],
 /// [`KERNEL_MINOR_VERSION`] and [`KERNEL_PATCH_VERSION`].
-pub const KERNEL_PRERELEASE_VERSION: u16 = 1;
+pub const KERNEL_PRERELEASE_VERSION: u16 = 0;
 
 /// Tock kernel attributes structure for version information.
 #[repr(C)]
