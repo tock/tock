@@ -67,7 +67,7 @@ unsafe fn semihost_command(_operation: u32, _parameter: u32) -> u32 {
 /// Reason codes for SysExit under semihosting.
 ///
 /// See ARM documentation for details:
-/// https://support.arm.com/documentation/dui0471/e/semihosting/angel-swireason-reportexception--0x18-?lang=en
+/// <https://support.arm.com/documentation/dui0471/e/semihosting/angel-swireason-reportexception--0x18-?lang=en>
 #[repr(u32)]
 #[allow(non_camel_case_types)] // Match ARM Specs
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

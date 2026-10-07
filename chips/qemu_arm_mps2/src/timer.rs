@@ -9,7 +9,7 @@
 //! `RELOAD` and continues, raising an interrupt on every 1-to-0 transition.
 //! There is no separate free-running counter or compare register.
 //!
-//! To expose this as a [`hil::time::Alarm`] we keep `RELOAD` fixed at
+//! To expose this as a [`Alarm`] we keep `RELOAD` fixed at
 //! `u32::MAX` so the hardware free-runs and `now()` is simply
 //! `u32::MAX - VALUE` (matching [`Ticks32`]'s own wraparound at 2**32).
 //!
