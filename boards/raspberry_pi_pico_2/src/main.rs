@@ -259,6 +259,9 @@ unsafe fn get_peripherals() -> (
 ///
 /// We use `main` as a symbol in the arch crate's initialization routine to jump
 /// here. We guarantee no other symbol has the same name.
+///
+/// Note: this requires a global/uniqueness guarantee.
+/// See <https://github.com/tock/tock/issues/5250>.
 #[unsafe(no_mangle)]
 pub unsafe fn main() {
     ChipHw::init();

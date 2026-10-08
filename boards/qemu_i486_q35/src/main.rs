@@ -250,6 +250,9 @@ impl kernel::hil::keyboard::KeyboardClient for QemuI386Q35Platform {
 ///
 /// We use `main` as a symbol in the arch crate's initialization routine to jump
 /// here. We guarantee no other symbol has the same name.
+///
+/// Note: this requires a global/uniqueness guarantee.
+/// See <https://github.com/tock/tock/issues/5250>.
 // `allow(unsupported_calling_conventions)`: cdecl is not valid when testing
 // this code on an x86_64 machine. This avoids a warning until a more permanent
 // fix is decided. See: https://github.com/tock/tock/pull/4662
