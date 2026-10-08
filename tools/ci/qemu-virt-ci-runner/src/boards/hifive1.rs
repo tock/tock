@@ -25,6 +25,7 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
     TestCase {
         name: "c_hello",
@@ -36,5 +37,6 @@ static TESTS: &[TestCase] = &[
         }],
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
+        needs_serial1: false,
     },
 ];

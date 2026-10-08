@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
+use std::os::fd::{AsFd, BorrowedFd};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
+use std::sync::mpsc;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use nix::sys::signal::{Signal, killpg};
@@ -22,14 +25,33 @@ const LIBTOCK_C_DIR_DEFAULT: &str = "../../../../libtock-c";
 
 const QMP_PORT: u16 = 44444;
 const SERIAL_PORT: u16 = 44445;
+// Second serial port, only wired up for tests whose `TestCase::needs_serial1`
+// is set (see `qemu_cmdline_extra`).
+const SERIAL1_PORT: u16 = 44446;
 
-// Extra QEMU flags for CI: expose QMP control socket, serial over TCP, start paused.
-const QEMU_CMDLINE_EXTRA: &str = concat!(
-    "-qmp tcp:localhost:44444,server ",
-    "-chardev socket,id=serial0,host=localhost,port=44445,server=on ",
-    "-serial chardev:serial0 ",
-    "-S"
-);
+/// Extra QEMU flags for CI: expose a QMP control socket, the first serial
+/// port over TCP, and (when `needs_serial1` is set) a second serial port
+/// over TCP too, then start paused.  `-serial` arguments are assigned to the
+/// machine's UARTs in command-line order, so the second `-chardev`/`-serial`
+/// pair here always lands on the board's second UART.
+fn qemu_cmdline_extra(needs_serial1: bool) -> String {
+    let mut cmdline = format!(
+        "-qmp tcp:localhost:{qmp},server \
+         -chardev socket,id=serial0,host=localhost,port={serial0},server=on \
+         -serial chardev:serial0 ",
+        qmp = QMP_PORT,
+        serial0 = SERIAL_PORT,
+    );
+    if needs_serial1 {
+        cmdline.push_str(&format!(
+            "-chardev socket,id=serial1,host=localhost,port={serial1},server=on \
+             -serial chardev:serial1 ",
+            serial1 = SERIAL1_PORT,
+        ));
+    }
+    cmdline.push_str("-S");
+    cmdline
+}
 
 // Maximum time to wait for QEMU sockets to become available.
 const SOCKET_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -170,15 +192,66 @@ fn wait_for_tcp(port: u16) -> Result<TcpStream, String> {
     }
 }
 
+/// Reads lines from `stream` on a background thread for the life of the
+/// test, printing each one as soon as it arrives and forwarding it over the
+/// returned channel.
+///
+/// This exists so the primary serial port's output (including any kernel
+/// debug prints) is visible in real time even while another step -- e.g.
+/// `SendFileYmodem` on the secondary port -- blocks the main thread for a
+/// while: without a dedicated reader thread, nothing would drain the
+/// primary port during that time, so its output would just sit unread
+/// (and unprinted) until the next step happened to read it.
+fn spawn_serial_reader(stream: TcpStream) -> mpsc::Receiver<String> {
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut reader = BufReader::new(stream);
+        loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break, // EOF: QEMU exited.
+                Ok(_) => {
+                    print!("[serial] {}", line);
+                    if tx.send(line).is_err() {
+                        // Nothing left to receive it (test already ended).
+                        break;
+                    }
+                }
+                Err(ref e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    continue;
+                }
+                Err(_) => break,
+            }
+        }
+    });
+    rx
+}
+
+/// The serial connection(s) to the board.  Every board has a primary serial
+/// port; `secondary` is only populated when the test's `needs_serial1` is
+/// set, for boards that wire up a second UART (e.g. for YMODEM app loading).
+struct SerialPorts {
+    /// Lines read from the primary port, continuously drained and printed
+    /// by a background thread (see `spawn_serial_reader`) so output is
+    /// visible live rather than only after some other step finishes.
+    primary: mpsc::Receiver<String>,
+    primary_write: TcpStream,
+    secondary: Option<(BufReader<TcpStream>, TcpStream)>,
+}
+
 /// Install tockloader apps, start QEMU in the background, and run the test closure.
 fn run_with_apps<F>(
     apps: &[App],
     libtock_c_dir: &Path,
     board_dir: &str,
+    needs_serial1: bool,
     test_fn: F,
 ) -> Result<(), String>
 where
-    F: FnOnce(&mut QmpConnection, &mut BufReader<TcpStream>, &mut TcpStream) -> Result<(), String>,
+    F: FnOnce(&mut QmpConnection, &mut SerialPorts) -> Result<(), String>,
 {
     println!("Uninstalling all apps (if any)");
 
@@ -219,28 +292,42 @@ where
     let child = Command::new("make")
         .current_dir(board_dir)
         .arg("run")
-        .env("QEMU_CMDLINE_EXTRA", QEMU_CMDLINE_EXTRA)
+        .env("QEMU_CMDLINE_EXTRA", qemu_cmdline_extra(needs_serial1))
         .process_group(0)
         .spawn()
         .map_err(|e| format!("failed to spawn make run: {}", e))?;
     let qemu = QemuInstance { child };
 
-    // Connect the raw TCP streams to both ports before doing any protocol
+    // Connect the raw TCP streams to every socket before doing any protocol
     // work.  QEMU will not send the QMP greeting until every chardev socket
-    // (i.e. the serial port socket) also has a client connected, so we must
-    // establish both connections first.
+    // (i.e. every serial port socket) also has a client connected, so we
+    // must establish all connections first.
     println!("Waiting for QMP socket on port {}...", QMP_PORT);
     let mut qmp = QmpConnection::connect().map_err(|e| format!("QMP connect failed: {}", e))?;
 
     println!("Waiting for serial socket on port {}...", SERIAL_PORT);
     let serial_stream =
         wait_for_tcp(SERIAL_PORT).map_err(|e| format!("serial connect failed: {}", e))?;
-    let mut serial_write = serial_stream
+    println!("Connected to serial socket on port {}...", SERIAL_PORT);
+    let serial_write = serial_stream
         .try_clone()
         .map_err(|e| format!("failed to clone serial stream: {}", e))?;
-    let mut serial = BufReader::new(serial_stream);
+    let primary = spawn_serial_reader(serial_stream);
 
-    // Now both TCP connections exist; negotiate the QMP protocol.
+    let secondary = if needs_serial1 {
+        println!("Waiting for serial socket on port {}...", SERIAL1_PORT);
+        let serial1_stream =
+            wait_for_tcp(SERIAL1_PORT).map_err(|e| format!("serial1 connect failed: {}", e))?;
+        println!("Connected to serial socket on port {}...", SERIAL1_PORT);
+        let serial1_write = serial1_stream
+            .try_clone()
+            .map_err(|e| format!("failed to clone serial1 stream: {}", e))?;
+        Some((BufReader::new(serial1_stream), serial1_write))
+    } else {
+        None
+    };
+
+    // Now every TCP connection exists; negotiate the QMP protocol.
     qmp.handshake()
         .map_err(|e| format!("QMP handshake failed: {}", e))?;
     println!("QMP handshake complete.");
@@ -250,7 +337,13 @@ where
         .map_err(|e| format!("QMP resume failed: {}", e))?;
     println!("QEMU resumed.");
 
-    let result = test_fn(&mut qmp, &mut serial, &mut serial_write);
+    let mut serial = SerialPorts {
+        primary,
+        primary_write: serial_write,
+        secondary,
+    };
+
+    let result = test_fn(&mut qmp, &mut serial);
 
     // Always stop QEMU after the test, whether it passed or failed.
     qemu.kill();
@@ -259,8 +352,12 @@ where
 }
 
 /// Read serial output until `done` returns `true` or `timeout` elapses.
+///
+/// `serial` is fed by the background thread started in
+/// `spawn_serial_reader`, which has already printed each line as it
+/// arrived -- this just accumulates them to match `done` against.
 fn read_serial_until<F>(
-    serial: &mut BufReader<TcpStream>,
+    serial: &mpsc::Receiver<String>,
     timeout: Duration,
     mut done: F,
 ) -> Result<(), String>
@@ -270,35 +367,30 @@ where
     let deadline = Instant::now() + timeout;
     let mut buf = String::new();
     loop {
-        let mut line = String::new();
-        match serial.read_line(&mut line) {
-            Ok(0) => {
-                // EOF; treat as timeout.
-                return Err(format!("serial EOF after {:?}", timeout));
-            }
-            Ok(_) => {
-                print!("[serial] {}", line);
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match serial.recv_timeout(remaining) {
+            Ok(line) => {
                 buf.push_str(&line);
                 if done(&buf)? {
                     return Ok(());
                 }
             }
-            Err(ref e)
-                if e.kind() == std::io::ErrorKind::WouldBlock
-                    || e.kind() == std::io::ErrorKind::TimedOut =>
-            {
-                if Instant::now() >= deadline {
-                    return Err(format!("timeout after {:?}", timeout));
-                }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return Err(format!("timeout after {:?}", timeout));
             }
-            Err(e) => return Err(e.to_string()),
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(format!(
+                    "serial reader thread exited (QEMU exited?) after {:?}",
+                    timeout
+                ));
+            }
         }
     }
 }
 
 /// Wait until every needle has appeared in the serial output, in any order.
 fn expect_serial_any_order(
-    serial: &mut BufReader<TcpStream>,
+    serial: &mpsc::Receiver<String>,
     needles: &[&str],
     timeout: Duration,
 ) -> Result<(), String> {
@@ -322,7 +414,7 @@ fn expect_serial_any_order(
 /// Each needle must appear strictly after the end of the previous needle's
 /// match, so a single occurrence in the output cannot satisfy two needles.
 fn expect_serial_in_order(
-    serial: &mut BufReader<TcpStream>,
+    serial: &mpsc::Receiver<String>,
     needles: &[&str],
     timeout: Duration,
 ) -> Result<(), String> {
@@ -349,6 +441,53 @@ fn expect_serial_in_order(
     .map_err(|e| format!("{}: still waiting for: {:?}", e, &needles[idx..]))
 }
 
+/// Adapts a buffered serial reader so it also implements `AsFd`, as required
+/// by `rzsz`'s poll-based `ModemReader`.  `read()` delegates straight to the
+/// `BufReader`, which drains any already-buffered bytes before touching the
+/// socket, so this is only safe to use on a port nothing else has read from
+/// yet (true for `SerialPort::Secondary`, which is dedicated to YMODEM) --
+/// otherwise bytes already sitting in the `BufReader`'s buffer from an
+/// earlier step wouldn't make the underlying socket's `poll()` ready, and a
+/// `ModemReader::read_byte` could spuriously time out despite there being
+/// buffered data available.
+struct SerialReader<'a> {
+    inner: &'a mut BufReader<TcpStream>,
+}
+
+impl Read for SerialReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl AsFd for SerialReader<'_> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.inner.get_ref().as_fd()
+    }
+}
+
+/// Send `path` to the device over the serial connection using YMODEM.
+///
+/// The device is expected to be running a YMODEM receiver on its console
+/// (this mirrors what the host-side `lsb -vv <file>` command does when
+/// pointed at a real serial port).
+fn send_file_ymodem(
+    serial: &mut BufReader<TcpStream>,
+    serial_write: &mut TcpStream,
+    path: &Path,
+) -> Result<(), String> {
+    // Matches the buffer size `rzsz`'s own rz/sz/zz binaries use.
+    println!("creating reader");
+    let mut reader = rzsz::serial::reader::ModemReader::new(SerialReader { inner: serial }, 16384);
+
+    println!("got reader");
+    rzsz::ymodem::ymodem_send(&mut reader, serial_write, &[path])
+        .map(|_bytes_sent| {
+            println!("sent {}", _bytes_sent);
+        })
+        .map_err(|e| format!("YMODEM transfer of {} failed: {}", path.display(), e))
+}
+
 /// Take a screendump via QMP and return the SHA-256 hash of the image file
 /// as a lowercase hex string.
 ///
@@ -372,6 +511,16 @@ fn screendump_hash(qmp: &mut QmpConnection) -> Result<String, String> {
 // ---------------------------------------------------------------------------
 // Shared test types (referenced by board modules via `crate::TestCase`)
 // ---------------------------------------------------------------------------
+
+/// Which serial port a step should act on, for boards that expose more than
+/// one (see `TestCase::needs_serial1`).  Steps that don't take a `port`
+/// field always use the primary port.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SerialPort {
+    #[allow(unused)]
+    Primary,
+    Secondary,
+}
 
 /// One action in an ordered test sequence.  Steps are executed in order after
 /// QEMU is running; serial waits and key presses may be freely interleaved.
@@ -399,6 +548,18 @@ pub(crate) enum TestStep {
     /// terminal).  The string is sent exactly as given; include `"\r\n"` or
     /// `"\n"` if the board expects a line ending.
     SendSerial(&'static str),
+    /// Send a file to the device over a serial port using the YMODEM
+    /// protocol, as e.g. the host-side `lsb`/`sb --ymodem` tools do.  `path`
+    /// is resolved relative to the runner's working directory.  `port` must
+    /// be `SerialPort::Secondary` (with `TestCase::needs_serial1` set) --
+    /// the primary port is read as text lines so its output can be streamed
+    /// live, which doesn't work for YMODEM's raw binary framing.  The
+    /// board's console on that port is expected to be running a YMODEM
+    /// receiver.
+    SendFileYmodem {
+        port: SerialPort,
+        path: &'static str,
+    },
 }
 
 /// An app to install before running a test.
@@ -418,6 +579,11 @@ pub(crate) struct TestCase {
     pub screenshot_delay: Duration,
     /// Optional known-good screendump hash. `None` means skip the check.
     pub expected_screen_hash: Option<&'static str>,
+    /// Whether this test needs a second serial port, exposed as a TCP
+    /// socket on `SERIAL1_PORT` in addition to the primary port on
+    /// `SERIAL_PORT`.  Set this when a step uses `SerialPort::Secondary`
+    /// (e.g. a board that wires a second UART to a YMODEM receiver).
+    pub needs_serial1: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -426,17 +592,16 @@ pub(crate) struct TestCase {
 fn run_steps(
     steps: &[TestStep],
     qmp: &mut QmpConnection,
-    serial: &mut BufReader<TcpStream>,
-    serial_write: &mut TcpStream,
+    serial: &mut SerialPorts,
 ) -> Result<(), String> {
     for step in steps {
         match step {
             TestStep::WaitSerialAnyOrder { needles, timeout } => {
-                expect_serial_any_order(serial, needles, *timeout)?;
+                expect_serial_any_order(&serial.primary, needles, *timeout)?;
                 println!("Serial check passed: {:?}", needles);
             }
             TestStep::WaitSerialInOrder { needles, timeout } => {
-                expect_serial_in_order(serial, needles, *timeout)?;
+                expect_serial_in_order(&serial.primary, needles, *timeout)?;
                 println!("Serial check passed: {:?}", needles);
             }
             TestStep::Sleep(duration) => {
@@ -450,10 +615,39 @@ fn run_steps(
             }
             TestStep::SendSerial(text) => {
                 println!("Sending serial: {:?}", text);
-                serial_write
+                serial
+                    .primary_write
                     .write_all(text.as_bytes())
-                    .and_then(|_| serial_write.flush())
+                    .and_then(|_| serial.primary_write.flush())
                     .map_err(|e| format!("serial write failed: {}", e))?;
+            }
+            TestStep::SendFileYmodem { port, path } => {
+                println!("Sending file via YMODEM ({:?}): {}", port, path);
+                match port {
+                    // The primary port is read as decoded text lines (see
+                    // `spawn_serial_reader`) so its output can be streamed
+                    // live; that's incompatible with YMODEM's raw binary
+                    // framing, which is why boards that need YMODEM wire up
+                    // a dedicated secondary port for it instead.
+                    SerialPort::Primary => Err(format!(
+                        "SendFileYmodem does not support SerialPort::Primary: \
+                         that port is read as text lines, not a raw byte \
+                         stream; use SerialPort::Secondary (needs_serial1) \
+                         instead (path: {:?})",
+                        path
+                    )),
+                    SerialPort::Secondary => {
+                        let (reader, writer) = serial.secondary.as_mut().ok_or_else(|| {
+                            format!(
+                                "step requests the secondary serial port to send {:?}, but \
+                                 this test's TestCase does not set needs_serial1",
+                                path
+                            )
+                        })?;
+                        send_file_ymodem(reader, writer, Path::new(path))
+                    }
+                }?;
+                println!("YMODEM transfer complete: {}", path);
             }
         }
     }
@@ -470,8 +664,9 @@ fn run_test(tc: &TestCase, libtock_c_dir: &Path, board_dir: &str) -> Result<(), 
         tc.apps,
         libtock_c_dir,
         board_dir,
-        |qmp, serial, serial_write| {
-            run_steps(tc.steps, qmp, serial, serial_write)?;
+        tc.needs_serial1,
+        |qmp, serial| {
+            run_steps(tc.steps, qmp, serial)?;
 
             // Wait for the display to settle before capturing.
             if !tc.screenshot_delay.is_zero() {
@@ -541,10 +736,11 @@ fn cmd_screenshot(
         tc.apps,
         libtock_c_dir,
         board.board_dir,
-        |qmp, serial, serial_write| {
+        tc.needs_serial1,
+        |qmp, serial| {
             // Run all steps (serial waits, key presses, sleeps) so the board
             // reaches a known state before the screenshot is captured.
-            run_steps(tc.steps, qmp, serial, serial_write)?;
+            run_steps(tc.steps, qmp, serial)?;
 
             // Wait for the display to settle before capturing.
             if !tc.screenshot_delay.is_zero() {
