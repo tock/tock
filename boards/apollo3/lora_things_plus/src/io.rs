@@ -12,12 +12,14 @@ use apollo3::uart::{UART0_BASE, Uart, UartPanicWriterConfig};
 
 /// Panic handler.
 #[panic_handler]
-pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
+pub fn panic_fmt(info: &PanicInfo) -> ! {
     // just create a new pin reference here instead of using global
     let led_pin = &mut apollo3::gpio::GpioPin::new(
-        kernel::utilities::StaticRef::new(
-            apollo3::gpio::GPIO_BASE_RAW as *const apollo3::gpio::GpioRegisters,
-        ),
+        unsafe {
+            kernel::utilities::StaticRef::new(
+                apollo3::gpio::GPIO_BASE_RAW as *const apollo3::gpio::GpioRegisters,
+            )
+        },
         apollo3::gpio::Pin::Pin26,
     );
     let led = &mut led::LedLow::new(led_pin);

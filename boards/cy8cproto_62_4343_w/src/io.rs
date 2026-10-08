@@ -13,7 +13,7 @@ use kernel::hil::uart;
 
 /// Panic handler for the CY8CPROTO-062-4343 board.
 #[panic_handler]
-pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
+pub fn panic_fmt(panic_info: &PanicInfo) -> ! {
     let led_kernel_pin = &GpioPin::new(psoc62xa::gpio::PsocPin::P13_7);
     let led = &mut LedHigh::new(led_kernel_pin);
 

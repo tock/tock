@@ -33,7 +33,7 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     // turn off the non panic leds, just in case
     let led_green = sifive::gpio::GpioPin::new(
         e310_g002::gpio::GPIO0_BASE,
@@ -60,13 +60,15 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         sifive::gpio::pins::pin22::CLEAR,
     );
     let led_red = &mut led::LedLow::new(&led_red_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    debug::panic_old(
-        &mut [led_red],
-        writer,
-        pi,
-        &rv32i::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    unsafe {
+        debug::panic_old(
+            &mut [led_red],
+            writer,
+            pi,
+            &rv32i::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }
