@@ -82,3 +82,11 @@ jobs:
       - name: Run hifive1 QEMU CI tests
         shell: bash
         run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board hifive1 --libtock-c ../../../libtock-c"
+
+      - name: Run an385 QEMU CI tests
+        shell: bash
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board an385 --libtock-c ../../../libtock-c"
+
+      - name: Run an386 QEMU CI tests
+        shell: bash
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board an386 --libtock-c ../../../libtock-c"
