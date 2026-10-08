@@ -87,7 +87,7 @@ enum State {
     Sleeping,
 }
 
-pub struct Shtc3<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
+pub struct Shtc3<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> {
     i2c: &'a I,
     alarm: &'a A,
     humidity_client: OptionalCell<&'a dyn kernel::hil::sensors::HumidityClient>,
@@ -105,7 +105,7 @@ pub struct Shtc3<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
     pending_humidity: Cell<Option<usize>>,
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> Shtc3<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> Shtc3<'a, A, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> Shtc3<'a, A, I> {
         Shtc3 {
             i2c,
@@ -304,13 +304,13 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> Shtc3<'a, A, I> {
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> time::AlarmClient for Shtc3<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> time::AlarmClient for Shtc3<'a, A, I> {
     fn alarm(&self) {
         self.continue_state_machine();
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for Shtc3<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> i2c::I2CClient for Shtc3<'a, A, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         self.buffer.replace(buffer);
 
@@ -329,7 +329,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for Shtc3<'a, A, I> {
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> kernel::hil::sensors::TemperatureDriver<'a>
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> kernel::hil::sensors::TemperatureDriver<'a>
     for Shtc3<'a, A, I>
 {
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::TemperatureClient) {
@@ -341,7 +341,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> kernel::hil::sensors::TemperatureDrive
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> kernel::hil::sensors::HumidityDriver<'a>
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> kernel::hil::sensors::HumidityDriver<'a>
     for Shtc3<'a, A, I>
 {
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::HumidityClient) {

@@ -21,6 +21,7 @@ use capsules_extra::shtc3::Shtc3;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::hil::i2c::I2CDevice as _;
 use kernel::hil::time::Alarm;
 
 // Setup static space for the objects.
