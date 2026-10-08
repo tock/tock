@@ -201,12 +201,6 @@ impl<'a> Pka<'a> {
         self.ecc_client.map(|client| client.operation_done(result));
     }
 
-    fn begin_math(&self, state: State, len: usize) {
-        self.state.set(state);
-        self.math_len.set(len);
-        self.set_len(OPERAND_LEN_BITS_IDX, (len as u32) * 8);
-    }
-
     fn read_from_client(&self, which: Operand, chunk: &mut [u8]) {
         self.math_client.map(|client| match which {
             Operand::Modulus => {
@@ -527,18 +521,20 @@ impl<'a> ModularArithmetic<'a, SupportedOp> for Pka<'a> {
         let len = modulus_len;
         match operation {
             SupportedOp::Addition => {
-                self.begin_math(State::MathAddition, len);
+                self.state.set(State::MathAddition);
             }
             SupportedOp::Multiplication => {
-                self.begin_math(State::MathComputeR2, len);
+                self.state.set(State::MathComputeR2);
             }
             SupportedOp::Inverse => {
-                self.begin_math(State::MathInvert, len);
+                self.state.set(State::MathInvert);
             }
             SupportedOp::Modulus => {
-                self.begin_math(State::MathModulus, len);
+                self.state.set(State::MathModulus);
             }
         }
+        self.math_len.set(len);
+        self.set_len(OPERAND_LEN_BITS_IDX, (len as u32) * 8);
         self.deferred_call.set();
         Ok(())
     }
@@ -596,7 +592,6 @@ impl DeferredCallClient for Pka<'_> {
                 self.load_operand(INV_RED_MODULUS_IDX, len, Operand::Modulus);
                 self.load_operand(ARITH_OP1_IDX, len, Operand::First);
                 self.start_operation(CR::MODE::ModularReduction);
-                self.state.set(State::MathAddition);
             }
             _ => {}
         }
