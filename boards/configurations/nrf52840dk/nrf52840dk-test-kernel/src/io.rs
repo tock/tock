@@ -8,7 +8,7 @@ use nrf52840::uart::{Uart, UartPanicWriterConfig};
 #[cfg(not(test))]
 #[panic_handler]
 /// Panic handler
-pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
+pub fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     use kernel::debug;
     use kernel::hil::led;
     use nrf52840::gpio::Pin;

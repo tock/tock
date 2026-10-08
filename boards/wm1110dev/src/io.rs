@@ -14,7 +14,7 @@ use nrf52840::gpio::Pin;
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     // Red Led
     let led_red_pin = &nrf52840::gpio::nrf52840_gpio_create_pin(Pin::P0_14);
     let led = &mut led::LedHigh::new(led_red_pin);

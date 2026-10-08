@@ -131,7 +131,7 @@ impl IoWrite for Writer {
 }
 
 #[panic_handler]
-pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
+pub fn panic_fmt(panic_info: &PanicInfo) -> ! {
     let iocon_ctrl = Iocon::new();
     let led_pin_config = Config {
         function: Function::GPIO,
@@ -145,13 +145,15 @@ pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
     let red_led = GpioPin::new(LPCPin::P1_6);
     red_led.make_output();
     let led = &mut LedHigh::new(&red_led);
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    debug::panic_old(
-        &mut [led],
-        writer,
-        panic_info,
-        &cortexm33::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    unsafe {
+        debug::panic_old(
+            &mut [led],
+            writer,
+            panic_info,
+            &cortexm33::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }

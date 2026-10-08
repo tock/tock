@@ -51,17 +51,19 @@ impl Write for Writer<'_> {
 }
 
 #[panic_handler]
-unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
+fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
     let ccm = crate::imxrt1060::ccm::Ccm::new();
     let pin = crate::imxrt1060::gpio::Pin::from_pin_id(gpio::PinId::B0_03);
     let led = &mut led::LedHigh::new(&pin);
     let mut lpuart2 = lpuart::Lpuart::new_lpuart2(&ccm);
-    let mut writer = Writer::new(&mut lpuart2);
-    debug::panic_old(
-        &mut [led],
-        &mut writer,
-        panic_info,
-        &cortexm7::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    let mut writer = unsafe { Writer::new(&mut lpuart2) };
+    unsafe {
+        debug::panic_old(
+            &mut [led],
+            &mut writer,
+            panic_info,
+            &cortexm7::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }
