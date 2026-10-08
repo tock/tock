@@ -205,6 +205,7 @@ impl<'a> Stm32u5xxDefaultPeripherals<'a> {
         self.hash.register();
         self.crc.register();
         self.rtc.register();
+        self.pka.register();
 
         // Link DMA to USART1
         let usart1_channel_tx = self.dma1.request_channel();

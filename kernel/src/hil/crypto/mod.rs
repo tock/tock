@@ -23,6 +23,9 @@
 //! client and the driver. This is in contrast to other HIL traits, wherein parameters and input
 //! data are typically passed as arguments to the driver's entrypoint function (often with one or
 //! more `&'static mut [u8]` buffers floating around).
+//! The callback pattern leads to greater flexibility for both the caller and callee to decide how
+//! data is stored and when it is moved. It also tends to reduce the kernel's memory footprint as
+//! well as the number of times data needs to be copied between buffers.
 //!
 //! The general flow for a client to perform an operation using a crypto HIL is as follows:
 //!

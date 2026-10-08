@@ -4,6 +4,7 @@
 
 use core::cell::Cell;
 
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::crypto::ecc::ecc_constants::{Curve, NistP256Constants, P_256_P_SIZE};
 use kernel::hil::crypto::ecc::ecc_math::{EccClient, EccCrypto, VerifyEccPoint};
 use kernel::hil::crypto::modular_arithmetic::{MathClient, ModularArithmetic};
@@ -16,13 +17,13 @@ use kernel::{ErrorCode, debug};
 
 use crate::pkc::constants::{
     ARITH_OP1_IDX, ARITH_OP2_IDX, ARITH_RESULT_IDX, CLRFR, CR, ECC_A_ABS_IDX, ECC_A_SIGN_IDX,
-    ECC_ADD_OUT_X_IDX, ECC_ADD_OUT_Y_IDX, ECC_ADD_P_IDX, ECC_ADD_PT1_X_IDX, ECC_ADD_PT1_Y_IDX,
-    ECC_ADD_PT1_Z_IDX, ECC_ADD_PT2_X_IDX, ECC_ADD_PT2_Y_IDX, ECC_ADD_PT2_Z_IDX, ECC_B_IDX,
-    ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX, ECC_MUL_K_IDX, ECC_N_IDX, ECC_N_LEN_BITS_IDX,
-    ECC_OUT_X_IDX, ECC_OUT_Y_IDX, ECC_P_IDX, ECC_P_LEN_BITS_IDX, ECC_P_R2_IDX, ECC_RESULT_OK,
-    EXP_LEN_BITS_IDX, FPCHECK_RESULT_IDX, FPCHECK_X_IDX, FPCHECK_Y_IDX, INV_RED_MODULUS_IDX,
-    MODEXP_BASE_IDX, MODEXP_EXPONENT_IDX, MODEXP_RESULT_IDX, MODULUS_IDX, MONT_R2_OUT_IDX,
-    OPERAND_LEN_BITS_IDX, P256_R2_MOD_P, PkaRegisters, SR, SupportedOp,
+    ECC_ADD_OUT_X_IDX, ECC_ADD_OUT_Y_IDX, ECC_ADD_P_IDX, ECC_ADD_PT1_Z_IDX, ECC_ADD_PT2_X_IDX,
+    ECC_ADD_PT2_Y_IDX, ECC_ADD_PT2_Z_IDX, ECC_B_IDX, ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX,
+    ECC_MUL_K_IDX, ECC_N_IDX, ECC_N_LEN_BITS_IDX, ECC_OUT_X_IDX, ECC_OUT_Y_IDX, ECC_P_IDX,
+    ECC_P_LEN_BITS_IDX, ECC_P_R2_IDX, ECC_RESULT_OK, EXP_LEN_BITS_IDX, FPCHECK_RESULT_IDX,
+    FPCHECK_X_IDX, FPCHECK_Y_IDX, INV_RED_MODULUS_IDX, MODEXP_BASE_IDX, MODEXP_EXPONENT_IDX,
+    MODEXP_RESULT_IDX, MODULUS_IDX, MONT_R2_OUT_IDX, OPERAND_LEN_BITS_IDX, P256_R2_MOD_P,
+    PkaRegisters, SR, SupportedOp,
 };
 
 /// Size of the chunks exchanged with the math client (bytes).
@@ -43,6 +44,7 @@ enum State {
     MathComputeR2,
     MathComputeAR,
     MathComputeAB,
+    MathModulus,
 }
 
 /// Which number to request from the math client.
@@ -55,6 +57,7 @@ enum Operand {
 
 pub struct Pka<'a> {
     registers: StaticRef<PkaRegisters>,
+    deferred_call: DeferredCall,
 
     rsa_client: OptionalCell<&'a dyn Client<'a>>,
     ecc_client: OptionalCell<&'a dyn EccClient>,
@@ -72,9 +75,10 @@ pub struct Pka<'a> {
 }
 
 impl<'a> Pka<'a> {
-    pub const fn new(registers: StaticRef<PkaRegisters>) -> Pka<'a> {
+    pub fn new(registers: StaticRef<PkaRegisters>) -> Pka<'a> {
         Pka {
             registers,
+            deferred_call: DeferredCall::new(),
 
             rsa_client: OptionalCell::empty(),
             ecc_client: OptionalCell::empty(),
@@ -169,16 +173,11 @@ impl<'a> Pka<'a> {
         self.write_slice(ECC_ADD_P_IDX, &NistP256Constants::P);
     }
 
-    fn load_point(&self, x_idx: usize, y_idx: usize, use_curve_generator: bool) {
-        if use_curve_generator {
-            self.write_slice(x_idx, &NistP256Constants::GENERATOR.0);
-            self.write_slice(y_idx, &NistP256Constants::GENERATOR.1);
-        } else {
-            let mut point = [0u8; 2 * P_256_P_SIZE];
-            self.ecc_client.map(|client| client.read_point(&mut point));
-            self.write_slice(x_idx, &point[..P_256_P_SIZE]);
-            self.write_slice(y_idx, &point[P_256_P_SIZE..]);
-        }
+    fn load_point(&self, x_idx: usize, y_idx: usize) {
+        let mut point = [0u8; 2 * P_256_P_SIZE];
+        self.ecc_client.map(|client| client.read_point(&mut point));
+        self.write_slice(x_idx, &point[..P_256_P_SIZE]);
+        self.write_slice(y_idx, &point[P_256_P_SIZE..]);
     }
 
     fn start_projective_to_affine(&self) {
@@ -372,7 +371,7 @@ impl<'a> Pka<'a> {
                 self.ecc_done(result);
             }
 
-            State::MathAddition | State::MathInvert | State::MathComputeAB => {
+            State::MathAddition | State::MathModulus | State::MathInvert | State::MathComputeAB => {
                 self.math_finish(success);
             }
 
@@ -481,60 +480,19 @@ impl<'a> EccCrypto<'a, P_256_P_SIZE, NistP256Constants> for Pka<'a> {
         self.ecc_client.replace(client);
     }
 
-    fn clear_data(&self) {
-        self.clear_ram();
-    }
-
-    fn point_doubling(&self, use_curve_generator: bool) -> Result<(), ErrorCode> {
-        self.enable_peripheral()?;
-        self.state.set(State::ScalarMul);
-        self.load_p256_parameters();
-
-        let mut scalar = [0u8; P_256_P_SIZE];
-        scalar[P_256_P_SIZE - 1] = 2;
-        self.write_slice(ECC_MUL_K_IDX, &scalar);
-
-        self.load_point(ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX, use_curve_generator);
-
-        self.start_operation(CR::MODE::MontgomeryECC);
-        Ok(())
-    }
-
-    fn point_addition(&self, use_curve_generator: bool) -> Result<(), ErrorCode> {
+    fn point_addition(&self) -> Result<(), ErrorCode> {
         self.enable_peripheral()?;
         self.state.set(State::PointAddition);
         self.load_p256_parameters();
-
-        let mut z_coord = [0u8; P_256_P_SIZE];
-        z_coord[P_256_P_SIZE - 1] = 1;
-
-        self.load_point(ECC_ADD_PT1_X_IDX, ECC_ADD_PT1_Y_IDX, use_curve_generator);
-        self.write_slice(ECC_ADD_PT1_Z_IDX, &z_coord);
-
-        let mut point_q = [0u8; 2 * P_256_P_SIZE];
-        self.ecc_client
-            .map(|client| client.read_second_point(&mut point_q));
-        self.write_slice(ECC_ADD_PT2_X_IDX, &point_q[..P_256_P_SIZE]);
-        self.write_slice(ECC_ADD_PT2_Y_IDX, &point_q[P_256_P_SIZE..]);
-        self.write_slice(ECC_ADD_PT2_Z_IDX, &z_coord);
-
-        self.start_operation(CR::MODE::ECCCompleteAddition);
+        self.deferred_call.set();
         Ok(())
     }
 
-    fn scalar_multiplication(&self, use_curve_generator: bool) -> Result<(), ErrorCode> {
+    fn scalar_multiplication(&self) -> Result<(), ErrorCode> {
         self.enable_peripheral()?;
         self.state.set(State::ScalarMul);
         self.load_p256_parameters();
-
-        let mut scalar = [0u8; P_256_P_SIZE];
-        self.ecc_client
-            .map(|client| client.read_scalar(&mut scalar));
-        self.write_slice(ECC_MUL_K_IDX, &scalar);
-
-        self.load_point(ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX, use_curve_generator);
-
-        self.start_operation(CR::MODE::MontgomeryECC);
+        self.deferred_call.set();
         Ok(())
     }
 }
@@ -544,7 +502,7 @@ impl<'a> VerifyEccPoint<'a, P_256_P_SIZE, NistP256Constants> for Pka<'a> {
         self.enable_peripheral()?;
         self.state.set(State::VerifyPoint);
         self.load_p256_parameters();
-        self.load_point(FPCHECK_X_IDX, FPCHECK_Y_IDX, false);
+        self.load_point(FPCHECK_X_IDX, FPCHECK_Y_IDX);
 
         self.start_operation(CR::MODE::FpCheck);
         Ok(())
@@ -570,34 +528,81 @@ impl<'a> ModularArithmetic<'a, SupportedOp> for Pka<'a> {
         match operation {
             SupportedOp::Addition => {
                 self.begin_math(State::MathAddition, len);
-                self.load_operand(MODULUS_IDX, len, Operand::Modulus);
-                self.load_operand(ARITH_OP1_IDX, len, Operand::First);
-                self.load_operand(ARITH_OP2_IDX, len, Operand::Second);
-                self.start_operation(CR::MODE::ModularAddition);
             }
             SupportedOp::Multiplication => {
                 self.begin_math(State::MathComputeR2, len);
-                self.load_operand(MODULUS_IDX, len, Operand::Modulus);
-                self.start_operation(CR::MODE::MontgomeryOnly);
             }
             SupportedOp::Inverse => {
                 self.begin_math(State::MathInvert, len);
-                self.load_operand(INV_RED_MODULUS_IDX, len, Operand::Modulus);
-                self.load_operand(ARITH_OP1_IDX, len, Operand::First);
-                self.start_operation(CR::MODE::ModularInversion);
             }
             SupportedOp::Modulus => {
-                self.begin_math(State::MathAddition, len);
-                self.set_len(EXP_LEN_BITS_IDX, (len as u32) * 8);
-                self.load_operand(INV_RED_MODULUS_IDX, len, Operand::Modulus);
-                self.load_operand(ARITH_OP1_IDX, len, Operand::First);
-                self.start_operation(CR::MODE::ModularReduction);
+                self.begin_math(State::MathModulus, len);
             }
         }
+        self.deferred_call.set();
         Ok(())
     }
 
     fn clear_data(&self) {
         self.clear_ram();
+    }
+}
+
+impl<'a> DeferredCallClient for Pka<'a> {
+    fn handle_deferred_call(&self) {
+        match self.state.get() {
+            State::ScalarMul => {
+                let mut scalar = [0u8; P_256_P_SIZE];
+                self.ecc_client
+                    .map(|client| client.read_scalar(&mut scalar));
+                self.write_slice(ECC_MUL_K_IDX, &scalar);
+                self.load_point(ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX);
+                self.start_operation(CR::MODE::MontgomeryECC);
+            }
+            State::PointAddition => {
+                let mut point_q = [0u8; 2 * P_256_P_SIZE];
+                let mut z_coord = [0u8; P_256_P_SIZE];
+                z_coord[P_256_P_SIZE - 1] = 1;
+                self.load_point(ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX);
+                self.write_slice(ECC_ADD_PT1_Z_IDX, &z_coord);
+                self.ecc_client
+                    .map(|client| client.read_second_point(&mut point_q));
+                self.write_slice(ECC_ADD_PT2_X_IDX, &point_q[..P_256_P_SIZE]);
+                self.write_slice(ECC_ADD_PT2_Y_IDX, &point_q[P_256_P_SIZE..]);
+                self.write_slice(ECC_ADD_PT2_Z_IDX, &z_coord);
+                self.start_operation(CR::MODE::ECCCompleteAddition);
+            }
+            State::MathAddition => {
+                let len = self.math_len.get();
+                self.load_operand(MODULUS_IDX, len, Operand::Modulus);
+                self.load_operand(ARITH_OP1_IDX, len, Operand::First);
+                self.load_operand(ARITH_OP2_IDX, len, Operand::Second);
+                self.start_operation(CR::MODE::ModularAddition);
+            }
+            State::MathInvert => {
+                let len = self.math_len.get();
+                self.load_operand(INV_RED_MODULUS_IDX, len, Operand::Modulus);
+                self.load_operand(ARITH_OP1_IDX, len, Operand::First);
+                self.start_operation(CR::MODE::ModularInversion);
+            }
+            State::MathComputeR2 => {
+                let len = self.math_len.get();
+                self.load_operand(MODULUS_IDX, len, Operand::Modulus);
+                self.start_operation(CR::MODE::MontgomeryOnly);
+            }
+            State::MathModulus => {
+                let len = self.math_len.get();
+                self.set_len(EXP_LEN_BITS_IDX, (len as u32) * 8);
+                self.load_operand(INV_RED_MODULUS_IDX, len, Operand::Modulus);
+                self.load_operand(ARITH_OP1_IDX, len, Operand::First);
+                self.start_operation(CR::MODE::ModularReduction);
+                self.state.set(State::MathAddition);
+            }
+            _ => {}
+        }
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
