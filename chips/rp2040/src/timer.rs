@@ -265,10 +265,7 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
 
     fn is_armed(&self) -> bool {
         let armed = self.registers.armed.get() & 0b0001;
-        if armed == 1 {
-            return true;
-        }
-        false
+        armed == 1
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
