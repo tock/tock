@@ -213,7 +213,7 @@ impl<'a, F: time::Frequency, const C3: bool> Counter<'a> for TimG<'a, F, C3> {
     }
 
     fn stop(&self) -> Result<(), ErrorCode> {
-        self.registers.t0config.write(CONFIG::EN::CLEAR);
+        self.registers.t0config.modify(CONFIG::EN::CLEAR);
 
         Ok(())
     }
