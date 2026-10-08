@@ -20,13 +20,16 @@ LOCAL_BOARD     := mps2_an386
 LOCAL_BOARD_BIN := $(LOCAL_BOARD)_apps.bin
 TOCKLOADER_ARCH := cortex-m4
 
+QEMU_CMDLINE_EXTRA ?= \
+
 # Peripherals attached by default:
 # - CMSDK APB UART0 (attached to stdio)
 QEMU_BASE_CMDLINE := \
   $(QEMU_CMD) \
     -machine mps2-an386 \
     -nographic \
-    -semihosting
+    -semihosting \
+    $(QEMU_CMDLINE_EXTRA)
 
 # Run the kernel inside a qemu-system-arm "mps2-an386" machine simulation.
 .PHONY: run
