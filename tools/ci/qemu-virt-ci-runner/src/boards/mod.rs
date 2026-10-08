@@ -5,6 +5,7 @@
 pub mod hifive1;
 pub mod qemu_an385;
 pub mod qemu_an386;
+pub mod qemu_an386_appload;
 pub mod qemu_rv32_virt;
 pub mod qemu_rv64_virt;
 
@@ -28,4 +29,5 @@ pub static BOARDS: &[&Board] = &[
     &qemu_rv32_virt::BOARD,
     &qemu_an385::BOARD,
     &qemu_an386::BOARD,
+    &qemu_an386_appload::BOARD,
 ];
