@@ -77,5 +77,5 @@
 //! }
 //! ```
 
-pub mod elliptic_curves;
+pub mod ecc;
 pub mod modular_arithmetic;

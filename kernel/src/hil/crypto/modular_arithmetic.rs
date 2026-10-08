@@ -7,44 +7,53 @@ use crate::ErrorCode;
 pub trait OpAddition {
     fn addition() -> Self;
 }
+
 pub trait OpSubtraction {
     fn subtraction() -> Self;
 }
+
 pub trait OpMultiplication {
     fn multiplication() -> Self;
 }
+
 pub trait OpDivision {
     fn division() -> Self;
 }
+
 pub trait OpInverse {
     fn inverse() -> Self;
 }
+
 pub trait OpModulo {
     fn modulo() -> Self;
 }
 
-/// Upcall from the `ModularArithmetic` trait.
+/// Client callback interface for the `ModularArithmetic` trait.
 pub trait MathClient<Op> {
     /// Retrieve modulus.
     ///
     /// The driver may issue this callback multiple times, but must not request more than
     /// `modulus_len` bytes
     fn read_modulus(&self, modulus: &mut [u8]) -> Result<(), ErrorCode>;
+
     /// Retrieve first operand.
     ///
     /// The driver may issue this callback multiple times, but must not request more than
     /// `modulus_len` bytes
     fn read_number(&self, num: &mut [u8]);
+
     /// Retrieve second operand.
     ///
     /// The driver may issue this callback multiple times, but must not request more than
     /// `modulus_len` bytes
     fn read_second_number(&self, num: &mut [u8]);
+
     /// Return operation result.
     ///
     /// The driver may issue this callback multiple times, but must not provide more than
     /// `modulus_len` bytes
     fn write_number(&self, num: &[u8]) -> Result<(), ErrorCode>;
+
     /// Signal completion of an arithmetic operation.
     ///
     /// This callback occurs exactly once after a request accepted by [`ModularArithmetic`]. If a data
@@ -55,8 +64,10 @@ pub trait MathClient<Op> {
 pub trait ModularArithmetic<'a, Op> {
     /// Set the `Client` client to be called on completion.
     fn set_client(&self, client: &'a dyn MathClient<Op>);
+
     /// Clear any confidential data.
     fn clear_data(&self);
+
     /// Initiate an arithmetic operation
     ///
     /// The input is retrieved through [`Client`] callbacks. The driver returns
