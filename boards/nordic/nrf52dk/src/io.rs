@@ -11,7 +11,7 @@ use nrf52832::gpio::Pin;
 #[cfg(not(test))]
 #[panic_handler]
 /// Panic handler
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52 DK LEDs (see back of board)
     let led_kernel_pin = &nrf52832::gpio::nrf52832_gpio_create_pin(Pin::P0_17);
     let led = &mut led::LedLow::new(led_kernel_pin);
