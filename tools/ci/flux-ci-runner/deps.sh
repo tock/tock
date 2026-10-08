@@ -10,8 +10,8 @@
 #
 # Author: Pat Pannuto <ppannuto@ucsd.edu>
 
-DESIRED_FIXPOINT_VERSION="0.9.6.3.3"
-DESIRED_FIXPOINT_RELEASE_TAG="nightly-01-14-2026"
+DESIRED_FIXPOINT_VERSION="0.9.6.3.7"
+DESIRED_FIXPOINT_RELEASE_TAG="nightly-2026-07-20"
 
 ########################################################
 
