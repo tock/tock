@@ -266,7 +266,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 ///
 /// For the qemu-system-riscv32 virt machine this gets called when an
 /// interrupt occurs while the chip is in kernel mode.
-#[export_name = "_start_trap_rust_from_kernel"]
+#[export_name = "start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
