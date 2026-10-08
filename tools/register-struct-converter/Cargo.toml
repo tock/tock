@@ -1,0 +1,14 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "register-struct-converter"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "register-struct-converter"
+path = "src/main.rs"
