@@ -17,13 +17,13 @@ use kernel::{ErrorCode, debug};
 
 use crate::pkc::constants::{
     ARITH_OP1_IDX, ARITH_OP2_IDX, ARITH_RESULT_IDX, CLRFR, CR, ECC_A_ABS_IDX, ECC_A_SIGN_IDX,
-    ECC_ADD_OUT_X_IDX, ECC_ADD_OUT_Y_IDX, ECC_ADD_P_IDX, ECC_ADD_PT1_Z_IDX, ECC_ADD_PT2_X_IDX,
-    ECC_ADD_PT2_Y_IDX, ECC_ADD_PT2_Z_IDX, ECC_B_IDX, ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX,
-    ECC_MUL_K_IDX, ECC_N_IDX, ECC_N_LEN_BITS_IDX, ECC_OUT_X_IDX, ECC_OUT_Y_IDX, ECC_P_IDX,
-    ECC_P_LEN_BITS_IDX, ECC_P_R2_IDX, ECC_RESULT_OK, EXP_LEN_BITS_IDX, FPCHECK_RESULT_IDX,
-    FPCHECK_X_IDX, FPCHECK_Y_IDX, INV_RED_MODULUS_IDX, MODEXP_BASE_IDX, MODEXP_EXPONENT_IDX,
-    MODEXP_RESULT_IDX, MODULUS_IDX, MONT_R2_OUT_IDX, OPERAND_LEN_BITS_IDX, P256_R2_MOD_P,
-    PkaRegisters, SR, SupportedOp,
+    ECC_ADD_OUT_X_IDX, ECC_ADD_OUT_Y_IDX, ECC_ADD_P_IDX, ECC_ADD_PT1_X_IDX, ECC_ADD_PT1_Y_IDX,
+    ECC_ADD_PT1_Z_IDX, ECC_ADD_PT2_X_IDX, ECC_ADD_PT2_Y_IDX, ECC_ADD_PT2_Z_IDX, ECC_B_IDX,
+    ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX, ECC_MUL_K_IDX, ECC_N_IDX, ECC_N_LEN_BITS_IDX,
+    ECC_OUT_X_IDX, ECC_OUT_Y_IDX, ECC_P_IDX, ECC_P_LEN_BITS_IDX, ECC_P_R2_IDX, ECC_RESULT_OK,
+    EXP_LEN_BITS_IDX, FPCHECK_RESULT_IDX, FPCHECK_X_IDX, FPCHECK_Y_IDX, INV_RED_MODULUS_IDX,
+    MODEXP_BASE_IDX, MODEXP_EXPONENT_IDX, MODEXP_RESULT_IDX, MODULUS_IDX, MONT_R2_OUT_IDX,
+    OPERAND_LEN_BITS_IDX, P256_R2_MOD_P, PkaRegisters, SR, SupportedOp,
 };
 
 /// Size of the chunks exchanged with the math client (bytes).
@@ -548,7 +548,7 @@ impl<'a> ModularArithmetic<'a, SupportedOp> for Pka<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for Pka<'a> {
+impl DeferredCallClient for Pka<'_> {
     fn handle_deferred_call(&self) {
         match self.state.get() {
             State::ScalarMul => {
@@ -563,7 +563,7 @@ impl<'a> DeferredCallClient for Pka<'a> {
                 let mut point_q = [0u8; 2 * P_256_P_SIZE];
                 let mut z_coord = [0u8; P_256_P_SIZE];
                 z_coord[P_256_P_SIZE - 1] = 1;
-                self.load_point(ECC_MUL_IN_X_IDX, ECC_MUL_IN_Y_IDX);
+                self.load_point(ECC_ADD_PT1_X_IDX, ECC_ADD_PT1_Y_IDX);
                 self.write_slice(ECC_ADD_PT1_Z_IDX, &z_coord);
                 self.ecc_client
                     .map(|client| client.read_second_point(&mut point_q));
