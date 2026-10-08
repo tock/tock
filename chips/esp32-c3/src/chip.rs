@@ -49,7 +49,7 @@ const USER_MPU_REGIONS: usize = USER_PMP_ENTRIES / 2;
 
 /// Size of the vector table at `mtvec`.
 ///
-/// See [`_start_trap_vectored`]. We set up one jump per trap, 32 different
+/// See [`start_trap_vectored`]. We set up one jump per trap, 32 different
 /// traps in total, all non-compressed RISC-V instructions that are 4 byte long.
 ///
 /// We use this value to work around a CPU bug in the ESP32-C3, to allow apps to
@@ -118,7 +118,7 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
         // otherwise it just faults. See the comment on [`USER_PMP_ENTRIES`].
         // This dedicates the last two regions (which aren't accessible through
         // `SimplePMP`) to that purpose.
-        let mtvec_addr = _start_trap_vectored as extern "C" fn() -> ! as usize;
+        let mtvec_addr = start_trap_vectored as extern "C" fn() -> ! as usize;
         let (bottom, top) = (USER_PMP_ENTRIES, USER_PMP_ENTRIES + 1);
         CSR.pmpaddr_set(bottom, mtvec_addr >> 2);
         CSR.pmpaddr_set(top, (mtvec_addr + TRAP_VECTOR_TABLE_LEN) >> 2);
@@ -306,7 +306,7 @@ unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
 ///
 /// This gets called when an interrupt occurs while the chip is
 /// in kernel mode.
-#[export_name = "_start_trap_rust_from_kernel"]
+#[export_name = "start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
@@ -338,7 +338,7 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 /// vectored interrupts seem more reliable so let's use that.
 pub unsafe fn configure_trap_handler() {
     CSR.mtvec.write(
-        mtvec::trap_addr.val(_start_trap_vectored as extern "C" fn() -> ! as usize >> 2)
+        mtvec::trap_addr.val(start_trap_vectored as extern "C" fn() -> ! as usize >> 2)
             + mtvec::mode::Vectored,
     )
 }
@@ -347,7 +347,7 @@ pub unsafe fn configure_trap_handler() {
 // specifier, as the test will not use our linker script, and the host
 // compilation environment may not allow the section name.
 #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
-pub extern "C" fn _start_trap_vectored() -> ! {
+pub extern "C" fn start_trap_vectored() -> ! {
     use core::hint::unreachable_unchecked;
     unsafe {
         unreachable_unchecked();
@@ -365,7 +365,7 @@ pub extern "C" fn _start_trap_vectored() -> ! {
     link_section = ".riscv.trap_vectored"
 )]
 #[unsafe(naked)]
-pub extern "C" fn _start_trap_vectored() -> ! {
+pub extern "C" fn start_trap_vectored() -> ! {
     use core::arch::naked_asm;
     // Below are 32 (non-compressed) jumps to cover the entire possible
     // range of vectored traps.
@@ -407,7 +407,7 @@ pub extern "C" fn _start_trap_vectored() -> ! {
         j {start_trap}
       .option pop
         ",
-        start_trap = sym rv32i::_start_trap,
+        start_trap = sym rv32i::start_trap,
     );
 }
 

@@ -234,7 +234,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 ///
 /// # Safety
 /// Accesses CSRs.
-#[export_name = "_start_trap_rust_from_kernel"]
+#[export_name = "start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
