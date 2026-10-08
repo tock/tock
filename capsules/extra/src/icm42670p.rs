@@ -108,7 +108,7 @@ fn be16(hi: u8, lo: u8) -> i16 {
     (((hi as u16) << 8) | (lo as u16)) as i16
 }
 
-pub struct Icm42670p<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
+pub struct Icm42670p<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> {
     i2c: &'a I,
     alarm: &'a A,
     nine_dof_client: OptionalCell<&'a dyn NineDofClient>,
@@ -121,7 +121,7 @@ pub struct Icm42670p<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
     pending: Cell<Reading>,
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> Icm42670p<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> Icm42670p<'a, A, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> Icm42670p<'a, A, I> {
         Icm42670p {
             i2c,
@@ -226,7 +226,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> Icm42670p<'a, A, I> {
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> time::AlarmClient for Icm42670p<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> time::AlarmClient for Icm42670p<'a, A, I> {
     fn alarm(&self) {
         // After the startup delay, take the reading.
         if let Err(_error) = self.start_read() {
@@ -237,7 +237,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> time::AlarmClient for Icm42670p<'a, A,
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for Icm42670p<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> i2c::I2CClient for Icm42670p<'a, A, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if status.is_err() {
             self.abort(buffer);
@@ -291,7 +291,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for Icm42670p<'a, A, I>
     }
 }
 
-impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> NineDof<'a> for Icm42670p<'a, A, I> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice<'a>> NineDof<'a> for Icm42670p<'a, A, I> {
     fn set_client(&self, client: &'a dyn NineDofClient) {
         self.nine_dof_client.set(client);
     }
