@@ -8,7 +8,7 @@ use kernel::ErrorCode;
 use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
 use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::{LocalRegisterCopy, register_bitfields};
 
 use super::super::devices::{VirtIODeviceDriver, VirtIODeviceType};
@@ -148,14 +148,10 @@ impl<F: DmaFence> SplitVirtqueueClient<'static> for VirtIONet<'_, F> {
             // Sent an Ethernet frame
 
             let tx_header = buffer_chain[0].take().expect("No header buffer");
-            let VirtqueueBuffer::DeviceReadable(tx_header_sub_slice_mut_immut) =
+            let VirtqueueBuffer::DeviceReadable(tx_header_sub_slice_mut) =
                 tx_header.virtqueue_buffer
             else {
-                panic!("VirtQueue returned DeviceWriteable buffer")
-            };
-            let SubSliceMutImmut::Mutable(tx_header_sub_slice_mut) = tx_header_sub_slice_mut_immut
-            else {
-                panic!("tx_header SubSliceMutImmut is not mutable!")
+                panic!("VirtQueue returned a buffer other than DeviceReadable")
             };
             self.tx_header.replace(
                 tx_header_sub_slice_mut
@@ -165,14 +161,9 @@ impl<F: DmaFence> SplitVirtqueueClient<'static> for VirtIONet<'_, F> {
             );
 
             let tx_frame = buffer_chain[1].take().expect("No frame buffer");
-            let VirtqueueBuffer::DeviceReadable(tx_frame_sub_slice_mut_immut) =
-                tx_frame.virtqueue_buffer
+            let VirtqueueBuffer::DeviceReadable(tx_frame_sub_slice_mut) = tx_frame.virtqueue_buffer
             else {
-                panic!("VirtQueue returned DeviceWriteable buffer")
-            };
-            let SubSliceMutImmut::Mutable(tx_frame_sub_slice_mut) = tx_frame_sub_slice_mut_immut
-            else {
-                panic!("tx_frame SubSliceMutImmut is not mutable!")
+                panic!("VirtQueue returned a buffer other than DeviceReadable")
             };
 
             let (frame_len, transmission_identifier) = self.tx_frame_info.get();
@@ -287,12 +278,8 @@ impl<'a, F: DmaFence> EthernetAdapterDatapath<'a> for VirtIONet<'a, F> {
         tx_frame_sub_slice_mut.slice(0..(len as usize));
 
         let mut buffer_chain = [
-            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
-                tx_header_sub_slice_mut,
-            ))),
-            Some(VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(
-                tx_frame_sub_slice_mut,
-            ))),
+            Some(VirtqueueBuffer::DeviceReadable(tx_header_sub_slice_mut)),
+            Some(VirtqueueBuffer::DeviceReadable(tx_frame_sub_slice_mut)),
         ];
 
         self.tx_frame_info.set((len, transmission_identifier));
@@ -300,15 +287,10 @@ impl<'a, F: DmaFence> EthernetAdapterDatapath<'a> for VirtIONet<'a, F> {
         self.txqueue
             .provide_buffer_chain(&mut buffer_chain)
             .map_err(move |ret| {
-                let VirtqueueBuffer::DeviceReadable(tx_frame_sub_slice_mut_immut) =
+                let VirtqueueBuffer::DeviceReadable(tx_frame_sub_slice_mut) =
                     buffer_chain[1].take().unwrap()
                 else {
-                    panic!("VirtQueue returned DeviceWriteable buffer")
-                };
-                let SubSliceMutImmut::Mutable(tx_frame_sub_slice_mut) =
-                    tx_frame_sub_slice_mut_immut
-                else {
-                    panic!("tx_frame SubSliceMutImmut is not mutable!")
+                    panic!("VirtQueue returned a buffer other than DeviceReadable")
                 };
                 (ret, tx_frame_sub_slice_mut.take())
             })?;

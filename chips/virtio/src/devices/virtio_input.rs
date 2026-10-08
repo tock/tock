@@ -12,7 +12,7 @@
 
 use kernel::platform::dma_fence::DmaFence;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::{SubSliceMut, SubSliceMutImmut};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 
 use crate::devices::{VirtIODeviceDriver, VirtIODeviceType};
 use crate::queues::split_queue::{
@@ -152,15 +152,12 @@ impl<F: DmaFence> SplitVirtqueueClient<'static> for VirtIOInput<'_, F> {
         } else if queue_number == self.statusq.queue_number().unwrap() {
             // Sent a status update
 
-            let VirtqueueBuffer::DeviceReadable(SubSliceMutImmut::Mutable(status_sub_slice_mut)) =
-                buffer_chain[0]
-                    .take()
-                    .expect("No status buffer")
-                    .virtqueue_buffer
+            let VirtqueueBuffer::DeviceReadable(status_sub_slice_mut) = buffer_chain[0]
+                .take()
+                .expect("No status buffer")
+                .virtqueue_buffer
             else {
-                panic!(
-                    "VirtIO input returned either DeviceWritable buffer or Immutable sub slice for status queue"
-                )
+                panic!("VirtIO input returned a buffer other than DeviceReadable for status queue")
             };
 
             self.status_buffer.replace(status_sub_slice_mut.take());
