@@ -245,6 +245,7 @@ impl<'a, F: time::Frequency, const C3: bool> Alarm<'a> for TimG<'a, F, C3> {
 
         self.registers.t0config.modify(
             CONFIG::USE_XTAL.val(self.clocksource as u32)
+                + CONFIG::AUTORELOAD::CLEAR
                 + CONFIG::INCREASE::SET
                 + CONFIG::DIVIDER.val(2 * (2 - self.clocksource as u32)),
         );
