@@ -5,7 +5,7 @@
 use core::cell::Cell;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 use kernel::ErrorCode;
 use kernel::hil;
@@ -14,33 +14,35 @@ use kernel::utilities::StaticRef;
 
 use crate::{ccm, dma};
 
-/// LP Universal asynchronous receiver transmitter
-#[repr(C)]
-struct LpuartRegisters {
-    ///  Version ID Register
-    verid: ReadOnly<u32, VERID::Register>,
-    /// Parameter Register
-    param: ReadOnly<u32, PARAM::Register>,
-    /// LPUART Global Register
-    global: ReadWrite<u32, GLOBAL::Register>,
-    /// LPUART Pin Configuration Register
-    pincfg: ReadWrite<u32, PINCFG::Register>,
-    /// LPUART Baud Rate Register
-    baud: ReadWrite<u32, BAUD::Register>,
-    /// LPUART Status Register
-    stat: ReadWrite<u32, STAT::Register>,
-    /// LPUART Control Register
-    ctrl: ReadWrite<u32, CTRL::Register>,
-    /// LPUART Data Register
-    data: ReadWrite<u32, DATA::Register>,
-    /// LPUART Match Address Register
-    r#match: ReadWrite<u32, MATCH::Register>,
-    /// LPUART Modem IrDA Register
-    modir: ReadWrite<u32, MODIR::Register>,
-    /// LPUART FIFO Register
-    fifo: ReadWrite<u32, FIFO::Register>,
-    /// LPUART Watemark Register
-    water: ReadWrite<u32, WATER::Register>,
+register_structs! {
+    /// LP Universal asynchronous receiver transmitter
+    LpuartRegisters {
+        ///  Version ID Register
+        (0x000 => verid: ReadOnly<u32, VERID::Register>),
+        /// Parameter Register
+        (0x004 => param: ReadOnly<u32, PARAM::Register>),
+        /// LPUART Global Register
+        (0x008 => global: ReadWrite<u32, GLOBAL::Register>),
+        /// LPUART Pin Configuration Register
+        (0x00c => pincfg: ReadWrite<u32, PINCFG::Register>),
+        /// LPUART Baud Rate Register
+        (0x010 => baud: ReadWrite<u32, BAUD::Register>),
+        /// LPUART Status Register
+        (0x014 => stat: ReadWrite<u32, STAT::Register>),
+        /// LPUART Control Register
+        (0x018 => ctrl: ReadWrite<u32, CTRL::Register>),
+        /// LPUART Data Register
+        (0x01c => data: ReadWrite<u32, DATA::Register>),
+        /// LPUART Match Address Register
+        (0x020 => r#match: ReadWrite<u32, MATCH::Register>),
+        /// LPUART Modem IrDA Register
+        (0x024 => modir: ReadWrite<u32, MODIR::Register>),
+        /// LPUART FIFO Register
+        (0x028 => fifo: ReadWrite<u32, FIFO::Register>),
+        /// LPUART Watemark Register
+        (0x02c => water: ReadWrite<u32, WATER::Register>),
+        (0x030 => @END),
+    }
 }
 
 register_bitfields![u32,

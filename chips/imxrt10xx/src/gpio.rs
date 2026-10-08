@@ -34,36 +34,38 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_structs};
 
 use crate::ccm;
 
-/// General-purpose I/Os
-#[repr(C)]
-struct GpioRegisters {
-    // GPIO data register
-    dr: ReadWrite<u32>,
-    // GPIO direction register
-    gdir: ReadWrite<u32>,
-    // GPIO pad status register
-    psr: ReadOnly<u32>,
-    // GPIO Interrupt configuration register 1
-    icr1: ReadWrite<u32>,
-    // GPIO Interrupt configuration register 2
-    icr2: ReadWrite<u32>,
-    // GPIO interrupt mask register
-    imr: ReadWrite<u32>,
-    // GPIO interrupt status register -- W1C - Write 1 to clear
-    isr: ReadWrite<u32>,
-    // GPIO edge select register
-    edge_sel: ReadWrite<u32>,
-    _reserved1: [u8; 100],
-    // GPIO data register set
-    dr_set: WriteOnly<u32>,
-    // GPIO data register clear
-    dr_clear: WriteOnly<u32>,
-    // GPIO data register toggle
-    dr_toggle: WriteOnly<u32>,
+register_structs! {
+    /// General-purpose I/Os
+    GpioRegisters {
+        /// GPIO data register
+        (0x000 => dr: ReadWrite<u32>),
+        /// GPIO direction register
+        (0x004 => gdir: ReadWrite<u32>),
+        /// GPIO pad status register
+        (0x008 => psr: ReadOnly<u32>),
+        /// GPIO Interrupt configuration register 1
+        (0x00c => icr1: ReadWrite<u32>),
+        /// GPIO Interrupt configuration register 2
+        (0x010 => icr2: ReadWrite<u32>),
+        /// GPIO interrupt mask register
+        (0x014 => imr: ReadWrite<u32>),
+        /// GPIO interrupt status register -- W1C - Write 1 to clear
+        (0x018 => isr: ReadWrite<u32>),
+        /// GPIO edge select register
+        (0x01c => edge_sel: ReadWrite<u32>),
+        (0x020 => _reserved1),
+        /// GPIO data register set
+        (0x084 => dr_set: WriteOnly<u32>),
+        /// GPIO data register clear
+        (0x088 => dr_clear: WriteOnly<u32>),
+        /// GPIO data register toggle
+        (0x08c => dr_toggle: WriteOnly<u32>),
+        (0x090 => @END),
+    }
 }
 
 const GPIO1_BASE: StaticRef<GpioRegisters> =
