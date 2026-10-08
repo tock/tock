@@ -7,6 +7,9 @@
 //! imxrt1050 chip: <https://www.nxp.com/design/development-boards/i-mx-evaluation-and-development-boards/i-mx-rt1050-evaluation-kit:MIMXRT1050-EVK>
 
 #![no_std]
+// IOMUX has many register definitions in `register_structs()!`
+// and requires a deeper recursion limit than the default to fully expand.
+#![recursion_limit = "512"]
 
 pub mod chip;
 pub mod nvic;

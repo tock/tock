@@ -5,20 +5,22 @@
 use crate::iomuxc::{DriveStrength, MuxMode, OpenDrainEn, PullKeepEn, PullUpDown, Sion, Speed};
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-/// IOMUX SNVS Controller Module
-#[repr(C)]
-struct IomuxcSnvsRegisters {
-    sw_mux_ctl_pad_wakeup: ReadWrite<u32, SW_MUX_CTL_PAD_WAKEUP::Register>,
-    sw_mux_ctl_pad_pmic_on_req: ReadWrite<u32, SW_MUX_CTL_PAD_PMIC_ON_REQ::Register>,
-    sw_mux_ctl_pad_pmic_stby_req: ReadWrite<u32, SW_MUX_CTL_PAD_PMIC_STBY_REQ::Register>,
-    sw_pad_ctl_pad_test_mode: ReadWrite<u32, SW_PAD_CTL_PAD_TEST_MODE::Register>,
-    sw_pad_ctl_pad_por_b: ReadWrite<u32, SW_PAD_CTL_PAD_POR_B::Register>,
-    sw_pad_ctl_pad_onoff: ReadWrite<u32, SW_PAD_CTL_PAD_ONOFF::Register>,
-    sw_pad_ctl_pad_wakeup: ReadWrite<u32, SW_PAD_CTL_PAD_WAKEUP::Register>,
-    sw_pad_ctl_pad_pmic_on_req: ReadWrite<u32, SW_PAD_CTL_PAD_PMIC_ON_REQ::Register>,
-    sw_pad_ctl_pad_pmic_stby_req: ReadWrite<u32, SW_PAD_CTL_PAD_PMIC_STBY_REQ::Register>,
+register_structs! {
+    /// IOMUX SNVS Controller Module
+    IomuxcSnvsRegisters {
+        (0x000 => sw_mux_ctl_pad_wakeup: ReadWrite<u32, SW_MUX_CTL_PAD_WAKEUP::Register>),
+        (0x004 => sw_mux_ctl_pad_pmic_on_req: ReadWrite<u32, SW_MUX_CTL_PAD_PMIC_ON_REQ::Register>),
+        (0x008 => sw_mux_ctl_pad_pmic_stby_req: ReadWrite<u32, SW_MUX_CTL_PAD_PMIC_STBY_REQ::Register>),
+        (0x00c => sw_pad_ctl_pad_test_mode: ReadWrite<u32, SW_PAD_CTL_PAD_TEST_MODE::Register>),
+        (0x010 => sw_pad_ctl_pad_por_b: ReadWrite<u32, SW_PAD_CTL_PAD_POR_B::Register>),
+        (0x014 => sw_pad_ctl_pad_onoff: ReadWrite<u32, SW_PAD_CTL_PAD_ONOFF::Register>),
+        (0x018 => sw_pad_ctl_pad_wakeup: ReadWrite<u32, SW_PAD_CTL_PAD_WAKEUP::Register>),
+        (0x01c => sw_pad_ctl_pad_pmic_on_req: ReadWrite<u32, SW_PAD_CTL_PAD_PMIC_ON_REQ::Register>),
+        (0x020 => sw_pad_ctl_pad_pmic_stby_req: ReadWrite<u32, SW_PAD_CTL_PAD_PMIC_STBY_REQ::Register>),
+        (0x024 => @END),
+    }
 }
 
 register_bitfields![u32,

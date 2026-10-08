@@ -11,34 +11,36 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 use crate::ccm;
 use crate::nvic;
 
-/// General purpose timers
-#[repr(C)]
-struct GptRegisters {
-    /// GPT Control Register
-    cr: ReadWrite<u32, CR::Register>,
-    /// GPT Prescaler Register
-    pr: ReadWrite<u32, PR::Register>,
-    /// GPT Status Register
-    sr: ReadWrite<u32, SR::Register>,
-    /// GPT Interrupt Register
-    ir: ReadWrite<u32, IR::Register>,
-    /// GPT Output Compare Register 1
-    ocr1: ReadWrite<u32, OCR1::Register>,
-    /// GPT Output Compare Register 2
-    ocr2: ReadWrite<u32, OCR2::Register>,
-    /// GPT Output Compare Register 3
-    ocr3: ReadWrite<u32, OCR3::Register>,
-    /// GPT Input Capture Register 1
-    icr1: ReadOnly<u32, ICR1::Register>,
-    /// GPT Input Capture Register 2
-    icr2: ReadOnly<u32, ICR2::Register>,
-    /// GPT Counter Register
-    cnt: ReadOnly<u32, CNT::Register>,
+register_structs! {
+    /// General purpose timers
+    GptRegisters {
+        /// GPT Control Register
+        (0x000 => cr: ReadWrite<u32, CR::Register>),
+        /// GPT Prescaler Register
+        (0x004 => pr: ReadWrite<u32, PR::Register>),
+        /// GPT Status Register
+        (0x008 => sr: ReadWrite<u32, SR::Register>),
+        /// GPT Interrupt Register
+        (0x00c => ir: ReadWrite<u32, IR::Register>),
+        /// GPT Output Compare Register 1
+        (0x010 => ocr1: ReadWrite<u32, OCR1::Register>),
+        /// GPT Output Compare Register 2
+        (0x014 => ocr2: ReadWrite<u32, OCR2::Register>),
+        /// GPT Output Compare Register 3
+        (0x018 => ocr3: ReadWrite<u32, OCR3::Register>),
+        /// GPT Input Capture Register 1
+        (0x01c => icr1: ReadOnly<u32, ICR1::Register>),
+        /// GPT Input Capture Register 2
+        (0x020 => icr2: ReadOnly<u32, ICR2::Register>),
+        /// GPT Counter Register
+        (0x024 => cnt: ReadOnly<u32, CNT::Register>),
+        (0x028 => @END),
+    }
 }
 
 register_bitfields![u32,
