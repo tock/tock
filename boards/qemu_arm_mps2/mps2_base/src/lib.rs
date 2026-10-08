@@ -271,7 +271,7 @@ where
         Platform {
             console,
             scheduler,
-            systick: cortexm::systick::SysTick::new(),
+            systick: cortexm::systick::SysTick::new_with_calibration(qemu_arm_mps2::SYSCLK_FRQ),
             led,
             alarm,
             spi,
