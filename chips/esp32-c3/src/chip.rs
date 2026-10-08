@@ -140,23 +140,25 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
     }
 
     pub fn map_pic_interrupts(&self) {
-        self.intc.map_interrupts();
+        // As per the ESP32-C3 reference manual, performing any operations on
+        // the interrupt controller register may cause it to go into a
+        // "transient" state where its effects on the CPU's MIP interrupt line
+        // become unpredictable. It is advised that we disable CPU traps on the
+        // interrupt line being asserted by setting MIE = 0, and run a fence
+        // instruction after every `intc` register write (which we do in the
+        // Intc driver).
+        self.with_interrupts_disabled(|| self.intc.map_interrupts());
     }
 
     pub unsafe fn enable_pic_interrupts(&self) {
-        self.intc.enable_all();
-    }
-
-    unsafe fn handle_pic_interrupts(&self) {
-        while let Some(interrupt) = self.intc.get_saved_interrupts() {
-            if !self.pic_interrupt_service.service_interrupt(interrupt) {
-                panic!("Unhandled interrupt {}", interrupt);
-            }
-            self.with_interrupts_disabled(|| {
-                // Safe as interrupts are disabled
-                self.intc.complete(interrupt);
-            });
-        }
+        // As per the ESP32-C3 reference manual, performing any operations on
+        // the interrupt controller register may cause it to go into a
+        // "transient" state where its effects on the CPU's MIP interrupt line
+        // become unpredictable. It is advised that we disable CPU traps on the
+        // interrupt line being asserted by setting MIE = 0, and run a fence
+        // instruction after every `intc` register write (which we do in the
+        // Intc driver).
+        self.with_interrupts_disabled(|| self.intc.enable_all());
     }
 }
 
@@ -167,24 +169,58 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
 
     fn init() {}
 
+    // # Safety (TODO: this is not an unsafe function!)
+    //
+    // This function will unconditionally enable interrupts by setting
+    // `mstatus::MIE`, and as such it must not be run in a
+    // `with_interrupts_disabled` closure body.
     fn service_pending_interrupts(&self) {
-        loop {
-            if self.intc.get_saved_interrupts().is_some() {
-                unsafe {
-                    self.handle_pic_interrupts();
-                }
-            }
+        // As per the ESP32-C3 reference manual, performing any operations on
+        // the interrupt controller register may cause it to go into a
+        // "transient" state where its effects on the CPU's MIP interrupt line
+        // become unpredictable. It is advised that we disable CPU traps on the
+        // interrupt line being asserted by setting MIE = 0, and run a fence
+        // instruction after every `intc` register write (which we do in the
+        // Intc driver), before re-enabling interrupts (which we do at the
+        // bottom of this function). Even though [`start_trap_from_rust`] and
+        // [`disable_interrupt_trap_handler`] both disable `MIE`, we must still
+        // do this because we can enter this function multiple times without
+        // receiving an interrupt and enable `MIE` below.
+        CSR.mstatus.modify(csr::mstatus::mstatus::mie::CLEAR);
 
-            if self.intc.get_saved_interrupts().is_none() {
-                break;
+        while let Some(pending_interrupt) = self.intc.next_pending() {
+            // Clear the pending interrupt flag for this IRQ, to catch any new
+            // edge-triggered ones being raised while handling this one. This is
+            // a no-op for level-triggered interrupts, which need to be cleared
+            // by the implementation of [`I::service_interrupt`].
+            self.intc.clear_interrupt(pending_interrupt);
+
+            // Run the handler for this particular IRQ source:
+            if !self
+                .pic_interrupt_service
+                .service_interrupt(pending_interrupt)
+            {
+                panic!("Unhandled interrupt at IRQ {pending_interrupt}");
             }
         }
 
-        self.intc.enable_all();
+        // [`start_trap_rust`] and [`disable_interrupt_trap_handler`] both clear
+        // `MIE` when receiving an interrupt. Now that we've handled all of
+        // them, we re-enable CPU interrupts, which ensures that the kernel gets
+        // woken from, e.g., `wfi` on a new pending interrupt.
+        //
+        // SAFETY (TODO: this is not an unsafe function)
+        //
+        // This operation re-enables interrupts. Callers must ensure that this
+        // function only runs in contexts where that is a legal operation (not
+        // in an atomic / `with_interrupts_disabled` context). An interrupt, in
+        // turn, will simply clear this flag (we rely only on the side-effect of
+        // waking the CPU and returning to the kernel).
+        CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        self.intc.get_saved_interrupts().is_some()
+        self.intc.next_pending().is_some()
     }
 
     fn mpu(&self) -> &Self::MPU {
@@ -278,30 +314,6 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
-unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
-    CSR.mstatus.modify(csr::mstatus::mstatus::mie::CLEAR);
-
-    // Claim the interrupt, unwrap() as we know an interrupt exists
-    // Once claimed this interrupt won't fire until it's completed
-    // NOTE: The interrupt is no longer pending in the PLIC
-    loop {
-        let interrupt = (*addr_of!(INTC)).next_pending();
-
-        match interrupt {
-            Some(irq) => {
-                // Safe as interrupts are disabled
-                (*addr_of!(INTC)).save_interrupt(irq);
-                (*addr_of!(INTC)).disable(irq);
-            }
-            None => {
-                // Enable generic interrupts
-                CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
-                break;
-            }
-        }
-    }
-}
-
 /// Trap handler for board/chip specific code.
 ///
 /// This gets called when an interrupt occurs while the chip is
@@ -309,8 +321,29 @@ unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
-        mcause::Trap::Interrupt(interrupt) => {
-            handle_interrupt(interrupt);
+        mcause::Trap::Interrupt(_) => {
+            // We don't handle interrupts synchronously here, and instead just
+            // clear the `MPIE` flag, which upon trap return will clear the
+            // `MIE` flag, allowing the kernel to continue executing.
+            //
+            // We were already in kernel mode, and the kernel's loop will
+            // eventually get to calling [`Chip::service_pending_interrupts`],
+            // which will then actually service the interrupt that caused this
+            // code to run (and potentially others that have been raised in the
+            // meantime), and raising more traps due to interrupts along the way
+            // isn't useful work. [`Chip::service_pending_interrupts`] will
+            // re-enable `MIE`, to make us aware of the next interrupt.
+            //
+            // Deferring interrupts here has another useful benefit: if we were
+            // to mask the actual `intc` interrupt line here instead, it's
+            // possible for an interrupt to be triggered _after_ the last kernel
+            // loop interrupt check before switching to a process. The process
+            // can then run until its timeslice expires, because `MIP` (machine
+            // interrupt pending) would be de-asserted (possibly delaying the
+            // interrupt for a long while). Clearing `MIE` instead has the
+            // benefit of `switch_to_process` re-enabling MIE, which causes an
+            // immediate return to the kernel.
+            CSR.mstatus.modify(csr::mstatus::mstatus::mpie::CLEAR);
         }
         mcause::Trap::Exception(exception) => {
             handle_exception(exception);
@@ -319,14 +352,18 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
-///
-/// mcause is passed in, and this function should correctly handle disabling the
-/// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
     match mcause::Trap::from(mcause_val as usize) {
-        mcause::Trap::Interrupt(interrupt) => {
-            handle_interrupt(interrupt);
+        mcause::Trap::Interrupt(_) => {
+            // We don't handle interrupts synchronously here, and instead just
+            // clear the `MPIE` flag (which will clear `MIE` upon trap return).
+            // This handler we're running now is specific to switches coming
+            // from an application context, and we only rely on the side-effect
+            // of it causing a switch to machine mode. The kernel loop will
+            // eventually handle these pending interrupts through
+            // [`Chip::service_pending_interrupts`], which will re-enable `MIE`.
+            CSR.mstatus.modify(csr::mstatus::mstatus::mpie::CLEAR);
         }
         _ => {
             panic!("unexpected non-interrupt\n");

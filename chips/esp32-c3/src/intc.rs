@@ -4,14 +4,10 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
-use core::cell::Cell;
-
 use crate::interrupts;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{
-    LocalRegisterCopy, ReadWrite, register_bitfields, register_structs,
-};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 register_structs! {
     pub IntcRegisters {
@@ -58,15 +54,11 @@ register_bitfields![u32,
 
 pub struct Intc {
     registers: StaticRef<IntcRegisters>,
-    saved: Cell<LocalRegisterCopy<u32>>,
 }
 
 impl Intc {
     pub const fn new(base: StaticRef<IntcRegisters>) -> Self {
-        Intc {
-            registers: base,
-            saved: Cell::new(LocalRegisterCopy::new(0)),
-        }
+        Intc { registers: base }
     }
 
     /// The ESP32C3 is interesting. It allows interrupts to be mapped on the
@@ -75,52 +67,71 @@ impl Intc {
     /// call into the ROM code to enable interrupts which maps the interrupts.
     /// In Tock we map them ourselves so we don't need to call into the ROM.
     pub fn map_interrupts(&self) {
-        self.registers.uart0_intr_map.set(interrupts::IRQ_UART0);
-        self.registers.timg0_intr_map.set(interrupts::IRQ_TIMER1);
-        self.registers.timg1_intr_map.set(interrupts::IRQ_TIMER2);
-        self.registers
-            .gpio_interrupt_pro_map
-            .set(interrupts::IRQ_GPIO);
-        self.registers
-            .gpio_interrupt_pro_nmi_map
-            .set(interrupts::IRQ_GPIO_NMI);
-    }
-
-    /// Clear all pending interrupts.
-    pub fn clear_all_pending(&self) {
-        self.registers.clear.set(0xFF);
+        self.intc_write_fence(|| self.registers.uart0_intr_map.set(interrupts::IRQ_UART0));
+        self.intc_write_fence(|| self.registers.timg0_intr_map.set(interrupts::IRQ_TIMER1));
+        self.intc_write_fence(|| self.registers.timg1_intr_map.set(interrupts::IRQ_TIMER2));
+        self.intc_write_fence(|| {
+            self.registers
+                .gpio_interrupt_pro_map
+                .set(interrupts::IRQ_GPIO)
+        });
+        self.intc_write_fence(|| {
+            self.registers
+                .gpio_interrupt_pro_nmi_map
+                .set(interrupts::IRQ_GPIO_NMI)
+        });
     }
 
     /// Enable all interrupts.
     pub fn enable_all(&self) {
-        self.registers.enable.set(0xFFFF_FFFF);
+        // The ESP32-C3 reference manual requires us to abide by the following
+        // order when enabling interrupts:
+        //
+        // 1. configure type (level vs. edge); we leave all interrupts
+        //    level-triggered,
+        // 2. configure priority,
+        // 3. enable interrupts.
+
+        // Accept all interrupts.
+        self.intc_write_fence(|| self.registers.thresh.write(THRESH::THRESH.val(1)));
 
         // Set some default priority for each interrupt. This is not really used
         // at this point.
         for priority in self.registers.priority.iter() {
-            priority.write(PRIORITY::PRIORITY.val(3));
+            self.intc_write_fence(|| priority.write(PRIORITY::PRIORITY.val(3)));
         }
 
-        // Accept all interrupts.
-        self.registers.thresh.write(THRESH::THRESH.val(1));
+        self.intc_write_fence(|| self.registers.enable.set(0xFFFF_FFFF));
     }
 
-    /// Disable interrupt.
-    pub fn disable(&self, irq: u32) {
-        let mask = !(1 << irq);
-        let value = self.registers.enable.get() & mask;
-        self.registers.enable.set(value);
-    }
-
-    /// Disable all interrupts.
-    pub fn disable_all(&self) {
-        self.registers.enable.set(0x00);
+    /// Clear the "pending" flag of a particular interrupt.
+    ///
+    /// This should be called before an interrupt is handled in software, to
+    /// catch any new interrupts raised while handling it.
+    pub fn clear_interrupt(&self, irq: u32) {
+        // To clear a pending interrupt, the reference manual requires us to
+        // first set the respective bit in the `CLEAR` register, and then clear
+        // that bit again.
+        self.intc_write_fence(|| {
+            self.registers
+                .clear
+                .set(1_u32.checked_shl(irq).unwrap_or(0))
+        });
+        self.intc_write_fence(|| self.registers.clear.set(0));
     }
 
     /// Get the index (0-256) of the lowest number pending interrupt, or `None` if
-    /// none is pending. RISC-V Intc has a "claim" register which makes it easy
-    /// to grab the highest priority pending interrupt.
+    /// none is pending.
+    ///
+    /// RISC-V Intc has a "claim" register which makes it easy to grab the
+    /// highest priority pending interrupt.
     pub fn next_pending(&self) -> Option<u32> {
+        // The interrupt controller may require up to 4 cycles to settle after
+        // clearing an interrupt:
+        for _ in 0..4 {
+            rv32i::support::nop();
+        }
+
         let eip = self.registers.eip.get();
         if eip == 0 {
             None
@@ -129,39 +140,32 @@ impl Intc {
         }
     }
 
-    /// Save the current interrupt to be handled later
-    /// This will save the interrupt at index internally to be handled later.
-    /// Interrupts must be disabled before this is called.
-    /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
-    /// Saved interrupts are cleared when `'complete()` is called.
-    pub unsafe fn save_interrupt(&self, irq: u32) {
-        // OR the current saved state with the new value
-        let new_saved = self.saved.get().get() | 1 << irq;
+    // Run the provided closure, and then emit a `fence` instruction.
+    //
+    // The ESP32-C3's reference manual wants all writes to the interrupt
+    // controller to be followed by a `fence` instruction, and to happen with
+    // `mstatus::MIE` cleared.
+    //
+    // We don't want to do the latter within the Intc driver here, because most
+    // often it'd be used in a sequence of atomic operations that have
+    // `mstatus::MIE` cleared either way. However, given that a `fence` should
+    // happen after _every_ write, we use a helper for that here.
+    fn intc_write_fence<R>(&self, fun: impl FnOnce() -> R) -> R {
+        let res = fun();
 
-        // Set the new state
-        self.saved.set(LocalRegisterCopy::new(new_saved));
-    }
-
-    /// The `next_pending()` function will only return enabled interrupts.
-    /// This function will return a pending interrupt that has been disabled by
-    /// `save_interrupt()`.
-    pub fn get_saved_interrupts(&self) -> Option<u32> {
-        let saved = self.saved.get().get();
-        if saved != 0 {
-            return Some(saved.trailing_zeros());
+        // The ESP32-C3 reference manual advises us to run a `fence` instruction
+        // post any writes to the interrupt controller (while `MIE` is
+        // disabled).
+        //
+        // SAFETY: the fence simply orders memory and I/O accesses, which forces
+        // the APB writes to the interrupt controller to complete before setting
+        // `MIE`. We don't mark it as `nomem` or `pure` to make sure it's not
+        // being re-ordered and guaranteed to be emitted before any other `intc`
+        // MMIO write or a CSR setting `mstatus::MIE`.
+        unsafe {
+            core::arch::asm!("fence");
         }
 
-        None
-    }
-
-    /// Signal that an interrupt is finished being handled. In Tock, this should be
-    /// called from the normal main loop (not the interrupt handler).
-    /// Interrupts must be disabled before this is called.
-    pub unsafe fn complete(&self, irq: u32) {
-        // OR the current saved state with the new value
-        let new_saved = self.saved.get().get() & !(1 << irq);
-
-        // Set the new state
-        self.saved.set(LocalRegisterCopy::new(new_saved));
+        res
     }
 }
