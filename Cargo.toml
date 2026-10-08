@@ -287,6 +287,7 @@ cognitive_complexity = "allow"
 
 
 branches_sharing_code = "allow"
+empty_enums = "allow"
 
 
 use_self = "allow"
