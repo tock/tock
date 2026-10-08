@@ -97,11 +97,7 @@ impl PwrMgr {
     pub fn check_clock_propagation(&self) -> bool {
         let regs = self.registers;
 
-        if regs.cfg_cdc_sync.read(CFG_CDC_SYNC::SYNC) == 0 {
-            return true;
-        }
-
-        false
+        regs.cfg_cdc_sync.read(CFG_CDC_SYNC::SYNC) == 0
     }
 
     pub fn handle_interrupt(&self) {
