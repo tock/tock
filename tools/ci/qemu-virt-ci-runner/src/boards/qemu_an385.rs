@@ -10,7 +10,7 @@ pub static BOARD: super::Board = super::Board {
     name: "an385",
     board_dir: "../../../boards/qemu_arm_mps2/an385",
     tock_targets: "\
-        cortex-m4",
+        cortex-m3",
     tests: TESTS,
 };
 
