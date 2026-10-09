@@ -46,9 +46,9 @@ register_structs! {
         (0xDC => _reserved5),
         (0x14C => status_next: ReadWrite<u32>),
         (0x150 => _reserved6),
-        (0x154 => func_in_sel_cfg: [ReadWrite<u32>; 128]),
+        (0x154 => func_in_sel_cfg: [ReadWrite<u32, FUNC_IN_SEL::Register>; 128]),
         (0x354 => _reserved7),
-        (0x554 => func_out_sel_cfg: [ReadWrite<u32>; 26]),
+        (0x554 => func_out_sel_cfg: [ReadWrite<u32, FUNC_OUT_SEL::Register>; 26]),
         (0x5BC => _reserved8),
         (0x62C => clock_gate: ReadWrite<u32>),
         (0x630 => _reserved9),
@@ -118,6 +118,16 @@ register_bitfields![u32,
         PAD_DRIVER OFFSET(2) NUMBITS(1) [],
         SYNC2_BYPASS OFFSET(0) NUMBITS(2) [],
     ],
+    // Selects, per GPIO pin, which peripheral output signal (if any)
+    // drives that pin.
+    FUNC_OUT_SEL [
+        FUNC_SEL OFFSET(0) NUMBITS(8) [],
+    ],
+    // Selects, per peripheral input signal, which GPIO pin feeds it.
+    FUNC_IN_SEL [
+        FUNC_SEL OFFSET(0) NUMBITS(5) [],
+        SIG_IN_SEL OFFSET(6) NUMBITS(1) [],
+    ],
 ];
 
 register_bitfields![u32,
@@ -169,6 +179,35 @@ impl<'a> GpioPin<'a> {
         self.client.map(|client| {
             client.fired();
         });
+    }
+
+    /// Route this pin to a peripheral signal through the GPIO matrix, in both
+    /// directions (the peripheral drives it as output and reads it back as
+    /// input), and configure the pad as open-drain with an internal pull-up.
+    ///
+    /// This configures pins for peripheral use.
+    pub fn make_open_drain_peripheral_pin(&self, signal: u32) {
+        let shift = self.pin.shift;
+
+        // Use this pin's IO MUX "GPIO" function, the only one that routes
+        // through the GPIO matrix, and enable reading the level back
+        // (e.g. needed for I2C ACK/clock-stretch detection).
+        self.iomux_registers.gpio[shift].modify(
+            IO_MUX_GPIO::MCU_SEL::FUN_1 + IO_MUX_GPIO::FUN_IE::SET + IO_MUX_GPIO::MCU_IE::SET,
+        );
+
+        gpio::Configure::set_floating_state(self, gpio::FloatingState::PullUp);
+
+        // Make the pad open-drain. The peripheral's output signal still
+        // toggles as if push-pull; this pad setting is what turns "drive
+        // high" into "release/float" so the pull-up (and potentially
+        // another bus device) controls the line instead.
+        self.registers.pin[shift].modify(PIN::PAD_DRIVER::SET);
+
+        // Connect this pin to the peripheral signal in both directions.
+        self.registers.func_out_sel_cfg[shift].write(FUNC_OUT_SEL::FUNC_SEL.val(signal));
+        self.registers.func_in_sel_cfg[signal as usize]
+            .write(FUNC_IN_SEL::FUNC_SEL.val(shift as u32) + FUNC_IN_SEL::SIG_IN_SEL::SET);
     }
 }
 

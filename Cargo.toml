@@ -19,6 +19,7 @@ members = [
     "boards/arty_e21",
     "boards/opentitan/earlgrey-cw310",
     "boards/esp32-c3-devkitM-1",
+    "boards/esp32-c3-devkit-rust-2",
     "boards/cy8cproto_62_4343_w",
     "boards/clue_nrf52840",
     "boards/veer_el2_sim",

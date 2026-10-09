@@ -65,6 +65,7 @@ but the approximate definitions:
 
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
+| [ESP32-C3-DevKit-RUST-2](esp32-c3-devkit-rust-2/README.md)        | RISC-V-ish RV32I | ESP32-C3       | custom     | tockloader local-board      | No            |
 | [Nordic nRF52-DK](nordic/nrf52dk/README.md)                       | ARM Cortex-M4    | nRF52832       | jLink      | tockloader                  | No            |
 | [Nordic nRF52840-Dongle](nordic/nrf52840_dongle/README.md)        | ARM Cortex-M4    | nRF52840       | jLink      | tockloader                  | No            |
 | [Particle Boron](particle_boron/README.md)                        | ARM Cortex-M4    | nRF52840       | jLink      | tockloader                  | No            |
