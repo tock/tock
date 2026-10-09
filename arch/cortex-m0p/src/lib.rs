@@ -5,6 +5,8 @@
 //! Shared implementations for ARM Cortex-M0+ MCUs.
 
 #![no_std]
+#![deny(clippy::missing_safety_doc)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use core::fmt::Write;
 

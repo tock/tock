@@ -5,6 +5,8 @@
 //! Generic support for all Cortex-M platforms.
 
 #![no_std]
+#![deny(clippy::missing_safety_doc)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 /// ARMv7-M systick handler function.
 ///

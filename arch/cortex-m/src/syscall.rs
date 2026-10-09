@@ -344,16 +344,12 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         }
 
         let sp = state.psp as *mut u32;
-        // # Safety
-        //
-        // To offset the pointer there must be valid memory pointed to by `sp`.
+        // SAFETY: To offset the pointer there must be valid memory pointed to by `sp`.
         // We verified that there is space for four u32s on the stack before
         // hitting the `app_brk`.
         let (r0, r1, r2, r3) = unsafe { (sp.add(0), sp.add(1), sp.add(2), sp.add(3)) };
 
-        // # Safety
-        //
-        // These operations are only safe so long as
+        // SAFETY: These operations are only safe so long as
         // - the pointers are properly aligned. This is guaranteed because the
         //   pointers are all offset multiples of 4 bytes from the stack
         //   pointer, which is guaranteed to be properly aligned after
