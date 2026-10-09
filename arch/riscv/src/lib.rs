@@ -27,28 +27,6 @@ pub const XLEN: usize = 1 << XLEN_LOG2;
 /// This is `5` on RISCV-32 (`XLEN` = 32) and `6` on RISCV-64 (`XLEN` = 64).
 pub const XLEN_LOG2: usize = usize::BITS.trailing_zeros() as usize;
 
-extern "C" {
-    // Where the end of the stack region is (and hence where the stack should
-    // start), and the start of the stack region.
-    static _estack: usize;
-    static _sstack: usize;
-
-    // Boundaries of the .bss section.
-    static mut _szero: usize;
-    static mut _ezero: usize;
-
-    // Where the .data section is stored in flash.
-    static mut _etext: usize;
-
-    // Boundaries of the .data section.
-    static mut _srelocate: usize;
-    static mut _erelocate: usize;
-
-    // The global pointer, value set in the linker script
-    #[link_name = "__global_pointer$"]
-    static __global_pointer: usize;
-}
-
 /// Entry point of all programs
 ///
 /// This assembly does three functions:
@@ -59,13 +37,37 @@ extern "C" {
 ///    any Rust code runs. See <https://github.com/tock/tock/issues/2222> for more
 ///    information.
 /// 3. Finally it calls `main()`, the main entry point for Tock boards.
+///
+/// # Safety
+///
+/// ## `link_section`
+///
+/// `link_section` allows us to place data and code in arbitrary locations. We
+/// ensure that the .riscv.start is intended for this purpose and is valid for
+/// executable code.
+///
+/// ## `naked`
+///
+/// - INPUTS: This does not use any input registers.
+/// - OUTPUTS: This writes to four caller-saved registers: a0, a1, a2, and a3
+///   and no caller-saved registers.
+/// - This does not fall-through. It unconditionally jumps to main().
+///
+/// ## `no_mangle`
+///
+/// We use `initialize_ram_jump_to_main` as a symbol in the linker file. This is
+/// the only user of the name `initialize_ram_jump_to_main` and no other symbol
+/// may use the same name.
+///
+/// Note: this requires a global/uniqueness guarantee.
+/// See <https://github.com/tock/tock/issues/5250>.
 #[cfg(riscv_bare_metal)]
 // Only apply the `link_section` attribute when actually targeting bare-metal
 // RISC-V. Host builds (e.g. tests, clippy on macOS, Windows, Linux, ...) use
 // object formats (Mach-O, PE, ...) that reject a bare section name like
 // this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
-#[cfg_attr(riscv_bare_metal, link_section = ".riscv.start")]
+#[cfg_attr(riscv_bare_metal, unsafe(link_section = ".riscv.start"))]
 #[unsafe(naked)]
 // We don't want the function name symbol to be mangled in order to be able to refer to
 // it the linker script. It is not currently being used in the provided linker script
@@ -74,6 +76,35 @@ extern "C" {
 // (i.e. ENTRY(_start), or verify the placement via asserts or perform memory layout calculations).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
+    // These constants are defined in the linker script.
+    //
+    // SAFETY: Linker script symbols are value-less entities, a concept that
+    // does not map onto any actual Rust type (as of July 2026).  This method
+    // only uses these declarations to pass their address to the assembly. By
+    // declaring these variables within this naked fn, we ensure that no Rust
+    // code attempts to access them, and assert that the assembly will take only
+    // the address, which is well-defined.
+    unsafe extern "C" {
+        // Where the end of the stack region is (and hence where the stack should
+        // start).
+        static _estack: usize;
+
+        // Boundaries of the .bss section.
+        static mut _szero: usize;
+        static mut _ezero: usize;
+
+        // Where the .data section is stored in flash.
+        static mut _etext: usize;
+
+        // Boundaries of the .data section.
+        static mut _srelocate: usize;
+        static mut _erelocate: usize;
+
+        // The global pointer, value set in the linker script
+        #[link_name = "__global_pointer$"]
+        static __global_pointer: usize;
+    }
+
     use core::arch::naked_asm;
     naked_asm!(
         "
@@ -291,21 +322,58 @@ pub unsafe fn configure_trap_handler() {
 /// invoked, it may, for instance, choose to ignore a certain trap, access
 /// global state (subject to synchronization), etc. It must still abide to
 /// the contract as stated above.
+
+/// # Safety
+///
+/// ## `export_name`
+///
+/// `export_name` allows us to choose a custom name for this symbol which could
+/// collide with another symbol with the same name. We use `_start_trap` as a
+/// symbol in the linker file to ensure alignment. This is the only use of the
+/// name `_start_trap` and no other symbol may use the same name.
+///
+/// Note: this requires a global/uniqueness guarantee.
+/// See <https://github.com/tock/tock/issues/5250>.
+///
+/// ## `naked`
+///
+/// - INPUTS: This does not assume anything about the contents of any registers.
+///   It reads all registers to store their values.
+/// - OUTPUTS: This writes two callee-saved registers, s0 and s1. s0 is saved to
+///   mscratch and restored. s1 is only written if a custom trap handler is in
+///   use, and the custom trap handler must restore s1.
+/// - This does not fall-through. If there is no custom trap handler it calls
+///   `mret`. If there is a custom trap handler, it jumps to that handler.
 #[cfg(riscv_bare_metal)]
 // Only apply the `link_section` attribute when actually targeting bare-metal
 // RISC-V. Host builds (e.g. tests, clippy on macOS, Windows, Linux, ...) use
 // object formats (Mach-O, PE, ...) that reject a bare section name like
 // this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
-#[cfg_attr(riscv_bare_metal, link_section = ".riscv.trap")]
+#[cfg_attr(riscv_bare_metal, unsafe(link_section = ".riscv.trap"))]
 // We need the `_start_trap` function to be 256 byte aligned. The linker script
 // includes a check for whether a symbol named `_start_trap` exists. If it does,
 // it makes sure to align the `.riscv.trap` section on a 256 byte
 // boundary. Thus, ensure that this function is exported under this stable
 // symbol name.
-#[export_name = "_start_trap"]
+#[unsafe(export_name = "_start_trap")]
 #[unsafe(naked)]
 pub extern "C" fn _start_trap() -> ! {
+    // These constants are defined in the linker script.
+    //
+    // SAFETY: Linker script symbols are value-less entities, a concept that
+    // does not map onto any actual Rust type (as of July 2026).  This method
+    // only uses these declarations to pass their address to the assembly. By
+    // declaring these variables within this naked fn, we ensure that no Rust
+    // code attempts to access them, and assert that the assembly will take only
+    // the address, which is well-defined.
+    unsafe extern "C" {
+        // Where the end of the stack region is (and hence where the stack should
+        // start), and the start of the stack region.
+        static _estack: usize;
+        static _sstack: usize;
+    }
+
     use core::arch::naked_asm;
     naked_asm!(
         xlen_macros!(),
@@ -470,8 +538,27 @@ pub extern "C" fn _start_trap() -> ! {
 pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
     use core::arch::asm;
     let res;
-    asm!(
-        "
+
+    // SAFETY: This complies with the asm safety requirements:
+    // - INPUTS:
+    //   - This uses `a0`, which is specified as an input from `command`.
+    //   - This uses `a1`, which is specified as an input from `arg0`.
+    //   - This uses `a2`, which is specified as an input from `arg1`.
+    // - OUTPUTS:
+    //   - This writes `a0` which is specified as an output to `res`.
+    // - Options set:
+    // - Options not set:
+    //   - nomem: The debugger could read and write memory?
+    //   - nostack: The debugger could use the stack?
+    //   - preserves_flags: no meaning on RISC-V
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on riscv
+    //   - raw: not required
+    unsafe {
+        asm!(
+            "
     .balign 16                    // ensure 16 byte alignment
     .option push                  // enable the following options:
     .option norelax               // - norelax: do not replace these instructions
@@ -480,12 +567,13 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
     ebreak                        // trap to debugger
     srai x0, x0, 7                // useless instruction (writes to x0), but serves as second sentinel
     .option pop
-        ",
-        in("a0") command,         // a0 holds command (and return code)
-        in("a1") arg0,            // a1 holds first argument
-        in("a2") arg1,            // a2 holds second argument
-        lateout("a0") res,        // semihosting replaces a0 with return code
-    );
+            ",
+            in("a0") command,         // a0 holds command (and return code)
+            in("a1") arg0,            // a1 holds first argument
+            in("a2") arg1,            // a2 holds second argument
+            lateout("a0") res,        // semihosting replaces a0 with return code
+        );
+    }
     res
 }
 

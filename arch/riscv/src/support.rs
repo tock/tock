@@ -11,8 +11,23 @@ use crate::csr::{CSR, mstatus::mstatus};
 /// NOP instruction
 pub fn nop() {
     use core::arch::asm;
+
+    // SAFETY: This complies with the asm safety requirements:
+    // - INPUTS: This does not use the existing value of any registers.
+    // - OUTPUTS: This does not write any registers.
+    // - Options set:
+    //   - nomem: We do not read or write memory.
+    //   - nostack: This does not use the stack.
+    //   - preserves_flags: This does not change flags.
+    // - Options not set:
+    //   - preserves_flags: no meaning on RISC-V
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on riscv
+    //   - raw: not required
     unsafe {
-        asm!("nop", options(nomem, nostack, preserves_flags));
+        asm!("nop", options(nomem, nostack));
     }
 }
 
@@ -21,7 +36,23 @@ pub fn nop() {
 /// Wait For Interrupt (WFI) instruction.
 pub unsafe fn wfi() {
     use core::arch::asm;
-    asm!("wfi", options(nomem, nostack));
+
+    // SAFETY: This complies with the asm safety requirements:
+    // - INPUTS: This does not use the existing value of any registers.
+    // - OUTPUTS: This does not write any registers.
+    // - Options set:
+    //   - nomem: We do not read or write memory.
+    //   - nostack: This does not use the stack.
+    // - Options not set:
+    //   - preserves_flags: no meaning on RISC-V
+    //   - pure: not required
+    //   - readonly: implied by nomem
+    //   - noreturn: we do fall-through
+    //   - att_syntax: not on riscv
+    //   - raw: not required
+    unsafe {
+        asm!("wfi", options(nomem, nostack));
+    }
 }
 
 /// Single-core critical section operation
