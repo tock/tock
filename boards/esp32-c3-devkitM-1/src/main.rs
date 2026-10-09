@@ -184,6 +184,10 @@ unsafe fn setup() -> (
         .sysreg
         .use_pll_clock_source(PllFrequency::MHz320, CpuFrequency::MHz160);
 
+    // The mask ROM leaves flash in single-bit mode at 20 MHz. Switch flash
+    // reads to a faster mode (DIO or QIO at 80MHz).
+    esp32_c3::flash::configure();
+
     // initialise capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -399,6 +403,7 @@ unsafe fn setup() -> (
     // enable interrupts globally
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
+    esp32_c3::flash::print_active_flash_mode();
     debug!("ESP32-C3 initialisation complete.");
     debug!("Entering main loop.");
 

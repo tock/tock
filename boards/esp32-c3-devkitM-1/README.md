@@ -52,26 +52,55 @@ You can use the `RST` button on the board to reset Tock. You should see
 something similar to:
 
 ```text
-ESP-ROM:esp32c3-20200918
-Build:Sep 18 2020
+ESP-ROM:esp32c3-eco7-20230720
+Build:Jul 20 2023
 rst:0x1 (POWERON),boot:0xc (SPI_FAST_FLASH_BOOT)
-SPIWP:0xee
-mode:DIO, clock div:1
-load:0x40380000,len:0xd15c
-load:0x4038d15c,len:0xccc
-load:0x00000000,len:0x21a0
-load:0x42000000,len:0x24
-SHA-256 comparison failed:
-Calculated: 63cf02fff6c0e3f60d140721bbd74adf0072c368b3bfafb6d4195511a55ba8c9
-Expected: f4494a64f93940e1bb4d0edce76f041e6a411337097c697b254b784af1e2bcd5
-Attempting to boot anyway...
-entry 0x40380000
+flash: QIO at 80 MHz
 ESP32-C3 initialisation complete.
 Entering main loop.
 ```
 
 ```shell
 screen /dev/ttyUSB0  115200
+```
+
+## Flash Mode
+
+The kernel runs from external SPI flash using XIP (execute in place). To speed
+up accesses to this flash, Tock re-configures the SPI bus to this chip on boot
+from 20 MHz to 80 MHz.
+
+Most ESP32-C3 modules further support Quad-I/O mode for the SPI flash, which
+reads 4 bits per clock-cycle, and allows for even faster flash accesses.
+However, this depends on the WP# and HOLD# pins being connected properly, and
+the SPI flash supporting this mode. For such modules, Quad-I/O must be enabled
+by setting the QE bit in the flash status register in the SPI flash.
+
+To enable Quad-I/O mode, first inspect the current flash status register
+contents. You'll want to modify those in the next step:
+
+```shell
+esptool.py --chip esp32c3 read_flash_status --bytes 2
+```
+
+You'll need to take the returned value for the next step. Bit 9 is the QE bit,
+and governs whether Tock will attempt to use the SPI flash chip in DIO or QIO
+mode. For example, this may print 0x0000 for !QE (DIO-mode) or 0x0200 for QE
+(QIO-mode). Be sure to keep any bits other than bit 9 identical.
+
+Then enable QIO mode by writing the value that you read with bit 9 set. For
+example, if the above returned `0x0000`, you can write `0x0200`. Make sure that
+you leave other bits untouched.
+
+```shell
+esptool.py --chip esp32c3 write_flash_status --non-volatile --bytes 2 <$VAL | (1 << 9)>
+```
+
+You can disable QIO mode by clearing bit 9. For example, if you previously wrote
+`0x0200`, you can switch back to DIO by writing `0x0000`.
+
+```shell
+esptool.py --chip esp32c3 write_flash_status --non-volatile --bytes 2 <$VAL & ~(1 << 9)>
 ```
 
 ## Building and Flashing Applications
