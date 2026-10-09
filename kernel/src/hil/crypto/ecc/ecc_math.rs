@@ -2,7 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2026
 
-//! Interface for Math Operations with long numbers modulo some other number
+//! Interface for Math Operations on Elliptic Curves
+
+//! # Data format
+//!
+//! All integers (scalars, coordinates, moduli, operands and results) are
+//! big-endian byte strings: the most significant byte is at index 0.
+//! The same convention applies to data the driver reads from the client and
+//! data it writes back.
+//!
+//! Field elements and scalars are fixed-width: exactly `P_SIZE` bytes,
+//! left-padded with zeros. Leading zero bytes must not be stripped.
+//!
+//! Elliptic curve points are exchanged in uncompressed form as a single buffer
+//! of `2 * P_SIZE` bytes, `x || y`: the x coordinate in the first `P_SIZE`
+//! bytes, followed by the y coordinate.
 
 use crate::{ErrorCode, hil::crypto::ecc::ecc_constants::Curve};
 
