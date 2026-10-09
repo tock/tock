@@ -110,3 +110,8 @@ jobs:
       - name: Run qemu-virt CI tests (rv32)
         shell: bash
         run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board qemu_rv32_virt --libtock-c ../../../libtock-c"
+
+      - name: Run an386 AppLoader QEMU CI tests
+        shell: bash
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board an386_appload --libtock-c ../../../libtock-c"
+
