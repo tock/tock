@@ -20,8 +20,8 @@
 - Brad: Aren't we going to end up with commits that are on 2.3 but not on 2.3
   because of the delay?
 - Pat: Because of the version number change?
-- Leon: Version bunch is on release-2.3 branch. Nothing we merge now goes to
-  that branch.
+- Leon: Version bump is on release-2.3 branch. Nothing we merge now goes to that
+  branch.
 - Brad: I guess that was always a problem that we'd have commits on 2.3 but not
   release-2.3.
 - Leon: Master is on 2.4-dev now.
@@ -171,7 +171,8 @@
 - Branden: Oh, it might need rebase. It's failing CI due to the EPSILON thing. I
   think if I click merge it'll work.
 - Pat: Yes.
-- Leon: Yes, unless GitHub prevents you from clicking merge on it.
+- Leon: Yes, unless GitHub prevents you from clicking merge on it. But it might
+  require status checks to pass before it enqueues.
 - Pat: *reads docs* I don't think it'll do it, I think you have to rebase it.
 - Brad: Okay, I can do that.
 
