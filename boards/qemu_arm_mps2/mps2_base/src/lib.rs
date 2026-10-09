@@ -35,6 +35,9 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
 
+mod qemu_systick;
+use qemu_systick::QemuMps2SysTick;
+
 pub const NUM_PROCS: usize = 4;
 
 pub type ChipHw<C> = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
@@ -48,7 +51,7 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
     scheduler: &'static SchedulerInUse,
-    systick: cortexm::systick::SysTick,
+    systick: QemuMps2SysTick,
     led: &'static capsules_core::led::LedDriver<
         'static,
         qemu_arm_mps2::led::Led<'static>,
@@ -91,7 +94,7 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = SchedulerInUse;
-    type SchedulerTimer = cortexm::systick::SysTick;
+    type SchedulerTimer = QemuMps2SysTick;
     type WatchDog = qemu_arm_mps2::watchdog::Watchdog;
     type ContextSwitchCallback = ();
 
@@ -271,7 +274,10 @@ where
         Platform {
             console,
             scheduler,
-            systick: cortexm::systick::SysTick::new_with_calibration(qemu_arm_mps2::SYSCLK_FRQ),
+            systick: QemuMps2SysTick::new(
+                cortexm::systick::SysTick::new_with_calibration(qemu_arm_mps2::SYSCLK_FRQ),
+                qemu_arm_mps2::SYSCLK_FRQ,
+            ),
             led,
             alarm,
             spi,
