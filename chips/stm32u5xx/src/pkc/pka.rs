@@ -538,10 +538,6 @@ impl<'a> ModularArithmetic<'a, SupportedOp> for Pka<'a> {
         self.deferred_call.set();
         Ok(())
     }
-
-    fn clear_data(&self) {
-        self.clear_ram();
-    }
 }
 
 impl DeferredCallClient for Pka<'_> {
