@@ -1697,7 +1697,11 @@ pub mod simple {
             }
 
             // A wrong GRANULARITY is otherwise silent. Every entry is OFF here.
-            if super::measure_pmpaddr_granularity(0) != Some(GRANULARITY) {
+            //
+            // SAFETY: We must ensure the region's pmpcfg.A is NOT `NAPOT`. Because
+            // no entries are used we know this is OK.
+            let granularity = unsafe { super::measure_pmpaddr_granularity(0) };
+            if granularity != Some(GRANULARITY) {
                 return Err(());
             }
 
