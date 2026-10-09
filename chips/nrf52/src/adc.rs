@@ -12,76 +12,84 @@ use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
-#[repr(C)]
-pub struct AdcRegisters {
-    /// Start the ADC and prepare the result buffer in RAM
-    tasks_start: WriteOnly<u32, TASK::Register>,
-    /// Take one ADC sample, if scan is enabled all channels are sampled
-    tasks_sample: WriteOnly<u32, TASK::Register>,
-    /// Stop the ADC and terminate any on-going conversion
-    tasks_stop: WriteOnly<u32, TASK::Register>,
-    /// Starts offset auto-calibration
-    tasks_calibrateoffset: WriteOnly<u32, TASK::Register>,
-    _reserved0: [u8; 240],
-    /// The ADC has started
-    events_started: ReadWrite<u32, EVENT::Register>,
-    /// The ADC has filled up the Result buffer
-    events_end: ReadWrite<u32, EVENT::Register>,
-    /// A conversion task has been completed. Depending on the mode, multiple conversion
-    events_done: ReadWrite<u32, EVENT::Register>,
-    /// A result is ready to get transferred to RAM
-    events_resultdone: ReadWrite<u32, EVENT::Register>,
-    /// Calibration is complete
-    events_calibratedone: ReadWrite<u32, EVENT::Register>,
-    /// The ADC has stopped
-    events_stopped: ReadWrite<u32, EVENT::Register>,
-    /// Last result is equal or above `CH[X].LIMIT`
-    events_ch: [AdcEventChRegisters; 8],
-    _reserved1: [u8; 424],
-    /// Enable or disable interrupt
-    inten: ReadWrite<u32, INTEN::Register>,
-    /// Enable interrupt
-    intenset: ReadWrite<u32, INTEN::Register>,
-    /// Disable interrupt
-    intenclr: ReadWrite<u32, INTEN::Register>,
-    _reserved2: [u8; 244],
-    /// Status
-    status: ReadOnly<u32>,
-    _reserved3: [u8; 252],
-    /// Enable or disable ADC
-    enable: ReadWrite<u32, ENABLE::Register>,
-    _reserved4: [u8; 12],
-    ch: [AdcChRegisters; 8],
-    _reserved5: [u8; 96],
-    /// Resolution configuration
-    resolution: ReadWrite<u32, RESOLUTION::Register>,
-    /// Oversampling configuration. OVERSAMPLE should not be combined with SCAN. The RES
-    oversample: ReadWrite<u32>,
-    /// Controls normal or continuous sample rate
-    samplerate: ReadWrite<u32, SAMPLERATE::Register>,
-    _reserved6: [u8; 48],
-    /// Pointer to store samples to
-    result_ptr: ReadWrite<u32>,
-    /// Number of 16 bit samples to save in RAM
-    result_maxcnt: ReadWrite<u32, RESULT_MAXCNT::Register>,
-    /// Number of 16 bit samples recorded to RAM
-    result_amount: ReadWrite<u32, RESULT_AMOUNT::Register>,
+register_structs! {
+    pub AdcRegisters {
+        /// Start the ADC and prepare the result buffer in RAM
+        (0x000 => tasks_start: WriteOnly<u32, TASK::Register>),
+        /// Take one ADC sample, if scan is enabled all channels are sampled
+        (0x004 => tasks_sample: WriteOnly<u32, TASK::Register>),
+        /// Stop the ADC and terminate any on-going conversion
+        (0x008 => tasks_stop: WriteOnly<u32, TASK::Register>),
+        /// Starts offset auto-calibration
+        (0x00C => tasks_calibrateoffset: WriteOnly<u32, TASK::Register>),
+        (0x010 => _reserved0),
+        /// The ADC has started
+        (0x100 => events_started: ReadWrite<u32, EVENT::Register>),
+        /// The ADC has filled up the Result buffer
+        (0x104 => events_end: ReadWrite<u32, EVENT::Register>),
+        /// A conversion task has been completed. Depending on the mode, multiple conversion
+        (0x108 => events_done: ReadWrite<u32, EVENT::Register>),
+        /// A result is ready to get transferred to RAM
+        (0x10C => events_resultdone: ReadWrite<u32, EVENT::Register>),
+        /// Calibration is complete
+        (0x110 => events_calibratedone: ReadWrite<u32, EVENT::Register>),
+        /// The ADC has stopped
+        (0x114 => events_stopped: ReadWrite<u32, EVENT::Register>),
+        /// Last result is equal or above `CH[X].LIMIT`
+        (0x118 => events_ch: [AdcEventChRegisters; 8]),
+        (0x158 => _reserved1),
+        /// Enable or disable interrupt
+        (0x300 => inten: ReadWrite<u32, INTEN::Register>),
+        /// Enable interrupt
+        (0x304 => intenset: ReadWrite<u32, INTEN::Register>),
+        /// Disable interrupt
+        (0x308 => intenclr: ReadWrite<u32, INTEN::Register>),
+        (0x30C => _reserved2),
+        /// Status
+        (0x400 => status: ReadOnly<u32>),
+        (0x404 => _reserved3),
+        /// Enable or disable ADC
+        (0x500 => enable: ReadWrite<u32, ENABLE::Register>),
+        (0x504 => _reserved4),
+        (0x510 => ch: [AdcChRegisters; 8]),
+        (0x590 => _reserved5),
+        /// Resolution configuration
+        (0x5F0 => resolution: ReadWrite<u32, RESOLUTION::Register>),
+        /// Oversampling configuration. OVERSAMPLE should not be combined with SCAN. The RES
+        (0x5F4 => oversample: ReadWrite<u32>),
+        /// Controls normal or continuous sample rate
+        (0x5F8 => samplerate: ReadWrite<u32, SAMPLERATE::Register>),
+        (0x5FC => _reserved6),
+        /// Pointer to store samples to
+        (0x62C => result_ptr: ReadWrite<u32>),
+        /// Number of 16 bit samples to save in RAM
+        (0x630 => result_maxcnt: ReadWrite<u32, RESULT_MAXCNT::Register>),
+        /// Number of 16 bit samples recorded to RAM
+        (0x634 => result_amount: ReadWrite<u32, RESULT_AMOUNT::Register>),
+        (0x638 => @END),
+    }
 }
 
-#[repr(C)]
-struct AdcEventChRegisters {
-    limith: ReadWrite<u32, EVENT::Register>,
-    limitl: ReadWrite<u32, EVENT::Register>,
+register_structs! {
+    AdcEventChRegisters {
+        (0x0 => limith: ReadWrite<u32, EVENT::Register>),
+        (0x4 => limitl: ReadWrite<u32, EVENT::Register>),
+        (0x8 => @END),
+    }
 }
 
-#[repr(C)]
-struct AdcChRegisters {
-    pselp: ReadWrite<u32, PSEL::Register>,
-    pseln: ReadWrite<u32, PSEL::Register>,
-    config: ReadWrite<u32, CONFIG::Register>,
-    limit: ReadWrite<u32, LIMIT::Register>,
+register_structs! {
+    AdcChRegisters {
+        (0x0 => pselp: ReadWrite<u32, PSEL::Register>),
+        (0x4 => pseln: ReadWrite<u32, PSEL::Register>),
+        (0x8 => config: ReadWrite<u32, CONFIG::Register>),
+        (0xC => limit: ReadWrite<u32, LIMIT::Register>),
+        (0x10 => @END),
+    }
 }
 
 register_bitfields![u32,
