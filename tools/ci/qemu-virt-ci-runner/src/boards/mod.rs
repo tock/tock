@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2026.
 
+pub mod earlgrey_cw310;
 pub mod hifive1;
 pub mod qemu_an385;
 pub mod qemu_an386;
@@ -26,4 +27,5 @@ pub static BOARDS: &[&Board] = &[
     &hifive1::BOARD,
     &qemu_an385::BOARD,
     &qemu_an386::BOARD,
+    &earlgrey_cw310::BOARD,
 ];

@@ -105,3 +105,7 @@ jobs:
       - name: Run an386 QEMU CI tests
         shell: bash
         run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board an386 --libtock-c ../../../libtock-c"
+
+      - name: Run earlgrey_cw310 QEMU CI tests
+        shell: bash
+        run: make ci-job-qemu-virt QEMU_VIRT_ARGS="--board earlgrey_cw310 --libtock-c ../../../libtock-c"
