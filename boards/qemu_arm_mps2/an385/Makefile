@@ -30,13 +30,15 @@ QEMU_BASE_CMDLINE := \
 
 # Run the kernel inside a qemu-system-arm "mps2-an385" machine simulation.
 .PHONY: run
-run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	@echo
 	@echo -e "Running $$($(QEMU_CMD) --version | head -n1) with\n"\
-	  " - kernel $<"
+	  " - kernel $<\n"\
+	  " - apps $(LOCAL_BOARD_BIN)"
 	@echo "To exit type C-a x"
 	@echo
-	$(QEMU_BASE_CMDLINE) -kernel $<
+	$(QEMU_BASE_CMDLINE) -kernel $< \
+	  -device loader,file=$(LOCAL_BOARD_BIN),addr=$(APP_ADDRESS)
 
 .PHONY: qemu
 qemu: run
@@ -53,21 +55,3 @@ init:
 	  --arch $(TOCKLOADER_ARCH) \
 	  --flash-address $(APP_ADDRESS) \
 	  --app-address $(APP_ADDRESS)
-
-# Same as `run`, but also loads whatever apps `tockloader install` has put in
-# the apps image. Run `make init` once first; see README.md.
-#
-# Uses the `.bin` kernel image (with the placeholder `.apps` section stripped
-# by the standard $(OBJCOPY_FLAGS)) rather than the `.elf`: QEMU refuses to
-# load two overlapping ROM blobs, and the kernel `.elf`'s own 4-byte `.apps`
-# placeholder otherwise collides with the apps image at $(APP_ADDRESS).
-.PHONY: run-app
-run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
-	@echo
-	@echo -e "Running $$($(QEMU_CMD) --version | head -n1) with\n"\
-	  " - kernel $<\n"\
-	  " - apps $(LOCAL_BOARD_BIN)"
-	@echo "To exit type C-a x"
-	@echo
-	$(QEMU_BASE_CMDLINE) -kernel $< \
-	  -device loader,file=$(LOCAL_BOARD_BIN),addr=$(APP_ADDRESS)
