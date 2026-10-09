@@ -104,8 +104,13 @@ impl TestLauncher {
     }
 }
 impl CapsuleTestClient for TestLauncher {
-    fn done(&'static self, _result: Result<(), CapsuleTestError>) {
-        self.next();
+    fn done(&'static self, result: Result<(), CapsuleTestError>) {
+        if result.is_ok() {
+            self.next();
+        } else {
+            kernel::debug!("ERROR: test {} FAILED!", self.test_index.get());
+            kernel::debug!("Aborting running tests");
+        }
     }
 }
 
