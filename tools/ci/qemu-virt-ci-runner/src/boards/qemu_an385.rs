@@ -21,7 +21,7 @@ static TESTS: &[TestCase] = &[
         apps: &[],
         steps: &[TestStep::WaitSerialInOrder {
             needles: &[
-                "QEMU MPS2 AN385 (Cortex-M4) initialization complete.",
+                "QEMU MPS2 AN385 (Cortex-M3) initialization complete.",
                 "Entering main loop.",
             ],
             timeout: Duration::from_secs(10),
