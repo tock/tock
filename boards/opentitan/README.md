@@ -261,84 +261,32 @@ The OpenTitan application can be run in the QEMU emulation platform for
 RISC-V, allowing quick and easy testing. This is also a good option for
 those who can't afford the FPGA development board.
 
-Unfortunately you need QEMU 7.2, which at the time of writing is unlikely
-to be available in your distro. Luckily Tock can build QEMU for you. From
-the top level of the Tock source just run `make ci-setup-qemu` and
-follow the steps.
+You need a `qemu-system-riscv32` with OpenTitan support (QEMU 7.2 or newer).
 
-QEMU can be started with Tock using the `qemu` make target:
+QEMU can be started with Tock using the `run` make target:
 
 ```shell
-make qemu
+make run
 ```
 
-QEMU can be started with Tock and a userspace app with the `qemu-app` make
-target:
+Apps live in the "prog" flash region at 0x20030000, in an image `tockloader`
+manages as a *local board*. QEMU loads the kernel and that image as two
+separate blobs, so `tockloader` never has to know about the kernel.
+
+`tockloader` tracks exactly one local board at a time for your whole user
+account -- the setting lives in its user data directory, not in this tree --
+so `make init` replaces whatever was registered before. Run it in this
+directory whenever you switch boards:
 
 ```shell
-make APP=/path/to/app.tbf qemu-app
+make init
 ```
 
-The TBF must be compiled for the OpenTitan board. For example, you can build
-the Hello World example app from the libtock-rs repository by running:
+Then install an app and run:
 
 ```shell
-cd "$libtock_rs_dir"
-make opentitan EXAMPLE=console
-cd "${tock_dir}/boards/opentitan/earlgrey-cw310"
-make APP=$"{libtock_rs_dir}/target/tbf/opentitan/console.tbf" qemu-app
-```
-
-QEMU GDB Debugging [**earlgrey-cw310**]
-------------------
-
-GDB can be used for debugging with QEMU. This can be useful when debugging a particular application/kernel. 
-
-Start by installing the respective version of gdb.
-
-**Arch**:
-
-```shell
-sudo pacman -S riscv32-elf-gdb
-```
-**Ubuntu**:
-```shell
-sudo apt-get install gdb-multiarch
-```
-
-In the board directory, QEMU can be started in a suspended state with gdb ready to be connected. 
-
-```shell
-make qemu-gdb
-```
-
-or with an app ready to be loaded.
-
-```shell
-make APP=/path/to/app.tbf qemu-app-gdb
-```
-
-In a separate shell, start gdb
-
-**Arch**
-
-```console
-$ riscv32-elf-gdb [/path/to/tock.elf]
-> target remote:1234            #1234 is the specified default port
-```
-
-**Ubuntu**
-
-```console
-$ gdb-multiarch [/path/to/tock.elf]
-> set arch riscv
-> target remote:1234            #1234 is the specified default port
-```
-
-Once attached, standard gdb functionality is available. Additional debug symbols can be added with.
-```console
-add-symbol-file <tock.elf>
-add-symbol-file <app.elf>
+tockloader install /path/to/app.tab
+make run
 ```
 
 Unit tests
