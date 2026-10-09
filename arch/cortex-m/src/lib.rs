@@ -5,6 +5,8 @@
 //! Generic support for all Cortex-M platforms.
 
 #![no_std]
+#![deny(clippy::missing_safety_doc)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use core::fmt::Write;
 
@@ -94,6 +96,11 @@ pub trait CortexMVariant {
     /// Assembly function called from `UserspaceKernelBoundary` to switch to an
     /// an application. This handles storing and restoring application state
     /// before and after the switch.
+    ///
+    /// # Safety
+    ///
+    /// This context switches to an application. The MPU must be correctly
+    /// configured before running this.
     unsafe fn switch_to_user(
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
@@ -102,9 +109,19 @@ pub trait CortexMVariant {
     /// Format and display architecture-specific state useful for debugging.
     ///
     /// This is generally used after a `panic!()` to aid debugging.
-    unsafe fn print_cortexm_state(writer: &mut dyn Write);
+    fn print_cortexm_state(writer: &mut dyn Write);
 }
 
+/// Query the interrupt number and panic. Used as a placeholder for ignored
+/// interrupts.
+///
+/// # Panics
+///
+/// Unconditionally panics.
+///
+/// # Safety
+///
+/// Accesses no memory and unconditionally panics.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     use core::arch::asm;
@@ -417,11 +434,17 @@ pub fn print_cortexm_state(writer: &mut dyn Write) {
 // ARM assembly since it will not compile.
 ///////////////////////////////////////////////////////////////////
 
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     unimplemented!()
 }
 
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     unimplemented!()

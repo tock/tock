@@ -119,6 +119,9 @@ register_bitfields![u32,
 ];
 
 /// The NVIC peripheral in MMIO space.
+///
+/// SAFETY: The NVIC registers are at this address per the ARM architecture
+/// documentation.
 const NVIC: StaticRef<NvicRegisters> =
     unsafe { StaticRef::new(0xe000e000 as *const NvicRegisters) };
 

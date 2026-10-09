@@ -271,6 +271,8 @@ register_bitfields![u32,
     ]
 ];
 
+/// SAFETY: The SCB registers are at this address per the ARM architecture
+/// documentation.
 const SCB: StaticRef<ScbRegisters> = unsafe { StaticRef::new(0xE000ED00 as *const ScbRegisters) };
 
 /// Allow the core to go into deep sleep on WFI.
@@ -282,8 +284,7 @@ pub fn set_sleepdeep(_cap: &dyn capabilities::CpuControlCapability) {
 
     SCB.scr.modify(SystemControl::SLEEPDEEP::SET);
 
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS: This does not use the existing value of any registers.
     // - OUTPUTS: This does not write any registers.
     // - Options set:
@@ -334,6 +335,12 @@ pub fn reset(_cap: &dyn capabilities::CpuControlCapability) {
 }
 
 /// relocate interrupt vector table
+///
+/// # Safety
+///
+/// The vector table contains function pointers the MCU will jump to. Callers
+/// must ensure the provided pointer actually contains a valid vector table with
+/// the correct function pointers for the microcontroller.
 pub unsafe fn set_vector_table_offset(offset: *const ()) {
     SCB.vtor.set(offset as u32);
 }
@@ -345,8 +352,7 @@ pub unsafe fn disable_fpca() {
     SCB.cpacr
         .modify(CoprocessorAccessControl::CP10::CLEAR + CoprocessorAccessControl::CP11::CLEAR);
 
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS: This does not use the existing value of any registers.
     // - OUTPUTS: This does not write any registers.
     // - Options set:
@@ -376,7 +382,11 @@ pub unsafe fn disable_fpca() {
     }
 }
 
-// Mock implementation for tests on Travis-CI.
+/// Mock implementation for tests on Travis-CI.
+///
+/// # Safety
+///
+/// Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn disable_fpca() {
     // Dummy read register, to satisfy the `Readable` trait import on
