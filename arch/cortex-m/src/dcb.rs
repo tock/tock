@@ -93,6 +93,8 @@ register_bitfields![u32,
     ],
 ];
 
+/// SAFETY: The DCB registers are at this address per the ARM architecture
+/// documentation.
 const DCB: StaticRef<DcbRegisters> = unsafe { StaticRef::new(0xE000EDF0 as *const DcbRegisters) };
 
 /// Enable the Debug and Trace unit `DWT`.

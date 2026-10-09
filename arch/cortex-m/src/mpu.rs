@@ -168,8 +168,17 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
         }
     }
 
-    // Function useful for boards where the bootloader sets up some
-    // MPU configuration that conflicts with Tock's configuration:
+    /// Clear all MPU settings.
+    ///
+    /// Function useful for boards where the bootloader sets up some
+    /// MPU configuration that conflicts with Tock's configuration.
+    ///
+    /// # Safety
+    ///
+    /// This disables all expected protections by the MPU. The kernel relies on
+    /// the MPU to protect kernel memory while processes are running. This
+    /// function must not be called before running a process without correctly
+    /// re-configuring the MPU before switching to the process.
     pub unsafe fn clear_mpu(&self) {
         self.registers.ctrl.write(Control::ENABLE::CLEAR);
     }
@@ -392,7 +401,7 @@ impl CortexMRegion {
     }
 }
 
-// `MPU` is an unsafe trait, and with this implementation we guarantee
+// SAFETY: `MPU` is an unsafe trait, and with this implementation we guarantee
 // that we adhere to the semantics documented on that trait and its
 // associated types and methods.
 unsafe impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
