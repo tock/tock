@@ -62,6 +62,11 @@ const I2C_PULLUP_PIN: Pin = Pin::P1_00;
 /// Interrupt pin for the APDS9960 sensor.
 const APDS9960_PIN: Pin = Pin::P0_19;
 
+/// I2C address of the LSM9DS1 accelerometer/gyroscope.
+const LSM9DS1_ACCEL_GYRO_I2C_ADDRESS: u8 = 0x6b;
+/// I2C address of the LSM9DS1 magnetometer.
+const LSM9DS1_MAGNETOMETER_I2C_ADDRESS: u8 = 0x1e;
+
 // Constants related to the configuration of the 15.4 network stack
 /// Personal Area Network ID for the IEEE 802.15.4 radio
 const PAN_ID: u16 = 0xABCD;
@@ -118,6 +123,7 @@ type HTS221Sensor = components::hts221::Hts221ComponentType<
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<HTS221Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<HTS221Sensor>;
+type NineDofDriver = components::ninedof::NineDofComponentType;
 type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
     nrf52840::ieee802154_radio::Radio<'static>,
     nrf52840::aes::AesECB<'static>,
@@ -164,6 +170,7 @@ pub struct Platform {
     proximity: &'static ProximityDriver,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
+    ninedof: &'static NineDofDriver,
     gpio: &'static GpioDriver,
     led: &'static LedDriver,
     adc: &'static AdcDriver,
@@ -185,6 +192,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::proximity::DRIVER_NUM => f(Some(self.proximity)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
@@ -565,6 +573,40 @@ pub unsafe fn start() -> (
     )
     .finalize(components::humidity_component_static!(HTS221Sensor));
 
+    let lsm9ds1 = components::lsm9ds1::Lsm9ds1I2CComponent::new(
+        sensors_i2c_bus,
+        Some(LSM9DS1_ACCEL_GYRO_I2C_ADDRESS),
+        Some(LSM9DS1_MAGNETOMETER_I2C_ADDRESS),
+        board_kernel,
+        capsules_extra::lsm9ds1::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::lsm9ds1_i2c_component_static!(
+        nrf52840::i2c::TWI
+    ));
+    let _ = lsm9ds1
+        .configure(
+            capsules_extra::lsm9ds1::Lsm9ds1GyroDataRate::Lsm9ds1GyroRate119Hz,
+            capsules_extra::lsm9ds1::Lsm9ds1GyroRange::Lsm9ds1GyroRange245Dps,
+            capsules_extra::lsm9ds1::Lsm9ds1AccelDataRate::Lsm9ds1AccelRate119Hz,
+            capsules_extra::lsm9ds1::Lsm9ds1AccelRange::Lsm9ds1AccelRange2G,
+            capsules_extra::lsm9ds1::Lsm9ds1MagDataRate::Lsm9ds1MagRate20Hz,
+            capsules_extra::lsm9ds1::Lsm9ds1MagRange::Lsm9ds1MagRange4Gauss,
+        )
+        .map_err(|e| {
+            debug!(
+                "ERROR Failed to start LSM9DS1 sensor configuration ({:?})",
+                e
+            )
+        });
+
+    let ninedof = components::ninedof::NineDofComponent::new(
+        board_kernel,
+        capsules_extra::ninedof::DRIVER_NUM,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::ninedof_component_static!(lsm9ds1));
+
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
@@ -673,6 +715,7 @@ pub unsafe fn start() -> (
         proximity,
         temperature,
         humidity,
+        ninedof,
         adc: adc_syscall,
         led,
         gpio,

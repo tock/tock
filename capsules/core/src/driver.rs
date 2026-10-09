@@ -110,6 +110,7 @@ pub enum NUM {
     Lsm303dlch            = 0x70006,
     Mlx90614              = 0x70007,
     Lsm6dsoxtr            = 0x70008,
+    Lsm9ds1               = 0x70009,
 
     // Other ICs
     Ltc294x               = 0x80000,

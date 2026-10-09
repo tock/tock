@@ -68,6 +68,7 @@ pub mod lsm303agr;
 pub mod lsm303dlhc;
 pub mod lsm303xx;
 pub mod lsm6dsoxtr;
+pub mod lsm9ds1;
 pub mod ltc294x;
 pub mod max17205;
 pub mod mcp230xx;

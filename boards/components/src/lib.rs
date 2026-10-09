@@ -65,6 +65,7 @@ pub mod lps25hb;
 pub mod lsm303agr;
 pub mod lsm303dlhc;
 pub mod lsm6dsox;
+pub mod lsm9ds1;
 pub mod ltc294x;
 pub mod mlx90614;
 pub mod moisture;
