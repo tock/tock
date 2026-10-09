@@ -13,8 +13,7 @@ use kernel::capabilities;
 pub fn nop() {
     use core::arch::asm;
 
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS: This does not use the existing value of any registers.
     // - OUTPUTS: This does not write any registers.
     // - Options set:
@@ -38,8 +37,7 @@ pub fn nop() {
 pub fn wfi(_cap: &dyn capabilities::CpuControlCapability) {
     use core::arch::asm;
 
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS: This does not use the existing value of any registers.
     // - OUTPUTS: This does not write any registers.
     // - Options set:
@@ -66,8 +64,7 @@ where
     use core::arch::asm;
     // Set PRIMASK to disable interrupts.
     //
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS: This does not use the existing value of any registers.
     // - OUTPUTS: This does not write any registers.
     // - Options set:
@@ -88,8 +85,7 @@ where
 
     // Unset PRIMASK to re-enable interrupts.
     //
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS: This does not use the existing value of any registers.
     // - OUTPUTS: This does not write any registers.
     // - Options set:
@@ -149,8 +145,7 @@ pub fn is_interrupt_context() -> bool {
     use core::arch::asm;
     let mut interrupt_number: u32;
 
-    // # Safety
-    //
+    // SAFETY: This complies with the asm safety requirements:
     // - INPUTS: This does not use the existing value of any registers.
     // - OUTPUTS: This writes `r0` which is specified as an output.
     // - Options set:

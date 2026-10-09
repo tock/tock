@@ -34,6 +34,9 @@ impl CortexMDmaFence {
     }
 }
 
+// SAFETY: To the best of our understanding this implementation correctly
+// implements the required properties of the [`DmaFence`] interface on Cortex-M
+// MCUs.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 unsafe impl DmaFence for CortexMDmaFence {
     fn release<T>(self, slice_ptr: *mut [T]) {
@@ -73,6 +76,7 @@ unsafe impl DmaFence for CortexMDmaFence {
     }
 }
 
+// SAFETY: Unused mock implementation.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe impl DmaFence for CortexMDmaFence {
     fn release<T>(self, _buf: *mut [T]) {
