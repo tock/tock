@@ -96,6 +96,11 @@ pub trait CortexMVariant {
     /// Assembly function called from `UserspaceKernelBoundary` to switch to an
     /// an application. This handles storing and restoring application state
     /// before and after the switch.
+    ///
+    /// # Safety
+    ///
+    /// This context switches to an application. The MPU must be correctly
+    /// configured before running this.
     unsafe fn switch_to_user(
         user_stack: *const usize,
         process_regs: &mut [usize; 8],

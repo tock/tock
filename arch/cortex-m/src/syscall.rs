@@ -442,6 +442,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         app_brk: *const u8,
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
+        // SAFETY: The caller of `switch_to_process()` ensures the MPU is
+        // correctly configured so we can switch to a process.
         let new_stack_pointer =
             unsafe { A::switch_to_user(state.psp as *const usize, &mut state.regs) };
 
