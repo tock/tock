@@ -33,7 +33,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy8, Entropy32};
 use kernel::hil::rng;
-use kernel::hil::rng::{Client, Continue, Random, Rng};
+use kernel::hil::rng::Rng;
 use kernel::processbuffer::WriteableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
@@ -459,63 +459,6 @@ impl<'a, 'b: 'a, E: Entropy32<'b>> Iterator for Entropy32To8Iter<'a, 'b, E> {
             Some(byte)
         } else {
             None
-        }
-    }
-}
-
-pub struct SynchronousRandom<'a, R: Rng<'a>> {
-    rgen: &'a R,
-    seed: Cell<u32>,
-}
-
-#[allow(dead_code)]
-impl<'a, R: Rng<'a>> SynchronousRandom<'a, R> {
-    fn new(rgen: &'a R) -> Self {
-        Self {
-            rgen,
-            seed: Cell::new(0),
-        }
-    }
-}
-
-impl<'a, R: Rng<'a>> Random<'a> for SynchronousRandom<'a, R> {
-    fn initialize(&'a self) {
-        self.rgen.set_client(self);
-        let _ = self.rgen.get();
-    }
-
-    fn reseed(&self, seed: u32) {
-        self.seed.set(seed);
-    }
-
-    // This implementation uses a linear congruential generator due to
-    // its efficiency. The parameters for the generator are those
-    // recommended in Numerical Recipes by Press, Teukolsky,
-    // Vetterling, and Flannery.
-
-    fn random(&self) -> u32 {
-        const LCG_MULTIPLIER: u32 = 1_644_525;
-        const LCG_INCREMENT: u32 = 1_013_904_223;
-        let val = self.seed.get();
-        let val = val.wrapping_mul(LCG_MULTIPLIER);
-        let val = val.wrapping_add(LCG_INCREMENT);
-        self.seed.set(val);
-        val
-    }
-}
-
-impl<'a, R: Rng<'a>> Client for SynchronousRandom<'a, R> {
-    fn randomness_available(
-        &self,
-        randomness: &mut dyn Iterator<Item = u32>,
-        _error: Result<(), ErrorCode>,
-    ) -> Continue {
-        match randomness.next() {
-            None => Continue::More,
-            Some(val) => {
-                self.seed.set(val);
-                Continue::Done
-            }
         }
     }
 }
