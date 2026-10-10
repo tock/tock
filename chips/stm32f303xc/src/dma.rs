@@ -4,92 +4,81 @@
 
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 use crate::rcc;
 
-/// DMA controller
-#[repr(C)]
-struct Dma1Registers {
-    /// interrupt status register
-    isr: ReadOnly<u32, ISR::Register>,
-    /// interrupt flag clear register
-    ifcr: ReadWrite<u32, IFCR::Register>,
-
-    /// channel 1 configuration register
-    ccr1: ReadWrite<u32, CCR::Register>,
-    /// channel 1 number of data register
-    cndtr1: ReadWrite<u32, CNDTR::Register>,
-    /// channel 1 peripheral address register
-    cpar1: ReadWrite<u32, CPAR::Register>,
-    /// channel 1 memory address register
-    cmar1: ReadWrite<u32, CMAR::Register>,
-
-    _reserved0: [u8; 4],
-
-    /// channel 2 configuration register
-    ccr2: ReadWrite<u32, CCR::Register>,
-    /// channel 2 number of data register
-    cndtr2: ReadWrite<u32, CNDTR::Register>,
-    /// channel 2 peripheral address register
-    cpar2: ReadWrite<u32, CPAR::Register>,
-    /// channel 2 memory address register
-    cmar2: ReadWrite<u32, CMAR::Register>,
-
-    _reserved1: [u8; 4],
-
-    /// channel 3 configuration register
-    ccr3: ReadWrite<u32, CCR::Register>,
-    /// channel 3 number of data register
-    cndtr3: ReadWrite<u32, CNDTR::Register>,
-    /// channel 3 peripheral address register
-    cpar3: ReadWrite<u32, CPAR::Register>,
-    /// channel 3 memory address register
-    cmar3: ReadWrite<u32, CMAR::Register>,
-
-    _reserved2: [u8; 4],
-
-    /// channel 4 configuration register
-    ccr4: ReadWrite<u32, CCR::Register>,
-    /// channel 4 number of data register
-    cndtr4: ReadWrite<u32, CNDTR::Register>,
-    /// channel 4 peripheral address register
-    cpar4: ReadWrite<u32, CPAR::Register>,
-    /// channel 4 memory address register
-    cmar4: ReadWrite<u32, CMAR::Register>,
-
-    _reserved3: [u8; 4],
-
-    /// channel 5 configuration register
-    ccr5: ReadWrite<u32, CCR::Register>,
-    /// channel 5 number of data register
-    cndtr5: ReadWrite<u32, CNDTR::Register>,
-    /// channel 5 peripheral address register
-    cpar5: ReadWrite<u32, CPAR::Register>,
-    /// channel 5 memory address register
-    cmar5: ReadWrite<u32, CMAR::Register>,
-
-    _reserved4: [u8; 4],
-
-    /// channel 6 configuration register
-    ccr6: ReadWrite<u32, CCR::Register>,
-    /// channel 6 number of data register
-    cndtr6: ReadWrite<u32, CNDTR::Register>,
-    /// channel 6 peripheral address register
-    cpar6: ReadWrite<u32, CPAR::Register>,
-    /// channel 6 memory address register
-    cmar6: ReadWrite<u32, CMAR::Register>,
-
-    _reserved5: [u8; 4],
-
-    /// channel 7 configuration register
-    ccr7: ReadWrite<u32, CCR::Register>,
-    /// channel 7 number of data register
-    cndtr7: ReadWrite<u32, CNDTR::Register>,
-    /// channel 7 peripheral address register
-    cpar7: ReadWrite<u32, CPAR::Register>,
-    /// channel 7 memory address register
-    cmar7: ReadWrite<u32, CMAR::Register>,
+register_structs! {
+    /// DMA controller
+    Dma1Registers {
+        /// interrupt status register
+        (0x000 => isr: ReadOnly<u32, ISR::Register>),
+        /// interrupt flag clear register
+        (0x004 => ifcr: ReadWrite<u32, IFCR::Register>),
+        /// channel 1 configuration register
+        (0x008 => ccr1: ReadWrite<u32, CCR::Register>),
+        /// channel 1 number of data register
+        (0x00c => cndtr1: ReadWrite<u32, CNDTR::Register>),
+        /// channel 1 peripheral address register
+        (0x010 => cpar1: ReadWrite<u32, CPAR::Register>),
+        /// channel 1 memory address register
+        (0x014 => cmar1: ReadWrite<u32, CMAR::Register>),
+        (0x018 => _reserved0),
+        /// channel 2 configuration register
+        (0x01c => ccr2: ReadWrite<u32, CCR::Register>),
+        /// channel 2 number of data register
+        (0x020 => cndtr2: ReadWrite<u32, CNDTR::Register>),
+        /// channel 2 peripheral address register
+        (0x024 => cpar2: ReadWrite<u32, CPAR::Register>),
+        /// channel 2 memory address register
+        (0x028 => cmar2: ReadWrite<u32, CMAR::Register>),
+        (0x02c => _reserved1),
+        /// channel 3 configuration register
+        (0x030 => ccr3: ReadWrite<u32, CCR::Register>),
+        /// channel 3 number of data register
+        (0x034 => cndtr3: ReadWrite<u32, CNDTR::Register>),
+        /// channel 3 peripheral address register
+        (0x038 => cpar3: ReadWrite<u32, CPAR::Register>),
+        /// channel 3 memory address register
+        (0x03c => cmar3: ReadWrite<u32, CMAR::Register>),
+        (0x040 => _reserved2),
+        /// channel 4 configuration register
+        (0x044 => ccr4: ReadWrite<u32, CCR::Register>),
+        /// channel 4 number of data register
+        (0x048 => cndtr4: ReadWrite<u32, CNDTR::Register>),
+        /// channel 4 peripheral address register
+        (0x04c => cpar4: ReadWrite<u32, CPAR::Register>),
+        /// channel 4 memory address register
+        (0x050 => cmar4: ReadWrite<u32, CMAR::Register>),
+        (0x054 => _reserved3),
+        /// channel 5 configuration register
+        (0x058 => ccr5: ReadWrite<u32, CCR::Register>),
+        /// channel 5 number of data register
+        (0x05c => cndtr5: ReadWrite<u32, CNDTR::Register>),
+        /// channel 5 peripheral address register
+        (0x060 => cpar5: ReadWrite<u32, CPAR::Register>),
+        /// channel 5 memory address register
+        (0x064 => cmar5: ReadWrite<u32, CMAR::Register>),
+        (0x068 => _reserved4),
+        /// channel 6 configuration register
+        (0x06c => ccr6: ReadWrite<u32, CCR::Register>),
+        /// channel 6 number of data register
+        (0x070 => cndtr6: ReadWrite<u32, CNDTR::Register>),
+        /// channel 6 peripheral address register
+        (0x074 => cpar6: ReadWrite<u32, CPAR::Register>),
+        /// channel 6 memory address register
+        (0x078 => cmar6: ReadWrite<u32, CMAR::Register>),
+        (0x07c => _reserved5),
+        /// channel 7 configuration register
+        (0x080 => ccr7: ReadWrite<u32, CCR::Register>),
+        /// channel 7 number of data register
+        (0x084 => cndtr7: ReadWrite<u32, CNDTR::Register>),
+        /// channel 7 peripheral address register
+        (0x088 => cpar7: ReadWrite<u32, CPAR::Register>),
+        /// channel 7 memory address register
+        (0x08c => cmar7: ReadWrite<u32, CMAR::Register>),
+        (0x090 => @END),
+    }
 }
 
 register_bitfields![u32,

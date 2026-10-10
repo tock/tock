@@ -10,7 +10,7 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 use crate::rcc;
 
@@ -20,31 +20,33 @@ pub enum I2CSpeed {
     Speed1M,
 }
 
-/// Inter-Integrated Circuit
-#[repr(C)]
-struct I2CRegisters {
-    /// control register 1
-    cr1: ReadWrite<u32, CR1::Register>,
-    /// control register 2
-    cr2: ReadWrite<u32, CR2::Register>,
-    /// own address register 1
-    oar1: ReadWrite<u32, OAR1::Register>,
-    /// own address register 2
-    oar2: ReadWrite<u32, OAR2::Register>,
-    /// timing register
-    timingr: ReadWrite<u32, TIMINGR::Register>,
-    /// timeout register
-    timeout: ReadWrite<u32, TIMEOUT::Register>,
-    /// interrupt and status register
-    isr: ReadWrite<u32, ISR::Register>,
-    /// interrupt clear register
-    icr: ReadWrite<u32, ICR::Register>,
-    /// PEC register
-    pecr: ReadWrite<u32, PECR::Register>,
-    /// receive data register
-    rxdr: ReadWrite<u32, RXDR::Register>,
-    /// transmit data register
-    txdr: ReadWrite<u32, TXDR::Register>,
+register_structs! {
+    /// Inter-Integrated Circuit
+    I2CRegisters {
+        /// control register 1
+        (0x000 => cr1: ReadWrite<u32, CR1::Register>),
+        /// control register 2
+        (0x004 => cr2: ReadWrite<u32, CR2::Register>),
+        /// own address register 1
+        (0x008 => oar1: ReadWrite<u32, OAR1::Register>),
+        /// own address register 2
+        (0x00c => oar2: ReadWrite<u32, OAR2::Register>),
+        /// timing register
+        (0x010 => timingr: ReadWrite<u32, TIMINGR::Register>),
+        /// timeout register
+        (0x014 => timeout: ReadWrite<u32, TIMEOUT::Register>),
+        /// interrupt and status register
+        (0x018 => isr: ReadWrite<u32, ISR::Register>),
+        /// interrupt clear register
+        (0x01c => icr: ReadWrite<u32, ICR::Register>),
+        /// PEC register
+        (0x020 => pecr: ReadWrite<u32, PECR::Register>),
+        /// receive data register
+        (0x024 => rxdr: ReadWrite<u32, RXDR::Register>),
+        /// transmit data register
+        (0x028 => txdr: ReadWrite<u32, TXDR::Register>),
+        (0x02c => @END),
+    }
 }
 
 register_bitfields![u32,

@@ -9,16 +9,18 @@ use core::cell::Cell;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 const WINDOW_WATCHDOG_BASE: StaticRef<WwdgRegisters> =
     unsafe { StaticRef::new(0x4000_2C00 as *const WwdgRegisters) };
 
-#[repr(C)]
-pub struct WwdgRegisters {
-    cr: ReadWrite<u32, Control::Register>,
-    cfr: ReadWrite<u32, Config::Register>,
-    sr: ReadWrite<u32, Status::Register>,
+register_structs! {
+    pub WwdgRegisters {
+        (0x000 => cr: ReadWrite<u32, Control::Register>),
+        (0x004 => cfr: ReadWrite<u32, Config::Register>),
+        (0x008 => sr: ReadWrite<u32, Status::Register>),
+        (0x00c => @END),
+    }
 }
 
 register_bitfields![u32,

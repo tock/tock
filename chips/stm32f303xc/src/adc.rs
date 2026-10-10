@@ -12,62 +12,57 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-struct AdcRegisters {
-    isr: ReadWrite<u32, ISR::Register>,
-    ier: ReadWrite<u32, IER::Register>,
-    cr: ReadWrite<u32, CR::Register>,
-    cfgr: ReadWrite<u32, CFGR::Register>,
-
-    _reserved0: [u32; 1],
-    smpr1: ReadWrite<u32, SMPR1::Register>,
-    smpr2: ReadWrite<u32, SMPR2::Register>,
-
-    _reserved1: [u32; 1],
-    tr1: ReadWrite<u32, TR1::Register>,
-    tr2: ReadWrite<u32, TR2::Register>,
-    tr3: ReadWrite<u32, TR3::Register>,
-
-    _reserved2: [u32; 1],
-    sqr1: ReadWrite<u32, SQR1::Register>,
-    sqr2: ReadWrite<u32, SQR2::Register>,
-    sqr3: ReadWrite<u32, SQR3::Register>,
-    sqr4: ReadWrite<u32, SQR4::Register>,
-    dr: ReadOnly<u32, DR::Register>,
-    _reserved3: [u32; 2],
-
-    jsqr: ReadWrite<u32, JSQR::Register>,
-    _reserved4: [u32; 4],
-
-    ofr1: ReadWrite<u32, OFR::Register>,
-    ofr2: ReadWrite<u32, OFR::Register>,
-    ofr3: ReadWrite<u32, OFR::Register>,
-    ofr4: ReadWrite<u32, OFR::Register>,
-    _reserved5: [u32; 4],
-
-    jdr1: ReadOnly<u32, JDR::Register>,
-    jdr2: ReadOnly<u32, JDR::Register>,
-    jdr3: ReadOnly<u32, JDR::Register>,
-    jdr4: ReadOnly<u32, JDR::Register>,
-    _reserved6: [u32; 4],
-
-    awd2cr: ReadWrite<u32, AWD2CR::Register>,
-    awd3cr: ReadWrite<u32, AWD3CR::Register>,
-    _reserved7: [u32; 2],
-
-    difsel: ReadWrite<u32, DIFSEL::Register>,
-    calfact: ReadWrite<u32, CALFACT::Register>,
+register_structs! {
+    AdcRegisters {
+        (0x000 => isr: ReadWrite<u32, ISR::Register>),
+        (0x004 => ier: ReadWrite<u32, IER::Register>),
+        (0x008 => cr: ReadWrite<u32, CR::Register>),
+        (0x00c => cfgr: ReadWrite<u32, CFGR::Register>),
+        (0x010 => _reserved0: [u32; 1]),
+        (0x014 => smpr1: ReadWrite<u32, SMPR1::Register>),
+        (0x018 => smpr2: ReadWrite<u32, SMPR2::Register>),
+        (0x01c => _reserved1: [u32; 1]),
+        (0x020 => tr1: ReadWrite<u32, TR1::Register>),
+        (0x024 => tr2: ReadWrite<u32, TR2::Register>),
+        (0x028 => tr3: ReadWrite<u32, TR3::Register>),
+        (0x02c => _reserved2: [u32; 1]),
+        (0x030 => sqr1: ReadWrite<u32, SQR1::Register>),
+        (0x034 => sqr2: ReadWrite<u32, SQR2::Register>),
+        (0x038 => sqr3: ReadWrite<u32, SQR3::Register>),
+        (0x03c => sqr4: ReadWrite<u32, SQR4::Register>),
+        (0x040 => dr: ReadOnly<u32, DR::Register>),
+        (0x044 => _reserved3: [u32; 2]),
+        (0x04c => jsqr: ReadWrite<u32, JSQR::Register>),
+        (0x050 => _reserved4: [u32; 4]),
+        (0x060 => ofr1: ReadWrite<u32, OFR::Register>),
+        (0x064 => ofr2: ReadWrite<u32, OFR::Register>),
+        (0x068 => ofr3: ReadWrite<u32, OFR::Register>),
+        (0x06c => ofr4: ReadWrite<u32, OFR::Register>),
+        (0x070 => _reserved5: [u32; 4]),
+        (0x080 => jdr1: ReadOnly<u32, JDR::Register>),
+        (0x084 => jdr2: ReadOnly<u32, JDR::Register>),
+        (0x088 => jdr3: ReadOnly<u32, JDR::Register>),
+        (0x08c => jdr4: ReadOnly<u32, JDR::Register>),
+        (0x090 => _reserved6: [u32; 4]),
+        (0x0a0 => awd2cr: ReadWrite<u32, AWD2CR::Register>),
+        (0x0a4 => awd3cr: ReadWrite<u32, AWD3CR::Register>),
+        (0x0a8 => _reserved7: [u32; 2]),
+        (0x0b0 => difsel: ReadWrite<u32, DIFSEL::Register>),
+        (0x0b4 => calfact: ReadWrite<u32, CALFACT::Register>),
+        (0x0b8 => @END),
+    }
 }
 
-#[repr(C)]
-struct AdcCommonRegisters {
-    csr: ReadOnly<u32, CSR::Register>,
-    _reserved0: [u32; 1],
-
-    ccr: ReadWrite<u32, CCR::Register>,
-    cdr: ReadOnly<u32, CDR::Register>,
+register_structs! {
+    AdcCommonRegisters {
+        (0x000 => csr: ReadOnly<u32, CSR::Register>),
+        (0x004 => _reserved0: [u32; 1]),
+        (0x008 => ccr: ReadWrite<u32, CCR::Register>),
+        (0x00c => cdr: ReadOnly<u32, CDR::Register>),
+        (0x010 => @END),
+    }
 }
 
 register_bitfields![u32,
