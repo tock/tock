@@ -17,17 +17,19 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 use crate::SYSCLK_FRQ;
 
-#[repr(C)]
-pub struct UartRegisters {
-    data: ReadWrite<u32, DATA::Register>,
-    state: ReadWrite<u32, STATE::Register>,
-    ctrl: ReadWrite<u32, CTRL::Register>,
-    intstatus: ReadWrite<u32, INTSTATUS::Register>,
-    bauddiv: ReadWrite<u32, BAUDDIV::Register>,
+register_structs! {
+    pub UartRegisters {
+        (0x000 => data: ReadWrite<u32, DATA::Register>),
+        (0x004 => state: ReadWrite<u32, STATE::Register>),
+        (0x008 => ctrl: ReadWrite<u32, CTRL::Register>),
+        (0x00c => intstatus: ReadWrite<u32, INTSTATUS::Register>),
+        (0x010 => bauddiv: ReadWrite<u32, BAUDDIV::Register>),
+        (0x014 => @END),
+    }
 }
 
 register_bitfields![u32,
