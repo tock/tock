@@ -119,18 +119,18 @@ kernel::stack_size! {0x1000}
 
 // Function for the CDC/USB stack to use to enter the Adafruit nRF52 Bootloader
 fn baud_rate_reset_bootloader_enter() {
-    unsafe {
-        // 0x4e is the magic value the Adafruit nRF52 Bootloader expects
-        // as defined by https://github.com/adafruit/Adafruit_nRF52_Bootloader/blob/master/src/main.c
-        NRF52_POWER.get().map(|power| {
-            power.set_gpregret(0x90);
-        });
-        // uncomment to use with Adafruit nRF52 Bootloader
-        // NRF52_POWER.get().map(|power| {
-        //     power.set_gpregret(0x4e);
-        // });
-        cortexm4::scb::reset();
-    }
+    // 0x4e is the magic value the Adafruit nRF52 Bootloader expects
+    // as defined by https://github.com/adafruit/Adafruit_nRF52_Bootloader/blob/master/src/main.c
+    NRF52_POWER.get().map(|power| {
+        power.set_gpregret(0x90);
+    });
+    // uncomment to use with Adafruit nRF52 Bootloader
+    // NRF52_POWER.get().map(|power| {
+    //     power.set_gpregret(0x4e);
+    // });
+    cortexm4::scb::reset(&kernel::create_capability!(
+        kernel::capabilities::CpuControlCapability
+    ));
 }
 
 type SHT3xSensor = components::sht3x::SHT3xComponentType<
@@ -728,7 +728,11 @@ unsafe fn start() -> (
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(cortexm4::support::reset),
+        Some(|| {
+            cortexm4::support::reset(&kernel::create_capability!(
+                kernel::capabilities::CpuControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(

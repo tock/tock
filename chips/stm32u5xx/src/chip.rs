@@ -482,10 +482,9 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm33::scb::unset_sleepdeep();
-            cortexm33::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        cortexm33::scb::unset_sleepdeep(&cap);
+        cortexm33::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

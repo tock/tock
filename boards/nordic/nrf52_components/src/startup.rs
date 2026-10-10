@@ -121,9 +121,9 @@ impl Component for NrfStartupComponent<'_> {
 
         // Any modification of UICR needs a soft reset for the changes to be taken into account.
         if needs_soft_reset {
-            unsafe {
-                cortexm4::scb::reset();
-            }
+            cortexm4::scb::reset(&kernel::create_capability!(
+                kernel::capabilities::CpuControlCapability
+            ));
         }
     }
 }
