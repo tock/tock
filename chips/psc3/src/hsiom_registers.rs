@@ -7,28 +7,34 @@
 
 use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct HsiomPort {
-    /// Port selection 0
-    /// 8 bits for each pin, 5 bits used for selection, 3 bits reserved
-    pub port_sel0: ReadWrite<u32>,
-    /// Port selection 1
-    /// 8 bits for each pin, 5 bits used for selection, 3 bits reserved
-    pub port_sel1: ReadWrite<u32>,
-    _reserved: [u32; 2],
+register_structs! {
+    pub HsiomPort {
+        /// Port selection 0
+        /// 8 bits for each pin, 5 bits used for selection, 3 bits reserved
+        (0x000 => pub port_sel0: ReadWrite<u32>),
+        /// Port selection 1
+        /// 8 bits for each pin, 5 bits used for selection, 3 bits reserved
+        (0x004 => pub port_sel1: ReadWrite<u32>),
+        (0x008 => _reserved: [u32; 2]),
+        (0x010 => @END),
+    }
 }
 
-#[repr(C)]
-pub struct HsiomSecurePtr {
-    /// Non-Secure Mask
-    pub secure_prt_nonsecure_mask: ReadWrite<u32, SECURE_PRT_NONSECURE_MASK::Register>,
-    _reserved: [u32; 3],
+register_structs! {
+    pub HsiomSecurePtr {
+        /// Non-Secure Mask
+        (0x000 => pub secure_prt_nonsecure_mask: ReadWrite<u32, SECURE_PRT_NONSECURE_MASK::Register>),
+        (0x004 => _reserved: [u32; 3]),
+        (0x010 => @END),
+    }
 }
 
-#[repr(C)]
-pub struct AmuxSplitCtl {
-    /// AMUX splitter cell control
-    amux_split_ctl: ReadWrite<u32, AMUX_SPLIT_CTL::Register>,
+register_structs! {
+    pub AmuxSplitCtl {
+        /// AMUX splitter cell control
+        (0x000 => amux_split_ctl: ReadWrite<u32, AMUX_SPLIT_CTL::Register>),
+        (0x004 => @END),
+    }
 }
 
 register_structs! {
