@@ -4,63 +4,65 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-/// Reset and clock control
-#[repr(C)]
-struct RccRegisters {
-    /// clock control register
-    cr: ReadWrite<u32, CR::Register>,
-    icsr: ReadWrite<u32, ICSCR::Register>,
-    /// clock configuration register
-    cfgr: ReadWrite<u32, CFGR::Register>,
-    /// PLL configuration register
-    pllcfgr: ReadWrite<u32, PLLCFGR::Register>,
-    _reserved0: [u8; 8],
-    cier: ReadWrite<u32, CIER::Register>,
-    cifgr: ReadWrite<u32, CIFR::Register>,
-    cicr: ReadWrite<u32, CICR::Register>,
-    _reserved1: [u8; 4],
-    /// AHB1 peripheral reset register
-    ahb1rstr: ReadWrite<u32, AHB1RSTR::Register>,
-    /// AHB2 peripheral reset register
-    ahb2rstr: ReadWrite<u32, AHB2RSTR::Register>,
-    /// AHB3 peripheral reset register
-    ahb3rstr: ReadWrite<u32, AHB3RSTR::Register>,
-    _reserved2: [u8; 4],
-    /// APB1 peripheral reset register 1
-    apb1rstr1: ReadWrite<u32, APB1RSTR1::Register>,
-    apb1rstr2: ReadWrite<u32, APB1RSTR2::Register>,
-    /// APB2 peripheral reset register
-    apb2rstr: ReadWrite<u32, APB2RSTR::Register>,
-    apb3rstr: ReadWrite<u32, APB3RSTR::Register>,
-    /// AHB1 peripheral clock register
-    ahb1enr: ReadWrite<u32, AHB1ENR::Register>,
-    /// AHB2 peripheral clock enable register
-    ahb2enr: ReadWrite<u32, AHB2ENR::Register>,
-    /// AHB3 peripheral clock enable register
-    ahb3enr: ReadWrite<u32, AHB3ENR::Register>,
-    _reserved3: [u8; 4],
-    /// APB1 peripheral clock enable register 1
-    apb1enr1: ReadWrite<u32, APB1ENR1::Register>,
-    apb1enr2: ReadWrite<u32, APB1ENR2::Register>,
-    /// APB2 peripheral clock enable register
-    apb2enr: ReadWrite<u32, APB2ENR::Register>,
-    apb3enr: ReadWrite<u32, APB3ENR::Register>,
-    ahb1smenr: ReadWrite<u32, AHB1SMENR::Register>,
-    ahb2smenr: ReadWrite<u32, AHB2SMENR::Register>,
-    ahb3smenr: ReadWrite<u32, AHB3SMENR::Register>,
-    _reserved4: [u8; 4],
-    apb1smenr1: ReadWrite<u32, APB1SMENR1::Register>,
-    apb1smenr2: ReadWrite<u32, APB1SMENR2::Register>,
-    apb2smenr: ReadWrite<u32, APB2SMENR::Register>,
-    apb3smenr: ReadWrite<u32, APB3SMENR::Register>,
-    ccipr: ReadWrite<u32, CCIPR::Register>,
-    _reserved5: [u8; 4],
-    bdcr: ReadWrite<u32, BDCR::Register>,
-    csr: ReadWrite<u32, CSR::Register>,
-    _reserved6: [u8; 14], // TODO: confirm that this offset is correct
-    extcfgr: ReadWrite<u32, EXTCFGR::Register>,
+register_structs! {
+    /// Reset and clock control
+    RccRegisters {
+        /// clock control register
+        (0x000 => cr: ReadWrite<u32, CR::Register>),
+        (0x004 => icsr: ReadWrite<u32, ICSCR::Register>),
+        /// clock configuration register
+        (0x008 => cfgr: ReadWrite<u32, CFGR::Register>),
+        /// PLL configuration register
+        (0x00c => pllcfgr: ReadWrite<u32, PLLCFGR::Register>),
+        (0x010 => _reserved0),
+        (0x018 => cier: ReadWrite<u32, CIER::Register>),
+        (0x01c => cifgr: ReadWrite<u32, CIFR::Register>),
+        (0x020 => cicr: ReadWrite<u32, CICR::Register>),
+        (0x024 => _reserved1),
+        /// AHB1 peripheral reset register
+        (0x028 => ahb1rstr: ReadWrite<u32, AHB1RSTR::Register>),
+        /// AHB2 peripheral reset register
+        (0x02c => ahb2rstr: ReadWrite<u32, AHB2RSTR::Register>),
+        /// AHB3 peripheral reset register
+        (0x030 => ahb3rstr: ReadWrite<u32, AHB3RSTR::Register>),
+        (0x034 => _reserved2),
+        /// APB1 peripheral reset register 1
+        (0x038 => apb1rstr1: ReadWrite<u32, APB1RSTR1::Register>),
+        (0x03c => apb1rstr2: ReadWrite<u32, APB1RSTR2::Register>),
+        /// APB2 peripheral reset register
+        (0x040 => apb2rstr: ReadWrite<u32, APB2RSTR::Register>),
+        (0x044 => apb3rstr: ReadWrite<u32, APB3RSTR::Register>),
+        /// AHB1 peripheral clock register
+        (0x048 => ahb1enr: ReadWrite<u32, AHB1ENR::Register>),
+        /// AHB2 peripheral clock enable register
+        (0x04c => ahb2enr: ReadWrite<u32, AHB2ENR::Register>),
+        /// AHB3 peripheral clock enable register
+        (0x050 => ahb3enr: ReadWrite<u32, AHB3ENR::Register>),
+        (0x054 => _reserved3),
+        /// APB1 peripheral clock enable register 1
+        (0x058 => apb1enr1: ReadWrite<u32, APB1ENR1::Register>),
+        (0x05c => apb1enr2: ReadWrite<u32, APB1ENR2::Register>),
+        /// APB2 peripheral clock enable register
+        (0x060 => apb2enr: ReadWrite<u32, APB2ENR::Register>),
+        (0x064 => apb3enr: ReadWrite<u32, APB3ENR::Register>),
+        (0x068 => ahb1smenr: ReadWrite<u32, AHB1SMENR::Register>),
+        (0x06c => ahb2smenr: ReadWrite<u32, AHB2SMENR::Register>),
+        (0x070 => ahb3smenr: ReadWrite<u32, AHB3SMENR::Register>),
+        (0x074 => _reserved4),
+        (0x078 => apb1smenr1: ReadWrite<u32, APB1SMENR1::Register>),
+        (0x07c => apb1smenr2: ReadWrite<u32, APB1SMENR2::Register>),
+        (0x080 => apb2smenr: ReadWrite<u32, APB2SMENR::Register>),
+        (0x084 => apb3smenr: ReadWrite<u32, APB3SMENR::Register>),
+        (0x088 => ccipr: ReadWrite<u32, CCIPR::Register>),
+        (0x08c => _reserved5),
+        (0x090 => bdcr: ReadWrite<u32, BDCR::Register>),
+        (0x094 => csr: ReadWrite<u32, CSR::Register>),
+        (0x098 => _reserved6),
+        (0x108 => extcfgr: ReadWrite<u32, EXTCFGR::Register>),
+        (0x10c => @END),
+    }
 }
 
 register_bitfields![u32,

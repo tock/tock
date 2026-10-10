@@ -8,32 +8,35 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
 const PWR: StaticRef<PwrRegisters> = unsafe { StaticRef::new(0x5800_0400 as *const _) };
 
-#[repr(C)]
-struct PwrRegisters {
-    cr1: ReadWrite<u32>,
-    cr2: ReadWrite<u32>,
-    cr3: ReadWrite<u32>,
-    cr4: ReadWrite<u32>,
-    sr1: ReadWrite<u32>,
-    sr2: ReadWrite<u32, SR2::Register>,
-    scr: WriteOnly<u32>,
-    pub cr5: ReadWrite<u32>,
-    pub pucra: ReadWrite<u32>,
-    pub pdcra: ReadWrite<u32>,
-    pub pucrb: ReadWrite<u32>,
-    pub pdcrb: ReadWrite<u32>,
-    pub pucrc: ReadWrite<u32>,
-    pub pdcrc: ReadWrite<u32>, // Offset 0x034
-    _reserved0: [u32; 9],
-    pub pucrh: ReadWrite<u32>, // Offset 0x058
-    pub pdcrh: ReadWrite<u32>, // Offset 0x05C
-    _reserved1: [u32; 10],
-    pub extscr: ReadWrite<u32>,                             // Offset 0x088
-    pub subghzspicr: ReadWrite<u32, SUBGHZSPICR::Register>, // Offset 0x090
+register_structs! {
+    PwrRegisters {
+        (0x000 => cr1: ReadWrite<u32>),
+        (0x004 => cr2: ReadWrite<u32>),
+        (0x008 => cr3: ReadWrite<u32>),
+        (0x00c => cr4: ReadWrite<u32>),
+        (0x010 => sr1: ReadWrite<u32>),
+        (0x014 => sr2: ReadWrite<u32, SR2::Register>),
+        (0x018 => scr: WriteOnly<u32>),
+        (0x01c => pub cr5: ReadWrite<u32>),
+        (0x020 => pub pucra: ReadWrite<u32>),
+        (0x024 => pub pdcra: ReadWrite<u32>),
+        (0x028 => pub pucrb: ReadWrite<u32>),
+        (0x02c => pub pdcrb: ReadWrite<u32>),
+        (0x030 => pub pucrc: ReadWrite<u32>),
+        (0x034 => pub pdcrc: ReadWrite<u32>),
+        (0x038 => _reserved0),
+        (0x058 => pub pucrh: ReadWrite<u32>),
+        (0x05c => pub pdcrh: ReadWrite<u32>),
+        (0x060 => _reserved1),
+        (0x088 => pub extscr: ReadWrite<u32>),
+        (0x08c => _reserved2),
+        (0x090 => pub subghzspicr: ReadWrite<u32, SUBGHZSPICR::Register>),
+        (0x094 => @END),
+    }
 }
 
 register_bitfields![ u32,

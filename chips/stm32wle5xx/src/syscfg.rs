@@ -6,37 +6,39 @@ use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 use crate::gpio;
 
-/// System configuration controller
-#[repr(C)]
-struct SyscfgRegisters {
-    /// memory remap register
-    memrm: ReadWrite<u32, MEMRM::Register>,
-    /// configuration register 1
-    cfgr1: ReadWrite<u32, CFGR1::Register>,
-    /// external interrupt configuration register 1
-    exticr1: ReadWrite<u32, EXTICR1::Register>,
-    /// external interrupt configuration register 2
-    exticr2: ReadWrite<u32, EXTICR2::Register>,
-    /// external interrupt configuration register 3
-    exticr3: ReadWrite<u32, EXTICR3::Register>,
-    /// external interrupt configuration register 4
-    exticr4: ReadWrite<u32, EXTICR4::Register>,
-    /// SRAM control and status register
-    scsr: ReadWrite<u32, SCSR::Register>,
-    /// configuration register 2
-    cfgr2: ReadWrite<u32, CFGR2::Register>,
-    /// SRAM write protection register
-    swpr: ReadWrite<u32, SWPR::Register>,
-    /// SRAM key register
-    skr: ReadWrite<u32, SKR::Register>,
-    // RESERVED (0x028 - 0x204)
-    _reserved0: [u32; 120],
-    // Radio debug control register
-    rfdcr: ReadWrite<u32, RFDCR::Register>,
+register_structs! {
+    /// System configuration controller
+    SyscfgRegisters {
+        /// memory remap register
+        (0x000 => memrm: ReadWrite<u32, MEMRM::Register>),
+        /// configuration register 1
+        (0x004 => cfgr1: ReadWrite<u32, CFGR1::Register>),
+        /// external interrupt configuration register 1
+        (0x008 => exticr1: ReadWrite<u32, EXTICR1::Register>),
+        /// external interrupt configuration register 2
+        (0x00c => exticr2: ReadWrite<u32, EXTICR2::Register>),
+        /// external interrupt configuration register 3
+        (0x010 => exticr3: ReadWrite<u32, EXTICR3::Register>),
+        /// external interrupt configuration register 4
+        (0x014 => exticr4: ReadWrite<u32, EXTICR4::Register>),
+        /// SRAM control and status register
+        (0x018 => scsr: ReadWrite<u32, SCSR::Register>),
+        /// configuration register 2
+        (0x01c => cfgr2: ReadWrite<u32, CFGR2::Register>),
+        /// SRAM write protection register
+        (0x020 => swpr: ReadWrite<u32, SWPR::Register>),
+        /// SRAM key register
+        (0x024 => skr: ReadWrite<u32, SKR::Register>),
+        /// RESERVED (0x028 - 0x204)
+        (0x028 => _reserved0: [u32; 120]),
+        /// Radio debug control register
+        (0x208 => rfdcr: ReadWrite<u32, RFDCR::Register>),
+        (0x20c => @END),
+    }
 }
 
 register_bitfields![u32,
