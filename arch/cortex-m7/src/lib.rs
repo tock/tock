@@ -15,6 +15,8 @@ pub mod mpu {
 
     pub type MPU = cortexm::mpu::MPU<16, 32>; // Cortex-M7 MPU has 16 regions
 
+    /// SAFETY: The MPU registers are at this address per the ARM architecture
+    /// documentation.
     const MPU_BASE_ADDRESS: StaticRef<cortexm::mpu::MpuRegisters> =
         unsafe { StaticRef::new(0xE000ED90 as *const cortexm::mpu::MpuRegisters) };
 
@@ -25,6 +27,7 @@ pub mod mpu {
     /// Callers must ensure the hardware is a valid Cortex-M7 chip and that the
     /// MPU hardware exists to enforce memory protection.
     pub unsafe fn new() -> MPU {
+        // SAFETY: Satisfied by function-level requirements.
         unsafe { MPU::new(MPU_BASE_ADDRESS) }
     }
 }
