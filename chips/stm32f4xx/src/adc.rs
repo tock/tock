@@ -10,36 +10,40 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-struct AdcRegisters {
-    sr: ReadWrite<u32, SR::Register>,
-    cr1: ReadWrite<u32, CR1::Register>,
-    cr2: ReadWrite<u32, CR2::Register>,
-    smpr1: ReadWrite<u32, SMPR1::Register>,
-    smpr2: ReadWrite<u32, SMPR2::Register>,
-    jofr1: ReadWrite<u32, JOFR::Register>,
-    jofr2: ReadWrite<u32, JOFR::Register>,
-    jofr3: ReadWrite<u32, JOFR::Register>,
-    jofr4: ReadWrite<u32, JOFR::Register>,
-    htr: ReadWrite<u32, HTR::Register>,
-    ltr: ReadWrite<u32, LTR::Register>,
-    sqr1: ReadWrite<u32, SQR1::Register>,
-    sqr2: ReadWrite<u32, SQR2::Register>,
-    sqr3: ReadWrite<u32, SQR3::Register>,
-    jsqr: ReadWrite<u32, JSQR::Register>,
-    jdr1: ReadOnly<u32, JDR::Register>,
-    jdr2: ReadOnly<u32, JDR::Register>,
-    jdr3: ReadOnly<u32, JDR::Register>,
-    jdr4: ReadOnly<u32, JDR::Register>,
-    dr: ReadOnly<u32, DR::Register>,
+register_structs! {
+    AdcRegisters {
+        (0x000 => sr: ReadWrite<u32, SR::Register>),
+        (0x004 => cr1: ReadWrite<u32, CR1::Register>),
+        (0x008 => cr2: ReadWrite<u32, CR2::Register>),
+        (0x00c => smpr1: ReadWrite<u32, SMPR1::Register>),
+        (0x010 => smpr2: ReadWrite<u32, SMPR2::Register>),
+        (0x014 => jofr1: ReadWrite<u32, JOFR::Register>),
+        (0x018 => jofr2: ReadWrite<u32, JOFR::Register>),
+        (0x01c => jofr3: ReadWrite<u32, JOFR::Register>),
+        (0x020 => jofr4: ReadWrite<u32, JOFR::Register>),
+        (0x024 => htr: ReadWrite<u32, HTR::Register>),
+        (0x028 => ltr: ReadWrite<u32, LTR::Register>),
+        (0x02c => sqr1: ReadWrite<u32, SQR1::Register>),
+        (0x030 => sqr2: ReadWrite<u32, SQR2::Register>),
+        (0x034 => sqr3: ReadWrite<u32, SQR3::Register>),
+        (0x038 => jsqr: ReadWrite<u32, JSQR::Register>),
+        (0x03c => jdr1: ReadOnly<u32, JDR::Register>),
+        (0x040 => jdr2: ReadOnly<u32, JDR::Register>),
+        (0x044 => jdr3: ReadOnly<u32, JDR::Register>),
+        (0x048 => jdr4: ReadOnly<u32, JDR::Register>),
+        (0x04c => dr: ReadOnly<u32, DR::Register>),
+        (0x050 => @END),
+    }
 }
 
-#[repr(C)]
-struct AdcCommonRegisters {
-    csr: ReadOnly<u32, CSR::Register>,
-    ccr: ReadWrite<u32, CCR::Register>,
+register_structs! {
+    AdcCommonRegisters {
+        (0x000 => csr: ReadOnly<u32, CSR::Register>),
+        (0x004 => ccr: ReadWrite<u32, CCR::Register>),
+        (0x008 => @END),
+    }
 }
 
 register_bitfields![u32,

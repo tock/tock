@@ -4,72 +4,74 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-/// Reset and clock control
-#[repr(C)]
-struct RccRegisters {
-    /// clock control register
-    cr: ReadWrite<u32, CR::Register>,
-    /// PLL configuration register
-    pllcfgr: ReadWrite<u32, PLLCFGR::Register>,
-    /// clock configuration register
-    cfgr: ReadWrite<u32, CFGR::Register>,
-    /// clock interrupt register
-    cir: ReadWrite<u32, CIR::Register>,
-    /// AHB1 peripheral reset register
-    ahb1rstr: ReadWrite<u32, AHB1RSTR::Register>,
-    /// AHB2 peripheral reset register
-    ahb2rstr: ReadWrite<u32, AHB2RSTR::Register>,
-    /// AHB3 peripheral reset register
-    ahb3rstr: ReadWrite<u32, AHB3RSTR::Register>,
-    _reserved0: [u8; 4],
-    /// APB1 peripheral reset register
-    apb1rstr: ReadWrite<u32, APB1RSTR::Register>,
-    /// APB2 peripheral reset register
-    apb2rstr: ReadWrite<u32, APB2RSTR::Register>,
-    _reserved1: [u8; 8],
-    /// AHB1 peripheral clock register
-    ahb1enr: ReadWrite<u32, AHB1ENR::Register>,
-    /// AHB2 peripheral clock enable register
-    ahb2enr: ReadWrite<u32, AHB2ENR::Register>,
-    /// AHB3 peripheral clock enable register
-    ahb3enr: ReadWrite<u32, AHB3ENR::Register>,
-    _reserved2: [u8; 4],
-    /// APB1 peripheral clock enable register
-    apb1enr: ReadWrite<u32, APB1ENR::Register>,
-    /// APB2 peripheral clock enable register
-    apb2enr: ReadWrite<u32, APB2ENR::Register>,
-    _reserved3: [u8; 8],
-    /// AHB1 peripheral clock enable in low power mode register
-    ahb1lpenr: ReadWrite<u32, AHB1LPENR::Register>,
-    /// AHB2 peripheral clock enable in low power mode register
-    ahb2lpenr: ReadWrite<u32, AHB2LPENR::Register>,
-    /// AHB3 peripheral clock enable in low power mode register
-    ahb3lpenr: ReadWrite<u32, AHB3LPENR::Register>,
-    _reserved4: [u8; 4],
-    /// APB1 peripheral clock enable in low power mode register
-    apb1lpenr: ReadWrite<u32, APB1LPENR::Register>,
-    /// APB2 peripheral clock enabled in low power mode register
-    apb2lpenr: ReadWrite<u32, APB2LPENR::Register>,
-    _reserved5: [u8; 8],
-    /// Backup domain control register
-    bdcr: ReadWrite<u32, BDCR::Register>,
-    /// clock control & status register
-    csr: ReadWrite<u32, CSR::Register>,
-    _reserved6: [u8; 8],
-    /// spread spectrum clock generation register
-    sscgr: ReadWrite<u32, SSCGR::Register>,
-    /// PLLI2S configuration register
-    plli2scfgr: ReadWrite<u32, PLLI2SCFGR::Register>,
-    /// PLL configuration register
-    pllsaicfgr: ReadWrite<u32, PLLSAICFGR::Register>,
-    /// Dedicated Clock Configuration Register
-    dckcfgr: ReadWrite<u32, DCKCFGR::Register>,
-    /// clocks gated enable register
-    ckgatenr: ReadWrite<u32, CKGATENR::Register>,
-    /// dedicated clocks configuration register 2
-    dckcfgr2: ReadWrite<u32, DCKCFGR2::Register>,
+register_structs! {
+    /// Reset and clock control
+    RccRegisters {
+        /// clock control register
+        (0x000 => cr: ReadWrite<u32, CR::Register>),
+        /// PLL configuration register
+        (0x004 => pllcfgr: ReadWrite<u32, PLLCFGR::Register>),
+        /// clock configuration register
+        (0x008 => cfgr: ReadWrite<u32, CFGR::Register>),
+        /// clock interrupt register
+        (0x00c => cir: ReadWrite<u32, CIR::Register>),
+        /// AHB1 peripheral reset register
+        (0x010 => ahb1rstr: ReadWrite<u32, AHB1RSTR::Register>),
+        /// AHB2 peripheral reset register
+        (0x014 => ahb2rstr: ReadWrite<u32, AHB2RSTR::Register>),
+        /// AHB3 peripheral reset register
+        (0x018 => ahb3rstr: ReadWrite<u32, AHB3RSTR::Register>),
+        (0x01c => _reserved0),
+        /// APB1 peripheral reset register
+        (0x020 => apb1rstr: ReadWrite<u32, APB1RSTR::Register>),
+        /// APB2 peripheral reset register
+        (0x024 => apb2rstr: ReadWrite<u32, APB2RSTR::Register>),
+        (0x028 => _reserved1),
+        /// AHB1 peripheral clock register
+        (0x030 => ahb1enr: ReadWrite<u32, AHB1ENR::Register>),
+        /// AHB2 peripheral clock enable register
+        (0x034 => ahb2enr: ReadWrite<u32, AHB2ENR::Register>),
+        /// AHB3 peripheral clock enable register
+        (0x038 => ahb3enr: ReadWrite<u32, AHB3ENR::Register>),
+        (0x03c => _reserved2),
+        /// APB1 peripheral clock enable register
+        (0x040 => apb1enr: ReadWrite<u32, APB1ENR::Register>),
+        /// APB2 peripheral clock enable register
+        (0x044 => apb2enr: ReadWrite<u32, APB2ENR::Register>),
+        (0x048 => _reserved3),
+        /// AHB1 peripheral clock enable in low power mode register
+        (0x050 => ahb1lpenr: ReadWrite<u32, AHB1LPENR::Register>),
+        /// AHB2 peripheral clock enable in low power mode register
+        (0x054 => ahb2lpenr: ReadWrite<u32, AHB2LPENR::Register>),
+        /// AHB3 peripheral clock enable in low power mode register
+        (0x058 => ahb3lpenr: ReadWrite<u32, AHB3LPENR::Register>),
+        (0x05c => _reserved4),
+        /// APB1 peripheral clock enable in low power mode register
+        (0x060 => apb1lpenr: ReadWrite<u32, APB1LPENR::Register>),
+        /// APB2 peripheral clock enabled in low power mode register
+        (0x064 => apb2lpenr: ReadWrite<u32, APB2LPENR::Register>),
+        (0x068 => _reserved5),
+        /// Backup domain control register
+        (0x070 => bdcr: ReadWrite<u32, BDCR::Register>),
+        /// clock control & status register
+        (0x074 => csr: ReadWrite<u32, CSR::Register>),
+        (0x078 => _reserved6),
+        /// spread spectrum clock generation register
+        (0x080 => sscgr: ReadWrite<u32, SSCGR::Register>),
+        /// PLLI2S configuration register
+        (0x084 => plli2scfgr: ReadWrite<u32, PLLI2SCFGR::Register>),
+        /// PLL configuration register
+        (0x088 => pllsaicfgr: ReadWrite<u32, PLLSAICFGR::Register>),
+        /// Dedicated Clock Configuration Register
+        (0x08c => dckcfgr: ReadWrite<u32, DCKCFGR::Register>),
+        /// clocks gated enable register
+        (0x090 => ckgatenr: ReadWrite<u32, CKGATENR::Register>),
+        /// dedicated clocks configuration register 2
+        (0x094 => dckcfgr2: ReadWrite<u32, DCKCFGR2::Register>),
+        (0x098 => @END),
+    }
 }
 
 register_bitfields![u32,

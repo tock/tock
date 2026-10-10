@@ -12,13 +12,15 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct RngRegisters {
-    cr: ReadWrite<u32, Control::Register>,
-    sr: ReadWrite<u32, Status::Register>,
-    data: ReadOnly<u32, Data::Register>,
+register_structs! {
+    pub RngRegisters {
+        (0x000 => cr: ReadWrite<u32, Control::Register>),
+        (0x004 => sr: ReadWrite<u32, Status::Register>),
+        (0x008 => data: ReadOnly<u32, Data::Register>),
+        (0x00c => @END),
+    }
 }
 
 register_bitfields![u32,

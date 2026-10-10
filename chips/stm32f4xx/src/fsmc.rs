@@ -11,36 +11,38 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-/// FSMC peripheral interface
-#[repr(C)]
-struct FsmcBankRegisters {
-    /// SRAM/NOR-Flash chip-select control register
-    bcr1: ReadWrite<u32, BCR::Register>,
-    /// SRAM/NOR-Flash chip-select timing register
-    btr1: ReadWrite<u32, BTR::Register>,
-    /// SRAM/NOR-Flash chip-select control register
-    bcr2: ReadWrite<u32, BCR::Register>,
-    /// SRAM/NOR-Flash chip-select timing register
-    btr2: ReadWrite<u32, BTR::Register>,
-    /// SRAM/NOR-Flash chip-select control register
-    bcr3: ReadWrite<u32, BCR::Register>,
-    /// SRAM/NOR-Flash chip-select timing register
-    btr3: ReadWrite<u32, BTR::Register>,
-    /// SRAM/NOR-Flash chip-select control register
-    bcr4: ReadWrite<u32, BCR::Register>,
-    /// SRAM/NOR-Flash chip-select timing register
-    btr4: ReadWrite<u32, BTR::Register>,
-    _reseved: [u8; 228],
-    /// SRAM/NOR-Flash write timing registers
-    bwtr1: ReadWrite<u32, BWTR::Register>,
-    /// SRAM/NOR-Flash write timing registers
-    bwtr2: ReadWrite<u32, BWTR::Register>,
-    /// SRAM/NOR-Flash write timing registers
-    bwtr3: ReadWrite<u32, BWTR::Register>,
-    /// SRAM/NOR-Flash write timing registers
-    bwtr4: ReadWrite<u32, BWTR::Register>,
+register_structs! {
+    /// FSMC peripheral interface
+    FsmcBankRegisters {
+        /// SRAM/NOR-Flash chip-select control register
+        (0x000 => bcr1: ReadWrite<u32, BCR::Register>),
+        /// SRAM/NOR-Flash chip-select timing register
+        (0x004 => btr1: ReadWrite<u32, BTR::Register>),
+        /// SRAM/NOR-Flash chip-select control register
+        (0x008 => bcr2: ReadWrite<u32, BCR::Register>),
+        /// SRAM/NOR-Flash chip-select timing register
+        (0x00c => btr2: ReadWrite<u32, BTR::Register>),
+        /// SRAM/NOR-Flash chip-select control register
+        (0x010 => bcr3: ReadWrite<u32, BCR::Register>),
+        /// SRAM/NOR-Flash chip-select timing register
+        (0x014 => btr3: ReadWrite<u32, BTR::Register>),
+        /// SRAM/NOR-Flash chip-select control register
+        (0x018 => bcr4: ReadWrite<u32, BCR::Register>),
+        /// SRAM/NOR-Flash chip-select timing register
+        (0x01c => btr4: ReadWrite<u32, BTR::Register>),
+        (0x020 => _reseved),
+        /// SRAM/NOR-Flash write timing registers
+        (0x104 => bwtr1: ReadWrite<u32, BWTR::Register>),
+        /// SRAM/NOR-Flash write timing registers
+        (0x108 => bwtr2: ReadWrite<u32, BWTR::Register>),
+        /// SRAM/NOR-Flash write timing registers
+        (0x10c => bwtr3: ReadWrite<u32, BWTR::Register>),
+        /// SRAM/NOR-Flash write timing registers
+        (0x110 => bwtr4: ReadWrite<u32, BWTR::Register>),
+        (0x114 => @END),
+    }
 }
 
 register_bitfields![u32,
@@ -133,13 +135,15 @@ register_bitfields![u32,
 const FSMC_BASE: StaticRef<FsmcBankRegisters> =
     unsafe { StaticRef::new(0xA000_0000 as *const FsmcBankRegisters) };
 
-/// FSMC Bank
-#[repr(C)]
-pub struct FsmcBank {
-    /// Address
-    reg: ReadWrite<u16>,
-    /// Data
-    ram: ReadWrite<u16>,
+register_structs! {
+    /// FSMC Bank
+    pub FsmcBank {
+        /// Address
+        (0x000 => reg: ReadWrite<u16>),
+        /// Data
+        (0x002 => ram: ReadWrite<u16>),
+        (0x004 => @END),
+    }
 }
 
 #[repr(usize)]
