@@ -8,42 +8,44 @@ use enum_primitive::enum_from_primitive;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 use crate::gpio;
 use crate::syscfg;
 
-/// External interrupt/event controller
-#[repr(C)]
-struct ExtiRegisters {
-    /// Rising Trigger selection register (EXTI_RTSR1)
-    rtsr1: ReadWrite<u32, RTSR1::Register>,
-    /// Falling Trigger selection register (EXTI_FTSR1)
-    ftsr1: ReadWrite<u32, FTSR1::Register>,
-    /// Software interrupt event register (EXTI_SWIER1)
-    swier1: ReadWrite<u32, SWIER1::Register>,
-    /// Pending register (EXTI_PR1)
-    pr1: ReadWrite<u32, PR1::Register>,
-    /// RESERVED (0x010 - 0x01C)
-    reserved0: [u32; 4],
-    /// Rising Trigger selection register (EXTI_RTSR1)
-    rtsr2: ReadWrite<u32, RTSR2::Register>,
-    /// Falling Trigger selection register (EXTI_FTSR1)
-    ftsr2: ReadWrite<u32, FTSR2::Register>,
-    /// Software interrupt event register (EXTI_SWIER1)
-    swier2: ReadWrite<u32, SWIER2::Register>,
-    /// Pending register (EXTI_PR1)
-    pr2: ReadWrite<u32, PR2::Register>,
-    /// RESERVED (0x030 - 0x07C)
-    reserved1: [u32; 20],
-    /// Interrupt mask register (EXTI_IMR1)
-    imr1: ReadWrite<u32, IMR1::Register>,
-    /// Event mask register (EXTI_EMR1)
-    emr1: ReadWrite<u32, EMR1::Register>,
-    /// RESERVED (0x08C)
-    reserved2: u32,
-    /// Interrupt mask register (EXTI_IMR2)
-    imr2: ReadWrite<u32, IMR2::Register>,
+register_structs! {
+    /// External interrupt/event controller
+    ExtiRegisters {
+        /// Rising Trigger selection register (EXTI_RTSR1)
+        (0x000 => rtsr1: ReadWrite<u32, RTSR1::Register>),
+        /// Falling Trigger selection register (EXTI_FTSR1)
+        (0x004 => ftsr1: ReadWrite<u32, FTSR1::Register>),
+        /// Software interrupt event register (EXTI_SWIER1)
+        (0x008 => swier1: ReadWrite<u32, SWIER1::Register>),
+        /// Pending register (EXTI_PR1)
+        (0x00c => pr1: ReadWrite<u32, PR1::Register>),
+        /// RESERVED (0x010 - 0x01C)
+        (0x010 => reserved0: [u32; 4]),
+        /// Rising Trigger selection register (EXTI_RTSR1)
+        (0x020 => rtsr2: ReadWrite<u32, RTSR2::Register>),
+        /// Falling Trigger selection register (EXTI_FTSR1)
+        (0x024 => ftsr2: ReadWrite<u32, FTSR2::Register>),
+        /// Software interrupt event register (EXTI_SWIER1)
+        (0x028 => swier2: ReadWrite<u32, SWIER2::Register>),
+        /// Pending register (EXTI_PR1)
+        (0x02c => pr2: ReadWrite<u32, PR2::Register>),
+        /// RESERVED (0x030 - 0x07C)
+        (0x030 => reserved1: [u32; 20]),
+        /// Interrupt mask register (EXTI_IMR1)
+        (0x080 => imr1: ReadWrite<u32, IMR1::Register>),
+        /// Event mask register (EXTI_EMR1)
+        (0x084 => emr1: ReadWrite<u32, EMR1::Register>),
+        /// RESERVED (0x08C)
+        (0x088 => reserved2: u32),
+        /// Interrupt mask register (EXTI_IMR2)
+        (0x08c => imr2: ReadWrite<u32, IMR2::Register>),
+        (0x090 => @END),
+    }
 }
 
 register_bitfields![u32,

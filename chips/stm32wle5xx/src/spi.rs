@@ -14,7 +14,7 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 use crate::clocks::Stm32wle5xxClocks;
 use crate::clocks::phclk;
@@ -24,30 +24,30 @@ const SPI_WRITE_IN_PROGRESS: u8 = 0b010;
 const SPI_IN_PROGRESS: u8 = 0b100;
 const SPI_IDLE: u8 = 0b000;
 
-/// Serial peripheral interface
-#[repr(C)]
-struct SpiRegisters {
-    /// control register 1
-    cr1: ReadWrite<u32, CR1::Register>,
-    /// control register 2
-    cr2: ReadWrite<u32, CR2::Register>,
-    /// status register
-    sr: ReadWrite<u32, SR::Register>,
-    // this should be _reserved: [u8; 3], but it does not work,
-    // packing is correct, but writing to the data register does not work
-    // leaving it commented out until an upgrade to packed data is written
-    /// data register
-    dr: ReadWrite<u8, DR::Register>,
-    /// CRC polynomial register
-    crcpr: ReadWrite<u32, CRCPR::Register>,
-    /// RX CRC register
-    rxcrcr: ReadOnly<u32, RXCRCR::Register>,
-    /// TX CRC register
-    txcrcr: ReadOnly<u32, TXCRCR::Register>,
-    /// I2S configuration register
-    i2scfgr: ReadWrite<u32, I2SCFGR::Register>,
-    /// I2S prescaler register
-    i2spr: ReadWrite<u32, I2SPR::Register>,
+register_structs! {
+    /// Serial peripheral interface
+    SpiRegisters {
+        /// control register 1
+        (0x000 => cr1: ReadWrite<u32, CR1::Register>),
+        /// control register 2
+        (0x004 => cr2: ReadWrite<u32, CR2::Register>),
+        /// status register
+        (0x008 => sr: ReadWrite<u32, SR::Register>),
+        /// data register
+        (0x00c => dr: ReadWrite<u8, DR::Register>),
+        (0x00d => _reserved0),
+        /// CRC polynomial register
+        (0x010 => crcpr: ReadWrite<u32, CRCPR::Register>),
+        /// RX CRC register
+        (0x014 => rxcrcr: ReadOnly<u32, RXCRCR::Register>),
+        /// TX CRC register
+        (0x018 => txcrcr: ReadOnly<u32, TXCRCR::Register>),
+        /// I2S configuration register
+        (0x01c => i2scfgr: ReadWrite<u32, I2SCFGR::Register>),
+        /// I2S prescaler register
+        (0x020 => i2spr: ReadWrite<u32, I2SPR::Register>),
+        (0x024 => @END),
+    }
 }
 
 register_bitfields![u8,

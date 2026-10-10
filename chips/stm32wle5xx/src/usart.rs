@@ -10,38 +10,40 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 use crate::clocks::clocks::Stm32wle5xxClocks;
 use crate::clocks::phclk;
 
-/// Universal synchronous asynchronous receiver transmitter
-#[repr(C)]
-struct UsartRegisters {
-    /// Control register 1
-    cr1: ReadWrite<u32, CR1::Register>,
-    /// Control register 2
-    cr2: ReadWrite<u32, CR2::Register>,
-    /// Control register 3
-    cr3: ReadWrite<u32, CR3::Register>,
-    /// Baud rate register
-    brr: ReadWrite<u32, BRR::Register>,
-    /// Guard time and prescaler register
-    gtpr: ReadWrite<u32, GTPR::Register>,
-    /// Receiver timeout register
-    rtor: ReadWrite<u32, RTOR::Register>,
-    /// Request register
-    rqr: ReadWrite<u32, RTOR::Register>,
-    /// Interrupt and status register
-    isr: ReadWrite<u32, ISR::Register>,
-    /// Interrupt flag clear register
-    icr: ReadWrite<u32, ICR::Register>,
-    /// Receive data register
-    rdr: ReadOnly<u32>,
-    /// Transmit data register
-    tdr: ReadWrite<u32>,
-    /// Prescaler register
-    presc: ReadWrite<u32>,
+register_structs! {
+    /// Universal synchronous asynchronous receiver transmitter
+    UsartRegisters {
+        /// Control register 1
+        (0x000 => cr1: ReadWrite<u32, CR1::Register>),
+        /// Control register 2
+        (0x004 => cr2: ReadWrite<u32, CR2::Register>),
+        /// Control register 3
+        (0x008 => cr3: ReadWrite<u32, CR3::Register>),
+        /// Baud rate register
+        (0x00c => brr: ReadWrite<u32, BRR::Register>),
+        /// Guard time and prescaler register
+        (0x010 => gtpr: ReadWrite<u32, GTPR::Register>),
+        /// Receiver timeout register
+        (0x014 => rtor: ReadWrite<u32, RTOR::Register>),
+        /// Request register
+        (0x018 => rqr: ReadWrite<u32, RTOR::Register>),
+        /// Interrupt and status register
+        (0x01c => isr: ReadWrite<u32, ISR::Register>),
+        /// Interrupt flag clear register
+        (0x020 => icr: ReadWrite<u32, ICR::Register>),
+        /// Receive data register
+        (0x024 => rdr: ReadOnly<u32>),
+        /// Transmit data register
+        (0x028 => tdr: ReadWrite<u32>),
+        /// Prescaler register
+        (0x02c => presc: ReadWrite<u32>),
+        (0x030 => @END),
+    }
 }
 
 register_bitfields![u32,

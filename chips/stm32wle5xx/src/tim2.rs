@@ -9,58 +9,60 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
 use crate::clocks::{Stm32wle5xxClocks, phclk};
 use crate::nvic;
 
-/// General purpose timers
-#[repr(C)]
-struct Tim2Registers {
-    /// control register 1
-    cr1: ReadWrite<u32, CR1::Register>,
-    /// control register 2
-    cr2: ReadWrite<u32, CR2::Register>,
-    /// slave mode control register
-    smcr: ReadWrite<u32, SMCR::Register>,
-    /// DMA/Interrupt enable register
-    dier: ReadWrite<u32, DIER::Register>,
-    /// status register
-    sr: ReadWrite<u32, SR::Register>,
-    /// event generation register
-    egr: WriteOnly<u32, EGR::Register>,
-    /// capture/compare mode register 1 (output mode)
-    ccmr1_output: ReadWrite<u32, CCMR1_Output::Register>,
-    /// capture/compare mode register 2 (output mode)
-    ccmr2_output: ReadWrite<u32, CCMR2_Output::Register>,
-    /// capture/compare enable register
-    ccer: ReadWrite<u32, CCER::Register>,
-    /// counter
-    cnt: ReadWrite<u32, CNT::Register>,
-    /// prescaler
-    psc: ReadWrite<u32>,
-    /// auto-reload register
-    arr: ReadWrite<u32, ARR::Register>,
-    _reserved0: [u8; 4],
-    /// capture/compare register 1
-    ccr1: ReadWrite<u32, CCR1::Register>,
-    /// capture/compare register 2
-    ccr2: ReadWrite<u32, CCR2::Register>,
-    /// capture/compare register 3
-    ccr3: ReadWrite<u32, CCR3::Register>,
-    /// capture/compare register 4
-    ccr4: ReadWrite<u32, CCR4::Register>,
-    _reserved1: [u8; 4],
-    /// DMA control register
-    dcr: ReadWrite<u32, DCR::Register>,
-    /// DMA address for full transfer
-    dmar: ReadWrite<u32>,
-    /// TIM5 option register
-    or_: ReadWrite<u32>,
-    /// TIM2 Alternate function option register 1
-    af1: ReadWrite<u32>,
-    /// TIM2 timer input selection register
-    tisel: ReadWrite<u32>,
+register_structs! {
+    /// General purpose timers
+    Tim2Registers {
+        /// control register 1
+        (0x000 => cr1: ReadWrite<u32, CR1::Register>),
+        /// control register 2
+        (0x004 => cr2: ReadWrite<u32, CR2::Register>),
+        /// slave mode control register
+        (0x008 => smcr: ReadWrite<u32, SMCR::Register>),
+        /// DMA/Interrupt enable register
+        (0x00c => dier: ReadWrite<u32, DIER::Register>),
+        /// status register
+        (0x010 => sr: ReadWrite<u32, SR::Register>),
+        /// event generation register
+        (0x014 => egr: WriteOnly<u32, EGR::Register>),
+        /// capture/compare mode register 1 (output mode)
+        (0x018 => ccmr1_output: ReadWrite<u32, CCMR1_Output::Register>),
+        /// capture/compare mode register 2 (output mode)
+        (0x01c => ccmr2_output: ReadWrite<u32, CCMR2_Output::Register>),
+        /// capture/compare enable register
+        (0x020 => ccer: ReadWrite<u32, CCER::Register>),
+        /// counter
+        (0x024 => cnt: ReadWrite<u32, CNT::Register>),
+        /// prescaler
+        (0x028 => psc: ReadWrite<u32>),
+        /// auto-reload register
+        (0x02c => arr: ReadWrite<u32, ARR::Register>),
+        (0x030 => _reserved0),
+        /// capture/compare register 1
+        (0x034 => ccr1: ReadWrite<u32, CCR1::Register>),
+        /// capture/compare register 2
+        (0x038 => ccr2: ReadWrite<u32, CCR2::Register>),
+        /// capture/compare register 3
+        (0x03c => ccr3: ReadWrite<u32, CCR3::Register>),
+        /// capture/compare register 4
+        (0x040 => ccr4: ReadWrite<u32, CCR4::Register>),
+        (0x044 => _reserved1),
+        /// DMA control register
+        (0x048 => dcr: ReadWrite<u32, DCR::Register>),
+        /// DMA address for full transfer
+        (0x04c => dmar: ReadWrite<u32>),
+        /// TIM5 option register
+        (0x050 => or_: ReadWrite<u32>),
+        /// TIM2 Alternate function option register 1
+        (0x054 => af1: ReadWrite<u32>),
+        /// TIM2 timer input selection register
+        (0x058 => tisel: ReadWrite<u32>),
+        (0x05c => @END),
+    }
 }
 
 register_bitfields![u32,
