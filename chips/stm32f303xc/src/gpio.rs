@@ -10,34 +10,38 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
 use crate::exti::{self, LineId};
 use crate::rcc;
 
-/// General-purpose I/Os
-#[repr(C)]
-struct GpioRegisters {
-    /// GPIO port mode register
-    moder: ReadWrite<u32, MODER::Register>,
-    /// GPIO port output type register
-    otyper: ReadWrite<u32, OTYPER::Register>,
-    /// GPIO port output speed register
-    ospeedr: ReadWrite<u32, OSPEEDR::Register>,
-    /// GPIO port pull-up/pull-down register
-    pupdr: ReadWrite<u32, PUPDR::Register>,
-    /// GPIO port input data register
-    idr: ReadOnly<u32, IDR::Register>,
-    /// GPIO port output data register
-    odr: ReadWrite<u32, ODR::Register>,
-    /// GPIO port bit set/reset register
-    bsrr: WriteOnly<u32, BSRR::Register>,
-    /// GPIO port configuration lock register
-    lckr: ReadWrite<u32, LCKR::Register>,
-    /// GPIO alternate function low register
-    afrl: ReadWrite<u32, AFRL::Register>,
-    /// GPIO alternate function high register
-    afrh: ReadWrite<u32, AFRH::Register>,
+register_structs! {
+    /// General-purpose I/Os
+    GpioRegisters {
+        /// GPIO port mode register
+        (0x000 => moder: ReadWrite<u32, MODER::Register>),
+        /// GPIO port output type register
+        (0x004 => otyper: ReadWrite<u32, OTYPER::Register>),
+        /// GPIO port output speed register
+        (0x008 => ospeedr: ReadWrite<u32, OSPEEDR::Register>),
+        /// GPIO port pull-up/pull-down register
+        (0x00c => pupdr: ReadWrite<u32, PUPDR::Register>),
+        /// GPIO port input data register
+        (0x010 => idr: ReadOnly<u32, IDR::Register>),
+        /// GPIO port output data register
+        (0x014 => odr: ReadWrite<u32, ODR::Register>),
+        /// GPIO port bit set/reset register
+        (0x018 => bsrr: WriteOnly<u32, BSRR::Register>),
+        /// GPIO port configuration lock register
+        (0x01c => lckr: ReadWrite<u32, LCKR::Register>),
+        /// GPIO alternate function low register
+        (0x020 => afrl: ReadWrite<u32, AFRL::Register>),
+        /// GPIO alternate function high register
+        (0x024 => afrh: ReadWrite<u32, AFRH::Register>),
+        (0x028 => @END),
+    }
 }
 
 register_bitfields![u32,
