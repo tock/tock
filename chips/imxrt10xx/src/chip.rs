@@ -140,10 +140,9 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm7::scb::unset_sleepdeep();
-            cortexm7::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        cortexm7::scb::unset_sleepdeep(&cap);
+        cortexm7::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

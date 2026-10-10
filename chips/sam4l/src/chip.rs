@@ -271,19 +271,13 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     }
 
     fn sleep(&self) {
+        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
         if pm::deep_sleep_ready() {
-            unsafe {
-                cortexm4::scb::set_sleepdeep();
-            }
+            cortexm4::scb::set_sleepdeep(&cap);
         } else {
-            unsafe {
-                cortexm4::scb::unset_sleepdeep();
-            }
+            cortexm4::scb::unset_sleepdeep(&cap);
         }
-
-        unsafe {
-            cortexm4::support::wfi();
-        }
+        cortexm4::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

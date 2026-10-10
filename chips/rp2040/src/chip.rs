@@ -113,9 +113,8 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm0p::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        cortexm0p::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R
