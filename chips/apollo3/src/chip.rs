@@ -16,9 +16,12 @@ pub struct Apollo3<I: InterruptService + 'static> {
 }
 
 impl<I: InterruptService + 'static> Apollo3<I> {
-    pub unsafe fn new(interrupt_service: &'static I) -> Self {
+    pub fn new(interrupt_service: &'static I) -> Self {
+        // SAFETY: All Apollo3 chips are Cortex-M4F cores with valid MPU hardware.
+        let mpu = unsafe { cortexm4f::mpu::new() };
+
         Self {
-            mpu: cortexm4f::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }
