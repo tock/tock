@@ -21,7 +21,7 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     FieldValue, InMemoryRegister, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly,
-    register_bitfields,
+    register_bitfields, register_structs,
 };
 
 // The following macros provide some diagnostics and panics(!)
@@ -52,65 +52,62 @@ macro_rules! internal_err {
     };
 }
 
-#[repr(C)]
-struct UsbcRegisters {
-    udcon: ReadWrite<u32, DeviceControl::Register>,
-    udint: ReadOnly<u32, DeviceInterrupt::Register>,
-    udintclr: WriteOnly<u32, DeviceInterrupt::Register>,
-    udintset: WriteOnly<u32, DeviceInterrupt::Register>,
-    udinte: ReadOnly<u32, DeviceInterrupt::Register>,
-    udinteclr: WriteOnly<u32, DeviceInterrupt::Register>,
-    udinteset: WriteOnly<u32, DeviceInterrupt::Register>,
-    uerst: ReadWrite<u32>,
-    udfnum: ReadOnly<u32>,
-    _reserved0: [u8; 0xdc], // 220 bytes
-    // Note that the SAM4L supports only 8 endpoints, but the registers
-    // are laid out such that there is room for 12.
-    // 0x100
-    uecfg: [ReadWrite<u32, EndpointConfig::Register>; 12],
-    uesta: [ReadOnly<u32, EndpointStatus::Register>; 12],
-    uestaclr: [WriteOnly<u32, EndpointStatus::Register>; 12],
-    uestaset: [WriteOnly<u32, EndpointStatus::Register>; 12],
-    uecon: [ReadOnly<u32, EndpointControl::Register>; 12],
-    ueconset: [WriteOnly<u32, EndpointControl::Register>; 12],
-    ueconclr: [WriteOnly<u32, EndpointControl::Register>; 12],
-    _reserved1: [u8; 0x1b0], // 432 bytes
-    // 0x400 = 1024
-    uhcon: ReadWrite<u32>,
-    uhint: ReadOnly<u32>,
-    uhintclr: WriteOnly<u32>,
-    uhintset: WriteOnly<u32>,
-    uhinte: ReadOnly<u32>,
-    uhinteclr: WriteOnly<u32>,
-    uhinteset: WriteOnly<u32>,
-    uprst: ReadWrite<u32>,
-    uhfnum: ReadWrite<u32>,
-    uhsofc: ReadWrite<u32>,
-    _reserved2: [u8; 0xd8], // 216 bytes
-    // 0x500 = 1280
-    upcfg: [ReadWrite<u32>; 12],
-    upsta: [ReadOnly<u32>; 12],
-    upstaclr: [WriteOnly<u32>; 12],
-    upstaset: [WriteOnly<u32>; 12],
-    upcon: [ReadOnly<u32>; 12],
-    upconset: [WriteOnly<u32>; 12],
-    upconclr: [WriteOnly<u32>; 12],
-    upinrq: [ReadWrite<u32>; 12],
-    _reserved3: [u8; 0x180], // 384 bytes
-    // 0x800 = 2048
-    usbcon: ReadWrite<u32, Control::Register>,
-    usbsta: ReadOnly<u32, Status::Register>,
-    usbstaclr: WriteOnly<u32>,
-    usbstaset: WriteOnly<u32>,
-    _reserved4: [u8; 8],
-    // 0x818
-    uvers: ReadOnly<u32>,
-    ufeatures: ReadOnly<u32>,
-    uaddrsize: ReadOnly<u32>,
-    uname1: ReadOnly<u32>,
-    uname2: ReadOnly<u32>,
-    usbfsm: ReadOnly<u32>,
-    udesc: ReadWrite<u32>,
+register_structs! {
+    UsbcRegisters {
+        (0x000 => udcon: ReadWrite<u32, DeviceControl::Register>),
+        (0x004 => udint: ReadOnly<u32, DeviceInterrupt::Register>),
+        (0x008 => udintclr: WriteOnly<u32, DeviceInterrupt::Register>),
+        (0x00c => udintset: WriteOnly<u32, DeviceInterrupt::Register>),
+        (0x010 => udinte: ReadOnly<u32, DeviceInterrupt::Register>),
+        (0x014 => udinteclr: WriteOnly<u32, DeviceInterrupt::Register>),
+        (0x018 => udinteset: WriteOnly<u32, DeviceInterrupt::Register>),
+        (0x01c => uerst: ReadWrite<u32>),
+        (0x020 => udfnum: ReadOnly<u32>),
+        (0x024 => _reserved0),
+        /// Note that the SAM4L supports only 8 endpoints, but the registers
+        /// are laid out such that there is room for 12.
+        (0x100 => uecfg: [ReadWrite<u32, EndpointConfig::Register>; 12]),
+        (0x130 => uesta: [ReadOnly<u32, EndpointStatus::Register>; 12]),
+        (0x160 => uestaclr: [WriteOnly<u32, EndpointStatus::Register>; 12]),
+        (0x190 => uestaset: [WriteOnly<u32, EndpointStatus::Register>; 12]),
+        (0x1c0 => uecon: [ReadOnly<u32, EndpointControl::Register>; 12]),
+        (0x1f0 => ueconset: [WriteOnly<u32, EndpointControl::Register>; 12]),
+        (0x220 => ueconclr: [WriteOnly<u32, EndpointControl::Register>; 12]),
+        (0x250 => _reserved1),
+        (0x400 => uhcon: ReadWrite<u32>),
+        (0x404 => uhint: ReadOnly<u32>),
+        (0x408 => uhintclr: WriteOnly<u32>),
+        (0x40c => uhintset: WriteOnly<u32>),
+        (0x410 => uhinte: ReadOnly<u32>),
+        (0x414 => uhinteclr: WriteOnly<u32>),
+        (0x418 => uhinteset: WriteOnly<u32>),
+        (0x41c => uprst: ReadWrite<u32>),
+        (0x420 => uhfnum: ReadWrite<u32>),
+        (0x424 => uhsofc: ReadWrite<u32>),
+        (0x428 => _reserved2),
+        (0x500 => upcfg: [ReadWrite<u32>; 12]),
+        (0x530 => upsta: [ReadOnly<u32>; 12]),
+        (0x560 => upstaclr: [WriteOnly<u32>; 12]),
+        (0x590 => upstaset: [WriteOnly<u32>; 12]),
+        (0x5c0 => upcon: [ReadOnly<u32>; 12]),
+        (0x5f0 => upconset: [WriteOnly<u32>; 12]),
+        (0x620 => upconclr: [WriteOnly<u32>; 12]),
+        (0x650 => upinrq: [ReadWrite<u32>; 12]),
+        (0x680 => _reserved3),
+        (0x800 => usbcon: ReadWrite<u32, Control::Register>),
+        (0x804 => usbsta: ReadOnly<u32, Status::Register>),
+        (0x808 => usbstaclr: WriteOnly<u32>),
+        (0x80c => usbstaset: WriteOnly<u32>),
+        (0x810 => _reserved4),
+        (0x818 => uvers: ReadOnly<u32>),
+        (0x81c => ufeatures: ReadOnly<u32>),
+        (0x820 => uaddrsize: ReadOnly<u32>),
+        (0x824 => uname1: ReadOnly<u32>),
+        (0x828 => uname2: ReadOnly<u32>),
+        (0x82c => usbfsm: ReadOnly<u32>),
+        (0x830 => udesc: ReadWrite<u32>),
+        (0x834 => @END),
+    }
 }
 
 register_bitfields![u32,
@@ -377,18 +374,18 @@ pub const fn new_endpoint() -> Endpoint {
     [Bank::new(), Bank::new()]
 }
 
-#[repr(C)]
-pub struct Bank {
-    addr: InMemoryRegister<u32>,
-
-    // The following fields are not actually registers
-    // (they may be placed anywhere in memory),
-    // but the register interface provides the volatile
-    // read/writes and bitfields that we need.
-    pub packet_size: InMemoryRegister<u32, PacketSize::Register>,
-    pub control_status: InMemoryRegister<u32, ControlStatus::Register>,
-
-    _reserved: u32,
+register_structs! {
+    pub Bank {
+        (0x000 => addr: InMemoryRegister<u32>),
+        /// The following fields are not actually registers
+        /// (they may be placed anywhere in memory),
+        /// but the register interface provides the volatile
+        /// read/writes and bitfields that we need.
+        (0x004 => pub packet_size: InMemoryRegister<u32, PacketSize::Register>),
+        (0x008 => pub control_status: InMemoryRegister<u32, ControlStatus::Register>),
+        (0x00c => _reserved: u32),
+        (0x010 => @END),
+    }
 }
 
 impl Bank {

@@ -13,25 +13,28 @@ use kernel::debug;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
-/// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
-#[repr(C)]
-#[allow(dead_code)]
-struct DMARegisters {
-    mar: ReadWrite<u32, MemoryAddress::Register>,
-    psr: ReadWrite<u8>,
-    _psr_padding: [u8; 3],
-    tcr: ReadWrite<u32, TransferCounter::Register>,
-    marr: ReadWrite<u32, MemoryAddressReload::Register>,
-    tcrr: ReadWrite<u32, TransferCounter::Register>,
-    cr: WriteOnly<u32, Control::Register>,
-    mr: ReadWrite<u32, Mode::Register>,
-    sr: ReadOnly<u32, Status::Register>,
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    isr: ReadOnly<u32, Interrupt::Register>,
+register_structs! {
+    /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
+    DMARegisters {
+        (0x000 => mar: ReadWrite<u32, MemoryAddress::Register>),
+        (0x004 => psr: ReadWrite<u8>),
+        (0x005 => _psr_padding),
+        (0x008 => tcr: ReadWrite<u32, TransferCounter::Register>),
+        (0x00c => marr: ReadWrite<u32, MemoryAddressReload::Register>),
+        (0x010 => tcrr: ReadWrite<u32, TransferCounter::Register>),
+        (0x014 => cr: WriteOnly<u32, Control::Register>),
+        (0x018 => mr: ReadWrite<u32, Mode::Register>),
+        (0x01c => sr: ReadOnly<u32, Status::Register>),
+        (0x020 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x024 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x028 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x02c => isr: ReadOnly<u32, Interrupt::Register>),
+        (0x030 => @END),
+    }
 }
 
 register_bitfields![u32,

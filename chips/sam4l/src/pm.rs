@@ -15,50 +15,53 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
+    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
 
-/// §10.7 PM::UserInterface from SAM4L Datasheet.
-#[repr(C)]
-struct PmRegisters {
-    mcctrl: ReadWrite<u32, MainClockControl::Register>,
-    cpusel: ReadWrite<u32, CpuClockSelect::Register>,
-    _reserved1: u32,
-    pbasel: ReadWrite<u32, PeripheralBusXClockSelect::Register>,
-    pbbsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>,
-    pbcsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>,
-    pbdsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>,
-    _reserved2: u32,
-    cpumask: ReadWrite<u32, ClockMaskCpu::Register>, // 0x020
-    hsbmask: ReadWrite<u32, ClockMaskHsb::Register>,
-    pbamask: ReadWrite<u32, ClockMaskPba::Register>,
-    pbbmask: ReadWrite<u32, ClockMaskPbb::Register>,
-    pbcmask: ReadWrite<u32, ClockMaskPbc::Register>,
-    pbdmask: ReadWrite<u32, ClockMaskPbd::Register>,
-    _reserved3: [u32; 2],
-    pbadivmask: ReadWrite<u32, DividedClockMask::Register>, // 0x040
-    _reserved4: [u32; 4],
-    cfdctrl: ReadWrite<u32, ClockFailureDetectorControl::Register>,
-    unlock: WriteOnly<u32, PmUnlock::Register>,
-    _reserved5: [u32; 25],                            // 0x60
-    ier: WriteOnly<u32, InterruptOrStatus::Register>, // 0xC0
-    idr: WriteOnly<u32, InterruptOrStatus::Register>,
-    imr: ReadOnly<u32, InterruptOrStatus::Register>,
-    isr: ReadOnly<u32, InterruptOrStatus::Register>,
-    icr: WriteOnly<u32, InterruptOrStatus::Register>,
-    sr: ReadOnly<u32, InterruptOrStatus::Register>,
-    _reserved6: [u32; 34],                                  // 0x100
-    ppcr: ReadWrite<u32, PeripheralPowerControl::Register>, // 0x160
-    _reserved7: [u32; 7],
-    rcause: ReadOnly<u32, ResetCause::Register>, // 0x180
-    wcause: ReadOnly<u32, WakeCause::Register>,
-    awen: ReadWrite<u32, AsynchronousWakeUpEnable::Register>,
-    _protctrl: u32, // This register is named, but undocumented in the datasheet
-    _reserved8: u32,
-    fastsleep: ReadWrite<u32, FastSleep::Register>,
-    _reserved9: [u32; 152],
-    config: ReadOnly<u32, Configuration::Register>, // 0x200
-    version: ReadOnly<u32, Version::Register>,
+register_structs! {
+    /// §10.7 PM::UserInterface from SAM4L Datasheet.
+    PmRegisters {
+        (0x000 => mcctrl: ReadWrite<u32, MainClockControl::Register>),
+        (0x004 => cpusel: ReadWrite<u32, CpuClockSelect::Register>),
+        (0x008 => _reserved1),
+        (0x00c => pbasel: ReadWrite<u32, PeripheralBusXClockSelect::Register>),
+        (0x010 => pbbsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>),
+        (0x014 => pbcsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>),
+        (0x018 => pbdsel: ReadWrite<u32, PeripheralBusXClockSelect::Register>),
+        (0x01c => _reserved2),
+        (0x020 => cpumask: ReadWrite<u32, ClockMaskCpu::Register>),
+        (0x024 => hsbmask: ReadWrite<u32, ClockMaskHsb::Register>),
+        (0x028 => pbamask: ReadWrite<u32, ClockMaskPba::Register>),
+        (0x02c => pbbmask: ReadWrite<u32, ClockMaskPbb::Register>),
+        (0x030 => pbcmask: ReadWrite<u32, ClockMaskPbc::Register>),
+        (0x034 => pbdmask: ReadWrite<u32, ClockMaskPbd::Register>),
+        (0x038 => _reserved3),
+        (0x040 => pbadivmask: ReadWrite<u32, DividedClockMask::Register>),
+        (0x044 => _reserved4),
+        (0x054 => cfdctrl: ReadWrite<u32, ClockFailureDetectorControl::Register>),
+        (0x058 => unlock: WriteOnly<u32, PmUnlock::Register>),
+        (0x05c => _reserved5),
+        (0x0c0 => ier: WriteOnly<u32, InterruptOrStatus::Register>),
+        (0x0c4 => idr: WriteOnly<u32, InterruptOrStatus::Register>),
+        (0x0c8 => imr: ReadOnly<u32, InterruptOrStatus::Register>),
+        (0x0cc => isr: ReadOnly<u32, InterruptOrStatus::Register>),
+        (0x0d0 => icr: WriteOnly<u32, InterruptOrStatus::Register>),
+        (0x0d4 => sr: ReadOnly<u32, InterruptOrStatus::Register>),
+        (0x0d8 => _reserved6),
+        (0x160 => ppcr: ReadWrite<u32, PeripheralPowerControl::Register>),
+        (0x164 => _reserved7),
+        (0x180 => rcause: ReadOnly<u32, ResetCause::Register>),
+        (0x184 => wcause: ReadOnly<u32, WakeCause::Register>),
+        (0x188 => awen: ReadWrite<u32, AsynchronousWakeUpEnable::Register>),
+        /// This register is named, but undocumented in the datasheet
+        (0x18c => _protctrl: u32),
+        (0x190 => _reserved8),
+        (0x194 => fastsleep: ReadWrite<u32, FastSleep::Register>),
+        (0x198 => _reserved9),
+        (0x3f8 => config: ReadOnly<u32, Configuration::Register>),
+        (0x3fc => version: ReadOnly<u32, Version::Register>),
+        (0x400 => @END),
+    }
 }
 
 register_bitfields![u32,

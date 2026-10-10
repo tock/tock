@@ -33,28 +33,32 @@ use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
-/// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
-#[repr(C)]
-struct FlashcalwRegisters {
-    fcr: ReadWrite<u32, FlashControl::Register>,
-    fcmd: ReadWrite<u32, FlashCommand::Register>,
-    fsr: ReadOnly<u32, FlashStatus::Register>,
-    fpr: ReadOnly<u32, FlashParameter::Register>,
-    fvr: ReadOnly<u32, FlashVersion::Register>,
-    fgpfrhi: ReadOnly<u32, FlashGeneralPurposeFuseHigh::Register>,
-    fgpfrlo: ReadOnly<u32, FlashGeneralPurposeFuseLow::Register>,
-    _reserved1: [u32; 251],
-    ctrl: WriteOnly<u32, PicoCacheControl::Register>,
-    sr: ReadWrite<u32, PicoCacheStatus::Register>,
-    _reserved2: [u32; 4],
-    maint0: WriteOnly<u32, PicoCacheMaintenance0::Register>,
-    maint1: WriteOnly<u32, PicoCacheMaintenance1::Register>,
-    mcfg: ReadWrite<u32, PicoCacheMonitorConfiguration::Register>,
-    men: ReadWrite<u32, PicoCacheMonitorEnable::Register>,
-    mctrl: WriteOnly<u32, PicoCacheMonitorStatus::Register>,
-    msr: ReadOnly<u32, PicoCacheMonitorStatus::Register>,
+register_structs! {
+    /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
+    FlashcalwRegisters {
+        (0x000 => fcr: ReadWrite<u32, FlashControl::Register>),
+        (0x004 => fcmd: ReadWrite<u32, FlashCommand::Register>),
+        (0x008 => fsr: ReadOnly<u32, FlashStatus::Register>),
+        (0x00c => fpr: ReadOnly<u32, FlashParameter::Register>),
+        (0x010 => fvr: ReadOnly<u32, FlashVersion::Register>),
+        (0x014 => fgpfrhi: ReadOnly<u32, FlashGeneralPurposeFuseHigh::Register>),
+        (0x018 => fgpfrlo: ReadOnly<u32, FlashGeneralPurposeFuseLow::Register>),
+        (0x01c => _reserved1: [u32; 251]),
+        (0x408 => ctrl: WriteOnly<u32, PicoCacheControl::Register>),
+        (0x40c => sr: ReadWrite<u32, PicoCacheStatus::Register>),
+        (0x410 => _reserved2: [u32; 4]),
+        (0x420 => maint0: WriteOnly<u32, PicoCacheMaintenance0::Register>),
+        (0x424 => maint1: WriteOnly<u32, PicoCacheMaintenance1::Register>),
+        (0x428 => mcfg: ReadWrite<u32, PicoCacheMonitorConfiguration::Register>),
+        (0x42c => men: ReadWrite<u32, PicoCacheMonitorEnable::Register>),
+        (0x430 => mctrl: WriteOnly<u32, PicoCacheMonitorStatus::Register>),
+        (0x434 => msr: ReadOnly<u32, PicoCacheMonitorStatus::Register>),
+        (0x438 => @END),
+    }
 }
 
 register_bitfields![u32,

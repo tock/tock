@@ -15,7 +15,9 @@ use kernel::hil::time::{self, Ticks};
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///
@@ -33,30 +35,30 @@ use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitf
 /// tics. Seems safe enough and in practice has seemed to work.
 const ALARM0_SYNC_TICS: u32 = 8;
 
-#[repr(C)]
-struct AstRegisters {
-    cr: ReadWrite<u32, Control::Register>,
-    cv: ReadWrite<u32, Value::Register>,
-    sr: ReadOnly<u32, Status::Register>,
-    scr: WriteOnly<u32, Interrupt::Register>,
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    wer: ReadWrite<u32, Event::Register>,
-    // 0x20
-    ar0: ReadWrite<u32, Value::Register>,
-    ar1: ReadWrite<u32, Value::Register>,
-    _reserved0: [u32; 2],
-    pir0: ReadWrite<u32, PeriodicInterval::Register>,
-    pir1: ReadWrite<u32, PeriodicInterval::Register>,
-    _reserved1: [u32; 2],
-    // 0x40
-    clock: ReadWrite<u32, ClockControl::Register>,
-    dtr: ReadWrite<u32, DigitalTuner::Register>,
-    eve: WriteOnly<u32, Event::Register>,
-    evd: WriteOnly<u32, Event::Register>,
-    evm: ReadOnly<u32, Event::Register>,
-    calv: ReadWrite<u32, Calendar::Register>, // we leave out parameter and version
+register_structs! {
+    AstRegisters {
+        (0x000 => cr: ReadWrite<u32, Control::Register>),
+        (0x004 => cv: ReadWrite<u32, Value::Register>),
+        (0x008 => sr: ReadOnly<u32, Status::Register>),
+        (0x00c => scr: WriteOnly<u32, Interrupt::Register>),
+        (0x010 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x014 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x018 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x01c => wer: ReadWrite<u32, Event::Register>),
+        (0x020 => ar0: ReadWrite<u32, Value::Register>),
+        (0x024 => ar1: ReadWrite<u32, Value::Register>),
+        (0x028 => _reserved0: [u32; 2]),
+        (0x030 => pir0: ReadWrite<u32, PeriodicInterval::Register>),
+        (0x034 => pir1: ReadWrite<u32, PeriodicInterval::Register>),
+        (0x038 => _reserved1: [u32; 2]),
+        (0x040 => clock: ReadWrite<u32, ClockControl::Register>),
+        (0x044 => dtr: ReadWrite<u32, DigitalTuner::Register>),
+        (0x048 => eve: WriteOnly<u32, Event::Register>),
+        (0x04c => evd: WriteOnly<u32, Event::Register>),
+        (0x050 => evm: ReadOnly<u32, Event::Register>),
+        (0x054 => calv: ReadWrite<u32, Calendar::Register>),
+        (0x058 => @END),
+    }
 }
 
 register_bitfields![u32,

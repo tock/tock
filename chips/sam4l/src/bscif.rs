@@ -6,38 +6,42 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
-#[repr(C)]
-struct BscifRegisters {
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    isr: ReadOnly<u32, Interrupt::Register>,
-    icr: WriteOnly<u32, Interrupt::Register>,
-    pclksr: ReadOnly<u32, PowerClocksStatus::Register>,
-    unlock: WriteOnly<u32, Unlock::Register>,
-    _reserved0: u32,
-    oscctrl32: ReadWrite<u32, Oscillator32Control::Register>,
-    rc32kcr: ReadWrite<u32, RC32Control::Register>,
-    rc32ktune: ReadWrite<u32, RC32kTuning::Register>,
-    bod33ctrl: ReadWrite<u32, BodControl::Register>,
-    bod33level: ReadWrite<u32, BodLevel::Register>,
-    bod33sampling: ReadWrite<u32, BodSamplingControl::Register>,
-    bod18ctrl: ReadWrite<u32, BodControl::Register>,
-    bot18level: ReadWrite<u32, BodLevel::Register>,
-    bod18sampling: ReadWrite<u32, BodSamplingControl::Register>,
-    vregcr: ReadWrite<u32, VoltageRegulatorConfig::Register>,
-    _reserved1: [u32; 4],
-    rc1mcr: ReadWrite<u32, RC1MClockConfig::Register>,
-    _reserved2: u32,
-    bgctrl: ReadWrite<u32, BandgapControl::Register>,
-    bgsr: ReadOnly<u32, BandgapStatus::Register>,
-    _reserved3: [u32; 4],
-    br0: ReadOnly<u32, Backup::Register>,
-    br1: ReadOnly<u32, Backup::Register>,
-    br2: ReadOnly<u32, Backup::Register>,
-    br3: ReadOnly<u32, Backup::Register>,
+register_structs! {
+    BscifRegisters {
+        (0x000 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x004 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x008 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x00c => isr: ReadOnly<u32, Interrupt::Register>),
+        (0x010 => icr: WriteOnly<u32, Interrupt::Register>),
+        (0x014 => pclksr: ReadOnly<u32, PowerClocksStatus::Register>),
+        (0x018 => unlock: WriteOnly<u32, Unlock::Register>),
+        (0x01c => _reserved0: u32),
+        (0x020 => oscctrl32: ReadWrite<u32, Oscillator32Control::Register>),
+        (0x024 => rc32kcr: ReadWrite<u32, RC32Control::Register>),
+        (0x028 => rc32ktune: ReadWrite<u32, RC32kTuning::Register>),
+        (0x02c => bod33ctrl: ReadWrite<u32, BodControl::Register>),
+        (0x030 => bod33level: ReadWrite<u32, BodLevel::Register>),
+        (0x034 => bod33sampling: ReadWrite<u32, BodSamplingControl::Register>),
+        (0x038 => bod18ctrl: ReadWrite<u32, BodControl::Register>),
+        (0x03c => bot18level: ReadWrite<u32, BodLevel::Register>),
+        (0x040 => bod18sampling: ReadWrite<u32, BodSamplingControl::Register>),
+        (0x044 => vregcr: ReadWrite<u32, VoltageRegulatorConfig::Register>),
+        (0x048 => _reserved1: [u32; 4]),
+        (0x058 => rc1mcr: ReadWrite<u32, RC1MClockConfig::Register>),
+        (0x05c => _reserved2: u32),
+        (0x060 => bgctrl: ReadWrite<u32, BandgapControl::Register>),
+        (0x064 => bgsr: ReadOnly<u32, BandgapStatus::Register>),
+        (0x068 => _reserved3: [u32; 4]),
+        (0x078 => br0: ReadOnly<u32, Backup::Register>),
+        (0x07c => br1: ReadOnly<u32, Backup::Register>),
+        (0x080 => br2: ReadOnly<u32, Backup::Register>),
+        (0x084 => br3: ReadOnly<u32, Backup::Register>),
+        (0x088 => @END),
+    }
 }
 
 register_bitfields![u32,

@@ -15,23 +15,37 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
-#[repr(C)]
-pub struct DacRegisters {
-    // From page 905 of SAM4L manual
-    cr: WriteOnly<u32, Control::Register>, //             Control                       (0x00)
-    mr: ReadWrite<u32, Mode::Register>,    //                Mode                          (0x04)
-    cdr: WriteOnly<u32, ConversionData::Register>, //     Conversion Data Register      (0x08)
-    ier: WriteOnly<u32, InterruptEnable::Register>, //    Interrupt Enable Register     (0x0c)
-    idr: WriteOnly<u32, InterruptDisable::Register>, //   Interrupt Disable Register    (0x10)
-    imr: ReadOnly<u32, InterruptMask::Register>, //       Interrupt Mask Register       (0x14)
-    isr: ReadOnly<u32, InterruptStatus::Register>, //     Interrupt Status Register     (0x18)
-    _reserved0: [u32; 50], //                                                               (0x1c - 0xe0)
-    wpmr: ReadWrite<u32, WriteProtectMode::Register>, //  Write Protect Mode Register   (0xe4)
-    wpsr: ReadOnly<u32, WriteProtectStatus::Register>, // Write Protect Status Register (0xe8)
-    _reserved1: [u32; 4], //                                                                (0xec - 0xf8)
-    version: ReadOnly<u32, Version::Register>, //         Version Register              (0xfc)
+register_structs! {
+    /// From page 905 of SAM4L manual
+    pub DacRegisters {
+        /// Control
+        (0x000 => cr: WriteOnly<u32, Control::Register>),
+        /// Mode
+        (0x004 => mr: ReadWrite<u32, Mode::Register>),
+        /// Conversion Data Register
+        (0x008 => cdr: WriteOnly<u32, ConversionData::Register>),
+        /// Interrupt Enable Register
+        (0x00c => ier: WriteOnly<u32, InterruptEnable::Register>),
+        /// Interrupt Disable Register
+        (0x010 => idr: WriteOnly<u32, InterruptDisable::Register>),
+        /// Interrupt Mask Register
+        (0x014 => imr: ReadOnly<u32, InterruptMask::Register>),
+        /// Interrupt Status Register
+        (0x018 => isr: ReadOnly<u32, InterruptStatus::Register>),
+        (0x01c => _reserved0),
+        ///  Write Protect Mode Register
+        (0x0e4 => wpmr: ReadWrite<u32, WriteProtectMode::Register>),
+        /// Write Protect Status Register
+        (0x0e8 => wpsr: ReadOnly<u32, WriteProtectStatus::Register>),
+        (0x0ec => _reserved),
+        /// Version Register
+        (0x0fc => version: ReadOnly<u32, Version::Register>),
+        (0x100 => @END),
+    }
 }
 
 register_bitfields![u32,

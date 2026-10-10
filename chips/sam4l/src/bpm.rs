@@ -6,23 +6,27 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
-#[repr(C)]
-struct BpmRegisters {
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    isr: ReadOnly<u32, Interrupt::Register>,
-    icr: WriteOnly<u32, Interrupt::Register>,
-    sr: ReadOnly<u32, Status::Register>,
-    unlock: ReadWrite<u32, Unlock::Register>,
-    pmcon: ReadWrite<u32, PowerModeControl::Register>,
-    _reserved0: [u32; 2],
-    bkupwcause: ReadOnly<u32, BackupWakeup::Register>,
-    bkupwen: ReadWrite<u32, BackupWakeup::Register>,
-    bkuppmux: ReadWrite<u32, BackupPinMuxing::Register>,
-    ioret: ReadWrite<u32, InputOutputRetention::Register>,
+register_structs! {
+    BpmRegisters {
+        (0x000 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x004 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x008 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x00c => isr: ReadOnly<u32, Interrupt::Register>),
+        (0x010 => icr: WriteOnly<u32, Interrupt::Register>),
+        (0x014 => sr: ReadOnly<u32, Status::Register>),
+        (0x018 => unlock: ReadWrite<u32, Unlock::Register>),
+        (0x01c => pmcon: ReadWrite<u32, PowerModeControl::Register>),
+        (0x020 => _reserved0: [u32; 2]),
+        (0x028 => bkupwcause: ReadOnly<u32, BackupWakeup::Register>),
+        (0x02c => bkupwen: ReadWrite<u32, BackupWakeup::Register>),
+        (0x030 => bkuppmux: ReadWrite<u32, BackupPinMuxing::Register>),
+        (0x034 => ioret: ReadWrite<u32, InputOutputRetention::Register>),
+        (0x038 => @END),
+    }
 }
 
 register_bitfields![u32,

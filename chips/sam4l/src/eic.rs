@@ -25,7 +25,9 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::peripheral_management::PeripheralManagement;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
 /// Enum for enabling or disabling spurious event filtering (i.e. de-bouncing control).
 pub enum FilterMode {
@@ -60,37 +62,39 @@ pub enum Line {
     Ext8 = 256,
 }
 
-#[repr(C)]
-pub struct EicRegisters {
-    /// Enables propagation from eic to nvic
-    ier: WriteOnly<u32, Interrupt::Register>,
-    /// Disables propagation from eic to nvic
-    idr: WriteOnly<u32, Interrupt::Register>,
-    /// Indicates if the propagation is on
-    imr: ReadOnly<u32, Interrupt::Register>,
-    /// A bit is set when an interrupt triggers
-    isr: ReadOnly<u32, Interrupt::Register>,
-    /// Clears ISR
-    icr: WriteOnly<u32, Interrupt::Register>,
-    /// Sets interrupt mode
-    mode: ReadWrite<u32, Interrupt::Register>,
-    /// Configures falling or rising edge
-    edge: ReadWrite<u32, Interrupt::Register>,
-    /// Configures low or high level
-    level: ReadWrite<u32, Interrupt::Register>,
-    /// Configures filter
-    filter: ReadWrite<u32, Interrupt::Register>,
-    /// For testing
-    test: ReadWrite<u32, Test::Register>,
-    /// Configures synchronization
-    asynchronous: ReadWrite<u32, Interrupt::Register>,
-    _reserved0: ReadOnly<u32>,
-    /// Enables an interrupt line
-    en: WriteOnly<u32, Interrupt::Register>,
-    /// Disables an interrupt line
-    dis: WriteOnly<u32, Interrupt::Register>,
-    /// Indicates if an interrupt line is enabled or not
-    ctrl: ReadOnly<u32, Interrupt::Register>,
+register_structs! {
+    pub EicRegisters {
+        /// Enables propagation from eic to nvic
+        (0x000 => ier: WriteOnly<u32, Interrupt::Register>),
+        /// Disables propagation from eic to nvic
+        (0x004 => idr: WriteOnly<u32, Interrupt::Register>),
+        /// Indicates if the propagation is on
+        (0x008 => imr: ReadOnly<u32, Interrupt::Register>),
+        /// A bit is set when an interrupt triggers
+        (0x00c => isr: ReadOnly<u32, Interrupt::Register>),
+        /// Clears ISR
+        (0x010 => icr: WriteOnly<u32, Interrupt::Register>),
+        /// Sets interrupt mode
+        (0x014 => mode: ReadWrite<u32, Interrupt::Register>),
+        /// Configures falling or rising edge
+        (0x018 => edge: ReadWrite<u32, Interrupt::Register>),
+        /// Configures low or high level
+        (0x01c => level: ReadWrite<u32, Interrupt::Register>),
+        /// Configures filter
+        (0x020 => filter: ReadWrite<u32, Interrupt::Register>),
+        /// For testing
+        (0x024 => test: ReadWrite<u32, Test::Register>),
+        /// Configures synchronization
+        (0x028 => asynchronous: ReadWrite<u32, Interrupt::Register>),
+        (0x02c => _reserved0: ReadOnly<u32>),
+        /// Enables an interrupt line
+        (0x030 => en: WriteOnly<u32, Interrupt::Register>),
+        /// Disables an interrupt line
+        (0x034 => dis: WriteOnly<u32, Interrupt::Register>),
+        /// Indicates if an interrupt line is enabled or not
+        (0x038 => ctrl: ReadOnly<u32, Interrupt::Register>),
+        (0x03c => @END),
+    }
 }
 
 // IER: Writing a one to this bit will set the corresponding bit in IMR.
