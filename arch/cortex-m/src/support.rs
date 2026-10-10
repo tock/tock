@@ -5,6 +5,7 @@
 //! Helper functions for the Cortex-M architecture.
 
 use crate::scb;
+use kernel::capabilities;
 
 /// NOP instruction
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -34,7 +35,7 @@ pub fn nop() {
 /// WFI instruction
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(always)]
-pub unsafe fn wfi() {
+pub fn wfi(_cap: &dyn capabilities::CpuControlCapability) {
     use core::arch::asm;
 
     // # Safety
@@ -116,7 +117,7 @@ pub fn nop() {
 
 /// WFI instruction (mock)
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-pub unsafe fn wfi() {
+pub fn wfi(_cap: &dyn capabilities::CpuControlCapability) {
     unimplemented!()
 }
 
@@ -130,10 +131,8 @@ where
 }
 
 /// Reset the chip.
-pub fn reset() -> ! {
-    unsafe {
-        scb::reset();
-    }
+pub fn reset(cap: &dyn capabilities::CpuControlCapability) -> ! {
+    scb::reset(cap);
     loop {
         // This is required to avoid the empty loop clippy
         // warning #[warn(clippy::empty_loop)]
