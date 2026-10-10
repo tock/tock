@@ -6,6 +6,7 @@
 //!
 //! <http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html>
 
+use kernel::capabilities;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
@@ -276,7 +277,7 @@ const SCB: StaticRef<ScbRegisters> = unsafe { StaticRef::new(0xE000ED00 as *cons
 ///
 /// The specific definition of "deep sleep" is chip specific.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-pub unsafe fn set_sleepdeep() {
+pub fn set_sleepdeep(_cap: &dyn capabilities::CpuControlCapability) {
     use core::arch::asm;
 
     SCB.scr.modify(SystemControl::SLEEPDEEP::SET);
@@ -308,7 +309,7 @@ pub unsafe fn set_sleepdeep() {
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-pub unsafe fn set_sleepdeep() {
+pub fn set_sleepdeep(_cap: &dyn capabilities::CpuControlCapability) {
     // Dummy operation to satisfy the `Writable` trait import on
     // non-ARM platforms.
     SCB.scr.modify(SystemControl::SLEEPDEEP::SET);
@@ -319,12 +320,12 @@ pub unsafe fn set_sleepdeep() {
 /// Do not allow the core to go into deep sleep on WFI.
 ///
 /// The specific definition of "deep sleep" is chip specific.
-pub unsafe fn unset_sleepdeep() {
+pub fn unset_sleepdeep(_cap: &dyn capabilities::CpuControlCapability) {
     SCB.scr.modify(SystemControl::SLEEPDEEP::CLEAR);
 }
 
 /// Software reset using the ARM System Control Block
-pub unsafe fn reset() {
+pub fn reset(_cap: &dyn capabilities::CpuControlCapability) {
     SCB.aircr.modify(
         ApplicationInterruptAndReset::VECTKEY.val(0x05FA)
             + ApplicationInterruptAndReset::PRIGROUP.val(0b111)
@@ -391,7 +392,7 @@ pub unsafe fn disable_fpca() {
 ///
 /// This escalates the exception to a HardFault instead of triggering a
 /// MemFault exception, so it does not _disable_ MemFault completely.
-pub unsafe fn disable_memfault() {
+pub fn disable_memfault(_cap: &dyn capabilities::CpuControlCapability) {
     SCB.shcsr
         .modify(SystemHandlerControlAndState::MEMFAULTENA::CLEAR);
 }
@@ -402,7 +403,7 @@ pub unsafe fn disable_memfault() {
 ///
 /// This escalates the exception to a HardFault instead of triggering a
 /// UsageFault exception, so it does not _disable_ UsageFault completely.
-pub unsafe fn disable_usagefault() {
+pub fn disable_usagefault(_cap: &dyn capabilities::CpuControlCapability) {
     SCB.shcsr
         .modify(SystemHandlerControlAndState::USGFAULTENA::CLEAR);
 }
@@ -413,7 +414,7 @@ pub unsafe fn disable_usagefault() {
 ///
 /// This escalates the exception to a HardFault instead of triggering a
 /// BusFault exception, so it does not _disable_ BusFault completely.
-pub unsafe fn disable_busfault() {
+pub fn disable_busfault(_cap: &dyn capabilities::CpuControlCapability) {
     SCB.shcsr
         .modify(SystemHandlerControlAndState::BUSFAULTENA::CLEAR);
 }
