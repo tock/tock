@@ -18,9 +18,12 @@ pub struct Sam4l<I: InterruptService + 'static> {
 }
 
 impl<I: InterruptService + 'static> Sam4l<I> {
-    pub unsafe fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
+    pub fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
+        // SAFETY: All SAM4L chips are Cortex-M4 cores with valid MPU hardware.
+        let mpu = unsafe { cortexm4::mpu::new() };
+
         Self {
-            mpu: cortexm4::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             pm,
             interrupt_service,
