@@ -11,23 +11,25 @@ use kernel::utilities::registers::{
     register_bitfields, register_structs,
 };
 
-#[repr(C)]
-struct GpioPort {
-    prt_out: ReadWrite<u32, PRT_OUT::Register>,
-    prt_out_clr: ReadWrite<u32, PRT_OUT::Register>,
-    prt_out_set: ReadWrite<u32, PRT_OUT::Register>,
-    prt_out_inv: ReadWrite<u32, PRT_OUT::Register>,
-    prt_in: ReadOnly<u32, PRT_IN::Register>,
-    prt_intr: ReadWrite<u32, PRT_INTR::Register>,
-    prt_intr_mask: ReadWrite<u32, PRT_INTR::Register>,
-    prt_intr_masked: ReadOnly<u32, PRT_INTR::Register>,
-    prt_intr_set: ReadWrite<u32, PRT_INTR::Register>,
-    _reserved0: [u32; 7],
-    prt_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>,
-    prt_cfg: ReadWrite<u32, PRT_CFG::Register>,
-    prt_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>,
-    prt_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>,
-    _reserved1: [u32; 12],
+register_structs! {
+    GpioPort {
+        (0x000 => prt_out: ReadWrite<u32, PRT_OUT::Register>),
+        (0x004 => prt_out_clr: ReadWrite<u32, PRT_OUT::Register>),
+        (0x008 => prt_out_set: ReadWrite<u32, PRT_OUT::Register>),
+        (0x00c => prt_out_inv: ReadWrite<u32, PRT_OUT::Register>),
+        (0x010 => prt_in: ReadOnly<u32, PRT_IN::Register>),
+        (0x014 => prt_intr: ReadWrite<u32, PRT_INTR::Register>),
+        (0x018 => prt_intr_mask: ReadWrite<u32, PRT_INTR::Register>),
+        (0x01c => prt_intr_masked: ReadOnly<u32, PRT_INTR::Register>),
+        (0x020 => prt_intr_set: ReadWrite<u32, PRT_INTR::Register>),
+        (0x024 => _reserved0: [u32; 7]),
+        (0x040 => prt_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        (0x044 => prt_cfg: ReadWrite<u32, PRT_CFG::Register>),
+        (0x048 => prt_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        (0x04c => prt_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        (0x050 => _reserved1: [u32; 12]),
+        (0x080 => @END),
+    }
 }
 
 register_structs! {
