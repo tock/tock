@@ -140,9 +140,8 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm4::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        cortexm4::support::wfi(&cap);
     }
 
     fn with_interrupts_disabled<F, R>(&self, f: F) -> R

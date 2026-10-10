@@ -178,10 +178,9 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32wle5xx<'a, I> {
     }
 
     fn sleep(&self) {
-        unsafe {
-            cortexm4::scb::unset_sleepdeep();
-            cortexm4::support::wfi();
-        }
+        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        cortexm4::scb::unset_sleepdeep(&cap);
+        cortexm4::support::wfi(&cap);
     }
 
     unsafe fn print_state(_this: Option<&Self>, write: &mut dyn Write) {
