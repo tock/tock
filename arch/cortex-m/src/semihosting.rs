@@ -122,9 +122,8 @@ pub unsafe fn terminate(reason: SysexitReason) -> ! {
 
     // Ensure `-> !` if semihosting does something funny.
     loop {
-        // SAFETY: We're in a terminal panic and done printing, okay to sleep.
-        unsafe {
-            crate::support::wfi();
-        }
+        crate::support::wfi(&kernel::create_capability!(
+            kernel::capabilities::CpuControlCapability
+        ));
     }
 }
