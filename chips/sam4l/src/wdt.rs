@@ -14,19 +14,21 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::math::log_base_two_u64;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
+    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
 
-#[repr(C)]
-pub struct WdtRegisters {
-    cr: ReadWrite<u32, Control::Register>,
-    clr: WriteOnly<u32, Clear::Register>,
-    sr: ReadOnly<u32, Status::Register>,
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    isr: ReadOnly<u32, Interrupt::Register>,
-    icr: WriteOnly<u32, Interrupt::Register>,
+register_structs! {
+    pub WdtRegisters {
+        (0x000 => cr: ReadWrite<u32, Control::Register>),
+        (0x004 => clr: WriteOnly<u32, Clear::Register>),
+        (0x008 => sr: ReadOnly<u32, Status::Register>),
+        (0x00c => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x010 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x014 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x018 => isr: ReadOnly<u32, Interrupt::Register>),
+        (0x01c => icr: WriteOnly<u32, Interrupt::Register>),
+        (0x020 => @END),
+    }
 }
 
 register_bitfields![u32,

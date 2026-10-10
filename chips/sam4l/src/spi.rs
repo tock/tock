@@ -28,26 +28,30 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{self, ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    self, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
-#[repr(C)]
-pub struct SpiRegisters {
-    cr: WriteOnly<u32, Control::Register>,
-    mr: ReadWrite<u32, Mode::Register>,
-    rdr: ReadOnly<u32>,
-    tdr: WriteOnly<u32, TransmitData::Register>,
-    sr: ReadOnly<u32, Status::Register>,
-    ier: WriteOnly<u32, InterruptFlags::Register>,
-    idr: WriteOnly<u32, InterruptFlags::Register>,
-    imr: ReadOnly<u32, InterruptFlags::Register>,
-    _reserved0: [ReadOnly<u32>; 4],
-    csr: [ReadWrite<u32, ChipSelectParams::Register>; 4],
-    _reserved1: [ReadOnly<u32>; 41],
-    wpcr: ReadWrite<u32, WriteProtectionControl::Register>,
-    wpsr: ReadOnly<u32>,
-    _reserved2: [ReadOnly<u32>; 3],
-    features: ReadOnly<u32>,
-    version: ReadOnly<u32>,
+register_structs! {
+    pub SpiRegisters {
+        (0x000 => cr: WriteOnly<u32, Control::Register>),
+        (0x004 => mr: ReadWrite<u32, Mode::Register>),
+        (0x008 => rdr: ReadOnly<u32>),
+        (0x00c => tdr: WriteOnly<u32, TransmitData::Register>),
+        (0x010 => sr: ReadOnly<u32, Status::Register>),
+        (0x014 => ier: WriteOnly<u32, InterruptFlags::Register>),
+        (0x018 => idr: WriteOnly<u32, InterruptFlags::Register>),
+        (0x01c => imr: ReadOnly<u32, InterruptFlags::Register>),
+        (0x020 => _reserved0: [ReadOnly<u32>; 4]),
+        (0x030 => csr: [ReadWrite<u32, ChipSelectParams::Register>; 4]),
+        (0x040 => _reserved1: [ReadOnly<u32>; 41]),
+        (0x0e4 => wpcr: ReadWrite<u32, WriteProtectionControl::Register>),
+        (0x0e8 => wpsr: ReadOnly<u32>),
+        (0x0ec => _reserved2: [ReadOnly<u32>; 3]),
+        (0x0f8 => features: ReadOnly<u32>),
+        (0x0fc => version: ReadOnly<u32>),
+        (0x100 => @END),
+    }
 }
 
 register_bitfields![u32,

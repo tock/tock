@@ -63,32 +63,35 @@ use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
     FieldValue, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
+    register_structs,
 };
 
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
 pub const BASE_ADDRESS: StaticRef<CrccuRegisters> =
     unsafe { StaticRef::new(0x400A4000 as *const CrccuRegisters) };
 
-#[repr(C)]
-pub struct CrccuRegisters {
-    // From page 1005 of SAM4L manual
-    dscr: ReadWrite<u32, DescriptorBaseAddress::Register>,
-    _reserved0: u32,
-    dmaen: WriteOnly<u32, DmaEnable::Register>,
-    dmadis: WriteOnly<u32, DmaDisable::Register>,
-    dmasr: ReadOnly<u32, DmaStatus::Register>,
-    dmaier: WriteOnly<u32, DmaInterrupt::Register>,
-    dmaidr: WriteOnly<u32, DmaInterrupt::Register>,
-    dmaimr: ReadOnly<u32, DmaInterrupt::Register>,
-    dmaisr: ReadOnly<u32, DmaInterrupt::Register>,
-    _reserved1: [u32; 4],
-    cr: WriteOnly<u32, Control::Register>,
-    mr: ReadWrite<u32, Mode::Register>,
-    sr: ReadOnly<u32, Status::Register>,
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    isr: ReadOnly<u32, Interrupt::Register>,
+register_structs! {
+    /// From page 1005 of SAM4L manual
+    pub CrccuRegisters {
+        (0x000 => dscr: ReadWrite<u32, DescriptorBaseAddress::Register>),
+        (0x004 => _reserved0),
+        (0x008 => dmaen: WriteOnly<u32, DmaEnable::Register>),
+        (0x00c => dmadis: WriteOnly<u32, DmaDisable::Register>),
+        (0x010 => dmasr: ReadOnly<u32, DmaStatus::Register>),
+        (0x014 => dmaier: WriteOnly<u32, DmaInterrupt::Register>),
+        (0x018 => dmaidr: WriteOnly<u32, DmaInterrupt::Register>),
+        (0x01c => dmaimr: ReadOnly<u32, DmaInterrupt::Register>),
+        (0x020 => dmaisr: ReadOnly<u32, DmaInterrupt::Register>),
+        (0x024 => _reserved1),
+        (0x034 => cr: WriteOnly<u32, Control::Register>),
+        (0x038 => mr: ReadWrite<u32, Mode::Register>),
+        (0x03c => sr: ReadOnly<u32, Status::Register>),
+        (0x040 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x044 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x048 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x04c => isr: ReadOnly<u32, Interrupt::Register>),
+        (0x050 => @END),
+    }
 }
 
 register_bitfields![u32,

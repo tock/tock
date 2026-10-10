@@ -23,54 +23,56 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
-    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields,
+    FieldValue, ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
 };
 
-// Listing of all registers related to the TWIM peripheral.
-// Section 27.9 of the datasheet
-#[repr(C)]
-#[allow(dead_code)]
-struct TWIMRegisters {
-    cr: WriteOnly<u32, Control::Register>,
-    cwgr: ReadWrite<u32, ClockWaveformGenerator::Register>,
-    smbtr: ReadWrite<u32, SmbusTiming::Register>,
-    cmdr: ReadWrite<u32, Command::Register>,
-    ncmdr: ReadWrite<u32, Command::Register>,
-    rhr: ReadOnly<u32, ReceiveHolding::Register>,
-    thr: WriteOnly<u32, TransmitHolding::Register>,
-    sr: ReadOnly<u32, Status::Register>,
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    scr: WriteOnly<u32, StatusClear::Register>,
-    pr: ReadOnly<u32>,
-    vr: ReadOnly<u32>,
-    hscwgr: ReadWrite<u32>,
-    srr: ReadWrite<u32, SlewRate::Register>,
-    hssrr: ReadWrite<u32>,
+register_structs! {
+    /// Listing of all registers related to the TWIM peripheral.
+    /// Section 27.9 of the datasheet
+    TWIMRegisters {
+        (0x000 => cr: WriteOnly<u32, Control::Register>),
+        (0x004 => cwgr: ReadWrite<u32, ClockWaveformGenerator::Register>),
+        (0x008 => smbtr: ReadWrite<u32, SmbusTiming::Register>),
+        (0x00c => cmdr: ReadWrite<u32, Command::Register>),
+        (0x010 => ncmdr: ReadWrite<u32, Command::Register>),
+        (0x014 => rhr: ReadOnly<u32, ReceiveHolding::Register>),
+        (0x018 => thr: WriteOnly<u32, TransmitHolding::Register>),
+        (0x01c => sr: ReadOnly<u32, Status::Register>),
+        (0x020 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x024 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x028 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x02c => scr: WriteOnly<u32, StatusClear::Register>),
+        (0x030 => pr: ReadOnly<u32>),
+        (0x034 => vr: ReadOnly<u32>),
+        (0x038 => hscwgr: ReadWrite<u32>),
+        (0x03c => srr: ReadWrite<u32, SlewRate::Register>),
+        (0x040 => hssrr: ReadWrite<u32>),
+        (0x044 => @END),
+    }
 }
 
-// Listing of all registers related to the TWIS peripheral.
-// Section 28.9 of the datasheet
-#[repr(C)]
-#[allow(dead_code)]
-struct TWISRegisters {
-    cr: ReadWrite<u32, ControlSlave::Register>,
-    nbytes: ReadWrite<u32, Nbytes::Register>,
-    tr: ReadWrite<u32, Timing::Register>,
-    rhr: ReadOnly<u32, ReceiveHolding::Register>,
-    thr: WriteOnly<u32, TransmitHolding::Register>,
-    pecr: ReadOnly<u32, PacketErrorCheck::Register>,
-    sr: ReadOnly<u32, StatusSlave::Register>,
-    ier: WriteOnly<u32, InterruptSlave::Register>,
-    idr: WriteOnly<u32, InterruptSlave::Register>,
-    imr: ReadOnly<u32, InterruptSlave::Register>,
-    scr: WriteOnly<u32, StatusClearSlave::Register>,
-    pr: ReadOnly<u32>,
-    vr: ReadOnly<u32>,
-    hstr: ReadWrite<u32>,
-    srr: ReadWrite<u32, SlewRateSlave::Register>,
-    hssrr: ReadWrite<u32>,
+register_structs! {
+    /// Listing of all registers related to the TWIS peripheral.
+    /// Section 28.9 of the datasheet
+    TWISRegisters {
+        (0x000 => cr: ReadWrite<u32, ControlSlave::Register>),
+        (0x004 => nbytes: ReadWrite<u32, Nbytes::Register>),
+        (0x008 => tr: ReadWrite<u32, Timing::Register>),
+        (0x00c => rhr: ReadOnly<u32, ReceiveHolding::Register>),
+        (0x010 => thr: WriteOnly<u32, TransmitHolding::Register>),
+        (0x014 => pecr: ReadOnly<u32, PacketErrorCheck::Register>),
+        (0x018 => sr: ReadOnly<u32, StatusSlave::Register>),
+        (0x01c => ier: WriteOnly<u32, InterruptSlave::Register>),
+        (0x020 => idr: WriteOnly<u32, InterruptSlave::Register>),
+        (0x024 => imr: ReadOnly<u32, InterruptSlave::Register>),
+        (0x028 => scr: WriteOnly<u32, StatusClearSlave::Register>),
+        (0x02c => pr: ReadOnly<u32>),
+        (0x030 => vr: ReadOnly<u32>),
+        (0x034 => hstr: ReadWrite<u32>),
+        (0x038 => srr: ReadWrite<u32, SlewRateSlave::Register>),
+        (0x03c => hssrr: ReadWrite<u32>),
+        (0x040 => @END),
+    }
 }
 
 register_bitfields![u32,

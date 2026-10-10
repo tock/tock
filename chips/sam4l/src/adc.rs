@@ -31,7 +31,9 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{
+    ReadOnly, ReadWrite, WriteOnly, register_bitfields, register_structs,
+};
 
 /// Representation of an ADC channel on the SAM4L.
 #[derive(PartialEq)]
@@ -110,26 +112,28 @@ pub struct Adc<'a> {
     pm: &'static pm::PowerManager,
 }
 
-/// Memory mapped registers for the ADC.
-#[repr(C)]
-pub struct AdcRegisters {
-    // From page 1005 of SAM4L manual
-    cr: WriteOnly<u32, Control::Register>,
-    cfg: ReadWrite<u32, Configuration::Register>,
-    sr: ReadOnly<u32, Status::Register>,
-    scr: WriteOnly<u32, Interrupt::Register>,
-    _reserved0: u32,
-    seqcfg: ReadWrite<u32, SequencerConfig::Register>,
-    cdma: WriteOnly<u32>,
-    tim: ReadWrite<u32, TimingConfiguration::Register>,
-    itimer: ReadWrite<u32, InternalTimer::Register>,
-    wcfg: ReadWrite<u32, WindowMonitorConfiguration::Register>,
-    wth: ReadWrite<u32, WindowMonitorThresholdConfiguration::Register>,
-    lcv: ReadOnly<u32, SequencerLastConvertedValue::Register>,
-    ier: WriteOnly<u32, Interrupt::Register>,
-    idr: WriteOnly<u32, Interrupt::Register>,
-    imr: ReadOnly<u32, Interrupt::Register>,
-    calib: ReadWrite<u32>,
+register_structs! {
+    /// Memory mapped registers for the ADC.
+    pub AdcRegisters {
+        /// From page 1005 of SAM4L manual
+        (0x000 => cr: WriteOnly<u32, Control::Register>),
+        (0x004 => cfg: ReadWrite<u32, Configuration::Register>),
+        (0x008 => sr: ReadOnly<u32, Status::Register>),
+        (0x00c => scr: WriteOnly<u32, Interrupt::Register>),
+        (0x010 => _reserved0: u32),
+        (0x014 => seqcfg: ReadWrite<u32, SequencerConfig::Register>),
+        (0x018 => cdma: WriteOnly<u32>),
+        (0x01c => tim: ReadWrite<u32, TimingConfiguration::Register>),
+        (0x020 => itimer: ReadWrite<u32, InternalTimer::Register>),
+        (0x024 => wcfg: ReadWrite<u32, WindowMonitorConfiguration::Register>),
+        (0x028 => wth: ReadWrite<u32, WindowMonitorThresholdConfiguration::Register>),
+        (0x02c => lcv: ReadOnly<u32, SequencerLastConvertedValue::Register>),
+        (0x030 => ier: WriteOnly<u32, Interrupt::Register>),
+        (0x034 => idr: WriteOnly<u32, Interrupt::Register>),
+        (0x038 => imr: ReadOnly<u32, Interrupt::Register>),
+        (0x03c => calib: ReadWrite<u32>),
+        (0x040 => @END),
+    }
 }
 
 register_bitfields![u32,
