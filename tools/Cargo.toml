@@ -4,7 +4,8 @@
 
 [workspace]
 members = [
-    "ci/board-runner",
+"register-struct-converter",
+"ci/board-runner",
     "ci/license-checker",
     "ci/litex-ci-runner",
     "ci/qemu-runner",
