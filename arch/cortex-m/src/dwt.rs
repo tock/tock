@@ -449,6 +449,8 @@ register_bitfields![u32,
 
 ];
 
+/// SAFETY: The DWT registers are at this address per the ARM architecture
+/// documentation.
 const DWT: StaticRef<DwtRegisters> = unsafe { StaticRef::new(0xE0001000 as *const DwtRegisters) };
 
 pub struct Dwt {

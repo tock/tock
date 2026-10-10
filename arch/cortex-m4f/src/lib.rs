@@ -5,6 +5,8 @@
 //! Shared implementations for ARM Cortex-M4F MCUs.
 
 #![no_std]
+#![deny(clippy::missing_safety_doc)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use core::fmt::Write;
 
@@ -13,10 +15,13 @@ pub mod mpu {
 
     pub type MPU = cortexm::mpu::MPU<8, 32>;
 
+    /// SAFETY: The MPU registers are at this address per the ARM architecture
+    /// documentation.
     const MPU_BASE_ADDRESS: StaticRef<cortexm::mpu::MpuRegisters> =
         unsafe { StaticRef::new(0xE000ED90 as *const cortexm::mpu::MpuRegisters) };
 
     pub unsafe fn new() -> MPU {
+        // SAFETY: Satisfied by function-level requirements.
         unsafe { MPU::new(MPU_BASE_ADDRESS) }
     }
 }
@@ -49,6 +54,8 @@ impl cortexm::CortexMVariant for CortexM4F {
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
     ) -> *const usize {
+        // SAFETY: The MPU requirements are satisfied by function-level
+        // requirements. We use a usize for cortexm::syscall::SVC_SWITCH_TO_APP.
         unsafe { cortexv7m::switch_to_user_arm_v7m(user_stack, process_regs) }
     }
 
@@ -61,7 +68,7 @@ impl cortexm::CortexMVariant for CortexM4F {
     }
 
     #[inline]
-    unsafe fn print_cortexm_state(writer: &mut dyn Write) {
+    fn print_cortexm_state(writer: &mut dyn Write) {
         cortexm::print_cortexm_state(writer)
     }
 }
