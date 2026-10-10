@@ -1549,7 +1549,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
-    fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
+    unsafe fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         // Cannot switch to an invalid process
         if !self.is_running() {
             return None;
@@ -1563,7 +1563,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // ensuring this context switch is safe. We know this because we use
                 // the start of process memory and the current `app_break`, and that
                 // range is accessible to the process. Therefore we encapsulate the
-                // `unsafe`.
+                // `unsafe`. Also, the safety requirements for `switch_to` ensure
+                // the MPU is correctly configured.
                 unsafe {
                     let (switch_reason, optional_stack_pointer) = self
                         .chip
