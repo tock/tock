@@ -170,9 +170,12 @@ pub unsafe trait NetworkCapabilityCreationCapability {}
 /// Capabilities can only be created in trusted crates that can use `unsafe`.
 pub unsafe trait SetDebugWriterCapability {}
 
-/// The `ResetCapability` allows the holder to reboot the microcontroller.
+/// The `CpuControlCapability` allows the holder to perform low-level
+/// microcontroller operations.
+///
+/// These including resetting the MCU and putting it in sleep mode.
 ///
 /// # Safety
 ///
 /// Capabilities can only be created in trusted crates that can use `unsafe`.
-pub unsafe trait ResetCapability {}
+pub unsafe trait CpuControlCapability {}
