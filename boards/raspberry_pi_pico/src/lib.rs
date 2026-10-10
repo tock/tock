@@ -522,7 +522,11 @@ pub unsafe fn setup(
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(cortexm0p::support::reset),
+        Some(|| {
+            cortexm0p::support::reset(&kernel::create_capability!(
+                kernel::capabilities::CpuControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(

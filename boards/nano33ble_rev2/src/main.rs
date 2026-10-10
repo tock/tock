@@ -106,9 +106,9 @@ fn baud_rate_reset_bootloader_enter() {
         power.set_gpregret(0x90);
     });
 
-    unsafe {
-        cortexm4::scb::reset();
-    }
+    cortexm4::scb::reset(&kernel::create_capability!(
+        kernel::capabilities::CpuControlCapability
+    ));
 }
 
 type HS3003Sensor = components::hs3003::Hs3003ComponentType<
@@ -425,7 +425,11 @@ pub unsafe fn start() -> (
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(cortexm4::support::reset),
+        Some(|| {
+            cortexm4::support::reset(&kernel::create_capability!(
+                kernel::capabilities::CpuControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
