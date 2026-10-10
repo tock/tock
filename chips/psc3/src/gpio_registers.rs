@@ -3,58 +3,59 @@
 // Copyright Infineon Technologies AG 2026.
 
 //! GPIO registers and bitfields
-//! In seperate file to avoid too large files.
+//! In separate file to avoid too large files.
 
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct GpioPort {
-    /// Port output data register
-    pub prt_out: ReadWrite<u32, PRT_OUT::Register>,
-
-    /// Port output data clear register
-    pub prt_out_clr: ReadWrite<u32, PRT_OUT::Register>,
-    /// Port output data set register
-    pub prt_out_set: ReadWrite<u32, PRT_OUT::Register>,
-    /// Port output data invert register
-    pub prt_out_inv: ReadWrite<u32, PRT_OUT::Register>,
-    /// Port input state register
-    pub prt_in: ReadOnly<u32, PRT_IN::Register>,
-    /// Port interrupt status register
-    pub prt_intr: ReadWrite<u32, PRT_INTR::Register>,
-    /// Port interrupt mask register
-    pub prt_intr_mask: ReadWrite<u32, PRT_INTR::Register>,
-    /// Port interrupt masked status register
-    pub prt_intr_masked: ReadOnly<u32, PRT_INTR::Register>,
-    /// Port interrupt set register
-    pub prt_intr_set: ReadWrite<u32, PRT_INTR::Register>,
-    _reserved0: [u32; 7], //0x24 - 0x40
-    /// Port interrupt configuration register
-    pub prt_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>,
-    /// Port configuration register
-    pub prt_cfg: ReadWrite<u32, PRT_CFG::Register>,
-    /// Port input buffer configuration register
-    pub prt_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>,
-    /// Port output buffer configuration register
-    pub prt_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>,
-    /// Port SIO configuration register
-    pub prt_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>,
-    _reserved1: [u32; 1], // 0x54-0x58
-    /// Port input buffer AUTOLVL configuration register for S40E GPIO
-    pub prt_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>,
-    _reserved2: [u32; 1], // 0x5C-0x60
-    /// Port output buffer configuration register 2
-    pub prt_0_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>,
-    /// Port output buffer drive sel extension configuration register
-    /// Per-Pin 0: slow slew rate, 1: fast slew rate
-    pub prt_slew_ext: ReadWrite<u32>,
-    /// Port output buffer drive sel extension configuration register
-    /// 1st half: 8 bits per pin
-    pub prt_drive_ext0: ReadWrite<u32>,
-    /// Port output buffer drive sel extension configuration register
-    /// 2nd half: 8 bits per pin
-    pub prt_drive_ext1: ReadWrite<u32>,
-    _reserved3: [u32; 4], // 0x70-0x80
+register_structs! {
+    pub GpioPort {
+        /// Port output data register
+        (0x000 => pub prt_out: ReadWrite<u32, PRT_OUT::Register>),
+        /// Port output data clear register
+        (0x004 => pub prt_out_clr: ReadWrite<u32, PRT_OUT::Register>),
+        /// Port output data set register
+        (0x008 => pub prt_out_set: ReadWrite<u32, PRT_OUT::Register>),
+        /// Port output data invert register
+        (0x00c => pub prt_out_inv: ReadWrite<u32, PRT_OUT::Register>),
+        /// Port input state register
+        (0x010 => pub prt_in: ReadOnly<u32, PRT_IN::Register>),
+        /// Port interrupt status register
+        (0x014 => pub prt_intr: ReadWrite<u32, PRT_INTR::Register>),
+        /// Port interrupt mask register
+        (0x018 => pub prt_intr_mask: ReadWrite<u32, PRT_INTR::Register>),
+        /// Port interrupt masked status register
+        (0x01c => pub prt_intr_masked: ReadOnly<u32, PRT_INTR::Register>),
+        /// Port interrupt set register
+        (0x020 => pub prt_intr_set: ReadWrite<u32, PRT_INTR::Register>),
+        (0x024 => _reserved0: [u32; 7]),
+        /// Port interrupt configuration register
+        (0x040 => pub prt_intr_cfg: ReadWrite<u32, PRT_INTR_CFG::Register>),
+        /// Port configuration register
+        (0x044 => pub prt_cfg: ReadWrite<u32, PRT_CFG::Register>),
+        /// Port input buffer configuration register
+        (0x048 => pub prt_cfg_in: ReadWrite<u32, PRT_CFG_IN::Register>),
+        /// Port output buffer configuration register
+        (0x04c => pub prt_cfg_out: ReadWrite<u32, PRT_CFG_OUT::Register>),
+        /// Port SIO configuration register
+        (0x050 => pub prt_cfg_sio: ReadWrite<u32, PRT_CFG_SIO::Register>),
+        (0x054 => _reserved1: [u32; 1]),
+        /// Port input buffer AUTOLVL configuration register for S40E GPIO
+        (0x058 => pub prt_in_autolvl: ReadWrite<u32, PRT_CFG_IN_AUTOLVL::Register>),
+        (0x05c => _reserved2: [u32; 1]),
+        /// Port output buffer configuration register 2
+        (0x060 => pub prt_0_cfg_out2: ReadWrite<u32, PRT_CFG_OUT2::Register>),
+        /// Port output buffer drive sel extension configuration register
+        /// Per-Pin 0: slow slew rate, 1: fast slew rate
+        (0x064 => pub prt_slew_ext: ReadWrite<u32>),
+        /// Port output buffer drive sel extension configuration register
+        /// 1st half: 8 bits per pin
+        (0x068 => pub prt_drive_ext0: ReadWrite<u32>),
+        /// Port output buffer drive sel extension configuration register
+        /// 2nd half: 8 bits per pin
+        (0x06c => pub prt_drive_ext1: ReadWrite<u32>),
+        (0x070 => _reserved3: [u32; 4]),
+        (0x080 => @END),
+    }
 }
 
 register_structs! {

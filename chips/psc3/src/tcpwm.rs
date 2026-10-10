@@ -20,127 +20,131 @@ use kernel::{
 
 use crate::tcpwm::CNT_CTRL::QUAD_ENCODING_MODE;
 
-#[repr(C)]
-pub struct CounterRegistersGrp0 {
-    /// 0x00 - Counter control register
-    pub ctrl: ReadWrite<u32, CNT_CTRL::Register>,
-    /// 0x04 - Counter status register
-    pub status: ReadOnly<u32, CNT_STATUS::Register>,
-    /// 0x08 - Counter count register
-    pub counter: ReadWrite<u32, CNT_COUNTER::Register>,
-    _reserved0: [u8; 4],
-    /// 0x10 - Counter compare/capture 0 register
-    pub cc0: ReadWrite<u32, CNT_CC::Register>,
-    /// 0x14 - Counter buffered compare/capture 0 register
-    pub cc0_buff: ReadWrite<u32, CNT_CC_BUFF::Register>,
-    /// 0x18 - Counter compare/capture 1 register
-    pub cc1: ReadWrite<u32, CNT_CC::Register>,
-    /// 0x1C - Counter buffered compare/capture 1 register
-    pub cc1_buff: ReadWrite<u32, CNT_CC_BUFF::Register>,
-    /// 0x20 - Counter period register
-    pub period: ReadWrite<u32, CNT_PERIOD::Register>,
-    /// 0x24 - Counter buffered period register
-    pub period_buff: ReadWrite<u32, CNT_PERIOD_BUFF::Register>,
-    /// 0x28 - Counter line selection register
-    pub line_sel: ReadWrite<u32, CNT_LINE_SEL::Register>,
-    /// 0x2C - Counter buffered line selection register
-    pub line_sel_buff: ReadWrite<u32, CNT_LINE_SEL_BUFF::Register>,
-    /// 0x30 - Counter PWM dead time register
-    pub dt: ReadWrite<u32, CNT_DT::Register>,
-    /// 0x34 - Counter buffered PWM dead time register
-    pub dt_buff: ReadWrite<u32, CNT_DT_BUFF::Register>,
-    /// 0x38 - Counter prescalar register
-    pub ps: ReadWrite<u32, CNT_PS::Register>,
-    _reserved1: [u8; 4],
-    /// 0x40 - Counter trigger command register
-    pub tr_cmd: ReadWrite<u32, CNT_TR_CMD::Register>,
-    /// 0x44 - Counter input trigger selection register 0
-    pub tr_in_sel0: ReadWrite<u32, CNT_TR_IN_SEL0::Register>,
-    /// 0x48 - Counter input trigger selection register 1
-    pub tr_in_sel1: ReadWrite<u32, CNT_TR_IN_SEL1::Register>,
-    /// 0x4C - Counter input trigger edge selection register
-    pub tr_in_edge_sel: ReadWrite<u32, CNT_TR_IN_EDGE_SEL::Register>,
-    /// 0x50 - Counter trigger PWM control register
-    pub tr_pwm_ctrl: ReadWrite<u32, CNT_TR_PWM_CTRL::Register>,
-    /// 0x54 - Counter output trigger selection register
-    pub tr_out_sel: ReadWrite<u32, CNT_TR_OUT_SEL::Register>,
-    _reserved2: [u8; 24],
-    /// 0x70 - Interrupt request register
-    pub intr: ReadWrite<u32, CNT_INTR::Register>,
-    /// 0x74 - Interrupt set request register
-    pub intr_set: ReadWrite<u32, CNT_INTR_SET::Register>,
-    /// 0x78 - Interrupt mask register
-    pub intr_mask: ReadWrite<u32, CNT_INTR_MASK::Register>,
-    /// 0x7C - Interrupt masked request register
-    pub intr_masked: ReadOnly<u32, CNT_INTR_MASKED::Register>,
-    _reserved3: [u8; 4],
-    /// 0x84 - Glitch filter register for one to one trigger
-    pub one_gf0: ReadWrite<u32, CNT_ONE_GF::Register>,
-    _reserved4: [u8; 28],
-    /// 0xA4 - Sync bypass register for one to one trigger
-    pub tr_one_sync_bypass: ReadWrite<u32, CNT_TR_ONE_SYNC_BYPASS::Register>,
-    _reserved5: [u8; 8],
-    /// 0xB0 - Counter control register for HRPWM feature
-    pub hrpwm_ctrl: ReadWrite<u32, CNT_HRPWM_CTRL::Register>,
-    _reserved6: [u8; 76],
+register_structs! {
+    pub CounterRegistersGrp0 {
+        /// 0x00 - Counter control register
+        (0x000 => pub ctrl: ReadWrite<u32, CNT_CTRL::Register>),
+        /// 0x04 - Counter status register
+        (0x004 => pub status: ReadOnly<u32, CNT_STATUS::Register>),
+        /// 0x08 - Counter count register
+        (0x008 => pub counter: ReadWrite<u32, CNT_COUNTER::Register>),
+        (0x00c => _reserved0),
+        /// 0x10 - Counter compare/capture 0 register
+        (0x010 => pub cc0: ReadWrite<u32, CNT_CC::Register>),
+        /// 0x14 - Counter buffered compare/capture 0 register
+        (0x014 => pub cc0_buff: ReadWrite<u32, CNT_CC_BUFF::Register>),
+        /// 0x18 - Counter compare/capture 1 register
+        (0x018 => pub cc1: ReadWrite<u32, CNT_CC::Register>),
+        /// 0x1C - Counter buffered compare/capture 1 register
+        (0x01c => pub cc1_buff: ReadWrite<u32, CNT_CC_BUFF::Register>),
+        /// 0x20 - Counter period register
+        (0x020 => pub period: ReadWrite<u32, CNT_PERIOD::Register>),
+        /// 0x24 - Counter buffered period register
+        (0x024 => pub period_buff: ReadWrite<u32, CNT_PERIOD_BUFF::Register>),
+        /// 0x28 - Counter line selection register
+        (0x028 => pub line_sel: ReadWrite<u32, CNT_LINE_SEL::Register>),
+        /// 0x2C - Counter buffered line selection register
+        (0x02c => pub line_sel_buff: ReadWrite<u32, CNT_LINE_SEL_BUFF::Register>),
+        /// 0x30 - Counter PWM dead time register
+        (0x030 => pub dt: ReadWrite<u32, CNT_DT::Register>),
+        /// 0x34 - Counter buffered PWM dead time register
+        (0x034 => pub dt_buff: ReadWrite<u32, CNT_DT_BUFF::Register>),
+        /// 0x38 - Counter prescalar register
+        (0x038 => pub ps: ReadWrite<u32, CNT_PS::Register>),
+        (0x03c => _reserved1),
+        /// 0x40 - Counter trigger command register
+        (0x040 => pub tr_cmd: ReadWrite<u32, CNT_TR_CMD::Register>),
+        /// 0x44 - Counter input trigger selection register 0
+        (0x044 => pub tr_in_sel0: ReadWrite<u32, CNT_TR_IN_SEL0::Register>),
+        /// 0x48 - Counter input trigger selection register 1
+        (0x048 => pub tr_in_sel1: ReadWrite<u32, CNT_TR_IN_SEL1::Register>),
+        /// 0x4C - Counter input trigger edge selection register
+        (0x04c => pub tr_in_edge_sel: ReadWrite<u32, CNT_TR_IN_EDGE_SEL::Register>),
+        /// 0x50 - Counter trigger PWM control register
+        (0x050 => pub tr_pwm_ctrl: ReadWrite<u32, CNT_TR_PWM_CTRL::Register>),
+        /// 0x54 - Counter output trigger selection register
+        (0x054 => pub tr_out_sel: ReadWrite<u32, CNT_TR_OUT_SEL::Register>),
+        (0x058 => _reserved2),
+        /// 0x70 - Interrupt request register
+        (0x070 => pub intr: ReadWrite<u32, CNT_INTR::Register>),
+        /// 0x74 - Interrupt set request register
+        (0x074 => pub intr_set: ReadWrite<u32, CNT_INTR_SET::Register>),
+        /// 0x78 - Interrupt mask register
+        (0x078 => pub intr_mask: ReadWrite<u32, CNT_INTR_MASK::Register>),
+        /// 0x7C - Interrupt masked request register
+        (0x07c => pub intr_masked: ReadOnly<u32, CNT_INTR_MASKED::Register>),
+        (0x080 => _reserved3),
+        /// 0x84 - Glitch filter register for one to one trigger
+        (0x084 => pub one_gf0: ReadWrite<u32, CNT_ONE_GF::Register>),
+        (0x088 => _reserved4),
+        /// 0xA4 - Sync bypass register for one to one trigger
+        (0x0a4 => pub tr_one_sync_bypass: ReadWrite<u32, CNT_TR_ONE_SYNC_BYPASS::Register>),
+        (0x0a8 => _reserved5),
+        /// 0xB0 - Counter control register for HRPWM feature
+        (0x0b0 => pub hrpwm_ctrl: ReadWrite<u32, CNT_HRPWM_CTRL::Register>),
+        (0x0b4 => _reserved6),
+        (0x100 => @END),
+    }
 }
 
-#[repr(C)]
-pub struct CounterRegisters {
-    /// 0x00 - Counter control register
-    pub ctrl: ReadWrite<u32, CNT_CTRL::Register>,
-    /// 0x04 - Counter status register
-    pub status: ReadOnly<u32, CNT_STATUS::Register>,
-    /// 0x08 - Counter count register
-    pub counter: ReadWrite<u32, CNT_COUNTER::Register>,
-    _reserved0: [u8; 4],
-    /// 0x10 - Counter compare/capture 0 register
-    pub cc0: ReadWrite<u32, CNT_CC::Register>,
-    /// 0x14 - Counter buffered compare/capture 0 register
-    pub cc0_buff: ReadWrite<u32, CNT_CC_BUFF::Register>,
-    /// 0x18 - Counter compare/capture 1 register
-    pub cc1: ReadWrite<u32, CNT_CC::Register>,
-    /// 0x1C - Counter buffered compare/capture 1 register
-    pub cc1_buff: ReadWrite<u32, CNT_CC_BUFF::Register>,
-    /// 0x20 - Counter period register
-    pub period: ReadWrite<u32, CNT_PERIOD::Register>,
-    /// 0x24 - Counter buffered period register
-    pub period_buff: ReadWrite<u32, CNT_PERIOD_BUFF::Register>,
-    /// 0x28 - Counter line selection register
-    pub line_sel: ReadWrite<u32, CNT_LINE_SEL::Register>,
-    /// 0x2C - Counter buffered line selection register
-    pub line_sel_buff: ReadWrite<u32, CNT_LINE_SEL_BUFF::Register>,
-    /// 0x30 - Counter PWM dead time register
-    pub dt: ReadWrite<u32, CNT_DT::Register>,
-    /// 0x34 - Counter buffered PWM dead time register
-    pub dt_buff: ReadWrite<u32, CNT_DT_BUFF::Register>,
-    /// 0x38 - Counter prescalar register
-    pub ps: ReadWrite<u32, CNT_PS::Register>,
-    _reserved1: [u8; 4],
-    /// 0x40 - Counter trigger command register
-    pub tr_cmd: ReadWrite<u32, CNT_TR_CMD::Register>,
-    /// 0x44 - Counter input trigger selection register 0
-    pub tr_in_sel0: ReadWrite<u32, CNT_TR_IN_SEL0::Register>,
-    /// 0x48 - Counter input trigger selection register 1
-    pub tr_in_sel1: ReadWrite<u32, CNT_TR_IN_SEL1::Register>,
-    /// 0x4C - Counter input trigger edge selection register
-    pub tr_in_edge_sel: ReadWrite<u32, CNT_TR_IN_EDGE_SEL::Register>,
-    /// 0x50 - Counter trigger PWM control register
-    pub tr_pwm_ctrl: ReadWrite<u32, CNT_TR_PWM_CTRL::Register>,
-    /// 0x54 - Counter output trigger selection register
-    pub tr_out_sel: ReadWrite<u32, CNT_TR_OUT_SEL::Register>,
-    _reserved2: [u8; 24],
-    /// 0x70 - Interrupt request register
-    pub intr: ReadWrite<u32, CNT_INTR::Register>,
-    /// 0x74 - Interrupt set request register
-    pub intr_set: ReadWrite<u32, CNT_INTR_SET::Register>,
-    /// 0x78 - Interrupt mask register
-    pub intr_mask: ReadWrite<u32, CNT_INTR_MASK::Register>,
-    /// 0x7C - Interrupt masked request register
-    pub intr_masked: ReadOnly<u32, CNT_INTR_MASKED::Register>,
-    /// 0x80 - LFSR register
-    pub lfsr: ReadWrite<u32, CNT_LFSR::Register>,
-    _reserved3: [u8; 124],
+register_structs! {
+    pub CounterRegisters {
+        /// 0x00 - Counter control register
+        (0x000 => pub ctrl: ReadWrite<u32, CNT_CTRL::Register>),
+        /// 0x04 - Counter status register
+        (0x004 => pub status: ReadOnly<u32, CNT_STATUS::Register>),
+        /// 0x08 - Counter count register
+        (0x008 => pub counter: ReadWrite<u32, CNT_COUNTER::Register>),
+        (0x00c => _reserved0),
+        /// 0x10 - Counter compare/capture 0 register
+        (0x010 => pub cc0: ReadWrite<u32, CNT_CC::Register>),
+        /// 0x14 - Counter buffered compare/capture 0 register
+        (0x014 => pub cc0_buff: ReadWrite<u32, CNT_CC_BUFF::Register>),
+        /// 0x18 - Counter compare/capture 1 register
+        (0x018 => pub cc1: ReadWrite<u32, CNT_CC::Register>),
+        /// 0x1C - Counter buffered compare/capture 1 register
+        (0x01c => pub cc1_buff: ReadWrite<u32, CNT_CC_BUFF::Register>),
+        /// 0x20 - Counter period register
+        (0x020 => pub period: ReadWrite<u32, CNT_PERIOD::Register>),
+        /// 0x24 - Counter buffered period register
+        (0x024 => pub period_buff: ReadWrite<u32, CNT_PERIOD_BUFF::Register>),
+        /// 0x28 - Counter line selection register
+        (0x028 => pub line_sel: ReadWrite<u32, CNT_LINE_SEL::Register>),
+        /// 0x2C - Counter buffered line selection register
+        (0x02c => pub line_sel_buff: ReadWrite<u32, CNT_LINE_SEL_BUFF::Register>),
+        /// 0x30 - Counter PWM dead time register
+        (0x030 => pub dt: ReadWrite<u32, CNT_DT::Register>),
+        /// 0x34 - Counter buffered PWM dead time register
+        (0x034 => pub dt_buff: ReadWrite<u32, CNT_DT_BUFF::Register>),
+        /// 0x38 - Counter prescalar register
+        (0x038 => pub ps: ReadWrite<u32, CNT_PS::Register>),
+        (0x03c => _reserved1),
+        /// 0x40 - Counter trigger command register
+        (0x040 => pub tr_cmd: ReadWrite<u32, CNT_TR_CMD::Register>),
+        /// 0x44 - Counter input trigger selection register 0
+        (0x044 => pub tr_in_sel0: ReadWrite<u32, CNT_TR_IN_SEL0::Register>),
+        /// 0x48 - Counter input trigger selection register 1
+        (0x048 => pub tr_in_sel1: ReadWrite<u32, CNT_TR_IN_SEL1::Register>),
+        /// 0x4C - Counter input trigger edge selection register
+        (0x04c => pub tr_in_edge_sel: ReadWrite<u32, CNT_TR_IN_EDGE_SEL::Register>),
+        /// 0x50 - Counter trigger PWM control register
+        (0x050 => pub tr_pwm_ctrl: ReadWrite<u32, CNT_TR_PWM_CTRL::Register>),
+        /// 0x54 - Counter output trigger selection register
+        (0x054 => pub tr_out_sel: ReadWrite<u32, CNT_TR_OUT_SEL::Register>),
+        (0x058 => _reserved2),
+        /// 0x70 - Interrupt request register
+        (0x070 => pub intr: ReadWrite<u32, CNT_INTR::Register>),
+        /// 0x74 - Interrupt set request register
+        (0x074 => pub intr_set: ReadWrite<u32, CNT_INTR_SET::Register>),
+        /// 0x78 - Interrupt mask register
+        (0x078 => pub intr_mask: ReadWrite<u32, CNT_INTR_MASK::Register>),
+        /// 0x7C - Interrupt masked request register
+        (0x07c => pub intr_masked: ReadOnly<u32, CNT_INTR_MASKED::Register>),
+        /// 0x80 - LFSR register
+        (0x080 => pub lfsr: ReadWrite<u32, CNT_LFSR::Register>),
+        (0x084 => _reserved3),
+        (0x100 => @END),
+    }
 }
 
 register_structs! {
