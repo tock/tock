@@ -27,14 +27,16 @@ use core::cell::Cell;
 use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks, Ticks32, Time};
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct TimerRegisters {
-    ctrl: ReadWrite<u32, CTRL::Register>,
-    value: ReadWrite<u32, VALUE::Register>,
-    reload: ReadWrite<u32, VALUE::Register>,
-    intstatus: ReadWrite<u32, INTSTATUS::Register>,
+register_structs! {
+    pub TimerRegisters {
+        (0x000 => ctrl: ReadWrite<u32, CTRL::Register>),
+        (0x004 => value: ReadWrite<u32, VALUE::Register>),
+        (0x008 => reload: ReadWrite<u32, VALUE::Register>),
+        (0x00c => intstatus: ReadWrite<u32, INTSTATUS::Register>),
+        (0x010 => @END),
+    }
 }
 
 register_bitfields![u32,
