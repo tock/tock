@@ -288,8 +288,7 @@ ci-runner-github:\
 	ci-runner-github-clippy\
 	ci-runner-github-build\
 	ci-runner-github-tests\
-	ci-runner-github-flux\
-	ci-runner-github-qemu
+	ci-runner-github-flux
 	$(call banner,CI-Runner: All GitHub runners DONE)
 
 .PHONY: ci-runner-github-format
@@ -329,11 +328,6 @@ ci-runner-github-tests:\
 ci-runner-github-flux:\
 	ci-job-flux
 	$(call banner,CI-Runner: GitHub flux runner DONE)
-
-.PHONY: ci-runner-github-qemu
-ci-runner-github-qemu:\
-	ci-job-qemu
-	$(call banner,CI-Runner: GitHub qemu runner DONE)
 
 
 # n.b. this runs from .github/workflows/docs.yml, which also uploads the
@@ -620,42 +614,6 @@ ci-job-flux: ci-setup-flux
 
 
 ### ci-runner-github-qemu jobs:
-QEMU_COMMIT_HASH=abb1565d3d863cf210f18f70c4a42b0f39b8ccdb
-define ci_setup_qemu
-	$(call banner,CI-Setup: Build QEMU)
-	@# Use the latest QEMU as it has OpenTitan support; the arm-softmmu target
-	@# additionally covers the qemu_arm_mps2 boards.
-	@printf "Building QEMU, this could take a few minutes\n\n"
-	@git clone https://github.com/qemu/qemu ./tools/ci/qemu 2>/dev/null || echo "qemu already cloned, checking out"
-	@cd tools/ci/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu,arm-softmmu --disable-linux-io-uring --disable-libdaxctl;
-	@# Build qemu
-	@$(MAKE) -C "tools/ci/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
-endef
-
-.PHONY: ci-setup-qemu
-ci-setup-qemu:
-	$(call ci_setup_helper,\
-		[[ $$(git -C ./tools/ci/qemu rev-parse HEAD 2>/dev/null || echo 0) == "${QEMU_COMMIT_HASH}" ]] && \
-			cd tools/ci/qemu/build && make -q riscv32-softmmu && make -q arm-softmmu && echo yes,\
-		Clone QEMU and run its build scripts,\
-		ci_setup_qemu,\
-		CI_JOB_QEMU_SETUP)
-	$(if $(CI_JOB_QEMU_SETUP),$(eval CI_JOB_QEMU := true))
-
-define ci_job_qemu
-	$(call banner,CI-Job: QEMU)
-	@cd tools/ci/qemu-runner;\
-		PATH="$(shell pwd)/tools/ci/qemu/build/:${PATH}"\
-		cargo run
-	@cd boards/opentitan/earlgrey-cw310;\
-		PATH="$(shell pwd)/tools/ci/qemu/build/:${PATH}"\
-		make test
-endef
-
-.PHONY: ci-job-qemu
-ci-job-qemu: ci-setup-qemu
-	$(if $(CI_JOB_QEMU),$(call ci_job_qemu))
-
 define ci_job_qemu_virt
 	$(call banner,CI-Job: QEMU virt (rv64))
 	@cd tools/ci/qemu-virt-ci-runner;\
