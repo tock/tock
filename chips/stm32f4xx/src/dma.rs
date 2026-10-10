@@ -9,120 +9,122 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 use crate::clocks::{Stm32f4Clocks, phclk};
 use crate::nvic;
 use crate::spi;
 use crate::usart;
 
-/// DMA controller
-#[repr(C)]
-pub struct DmaRegisters {
-    /// low interrupt status register
-    lisr: ReadOnly<u32, LISR::Register>,
-    /// high interrupt status register
-    hisr: ReadOnly<u32, HISR::Register>,
-    /// low interrupt flag clear register
-    lifcr: ReadWrite<u32, LIFCR::Register>,
-    /// high interrupt flag clear register
-    hifcr: ReadWrite<u32, HIFCR::Register>,
-    /// stream x configuration register
-    s0cr: ReadWrite<u32, S0CR::Register>,
-    /// stream x number of data register
-    s0ndtr: ReadWrite<u32>,
-    /// stream x peripheral address register
-    s0par: ReadWrite<u32>,
-    /// stream x memory 0 address register
-    s0m0ar: ReadWrite<u32>,
-    /// stream x memory 1 address register
-    s0m1ar: ReadWrite<u32>,
-    /// stream x FIFO control register
-    s0fcr: ReadWrite<u32, S0FCR::Register>,
-    /// stream x configuration register
-    s1cr: ReadWrite<u32, S1CR::Register>,
-    /// stream x number of data register
-    s1ndtr: ReadWrite<u32>,
-    /// stream x peripheral address register
-    s1par: ReadWrite<u32>,
-    /// stream x memory 0 address register
-    s1m0ar: ReadWrite<u32>,
-    /// stream x memory 1 address register
-    s1m1ar: ReadWrite<u32>,
-    /// stream x FIFO control register
-    s1fcr: ReadWrite<u32, S1FCR::Register>,
-    /// stream x configuration register
-    s2cr: ReadWrite<u32, S2CR::Register>,
-    /// stream x number of data register
-    s2ndtr: ReadWrite<u32>,
-    /// stream x peripheral address register
-    s2par: ReadWrite<u32>,
-    /// stream x memory 0 address register
-    s2m0ar: ReadWrite<u32>,
-    /// stream x memory 1 address register
-    s2m1ar: ReadWrite<u32>,
-    /// stream x FIFO control register
-    s2fcr: ReadWrite<u32, S2FCR::Register>,
-    /// stream x configuration register
-    s3cr: ReadWrite<u32, S3CR::Register>,
-    /// stream x number of data register
-    s3ndtr: ReadWrite<u32>,
-    /// stream x peripheral address register
-    s3par: ReadWrite<u32>,
-    /// stream x memory 0 address register
-    s3m0ar: ReadWrite<u32>,
-    /// stream x memory 1 address register
-    s3m1ar: ReadWrite<u32>,
-    /// stream x FIFO control register
-    s3fcr: ReadWrite<u32, S3FCR::Register>,
-    /// stream x configuration register
-    s4cr: ReadWrite<u32, S4CR::Register>,
-    /// stream x number of data register
-    s4ndtr: ReadWrite<u32>,
-    /// stream x peripheral address register
-    s4par: ReadWrite<u32>,
-    /// stream x memory 0 address register
-    s4m0ar: ReadWrite<u32>,
-    /// stream x memory 1 address register
-    s4m1ar: ReadWrite<u32>,
-    /// stream x FIFO control register
-    s4fcr: ReadWrite<u32, S4FCR::Register>,
-    /// stream x configuration register
-    s5cr: ReadWrite<u32, S5CR::Register>,
-    /// stream x number of data register
-    s5ndtr: ReadWrite<u32>,
-    /// stream x peripheral address register
-    s5par: ReadWrite<u32>,
-    /// stream x memory 0 address register
-    s5m0ar: ReadWrite<u32>,
-    /// stream x memory 1 address register
-    s5m1ar: ReadWrite<u32>,
-    /// stream x FIFO control register
-    s5fcr: ReadWrite<u32, S5FCR::Register>,
-    /// stream x configuration register
-    s6cr: ReadWrite<u32, S6CR::Register>,
-    /// stream x number of data register
-    s6ndtr: ReadWrite<u32>,
-    /// stream x peripheral address register
-    s6par: ReadWrite<u32>,
-    /// stream x memory 0 address register
-    s6m0ar: ReadWrite<u32>,
-    /// stream x memory 1 address register
-    s6m1ar: ReadWrite<u32>,
-    /// stream x FIFO control register
-    s6fcr: ReadWrite<u32, S6FCR::Register>,
-    /// stream x configuration register
-    s7cr: ReadWrite<u32, S7CR::Register>,
-    /// stream x number of data register
-    s7ndtr: ReadWrite<u32>,
-    /// stream x peripheral address register
-    s7par: ReadWrite<u32>,
-    /// stream x memory 0 address register
-    s7m0ar: ReadWrite<u32>,
-    /// stream x memory 1 address register
-    s7m1ar: ReadWrite<u32>,
-    /// stream x FIFO control register
-    s7fcr: ReadWrite<u32, S7FCR::Register>,
+register_structs! {
+    /// DMA controller
+    pub DmaRegisters {
+        /// low interrupt status register
+        (0x000 => lisr: ReadOnly<u32, LISR::Register>),
+        /// high interrupt status register
+        (0x004 => hisr: ReadOnly<u32, HISR::Register>),
+        /// low interrupt flag clear register
+        (0x008 => lifcr: ReadWrite<u32, LIFCR::Register>),
+        /// high interrupt flag clear register
+        (0x00c => hifcr: ReadWrite<u32, HIFCR::Register>),
+        /// stream x configuration register
+        (0x010 => s0cr: ReadWrite<u32, S0CR::Register>),
+        /// stream x number of data register
+        (0x014 => s0ndtr: ReadWrite<u32>),
+        /// stream x peripheral address register
+        (0x018 => s0par: ReadWrite<u32>),
+        /// stream x memory 0 address register
+        (0x01c => s0m0ar: ReadWrite<u32>),
+        /// stream x memory 1 address register
+        (0x020 => s0m1ar: ReadWrite<u32>),
+        /// stream x FIFO control register
+        (0x024 => s0fcr: ReadWrite<u32, S0FCR::Register>),
+        /// stream x configuration register
+        (0x028 => s1cr: ReadWrite<u32, S1CR::Register>),
+        /// stream x number of data register
+        (0x02c => s1ndtr: ReadWrite<u32>),
+        /// stream x peripheral address register
+        (0x030 => s1par: ReadWrite<u32>),
+        /// stream x memory 0 address register
+        (0x034 => s1m0ar: ReadWrite<u32>),
+        /// stream x memory 1 address register
+        (0x038 => s1m1ar: ReadWrite<u32>),
+        /// stream x FIFO control register
+        (0x03c => s1fcr: ReadWrite<u32, S1FCR::Register>),
+        /// stream x configuration register
+        (0x040 => s2cr: ReadWrite<u32, S2CR::Register>),
+        /// stream x number of data register
+        (0x044 => s2ndtr: ReadWrite<u32>),
+        /// stream x peripheral address register
+        (0x048 => s2par: ReadWrite<u32>),
+        /// stream x memory 0 address register
+        (0x04c => s2m0ar: ReadWrite<u32>),
+        /// stream x memory 1 address register
+        (0x050 => s2m1ar: ReadWrite<u32>),
+        /// stream x FIFO control register
+        (0x054 => s2fcr: ReadWrite<u32, S2FCR::Register>),
+        /// stream x configuration register
+        (0x058 => s3cr: ReadWrite<u32, S3CR::Register>),
+        /// stream x number of data register
+        (0x05c => s3ndtr: ReadWrite<u32>),
+        /// stream x peripheral address register
+        (0x060 => s3par: ReadWrite<u32>),
+        /// stream x memory 0 address register
+        (0x064 => s3m0ar: ReadWrite<u32>),
+        /// stream x memory 1 address register
+        (0x068 => s3m1ar: ReadWrite<u32>),
+        /// stream x FIFO control register
+        (0x06c => s3fcr: ReadWrite<u32, S3FCR::Register>),
+        /// stream x configuration register
+        (0x070 => s4cr: ReadWrite<u32, S4CR::Register>),
+        /// stream x number of data register
+        (0x074 => s4ndtr: ReadWrite<u32>),
+        /// stream x peripheral address register
+        (0x078 => s4par: ReadWrite<u32>),
+        /// stream x memory 0 address register
+        (0x07c => s4m0ar: ReadWrite<u32>),
+        /// stream x memory 1 address register
+        (0x080 => s4m1ar: ReadWrite<u32>),
+        /// stream x FIFO control register
+        (0x084 => s4fcr: ReadWrite<u32, S4FCR::Register>),
+        /// stream x configuration register
+        (0x088 => s5cr: ReadWrite<u32, S5CR::Register>),
+        /// stream x number of data register
+        (0x08c => s5ndtr: ReadWrite<u32>),
+        /// stream x peripheral address register
+        (0x090 => s5par: ReadWrite<u32>),
+        /// stream x memory 0 address register
+        (0x094 => s5m0ar: ReadWrite<u32>),
+        /// stream x memory 1 address register
+        (0x098 => s5m1ar: ReadWrite<u32>),
+        /// stream x FIFO control register
+        (0x09c => s5fcr: ReadWrite<u32, S5FCR::Register>),
+        /// stream x configuration register
+        (0x0a0 => s6cr: ReadWrite<u32, S6CR::Register>),
+        /// stream x number of data register
+        (0x0a4 => s6ndtr: ReadWrite<u32>),
+        /// stream x peripheral address register
+        (0x0a8 => s6par: ReadWrite<u32>),
+        /// stream x memory 0 address register
+        (0x0ac => s6m0ar: ReadWrite<u32>),
+        /// stream x memory 1 address register
+        (0x0b0 => s6m1ar: ReadWrite<u32>),
+        /// stream x FIFO control register
+        (0x0b4 => s6fcr: ReadWrite<u32, S6FCR::Register>),
+        /// stream x configuration register
+        (0x0b8 => s7cr: ReadWrite<u32, S7CR::Register>),
+        /// stream x number of data register
+        (0x0bc => s7ndtr: ReadWrite<u32>),
+        /// stream x peripheral address register
+        (0x0c0 => s7par: ReadWrite<u32>),
+        /// stream x memory 0 address register
+        (0x0c4 => s7m0ar: ReadWrite<u32>),
+        /// stream x memory 1 address register
+        (0x0c8 => s7m1ar: ReadWrite<u32>),
+        /// stream x FIFO control register
+        (0x0cc => s7fcr: ReadWrite<u32, S7FCR::Register>),
+        (0x0d0 => @END),
+    }
 }
 
 register_bitfields![u32,

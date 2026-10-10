@@ -4,19 +4,21 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
-/// Debug support
-#[repr(C)]
-struct DbgRegisters {
-    /// IDCODE
-    dbgmcu_idcode: ReadOnly<u32, DBGMCU_IDCODE::Register>,
-    /// Control Register
-    dbgmcu_cr: ReadWrite<u32, DBGMCU_CR::Register>,
-    /// Debug MCU APB1 Freeze registe
-    dbgmcu_apb1_fz: ReadWrite<u32, DBGMCU_APB1_FZ::Register>,
-    /// Debug MCU APB2 Freeze registe
-    dbgmcu_apb2_fz: ReadWrite<u32, DBGMCU_APB2_FZ::Register>,
+register_structs! {
+    /// Debug support
+    DbgRegisters {
+        /// IDCODE
+        (0x000 => dbgmcu_idcode: ReadOnly<u32, DBGMCU_IDCODE::Register>),
+        /// Control Register
+        (0x004 => dbgmcu_cr: ReadWrite<u32, DBGMCU_CR::Register>),
+        /// Debug MCU APB1 Freeze registe
+        (0x008 => dbgmcu_apb1_fz: ReadWrite<u32, DBGMCU_APB1_FZ::Register>),
+        /// Debug MCU APB2 Freeze registe
+        (0x00c => dbgmcu_apb2_fz: ReadWrite<u32, DBGMCU_APB2_FZ::Register>),
+        (0x010 => @END),
+    }
 }
 
 register_bitfields![u32,

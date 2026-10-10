@@ -9,23 +9,25 @@ use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
-/// DAC
-#[repr(C)]
-pub struct DacRegisters {
-    cr: ReadWrite<u32, CR::Register>,
-    swtrigr: WriteOnly<u32, SWTRIGR::Register>,
-    dhr12r1: ReadWrite<u32, DHR12R1::Register>,
-    dhr8r1: ReadWrite<u32, DHR8R1::Register>,
-    dhr12r2: ReadWrite<u32, DHR12R2::Register>,
-    dhr12l2: ReadWrite<u32, DHR12L2::Register>,
-    dhr8r2: ReadWrite<u32, DHR8R2::Register>,
-    dhr12rd: ReadWrite<u32, DHR12RD::Register>,
-    dhr12ld: ReadWrite<u32, DHR12LD::Register>,
-    dhr8rd: ReadWrite<u32, DHR8RD::Register>,
-    dor1: ReadWrite<u32, DOR1::Register>,
-    dor2: ReadWrite<u32, DOR2::Register>,
+register_structs! {
+    /// DAC
+    pub DacRegisters {
+        (0x000 => cr: ReadWrite<u32, CR::Register>),
+        (0x004 => swtrigr: WriteOnly<u32, SWTRIGR::Register>),
+        (0x008 => dhr12r1: ReadWrite<u32, DHR12R1::Register>),
+        (0x00c => dhr8r1: ReadWrite<u32, DHR8R1::Register>),
+        (0x010 => dhr12r2: ReadWrite<u32, DHR12R2::Register>),
+        (0x014 => dhr12l2: ReadWrite<u32, DHR12L2::Register>),
+        (0x018 => dhr8r2: ReadWrite<u32, DHR8R2::Register>),
+        (0x01c => dhr12rd: ReadWrite<u32, DHR12RD::Register>),
+        (0x020 => dhr12ld: ReadWrite<u32, DHR12LD::Register>),
+        (0x024 => dhr8rd: ReadWrite<u32, DHR8RD::Register>),
+        (0x028 => dor1: ReadWrite<u32, DOR1::Register>),
+        (0x02c => dor2: ReadWrite<u32, DOR2::Register>),
+        (0x030 => @END),
+    }
 }
 
 register_bitfields![u32,

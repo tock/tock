@@ -9,26 +9,28 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
 use crate::gpio;
 use crate::syscfg;
 
-/// External interrupt/event controller
-#[repr(C)]
-struct ExtiRegisters {
-    /// Interrupt mask register (EXTI_IMR)
-    imr: ReadWrite<u32, IMR::Register>,
-    /// Event mask register (EXTI_EMR)
-    emr: ReadWrite<u32, EMR::Register>,
-    /// Rising Trigger selection register (EXTI_RTSR)
-    rtsr: ReadWrite<u32, RTSR::Register>,
-    /// Falling Trigger selection register (EXTI_FTSR)
-    ftsr: ReadWrite<u32, FTSR::Register>,
-    /// Software interrupt event register (EXTI_SWIER)
-    swier: ReadWrite<u32, SWIER::Register>,
-    /// Pending register (EXTI_PR)
-    pr: ReadWrite<u32, PR::Register>,
+register_structs! {
+    /// External interrupt/event controller
+    ExtiRegisters {
+        /// Interrupt mask register (EXTI_IMR)
+        (0x000 => imr: ReadWrite<u32, IMR::Register>),
+        /// Event mask register (EXTI_EMR)
+        (0x004 => emr: ReadWrite<u32, EMR::Register>),
+        /// Rising Trigger selection register (EXTI_RTSR)
+        (0x008 => rtsr: ReadWrite<u32, RTSR::Register>),
+        /// Falling Trigger selection register (EXTI_FTSR)
+        (0x00c => ftsr: ReadWrite<u32, FTSR::Register>),
+        /// Software interrupt event register (EXTI_SWIER)
+        (0x010 => swier: ReadWrite<u32, SWIER::Register>),
+        /// Pending register (EXTI_PR)
+        (0x014 => pr: ReadWrite<u32, PR::Register>),
+        (0x018 => @END),
+    }
 }
 
 register_bitfields![u32,
