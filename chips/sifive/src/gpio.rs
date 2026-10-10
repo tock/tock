@@ -8,44 +8,48 @@ use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{Field, FieldValue, ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{
+    Field, FieldValue, ReadOnly, ReadWrite, register_bitfields, register_structs,
+};
 
-#[repr(C)]
-pub struct GpioRegisters {
-    /// Pin value.
-    value: ReadOnly<u32, pins::Register>,
-    /// Pin Input Enable Register
-    input_en: ReadWrite<u32, pins::Register>,
-    /// Pin Output Enable Register
-    output_en: ReadWrite<u32, pins::Register>,
-    /// Output Port Value Register
-    port: ReadWrite<u32, pins::Register>,
-    /// Internal Pull-Up Enable Register
-    pullup: ReadWrite<u32, pins::Register>,
-    /// Drive Strength Register
-    drive: ReadWrite<u32, pins::Register>,
-    /// Rise Interrupt Enable Register
-    rise_ie: ReadWrite<u32, pins::Register>,
-    /// Rise Interrupt Pending Register
-    rise_ip: ReadWrite<u32, pins::Register>,
-    /// Fall Interrupt Enable Register
-    fall_ie: ReadWrite<u32, pins::Register>,
-    /// Fall Interrupt Pending Register
-    fall_ip: ReadWrite<u32, pins::Register>,
-    /// High Interrupt Enable Register
-    high_ie: ReadWrite<u32, pins::Register>,
-    /// High Interrupt Pending Register
-    high_ip: ReadWrite<u32, pins::Register>,
-    /// Low Interrupt Enable Register
-    low_ie: ReadWrite<u32, pins::Register>,
-    /// Low Interrupt Pending Register
-    low_ip: ReadWrite<u32, pins::Register>,
-    /// HW I/O Function Enable Register
-    iof_en: ReadWrite<u32, pins::Register>,
-    /// HW I/O Function Select Register
-    iof_sel: ReadWrite<u32, pins::Register>,
-    /// Output XOR (invert) Register
-    out_xor: ReadWrite<u32, pins::Register>,
+register_structs! {
+    pub GpioRegisters {
+        /// Pin value.
+        (0x000 => value: ReadOnly<u32, pins::Register>),
+        /// Pin Input Enable Register
+        (0x004 => input_en: ReadWrite<u32, pins::Register>),
+        /// Pin Output Enable Register
+        (0x008 => output_en: ReadWrite<u32, pins::Register>),
+        /// Output Port Value Register
+        (0x00c => port: ReadWrite<u32, pins::Register>),
+        /// Internal Pull-Up Enable Register
+        (0x010 => pullup: ReadWrite<u32, pins::Register>),
+        /// Drive Strength Register
+        (0x014 => drive: ReadWrite<u32, pins::Register>),
+        /// Rise Interrupt Enable Register
+        (0x018 => rise_ie: ReadWrite<u32, pins::Register>),
+        /// Rise Interrupt Pending Register
+        (0x01c => rise_ip: ReadWrite<u32, pins::Register>),
+        /// Fall Interrupt Enable Register
+        (0x020 => fall_ie: ReadWrite<u32, pins::Register>),
+        /// Fall Interrupt Pending Register
+        (0x024 => fall_ip: ReadWrite<u32, pins::Register>),
+        /// High Interrupt Enable Register
+        (0x028 => high_ie: ReadWrite<u32, pins::Register>),
+        /// High Interrupt Pending Register
+        (0x02c => high_ip: ReadWrite<u32, pins::Register>),
+        /// Low Interrupt Enable Register
+        (0x030 => low_ie: ReadWrite<u32, pins::Register>),
+        /// Low Interrupt Pending Register
+        (0x034 => low_ip: ReadWrite<u32, pins::Register>),
+        /// HW I/O Function Enable Register
+        (0x038 => iof_en: ReadWrite<u32, pins::Register>),
+        /// HW I/O Function Select Register
+        (0x03c => iof_sel: ReadWrite<u32, pins::Register>),
+        /// Output XOR (invert) Register
+        (0x040 => out_xor: ReadWrite<u32, pins::Register>),
+        (0x044 => @END),
+    }
 }
 
 register_bitfields![u32,

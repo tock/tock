@@ -14,26 +14,28 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 
-#[repr(C)]
-pub struct UartRegisters {
-    /// Transmit Data Register
-    txdata: ReadWrite<u32, txdata::Register>,
-    /// Receive Data Register
-    rxdata: ReadWrite<u32, rxdata::Register>,
-    /// Transmit Control Register
-    txctrl: ReadWrite<u32, txctrl::Register>,
-    /// Receive Control Register
-    rxctrl: ReadWrite<u32, rxctrl::Register>,
-    /// Interrupt Enable Register
-    ie: ReadWrite<u32, interrupt::Register>,
-    /// Interrupt Pending Register
-    ip: ReadOnly<u32, interrupt::Register>,
-    /// Baud Rate Divisor Register
-    div: ReadWrite<u32, div::Register>,
+register_structs! {
+    pub UartRegisters {
+        /// Transmit Data Register
+        (0x000 => txdata: ReadWrite<u32, txdata::Register>),
+        /// Receive Data Register
+        (0x004 => rxdata: ReadWrite<u32, rxdata::Register>),
+        /// Transmit Control Register
+        (0x008 => txctrl: ReadWrite<u32, txctrl::Register>),
+        /// Receive Control Register
+        (0x00c => rxctrl: ReadWrite<u32, rxctrl::Register>),
+        /// Interrupt Enable Register
+        (0x010 => ie: ReadWrite<u32, interrupt::Register>),
+        /// Interrupt Pending Register
+        (0x014 => ip: ReadOnly<u32, interrupt::Register>),
+        /// Baud Rate Divisor Register
+        (0x018 => div: ReadWrite<u32, div::Register>),
+        (0x01c => @END),
+    }
 }
 
 register_bitfields![u32,
