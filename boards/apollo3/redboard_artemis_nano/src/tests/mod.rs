@@ -3,23 +3,27 @@
 // Copyright Tock Contributors 2022.
 
 use crate::BOARD;
-use crate::MAIN_CAP;
 use crate::NUM_PROCS;
 use crate::PANIC_RESOURCES;
 use crate::PLATFORM;
+use kernel::capabilities;
+use kernel::create_capability;
 use kernel::debug;
 
 fn run_kernel_op(loops: usize) {
-    unsafe {
-        for _i in 0..loops {
-            BOARD.unwrap().kernel_loop_operation(
-                PLATFORM.unwrap(),
-                PANIC_RESOURCES.get().and_then(|pr| pr.chip.get()).unwrap(),
-                None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
-                true,
-                MAIN_CAP.unwrap(),
-            );
-        }
+    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+
+    let board = *BOARD.get().unwrap();
+    let platform = *PLATFORM.get().unwrap();
+
+    for _i in 0..loops {
+        board.kernel_loop_operation(
+            platform,
+            PANIC_RESOURCES.get().and_then(|pr| pr.chip.get()).unwrap(),
+            None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
+            true,
+            &main_loop_cap,
+        );
     }
 }
 
