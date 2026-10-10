@@ -108,9 +108,9 @@ fn baud_rate_reset_bootloader_enter() {
     NRF52_POWER.get().map(|power| {
         power.set_gpregret(0x90);
     });
-    unsafe {
-        cortexm4::scb::reset();
-    }
+    cortexm4::scb::reset(&kernel::create_capability!(
+        kernel::capabilities::CpuControlCapability
+    ));
 }
 
 type HTS221Sensor = components::hts221::Hts221ComponentType<
@@ -419,7 +419,11 @@ pub unsafe fn start() -> (
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(cortexm4::support::reset),
+        Some(|| {
+            cortexm4::support::reset(&kernel::create_capability!(
+                kernel::capabilities::CpuControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
