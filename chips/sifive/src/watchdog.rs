@@ -6,25 +6,27 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct WatchdogRegisters {
-    /// Watchdog Configuration Register
-    wdogcfg: ReadWrite<u32, cfg::Register>,
-    _reserved0: [u8; 4],
-    /// Watchdog Counter Register
-    wdogcount: ReadWrite<u32>,
-    _reserved1: [u8; 4],
-    /// Watchdog Scaled Counter Register
-    wdogs: ReadWrite<u32>,
-    _reserved2: [u8; 4],
-    /// Watchdog Feed Register
-    wdogfeed: ReadWrite<u32, feed::Register>,
-    /// Watchdog Key Register
-    wdogkey: WriteOnly<u32, key::Register>,
-    /// Watchdog Compare Register
-    wdogcmp: ReadWrite<u32>,
+register_structs! {
+    pub WatchdogRegisters {
+        /// Watchdog Configuration Register
+        (0x000 => wdogcfg: ReadWrite<u32, cfg::Register>),
+        (0x004 => _reserved0),
+        /// Watchdog Counter Register
+        (0x008 => wdogcount: ReadWrite<u32>),
+        (0x00c => _reserved1),
+        /// Watchdog Scaled Counter Register
+        (0x010 => wdogs: ReadWrite<u32>),
+        (0x014 => _reserved2),
+        /// Watchdog Feed Register
+        (0x018 => wdogfeed: ReadWrite<u32, feed::Register>),
+        /// Watchdog Key Register
+        (0x01c => wdogkey: WriteOnly<u32, key::Register>),
+        /// Watchdog Compare Register
+        (0x020 => wdogcmp: ReadWrite<u32>),
+        (0x024 => @END),
+    }
 }
 
 register_bitfields![u32,

@@ -6,22 +6,24 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct RtcRegisters {
-    /// RTC Configuration Register
-    rtccfg: ReadWrite<u32, rtccfg::Register>,
-    _reserved1: [u8; 4],
-    /// RTC Counter Low Register
-    rtclo: ReadWrite<u32, rtclo::Register>,
-    /// RTC Counter High Register
-    rtchi: ReadWrite<u32>,
-    /// RTC Scaled Counter Register
-    rtcs: ReadWrite<u32>,
-    _reserved2: [u8; 12],
-    /// RTC Compare Register
-    rtccmp: ReadWrite<u32, rtccmp::Register>,
+register_structs! {
+    pub RtcRegisters {
+        /// RTC Configuration Register
+        (0x000 => rtccfg: ReadWrite<u32, rtccfg::Register>),
+        (0x004 => _reserved1),
+        /// RTC Counter Low Register
+        (0x008 => rtclo: ReadWrite<u32, rtclo::Register>),
+        /// RTC Counter High Register
+        (0x00c => rtchi: ReadWrite<u32>),
+        /// RTC Scaled Counter Register
+        (0x010 => rtcs: ReadWrite<u32>),
+        (0x014 => _reserved2),
+        /// RTC Compare Register
+        (0x020 => rtccmp: ReadWrite<u32, rtccmp::Register>),
+        (0x024 => @END),
+    }
 }
 
 register_bitfields![u32,

@@ -8,21 +8,23 @@ use core::cell::Cell;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 use rv32i::csr;
 
-#[repr(C)]
-pub struct PrciRegisters {
-    /// Clock Configuration Register
-    hfrosccfg: ReadWrite<u32, hfrosccfg::Register>,
-    /// Clock Configuration Register
-    hfxosccfg: ReadWrite<u32, hfxosccfg::Register>,
-    /// PLL Configuration Register
-    pllcfg: ReadWrite<u32, pllcfg::Register>,
-    /// PLL Divider Register
-    plloutdiv: ReadWrite<u32, plloutdiv::Register>,
-    /// Clock Configuration Register
-    coreclkcfg: ReadWrite<u32>,
+register_structs! {
+    pub PrciRegisters {
+        /// Clock Configuration Register
+        (0x000 => hfrosccfg: ReadWrite<u32, hfrosccfg::Register>),
+        /// Clock Configuration Register
+        (0x004 => hfxosccfg: ReadWrite<u32, hfxosccfg::Register>),
+        /// PLL Configuration Register
+        (0x008 => pllcfg: ReadWrite<u32, pllcfg::Register>),
+        /// PLL Divider Register
+        (0x00c => plloutdiv: ReadWrite<u32, plloutdiv::Register>),
+        /// Clock Configuration Register
+        (0x010 => coreclkcfg: ReadWrite<u32>),
+        (0x014 => @END),
+    }
 }
 
 register_bitfields![u32,
