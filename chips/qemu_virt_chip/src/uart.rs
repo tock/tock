@@ -12,43 +12,43 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    Aliased, Field, LocalRegisterCopy, ReadOnly, ReadWrite, register_bitfields,
+    Aliased, Field, LocalRegisterCopy, ReadOnly, ReadWrite, register_bitfields, register_structs,
 };
 
 pub const UART_16550_BAUD_BASE: usize = 399193;
 
 type Uart16550RegshiftInt = u8;
 
-#[repr(C)]
-pub struct Uart16550Registers {
-    /// 0x00:
-    /// - DLAB = 0
-    ///   - Read: receiver buffer (RBR)
-    ///   - Write: transmitter holding (THR)
-    /// - DLAB = 1: divisor latch LSB (DLL)
-    rbr_thr: Aliased<Uart16550RegshiftInt, RBR::Register, THR::Register>,
+register_structs! {
+    pub Uart16550Registers {
+        /// - DLAB = 0
+        ///   - Read: receiver buffer (RBR)
+        ///   - Write: transmitter holding (THR)
+        /// - DLAB = 1: divisor latch LSB (DLL)
+        (0x00 => rbr_thr: Aliased<Uart16550RegshiftInt, RBR::Register, THR::Register>),
 
-    /// 0x01:
-    /// - DLAB = 0: interrupt enable (IER)
-    /// - DLAB = 1: divisor latch MSB (DLM)
-    ier: ReadWrite<Uart16550RegshiftInt, IER::Register>,
+        /// - DLAB = 0: interrupt enable (IER)
+        /// - DLAB = 1: divisor latch MSB (DLM)
+        (0x01 => ier: ReadWrite<Uart16550RegshiftInt, IER::Register>),
 
-    /// 0x02:
-    /// - Read: interrupt identification (IIR)
-    /// - Write: FIFO control (FCR)
-    iir_fcr: Aliased<Uart16550RegshiftInt, IIR::Register, FCR::Register>,
+        /// - Read: interrupt identification (IIR)
+        /// - Write: FIFO control (FCR)
+        (0x02 => iir_fcr: Aliased<Uart16550RegshiftInt, IIR::Register, FCR::Register>),
 
-    /// 0x03: line control (LCR)
-    lcr: ReadWrite<Uart16550RegshiftInt, LCR::Register>,
+        /// line control (LCR)
+        (0x03 => lcr: ReadWrite<Uart16550RegshiftInt, LCR::Register>),
 
-    /// 0x04: modem control (MCR)
-    mcr: ReadWrite<Uart16550RegshiftInt, MCR::Register>,
+        /// modem control (MCR)
+        (0x04 => mcr: ReadWrite<Uart16550RegshiftInt, MCR::Register>),
 
-    /// 0x05: line status (LSR)
-    lsr: ReadOnly<Uart16550RegshiftInt, LSR::Register>,
+        /// line status (LSR)
+        (0x05 => lsr: ReadOnly<Uart16550RegshiftInt, LSR::Register>),
 
-    /// 0x06: modem status (MSR)
-    msr: ReadOnly<Uart16550RegshiftInt, MSR::Register>,
+        /// modem status (MSR)
+        (0x06 => msr: ReadOnly<Uart16550RegshiftInt, MSR::Register>),
+
+        (0x07 => @END),
+    }
 }
 
 impl Uart16550Registers {
