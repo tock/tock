@@ -41,7 +41,7 @@ use kernel::hil::led;
 /// Panic handler.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
     let first_led_pin = &mut earlgrey::gpio::GpioPin::new(
         earlgrey::gpio::GPIO_BASE,
@@ -53,43 +53,47 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     );
     first_led_pin.make_output();
     let first_led = &mut led::LedLow::new(first_led_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    #[cfg(feature = "sim_verilator")]
-    debug::panic_old(
-        &mut [first_led],
-        writer,
-        pi,
-        &|| {},
-        crate::PANIC_RESOURCES.get(),
-    );
+    unsafe {
+        #[cfg(feature = "sim_verilator")]
+        debug::panic_old(
+            &mut [first_led],
+            writer,
+            pi,
+            &|| {},
+            crate::PANIC_RESOURCES.get(),
+        );
 
-    #[cfg(not(feature = "sim_verilator"))]
-    debug::panic_old(
-        &mut [first_led],
-        writer,
-        pi,
-        &rv32i::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+        #[cfg(not(feature = "sim_verilator"))]
+        debug::panic_old(
+            &mut [first_led],
+            writer,
+            pi,
+            &rv32i::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        );
+    }
 }
 
 #[cfg(test)]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let writer = &mut WRITER;
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
+    unsafe {
+        let writer = &mut WRITER;
 
-    #[cfg(feature = "sim_verilator")]
-    debug::panic_print_old(writer, pi, &|| {}, crate::PANIC_RESOURCES.get());
-    #[cfg(not(feature = "sim_verilator"))]
-    debug::panic_print_old(
-        writer,
-        pi,
-        &rv32i::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+        #[cfg(feature = "sim_verilator")]
+        debug::panic_print_old(writer, pi, &|| {}, crate::PANIC_RESOURCES.get());
+        #[cfg(not(feature = "sim_verilator"))]
+        debug::panic_print_old(
+            writer,
+            pi,
+            &rv32i::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        );
 
-    let _ = writeln!(writer, "{}", pi);
-    // Exit QEMU with a return code of 1
-    crate::tests::semihost_command_exit_failure();
+        let _ = writeln!(writer, "{}", pi);
+        // Exit QEMU with a return code of 1
+        crate::tests::semihost_command_exit_failure();
+    }
 }

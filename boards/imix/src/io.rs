@@ -54,17 +54,19 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
 
     let led_pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PC22);
     let led = &mut led::LedLow::new(&led_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
-    debug::panic_old(
-        &mut [led],
-        writer,
-        pi,
-        &cortexm4::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
+    unsafe {
+        debug::panic_old(
+            &mut [led],
+            writer,
+            pi,
+            &cortexm4::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }

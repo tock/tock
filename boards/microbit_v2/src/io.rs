@@ -15,7 +15,7 @@ use nrf52833::uart::{Uart, UartPanicWriterConfig};
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     // MicroBit v2 has an LED matrix, use the upper left LED
     // let mut led = Led (&gpio::PORT[Pin::P0_28], );
 

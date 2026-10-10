@@ -86,17 +86,19 @@ impl IoWrite for Writer {
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::addr_of_mut;
-    let writer = &mut *addr_of_mut!(WRITER);
+    let writer = unsafe { &mut *addr_of_mut!(WRITER) };
 
-    debug::panic_print_old(
-        writer,
-        pi,
-        &cortexm0p::support::nop,
-        raspberry_pi_pico::PANIC_RESOURCES.get(),
-    );
+    unsafe {
+        debug::panic_print_old(
+            writer,
+            pi,
+            &cortexm0p::support::nop,
+            raspberry_pi_pico::PANIC_RESOURCES.get(),
+        );
 
-    // Loop forever
-    loop {}
+        // Loop forever
+        loop {}
+    }
 }

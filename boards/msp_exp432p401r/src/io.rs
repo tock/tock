@@ -34,19 +34,21 @@ impl IoWrite for Uart {
 
 /// Panic handler
 #[panic_handler]
-pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
+pub fn panic_fmt(info: &PanicInfo) -> ! {
     const LED1_PIN: IntPinNr = IntPinNr::P01_0;
     let gpio_pin = msp432::gpio::IntPin::new(LED1_PIN);
     let led = &mut led::LedHigh::new(&gpio_pin);
-    let writer = &mut *addr_of_mut!(UART);
     let wdt = Wdt::new();
 
     wdt.disable();
-    debug::panic_old(
-        &mut [led],
-        writer,
-        info,
-        &cortexm4::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    )
+    let writer = unsafe { &mut *addr_of_mut!(UART) };
+    unsafe {
+        debug::panic_old(
+            &mut [led],
+            writer,
+            info,
+            &cortexm4::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        )
+    }
 }

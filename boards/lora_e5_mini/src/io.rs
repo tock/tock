@@ -67,7 +67,7 @@ impl IoWrite for Writer {
 
 /// Panic handler.
 #[panic_handler]
-pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
+pub fn panic_fmt(info: &PanicInfo) -> ! {
     // For now we add a loop to blink the LED to an interesting way.
     // To ensure that all dependencies are set up, we initialize all clocks
     // and GPIOs here in this function.
@@ -111,12 +111,14 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         width: uart::Width::Eight,
     });
 
-    kernel::debug::panic_print_old(
-        &mut *addr_of_mut!(WRITER),
-        info,
-        &cortexm4::support::nop,
-        crate::PANIC_RESOURCES.get(),
-    );
+    unsafe {
+        kernel::debug::panic_print_old(
+            &mut *addr_of_mut!(WRITER),
+            info,
+            &cortexm4::support::nop,
+            crate::PANIC_RESOURCES.get(),
+        );
+    }
 
     // Unique LED blink pattern for panic
     loop {
