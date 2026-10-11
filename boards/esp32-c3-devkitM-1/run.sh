@@ -4,5 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2023.
 
-esptool.py --port /dev/ttyUSB0 --chip esp32c3 elf2image --use_segments --output binary.hex ${1}
-esptool.py --port /dev/ttyUSB0 --chip esp32c3 write_flash --flash_mode dio --flash_size detect --flash_freq 80m  0x0 binary.hex
+OBJCOPY=$(find "$(rustc --print sysroot)" -name llvm-objcopy | head -1)
+${OBJCOPY} --output-target=binary --strip-sections --strip-all --remove-section .apps ${1} ${1}.bin
+esptool.py --port /dev/ttyUSB0 --chip esp32c3 write_flash 0x0 ${1}.bin
