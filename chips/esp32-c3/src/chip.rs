@@ -5,7 +5,6 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
-use core::ptr::addr_of;
 
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::StaticRef;
@@ -23,8 +22,6 @@ use crate::timg;
 
 pub const INTC_BASE: StaticRef<IntcRegisters> =
     unsafe { StaticRef::new(0x600C_2000 as *const IntcRegisters) };
-
-pub static mut INTC: Intc = Intc::new(INTC_BASE);
 
 /// Number of PMP entries available for the "User MPU" implementation.
 ///
@@ -61,7 +58,7 @@ const TRAP_VECTOR_TABLE_LEN: usize = 32 * 4;
 pub struct Esp32C3<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
     pub pmp: PMPUserMPU<USER_MPU_REGIONS, SimplePMP<USER_PMP_ENTRIES>>,
-    intc: &'a Intc,
+    intc: Intc,
     pic_interrupt_service: &'a I,
 }
 
@@ -110,9 +107,13 @@ impl InterruptService for Esp32C3DefaultPeripherals<'_> {
 }
 
 impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
+    /// Construct a new [`Esp32C3`] chip instance.
+    ///
+    /// ### Safety
+    ///
+    /// Callers must ensure this function only runs on an ESP32-C3 chip, and
+    /// that this function is only run once per boot.
     pub unsafe fn new(pic_interrupt_service: &'a I) -> Self {
-        let pmp = SimplePMP::new().unwrap();
-
         // The ESP32-C3 seems to have a CPU bug where it requires the PMP to be
         // configured to give user-mode execute permissions on the trap vector;
         // otherwise it just faults. See the comment on [`USER_PMP_ENTRIES`].
@@ -131,10 +132,23 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
         const TOR_EXECUTE: usize = 0b01 << 3 | 1 << 2;
         CSR.pmpconfig_set(3, pmpcfg | TOR_EXECUTE << 24);
 
+        // Let entries 0 to 14 be managed by the `SimplePMP`.
+        //
+        // SAFETY: we are running on a RISC-V system with a 16-entry PMP at
+        // 4-byte granularity, and instantiating `SimplePMP` with
+        // `AVAILABLE_ENTRIES = 14` and `GRANULARITY = 4` (to preserve the above
+        // two regions working around the trap vector fetch permissions CPU
+        // bug). The [`Esp32C3`] is a singleton instance, and as such there are
+        // not any other concurrent PMP accessors. The ESP32-C3 deviates from
+        // the privileged specs in how overlapping regions should be handled. By
+        // wrapping the `SimplePMP` in a `PMPUserMPU` we ensure that we never
+        // configure any overlapping regions.
+        let pmp = unsafe { SimplePMP::new() }.unwrap();
+
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pmp: PMPUserMPU::new(pmp),
-            intc: &*addr_of!(INTC),
+            intc: Intc::new(INTC_BASE),
             pic_interrupt_service,
         }
     }
@@ -316,7 +330,14 @@ fn handle_exception(exception: mcause::Exception) {
 ///
 /// This gets called when an interrupt occurs while the chip is
 /// in kernel mode.
-#[export_name = "_start_trap_rust_from_kernel"]
+///
+/// ### Safety
+///
+/// This function must only be called in a trap context, when a trap has
+/// occurred while the CPU was executing kernel code, once per such trap.
+/// It is exported under a well-known symbol name such that the [`rv32i`]
+/// crate's generic trap handling code can invoke it.
+#[unsafe(export_name = "_start_trap_rust_from_kernel")]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(_) => {
@@ -350,7 +371,14 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
-#[export_name = "_disable_interrupt_trap_rust_from_app"]
+///
+/// ### Safety
+///
+/// This function must only be called in a trap context, when a trap has
+/// occurred while the CPU was executing application code, once per such trap.
+/// It is exported under a well-known symbol name such that the [`rv32i`]
+/// crate's generic trap handling code can invoke it.
+#[unsafe(export_name = "_disable_interrupt_trap_rust_from_app")]
 pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
     match mcause::Trap::from(mcause_val as usize) {
         mcause::Trap::Interrupt(_) => {
@@ -389,6 +417,19 @@ pub extern "C" fn _start_trap_vectored() -> ! {
     }
 }
 
+/// Vectored trap handler for the ESP32-C3.
+///
+/// This chip only supports configuring `mtvec` with a vectored trap handler.
+/// This conflicts with Tock's expectations that all traps are handled through a
+/// single trap entry point. We bridge the gap with this "function", which is
+/// simply 32 non-compressed jump instructions to Tock's actual trap entry
+/// point.
+///
+/// ### Safety
+///
+/// This function must never be called directly by Rust. It must only be used to
+/// configure the `mtvec` CSR, allowing the hardware to jump to any of the 32
+/// jump instructions in this assembly.
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 // Only apply the `link_section` attribute when actually targeting bare-metal
 // RISC-V (`target_os = "none"`). Non-bare-metal object formats (Mach-O, PE,
@@ -397,7 +438,7 @@ pub extern "C" fn _start_trap_vectored() -> ! {
 // comma`.
 #[cfg_attr(
     all(target_arch = "riscv32", target_os = "none"),
-    link_section = ".riscv.trap_vectored"
+    unsafe(link_section = ".riscv.trap_vectored")
 )]
 #[unsafe(naked)]
 pub extern "C" fn _start_trap_vectored() -> ! {
@@ -451,5 +492,11 @@ pub extern "C" fn _start_trap_vectored() -> ! {
 /// The `riscv` crate requires chip crates to allocate an array to
 /// track whether any given hart is currently in a trap handler. The
 /// array must be zero-initialized.
-#[export_name = "_trap_handler_active"]
+///
+/// ### Safety
+///
+/// This symbol is exported under a well-known name such that the [`rv32i`]
+/// crate's trap handler can reference it. It must contain as many `usize`-sized
+/// elements as this chip has harts (1 hart for the ESP32-C3).
+#[unsafe(export_name = "_trap_handler_active")]
 static mut TRAP_HANDLER_ACTIVE: [usize; 1] = [0; 1];

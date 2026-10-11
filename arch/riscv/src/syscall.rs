@@ -262,7 +262,7 @@ fn encode_upcall_helper(
 pub struct SysCall(());
 
 impl SysCall {
-    pub const unsafe fn new() -> SysCall {
+    pub const fn new() -> SysCall {
         SysCall(())
     }
 }
