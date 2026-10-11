@@ -320,16 +320,13 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
         self.cancelled.set(true);
     }
 
-    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<32> + 'a)) {
+    fn set_data_client(&self, _client: &'a (dyn digest::ClientData<32> + 'a)) {
         unimplemented!()
     }
 }
 
 impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
-    fn run(
-        &'a self,
-        digest: &'static mut [u8; 32],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+    fn run(&self, digest: &'static mut [u8; 32]) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         let regs = self.registers;
 
         // Enable interrupts
@@ -346,14 +343,14 @@ impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
         Ok(())
     }
 
-    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<32> + 'a)) {
+    fn set_hash_client(&self, _client: &'a (dyn digest::ClientHash<32> + 'a)) {
         unimplemented!()
     }
 }
 
 impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
     fn verify(
-        &'a self,
+        &self,
         compare: &'static mut [u8; 32],
     ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         self.verify.set(true);
@@ -361,13 +358,13 @@ impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
         self.run(compare)
     }
 
-    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<32> + 'a)) {
+    fn set_verify_client(&self, _client: &'a (dyn digest::ClientVerify<32> + 'a)) {
         unimplemented!()
     }
 }
 
 impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<32>) {
+    fn set_client(&self, client: &'a dyn digest::Client<32>) {
         self.client.set(client);
     }
 }
