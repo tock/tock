@@ -7,6 +7,10 @@
 //! Currently only supports SHA256.
 
 use capsules_core::driver;
+use capsules_core::driver_mutex::{
+    DriverMutex, DriverMutexAny, DriverMutexClient, DriverMutexHandle, DriverMutexRef,
+};
+use core::cell::RefCell;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::digest;
@@ -61,9 +65,15 @@ enum ShaAlgorithm {
     // Sha512,
 }
 
-pub struct ShaDriver<'a, H: digest::DigestDataHash<'a, DIGEST_LEN>, const DIGEST_LEN: usize> {
+pub struct ShaDriver<
+    H: digest::DigestDataHash<'static, DIGEST_LEN> + 'static,
+    const DIGEST_LEN: usize,
+> {
     /// Underlying hasher to use for the SHA operations.
-    sha: &'a H,
+    sha: &'static DriverMutex<H>,
+    handle: OptionalCell<DriverMutexHandle>,
+    /// Held until the hasher returns its buffers and the operation completes.
+    guard: RefCell<Option<DriverMutexRef<H>>>,
 
     /// Virtualized capsule that supports a single operation per app.
     apps: Grant<
@@ -83,11 +93,11 @@ pub struct ShaDriver<'a, H: digest::DigestDataHash<'a, DIGEST_LEN>, const DIGEST
     dest_buffer: TakeCell<'static, [u8; DIGEST_LEN]>,
 }
 
-impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
-    ShaDriver<'a, H, DIGEST_LEN>
+impl<H: digest::DigestDataHash<'static, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
+    ShaDriver<H, DIGEST_LEN>
 {
     pub fn new(
-        sha: &'a H,
+        sha: &'static DriverMutex<H>,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; DIGEST_LEN],
         grant: Grant<
@@ -96,9 +106,11 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> ShaDriver<'a, H, DIGEST_LEN> {
+    ) -> ShaDriver<H, DIGEST_LEN> {
         ShaDriver {
             sha,
+            handle: OptionalCell::empty(),
+            guard: RefCell::new(None),
             apps: grant,
             processid: OptionalCell::empty(),
             data_buffer: TakeCell::new(data_buffer),
@@ -106,15 +118,38 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
         }
     }
 
-    fn run(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        // Save this process as the active process.
-        self.processid.set(processid);
+    pub fn register(&'static self) -> Result<(), ErrorCode> {
+        self.handle
+            .set(self.sha.add_client(self).ok_or(ErrorCode::NOMEM)?);
+        Ok(())
+    }
 
+    fn release(&self) {
+        if let Some(sha) = self.guard.borrow().as_ref() {
+            sha.clear_data();
+        }
+        self.guard.borrow_mut().take();
+    }
+
+    fn fail(&self, e: ErrorCode) {
+        self.release();
+        self.processid.take().map(|processid| {
+            let _ = self.apps.enter(processid, |app, kernel_data| {
+                app.operation.clear();
+                let _ = kernel_data.schedule_upcall(upcall::HASH, (into_statuscode(Err(e)), 0, 0));
+            });
+        });
+        self.check_queue_async();
+    }
+
+    fn run(&self, processid: ProcessId) -> Result<(), ErrorCode> {
+        let guard = self.guard.borrow();
+        let sha = guard.as_ref().ok_or(ErrorCode::OFF)?;
         self.apps
             .enter(processid, |app, kernel_data| {
                 // First, set the operation of the underlying hasher.
                 match app.sha_algorithm {
-                    ShaAlgorithm::Sha256 => self.sha.set_mode_sha256()?,
+                    ShaAlgorithm::Sha256 => sha.set_mode_sha256()?,
                     // ShaAlgorithm::Sha384 => self.sha.set_mode_sha384()?,
                     // ShaAlgorithm::Sha512 => self.sha.set_mode_sha512()?,
                 }
@@ -138,7 +173,7 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
                                 // Add data to the hasher.
                                 let mut lease_buf = SubSliceMut::new(buf);
                                 lease_buf.slice(0..copy_len);
-                                if let Err((e, buf)) = self.sha.add_mut_data(lease_buf) {
+                                if let Err((e, buf)) = sha.add_mut_data(lease_buf) {
                                     self.data_buffer.replace(buf.take());
                                     Err(e)
                                 } else {
@@ -166,7 +201,8 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
             });
 
             if let Some(ready_app) = ready_app {
-                self.run(ready_app)
+                self.processid.set(ready_app);
+                self.sha.request(self.handle.get().ok_or(ErrorCode::OFF)?)
             } else {
                 // Nothing to do
                 Ok(())
@@ -192,19 +228,51 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
     }
 }
 
-impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
-    digest::ClientData<DIGEST_LEN> for ShaDriver<'a, H, DIGEST_LEN>
+impl<H: digest::DigestDataHash<'static, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
+    DriverMutexClient for ShaDriver<H, DIGEST_LEN>
+{
+    fn ready(&'static self, resource: DriverMutexAny) {
+        match resource.downcast::<H>() {
+            Ok(guard) => {
+                guard.set_client(self);
+                self.guard.replace(Some(guard));
+                let result = self
+                    .processid
+                    .get()
+                    .ok_or(ErrorCode::FAIL)
+                    .and_then(|processid| self.run(processid));
+                if let Err(e) = result {
+                    self.fail(e);
+                }
+            }
+            Err(resource) => {
+                drop(resource);
+            }
+        }
+    }
+}
+
+impl<H: digest::DigestDataHash<'static, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
+    digest::ClientData<DIGEST_LEN> for ShaDriver<H, DIGEST_LEN>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
     fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {}
 
-    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         // Unconditionally return our kernel buffer.
         self.data_buffer.replace(data.take());
+        if let Err(e) = result {
+            self.fail(e);
+            return;
+        }
 
         // Continue with the active process. If there is more data to add, do that.
         // If all data has been added, then do the requested operation.
+        let guard = self.guard.borrow();
+        let Some(sha) = guard.as_ref() else {
+            return;
+        };
         self.processid.map(|processid| {
             self.apps
                 .enter(processid, |app, kernel_data| {
@@ -231,9 +299,9 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
                                         // Add data to the hasher.
                                         let mut lease_buf = SubSliceMut::new(buf);
                                         lease_buf.slice(0..copy_len);
-                                        self.sha.add_mut_data(lease_buf).and(Ok(true)).map_err(
+                                        sha.add_mut_data(lease_buf).and(Ok(true)).map_err(
                                             |(e, buf)| {
-                                                self.sha.clear_data();
+                                                sha.clear_data();
                                                 self.processid.clear();
                                                 self.data_buffer.replace(buf.take());
                                                 e
@@ -251,15 +319,15 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
                     // have nothing more to do. If we did not have more data to copy, we
                     // will get `Ok(false)` and can move to the hash operation. If we
                     // got an error, we do an upcall to the app.
-                    let _ = match res {
+                    let res = match res {
                         Ok(false) => {
                             match app.operation.get() {
                                 Some(AppOp::Hash) => {
                                     // No more data to copy. Run the hash.
                                     self.dest_buffer.take().map_or(Err(ErrorCode::FAIL), |buf| {
-                                        self.sha.run(buf).map_err(|(e, buf)| {
+                                        sha.run(buf).map_err(|(e, buf)| {
                                             // Error, clear the processid and data
-                                            self.sha.clear_data();
+                                            sha.clear_data();
                                             self.processid.clear();
                                             self.dest_buffer.replace(buf);
                                             e
@@ -274,6 +342,9 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
                         Err(e) => Err(e),
                     };
                     if let Err(e) = res {
+                        sha.clear_data();
+                        self.processid.clear();
+                        app.operation.clear();
                         // Notify the process.
                         let upcall_num = match app.operation.get() {
                             Some(AppOp::Hash) | None => upcall::HASH,
@@ -286,23 +357,27 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
                     if err == kernel::process::Error::NoSuchApp
                         || err == kernel::process::Error::InactiveApp
                     {
-                        self.sha.clear_data();
+                        sha.clear_data();
                         self.processid.clear();
                     }
                 })
         });
+        drop(guard);
+        if self.processid.is_none() {
+            self.release();
+        }
 
         // Check for more work to do.
         self.check_queue_async();
     }
 }
 
-impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
-    digest::ClientHash<DIGEST_LEN> for ShaDriver<'a, H, DIGEST_LEN>
+impl<H: digest::DigestDataHash<'static, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
+    digest::ClientHash<DIGEST_LEN> for ShaDriver<H, DIGEST_LEN>
 {
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; DIGEST_LEN]) {
         // Clear the underlying hasher.
-        self.sha.clear_data();
+        self.release();
 
         // Do our best to copy the digest to the app.
         //
@@ -350,8 +425,8 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
     }
 }
 
-impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
-    SyscallDriver for ShaDriver<'a, H, DIGEST_LEN>
+impl<H: digest::DigestDataHash<'static, DIGEST_LEN> + digest::Sha256, const DIGEST_LEN: usize>
+    SyscallDriver for ShaDriver<H, DIGEST_LEN>
 {
     /// Setup and run a SHA hash.
     ///
@@ -422,7 +497,7 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
                     }
                 });
                 match res {
-                    Ok(_) => {
+                    Ok(Ok(())) => {
                         // If we were able to enqueue the operation, check if we can
                         // actually run it. If there was an error starting it return the
                         // error, otherwise return ok if the operation started successfully
@@ -430,12 +505,14 @@ impl<'a, H: digest::DigestDataHash<'a, DIGEST_LEN> + digest::Sha256, const DIGES
                         // the grant.
                         self.check_queue()
                             .inspect_err(|_| {
+                                self.processid.clear();
                                 let _ = self.apps.enter(processid, |app, _kernel_data| {
                                     app.operation.clear();
                                 });
                             })
                             .into()
                     }
+                    Ok(Err(e)) => CommandReturn::failure(e),
                     Err(e) => e.into(),
                 }
             }
