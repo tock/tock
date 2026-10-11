@@ -1634,6 +1634,29 @@ pub mod simple {
     impl<const AVAILABLE_ENTRIES: usize, const GRANULARITY: usize>
         SimplePMP<AVAILABLE_ENTRIES, GRANULARITY>
     {
+        /// Construct a new [`SimplePMP`] instance.
+        ///
+        /// ### Safety
+        ///
+        /// Callers of this function must ensure that they are running on a
+        /// system featuring a RISC-V privileged spec compatible PMP with at
+        /// least `AVAILABLE_ENTRIES` available for use, and in M-mode.
+        ///
+        /// The `SimplePMP` instance assumes that it has exclusive ownership
+        /// over the PMP hardware and does not perform internal synchronization.
+        /// Callers must ensure that no other code is accessing the PMP hardware
+        /// while a `SimplePMP` instance exists.
+        ///
+        /// The `SimplePMP` will not modify entries beyond `AVAILABLE_ENTRIES`.
+        /// If necessary (e.g., for the ESP32-C3), configure those entries
+        /// _before_ constructing the `SimplePMP` instance.
+        ///
+        /// Callers are responsible for ensuring that their use of the
+        /// `SimplePMP` is compatible with any restrictions on their hardware
+        /// (e.g., `GRANULARITY` must be larger or equal to the region
+        /// granularity supported in hardware, callers must not configure
+        /// overlapping regions in the presence of ESP32-C3's non-compliant
+        /// implementation, etc.).
         pub unsafe fn new() -> Result<Self, ()> {
             // The SimplePMP does not support locked regions, kernel memory
             // protection, or any ePMP features (using the mseccfg CSR). Ensure
