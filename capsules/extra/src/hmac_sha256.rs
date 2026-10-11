@@ -221,7 +221,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
         self.sha256.clear_data();
     }
 
-    fn set_data_client(&'a self, _client: &'a dyn hil::digest::ClientData<32>) {
+    fn set_data_client(&self, _client: &'a dyn hil::digest::ClientData<32>) {
         // self.data_client.set(client);
         unimplemented!()
     }
@@ -230,17 +230,14 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
 impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
     hil::digest::DigestHash<'a, 32> for HmacSha256Software<'a, S>
 {
-    fn run(
-        &'a self,
-        digest: &'static mut [u8; 32],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+    fn run(&self, digest: &'static mut [u8; 32]) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         // User called run, we start with the inner hash.
         self.state.set(State::InnerHash);
         self.mode.set(RunMode::Hash);
         self.sha256.run(digest)
     }
 
-    fn set_hash_client(&'a self, _client: &'a dyn hil::digest::ClientHash<32>) {
+    fn set_hash_client(&self, _client: &'a dyn hil::digest::ClientHash<32>) {
         // self.hash_client.set(client);
         unimplemented!()
     }
@@ -250,7 +247,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
     hil::digest::DigestVerify<'a, 32> for HmacSha256Software<'a, S>
 {
     fn verify(
-        &'a self,
+        &self,
         compare: &'static mut [u8; 32],
     ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         // User called verify, we start with the inner hash.
@@ -263,7 +260,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
         self.sha256.run(digest)
     }
 
-    fn set_verify_client(&'a self, _client: &'a dyn hil::digest::ClientVerify<32>) {
+    fn set_verify_client(&self, _client: &'a dyn hil::digest::ClientVerify<32>) {
         // self.verify_client.set(client);
         unimplemented!()
     }
@@ -272,7 +269,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
 impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
     hil::digest::DigestDataHash<'a, 32> for HmacSha256Software<'a, S>
 {
-    fn set_client(&'a self, _client: &'a dyn hil::digest::ClientDataHash<32>) {
+    fn set_client(&self, _client: &'a dyn hil::digest::ClientDataHash<32>) {
         // self.data_client.set(client);
         // self.hash_client.set(client);
         unimplemented!()
@@ -282,7 +279,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
 impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::Digest<'a, 32>
     for HmacSha256Software<'a, S>
 {
-    fn set_client(&'a self, client: &'a dyn hil::digest::Client<32>) {
+    fn set_client(&self, client: &'a dyn hil::digest::Client<32>) {
         // self.data_client.set(client);
         // self.hash_client.set(client);
         // self.verify_client.set(client);
