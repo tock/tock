@@ -115,7 +115,7 @@ pub unsafe fn main() {
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
 
-    let app_flash_region = rv32i::support::linker_region_slice_ptr!("_sapps", "_eapps")
+    let app_flash_region: *mut [u8] = rv32i::support::linker_region_slice_ptr!("_sapps", "_eapps")
         .expect("App flash region is invalid");
     if app_flash_region.len() > isize::MAX as usize {
         // This check is only required because we're creating a Rust slice
