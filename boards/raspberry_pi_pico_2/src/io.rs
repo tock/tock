@@ -99,6 +99,6 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &cortexm33::support::nop,
-        crate::PANIC_RESOURCES.get(),
+        raspberry_pi_pico_2::PANIC_RESOURCES.get(),
     )
 }
