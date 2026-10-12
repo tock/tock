@@ -148,6 +148,18 @@ pub struct MPU<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> {
 }
 
 impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MIN_REGION_SIZE> {
+    /// Create a new Cortex-M compatible MPU.
+    ///
+    /// This implements [`mpu::MPU`] for use with Tock processes.
+    ///
+    /// # Safety
+    ///
+    /// This struct implements [`mpu::MPU`] which is an unsafe trait that
+    /// enforces Rust memory safety when userspace processes run. This
+    /// implementation guarantees that it correctly implements that trait.
+    /// However, callers must ensure this is a valid hardware MPU on their chip
+    /// and that the hardware will correctly enforce the expected memory
+    /// protection features.
     pub const unsafe fn new(registers: StaticRef<MpuRegisters>) -> Self {
         Self {
             registers,

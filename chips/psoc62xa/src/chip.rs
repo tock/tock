@@ -18,7 +18,7 @@ impl<'a, I: InterruptService> Psoc62xa<'a, I> {
     pub fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: unsafe { cortexm0p::mpu::new() },
-            userspace_kernel_boundary: unsafe { cortexm0p::syscall::SysCall::new() },
+            userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
             interrupt_service,
         }
     }

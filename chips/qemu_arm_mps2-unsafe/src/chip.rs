@@ -27,7 +27,7 @@ impl<'a, V: CortexMVariant, I: InterruptService + 'a> QemuArmMps2Chip<'a, V, I> 
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: unsafe { Mps2Mpu::new(addresses::MPU_BASE) },
-            userspace_kernel_boundary: unsafe { cortexm::syscall::SysCall::new() },
+            userspace_kernel_boundary: cortexm::syscall::SysCall::new(),
             interrupt_service,
         }
     }
