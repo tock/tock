@@ -139,8 +139,8 @@ impl fmt::Debug for ProcessLoadError {
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
-    app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
+    app_flash: *const [u8],
+    app_memory: *mut [u8],
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
@@ -185,15 +185,15 @@ pub fn load_processes<C: Chip>(
 fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     kernel: &'static Kernel,
     chip: &'static C,
-    app_flash: &'static [u8],
+    app_flash: *const [u8],
     app_memory: *mut [u8],
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
-            app_flash.as_ptr() as usize,
-            app_flash.as_ptr() as usize + app_flash.len() - 1,
+            app_flash.addr(),
+            app_flash.addr() + app_flash.len() - 1,
             app_memory.addr(),
             app_memory.addr() + app_memory.len() - 1
         );
@@ -293,13 +293,13 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
 fn discover_process_binary(
-    flash: &'static [u8],
+    flash: *const [u8],
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
     if config::CONFIG.debug_load_processes {
         debug!(
             "Looking for process binary in flash={:#010X}-{:#010X}",
-            flash.as_ptr() as usize,
-            flash.as_ptr() as usize + flash.len() - 1
+            flash.addr(),
+            flash.addr() + flash.len() - 1
         );
     }
 
