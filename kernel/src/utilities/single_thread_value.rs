@@ -323,8 +323,11 @@ impl<T> SingleThreadValue<T> {
         //
         // Hence this operation is sound.
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
-        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
+        // - dereferencing a raw pointer
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        //   - unknown
         unsafe {
             *ptr_thread_id_and_fn =
                 MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
@@ -339,8 +342,11 @@ impl<T> SingleThreadValue<T> {
         // initializing it). Therefore, we can safely dereference a mutable
         // (unique) pointer to this value:
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
-        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
+        // - dereferencing a raw pointer
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        //   - unknown
         unsafe {
             *self.value.get() = MaybeUninit::new(value);
         }
@@ -426,8 +432,11 @@ impl<T> SingleThreadValue<T> {
         //
         // Thus, this operation is sound.
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
-        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
+        // - dereferencing a raw pointer
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        //   - unknown
         unsafe {
             *ptr_thread_id_and_fn =
                 MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
@@ -442,8 +451,11 @@ impl<T> SingleThreadValue<T> {
         // initializing it). Therefore, we can safely dereference a mutable
         // (unique) pointer to this value:
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
-        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
+        // - dereferencing a raw pointer
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        //   - unknown
         unsafe {
             *self.value.get() = MaybeUninit::new(value);
         }
@@ -529,7 +541,10 @@ impl<T> SingleThreadValue<T> {
         // Thus, this operation is sound.
         let maybe_thread_id_and_fn: &MaybeUninit<(fn() -> usize, usize)> =
             //
-            // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            // SAFETY REQUIREMENTS:
+            // - dereferencing a raw pointer
+            //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            //   - unknown
             unsafe { &*maybe_thread_id_and_fn };
 
         // SAFETY: Both `bind_to_thread` and `bind_to_thread_unsafe` are guaranteed to
@@ -545,7 +560,14 @@ impl<T> SingleThreadValue<T> {
         // Thus, we can safely rely on `thread_id_and_fn` to be initialized:
         let (running_thread_id_fn, bound_thread_id) =
             //
-            // unsafe-requirements: calling unsafe method `assume_init`: https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe method `assume_init`
+            //   - https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init
+            //   - It is up to the caller to guarantee that the MaybeUninit<T> really is in an initialized state, i.e., a state that is considered “valid” for type T. Calling this when the content is not yet fully initialized causes immediate undefined behavior. The type-level documentation contains more information about this initialization invariant.
+            //
+            //     It is a common mistake to assume that this function is safe to call on integers because they can hold all bit patterns. It is also a common mistake to think that calling this function is UB if any byte is uninitialized. Both of these assumptions are wrong. If that is surprising to you, please read the type-level documentation.
+            //
+            //     On top of that, remember that most types have additional invariants beyond merely being considered initialized at the type level. For example, a 1-initialized Vec<T> is considered initialized (under the current implementation; this does not constitute a stable guarantee) because the only requirement the compiler knows about it is that the data pointer must be non-null. Creating such a Vec<T> does not cause immediate undefined behavior, but will cause undefined behavior with most safe operations (including dropping it).
             unsafe { maybe_thread_id_and_fn.assume_init() };
 
         // Finally, check if the thread this `SingleThreadValue` is bound to
@@ -565,8 +587,13 @@ impl<T> SingleThreadValue<T> {
             // accessible to the currently running thread. We can safely
             // construct a reference to it.
             //
-            // unsafe-requirements: calling unsafe method `assume_init_ref`: https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init_ref
-            // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe method `assume_init_ref`
+            //   - https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init_ref
+            //   - Calling this when the content is not yet fully initialized causes undefined behavior: it is up to the caller to guarantee that the MaybeUninit<T> really is in an initialized state.
+            // - dereferencing a raw pointer
+            //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            //   - unknown
             Some(unsafe { (&*self.value.get()).assume_init_ref() })
         } else {
             None

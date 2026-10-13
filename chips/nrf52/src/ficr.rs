@@ -18,7 +18,8 @@ use kernel::utilities::registers::{ReadOnly, register_bitfields};
 
 const FICR_BASE: StaticRef<FicrRegisters> =
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x10000000 as *const FicrRegisters) };
 
 /// Struct of the FICR registers
@@ -482,7 +483,10 @@ impl Ficr {
 
         // Safe because we use only ascii characters in this buffer.
         //
-        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        // SAFETY REQUIREMENTS:
+        // - dereferencing a raw pointer
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        //   - unknown
         unsafe { &*(core::ptr::from_ref::<[u8]>(buf) as *const str) }
     }
 }

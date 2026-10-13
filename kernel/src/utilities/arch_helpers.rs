@@ -655,7 +655,15 @@ pub unsafe fn encode_upcall_trd104_ptr(
 ) {
     // SAFETY: All safety invariants must be upheld by the function caller.
     //
-    // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe function `write`
+    //   - https://doc.rust-lang.org/core/ptr/fn.write.html
+    //   - Behavior is undefined if any of the following conditions are violated:
+    //
+    //     - dst must be valid for writes or T must be a ZST.
+    //     - dst must be properly aligned. Use write_unaligned if this is not the case.
+    //
+    //         Note that even if T has size 0, the pointer must be properly aligned.
     unsafe {
         core::ptr::write(a0, upcall.argument0 as u32);
         core::ptr::write(a1, upcall.argument1 as u32);
@@ -698,7 +706,15 @@ pub unsafe fn encode_upcall_trd64bit_ptr(
 ) {
     // SAFETY: All safety invariants must be upheld by the function caller.
     //
-    // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe function `write`
+    //   - https://doc.rust-lang.org/core/ptr/fn.write.html
+    //   - Behavior is undefined if any of the following conditions are violated:
+    //
+    //     - dst must be valid for writes or T must be a ZST.
+    //     - dst must be properly aligned. Use write_unaligned if this is not the case.
+    //
+    //         Note that even if T has size 0, the pointer must be properly aligned.
     unsafe {
         // The TRD specifies that arguments 0, 1, and 2 are u32s. So, we cast to
         // u32 to ensure we are not using the upper bits, and then cast to u64

@@ -28,7 +28,8 @@ use nrf5x::gpio::Pin;
 
 pub const UART0_BASE: StaticRef<UartRegisters> =
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40002000 as *const UartRegisters) };
 
 register_structs! {

@@ -35,7 +35,19 @@ impl CopyOrErr for [u8] {
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
             //
-            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `copy_nonoverlapping`
+            //   - https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads of count * size_of::<T>() bytes or that number must be 0.
+            //     - dst must be valid for writes of count * size_of::<T>() bytes or that number must be 0.
+            //     - Both src and dst must be properly aligned.
+            //     - The region of memory beginning at src with a size of count * size_of::<T>() bytes must not overlap with the region of memory beginning at dst with the same size.
+            //
+            //         Like read, copy_nonoverlapping creates a bitwise copy of T, regardless of whether T is Copy. If T is not Copy, using both the values in the region beginning at *src and the region beginning at *dst can violate memory safety.
+            //
+            //         Note that even if the effectively copied size (count * size_of::<T>()) is 0, the pointers must be properly aligned.
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }
@@ -53,7 +65,19 @@ impl CopyOrErr for [u16] {
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
             //
-            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `copy_nonoverlapping`
+            //   - https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads of count * size_of::<T>() bytes or that number must be 0.
+            //     - dst must be valid for writes of count * size_of::<T>() bytes or that number must be 0.
+            //     - Both src and dst must be properly aligned.
+            //     - The region of memory beginning at src with a size of count * size_of::<T>() bytes must not overlap with the region of memory beginning at dst with the same size.
+            //
+            //         Like read, copy_nonoverlapping creates a bitwise copy of T, regardless of whether T is Copy. If T is not Copy, using both the values in the region beginning at *src and the region beginning at *dst can violate memory safety.
+            //
+            //         Note that even if the effectively copied size (count * size_of::<T>()) is 0, the pointers must be properly aligned.
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }
@@ -71,7 +95,19 @@ impl CopyOrErr for [u32] {
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
             //
-            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `copy_nonoverlapping`
+            //   - https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads of count * size_of::<T>() bytes or that number must be 0.
+            //     - dst must be valid for writes of count * size_of::<T>() bytes or that number must be 0.
+            //     - Both src and dst must be properly aligned.
+            //     - The region of memory beginning at src with a size of count * size_of::<T>() bytes must not overlap with the region of memory beginning at dst with the same size.
+            //
+            //         Like read, copy_nonoverlapping creates a bitwise copy of T, regardless of whether T is Copy. If T is not Copy, using both the values in the region beginning at *src and the region beginning at *dst can violate memory safety.
+            //
+            //         Note that even if the effectively copied size (count * size_of::<T>()) is 0, the pointers must be properly aligned.
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }
@@ -89,7 +125,19 @@ impl CopyOrErr for [u64] {
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
             //
-            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `copy_nonoverlapping`
+            //   - https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads of count * size_of::<T>() bytes or that number must be 0.
+            //     - dst must be valid for writes of count * size_of::<T>() bytes or that number must be 0.
+            //     - Both src and dst must be properly aligned.
+            //     - The region of memory beginning at src with a size of count * size_of::<T>() bytes must not overlap with the region of memory beginning at dst with the same size.
+            //
+            //         Like read, copy_nonoverlapping creates a bitwise copy of T, regardless of whether T is Copy. If T is not Copy, using both the values in the region beginning at *src and the region beginning at *dst can violate memory safety.
+            //
+            //         Note that even if the effectively copied size (count * size_of::<T>()) is 0, the pointers must be properly aligned.
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }
@@ -107,7 +155,19 @@ impl CopyOrErr for [usize] {
             // and `src` was checked to have the same length. The slices cannot
             // overlap because mutable references are exclusive.
             //
-            // unsafe-requirements: calling unsafe function `copy_nonoverlapping`: https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `copy_nonoverlapping`
+            //   - https://doc.rust-lang.org/core/ptr/fn.copy_nonoverlapping.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads of count * size_of::<T>() bytes or that number must be 0.
+            //     - dst must be valid for writes of count * size_of::<T>() bytes or that number must be 0.
+            //     - Both src and dst must be properly aligned.
+            //     - The region of memory beginning at src with a size of count * size_of::<T>() bytes must not overlap with the region of memory beginning at dst with the same size.
+            //
+            //         Like read, copy_nonoverlapping creates a bitwise copy of T, regardless of whether T is Copy. If T is not Copy, using both the values in the region beginning at *src and the region beginning at *dst can violate memory safety.
+            //
+            //         Note that even if the effectively copied size (count * size_of::<T>()) is 0, the pointers must be properly aligned.
             unsafe {
                 ptr::copy_nonoverlapping(src.as_ptr(), self.as_mut_ptr(), self.len());
             }

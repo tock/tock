@@ -166,7 +166,8 @@ register_bitfields![u32,
 
 const PWM0_BASE: StaticRef<PwmRegisters> =
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4001C000 as *const PwmRegisters) };
 
 /// `DUTY_CYCLES` is a static array that must be passed to the PWM hardware.
@@ -233,7 +234,10 @@ impl Pwm {
 
         // Setup the duty cycles
         //
-        // unsafe-requirements: accessing mutable static `DUTY_CYCLES`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+        // SAFETY REQUIREMENTS:
+        // - accessing mutable static `DUTY_CYCLES`
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+        //   - unknown
         unsafe {
             DUTY_CYCLES[0] = dc_out as u16;
         }

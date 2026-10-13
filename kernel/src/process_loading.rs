@@ -396,7 +396,8 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
     // afterwards, ensuring the same memory cannot be given to the newly created
     // process and anything else.
     //
-    // unsafe-requirements: calling unsafe Tock function `create`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `create`
     let (process_option, unused_memory) = unsafe {
         ProcessStandard::<C, D>::create(
             kernel,

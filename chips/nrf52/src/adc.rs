@@ -246,7 +246,8 @@ pub enum AdcChannel {
 
 const SAADC_BASE: StaticRef<AdcRegisters> =
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40007000 as *const AdcRegisters) };
 
 // Buffer to save completed sample to.
@@ -433,7 +434,10 @@ impl Adc<'_> {
                     self.registers.enable.write(ENABLE::ENABLE::CLEAR);
 
                     //
-                    // unsafe-requirements: accessing mutable static `SAMPLE`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+                    // SAFETY REQUIREMENTS:
+                    // - accessing mutable static `SAMPLE`
+                    //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+                    //   - unknown
                     let reading = unsafe { SAMPLE[0] as i16 } as usize;
 
                     // reading = val * (gain/ref) * 2^12
@@ -471,7 +475,10 @@ impl Adc<'_> {
                     self.registers.enable.write(ENABLE::ENABLE::CLEAR);
 
                     //
-                    // unsafe-requirements: accessing mutable static `SAMPLE`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+                    // SAFETY REQUIREMENTS:
+                    // - accessing mutable static `SAMPLE`
+                    //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+                    //   - unknown
                     let val = unsafe { SAMPLE[0] as i16 };
                     self.client.map(|client| {
                         // shift left to meet the ADC HIL requirement

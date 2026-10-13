@@ -67,7 +67,8 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             // region the process is allowed to read and write (from the start
             // until the process's brk).
             //
-            // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new_with_authority`
             let cap_ptr = unsafe {
                 CapabilityPtr::new_with_authority(
                     addresses.sram_start as *const _,
@@ -89,7 +90,8 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             // region the process is allowed to read and write (from the start
             // until the process's brk).
             //
-            // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new_with_authority`
             let cap_ptr = unsafe {
                 CapabilityPtr::new_with_authority(
                     addresses.sram_end as *const _,
@@ -111,7 +113,8 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             // entire flash range for the process as it is allowed to execute
             // from its entire flash region.
             //
-            // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new_with_authority`
             let cap_ptr = unsafe {
                 CapabilityPtr::new_with_authority(
                     addresses.flash_start as *const _,
@@ -134,7 +137,8 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             // entire flash range for the process as it is allowed to execute
             // from its entire flash region.
             //
-            // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new_with_authority`
             let cap_ptr = unsafe {
                 CapabilityPtr::new_with_authority(
                     addresses.flash_end as *const _,
@@ -165,7 +169,8 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
                 // bounds of the writeable flash region as the authority range for
                 // this pointer.
                 //
-                // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe Tock function `new_with_authority`
                 let cap_ptr = unsafe {
                     CapabilityPtr::new_with_authority(
                         (flash_start + offset) as *const _,
@@ -193,7 +198,8 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
                 // bounds of the writeable flash region as the authority range for
                 // this pointer.
                 //
-                // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe Tock function `new_with_authority`
                 let cap_ptr = unsafe {
                     CapabilityPtr::new_with_authority(
                         (flash_start + offset + size) as *const _,

@@ -450,7 +450,8 @@ register_bitfields![u32,
 ];
 
 //
-// unsafe-requirements: calling unsafe Tock function `new`
+// SAFETY REQUIREMENTS:
+// - calling unsafe Tock function `new`
 const DWT: StaticRef<DwtRegisters> = unsafe { StaticRef::new(0xE0001000 as *const DwtRegisters) };
 
 pub struct Dwt {

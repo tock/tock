@@ -418,7 +418,10 @@ pub fn usize_as_native_mut(val: &mut usize) -> &mut u32 {
     // the same size and alignment as a `u32`, and `val` is guaranteed to be
     // initialized to some value.
     //
-    // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+    // SAFETY REQUIREMENTS:
+    // - dereferencing a raw pointer
+    //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+    //   - unknown
     unsafe { &mut *ptr.cast::<u32>() }
 }
 
@@ -434,7 +437,10 @@ pub fn usize_as_native_mut(val: &mut usize) -> &mut u64 {
     // the same size and alignment as a `u64`, and `val` is guaranteed to be
     // initialized to some value.
     //
-    // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+    // SAFETY REQUIREMENTS:
+    // - dereferencing a raw pointer
+    //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+    //   - unknown
     unsafe { &mut *ptr.cast::<u64>() }
 }
 

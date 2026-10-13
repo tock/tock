@@ -226,7 +226,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMut<'a, T
         // safe. This would merely leak memory and make the underlying slice
         // inaccessible.
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         unsafe { Self::new(slice, fence) }
     }
 
@@ -348,7 +349,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
         // which write to the slice, and hence it can be safely dropped without
         // risk of concurrent modifications or incoherence.
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         DmaSliceMutImmut::Mutable(unsafe { DmaSliceMut::new(slice, fence) })
     }
 
@@ -390,7 +392,18 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSliceMutImmut<
                 // such, we can safely hand out immutable references over this
                 // slice, which are also bound to the lifetime `'a`.
                 //
-                // unsafe-requirements: calling unsafe function `from_raw_parts`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe function `from_raw_parts`
+                //   - https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
+                //   - Behavior is undefined if any of the following conditions are violated:
+                //
+                //     - data must be non-null, valid for reads for len * size_of::<T>() many bytes, and it must be properly aligned. This means in particular:
+                //
+                //         - The entire memory range of this slice must be contained within a single allocation! Slices can never span across multiple allocations. See below for an example incorrectly not taking this into account.
+                //         - data must be non-null and aligned even for zero-length slices or slices of ZSTs. One reason for this is that enum layout optimizations may rely on references (including slices of any length) being aligned and non-null to distinguish them from other data. You can obtain a pointer that is usable as data for zero-length slices using NonNull::dangling().
+                //     - data must point to len consecutive properly initialized values of type T.
+                //     - The memory referenced by the returned slice must not be mutated for the duration of lifetime 'a, except inside an UnsafeCell.
+                //     - The total size len * size_of::<T>() of the slice must be no larger than isize::MAX, and adding that size to data must not “wrap around” the address space. See the safety documentation of pointer::offset.
                 unsafe {
                     core::slice::from_raw_parts(
                         dma_slice_mut.as_mut_ptr().cast_const(),
@@ -542,7 +555,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMut<'a
         // safe. This would merely leak memory and make the underlying slice
         // inaccessible.
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         unsafe { Self::new(sub_slice, fence) }
     }
 
@@ -711,7 +725,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImm
                 // it can be safely dropped without risk of concurrent
                 // modifications or incoherence.
                 //
-                // unsafe-requirements: calling unsafe Tock function `new`
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe Tock function `new`
                 unsafe { DmaSubSliceMut::new(sub_slice_mut, fence) },
             ),
         }
@@ -762,7 +777,8 @@ impl<'a, T: immutable_from_into_bytes::ImmutableFromIntoBytes> DmaSubSliceMutImm
                 // Rust slice through `take` is safe. No acquire-fence is
                 // needed, given the bufer contents have not been modified.
                 //
-                // unsafe-requirements: calling unsafe Tock method `take_no_acquire`
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe Tock method `take_no_acquire`
                 unsafe { dma_sub_slice_mut.take_no_acquire() },
             ),
         }
@@ -871,10 +887,29 @@ mod miri_tests {
     // because the wrapper owns the mutable borrow.
     unsafe fn simulate_dma_write<T: Copy>(dst: *mut T, val: T, offset: usize) {
         //
-        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe method `add`
+        //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        //   - If any of the following conditions are violated, the result is Undefined Behavior:
+        //
+        //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+        //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+        //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+        //
+        //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+        //
+        //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
         let target = unsafe { dst.add(offset) };
         //
-        // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe function `write`
+        //   - https://doc.rust-lang.org/core/ptr/fn.write.html
+        //   - Behavior is undefined if any of the following conditions are violated:
+        //
+        //     - dst must be valid for writes or T must be a ZST.
+        //     - dst must be properly aligned. Use write_unaligned if this is not the case.
+        //
+        //         Note that even if T has size 0, the pointer must be properly aligned.
         unsafe {
             ptr::write(target, val);
         }
@@ -883,7 +918,8 @@ mod miri_tests {
     #[test]
     fn test_dma_slice_immut_basic() {
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         let fence = unsafe { MockFence::new() };
 
         let data = [10u8, 20, 30, 40];
@@ -900,8 +936,27 @@ mod miri_tests {
         // In Miri, we just check if we can read via the raw pointer while the
         // borrow is active.
         //
-        // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
-        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe function `read`
+        //   - https://doc.rust-lang.org/core/ptr/fn.read.html
+        //   - Behavior is undefined if any of the following conditions are violated:
+        //
+        //     - src must be valid for reads or T must be a ZST.
+        //     - src must be properly aligned. Use read_unaligned if this is not the case.
+        //     - src must point to a properly initialized value of type T.
+        //
+        //         Note that even if T has size 0, the pointer must be properly aligned.
+        // - calling unsafe method `add`
+        //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        //   - If any of the following conditions are violated, the result is Undefined Behavior:
+        //
+        //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+        //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+        //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+        //
+        //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+        //
+        //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
         let val = unsafe { ptr::read(dma.as_ptr().add(1)) };
         assert_eq!(val, 20);
 
@@ -912,7 +967,8 @@ mod miri_tests {
     #[test]
     fn test_dma_slice_mut_write_cycle() {
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         let fence = unsafe { MockFence::new() };
 
         let mut data = [0u8; 4];
@@ -922,7 +978,8 @@ mod miri_tests {
         //
         // SAFETY: We call `take` at the end.
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         let dma = unsafe { DmaSliceMut::new(&mut data, fence) };
 
         // 2. Verify basic pointer integrity
@@ -933,7 +990,8 @@ mod miri_tests {
         //
         // The peripheral writes `0xAA` to index 2.
         //
-        // unsafe-requirements: calling unsafe Tock function `simulate_dma_write`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `simulate_dma_write`
         unsafe {
             simulate_dma_write(dma.as_mut_ptr(), 0xAA_u8, 2);
         }
@@ -942,7 +1000,8 @@ mod miri_tests {
         //
         // SAFETY: DMA is "done".
         //
-        // unsafe-requirements: calling unsafe Tock method `take`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock method `take`
         let restored_slice = unsafe { dma.take(fence) };
 
         // 5. Verify that the writes are reflected in the buffer:
@@ -952,7 +1011,8 @@ mod miri_tests {
     #[test]
     fn test_dma_slice_mut_static() {
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         let fence = unsafe { MockFence::new() };
 
         // Test specifically for the static constructor which is safe:
@@ -963,20 +1023,27 @@ mod miri_tests {
         // Note: access to static mut is unsafe, but the from_static_slice_ref
         // call itself is safe
         //
-        // unsafe-requirements: accessing mutable static `BUFFER`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
-        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        // SAFETY REQUIREMENTS:
+        // - accessing mutable static `BUFFER`
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+        //   - unknown
+        // - dereferencing a raw pointer
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        //   - unknown
         let dma = DmaSliceMut::new_static(unsafe { &mut *(&raw mut BUFFER) }, fence);
 
         // 2. Simulate DMA Write
         //
-        // unsafe-requirements: calling unsafe Tock function `simulate_dma_write`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `simulate_dma_write`
         unsafe {
             simulate_dma_write(dma.as_mut_ptr(), 99u32, 0);
         }
 
         // 3. Restore
         //
-        // unsafe-requirements: calling unsafe Tock method `take`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock method `take`
         let restored = unsafe { dma.take(fence) };
 
         assert_eq!(restored[0], 99);
@@ -986,7 +1053,8 @@ mod miri_tests {
     #[test]
     fn test_dma_sub_slice_immut() {
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         let fence = unsafe { MockFence::new() };
 
         let data = [100u8, 101, 102, 103, 104];
@@ -1007,7 +1075,8 @@ mod miri_tests {
     #[test]
     fn test_dma_sub_slice_mut_offset() {
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         let fence = unsafe { MockFence::new() };
 
         let mut data = [0u64, 1, 2, 3, 4]; // u64 to test stride sizes > 1 byte
@@ -1017,7 +1086,8 @@ mod miri_tests {
         sub.slice(2..4);
 
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         let dma = unsafe { DmaSubSliceMut::new(sub, fence) };
         assert_eq!(dma.len(), 2);
 
@@ -1025,7 +1095,8 @@ mod miri_tests {
         //
         // dma.as_ptr() should point to data[2]
         //
-        // unsafe-requirements: calling unsafe Tock function `simulate_dma_write`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `simulate_dma_write`
         unsafe {
             // Write to index 0 of the DMA view (which is index 2 of underlying)
             simulate_dma_write(dma.as_mut_ptr(), 0xFF_FF_FF_FF_u64, 0);
@@ -1036,7 +1107,8 @@ mod miri_tests {
 
         // 3. Restore
         //
-        // unsafe-requirements: calling unsafe Tock method `take`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock method `take`
         let restored_sub = unsafe { dma.take(fence) };
         let full_slice = restored_sub.take();
 
@@ -1051,7 +1123,8 @@ mod miri_tests {
     #[test]
     fn test_dma_sub_slice_mut_edge_cases() {
         //
-        // unsafe-requirements: calling unsafe Tock function `new`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new`
         let fence = unsafe { MockFence::new() };
 
         let mut data = [0u8; 10];
@@ -1063,14 +1136,16 @@ mod miri_tests {
             sub.slice(5..5);
 
             //
-            // unsafe-requirements: calling unsafe Tock function `new`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new`
             let dma = unsafe { DmaSubSliceMut::new(sub, fence) };
             assert_eq!(dma.len(), 0);
 
             // Verify we return the correct ptr, even if we shouldn't deref it
             assert_eq!(dma.as_mut_ptr(), data_ptr.wrapping_add(5));
             //
-            // unsafe-requirements: calling unsafe Tock method `take`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `take`
             unsafe { dma.take(fence) };
         }
 
@@ -1082,7 +1157,8 @@ mod miri_tests {
             sub.slice(10..10); // End of buffer
 
             //
-            // unsafe-requirements: calling unsafe Tock function `new`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new`
             let dma = unsafe { DmaSubSliceMut::new(sub, fence) };
 
             // Pointer should point one past the end of the array
@@ -1090,7 +1166,8 @@ mod miri_tests {
             assert_eq!(ptr_addr, base_addr + 10);
 
             //
-            // unsafe-requirements: calling unsafe Tock method `take`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `take`
             unsafe { dma.take(fence) };
         }
 
@@ -1100,21 +1177,24 @@ mod miri_tests {
             sub.slice(8..15); // End is past 10
 
             //
-            // unsafe-requirements: calling unsafe Tock function `new`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new`
             let dma = unsafe { DmaSubSliceMut::new(sub, fence) };
 
             // Length should be clamped to available (10 - 8 = 2)
             assert_eq!(dma.len(), 2);
 
             //
-            // unsafe-requirements: calling unsafe Tock function `simulate_dma_write`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `simulate_dma_write`
             unsafe {
                 simulate_dma_write(dma.as_mut_ptr(), 99u8, 0); // index 8
                 simulate_dma_write(dma.as_mut_ptr(), 88u8, 1); // index 9
             }
 
             //
-            // unsafe-requirements: calling unsafe Tock method `take`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `take`
             let res = unsafe { dma.take(fence) };
             let arr = res.take();
             assert_eq!(arr[8], 99);

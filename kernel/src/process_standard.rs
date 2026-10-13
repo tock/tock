@@ -61,7 +61,10 @@ const unsafe fn maybe_uninit_slice_assume_init_mut<T>(src: &mut [MaybeUninit<T>]
     // mutable reference which is also guaranteed to be valid for writes.
     #[allow(clippy::ref_as_ptr)]
     //
-    // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+    // SAFETY REQUIREMENTS:
+    // - dereferencing a raw pointer
+    //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+    //   - unknown
     unsafe {
         &mut *(src as *mut [MaybeUninit<T>] as *mut [T])
     }
@@ -105,7 +108,18 @@ unsafe fn raw_slice_split_at_mut<T>(slice: *mut [T], mid: usize) -> (*mut [T], *
 
     // SAFETY: Caller must pass a valid pointer and an index that is in-bounds.
     //
-    // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe method `add`
+    //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+    //   - If any of the following conditions are violated, the result is Undefined Behavior:
+    //
+    //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+    //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+    //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+    //
+    //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+    //
+    //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
     let tail = unsafe { ptr.add(mid) };
     (
         core::ptr::slice_from_raw_parts_mut(ptr, mid),
@@ -915,7 +929,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // `ProcessStandard` does not provide safe, publicly accessible
             // APIs to add other arbitrary MPU regions to this configuration.
             //
-            // unsafe-requirements: calling unsafe Tock method `configure_mpu`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `configure_mpu`
             unsafe {
                 self.chip.mpu().configure_mpu(config);
             }
@@ -1011,7 +1026,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // accessible APIs to add other arbitrary MPU regions to this
                 // configuration.
                 //
-                // unsafe-requirements: calling unsafe Tock method `configure_mpu`
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe Tock method `configure_mpu`
                 unsafe {
                     self.chip.mpu().configure_mpu(config);
                 }
@@ -1041,7 +1057,25 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     // for any data structures, avoiding any potential future memory
                     // initialization error.
                     //
-                    // unsafe-requirements: calling unsafe function `write_bytes`: https://doc.rust-lang.org/core/ptr/fn.write_bytes.html
+                    // SAFETY REQUIREMENTS:
+                    // - calling unsafe function `write_bytes`
+                    //   - https://doc.rust-lang.org/core/ptr/fn.write_bytes.html
+                    //   - Behavior is undefined if any of the following conditions are violated:
+                    //
+                    //     - dst must be valid for writes of count * size_of::<T>() bytes.
+                    //     - dst must be properly aligned.
+                    //
+                    //         Note that even if the effectively copied size (count * size_of::<T>()) is 0, the pointer must be properly aligned.
+                    //
+                    //         Additionally, note that changing *dst in this way can easily lead to undefined behavior (UB) later if the written bytes are not a valid representation of some T. For instance, the following is an incorrect use of this function:
+                    //
+                    //     unsafe {
+                    //         let mut value: u8 = 0;
+                    //         let ptr: *mut bool = &mut value as *mut u8 as *mut bool;
+                    //         let _bool = ptr.read(); // This is fine, `ptr` points to a valid `bool`.
+                    //         ptr.write_bytes(42u8, 1); // This function itself does not cause UB...
+                    //         let _bool = ptr.read(); // ...but it makes this operation UB! ⚠️
+                    //     }
                     unsafe {
                         core::ptr::write_bytes(
                             old_break_mut_ptr,
@@ -1063,7 +1097,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 //  - We grant only Read+Write permissions.
                 //  - We only pass this pointer to this process.
                 //
-                // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe Tock function `new_with_authority`
                 let break_result = unsafe {
                     CapabilityPtr::new_with_authority(
                         old_break_unit_ptr,
@@ -1108,7 +1143,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // `ReadWriteProcessBuffer` will handle any safety issues.
             // Therefore, we can encapsulate the unsafe.
             //
-            // unsafe-requirements: calling unsafe Tock function `new`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new`
             Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
@@ -1137,7 +1173,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // above, as we must ensure that this `ReadWriteProcessBuffer` will
             // be the only reference to this memory.
             //
-            // unsafe-requirements: calling unsafe Tock function `new`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new`
             Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, size, self.processid()) })
         } else {
             Err(ErrorCode::INVAL)
@@ -1174,7 +1211,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // `ReadOnlyProcessBuffer` will handle any safety issues. Therefore,
             // we can encapsulate the unsafe.
             //
-            // unsafe-requirements: calling unsafe Tock function `new`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new`
             Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_flash_memory(buf_start_addr, size)
@@ -1208,7 +1246,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // above, as we must ensure that this `ReadOnlyProcessBuffer` will
             // be the only reference to this memory.
             //
-            // unsafe-requirements: calling unsafe Tock function `new`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `new`
             Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, size, self.processid()) })
         } else {
             Err(ErrorCode::INVAL)
@@ -1222,7 +1261,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // a reference to this memory. The caller must ensure nothing else
             // holds a reference to this memory.
             //
-            // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            // SAFETY REQUIREMENTS:
+            // - dereferencing a raw pointer
+            //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            //   - unknown
             unsafe {
                 *addr = value;
             }
@@ -1480,7 +1522,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // process's memory, and the current `app_break`, we know that the
             // memory in that range is accessible to the process.
             //
-            // unsafe-requirements: calling unsafe Tock method `set_syscall_return_value`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `set_syscall_return_value`
             unsafe {
                 self.chip
                     .userspace_kernel_boundary()
@@ -1539,7 +1582,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // and the current `app_break`, and that range is accessible to the
             // process.
             //
-            // unsafe-requirements: calling unsafe Tock method `set_process_function`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `set_process_function`
             unsafe {
                 self.chip.userspace_kernel_boundary().set_process_function(
                     self.mem_start(),
@@ -1591,7 +1635,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // range is accessible to the process. Therefore we encapsulate the
                 // `unsafe`.
                 //
-                // unsafe-requirements: calling unsafe Tock method `switch_to_process`
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe Tock method `switch_to_process`
                 unsafe {
                     let (switch_reason, optional_stack_pointer) = self
                         .chip
@@ -1674,7 +1719,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // memory and the current `app_break`, and that range is accessible
             // to the process.
             //
-            // unsafe-requirements: calling unsafe Tock method `print_context`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `print_context`
             unsafe {
                 self.chip.userspace_kernel_boundary().print_context(
                     self.mem_start(),
@@ -1946,7 +1992,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                     // check that `diff` is less than the length of `remaining_memory`
                     // we know diff will be within  `remaining_memory`.
                     //
-                    // unsafe-requirements: calling unsafe Tock function `raw_slice_split_at_mut`
+                    // SAFETY REQUIREMENTS:
+                    // - calling unsafe Tock function `raw_slice_split_at_mut`
                     let (_, sliced) = unsafe { raw_slice_split_at_mut(remaining_memory, diff) };
                     sliced
                 }
@@ -2081,7 +2128,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //
         // SAFETY: `app_memory_start_offset + allocation_size` must be within `remaining_memory`.
         //
-        // unsafe-requirements: calling unsafe Tock function `raw_slice_split_at_mut`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `raw_slice_split_at_mut`
         let (allocated_padded_memory, unused_memory) = unsafe {
             raw_slice_split_at_mut(remaining_memory, app_memory_start_offset + allocation_size)
         };
@@ -2091,7 +2139,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // SAFETY: `app_memory_start_offset` must be within `allocated_padded_memory`.
         let (_padding, allocated_memory) =
             //
-            // unsafe-requirements: calling unsafe Tock function `raw_slice_split_at_mut`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `raw_slice_split_at_mut`
             unsafe { raw_slice_split_at_mut(allocated_padded_memory, app_memory_start_offset) };
 
         // We continue to sub-slice the `allocated_memory` into
@@ -2105,7 +2154,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // SAFETY: `min_process_memory_size` must be within `allocated_memory`.
         let (app_accessible_memory, allocated_kernel_memory) =
             //
-            // unsafe-requirements: calling unsafe Tock function `raw_slice_split_at_mut`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `raw_slice_split_at_mut`
             unsafe { raw_slice_split_at_mut(allocated_memory, min_process_memory_size) };
 
         // Initialize (zero) the initial process-accessible memory region. This
@@ -2123,7 +2173,25 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // slice's length, so we know that there is enough memory and that the
         // pointer is aligned.
         //
-        // unsafe-requirements: calling unsafe function `write_bytes`: https://doc.rust-lang.org/core/ptr/fn.write_bytes.html
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe function `write_bytes`
+        //   - https://doc.rust-lang.org/core/ptr/fn.write_bytes.html
+        //   - Behavior is undefined if any of the following conditions are violated:
+        //
+        //     - dst must be valid for writes of count * size_of::<T>() bytes.
+        //     - dst must be properly aligned.
+        //
+        //         Note that even if the effectively copied size (count * size_of::<T>()) is 0, the pointer must be properly aligned.
+        //
+        //         Additionally, note that changing *dst in this way can easily lead to undefined behavior (UB) later if the written bytes are not a valid representation of some T. For instance, the following is an incorrect use of this function:
+        //
+        //     unsafe {
+        //         let mut value: u8 = 0;
+        //         let ptr: *mut bool = &mut value as *mut u8 as *mut bool;
+        //         let _bool = ptr.read(); // This is fine, `ptr` points to a valid `bool`.
+        //         ptr.write_bytes(42u8, 1); // This function itself does not cause UB...
+        //         let _bool = ptr.read(); // ...but it makes this operation UB! ⚠️
+        //     }
         unsafe {
             core::ptr::write_bytes(
                 app_accessible_memory_bytes,
@@ -2140,7 +2208,18 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // start of the allocation and the new pointer (at the end of the slice)
         // is valid because of the existing slice.
         //
-        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe method `add`
+        //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        //   - If any of the following conditions are violated, the result is Undefined Behavior:
+        //
+        //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+        //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+        //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+        //
+        //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+        //
+        //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
         let initial_app_brk = unsafe {
             app_accessible_memory
                 .cast::<u8>()
@@ -2187,7 +2266,18 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // `grant_ptrs_num` of `GrantPointerEntry`s allocated.
         let grant_pointers_uninit: &mut [MaybeUninit<GrantPointerEntry>] =
             //
-            // unsafe-requirements: calling unsafe function `from_raw_parts_mut`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts_mut.html
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `from_raw_parts_mut`
+            //   - https://doc.rust-lang.org/core/slice/fn.from_raw_parts_mut.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - data must be non-null, valid for both reads and writes for len * size_of::<T>() many bytes, and it must be properly aligned. This means in particular:
+            //
+            //         - The entire memory range of this slice must be contained within a single allocation! Slices can never span across multiple allocations.
+            //         - data must be non-null and aligned even for zero-length slices or slices of ZSTs. One reason for this is that enum layout optimizations may rely on references (including slices of any length) being aligned and non-null to distinguish them from other data. You can obtain a pointer that is usable as data for zero-length slices using NonNull::dangling().
+            //     - data must point to len consecutive properly initialized values of type T.
+            //     - The memory referenced by the returned slice must not be accessed through any other pointer (not derived from the return value) for the duration of lifetime 'a. Both read and write accesses are forbidden.
+            //     - The total size len * size_of::<T>() of the slice must be no larger than isize::MAX, and adding that size to data must not “wrap around” the address space. See the safety documentation of pointer::offset.
             unsafe { slice::from_raw_parts_mut(grant_pointers_memory_location, grant_ptrs_num) };
         // Set all grant pointers to null.
         for grant_entry in grant_pointers_uninit.iter_mut() {
@@ -2198,7 +2288,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         }
         // SAFETY: All values in this slice have been properly initialized.
         //
-        // unsafe-requirements: calling unsafe Tock function `maybe_uninit_slice_assume_init_mut`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `maybe_uninit_slice_assume_init_mut`
         let grant_pointers = unsafe { maybe_uninit_slice_assume_init_mut(grant_pointers_uninit) };
 
         ////////////////////////
@@ -2228,7 +2319,18 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // accounted for that potential increase in size when we allocated
         // `allocated_kernel_memory`.
         //
-        // unsafe-requirements: calling unsafe function `from_raw_parts_mut`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts_mut.html
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe function `from_raw_parts_mut`
+        //   - https://doc.rust-lang.org/core/slice/fn.from_raw_parts_mut.html
+        //   - Behavior is undefined if any of the following conditions are violated:
+        //
+        //     - data must be non-null, valid for both reads and writes for len * size_of::<T>() many bytes, and it must be properly aligned. This means in particular:
+        //
+        //         - The entire memory range of this slice must be contained within a single allocation! Slices can never span across multiple allocations.
+        //         - data must be non-null and aligned even for zero-length slices or slices of ZSTs. One reason for this is that enum layout optimizations may rely on references (including slices of any length) being aligned and non-null to distinguish them from other data. You can obtain a pointer that is usable as data for zero-length slices using NonNull::dangling().
+        //     - data must point to len consecutive properly initialized values of type T.
+        //     - The memory referenced by the returned slice must not be accessed through any other pointer (not derived from the return value) for the duration of lifetime 'a. Both read and write accesses are forbidden.
+        //     - The total size len * size_of::<T>() of the slice must be no larger than isize::MAX, and adding that size to data must not “wrap around” the address space. See the safety documentation of pointer::offset.
         let upcall_buf = unsafe { slice::from_raw_parts_mut(upcall_buf, Self::CALLBACK_LEN) };
         // Actually setup the ring buffer.
         let tasks = RingBuffer::new(upcall_buf);
@@ -2262,7 +2364,10 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // properly aligned for `ProcessStandard`.
         let process_uninit: &mut MaybeUninit<ProcessStandard<C, D>> =
             //
-            // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            // SAFETY REQUIREMENTS:
+            // - dereferencing a raw pointer
+            //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            //   - unknown
             unsafe { &mut *process_struct_memory_location };
 
         // Initialize ALL fields of `ProcessStandard`.
@@ -2323,7 +2428,10 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // this by using the `init_uninit_struct!()` macro, which causes a
         // compiler error if there is a missing field.
         //
-        // unsafe-requirements: calling unsafe method `assume_init_mut`: https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init_mut
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe method `assume_init_mut`
+        //   - https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init_mut
+        //   - Calling this when the content is not yet fully initialized causes undefined behavior: it is up to the caller to guarantee that the MaybeUninit<T> really is in an initialized state. For instance, .assume_init_mut() cannot be used to initialize a MaybeUninit.
         let process = unsafe { process_uninit.assume_init_mut() };
 
         // Save copies of these in case the app was compiled for fixed addresses
@@ -2346,7 +2454,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             //
             // TODO: https://github.com/tock/tock/issues/1739
             //
-            // unsafe-requirements: calling unsafe Tock method `initialize_process`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `initialize_process`
             unsafe {
                 chip.userspace_kernel_boundary().initialize_process(
                     app_accessible_memory.cast(),
@@ -2397,7 +2506,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //  - We grant only execute permission.
         //  - We only pass this pointer to this process.
         //
-        // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new_with_authority`
         let init_fn = unsafe {
             CapabilityPtr::new_with_authority(
                 init_addr,
@@ -2549,7 +2659,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             // the current `app_brk`, and that range is accessible to the
             // process.
             //
-            // unsafe-requirements: calling unsafe Tock method `initialize_process`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `initialize_process`
             unsafe {
                 self.chip.userspace_kernel_boundary().initialize_process(
                     app_mpu_mem_start,
@@ -2598,7 +2709,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //  - We grant only execute permission.
         //  - We only pass this pointer to this process.
         //
-        // unsafe-requirements: calling unsafe Tock function `new_with_authority`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `new_with_authority`
         let init_fn = unsafe {
             CapabilityPtr::new_with_authority(
                 init_addr,
@@ -2714,7 +2826,10 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // ensure this because we just created `grant_ptr` based on the
                 // process's allocated memory, and we know it cannot be null.
                 //
-                // unsafe-requirements: calling unsafe function `new_unchecked`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-call
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe function `new_unchecked`
+                //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-call
+                //   - unknown
                 unsafe { Some(NonNull::new_unchecked(grant_ptr)) }
             }
         })

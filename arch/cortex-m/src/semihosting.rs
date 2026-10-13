@@ -116,6 +116,9 @@ pub unsafe fn terminate(reason: SysexitReason) -> ! {
     // SAFETY: SYS_EXIT is a valid `operation` for semihosting. With SYS_EXIT,
     // `parameter` is interpreted as a plain integer, which are constrained to
     // valid values for SYS_EXIT by the enum type parameter.
+    //
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `semihost_command`
     unsafe {
         semihost_command(SYS_EXIT, reason as u32);
     }
@@ -123,6 +126,9 @@ pub unsafe fn terminate(reason: SysexitReason) -> ! {
     // Ensure `-> !` if semihosting does something funny.
     loop {
         // SAFETY: We're in a terminal panic and done printing, okay to sleep.
+        //
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `wfi`
         unsafe {
             crate::support::wfi();
         }

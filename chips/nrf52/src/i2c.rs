@@ -17,7 +17,8 @@ use nrf5x::pinmux::Pinmux;
 
 /// Uninitialized `TWI` instances.
 //
-// unsafe-requirements: calling unsafe Tock function `new`
+// SAFETY REQUIREMENTS:
+// - calling unsafe Tock function `new`
 const INSTANCES: [StaticRef<TwiRegisters>; 2] = unsafe {
     [
         StaticRef::new(0x40003000 as *const TwiRegisters),

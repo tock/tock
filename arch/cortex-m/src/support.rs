@@ -132,7 +132,8 @@ where
 /// Reset the chip.
 pub fn reset() -> ! {
     //
-    // unsafe-requirements: calling unsafe Tock function `reset`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `reset`
     unsafe {
         scb::reset();
     }

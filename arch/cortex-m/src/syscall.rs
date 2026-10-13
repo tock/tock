@@ -121,7 +121,10 @@ pub fn get_global_syscall_fired() -> usize {
     // size, and aligned correctly. We ensure these conditions are met by
     // creating the variable as an Rust type in an `UnsafeCell`.
     //
-    // unsafe-requirements: inline assembly: https://doc.rust-lang.org/reference/inline-assembly.html
+    // SAFETY REQUIREMENTS:
+    // - inline assembly
+    //   - https://doc.rust-lang.org/reference/inline-assembly.html
+    //   - unknown
     unsafe {
         core::arch::asm!(
             "
@@ -352,7 +355,18 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         // We verified that there is space for four u32s on the stack before
         // hitting the `app_brk`.
         //
-        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe method `add`
+        //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        //   - If any of the following conditions are violated, the result is Undefined Behavior:
+        //
+        //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+        //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+        //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+        //
+        //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+        //
+        //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
         let (r0, r1, r2, r3) = unsafe { (sp.add(0), sp.add(1), sp.add(2), sp.add(3)) };
 
         // # Safety
@@ -376,7 +390,10 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
         //
-        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        // SAFETY REQUIREMENTS:
+        // - dereferencing a raw pointer
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        //   - unknown
         let (r0_ref, r1_ref, r2_ref, r3_ref) = unsafe { (&mut *r0, &mut *r1, &mut *r2, &mut *r3) };
 
         kernel::utilities::arch_helpers::encode_syscall_return_trd104(
@@ -429,8 +446,26 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         // pointers to u32s in that memory. The pointers are valid memory in the
         // process's memory space and well-aligned to a u32.
         //
-        // unsafe-requirements: calling unsafe function `write`: https://doc.rust-lang.org/core/ptr/fn.write.html
-        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe function `write`
+        //   - https://doc.rust-lang.org/core/ptr/fn.write.html
+        //   - Behavior is undefined if any of the following conditions are violated:
+        //
+        //     - dst must be valid for writes or T must be a ZST.
+        //     - dst must be properly aligned. Use write_unaligned if this is not the case.
+        //
+        //         Note that even if T has size 0, the pointer must be properly aligned.
+        // - calling unsafe method `add`
+        //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        //   - If any of the following conditions are violated, the result is Undefined Behavior:
+        //
+        //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+        //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+        //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+        //
+        //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+        //
+        //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
         unsafe {
             ptr::write(stack_bottom.add(7), state.psr); // ............ -> APSR
             ptr::write(stack_bottom.add(6), callback.pc.addr() | 1); // -> PC
@@ -457,7 +492,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
         let new_stack_pointer =
             //
-            // unsafe-requirements: calling unsafe Tock function `switch_to_user`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock function `switch_to_user`
             unsafe { A::switch_to_user(state.psp as *const usize, &mut state.regs) };
 
         // We need to keep track of the current stack pointer.
@@ -491,8 +527,27 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // the process stack. The pointers are to valid memory in the
             // process stack.
             //
-            // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
-            // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `read`
+            //   - https://doc.rust-lang.org/core/ptr/fn.read.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads or T must be a ZST.
+            //     - src must be properly aligned. Use read_unaligned if this is not the case.
+            //     - src must point to a properly initialized value of type T.
+            //
+            //         Note that even if T has size 0, the pointer must be properly aligned.
+            // - calling unsafe method `add`
+            //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+            //   - If any of the following conditions are violated, the result is Undefined Behavior:
+            //
+            //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+            //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+            //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+            //
+            //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+            //
+            //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
             let (r0, r1, r2, r3) = unsafe {
                 // Save these fields after a syscall. If this is a synchronous
                 // syscall (i.e. we return a value to the app immediately) then this
@@ -522,8 +577,27 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // decrementing the PC as a pointer and reading that memory will be
             // valid per the architecture rules.
             //
-            // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
-            // unsafe-requirements: calling unsafe method `sub`: https://doc.rust-lang.org/core/primitive.pointer.html#method.sub
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `read`
+            //   - https://doc.rust-lang.org/core/ptr/fn.read.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads or T must be a ZST.
+            //     - src must be properly aligned. Use read_unaligned if this is not the case.
+            //     - src must point to a properly initialized value of type T.
+            //
+            //         Note that even if T has size 0, the pointer must be properly aligned.
+            // - calling unsafe method `sub`
+            //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.sub
+            //   - If any of the following conditions are violated, the result is Undefined Behavior:
+            //
+            //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+            //     - Let result be self.addr() - count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+            //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., result..self.addr()) must be in bounds of that allocation.
+            //
+            //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two.
+            //
+            //         Consider using wrapping_sub instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
             let svc_instr = unsafe {
                 // The svc instruction is the last instruction before the PC, and
                 // should be 16 bits. Get a pointer to the instruction before the PC
@@ -590,8 +664,27 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // ensured the pointers point to valid stack memory we can read
             // from.
             //
-            // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
-            // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `read`
+            //   - https://doc.rust-lang.org/core/ptr/fn.read.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads or T must be a ZST.
+            //     - src must be properly aligned. Use read_unaligned if this is not the case.
+            //     - src must point to a properly initialized value of type T.
+            //
+            //         Note that even if T has size 0, the pointer must be properly aligned.
+            // - calling unsafe method `add`
+            //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+            //   - If any of the following conditions are violated, the result is Undefined Behavior:
+            //
+            //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+            //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+            //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+            //
+            //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+            //
+            //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
             unsafe {
                 let r0 = ptr::read(stack_pointer.add(0));
                 let r1 = ptr::read(stack_pointer.add(1));

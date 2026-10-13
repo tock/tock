@@ -25,7 +25,8 @@ use kernel::utilities::registers::{ReadWrite, register_bitfields, register_struc
 
 const APPROTECT_BASE: StaticRef<ApprotectRegisters> =
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40000000 as *const ApprotectRegisters) };
 
 register_structs! {

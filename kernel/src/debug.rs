@@ -181,7 +181,8 @@ pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
         // SAFETY: This may only be called during a panic, and we are guaranteed
         // to be in a panic when running this function.
         //
-        // unsafe-requirements: calling unsafe Tock function `panic_cpu_state`
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe Tock function `panic_cpu_state`
         unsafe {
             panic_cpu_state(chip, &mut writer);
         }
@@ -198,7 +199,8 @@ pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
             // re-enable the MPU, but that is ok because in a panic we do not
             // run processes.
             //
-            // unsafe-requirements: calling unsafe Tock method `disable_app_mpu`
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe Tock method `disable_app_mpu`
             unsafe { c.mpu().disable_app_mpu() }
         });
         if let Some(p) = pr.processes.take() {
@@ -206,7 +208,8 @@ pub fn panic_print<PW: PanicWriter, C: Chip, PP: ProcessPrinter>(
                 if p.iter().filter(|p| p.get().is_some()).count() > 0 {
                     // SAFETY: We are guaranteed to be in a panic context.
                     //
-                    // unsafe-requirements: calling unsafe Tock function `panic_process_info`
+                    // SAFETY REQUIREMENTS:
+                    // - calling unsafe Tock function `panic_process_info`
                     unsafe {
                         panic_process_info(p, process_printer, &mut writer);
                     }
@@ -276,10 +279,11 @@ pub unsafe fn panic_print_old<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     // implementation is deprecated. When all callers are updated it will be
     // removed.
     //
-    // unsafe-requirements: calling unsafe Tock function `panic_cpu_state`
-    // unsafe-requirements: calling unsafe Tock function `panic_process_info`
-    // unsafe-requirements: calling unsafe Tock method `disable_app_mpu`
-    // unsafe-requirements: calling unsafe Tock method `take`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `panic_cpu_state`
+    // - calling unsafe Tock function `panic_process_info`
+    // - calling unsafe Tock method `disable_app_mpu`
+    // - calling unsafe Tock method `take`
     unsafe {
         panic_begin(nop);
         // Flush debug buffer if needed
@@ -329,7 +333,8 @@ pub unsafe fn panic_old<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: Proce
     //
     // SAFETY: The requirements match this function.
     //
-    // unsafe-requirements: calling unsafe Tock function `panic_print_old`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `panic_print_old`
     unsafe {
         panic_print_old(writer, panic_info, nop, panic_resources);
     }
@@ -406,7 +411,8 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, write
     // SAFETY: The function-level safety doc requires this only be called during
     // a panic, matching the requirement for `print_state()`.
     //
-    // unsafe-requirements: calling unsafe Tock function `print_state`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `print_state`
     unsafe {
         C::print_state(chip, writer);
     }
@@ -514,7 +520,8 @@ pub unsafe fn initialize_debug_gpio_unsafe<P: ThreadIdProvider>() {
     // SAFETY: The caller ensures there is no concurrent call to
     // `DEBUG_GPIOS.bind_to_thread_unsafe()`.
     //
-    // unsafe-requirements: calling unsafe Tock method `bind_to_thread_unsafe`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock method `bind_to_thread_unsafe`
     unsafe {
         DEBUG_GPIOS
             .bind_to_thread_unsafe::<P>(MapCell::empty())
@@ -626,8 +633,9 @@ pub unsafe fn initialize_debug_writer_wrapper_unsafe<P: ThreadIdProvider>() {
     // `DEBUG_WRITER.bind_to_thread_unsafe()` and
     // `DEBUG_WRITER_COUNT.bind_to_thread_unsafe()`.
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
-    // unsafe-requirements: calling unsafe Tock method `bind_to_thread_unsafe`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
+    // - calling unsafe Tock method `bind_to_thread_unsafe`
     unsafe {
         DEBUG_WRITER
             .bind_to_thread_unsafe::<P>(MapCell::empty())

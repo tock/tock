@@ -19,7 +19,8 @@ use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
 
 const NVMC_BASE: StaticRef<NvmcRegisters> =
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x4001E400 as *const NvmcRegisters) };
 
 #[repr(C)]
@@ -275,8 +276,27 @@ impl Nvmc {
         let address = (page_number * PAGE_SIZE) as *const u32;
         for i in 0..(PAGE_SIZE / 4) {
             //
-            // unsafe-requirements: calling unsafe function `read`: https://doc.rust-lang.org/core/ptr/fn.read.html
-            // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `read`
+            //   - https://doc.rust-lang.org/core/ptr/fn.read.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - src must be valid for reads or T must be a ZST.
+            //     - src must be properly aligned. Use read_unaligned if this is not the case.
+            //     - src must point to a properly initialized value of type T.
+            //
+            //         Note that even if T has size 0, the pointer must be properly aligned.
+            // - calling unsafe method `add`
+            //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+            //   - If any of the following conditions are violated, the result is Undefined Behavior:
+            //
+            //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+            //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+            //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+            //
+            //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+            //
+            //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
             if unsafe { core::ptr::read(address.add(i)) } != 0xFFFFFFFF {
                 return false;
             }
@@ -307,8 +327,21 @@ impl Nvmc {
         // Actually do a copy from flash into the buffer.
         let mut byte: *const u8 = (page_number * PAGE_SIZE) as *const u8;
         //
-        // unsafe-requirements: calling unsafe method `add`: https://doc.rust-lang.org/core/primitive.pointer.html#method.add
-        // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        // SAFETY REQUIREMENTS:
+        // - calling unsafe method `add`
+        //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+        //   - If any of the following conditions are violated, the result is Undefined Behavior:
+        //
+        //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without “wrapping around”), must fit in an isize.
+        //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+        //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+        //
+        //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+        //
+        //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
+        // - dereferencing a raw pointer
+        //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+        //   - unknown
         unsafe {
             for i in 0..buffer.len() {
                 buffer[i] = *byte;
@@ -349,7 +382,10 @@ impl Nvmc {
 
             let address = ((page_number * PAGE_SIZE) + i) as u32;
             //
-            // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            // SAFETY REQUIREMENTS:
+            // - dereferencing a raw pointer
+            //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            //   - unknown
             let location = unsafe { &*(address as *const ReadWrite<u32>) };
             location.set(word);
             while !self.registers.ready.is_set(Ready::READY) {}

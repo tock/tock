@@ -53,7 +53,8 @@ use nrf5x::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
 
 #[repr(C)]
@@ -643,8 +644,13 @@ impl<'a> Radio<'a> {
                 | nrf5x::constants::RADIO_STATE_RX => {
                     self.radio_off();
                     //
-                    // unsafe-requirements: accessing mutable static `PAYLOAD`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
-                    // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+                    // SAFETY REQUIREMENTS:
+                    // - accessing mutable static `PAYLOAD`
+                    //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+                    //   - unknown
+                    // - dereferencing a raw pointer
+                    //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+                    //   - unknown
                     unsafe {
                         self.rx_client.map(|client| {
                             // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
@@ -691,8 +697,13 @@ impl<'a> Radio<'a> {
         // set payload
         for (i, c) in buf.as_ref().iter().enumerate() {
             //
-            // unsafe-requirements: accessing mutable static `PAYLOAD`: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
-            // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            // SAFETY REQUIREMENTS:
+            // - accessing mutable static `PAYLOAD`
+            //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-static
+            //   - unknown
+            // - dereferencing a raw pointer
+            //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+            //   - unknown
             unsafe {
                 PAYLOAD[i] = *c;
             }

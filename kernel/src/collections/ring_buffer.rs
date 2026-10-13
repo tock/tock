@@ -56,7 +56,18 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
             // T, and every element in the returned slice falls within [head, tail) which has been
             // written by enqueue/push, so reading those elements as T is valid.
             //
-            // unsafe-requirements: calling unsafe function `from_raw_parts`: https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
+            // SAFETY REQUIREMENTS:
+            // - calling unsafe function `from_raw_parts`
+            //   - https://doc.rust-lang.org/core/slice/fn.from_raw_parts.html
+            //   - Behavior is undefined if any of the following conditions are violated:
+            //
+            //     - data must be non-null, valid for reads for len * size_of::<T>() many bytes, and it must be properly aligned. This means in particular:
+            //
+            //         - The entire memory range of this slice must be contained within a single allocation! Slices can never span across multiple allocations. See below for an example incorrectly not taking this into account.
+            //         - data must be non-null and aligned even for zero-length slices or slices of ZSTs. One reason for this is that enum layout optimizations may rely on references (including slices of any length) being aligned and non-null to distinguish them from other data. You can obtain a pointer that is usable as data for zero-length slices using NonNull::dangling().
+            //     - data must point to len consecutive properly initialized values of type T.
+            //     - The memory referenced by the returned slice must not be mutated for the duration of lifetime 'a, except inside an UnsafeCell.
+            //     - The total size len * size_of::<T>() of the slice must be no larger than isize::MAX, and adding that size to data must not “wrap around” the address space. See the safety documentation of pointer::offset.
             unsafe { core::slice::from_raw_parts(s.as_ptr().cast::<T>(), s.len()) }
         };
 
@@ -105,7 +116,14 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
                 // within the populated elements of the ring. Our invariant is that
                 // any index with head and tail _must_ be initialized.
                 //
-                // unsafe-requirements: calling unsafe method `assume_init`: https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe method `assume_init`
+                //   - https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init
+                //   - It is up to the caller to guarantee that the MaybeUninit<T> really is in an initialized state, i.e., a state that is considered “valid” for type T. Calling this when the content is not yet fully initialized causes immediate undefined behavior. The type-level documentation contains more information about this initialization invariant.
+                //
+                //     It is a common mistake to assume that this function is safe to call on integers because they can hold all bit patterns. It is also a common mistake to think that calling this function is UB if any byte is uninitialized. Both of these assumptions are wrong. If that is surprising to you, please read the type-level documentation.
+                //
+                //     On top of that, remember that most types have additional invariants beyond merely being considered initialized at the type level. For example, a 1-initialized Vec<T> is considered initialized (under the current implementation; this does not constitute a stable guarantee) because the only requirement the compiler knows about it is that the data pointer must be non-null. Creating such a Vec<T> does not cause immediate undefined behavior, but will cause undefined behavior with most safe operations (including dropping it).
                 unsafe { e.assume_init() }
             })
         }
@@ -127,7 +145,10 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
                 // within the populated elements of the ring. Our invariant is that
                 // any index with head and tail _must_ be initialized.
                 //
-                // unsafe-requirements: calling unsafe method `assume_init_ref`: https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init_ref
+                // SAFETY REQUIREMENTS:
+                // - calling unsafe method `assume_init_ref`
+                //   - https://doc.rust-lang.org/core/mem/union.MaybeUninit.html#method.assume_init_ref
+                //   - Calling this when the content is not yet fully initialized causes undefined behavior: it is up to the caller to guarantee that the MaybeUninit<T> really is in an initialized state.
                 unsafe { e.assume_init_ref() }
             })
         }

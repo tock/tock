@@ -129,7 +129,10 @@ impl<'a> DynDefCallRef<'a> {
                 // `fn(*const ())` and `fn handle_deferred_call(&self)` will always have the
                 // same calling convention for any type.
                 //
-                // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+                // SAFETY REQUIREMENTS:
+                // - dereferencing a raw pointer
+                //   - https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
+                //   - unknown
                 unsafe { T::handle_deferred_call(&*p.cast()) }
             },
             _lifetime: PhantomData,
@@ -191,8 +194,9 @@ pub fn initialize_deferred_call_state<P: ThreadIdProvider>() {
 pub unsafe fn initialize_deferred_call_state_unsafe<P: ThreadIdProvider>() {
     // SAFETY: See function safety description.
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
-    // unsafe-requirements: calling unsafe Tock method `bind_to_thread_unsafe`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
+    // - calling unsafe Tock method `bind_to_thread_unsafe`
     unsafe {
         let _ = CTR.bind_to_thread_unsafe::<P>(Cell::new(0));
         let _ = BITMASK.bind_to_thread_unsafe::<P>(Cell::new(0));

@@ -78,7 +78,8 @@ use crate::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     //
-    // unsafe-requirements: calling unsafe Tock function `new`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `new`
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
 
 const ACK_FLAG: u8 = 0b00100000;

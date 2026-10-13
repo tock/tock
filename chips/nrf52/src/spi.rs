@@ -44,7 +44,8 @@ use kernel::utilities::registers::{ReadWrite, WriteOnly, register_bitfields};
 use nrf5x::pinmux::Pinmux;
 
 //
-// unsafe-requirements: calling unsafe Tock function `new`
+// SAFETY REQUIREMENTS:
+// - calling unsafe Tock function `new`
 const INSTANCES: [StaticRef<SpimRegisters>; 3] = unsafe {
     [
         StaticRef::new(0x40003000 as *const SpimRegisters),
