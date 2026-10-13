@@ -173,7 +173,7 @@ pub unsafe fn configure_trap_handler() {
     ori  t0, t0, 0x02 // Set CLIC direct mode
     csrw 0x305, t0    // Write the mtvec CSR.
             ",
-        start_trap = sym rv32i::_start_trap,
+        start_trap = sym rv32i::start_trap,
         out("t0") _,
     );
 }
@@ -189,7 +189,7 @@ pub unsafe fn configure_trap_handler() {
 /// For the arty-e21 this gets called when an interrupt occurs while the chip is
 /// in kernel mode. All we need to do is check which interrupt occurred and
 /// disable it.
-#[export_name = "_start_trap_rust_from_kernel"]
+#[export_name = "start_trap_rust_from_kernel"]
 pub extern "C" fn start_trap_rust() {
     let mcause = rv32i::csr::CSR.mcause.extract();
 

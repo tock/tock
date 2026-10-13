@@ -405,7 +405,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 ///
 /// For the Ibex this gets called when an interrupt occurs while the chip is
 /// in kernel mode.
-#[export_name = "_start_trap_rust_from_kernel"]
+#[export_name = "start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
         mcause::Trap::Interrupt(interrupt) => {
@@ -441,7 +441,7 @@ pub unsafe fn configure_trap_handler() {
 
     // The Ibex CPU does not support non-vectored trap entries.
     CSR.mtvec.write(
-        mtvec::trap_addr.val(_earlgrey_start_trap_vectored as extern "C" fn() -> ! as usize >> 2)
+        mtvec::trap_addr.val(earlgrey_start_trap_vectored as extern "C" fn() -> ! as usize >> 2)
             + mtvec::mode::Vectored,
     );
 }
@@ -450,7 +450,7 @@ pub unsafe fn configure_trap_handler() {
 // specifier, as the test will not use our linker script, and the host
 // compilation environment may not allow the section name.
 #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
-pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
+pub extern "C" fn earlgrey_start_trap_vectored() -> ! {
     use core::hint::unreachable_unchecked;
     unsafe {
         unreachable_unchecked();
@@ -468,7 +468,7 @@ pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
     link_section = ".riscv.trap_vectored"
 )]
 #[unsafe(naked)]
-pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
+pub extern "C" fn earlgrey_start_trap_vectored() -> ! {
     use core::arch::naked_asm;
     // According to the Ibex user manual:
     // [NMI] has interrupt ID 31, i.e., it has the highest priority of all
@@ -512,7 +512,7 @@ pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
     j {start_trap}
     j {start_trap}
         ",
-        start_trap = sym rv32i::_start_trap,
+        start_trap = sym rv32i::start_trap,
     );
 }
 

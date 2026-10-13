@@ -184,7 +184,7 @@ pub unsafe fn configure_trap_handler() {
     // trap handler, this should ensure that all traps are handled by the M-mode
     // handler.
     csr::CSR.mtvec.write(
-        csr::mtvec::mtvec::trap_addr.val(_start_trap as extern "C" fn() -> ! as usize >> 2)
+        csr::mtvec::mtvec::trap_addr.val(start_trap as extern "C" fn() -> ! as usize >> 2)
             + csr::mtvec::mtvec::mode::CLEAR,
     );
 }
@@ -298,14 +298,14 @@ pub unsafe fn configure_trap_handler() {
 // this, yielding errors such as: `mach-o section specifier requires a
 // segment and section separated by a comma`.
 #[cfg_attr(riscv_bare_metal, link_section = ".riscv.trap")]
-// We need the `_start_trap` function to be 256 byte aligned. The linker script
-// includes a check for whether a symbol named `_start_trap` exists. If it does,
+// We need the `start_trap` function to be 256 byte aligned. The linker script
+// includes a check for whether a symbol named `start_trap` exists. If it does,
 // it makes sure to align the `.riscv.trap` section on a 256 byte
 // boundary. Thus, ensure that this function is exported under this stable
 // symbol name.
-#[export_name = "_start_trap"]
+#[export_name = "start_trap"]
 #[unsafe(naked)]
-pub extern "C" fn _start_trap() -> ! {
+pub extern "C" fn start_trap() -> ! {
     use core::arch::naked_asm;
     naked_asm!(
         xlen_macros!(),
@@ -317,7 +317,7 @@ pub extern "C" fn _start_trap() -> ! {
     //
     // For documentation of its behavior, and how process
     // implementations can hook their own trap handler code, see the
-    // comment on the `_start_trap` function.
+    // comment on the `start_trap` function.
 
     // Atomically swap s0 and mscratch. This puts `&custom_trap_handler`
     // in s0.
@@ -406,7 +406,7 @@ pub extern "C" fn _start_trap() -> ! {
     // Jump to board-specific trap handler code. Likely this was an
     // interrupt and we want to disable a particular interrupt, but each
     // board/chip can customize this as needed.
-    jal ra, _start_trap_rust_from_kernel
+    jal ra, start_trap_rust_from_kernel
 
     // Indicate that we are no longer going to be in a trap handler on this
     // hart:
@@ -451,7 +451,7 @@ pub extern "C" fn _start_trap() -> ! {
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(riscv_bare_metal))]
-pub extern "C" fn _start_trap() -> ! {
+pub extern "C" fn start_trap() -> ! {
     unimplemented!()
 }
 
