@@ -659,12 +659,16 @@ ci-job-qemu: ci-setup-qemu
 define ci_job_qemu_virt
 	$(call banner,CI-Job: QEMU virt (rv64))
 	@cd tools/ci/qemu-virt-ci-runner;\
-		NOWARNINGS=true cargo run -- $(QEMU_VIRT_ARGS)
+		NOWARNINGS=true cargo run -- --board $(1) $(QEMU_VIRT_ARGS)
 endef
 
-.PHONY: ci-job-qemu-virt
-ci-job-qemu-virt:
-	$(call ci_job_qemu_virt)
+.PHONY: ci-job-qemu-virt-qemu_rv64_virt
+ci-job-qemu-virt-qemu_rv64_virt:
+	$(call ci_job_qemu_virt,qemu_rv64_virt)
+
+.PHONY: ci-job-qemu-virt-hifive1
+ci-job-qemu-virt-hifive1:
+	$(call ci_job_qemu_virt,hifive1)
 
 
 ### ci-runner-docs jobs:
