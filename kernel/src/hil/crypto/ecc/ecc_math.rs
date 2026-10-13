@@ -58,11 +58,10 @@ pub trait EccCrypto<'a, const P_SIZE: usize, C: Curve<P_SIZE>> {
 
     /// Initiate a point addition operation
     ///
-    /// The input is retrieved through [`Client`] callbacks. The driver returns
-    /// exactly 2 * `P_SIZE` bytes of output, then issues exactly one [`EccClient::operation_done`]
-    /// callback. If `use_curve_generator` is false, the `read_second_point` callback will be used.
-    /// If `use_curve_generator` is true, the second point of the addition will be the `GENERATOR` constant
-    /// in `Curve<P_SIZE>`.
+    /// The input is retrieved through [`Client`] callbacks, specifically one `read_point()`
+    /// callback and one`read_second_point()`, each reading 2 * `P_SIZE` bytes. The driver
+    /// returns exactly2 * `P_SIZE` bytes of output through the `write_point()` callback,
+    /// then issues exactlyone [`EccClient::operation_done`] callback.
     ///
     /// Returns [`ErrorCode::BUSY`] if an operation is in progress
     /// On `Ok(())`, a completion callback will occur. On `Err`, no callbacks will occur for this
@@ -71,11 +70,10 @@ pub trait EccCrypto<'a, const P_SIZE: usize, C: Curve<P_SIZE>> {
 
     /// Initiate a scalar multiplication operation
     ///
-    /// The input is retrieved through [`Client`] callbacks. The driver returns
-    /// exactly 2 * `P_SIZE` bytes of output, then issues exactly one [`EccClient::operation_done`]
-    /// callback. If `use_curve_generator` is false, the `read_point` callback will be used.
-    /// If `use_curve_generator` is true, the point to be multiplied by the scalar will be the `GENERATOR`
-    /// constant in `Curve<P_SIZE>`
+    /// The input is retrieved through [`Client`] callbacks, specifically one `read_point()`
+    /// callback and one `read_scalar()` callback. The driver returns exactly 2 * `P_SIZE`
+    /// bytes of output through the `write_point()` callback, then issues exactly one
+    /// [`EccClient::operation_done`] callback.
     ///
     /// Returns [`ErrorCode::BUSY`] if an operation is in progress
     /// On `Ok(())`, a completion callback will occur. On `Err`, no callbacks will occur for this
