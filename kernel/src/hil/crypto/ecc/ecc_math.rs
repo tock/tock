@@ -47,7 +47,7 @@ pub trait EccClient {
 
     /// Signal completion of an elliptic curve operation.
     ///
-    /// This callback occurs exactly once after a request accepted by [`EccCrypto`]. If a data
+    /// This callback occurs exactly once after a request accepted by `EccCrypto`. If a data
     /// callback returns an error, the driver must abort and report that error through `result`.
     fn operation_done(&self, result: Result<(), ErrorCode>);
 }
@@ -58,24 +58,24 @@ pub trait EccCrypto<'a, const P_SIZE: usize, C: Curve<P_SIZE>> {
 
     /// Initiate a point addition operation
     ///
-    /// The input is retrieved through [`Client`] callbacks, specifically one `read_point()`
+    /// The input is retrieved through `Client` callbacks, specifically one `read_point()`
     /// callback and one`read_second_point()`, each reading 2 * `P_SIZE` bytes. The driver
     /// returns exactly2 * `P_SIZE` bytes of output through the `write_point()` callback,
-    /// then issues exactlyone [`EccClient::operation_done`] callback.
+    /// then issues exactlyone `EccClient::operation_done` callback.
     ///
-    /// Returns [`ErrorCode::BUSY`] if an operation is in progress
+    /// Returns `ErrorCode::BUSY` if an operation is in progress
     /// On `Ok(())`, a completion callback will occur. On `Err`, no callbacks will occur for this
     /// request.
     fn point_addition(&self) -> Result<(), ErrorCode>;
 
     /// Initiate a scalar multiplication operation
     ///
-    /// The input is retrieved through [`Client`] callbacks, specifically one `read_point()`
+    /// The input is retrieved through `Client` callbacks, specifically one `read_point()`
     /// callback and one `read_scalar()` callback. The driver returns exactly 2 * `P_SIZE`
     /// bytes of output through the `write_point()` callback, then issues exactly one
-    /// [`EccClient::operation_done`] callback.
+    /// `EccClient::operation_done` callback.
     ///
-    /// Returns [`ErrorCode::BUSY`] if an operation is in progress
+    /// Returns `ErrorCode::BUSY` if an operation is in progress
     /// On `Ok(())`, a completion callback will occur. On `Err`, no callbacks will occur for this
     /// request.
     fn scalar_multiplication(&self) -> Result<(), ErrorCode>;
@@ -86,11 +86,11 @@ pub trait VerifyEccPoint<'a, const P_SIZE: usize, C: Curve<P_SIZE>>:
 {
     /// Initiate a point verification operation
     ///
-    /// The input is retrieved through [`Client`] callbacks. The driver will call
+    /// The input is retrieved through `Client` callbacks. The driver will call
     /// `operation_done`, where result will either be `Ok(())` if the point is on the elliptic
     /// curve, or `ErrorCode::Inval` if it is not.
     ///
-    /// Returns [`ErrorCode::BUSY`] if an operation is in progress
+    /// Returns `ErrorCode::BUSY` if an operation is in progress
     /// On `Ok(())`, a completion callback will occur. On `Err`, no callbacks will occur for this
     /// request.
     fn verify_point(&self) -> Result<(), ErrorCode>;
