@@ -18,9 +18,12 @@ pub struct Imxrt10xx<I: InterruptService + 'static> {
 }
 
 impl<I: InterruptService + 'static> Imxrt10xx<I> {
-    pub unsafe fn new(interrupt_service: &'static I) -> Self {
+    pub fn new(interrupt_service: &'static I) -> Self {
+        // SAFETY: All i.MX RT 10xx chips are Cortex-M7 cores with valid MPU hardware.
+        let mpu = unsafe { cortexm7::mpu::new() };
+
         Imxrt10xx {
-            mpu: cortexm7::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm7::syscall::SysCall::new(),
             interrupt_service,
         }

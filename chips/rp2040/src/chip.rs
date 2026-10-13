@@ -43,9 +43,12 @@ pub struct Rp2040<'a, I: InterruptService + 'a> {
 }
 
 impl<'a, I: InterruptService> Rp2040<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
+    pub fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
+        // SAFETY: All RP2040 chips are Cortex-M0+ cores with valid MPU hardware.
+        let mpu = unsafe { cortexm0p::mpu::new() };
+
         Self {
-            mpu: cortexm0p::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
             interrupt_service,
             sio,

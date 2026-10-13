@@ -99,9 +99,12 @@ impl<ChipSpecs: ChipSpecsTrait> InterruptService for Stm32wle5xxDefaultPeriphera
 }
 
 impl<'a, I: InterruptService + 'a> Stm32wle5xx<'a, I> {
-    pub unsafe fn new(interrupt_service: &'a I) -> Self {
+    pub fn new(interrupt_service: &'a I) -> Self {
+        // SAFETY: All STM32WLE5xx chips are Cortex-M4 cores with valid MPU hardware.
+        let mpu = unsafe { cortexm4::mpu::new() };
+
         Self {
-            mpu: cortexm4::mpu::new(),
+            mpu,
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             interrupt_service,
         }

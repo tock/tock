@@ -16,8 +16,11 @@ pub struct Psoc62xa<'a, I: InterruptService + 'a> {
 
 impl<'a, I: InterruptService> Psoc62xa<'a, I> {
     pub fn new(interrupt_service: &'a I) -> Self {
+        // SAFETY: All PSoC 6 chips are Cortex-M0+ cores with valid MPU hardware.
+        let mpu = unsafe { cortexm0p::mpu::new() };
+
         Self {
-            mpu: unsafe { cortexm0p::mpu::new() },
+            mpu,
             userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
             interrupt_service,
         }
