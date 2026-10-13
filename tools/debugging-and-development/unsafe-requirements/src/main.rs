@@ -20,6 +20,7 @@
 
 mod annotate;
 mod inventory;
+mod safety_docs;
 mod scan;
 mod urls;
 
@@ -109,10 +110,10 @@ fn main() -> anyhow::Result<()> {
                 );
             } else {
                 println!("  line {}: unsafe block", block.start.line);
-                for (label, url) in &block.reasons {
-                    match url {
-                        Some(url) => println!("    - {label}: {url}"),
-                        None => println!("    - {label}"),
+                for reason in &block.reasons {
+                    match &reason.url {
+                        Some(url) => println!("    - {}: {url}", reason.label),
+                        None => println!("    - {}", reason.label),
                     }
                 }
             }
@@ -154,7 +155,7 @@ mod tests {
         scan::find_unsafe_blocks(&parsed, &inv)
             .into_iter()
             .map(|b| {
-                let labels = b.reasons.into_iter().map(|(label, _url)| label).collect();
+                let labels = b.reasons.into_iter().map(|r| r.label).collect();
                 (b.start.line, labels)
             })
             .collect()
@@ -212,11 +213,11 @@ mod tests {
         // The outer block of `nested_example` only dereferences `ptr`; the
         // unsafe call to `danger` is inside the nested block and must not
         // also be attributed to the outer one.
-        let outer = blocks.get(&36).expect("outer block at line 36");
+        let outer = blocks.get(&40).expect("outer block at line 40");
         assert_eq!(outer.len(), 1);
         assert!(outer[0].contains("dereferencing a raw pointer"));
 
-        let inner = blocks.get(&38).expect("inner block at line 38");
+        let inner = blocks.get(&42).expect("inner block at line 42");
         assert_eq!(inner.len(), 1);
         assert!(inner[0].contains("unsafe Tock function `danger`"));
     }
@@ -230,28 +231,110 @@ mod tests {
 
         let block = blocks
             .iter()
-            .find(|b| {
-                b.reasons
-                    .iter()
-                    .any(|(label, _)| label.contains("`danger`"))
-            })
+            .find(|b| b.reasons.iter().any(|r| r.label.contains("`danger`")))
             .expect("a block calling `danger` should exist");
-        let (label, url) = block
+        let reason = block
             .reasons
             .iter()
-            .find(|(label, _)| label.contains("`danger`"))
+            .find(|r| r.label.contains("`danger`"))
             .unwrap();
-        assert_eq!(label, "calling unsafe Tock function `danger`");
+        assert_eq!(reason.label, "calling unsafe Tock function `danger`");
         assert!(
-            url.is_none(),
-            "an in-crate unsafe function should not get an external doc URL: {url:?}"
+            reason.url.is_none(),
+            "an in-crate unsafe function should not get an external doc URL: {:?}",
+            reason.url
         );
+    }
+
+    #[test]
+    fn known_callable_with_safety_text_renders_structured_comment() {
+        let parsed = syn::parse_file(FIXTURE).unwrap();
+        let mut inv = Inventory::default();
+        inv.visit_file(&parsed);
+        let blocks = scan::find_unsafe_blocks(&parsed, &inv);
+
+        let new_text = annotate::annotate_file(FIXTURE, &blocks).expect("fixture should change");
+        // The comment sits directly above the `ptr.add(1)` call itself;
+        // find it by locating that call and walking backward to the
+        // nearest preceding heading line.
+        let idx = new_text
+            .find("unsafe { ptr.add(1) }")
+            .expect("add_example's unsafe block should exist");
+        let preceding = &new_text[..idx];
+        let comment_start = preceding
+            .rfind("// SAFETY REQUIREMENTS:")
+            .expect("heading line");
+        let comment = &new_text[comment_start..idx];
+
+        assert!(comment.contains("// SAFETY REQUIREMENTS:"));
+        assert!(comment.contains("// - calling unsafe method `add`"));
+        assert!(
+            comment.contains(
+                "//   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add"
+            )
+        );
+        assert!(comment.contains(
+            "//   - If any of the following conditions are violated, the result is Undefined Behavior:"
+        ));
+        assert!(comment.contains("//     - The offset in bytes"));
+        assert!(comment.contains("//         Allocations can never be larger"));
+    }
+
+    #[test]
+    fn known_callable_without_safety_section_is_unknown() {
+        let parsed = syn::parse_file(FIXTURE).unwrap();
+        let mut inv = Inventory::default();
+        inv.visit_file(&parsed);
+        let blocks = scan::find_unsafe_blocks(&parsed, &inv);
+
+        let block = blocks
+            .iter()
+            .find(|b| b.reasons.iter().any(|r| r.label.contains("`transmute`")))
+            .expect("a block calling `transmute` should exist");
+        let reason = block
+            .reasons
+            .iter()
+            .find(|r| r.label.contains("`transmute`"))
+            .unwrap();
+        assert!(reason.url.is_some());
+        assert_eq!(
+            reason.safety, None,
+            "transmute's docs have no dedicated Safety section"
+        );
+    }
+
+    #[test]
+    fn write_upgrades_legacy_annotation_instead_of_duplicating() {
+        let legacy = FIXTURE.replacen(
+            "pub fn deref_example(ptr: *const u32) -> u32 {\n    unsafe { *ptr }\n}",
+            "pub fn deref_example(ptr: *const u32) -> u32 {\n    //\n    // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref\n    unsafe { *ptr }\n}",
+            1,
+        );
+        assert_ne!(legacy, FIXTURE, "the replacement should have applied");
+
+        let parsed = syn::parse_file(&legacy).unwrap();
+        let mut inv = Inventory::default();
+        inv.visit_file(&parsed);
+        let blocks = scan::find_unsafe_blocks(&parsed, &inv);
+
+        let upgraded =
+            annotate::annotate_file(&legacy, &blocks).expect("legacy annotation should change");
+        assert!(!upgraded.contains("unsafe-requirements:"));
+        assert!(upgraded.contains("// SAFETY REQUIREMENTS:"));
+        assert!(upgraded.contains("// - dereferencing a raw pointer"));
+
+        // And it should now match a from-scratch run exactly.
+        let parsed_again = syn::parse_file(&upgraded).unwrap();
+        let mut inv_again = Inventory::default();
+        inv_again.visit_file(&parsed_again);
+        let blocks_again = scan::find_unsafe_blocks(&parsed_again, &inv_again);
+        assert!(annotate::annotate_file(&upgraded, &blocks_again).is_none());
     }
 
     #[test]
     fn unclassified_block_is_left_unannotated() {
         let blocks = blocks_by_line();
-        let boring = blocks.get(&44).expect("boring block at line 44");
+        let boring = blocks.get(&48).expect("boring block at line 48");
         assert!(boring.is_empty());
     }
 

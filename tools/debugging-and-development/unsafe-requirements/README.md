@@ -7,36 +7,65 @@ and annotates the block with comment lines linking to the Rust documentation
 that explains each one. For example, running with `--write` turns this:
 
 ```rust
-pub fn read_register(ptr: *const u32) -> u32 {
-    unsafe { *ptr }
+pub fn read_pointer(ptr: *const u32) -> u32 {
+    unsafe { ptr.add(1).read() }
 }
 ```
 
 into this:
 
 ```rust
-pub fn read_register(ptr: *const u32) -> u32 {
+pub fn read_pointer(ptr: *const u32) -> u32 {
     //
-    // unsafe-requirements: dereferencing a raw pointer: https://doc.rust-lang.org/reference/unsafety.html#r-safety.unsafe-deref
-    unsafe { *ptr }
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe method `add`
+    //   - https://doc.rust-lang.org/core/primitive.pointer.html#method.add
+    //   - If any of the following conditions are violated, the result is Undefined Behavior:
+    //
+    //     - The offset in bytes, count * size_of::<T>(), computed on mathematical integers (without "wrapping around"), must fit in an isize.
+    //     - Let result be self.addr() + count * size_of::<T>(), computed on mathematical integers. This must fit in a usize.
+    //     - If the computed offset is non-zero, then self must be derived from a pointer to some allocation, and the entire memory range between self and result (i.e., self.addr()..result) must be in bounds of that allocation.
+    //
+    //         Allocations can never be larger than isize::MAX bytes and they can only contain addresses representable by usize, so technically the last condition implies the first two. This implies, for instance, that vec.as_ptr().add(vec.len()) (for vec: Vec<T>) is always safe.
+    //
+    //         Consider using wrapping_add instead if these constraints are difficult to satisfy. The only advantage of this method is that it enables more aggressive compiler optimizations.
+    // - calling unsafe method `read`
+    //   - https://doc.rust-lang.org/core/ptr/fn.read.html
+    //   - Behavior is undefined if any of the following conditions are violated:
+    //
+    //     - src must be valid for reads or T must be a ZST.
+    //     - src must be properly aligned. Use read_unaligned if this is not the case.
+    //     - src must point to a properly initialized value of type T.
+    //
+    //         Note that even if T has size 0, the pointer must be properly aligned.
+    unsafe { ptr.add(1).read() }
 }
 ```
 
-The goal is to give a reviewer (or the author) a quick link to *why* Rust
-requires `unsafe` here, in addition to — not instead of — a human-written
-`// SAFETY: ...` comment explaining why the operation is actually sound in
-context.
+The top-level list has one item per recognized operation; each item's own
+sub-list has the operation's documentation URL first, then the *verbatim*
+text of that page's own "Safety" section — copied exactly as rendered, not
+summarized — so the actual safety contract is right there in the source,
+not just a link to go look it up. When a URL's page has no dedicated
+"Safety" section to copy, the second sub-item is just the word `unknown`
+(not "no requirements" — it means this tool couldn't find a section to
+quote, not that there are none).
+
+The goal is to give a reviewer (or the author) the exact contract Rust (or
+the standard library) requires here, in addition to — not instead of — a
+human-written `// SAFETY: ...` comment explaining why the code upholds it.
 
 A call into an unsafe function or method defined somewhere in the scanned
-source (rather than in `core`/`alloc`) has no external documentation to link
-to, so it's labeled directly instead:
+source (rather than in `core`/`alloc`) has no external documentation to
+copy, so it's just labeled directly, with no sub-list:
 
 ```rust
 unsafe fn disable_mpu(mpu: &dyn Mpu) { /* ... */ }
 
 pub fn panic(mpu: &dyn Mpu) {
     //
-    // unsafe-requirements: calling unsafe Tock function `disable_mpu`
+    // SAFETY REQUIREMENTS:
+    // - calling unsafe Tock function `disable_mpu`
     unsafe { disable_mpu(mpu) }
 }
 ```
@@ -48,7 +77,7 @@ pub fn panic(mpu: &dyn Mpu) {
 # without changing any files.
 cargo run -p unsafe-requirements -- path/to/crate
 
-# Insert/update the `// unsafe-requirements: ...` comments in place.
+# Insert/update the `// SAFETY REQUIREMENTS:` comment blocks in place.
 cargo run -p unsafe-requirements -- --write path/to/crate
 ```
 
@@ -80,11 +109,14 @@ duplicated, so it's safe to run repeatedly as code changes.
 3. Each recognized operation is mapped to a URL (see `src/urls.rs`) — mostly
    anchors into the ["Unsafety"][unsafety] chapter of the Rust Reference, plus
    direct links to the relevant `core`/`alloc` docs for specific well-known
-   functions — and, with `--write`, one `// unsafe-requirements: ...` comment
-   line per operation is inserted directly above the block. The one exception
-   is a call into an unsafe function/method declared in the scanned source
-   itself: there's no external documentation to point at, so it's just
-   labeled "calling unsafe Tock function/method `name`" with no URL.
+   functions — and, for the well-known functions, to a verbatim copy of that
+   page's own "Safety" section (see `src/safety_docs.rs`). With `--write`,
+   one `SAFETY REQUIREMENTS:` list item per operation is inserted directly
+   above the block: the operation itself, then its URL and copied safety
+   text as a nested sub-list. The one exception is a call into an unsafe
+   function/method declared in the scanned source itself: there's no
+   external documentation to point at, so it's just labeled "calling unsafe
+   Tock function/method `name`" with no URL and no sub-list.
 
 [syn]: https://docs.rs/syn/
 [unsafety]: https://doc.rust-lang.org/reference/unsafety.html
@@ -108,6 +140,12 @@ type is. In particular:
   collide with an unrelated safe function or method of the same name. The
   same is true, with the same caveat, for calls into unsafe functions/methods
   declared in the scanned source itself.
+- The copied "Safety" text in `src/safety_docs.rs` is a fixed, hand-curated
+  snapshot of the real documentation (fetched once, not re-fetched at run
+  time), so it can go stale if the standard library's own docs change.
+  Several well-known functions genuinely have no dedicated "Safety" section
+  to copy (e.g. `core::mem::transmute`, `<*const T>::byte_add`) — those
+  render as `unknown` even though they have a URL.
 - Some unsafe operations have no generic syntactic signature at all and are
   not detected: for example, a safety requirement coming from inside a
   project-specific macro invocation, or calling a safe function annotated

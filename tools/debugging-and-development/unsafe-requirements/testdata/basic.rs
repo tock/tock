@@ -20,6 +20,10 @@ pub fn deref_example(ptr: *const u32) -> u32 {
     unsafe { *ptr }
 }
 
+pub fn add_example(ptr: *const u32) -> *const u32 {
+    unsafe { ptr.add(1) }
+}
+
 pub fn call_example() -> u32 {
     unsafe { danger(COUNTER) }
 }

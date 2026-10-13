@@ -7,6 +7,7 @@
 //! has to be `unsafe`.
 
 use crate::inventory::Inventory;
+use crate::safety_docs;
 use crate::urls;
 use proc_macro2::LineColumn;
 use std::collections::BTreeSet;
@@ -18,12 +19,26 @@ use syn::{Expr, ExprUnsafe};
 pub struct UnsafeBlock {
     /// The line/column of the `unsafe` keyword itself.
     pub start: LineColumn,
-    /// The reasons (a human-readable label and, when one applies, a
-    /// documentation URL) that this block needs to be unsafe, deduplicated
-    /// and sorted. A call into an unsafe function/method defined in the
-    /// scanned source itself has no URL: there's no external documentation
-    /// to point at, so the label says so directly instead.
-    pub reasons: BTreeSet<(String, Option<String>)>,
+    /// The reasons this block needs to be unsafe, deduplicated and sorted.
+    pub reasons: BTreeSet<Reason>,
+}
+
+/// One recognized reason an `unsafe` block needs to be unsafe.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct Reason {
+    /// A brief, human-readable description of the operation, e.g.
+    /// `` calling unsafe method `add` ``.
+    pub label: String,
+    /// A documentation URL for the operation, when one applies. A call into
+    /// an unsafe function/method defined in the scanned source itself has
+    /// no URL: there's no external documentation to point at.
+    pub url: Option<String>,
+    /// The verbatim "Safety" section of the documentation at `url`, when
+    /// `url` is set and that section exists. `None` here (with `url` set)
+    /// means "unknown", not "this operation has no safety requirements" --
+    /// not every unsafe function's documentation has a dedicated section to
+    /// copy.
+    pub safety: Option<&'static str>,
 }
 
 /// Finds all `unsafe` blocks in `file`, using `inv` to recognize calls into
@@ -70,19 +85,37 @@ impl<'a, 'ast> Visit<'ast> for Finder<'a> {
 /// operations that require `unsafe`.
 struct OpScanner<'a> {
     inv: &'a Inventory,
-    reasons: BTreeSet<(String, Option<String>)>,
+    reasons: BTreeSet<Reason>,
 }
 
 impl<'a> OpScanner<'a> {
     fn note(&mut self, label: String, url: &str) {
-        self.reasons.insert((label, Some(url.to_string())));
+        self.reasons.insert(Reason {
+            label,
+            url: Some(url.to_string()),
+            safety: None,
+        });
+    }
+
+    /// Like [`Self::note`], but also records the verbatim "Safety" section
+    /// text for `url`, when one was found for this operation.
+    fn note_with_safety(&mut self, label: String, url: &str, safety: Option<&'static str>) {
+        self.reasons.insert(Reason {
+            label,
+            url: Some(url.to_string()),
+            safety,
+        });
     }
 
     /// Like [`Self::note`], but for a reason with no documentation URL to
     /// point at (e.g. calling an unsafe function defined in the scanned
     /// source itself).
     fn note_no_url(&mut self, label: String) {
-        self.reasons.insert((label, None));
+        self.reasons.insert(Reason {
+            label,
+            url: None,
+            safety: None,
+        });
     }
 }
 
@@ -107,8 +140,7 @@ impl<'a, 'ast> Visit<'ast> for OpScanner<'a> {
             if self.inv.unsafe_callables.contains(&name) {
                 self.note_no_url(format!("calling unsafe Tock function `{name}`"));
             } else if urls::is_known_unsafe_callable(&name) {
-                let url = urls::specific_url_for_callee(&name).unwrap_or(urls::CALL);
-                self.note(format!("calling unsafe function `{name}`"), url);
+                self.note_known_callable(&name, "calling unsafe function");
             }
         }
         syn::visit::visit_expr_call(self, node);
@@ -119,8 +151,7 @@ impl<'a, 'ast> Visit<'ast> for OpScanner<'a> {
         if self.inv.unsafe_callables.contains(&name) {
             self.note_no_url(format!("calling unsafe Tock method `{name}`"));
         } else if urls::is_known_unsafe_callable(&name) {
-            let url = urls::specific_url_for_callee(&name).unwrap_or(urls::CALL);
-            self.note(format!("calling unsafe method `{name}`"), url);
+            self.note_known_callable(&name, "calling unsafe method");
         }
         syn::visit::visit_expr_method_call(self, node);
     }
@@ -160,5 +191,22 @@ impl<'a, 'ast> Visit<'ast> for OpScanner<'a> {
             }
         }
         syn::visit::visit_expr_macro(self, node);
+    }
+}
+
+impl<'a> OpScanner<'a> {
+    /// Notes a call into a well-known `core`/`alloc` unsafe function or
+    /// method named `name`, looking up both its documentation URL and (if
+    /// available) its copied "Safety" section text.
+    fn note_known_callable(&mut self, name: &str, verb: &str) {
+        match urls::specific_url_for_callee(name) {
+            Some(url) => {
+                let safety = safety_docs::text_for(name);
+                self.note_with_safety(format!("{verb} `{name}`"), url, safety);
+            }
+            None => {
+                self.note(format!("{verb} `{name}`"), urls::CALL);
+            }
+        }
     }
 }
