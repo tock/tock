@@ -33,9 +33,6 @@ impl IoWrite for Writer {
 }
 
 /// Panic handler.
-///
-/// # Safety
-/// Accesses memory-mapped registers.
 #[cfg(not(test))]
 #[panic_handler]
 pub fn panic_fmt(pi: &PanicInfo) -> ! {
@@ -52,7 +49,6 @@ pub fn panic_fmt(pi: &PanicInfo) -> ! {
         // By writing 0xff to this address we can exit the simulation.
         // So instead of blinking in a loop let's exit the simulation.
         write_volatile(0xd0580000 as *mut u8, 0xff);
-
-        unreachable!()
     }
+    loop {}
 }
