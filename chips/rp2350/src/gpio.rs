@@ -12,6 +12,7 @@ use kernel::utilities::registers::{
     interfaces::{ReadWriteable, Readable, Writeable},
     register_bitfields, register_structs,
 };
+pub use rp2xxx::pads::{DriveStrength, SlewRate};
 
 use crate::chip::Processor;
 #[repr(C)]
@@ -1337,6 +1338,22 @@ impl<'a> RPGpioPin<'a> {
 
     pub fn deactivate_pads(&self) {
         self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::OD::SET + GPIO_PAD::IE::CLEAR);
+    }
+
+    /// Enable or disable the pad's Schmitt trigger on the input path.
+    pub fn set_schmitt(&self, enable: bool) {
+        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::SCHMITT.val(enable as u32));
+    }
+
+    /// Set how fast the pad drives an edge.
+    pub fn set_slew_rate(&self, slew_rate: SlewRate) {
+        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::SLEWFAST.val(slew_rate as u32));
+    }
+
+    /// Set how much current the pad can source or sink.
+    pub fn set_drive_strength(&self, drive_strength: DriveStrength) {
+        self.gpio_pad_registers.gpio_pad[self.pin]
+            .modify(GPIO_PAD::DRIVE.val(drive_strength as u32));
     }
 
     pub fn handle_interrupt(&self) {
