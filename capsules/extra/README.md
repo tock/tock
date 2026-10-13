@@ -148,6 +148,7 @@ These provide common and better abstractions for userspace.
 - **[Text Screen](src/text_screen.rs)**: Text-based displays.
 - **[Touch](src/touch.rs)**: User touch panels.
 - **[Distance](src/distance.rs)**: Distance sensor.
+- **[App Software Watchdog](src/app_software_watchdog.rs)**: Restart unresponsive/hung applications.
 
 
 Virtualized Sensor Capsules for Userspace
