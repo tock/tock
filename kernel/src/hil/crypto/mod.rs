@@ -15,7 +15,7 @@
 //! RSA, etc.). Things like different parameters, cipher modes, padding schemes, are represented as
 //! arguments or different operations/callbacks within the same trait. If a particular algorithm or
 //! combination of paramers is not supported by a given implementation, then it should return
-//! [`ErrorCode::NOSUPPORT`].
+//! `ErrorCode::NOSUPPORT`.
 //!
 //! ## Callback-Oriented Data Movement
 //!
