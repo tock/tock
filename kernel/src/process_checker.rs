@@ -355,14 +355,14 @@ impl ProcessCheckerMachine {
             );
         }
 
-        let integrity_slice = process_binary.get_integrity_region_slice();
+        let integrity_ptr = process_binary.get_integrity_region_slice();
         let mut footer_ptr = process_binary.footers;
 
         if config::CONFIG.debug_process_credentials {
             debug!(
                 "Checking: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
-                integrity_slice.as_ptr() as usize,
-                integrity_slice.as_ptr() as usize + integrity_slice.len(),
+                integrity_ptr.addr(),
+                integrity_ptr.addr() + integrity_ptr.len(),
                 footer_ptr.addr(),
                 footer_ptr.addr() + footer_ptr.len(),
             );
@@ -420,6 +420,7 @@ impl ProcessCheckerMachine {
                         Some(ptr) => {
                             footer_ptr = ptr;
                             if current_footer == next_footer {
+                                let integrity_slice: &[u8] = unsafe { &*integrity_ptr };
                                 match policy.check_credentials(footer, integrity_slice) {
                                     Ok(()) => {
                                         if config::CONFIG.debug_process_credentials {
