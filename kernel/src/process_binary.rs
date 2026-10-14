@@ -112,18 +112,53 @@ impl fmt::Debug for ProcessBinaryError {
     }
 }
 
+/// Compute the sub-slice `flash[start..end]` as a `*const [u8]`, mirroring
+/// `<[u8]>::get(start..end)` but without ever forming a reference to `flash`
+/// itself.
+///
+/// Returns `None` if the requested range is out of bounds.
+pub(crate) fn get_flash_subslice(
+    flash: *const [u8],
+    start: usize,
+    end: usize,
+) -> Option<*const [u8]> {
+    if start > end || end > flash.len() {
+        return None;
+    }
+    // SAFETY: `start <= end <= flash.len()`, so `data.add(start)` stays
+    // within (or one-past-the-end of) the same allocation `flash` points
+    // to, and the resulting pointer/length describe a sub-range of it. This
+    // does not dereference `flash` or the result.
+    let data = unsafe { flash.cast::<u8>().add(start) };
+    Some(core::ptr::slice_from_raw_parts(data, end - start))
+}
+
 /// A process stored in flash.
 pub struct ProcessBinary {
     /// Process flash segment. This is the entire region of nonvolatile flash
     /// that the process occupies.
-    pub flash: &'static [u8],
+    ///
+    /// This is a raw pointer rather than a reference because a process can
+    /// initiate writes to its own flash (e.g. to store persistent data) while
+    /// this `ProcessBinary`/the `ProcessStandard` created from it exists;
+    /// holding a `&'static [u8]` here for the process's entire lifetime would
+    /// be unsound on platforms where that can happen concurrently with the
+    /// kernel reading through it.
+    pub flash: *const [u8],
 
     /// The footers of the process binary (may be zero-sized), which are metadata
     /// about the process not covered by integrity. Used, among other things, to
     /// store signatures.
-    pub footers: &'static [u8],
+    ///
+    /// Also a raw pointer for the same reason as `flash` above.
+    pub footers: *const [u8],
 
     /// Collection of pointers to the TBF header in flash.
+    ///
+    /// Unlike `flash`/`footers` above, this does retain an (asserted)
+    /// `'static` reference internally (see `create()`), because the header
+    /// occupies the "protected" region of a process's flash, which, unlike
+    /// the rest of `flash`, a process can never write to itself.
     pub header: tock_tbf::types::TbfHeader<'static>,
 
     /// Optional credential that was used to approve this application. This is
@@ -134,15 +169,22 @@ pub struct ProcessBinary {
 
 impl ProcessBinary {
     pub(crate) fn create(
-        app_flash: &'static [u8],
+        app_flash: *const [u8],
         header_length: usize,
         tbf_version: u16,
         require_kernel_version: bool,
     ) -> Result<Self, ProcessBinaryError> {
         // Get a slice for just the app header.
-        let header_flash = app_flash
-            .get(0..header_length)
+        let header_flash_ptr = get_flash_subslice(app_flash, 0, header_length)
             .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+        // SAFETY: The TBF header lives in the "protected" region of a
+        // process's flash (see `TbfHeader::get_protected_size()`), which a
+        // process can never write to itself, so it is safe to treat this
+        // reference as live for as long as we keep this `ProcessBinary`
+        // (and any `ProcessStandard` created from it) around, unlike the
+        // rest of `flash`.
+        let header_flash: &[u8] = unsafe { &*header_flash_ptr };
 
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
@@ -154,8 +196,8 @@ impl ProcessBinary {
             if config::CONFIG.debug_load_processes && !tbf_header.is_app() {
                 debug!(
                     "Padding in flash={:#010X}-{:#010X}",
-                    app_flash.as_ptr() as usize,
-                    app_flash.as_ptr() as usize + app_flash.len() - 1
+                    app_flash.addr(),
+                    app_flash.addr() + app_flash.len() - 1
                 );
             }
             // Return no process and the full memory slice we were given.
@@ -167,8 +209,8 @@ impl ProcessBinary {
             if config::CONFIG.debug_load_processes {
                 debug!(
                     "Process not enabled flash={:#010X}-{:#010X} process={:?}",
-                    app_flash.as_ptr() as usize,
-                    app_flash.as_ptr() as usize + app_flash.len() - 1,
+                    app_flash.addr(),
+                    app_flash.addr() + app_flash.len() - 1,
                     tbf_header.get_package_name().unwrap_or("(no name)")
                 );
             }
@@ -221,8 +263,7 @@ impl ProcessBinary {
 
         // End of the portion of the application binary covered by integrity.
         // Now handle footers.
-        let footer_region = app_flash
-            .get(binary_end..total_size)
+        let footer_region = get_flash_subslice(app_flash, binary_end, total_size)
             .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
         // Check that the process is at the correct location in flash if the TBF
@@ -231,7 +272,7 @@ impl ProcessBinary {
         if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
             // The flash address in the header is based on the app binary, so we
             // need to take into account the header length.
-            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let actual_address = app_flash.addr() as u32 + tbf_header.get_protected_size();
             let expected_address = fixed_flash_start;
             if actual_address != expected_address {
                 return Err(ProcessBinaryError::IncorrectFlashAddress {
@@ -254,6 +295,13 @@ impl ProcessBinary {
     }
 
     pub(crate) fn get_integrity_region_slice(&self) -> &'static [u8] {
-        &self.flash[0..self.header.get_binary_end() as usize]
+        let end = self.header.get_binary_end() as usize;
+        let ptr = get_flash_subslice(self.flash, 0, end)
+            .expect("process binary's integrity region extends past its own flash region");
+        // SAFETY: This is only called by the process checker machine while
+        // checking this process's credentials, which happens before this
+        // process starts executing, so nothing can be concurrently writing
+        // to this flash yet.
+        unsafe { &*ptr }
     }
 }

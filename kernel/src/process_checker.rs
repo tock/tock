@@ -15,7 +15,7 @@ use crate::config;
 use crate::debug;
 use crate::process::Process;
 use crate::process::ShortId;
-use crate::process_binary::ProcessBinary;
+use crate::process_binary::{ProcessBinary, get_flash_subslice};
 use crate::utilities::cells::{NumericCellExt, OptionalCell};
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfParseError;
@@ -356,15 +356,15 @@ impl ProcessCheckerMachine {
         }
 
         let integrity_slice = process_binary.get_integrity_region_slice();
-        let mut footer_slice = process_binary.footers;
+        let mut footer_ptr = process_binary.footers;
 
         if config::CONFIG.debug_process_credentials {
             debug!(
                 "Checking: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
                 integrity_slice.as_ptr() as usize,
                 integrity_slice.as_ptr() as usize + integrity_slice.len(),
-                footer_slice.as_ptr() as usize,
-                footer_slice.as_ptr() as usize + footer_slice.len(),
+                footer_ptr.addr(),
+                footer_ptr.addr() + footer_ptr.len(),
             );
         }
 
@@ -373,11 +373,15 @@ impl ProcessCheckerMachine {
             if config::CONFIG.debug_process_credentials {
                 debug!(
                     "Checking: Current footer slice {:x}-{:x}",
-                    footer_slice.as_ptr() as usize,
-                    footer_slice.as_ptr() as usize + footer_slice.len(),
+                    footer_ptr.addr(),
+                    footer_ptr.addr() + footer_ptr.len(),
                 );
             }
 
+            // SAFETY: Footer checking happens while this process is being
+            // checked, before it has started executing, so nothing can be
+            // concurrently writing to this flash yet.
+            let footer_slice: &[u8] = unsafe { &*footer_ptr };
             let parse_result = tock_tbf::parse::parse_tbf_footer(footer_slice);
             match parse_result {
                 Err(TbfParseError::NotEnoughFlash) => {
@@ -399,11 +403,12 @@ impl ProcessCheckerMachine {
                     return FooterCheckResult::BadFooter;
                 }
                 Ok((footer, len)) => {
-                    let slice_result = footer_slice.get(len as usize + 4..);
+                    let slice_result =
+                        get_flash_subslice(footer_ptr, len as usize + 4, footer_ptr.len());
                     if config::CONFIG.debug_process_credentials {
                         debug!(
                             "ProcessCheck: @{:x} found a len {} footer: {:?}",
-                            footer_slice.as_ptr() as usize,
+                            footer_ptr.addr(),
                             len,
                             footer.format()
                         );
@@ -412,8 +417,8 @@ impl ProcessCheckerMachine {
                         None => {
                             return FooterCheckResult::BadFooter;
                         }
-                        Some(slice) => {
-                            footer_slice = slice;
+                        Some(ptr) => {
+                            footer_ptr = ptr;
                             if current_footer == next_footer {
                                 match policy.check_credentials(footer, integrity_slice) {
                                     Ok(()) => {

@@ -22,7 +22,7 @@ use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::{Process, ShortId};
-use crate::process_binary::{ProcessBinary, ProcessBinaryError};
+use crate::process_binary::{ProcessBinary, ProcessBinaryError, get_flash_subslice};
 use crate::process_checker::AcceptedCredential;
 use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachine};
 use crate::process_policies::ProcessFaultPolicy;
@@ -294,7 +294,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
 /// `ProcessBinary` object if the process is viable to run on this kernel.
 fn discover_process_binary(
     flash: *const [u8],
-) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
+) -> Result<(*const [u8], ProcessBinary), (*const [u8], ProcessBinaryError)> {
     if config::CONFIG.debug_load_processes {
         debug!(
             "Looking for process binary in flash={:#010X}-{:#010X}",
@@ -304,15 +304,20 @@ fn discover_process_binary(
     }
 
     // If this fails, not enough remaining flash to check for an app.
-    let test_header_slice = flash
-        .get(0..8)
-        .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
+    let test_header_ptr =
+        get_flash_subslice(flash, 0, 8).ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
     // Pass the first eight bytes to tbfheader to parse out the length of
     // the tbf header and app. We then use those values to see if we have
     // enough flash remaining to parse the remainder of the header.
     //
+    // SAFETY: Process discovery happens at boot, before any process has
+    // started executing, so nothing can be concurrently writing to this
+    // flash. It is therefore sound to briefly read these 8 bytes through a
+    // shared reference that does not outlive this function call.
+    //
     // Start by converting [u8] to [u8; 8].
+    let test_header_slice: &[u8] = unsafe { &*test_header_ptr };
     let header = test_header_slice
         .try_into()
         .or(Err((flash, ProcessBinaryError::NotEnoughFlash)))?;
@@ -337,18 +342,16 @@ fn discover_process_binary(
     // Now we can get a slice which only encompasses the length of flash
     // described by this tbf header.  We will either parse this as an actual
     // app, or skip over this region.
-    let app_flash = flash
-        .get(0..app_length as usize)
+    let app_flash_ptr = get_flash_subslice(flash, 0, app_length as usize)
         .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
     // Advance the flash slice for process discovery beyond this last entry.
     // This will be the start of where we look for a new process since Tock
     // processes are allocated back-to-back in flash.
-    let remaining_flash = flash
-        .get(app_flash.len()..)
+    let remaining_flash = get_flash_subslice(flash, app_flash_ptr.len(), flash.len())
         .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
-    let pb = ProcessBinary::create(app_flash, header_length as usize, version, true)
+    let pb = ProcessBinary::create(app_flash_ptr, header_length as usize, version, true)
         .map_err(|e| (remaining_flash, e))?;
 
     Ok((remaining_flash, pb))
@@ -372,8 +375,8 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
-            process_binary.flash.as_ptr() as usize,
-            process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
+            process_binary.flash.addr(),
+            process_binary.flash.addr() + process_binary.flash.len() - 1,
             app_memory.addr(),
             app_memory.addr() + app_memory.len() - 1
         );
@@ -644,12 +647,16 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
         match discover_process_binary(flash) {
             Ok((remaining_flash, pb)) => {
-                self.flash.set(remaining_flash);
+                // SAFETY: As in `discover_process_binary`, process
+                // discovery happens before any process starts executing, so
+                // this flash cannot be concurrently written to.
+                self.flash.set(unsafe { &*remaining_flash });
                 Ok(pb)
             }
 
             Err((remaining_flash, err)) => {
-                self.flash.set(remaining_flash);
+                // SAFETY: See above.
+                self.flash.set(unsafe { &*remaining_flash });
                 Err(err)
             }
         }
@@ -809,10 +816,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             debug!(
                 "Loading: ProcessBinary {}({:#02x}) does{} block {}({:#02x})",
                 pb2.header.get_package_name().unwrap_or(""),
-                pb2.flash.as_ptr() as usize,
+                pb2.flash.addr(),
                 if blocks { "" } else { " not" },
                 pb1.header.get_package_name().unwrap_or(""),
-                pb1.flash.as_ptr() as usize,
+                pb1.flash.addr(),
             );
         }
 
@@ -849,7 +856,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 process.get_addresses().flash_start,
                 if blocks { "" } else { " not" },
                 pb.header.get_package_name().unwrap_or(""),
-                pb.flash.as_ptr() as usize,
+                pb.flash.addr(),
             );
         }
 
