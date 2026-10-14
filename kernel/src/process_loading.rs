@@ -521,9 +521,9 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     /// Array to store `ProcessBinary`s after checking credentials.
     proc_binaries: MapCell<&'static mut [Option<ProcessBinary>]>,
     /// Total available flash for process binaries on this board.
-    flash_bank: Cell<&'static [u8]>,
+    flash_bank: Cell<*const [u8]>,
     /// Flash memory region to load processes from.
-    flash: Cell<&'static [u8]>,
+    flash: Cell<*const [u8]>,
     /// Memory available to assign to applications.
     app_memory: MapCell<*mut [u8]>,
     /// Mechanism for generating async callbacks.
@@ -554,7 +554,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         proc_binaries: &'static mut [Option<ProcessBinary>],
         kernel: &'static Kernel,
         chip: &'static C,
-        flash: &'static [u8],
+        flash: *const [u8],
         app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
         storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
@@ -652,16 +652,12 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
         match discover_process_binary(flash) {
             Ok((remaining_flash, pb)) => {
-                // SAFETY: As in `discover_process_binary`, process
-                // discovery happens before any process starts executing, so
-                // this flash cannot be concurrently written to.
-                self.flash.set(unsafe { &*remaining_flash });
+                self.flash.set(remaining_flash);
                 Ok(pb)
             }
 
             Err((remaining_flash, err)) => {
-                // SAFETY: See above.
-                self.flash.set(unsafe { &*remaining_flash });
+                self.flash.set(remaining_flash);
                 Err(err)
             }
         }
@@ -875,12 +871,12 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     /// Scan the entire flash to populate lists of existing binaries addresses.
     fn scan_flash_for_process_binaries(
         &self,
-        flash: &'static [u8],
+        flash: *const [u8],
         process_binaries_start_addresses: &mut [usize],
         process_binaries_end_addresses: &mut [usize],
     ) -> Result<(), ()> {
         fn inner_function(
-            flash: &'static [u8],
+            flash: *const [u8],
             process_binaries_start_addresses: &mut [usize],
             process_binaries_end_addresses: &mut [usize],
         ) -> Result<(), ProcessBinaryError> {
