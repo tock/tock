@@ -16,9 +16,6 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Readable;
 use kernel::utilities::registers::{ReadOnly, register_bitfields};
 
-const FICR_BASE: StaticRef<FicrRegisters> =
-    unsafe { StaticRef::new(0x10000000 as *const FicrRegisters) };
-
 /// Struct of the FICR registers
 ///
 /// Section 13.1 of <https://infocenter.nordicsemi.com/pdf/nRF52832_PS_v1.0.pdf>
@@ -26,7 +23,7 @@ const FICR_BASE: StaticRef<FicrRegisters> =
 /// The structure is identical for the data mapped here, differences start
 /// at address 0x350.
 #[repr(C)]
-struct FicrRegisters {
+pub struct FicrRegisters {
     /// Reserved
     _reserved0: [u32; 4],
     /// Code memory page size
@@ -322,10 +319,8 @@ pub struct Ficr {
 }
 
 impl Ficr {
-    pub const fn new() -> Ficr {
-        Ficr {
-            registers: FICR_BASE,
-        }
+    pub const fn new(registers: StaticRef<FicrRegisters>) -> Ficr {
+        Ficr { registers }
     }
 
     fn part(&self) -> Part {

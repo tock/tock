@@ -207,8 +207,14 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
     );
     let aes_ecb_buf = static_init!([u8; 48], [0; 48]);
+    let ficr = static_init!(
+        nrf52840::ficr::Ficr,
+        nrf52840::ficr::Ficr::new(nrf52840::chip::FICR_BASE)
+    );
+
     // SAFETY: Satisfied by function-level requirements.
-    let peripherals = unsafe { Nrf52840DefaultPeripherals::new(ieee802154_ack_buf, aes_ecb_buf) };
+    let peripherals =
+        unsafe { Nrf52840DefaultPeripherals::new(ficr, ieee802154_ack_buf, aes_ecb_buf) };
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(Nrf52840DefaultPeripherals, peripherals);
 
@@ -375,6 +381,8 @@ pub unsafe fn start_particle_boron() -> (
         BUTTON_RST_PIN,
         nrf52840::uicr::Regulator0Output::V3_0,
         &base_peripherals.nvmc,
+        &base_peripherals.uicr,
+        &base_peripherals.approtect,
     )
     .finalize(());
 

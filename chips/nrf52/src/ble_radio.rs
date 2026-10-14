@@ -51,11 +51,8 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly, register_bitfields};
 use nrf5x::constants::TxPower;
 
-const RADIO_BASE: StaticRef<RadioRegisters> =
-    unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
-
 #[repr(C)]
-struct RadioRegisters {
+pub struct RadioRegisters {
     /// Enable Radio in TX mode
     /// - Address: 0x000 - 0x004
     task_txen: WriteOnly<u32, Task::Register>,
@@ -545,9 +542,9 @@ pub struct Radio<'a> {
 }
 
 impl<'a> Radio<'a> {
-    pub const fn new() -> Radio<'a> {
+    pub const fn new(registers: StaticRef<RadioRegisters>) -> Radio<'a> {
         Radio {
-            registers: RADIO_BASE,
+            registers,
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
