@@ -320,7 +320,10 @@ mod tests {
             select(&["hello_world@hifive1", "hello_world@qemu_rv64_virt"]),
             ["hello_world@hifive1", "hello_world@qemu_rv64_virt"]
         );
-        assert_eq!(select(&["hello_world@allboards"]).len(), 2);
+        assert_eq!(
+            select(&["hello_world@allboards"]).len(),
+            crate::boards::BOARDS.len()
+        );
         assert_eq!(select(&[]).len(), select(&["alltests@allboards"]).len());
     }
 

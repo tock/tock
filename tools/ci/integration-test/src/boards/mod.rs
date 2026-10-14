@@ -3,10 +3,11 @@
 // Copyright Tock Contributors 2026.
 
 pub mod helpers;
+pub mod nrf52;
 pub mod qemu;
 
 use crate::test_cases::Requirement;
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use std::path::Path;
 use std::time::Duration;
 
@@ -44,9 +45,92 @@ pub struct Board {
     pub tock_targets: &'static [&'static str],
     /// Upper bounds on the duration of certain board-specific operations.
     pub timing: Timing,
-    /// Open the board for running tests, with the Tock repository at the given
-    /// path.
-    pub open: fn(&Path) -> Box<dyn Dut>,
+    /// Open the board for running tests.
+    pub open: Open,
+}
+
+/// Function which opens a board for running tests.
+#[derive(Debug)]
+pub enum Open {
+    /// The board's a virtual board which we spawn on demand from the Tock
+    /// repository at the given path, no config required.
+    Virtual(fn(&Path) -> Box<dyn Dut>),
+    /// This is a physical board which needs a configuration (e.g., to select a
+    /// board with a particular serial number).
+    Physical(fn(DutConfig) -> Box<dyn Dut>),
+}
+
+/// Physical board attached to this host.
+#[derive(Debug, Clone)]
+pub struct AttachedDut {
+    pub board: &'static Board,
+    /// How the board is connected to this host.
+    pub config: DutConfig,
+}
+
+impl AttachedDut {
+    /// Return the requirements among `requires` which the board, as it is
+    /// attached to this host, does not provide.
+    pub fn missing(&self, requires: &[Requirement]) -> Vec<Requirement> {
+        (requires.iter().copied())
+            .filter(|r| !self.satisfies(*r))
+            .collect()
+    }
+
+    /// Check if the board, as it is attached to this host, provides
+    /// `requirement`.
+    pub fn satisfies(&self, requirement: Requirement) -> bool {
+        match requirement {
+            Requirement::Uart => self.config.console.is_some(),
+        }
+    }
+}
+
+/// Configuration describing how a physical board is connected to this host (see
+/// [`Open::Physical`]).
+#[derive(Debug, Clone, Default)]
+pub struct DutConfig {
+    /// Serial number of the board's debug probe, to select it among several.
+    pub probe: Option<String>,
+    /// Path of the serial port of the board's UART console (e.g.,
+    /// `/dev/ttyACM0`).
+    pub console: Option<String>,
+}
+
+impl DutConfig {
+    /// Return the path of the serial port of the board's UART console, or an
+    /// error if none is configured.
+    pub fn console(&self) -> Result<&str> {
+        (self.console.as_deref()).context("DUT has no console configured")
+    }
+}
+
+impl std::str::FromStr for AttachedDut {
+    type Err = anyhow::Error;
+
+    /// Parse an [`AttachedDut`] from a string description of the form
+    /// `<board>[,probe=<serial>][,console=<device>]`.
+    fn from_str(s: &str) -> Result<Self> {
+        let mut fields = s.split(',');
+
+        let board = Board::from_name(fields.next().unwrap_or_default())?;
+        if matches!(board.open, Open::Virtual(_)) {
+            bail!("{board} is virtual, `--dut` is not supported for it");
+        }
+
+        let mut config = DutConfig::default();
+        for field in fields {
+            match field.split_once('=') {
+                Some(("probe", serial)) => config.probe = Some(serial.to_string()),
+                Some(("console", device)) => config.console = Some(device.to_string()),
+                _ => bail!(
+                    "unknown DUT setting {field:?}, expected probe=<serial> or console=<device>"
+                ),
+            }
+        }
+
+        Ok(AttachedDut { board, config })
+    }
 }
 
 /// Upper bounds on the duration of a board's operations.
@@ -83,6 +167,12 @@ impl Board {
     }
 
     /// Check if the board provides `requirement`.
+    ///
+    /// This only considers the static board definition in this harness itself,
+    /// and does not dynamically probe whether the requirement is fulfilled on
+    /// this host. Whether a physical board provides `requirement` also depends
+    /// on how it is attached to the host (e.g., if its console is connected),
+    /// which [`AttachedDut::satisfies`] checks.
     pub fn provides(&self, requirement: Requirement) -> bool {
         match requirement {
             Requirement::Uart => true,
@@ -168,7 +258,25 @@ pub trait Dut {
 
 #[cfg(test)]
 mod tests {
-    use super::{BOARDS, by_name};
+    use super::{AttachedDut, BOARDS, by_name, nrf52};
+
+    #[test]
+    fn duts_parse_from_their_board_and_settings() {
+        let dut: AttachedDut = "nrf52840dk,console=/dev/ttyACM0,probe=123".parse().unwrap();
+        assert_eq!(dut.board, &nrf52::NRF52840DK);
+        assert_eq!(dut.config.console.as_deref(), Some("/dev/ttyACM0"));
+        assert_eq!(dut.config.probe.as_deref(), Some("123"));
+        assert!("nrf52840dk,baud=9600".parse::<AttachedDut>().is_err());
+        assert!("qemu_rv64_virt".parse::<AttachedDut>().is_err());
+    }
+
+    #[test]
+    fn a_console_needs_a_console_device() {
+        let with: AttachedDut = "nrf52840dk,console=/dev/ttyACM0".parse().unwrap();
+        let without: AttachedDut = "nrf52840dk".parse().unwrap();
+        assert!(with.satisfies(crate::test_cases::Requirement::Uart));
+        assert!(!without.satisfies(crate::test_cases::Requirement::Uart));
+    }
 
     #[test]
     fn board_names_are_unique() {
