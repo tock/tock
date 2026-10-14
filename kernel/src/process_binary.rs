@@ -112,27 +112,6 @@ impl fmt::Debug for ProcessBinaryError {
     }
 }
 
-/// Compute the sub-slice `flash[start..end]` as a `*const [u8]`, mirroring
-/// `<[u8]>::get(start..end)` but without ever forming a reference to `flash`
-/// itself.
-///
-/// Returns `None` if the requested range is out of bounds.
-pub(crate) fn get_flash_subslice(
-    flash: *const [u8],
-    start: usize,
-    end: usize,
-) -> Option<*const [u8]> {
-    if start > end || end > flash.len() {
-        return None;
-    }
-    // SAFETY: `start <= end <= flash.len()`, so `data.add(start)` stays
-    // within (or one-past-the-end of) the same allocation `flash` points
-    // to, and the resulting pointer/length describe a sub-range of it. This
-    // does not dereference `flash` or the result.
-    let data = unsafe { flash.cast::<u8>().add(start) };
-    Some(core::ptr::slice_from_raw_parts(data, end - start))
-}
-
 /// A process stored in flash.
 pub struct ProcessBinary {
     /// Process flash segment. This is the entire region of nonvolatile flash
@@ -175,8 +154,9 @@ impl ProcessBinary {
         require_kernel_version: bool,
     ) -> Result<Self, ProcessBinaryError> {
         // Get a slice for just the app header.
-        let header_flash_ptr = get_flash_subslice(app_flash, 0, header_length)
-            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+        let header_flash_ptr =
+            crate::utilities::slice_ptr_subslice::slice_ptr_subslice(app_flash, 0, header_length)
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
         // SAFETY: The TBF header lives in the "protected" region of a
         // process's flash (see `TbfHeader::get_protected_size()`), which a
@@ -263,8 +243,10 @@ impl ProcessBinary {
 
         // End of the portion of the application binary covered by integrity.
         // Now handle footers.
-        let footer_region = get_flash_subslice(app_flash, binary_end, total_size)
-            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+        let footer_region = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+            app_flash, binary_end, total_size,
+        )
+        .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
         // Check that the process is at the correct location in flash if the TBF
         // header specified a fixed address. If there is a mismatch we catch
@@ -296,6 +278,6 @@ impl ProcessBinary {
 
     pub(crate) fn get_integrity_region_slice(&self) -> *const [u8] {
         let end = self.header.get_binary_end() as usize;
-        get_flash_subslice(self.flash, 0, end).unwrap()
+        crate::utilities::slice_ptr_subslice::slice_ptr_subslice(self.flash, 0, end).unwrap()
     }
 }

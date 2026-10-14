@@ -15,7 +15,7 @@ use crate::config;
 use crate::debug;
 use crate::process::Process;
 use crate::process::ShortId;
-use crate::process_binary::{ProcessBinary, get_flash_subslice};
+use crate::process_binary::ProcessBinary;
 use crate::utilities::cells::{NumericCellExt, OptionalCell};
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfParseError;
@@ -403,8 +403,11 @@ impl ProcessCheckerMachine {
                     return FooterCheckResult::BadFooter;
                 }
                 Ok((footer, len)) => {
-                    let slice_result =
-                        get_flash_subslice(footer_ptr, len as usize + 4, footer_ptr.len());
+                    let slice_result = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+                        footer_ptr,
+                        len as usize + 4,
+                        footer_ptr.len(),
+                    );
                     if config::CONFIG.debug_process_credentials {
                         debug!(
                             "ProcessCheck: @{:x} found a len {} footer: {:?}",

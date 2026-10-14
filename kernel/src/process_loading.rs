@@ -22,7 +22,7 @@ use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::{Process, ShortId};
-use crate::process_binary::{ProcessBinary, ProcessBinaryError, get_flash_subslice};
+use crate::process_binary::{ProcessBinary, ProcessBinaryError};
 use crate::process_checker::AcceptedCredential;
 use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachine};
 use crate::process_policies::ProcessFaultPolicy;
@@ -304,8 +304,8 @@ fn discover_process_binary(
     }
 
     // If this fails, not enough remaining flash to check for an app.
-    let test_header_ptr =
-        get_flash_subslice(flash, 0, 8).ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
+    let test_header_ptr = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(flash, 0, 8)
+        .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
     // Pass the first eight bytes to tbfheader to parse out the length of
     // the tbf header and app. We then use those values to see if we have
@@ -342,14 +342,19 @@ fn discover_process_binary(
     // Now we can get a slice which only encompasses the length of flash
     // described by this tbf header.  We will either parse this as an actual
     // app, or skip over this region.
-    let app_flash_ptr = get_flash_subslice(flash, 0, app_length as usize)
-        .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
+    let app_flash_ptr =
+        crate::utilities::slice_ptr_subslice::slice_ptr_subslice(flash, 0, app_length as usize)
+            .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
     // Advance the flash slice for process discovery beyond this last entry.
     // This will be the start of where we look for a new process since Tock
     // processes are allocated back-to-back in flash.
-    let remaining_flash = get_flash_subslice(flash, app_flash_ptr.len(), flash.len())
-        .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
+    let remaining_flash = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+        flash,
+        app_flash_ptr.len(),
+        flash.len(),
+    )
+    .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
     let pb = ProcessBinary::create(app_flash_ptr, header_length as usize, version, true)
         .map_err(|e| (remaining_flash, e))?;
