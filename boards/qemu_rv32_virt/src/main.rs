@@ -113,42 +113,44 @@ pub unsafe fn main() {
     // Start the process console:
     let _ = platform.base.process_console_start();
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-        /// The start of the kernel text (Included only for kernel PMP)
-        static _stext: u8;
-        /// The end of the kernel text (Included only for kernel PMP)
-        static _etext: u8;
-        /// The start of the kernel / app / storage flash (Included only for kernel PMP)
-        static _sflash: u8;
-        /// The end of the kernel / app / storage flash (Included only for kernel PMP)
-        static _eflash: u8;
-        /// The start of the kernel / app RAM (Included only for kernel PMP)
-        static _ssram: u8;
-        /// The end of the kernel / app RAM (Included only for kernel PMP)
-        static _esram: u8;
-    }
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+
+    let app_flash_region = rv32i::support::linker_region_slice_ptr!("_sapps", "_eapps")
+        .expect("App flash region is invalid");
+    if app_flash_region.len() > isize::MAX as usize {
+        // This check is only required because we're creating a Rust slice
+        // below, we can remove it once `load_processes` uses raw slice
+        // pointers.
+        panic!("[_sapps; _eapps) is longer than isize::MAX, can't back a Rust slice!");
+    }
+    let app_ram_region = rv32i::support::linker_region_slice_ptr!("_sappmem", "_eappmem")
+        .expect("App RAM region is invalid");
+    if app_ram_region.len() > isize::MAX as usize {
+        // This check is only required because we're creating a Rust slice
+        // below, we can remove it once `load_processes` uses raw slice
+        // pointers.
+        panic!("[_sappmem; _eappmem) is longer than isize::MAX, can't back a Rust slice!");
+    }
 
     kernel::process::load_processes(
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
+        // This may well be unsound on many platforms: apps can initiate writes to
+        // their own flash while a shared slice reference derived from this slice is
+        // stored in `ProcessStandard`.
+        //
+        // SAFETY: TODO. This is unsound, in the general case, for at least some
+        // of our boards.
+        unsafe { &*app_flash_region },
+        // We should similarly avoid creating a temporary exclusive slice
+        // reference over the application's RAM; while `ProcessStandard` only
+        // stores raw slice pointers (`*mut [u8]`) it is hard to rule out an
+        // instant where an app or the kernel can modify its RAM while a
+        // concurrent, other exclusive slice reference exists.
+        //
+        // SAFETY: TODO. This is unsound, in the general case, for at least some
+        // of our boards.
+        unsafe { &mut *app_ram_region },
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
