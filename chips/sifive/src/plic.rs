@@ -9,7 +9,7 @@ use core::cell::Cell;
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::LocalRegisterCopy;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 
 /// Place the register map definition in a private module to disallow direct access to it's
 /// fields from the Plic struct implementation, which should only use a getter/setter with
@@ -24,35 +24,29 @@ const MAX_INTERRUPTS: usize = 1023;
 /// maximum number of bit-coded registers, 1 bit per interrupt
 const MAX_BIT_REGS: usize = MAX_INTERRUPTS.div_ceil(32);
 
-/// PLIC registers for *machine mode* context only at this time.
-///
-/// The spec defines extra sets of registers for additional contexts,
-/// that is supervisor, user and other modes, but these aren't supported
-/// by the current code.
-#[repr(C)]
-pub struct PlicRegisters {
-    /// Interrupt Priority Register
-    _reserved0: u32,
-    priority: [ReadWrite<u32, priority::Register>; MAX_INTERRUPTS],
-    _reserved1: [u8; 0x1000 - (MAX_INTERRUPTS + 1) * 4],
-    /// Interrupt Pending Register
-    pending: [ReadOnly<u32>; MAX_BIT_REGS],
-    _reserved2: [u8; 0x1000 - MAX_BIT_REGS * 4],
-    /// Interrupt Enable Register
-    enable: [ReadWrite<u32>; MAX_BIT_REGS],
-    _reserved3: [u8; 0x20_0000 - 0x2000 - MAX_BIT_REGS * 4],
-    /// Priority Threshold Register
-    threshold: ReadWrite<u32, priority::Register>,
-    /// Claim/Complete Register
-    claim: ReadWrite<u32>,
+register_structs! {
+    /// PLIC registers for *machine mode* context only at this time.
+    ///
+    /// The spec defines extra sets of registers for additional contexts,
+    /// that is supervisor, user and other modes, but these aren't supported
+    /// by the current code.
+    pub PlicRegisters {
+        (0x00_0000 => _reserved0),
+        /// Interrupt Priority Register
+        (0x00_0004 => priority: [ReadWrite<u32, priority::Register>; MAX_INTERRUPTS]),
+        /// Interrupt Pending Register
+        (0x00_1000 => pending: [ReadOnly<u32>; MAX_BIT_REGS]),
+        (0x00_1080 => _reserved1),
+        /// Interrupt Enable Register
+        (0x00_2000 => enable: [ReadWrite<u32>; MAX_BIT_REGS]),
+        (0x00_2080 => _reserved2),
+        /// Priority Threshold Register
+        (0x20_0000 => threshold: ReadWrite<u32, priority::Register>),
+        /// Claim/Complete Register
+        (0x20_0004 => claim: ReadWrite<u32>),
+        (0x20_0008 => @END),
+    }
 }
-
-/// Check that the registers are aligned to the PLIC memory map
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, priority) == 0x4);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, pending) == 0x1000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, enable) == 0x2000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, threshold) == 0x20_0000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, claim) == 0x20_0004);
 
 /// A wrapper around the PLIC registers to provide safe access to the registers
 /// within the defined interrupt number range

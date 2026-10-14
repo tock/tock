@@ -6,27 +6,29 @@
 
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
+use kernel::utilities::registers::{ReadWrite, register_bitfields, register_structs};
 
-#[repr(C)]
-pub struct PwmRegisters {
-    /// PWM Configuration Register
-    cfg: ReadWrite<u32, cfg::Register>,
-    _reserved0: [u8; 4],
-    /// Counter Register
-    count: ReadWrite<u32>,
-    _reserved1: [u8; 4],
-    /// Scaled Halfword Counter Register
-    pwms: ReadWrite<u32>,
-    _reserved2: [u8; 12],
-    /// Compare Register
-    cmp0: ReadWrite<u32>,
-    /// Compare Register
-    cmp1: ReadWrite<u32>,
-    /// Compare Register
-    cmp2: ReadWrite<u32>,
-    /// Compare Register
-    cmp3: ReadWrite<u32>,
+register_structs! {
+    pub PwmRegisters {
+        /// PWM Configuration Register
+        (0x000 => cfg: ReadWrite<u32, cfg::Register>),
+        (0x004 => _reserved0),
+        /// Counter Register
+        (0x008 => count: ReadWrite<u32>),
+        (0x00c => _reserved1),
+        /// Scaled Halfword Counter Register
+        (0x010 => pwms: ReadWrite<u32>),
+        (0x014 => _reserved2),
+        /// Compare Register
+        (0x020 => cmp0: ReadWrite<u32>),
+        /// Compare Register
+        (0x024 => cmp1: ReadWrite<u32>),
+        /// Compare Register
+        (0x028 => cmp2: ReadWrite<u32>),
+        /// Compare Register
+        (0x02c => cmp3: ReadWrite<u32>),
+        (0x030 => @END),
+    }
 }
 
 register_bitfields![u32,
