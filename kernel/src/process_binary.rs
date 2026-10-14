@@ -294,14 +294,8 @@ impl ProcessBinary {
         self.credential.get()
     }
 
-    pub(crate) fn get_integrity_region_slice(&self) -> &'static [u8] {
+    pub(crate) fn get_integrity_region_slice(&self) -> *const [u8] {
         let end = self.header.get_binary_end() as usize;
-        let ptr = get_flash_subslice(self.flash, 0, end)
-            .expect("process binary's integrity region extends past its own flash region");
-        // SAFETY: This is only called by the process checker machine while
-        // checking this process's credentials, which happens before this
-        // process starts executing, so nothing can be concurrently writing
-        // to this flash yet.
-        unsafe { &*ptr }
+        get_flash_subslice(self.flash, 0, end).unwrap()
     }
 }
