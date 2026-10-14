@@ -627,6 +627,10 @@ pub trait UserspaceKernelBoundary {
     /// will only change memory starting at `accessible_memory_start` and before
     /// `app_brk`. The caller is responsible for guaranteeing that those
     /// pointers are valid for the process.
+    ///
+    /// Calling this function requires that the MPU is properly configured for
+    /// the process being switched to (as specified by a previous call to
+    /// [`UserspaceKernelBoundary::set_process_function`]).
     unsafe fn switch_to_process(
         &self,
         accessible_memory_start: *const u8,
