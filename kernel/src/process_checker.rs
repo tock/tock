@@ -420,6 +420,10 @@ impl ProcessCheckerMachine {
                         Some(ptr) => {
                             footer_ptr = ptr;
                             if current_footer == next_footer {
+                                // SAFETY: Footer checking happens while this
+                                // process is being checked, before it has
+                                // started executing, so nothing can be
+                                // concurrently writing to this flash yet.
                                 let integrity_slice: &[u8] = unsafe { &*integrity_ptr };
                                 match policy.check_credentials(footer, integrity_slice) {
                                     Ok(()) => {
