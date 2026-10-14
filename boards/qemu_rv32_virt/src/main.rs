@@ -117,40 +117,14 @@ pub unsafe fn main() {
 
     let app_flash_region: *mut [u8] = rv32i::support::linker_region_slice_ptr!("_sapps", "_eapps")
         .expect("App flash region is invalid");
-    if app_flash_region.len() > isize::MAX as usize {
-        // This check is only required because we're creating a Rust slice
-        // below, we can remove it once `load_processes` uses raw slice
-        // pointers.
-        panic!("[_sapps; _eapps) is longer than isize::MAX, can't back a Rust slice!");
-    }
     let app_ram_region = rv32i::support::linker_region_slice_ptr!("_sappmem", "_eappmem")
         .expect("App RAM region is invalid");
-    if app_ram_region.len() > isize::MAX as usize {
-        // This check is only required because we're creating a Rust slice
-        // below, we can remove it once `load_processes` uses raw slice
-        // pointers.
-        panic!("[_sappmem; _eappmem) is longer than isize::MAX, can't back a Rust slice!");
-    }
 
     kernel::process::load_processes(
         board_kernel,
         chip,
-        // This may well be unsound on many platforms: apps can initiate writes to
-        // their own flash while a shared slice reference derived from this slice is
-        // stored in `ProcessStandard`.
-        //
-        // SAFETY: TODO. This is unsound, in the general case, for at least some
-        // of our boards.
-        unsafe { &*app_flash_region },
-        // We should similarly avoid creating a temporary exclusive slice
-        // reference over the application's RAM; while `ProcessStandard` only
-        // stores raw slice pointers (`*mut [u8]`) it is hard to rule out an
-        // instant where an app or the kernel can modify its RAM while a
-        // concurrent, other exclusive slice reference exists.
-        //
-        // SAFETY: TODO. This is unsound, in the general case, for at least some
-        // of our boards.
-        unsafe { &mut *app_ram_region },
+        app_flash_region,
+        app_ram_region,
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
