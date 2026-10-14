@@ -880,17 +880,24 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             process_binaries_start_addresses: &mut [usize],
             process_binaries_end_addresses: &mut [usize],
         ) -> Result<(), ProcessBinaryError> {
-            let flash_end = flash.as_ptr() as usize + flash.len() - 1;
-            let mut addresses = flash.as_ptr() as usize;
+            let flash_end = flash.addr() + flash.len() - 1;
+            let mut addresses = flash.addr();
             let mut index: usize = 0;
 
             while addresses < flash_end {
-                let flash_offset = addresses - flash.as_ptr() as usize;
+                let flash_offset = addresses - flash.addr();
 
-                let test_header_slice = flash
-                    .get(flash_offset..flash_offset + 8)
-                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+                let test_header_ptr = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+                    flash,
+                    flash_offset,
+                    flash_offset + 8,
+                )
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
+                // SAFETY: This scan runs prior to dynamically loading a new
+                // process, before that process has started executing, so
+                // nothing can be concurrently writing to this flash.
+                let test_header_slice: &[u8] = unsafe { &*test_header_ptr };
                 let header = test_header_slice
                     .try_into()
                     .or(Err(ProcessBinaryError::NotEnoughFlash))?;
@@ -906,24 +913,36 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                         }
                     };
 
-                let app_flash = flash
-                    .get(flash_offset..flash_offset + app_length as usize)
-                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+                let app_flash = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+                    flash,
+                    flash_offset,
+                    flash_offset + app_length as usize,
+                )
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
-                let app_header = flash
-                    .get(flash_offset..flash_offset + header_length as usize)
-                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+                let app_header = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+                    flash,
+                    flash_offset,
+                    flash_offset + header_length as usize,
+                )
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
-                let remaining_flash = flash
-                    .get(flash_offset + app_flash.len()..)
-                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+                let remaining_flash = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+                    flash,
+                    flash_offset + app_flash.len(),
+                    flash.len(),
+                )
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
                 // Get the rest of the header. The `remaining_header` variable
                 // will continue to hold the remainder of the header we have
                 // not processed.
-                let remaining_header = app_header
-                    .get(16..)
-                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+                let remaining_header = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+                    app_header,
+                    16,
+                    app_header.len(),
+                )
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
                 if remaining_header.len() == 0 {
                     // This is a padding app.
@@ -932,9 +951,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                     }
                 } else {
                     // This is an app binary, add it to the pb arrays.
-                    process_binaries_start_addresses[index] = app_flash.as_ptr() as usize;
-                    process_binaries_end_addresses[index] =
-                        app_flash.as_ptr() as usize + app_length as usize;
+                    process_binaries_start_addresses[index] = app_flash.addr();
+                    process_binaries_end_addresses[index] = app_flash.addr() + app_length as usize;
 
                     if config::CONFIG.debug_load_processes {
                         debug!(
@@ -949,7 +967,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                         return Err(ProcessBinaryError::NotEnoughFlash);
                     }
                 }
-                addresses = remaining_flash.as_ptr() as usize;
+                addresses = remaining_flash.addr();
             }
 
             Ok(())
@@ -1123,7 +1141,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         pb_end_address: &mut [usize],
     ) -> Result<usize, ProcessBinaryError> {
         let total_flash = self.flash_bank.get();
-        let total_flash_start = total_flash.as_ptr() as usize;
+        let total_flash_start = total_flash.addr();
         let total_flash_end = total_flash_start + total_flash.len() - 1;
 
         match self.scan_flash_for_process_binaries(total_flash, pb_start_address, pb_end_address) {
@@ -1150,7 +1168,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     /// within flash bounds.
     pub fn check_if_within_flash_bounds(&self, offset: usize, length: usize) -> bool {
         let flash = self.flash_bank.get();
-        let flash_end = flash.as_ptr() as usize + flash.len() - 1;
+        let flash_end = flash.addr() + flash.len() - 1;
 
         (flash_end - offset) >= length
     }
@@ -1196,11 +1214,19 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         // length of the tbf header and app. We then use those values to see
         // if we have enough flash remaining to parse the remainder of the
         // header.
-        let binary_header = match flash.get(app_address..app_address + 8) {
-            Some(slice) if slice.len() == 8 => slice,
+        let binary_header_ptr = match crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+            flash,
+            app_address,
+            app_address + 8,
+        ) {
+            Some(ptr) if ptr.len() == 8 => ptr,
             _ => return false, // Ensure exactly 8 bytes are available
         };
 
+        // SAFETY: This validity check runs prior to dynamically loading a
+        // new process, before that process has started executing, so
+        // nothing can be concurrently writing to this flash.
+        let binary_header: &[u8] = unsafe { &*binary_header_ptr };
         let binary_header_array: &[u8; 8] = match binary_header.try_into() {
             Ok(arr) => arr,
             Err(_) => return false,
@@ -1221,8 +1247,12 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         app_size: usize,
     ) -> Result<(), ProcessLoadError> {
         let flash = self.flash_bank.get();
-        let process_address = app_address - flash.as_ptr() as usize;
-        let process_flash = flash.get(process_address..process_address + app_size);
+        let process_address = app_address - flash.addr();
+        let process_flash = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+            flash,
+            process_address,
+            process_address + app_size,
+        );
         let result = self.check_new_binary_validity(process_address);
         match result {
             true => {
@@ -1256,12 +1286,20 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         app_handle: usize,
     ) -> Result<u32, ProcessBinaryError> {
         let flash = self.flash_bank.get();
-        let application_binary_address = app_handle - flash.as_ptr().addr();
+        let application_binary_address = app_handle - flash.addr();
 
         // Might want to verify if the app is valid with check_new_binary_validity() either here, or before returning the size
-        let test_header_slice = flash
-            .get(application_binary_address..application_binary_address + 8)
-            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+        let test_header_ptr = crate::utilities::slice_ptr_subslice::slice_ptr_subslice(
+            flash,
+            application_binary_address,
+            application_binary_address + 8,
+        )
+        .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+        // SAFETY: This runs prior to dynamically loading a new process,
+        // before that process has started executing, so nothing can be
+        // concurrently writing to this flash.
+        let test_header_slice: &[u8] = unsafe { &*test_header_ptr };
 
         let header = test_header_slice
             .try_into()
