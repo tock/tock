@@ -61,20 +61,13 @@ pub unsafe fn wfi() {
     unimplemented!()
 }
 
+#[cfg(riscv)]
 // Hidden macro declaration, publicly re-exported as a proper module-hierarchy
 // item through the `pub use ... as linker_region_slice_ptr` below.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __linker_region_slice_ptr {
     ($start_sym:literal, $end_sym:literal) => {{
-        // Can't use `#[cfg(not(riscv))]` here as this macro is expanded in the
-        // caller's crate context.
-        #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-        ::core::unimplemented!(
-            "`riscv::support::linker_region_slice_ptr` can only be used on \
-             RISC-V targets!"
-        );
-
         // We force-assign to a `&'static str` const to ensure that we reject
         // any non-string literals:
         const _START_SYM: &'static str = $start_sym;
@@ -126,6 +119,16 @@ macro_rules! __linker_region_slice_ptr {
     }}
 }
 
+// On not riscv just don't do anything.
+//
+// This enables running `cargo check` on host to succeed.
+#[cfg(not(riscv))]
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __linker_region_slice_ptr {
+    ($start_sym:literal, $end_sym:literal) => {{ ::core::option::Option::None }};
+}
+
 /// Create a raw slice pointer (`*mut [u8]`) from a memory region described by
 /// start and end symbols.
 ///
@@ -152,24 +155,14 @@ macro_rules! __linker_region_slice_ptr {
 /// > this memory is disjoint from memory that will be used by the abstract
 /// > machine such as the stack, heap, and statics.
 ///
-/// # Panics
-///
-/// This macro panics unconditionally when run on non-RISC-V targets.
-///
 /// # Safety Considerations
 ///
 /// This macro is safe to invoke, and has no strict safety invariants that
 /// callers must discharge.
 ///
-/// On RISC-V targets, non-existent symbols will result in a link-time error,
-/// but not in a runtime error, `None` return value, or panic.
+/// On RISC-V targets, non-existent symbols will result in a link-time error.
 ///
-/// It internally uses a `#[cfg(any(target_arch = "riscv32", target_arch =
-/// "riscv64"))]` selector to ensure that the assembly only runs on RISC-V
-/// targets (given it would be valid syntax on other architectures such as MIPS)
-/// and panics at runtime on other architectures. To support static checks and
-/// CI it does not produce a compile error on other architectures, nor does it
-/// reference the start and end symbols on those architectures.
+/// On non-RISC-V targets, this just returns `None`.
 ///
 /// This macro does **not** guarantee that the resulting slice's length is `<=
 /// isize::MAX`. Callers must establish this invariant themselves before
