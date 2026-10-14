@@ -644,16 +644,12 @@ platform and what drivers were compiled into the kernel.
 The register arguments for Command system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument          | Register | Type                         |
-|-------------------|----------|------------------------------|
-| Driver number     | r0       | `u32`                        |
-| Command number    | r1       | `u32`                        |
-| Argument 0        | r2       | `{u32, i32, u64_lo, i64_lo}` |
-| Argument 1        | r3       | `{u32, i32, u64_hi, i64_hi}` |
-
-When passing values with types whose representation is smaller than 32 bits
-(e.g. `u8` or `i16`), they must be explicitly cast to a `u32` (if unsigned) or
-`i32` (if signed).
+| Argument       | Register | Type  |
+|----------------|----------|-------|
+| Driver number  | r0       | `u32` |
+| Command number | r1       | `u32` |
+| Argument 0     | r2       | `u32` |
+| Argument 1     | r3       | `u32` |
 
 The return variants of Command are instance-specific. Each specific
 Command instance (combination of Driver and Command number) specifies
@@ -711,11 +707,11 @@ The return variants for Read-Write Allow system calls are `Failure
 with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
 contains an address and `Argument 1` contains a length. When a driver
 implementing the Read-Write Allow system call returns a failure
-result, it MUST return the same address and length as those that were passed 
+result, it MUST return the same address and length as those that were passed
 in the call. When a driver implementing the Read-Write Allow system call
 returns a success result, the returned address and length MUST be those
 that were passed in the previous call, unless this is the first call.
-On the first successful invocation of a particular Read-Write Allow system 
+On the first successful invocation of a particular Read-Write Allow system
 call, an driver implementation MUST return address 0 and size 0.
 
 If the kernel cannot access the grant region for this process, `NOMEM`
@@ -729,7 +725,7 @@ not read or write a buffer that has been allowed: access to the memory
 is intended to be exclusive either to userspace or to the kernel. To
 regain access to a passed buffer B, the process calls the same
 Read-Write Allow system call again. If this call returns a success
-result, the result contains buffer B. The process can call with a zero-length 
+result, the result contains buffer B. The process can call with a zero-length
 buffer if it wishes to pass no memory to the kernel. Once a buffer has been returned to userspace as
 part of a Read-Write Allow system call, it is guaranteed for the
 kernel to no longer have access to the described memory region, unless
@@ -743,7 +739,7 @@ a buffer by calling allow with the same pointer and a longer length
 and such a call is not required to return an error code of `INVALID`.
 Similarly, it is possible for userspace to allow the same buffer
 multiple times to the kernel. This means, in practice, that the kernel
-may have multiple writeable references to the same memory and MUST 
+may have multiple writeable references to the same memory and MUST
 take precautions to ensure this does not violate safety within the
 kernel.
 
@@ -971,6 +967,20 @@ The definition of these status codes is outside the scope of this document.
 If an exit syscall is successful, it does not return. Therefore, the return
 value of an exit syscall is always `Failure`. `exit-restart` and
 `exit-terminate` MUST always succeed and so never return.
+
+4.8 Arguments with non-`u32` values
+------------------------------------
+
+How userspace drivers and capsules exchange values with type other
+than `u32` is left to the contract between the capsule and userspace
+libraries. However, they SHOULD adhere to the following convention:
+When passing values with types whose representation is smaller than 32
+bits (e.g. `u8` or `i16`), they must be explicitly cast to a `u32` (if
+unsigned) or `i32` (if signed). When passing values with types whoe
+representation is larger than 32 bits (e.g. a `u64` or `i64`), they
+should be split into their lower and higher 32-bits with each portion
+treated as `u32`s in the lower-numbered and higher numbered registers,
+respectively.
 
 
 5 libtock-c Userspace Library Methods
