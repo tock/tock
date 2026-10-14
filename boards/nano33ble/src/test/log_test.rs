@@ -385,19 +385,15 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
             .unwrap();
 
         // Ensure failure if entry is too large to fit within a single flash page.
-        self.dummy_buffer
-            .take()
-            .map(|dummy_buffer| {
-                let len = dummy_buffer.len();
-                match self.log.append(dummy_buffer, len) {
-                    Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
-                    Err((error, original_buffer)) => {
-                        self.dummy_buffer.replace(original_buffer);
-                        assert_eq!(error, ErrorCode::SIZE);
-                    }
-                }
-            })
-            .unwrap();
+        let dummy_buffer = self.dummy_buffer.take().unwrap();
+        let len = dummy_buffer.len();
+        match self.log.append(dummy_buffer, len) {
+            Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
+            Err((error, original_buffer)) => {
+                self.dummy_buffer.replace(original_buffer);
+                assert_eq!(error, ErrorCode::SIZE);
+            }
+        }
 
         // Make sure that append offset was not changed by failed writes.
         assert_eq!(original_offset, self.log.log_end());
