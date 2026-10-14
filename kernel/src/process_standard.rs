@@ -1804,7 +1804,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         if chip
             .mpu()
             .allocate_region(
-                pb.flash.as_ptr(),
+                pb.flash.cast::<u8>(),
                 pb.flash.len(),
                 pb.flash.len(),
                 mpu::Permissions::ReadExecuteOnly,
@@ -1815,8 +1815,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             if config::CONFIG.debug_load_processes {
                 debug!(
                     "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate MPU region for flash",
-                    pb.flash.as_ptr() as usize,
-                    pb.flash.as_ptr() as usize + pb.flash.len() - 1,
+                    pb.flash.addr(),
+                    pb.flash.addr() + pb.flash.len() - 1,
                     process_name
                 );
             }
@@ -1960,8 +1960,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 if config::CONFIG.debug_load_processes {
                     debug!(
                         "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate memory region of size >= {:#X}",
-                        pb.flash.as_ptr() as usize,
-                        pb.flash.as_ptr() as usize + pb.flash.len() - 1,
+                        pb.flash.addr(),
+                        pb.flash.addr() + pb.flash.len() - 1,
                         process_name,
                         min_total_memory_size
                     );
@@ -2300,8 +2300,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 if config::CONFIG.debug_load_processes {
                     debug!(
                         "[!] flash={:#010X}-{:#010X} process={:?} - couldn't initialize process",
-                        pb.flash.as_ptr() as usize,
-                        pb.flash.as_ptr() as usize + pb.flash.len() - 1,
+                        pb.flash.addr(),
+                        pb.flash.addr() + pb.flash.len() - 1,
                         process_name
                     );
                 }
