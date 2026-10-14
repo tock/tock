@@ -9,6 +9,13 @@ register_bitfields![usize,
         is_interrupt OFFSET(crate::XLEN - 1) NUMBITS(1) [],
         reason OFFSET(0) NUMBITS(crate::XLEN - 1) []
     ],
+    // In CLIC mode, the bits above the 12-bit exception code hold CLIC status
+    // fields (e.g. mpil, mpie, mpp, minhv). For parsing, we only concern ourselves
+    // with the exception code.
+    reason [
+        reserved OFFSET(12) NUMBITS(crate::XLEN - 13) [],
+        exccode OFFSET(0) NUMBITS(12) []
+    ]
 ];
 
 /// Trap Cause
@@ -71,8 +78,8 @@ pub enum Exception {
 
 impl Interrupt {
     fn from_reason(val: usize) -> Self {
-        let mcause = LocalRegisterCopy::<usize, mcause::Register>::new(val);
-        match mcause.read(mcause::reason) {
+        let reason = LocalRegisterCopy::<usize, reason::Register>::new(val);
+        match reason.read(reason::exccode) {
             0 => Interrupt::UserSoft,
             1 => Interrupt::SupervisorSoft,
             3 => Interrupt::MachineSoft,
@@ -89,8 +96,8 @@ impl Interrupt {
 
 impl Exception {
     fn from_reason(val: usize) -> Self {
-        let mcause = LocalRegisterCopy::<usize, mcause::Register>::new(val);
-        match mcause.read(mcause::reason) {
+        let reason = LocalRegisterCopy::<usize, reason::Register>::new(val);
+        match reason.read(reason::exccode) {
             0 => Exception::InstructionMisaligned,
             1 => Exception::InstructionFault,
             2 => Exception::IllegalInstruction,
