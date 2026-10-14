@@ -74,7 +74,7 @@ The register mapping remains the same as in TRD 104:
 | Upcall Arguments      |   a0-a3   | _varies_ |
 | Upcall Return Values  |   None    | None     |
 
-In all instances where a `u32` is passed in a register the `u32` is placed in
+In all instances where a `VALUE_32` is passed in a register the `VALUE_32` is placed in
 the lowest 32-bits of the register with the upper 32-bits being zero.
 
 3.2 Syscall Argument Types
@@ -191,12 +191,12 @@ pointer and application data parameter returned MUST be the Null Upcall.
 4.3 Command (Class ID: 2)
 ---------------------------------
 
-| Argument          | Register | Type                         |
-|-------------------|----------|------------------------------|
-| Driver number     | a0       | `VALUE_32`                   |
-| Command number    | a1       | `VALUE_32`                   |
-| Argument 0        | a2       | `{u32, i32, u64_lo, i64_lo}` |
-| Argument 1        | a3       | `{u32, i32, u64_hi, i64_hi}` |
+| Argument          | Register | Type       |
+|-------------------|----------|------------|
+| Driver number     | a0       | `VALUE_32` |
+| Command number    | a1       | `VALUE_32` |
+| Argument 0        | a2       | `VALUE_32` |
+| Argument 1        | a3       | `VALUE_32` |
 
 Note, although a command needing to pass a `u64` could pass the entire value
 in a single register, without some variant indication (like with return
