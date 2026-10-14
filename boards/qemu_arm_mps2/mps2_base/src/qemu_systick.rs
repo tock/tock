@@ -59,33 +59,6 @@ use core::num::NonZeroU32;
 
 use cortexm::systick::SysTick;
 use kernel::platform::scheduler_timer::SchedulerTimer;
-use kernel::utilities::StaticRef;
-use kernel::utilities::registers::interfaces::Writeable;
-use kernel::utilities::registers::{ReadWrite, register_bitfields};
-
-#[repr(C)]
-struct SystickRegisters {
-    syst_csr: ReadWrite<u32, ControlAndStatus::Register>,
-    syst_rvr: ReadWrite<u32, ReloadValue::Register>,
-}
-
-register_bitfields![u32,
-    ControlAndStatus [
-        /// Clock source is (0) External Clock or (1) Processor Clock.
-        CLKSOURCE 2,
-        /// Set to 1 to enable SysTick exception request.
-        TICKINT 1,
-        /// Enable the counter (1 == Enabled).
-        ENABLE 0
-    ],
-    ReloadValue [
-        /// Value loaded to `syst_cvr` when counter is enabled and reaches 0.
-        RELOAD OFFSET(0) NUMBITS(24)
-    ]
-];
-
-const SYSTICK_BASE: StaticRef<SystickRegisters> =
-    unsafe { StaticRef::new(0xE000E010 as *const SystickRegisters) };
 
 /// Wraps a [`SysTick`] to work around a QEMU SysTick emulation bug -- see
 /// the module documentation.
@@ -128,9 +101,7 @@ impl SchedulerTimer for QemuMps2SysTick {
         // setting reload before value`, as the wrapped driver's own
         // comment notes, but there is no "value" (`SYST_CVR`) write here to
         // order against.
-        SYSTICK_BASE
-            .syst_rvr
-            .write(ReloadValue::RELOAD.val(reload as u32));
+        self.inner.reload(reload as u32);
 
         // Ensure the counter is enabled and generating interrupts. On every
         // call after the first, this is a no-op rewrite of bits already set
@@ -138,11 +109,7 @@ impl SchedulerTimer for QemuMps2SysTick {
         // transition of ENABLE, so leaving it continuously enabled here is
         // what keeps the counter free-running instead of being stopped and
         // restarted from a written (rather than decremented) 0.
-        SYSTICK_BASE.syst_csr.write(
-            ControlAndStatus::TICKINT::SET
-                + ControlAndStatus::ENABLE::SET
-                + ControlAndStatus::CLKSOURCE::SET,
-        );
+        self.inner.arm();
     }
 
     fn reset(&self) {
