@@ -4,6 +4,8 @@
 
 //! QEMU's memory mapped 16550 UART
 
+#![allow(clippy::modulo_one)]
+
 use core::cell::Cell;
 
 use kernel::ErrorCode;
