@@ -91,9 +91,10 @@ pub fn panic_fmt(pi: &PanicInfo) -> ! {
             &rv32i::support::nop,
             crate::PANIC_RESOURCES.get(),
         );
+
+        let _ = writeln!(writer, "{}", pi);
     }
 
-    let _ = writeln!(writer, "{}", pi);
     // Exit QEMU with a return code of 1
     crate::tests::semihost_command_exit_failure();
 }
