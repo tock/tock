@@ -501,12 +501,18 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
 
     /// Process flash segment. This is the region of nonvolatile flash that
     /// the process occupies.
-    flash: &'static [u8],
+    ///
+    /// Stored as a raw pointer and not a reference to simplify handling
+    /// potential issues around the memory safety requirements of slices.
+    /// Because of this, there is no way to safely access a process's flash
+    /// region. However, `ProcessStandard` should not need to access a process's
+    /// flash.
+    flash: *const [u8],
 
     /// The footers of the process binary (may be zero-sized), which are metadata
     /// about the process not covered by integrity. Used, among other things, to
     /// store signatures.
-    footers: &'static [u8],
+    footers: *const [u8],
 
     /// Collection of pointers to the TBF header in flash.
     header: tock_tbf::types::TbfHeader<'static>,
@@ -1614,7 +1620,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             flash_non_protected_start: self.flash_non_protected_start(),
             flash_integrity_end: self
                 .flash
-                .as_ptr()
+                .cast::<u8>()
                 .wrapping_add(self.header.get_binary_end() as usize),
             flash_end: self.flash_end(),
             sram_start: self.mem_start() as usize,
@@ -1716,7 +1722,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         } else {
             // PIC, need to specify the addresses.
             let sram_start = self.mem_start() as usize;
-            let flash_start = self.flash.as_ptr() as usize;
+            let flash_start = self.flash.addr();
             let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
             let _ = writer.write_fmt(format_args!(
@@ -2320,7 +2326,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             }
         }
 
-        let flash_start: *const u8 = process.flash.as_ptr();
+        let flash_start: *const u8 = process.flash.cast::<u8>();
         let app_start =
             flash_start.wrapping_add(process.header.get_app_start_offset() as usize) as usize;
         let init_addr: *const () = flash_start
@@ -2410,7 +2416,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Allocate MPU region for flash.
         let app_mpu_flash = self.chip.mpu().allocate_region(
-            self.flash.as_ptr(),
+            self.flash.cast::<u8>(),
             self.flash.len(),
             self.flash.len(),
             mpu::Permissions::ReadExecuteOnly,
@@ -2724,7 +2730,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
     /// The start address of the flash region allocated for this process.
     fn flash_start(&self) -> *const u8 {
-        self.flash.as_ptr()
+        self.flash.cast::<u8>()
     }
 
     /// Get the first address of process's flash that isn't protected by the
@@ -2732,13 +2738,13 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// potentially other state the kernel is storing on behalf of the process,
     /// and cannot be edited by the process.
     fn flash_non_protected_start(&self) -> usize {
-        (self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize
+        self.flash.addr() + self.header.get_protected_size() as usize
     }
 
     /// The first address after the end of the flash region allocated for this
     /// process.
     fn flash_end(&self) -> usize {
-        self.flash.as_ptr().addr().wrapping_add(self.flash.len())
+        self.flash.addr().wrapping_add(self.flash.len())
     }
 
     /// The lowest address of the grant region for the process.
