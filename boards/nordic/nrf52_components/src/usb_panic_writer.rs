@@ -22,6 +22,9 @@ use kernel::utilities::io_write::IoWrite;
 /// stack.
 pub const BUF_LEN: usize = 512;
 
+/// NVIC interrupt number for the nRF52840's USBD peripheral.
+const USBD_INTERRUPT: u32 = 39;
+
 type CdcAlarm = VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>;
 
 /// Concrete CDC-ACM-over-USB driver type used by nRF52 boards for panic
@@ -108,12 +111,21 @@ impl IoWrite for CdcPanicWriter {
             static_buf[..max].copy_from_slice(&buf[..max]);
             match cdc.transmit_buffer(static_buf, max) {
                 Ok(()) => {
+                    // Only look for (and service) the USBD interrupt here.
+                    // `next_pending()` reports the lowest-numbered pending
+                    // interrupt system-wide, and once we're panicking
+                    // nothing else is running the normal kernel loop to
+                    // service other peripherals (e.g. the RTC driving the
+                    // console's alarm). If one of those is left with an
+                    // unserviced, permanently-pending interrupt, it has a
+                    // lower number than USBD and would starve us from ever
+                    // seeing USBD's own pending bit again. Masking
+                    // everything else out avoids that entirely.
+                    let ignore_all_but_usbd = (!0u128, !(1u128 << USBD_INTERRUPT));
                     loop {
-                        if let Some(interrupt) = cortexm4::nvic::next_pending() {
-                            if interrupt == 39 {
-                                usb.handle_interrupt();
-                            }
-                            let n = cortexm4::nvic::Nvic::new(interrupt);
+                        if cortexm4::nvic::next_pending_with_mask(ignore_all_but_usbd).is_some() {
+                            usb.handle_interrupt();
+                            let n = cortexm4::nvic::Nvic::new(USBD_INTERRUPT);
                             n.clear_pending();
                             n.enable();
                         }
