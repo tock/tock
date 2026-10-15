@@ -1100,6 +1100,7 @@ name = "nrf52_components"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
+ "capsules-extra",
  "components",
  "cortexm4",
  "kernel",
