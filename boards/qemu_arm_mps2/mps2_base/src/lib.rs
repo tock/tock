@@ -30,6 +30,7 @@ use cortexm::CortexMVariant;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -164,6 +165,7 @@ where
         qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
         qemu_arm_mps2_unsafe::default_peripherals()
     );
+    peripherals.uart0.register();
 
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
