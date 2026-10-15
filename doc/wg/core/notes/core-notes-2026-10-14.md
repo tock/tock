@@ -25,7 +25,7 @@
 * Amit: Your concern is that if we do some mass migration that it would fundamentally require careful manual review?
 * Johnathan: Not necessarily. We could just give it a skim. And/or we could trust the tool for correctness. Most importanty, the tool just needs to error if it encounters something weird.
 * Leon: A cheap check would be to compare the hashes before and after the migration. Since the change should be a no-op right?
-* Johnathan: That might be a really good technique for the repr(c) to register map port. But I think renaming things will result in changes causing the hash to change
+* Johnathan: That might be a really good technique for the repr(c) to register structs port. But I think renaming things will result in changes causing the hash to change during the register map port.
 * Amit: Why is it a separate question for repr(c) vs register structs?
 * Johnathan: They're separate code that both need to be ported. Same tool can probably do both. We do have a tool for moving repr(c) to register structs.
 * Amit: That's a deterministic tool, right? So in principle it's error-free. Assuming we do a good job of reviewing the tool
@@ -102,7 +102,7 @@
 * Branden: I think it's a cost either way. Either the kernel assures the upper bits are zero, or the userspace does.
 * Leon: When you load a value into a register in risc-v, that clears the upper bits. So the kernel side doesn't have a cost
 * Amit: Does anything guarantee that occurs though?
-* Leon: If we read values from memory, then the upper bits are zeroed. If we move the value from one register to another, it's highly unlikely that the compiler doesn't leave the upper bits zeroed. RISC-V always zeros them out
+* Leon: If we read values from memory, then the upper bits are zeroed. If we move the value from one register to another, it's highly unlikely that the source registers wouldn't have them cleared; the compiler wouldn't pack multiple values in the same register
 * Amit: What's the example where having the upper bits being undefined hurts?
 * Leon: You have to do extra instructions to remove stuff.
 * Branden: What's the upside to leaving upper bits undefined?
@@ -126,7 +126,7 @@
 * Leon: I agree that there should be a convention.
 * Amit: So what we should do is, in 3.1 line 77 it should refer to value32 instead of u32. And more importantly, in 4.3 argument0 and argument1 should be value32. And we should have a separate section for recommending how capsules should pass non-u32 values in commands and upcalls.
 * Pat: I might push back on that approach. TRD104 has a sentence dealing with "values smaller than the native register type" that's the issue we have here. We can say that the value you're passing across the 64-bit ABI is restricted to the 32-bit range. The way that you pass it, is to cast your value to a u64 or i64 so that it matches the native register type when going across the ABI. Then the other side casts it back.
-* Leon: Are we sure that when we direct case from signed to unsigned there's no sign extension? Also, is casting well-defined across languages?
+* Leon: Are we sure that when we direct cast from signed to unsigned there's no sign extension? Also, is casting well-defined across languages?
 * Johnathan: That would make things tricky for userspace, as you can't pack a i64 into a u32 as it doesn't fit. So casting to a u32 then zero-padding is actually easier. That was you can type erase it on the userspace side.
 * Amit: So what's the takeaway there?
 * Johnathan: Userspace APIs still only see u32, but the recommended strategy for encoding signed value is, first scale to i32, then cast to u32, then pass that value in following the ABI rules.
