@@ -6,6 +6,7 @@
 members = [
     "build/sha256sum",
     "ci/board-runner",
+    "ci/integration-test",
     "ci/license-checker",
     "ci/litex-ci-runner",
     "ci/qemu-virt-ci-runner",
