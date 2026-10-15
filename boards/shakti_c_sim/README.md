@@ -72,3 +72,20 @@ the same UART, then ends the simulation.
   access on RV64. (A 32-bit read of the upper half was also broken on this SoC
   when this board was written; that has since been fixed upstream in
   [`shaktiproject/uncore/devices`](https://gitlab.com/shaktiproject/uncore/devices).)
+
+## Application size requirement
+
+The SHAKTI C-Class PMP has an 8-byte granularity, so this board is configured
+as `SimplePMP<4, 8>`. A PMP TOR region cannot express a span that is not a
+multiple of the granularity, so **an application's flash length must be a
+multiple of 8 bytes** on this board.
+
+An application that does not satisfy this is skipped *silently*:
+`load_processes` returns `Ok(())` and the board runs with zero processes. The
+reason is only visible with the kernel's `debug_load_processes` config flag:
+
+    [!] flash=... process=Some("...") - couldn't allocate MPU region for flash
+    Processes load error: App flash length not supported by MPU.
+
+When building a TBF with `elf2tab`, adjust `--protected-region-size` until the
+resulting `.tbf` is a multiple of 8 bytes.
