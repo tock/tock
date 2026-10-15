@@ -8,18 +8,33 @@
 //! (ARM DDI0479C). Unlike a 16550, this device has no FIFO: it holds a
 //! single byte in each direction, signaled by the TXFULL/RXFULL bits in
 //! `STATE`.
+//!
+//! Because the hardware buffers nothing, [`Uart`] keeps its own ring buffer
+//! (set with [`Uart::set_ring_buffer`]) of bytes received but not yet
+//! delivered to a client, so that a byte arriving between two
+//! `receive_buffer()` calls -- or before the first one -- is held rather
+//! than dropped. Background collection starts as soon as a ring buffer is
+//! set; without one, bytes with no outstanding request are dropped, same as
+//! before this buffer existed.
 
 use core::cell::Cell;
+use core::cmp;
 
 use kernel::ErrorCode;
+use kernel::collections::queue::Queue;
+use kernel::collections::ring_buffer::RingBuffer;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::io_write::IoWrite;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{ReadWrite, register_bitfields};
 
 use crate::SYSCLK_FRQ;
+
+/// Size, in bytes, of the ring buffer set with [`Uart::set_ring_buffer`].
+pub const RING_BUFFER_SIZE_BYTE: usize = 128;
 
 #[repr(C)]
 pub struct UartRegisters {
@@ -69,10 +84,19 @@ pub struct Uart<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
     rx_len: Cell<usize>,
     rx_index: Cell<usize>,
+
+    /// Bytes the hardware has received but that have not yet been copied
+    /// into a client's buffer. See [`Uart::set_ring_buffer`].
+    ring: TakeCell<'static, RingBuffer<'static, u8>>,
+    /// A `receive_buffer()` request `ring` could already satisfy in full,
+    /// queued to complete via `deferred_call` so the callback is always
+    /// asynchronous rather than reentering the caller of `receive_buffer()`.
+    ready: MapCell<(&'static mut [u8], usize)>,
+    deferred_call: DeferredCall,
 }
 
 impl<'a> Uart<'a> {
-    pub const fn new(registers: StaticRef<UartRegisters>) -> Uart<'a> {
+    pub fn new(registers: StaticRef<UartRegisters>) -> Uart<'a> {
         Uart {
             registers,
             tx_client: OptionalCell::empty(),
@@ -83,7 +107,35 @@ impl<'a> Uart<'a> {
             rx_buffer: TakeCell::empty(),
             rx_len: Cell::new(0),
             rx_index: Cell::new(0),
+            ring: TakeCell::empty(),
+            ready: MapCell::empty(),
+            deferred_call: DeferredCall::new(),
         }
+    }
+
+    /// Supplies the ring buffer background RX collection uses to hold bytes
+    /// between arrival and the next matching `receive_buffer()` call.
+    ///
+    /// Must be called (along with [`DeferredCallClient::register`]) before
+    /// relying on bytes surviving between calls to `receive_buffer()`;
+    /// without it, such bytes are dropped, exactly as if this were never
+    /// called at all.
+    pub fn set_ring_buffer(&self, ring_buffer: &'static mut RingBuffer<'static, u8>) {
+        self.ring.replace(ring_buffer);
+    }
+
+    /// Moves up to `dest.len()` of the oldest buffered bytes out of `ring`
+    /// and into `dest`, returning how many were moved.
+    fn drain_ring(&self, dest: &mut [u8]) -> usize {
+        self.ring.map_or(0, |ring| {
+            let n = cmp::min(ring.len(), dest.len());
+            for byte in dest[..n].iter_mut() {
+                if let Some(b) = ring.dequeue() {
+                    *byte = b;
+                }
+            }
+            n
+        })
     }
 
     /// Disable the device and clear any pending interrupt state. Safe to
@@ -167,12 +219,16 @@ impl<'a> Uart<'a> {
 
     fn receive_continue(&self) {
         let Some(rx_buffer) = self.rx_buffer.take() else {
-            // No receive outstanding. Read the byte out anyway and drop it:
-            // the device has a single byte of receive storage and accepts no
+            // No direct receive outstanding. Read the byte out anyway: the
+            // device has a single byte of receive storage and accepts no
             // further input while it is full, so leaving it there stalls
-            // reception permanently.
+            // reception permanently. Keep it in `ring` instead of dropping
+            // it -- `ring.map()` is a no-op if `set_ring_buffer()` was never
+            // called, reproducing the drop-on-the-floor behavior this chip
+            // had before `ring` existed.
             if self.registers.state.is_set(STATE::RxFull) {
-                let _ = self.registers.data.read(DATA::Data);
+                let byte = self.registers.data.read(DATA::Data) as u8;
+                self.ring.map(|ring| ring.enqueue(byte));
             }
             return;
         };
@@ -293,13 +349,27 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         if rx_len == 0 || rx_len > rx_buffer.len() {
             return Err((ErrorCode::SIZE, rx_buffer));
         }
-        if self.rx_buffer.is_some() {
+        if self.rx_buffer.is_some() || self.ready.is_some() {
             return Err((ErrorCode::BUSY, rx_buffer));
         }
 
-        self.rx_buffer.replace(rx_buffer);
-        self.rx_len.set(rx_len);
-        self.rx_index.set(0);
+        // Drain whatever is already buffered right away, regardless of
+        // whether it's enough to satisfy the whole request, so `ring`
+        // doesn't sit full (or get closer to it) while the rest arrives.
+        let n = self.drain_ring(&mut rx_buffer[..rx_len]);
+
+        if n == rx_len {
+            // Already fully satisfied: complete on the next deferred call
+            // so the callback is always asynchronous.
+            self.ready.replace((rx_buffer, n));
+            self.deferred_call.set();
+        } else {
+            // Not enough buffered yet: `receive_continue()` fills the rest
+            // directly as bytes arrive from the hardware.
+            self.rx_index.set(n);
+            self.rx_len.set(rx_len);
+            self.rx_buffer.replace(rx_buffer);
+        }
 
         Ok(())
     }
@@ -307,7 +377,7 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn receive_abort(&self) -> Result<(), ErrorCode> {
         // An outstanding receive cannot be cancelled, but "nothing
         // outstanding" is Ok(()) with no callback.
-        if self.rx_buffer.is_some() {
+        if self.rx_buffer.is_some() || self.ready.is_some() {
             Err(ErrorCode::FAIL)
         } else {
             Ok(())
@@ -316,6 +386,20 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
+    }
+}
+
+impl DeferredCallClient for Uart<'_> {
+    fn handle_deferred_call(&self) {
+        if let Some((buffer, len)) = self.ready.take() {
+            self.rx_client.map(move |client| {
+                client.received_buffer(buffer, len, Ok(()), hil::uart::Error::None)
+            });
+        }
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 
