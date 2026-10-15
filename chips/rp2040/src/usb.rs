@@ -15,7 +15,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
-    InMemoryRegister, ReadWrite, register_bitfields, register_structs,
+    InMemoryRegister, LocalRegisterCopy, ReadWrite, register_bitfields, register_structs,
 };
 
 macro_rules! internal_err {
@@ -1584,184 +1584,136 @@ impl<'a> UsbCtrl<'a> {
     }
 
     fn handle_buff_status(&self) {
+        // Snapshot the register once. BUFF_STATUS is write-1-to-clear
+        // hardware: reading it does not clear anything, and clearing a bit
+        // requires writing a 1 back to that same bit position (see the
+        // write-back at the end of this function). Dispatching off of a
+        // single snapshot (instead of re-reading the live register for every
+        // `is_set()` check, as this used to do) also avoids racing with a
+        // new completion that the hardware might set partway through this
+        // function.
+        let status: LocalRegisterCopy<u32, BUFF_STATUS::Register> =
+            LocalRegisterCopy::new(self.registers.buff_status.get());
+
         // Endpoint 0
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP0_IN) {
+        if status.is_set(BUFF_STATUS::EP0_IN) {
             self.handle_ep0datadone();
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP0_OUT) {
+        if status.is_set(BUFF_STATUS::EP0_OUT) {
             self.handle_endepout(0);
         }
         // Endpoint 1
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP1_IN) {
+        if status.is_set(BUFF_STATUS::EP1_IN) {
             self.handle_endepin(1);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP1_OUT) {
+        if status.is_set(BUFF_STATUS::EP1_OUT) {
             self.handle_epdata_out(1);
         }
         // Endpoint 2
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP2_IN) {
+        if status.is_set(BUFF_STATUS::EP2_IN) {
             self.handle_epdata_in(2);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP2_OUT) {
+        if status.is_set(BUFF_STATUS::EP2_OUT) {
             self.handle_epdata_out(2);
         }
         // Endpoint 3
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP3_IN) {
+        if status.is_set(BUFF_STATUS::EP3_IN) {
             self.handle_endepin(3);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP3_OUT) {
+        if status.is_set(BUFF_STATUS::EP3_OUT) {
             self.handle_epdata_out(3);
         }
         // Endpoint 4
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP4_IN) {
+        if status.is_set(BUFF_STATUS::EP4_IN) {
             self.handle_epdata_in(4);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP4_OUT) {
+        if status.is_set(BUFF_STATUS::EP4_OUT) {
             self.handle_epdata_out(4);
         }
         // Endpoint 5
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP5_IN) {
+        if status.is_set(BUFF_STATUS::EP5_IN) {
             self.handle_epdata_in(5);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP5_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP5_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP5_OUT) {
             self.handle_epdata_out(5);
         }
         // Endpoint 6
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP6_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP6_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP6_IN) {
             self.handle_epdata_in(6);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP6_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP6_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP6_OUT) {
             self.handle_epdata_out(6);
         }
         // Endpoint 7
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP7_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP7_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP7_IN) {
             self.handle_epdata_in(7);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP7_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP7_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP7_OUT) {
             self.handle_epdata_out(7);
         }
         // Endpoint 8
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP8_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP8_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP8_IN) {
             self.handle_epdata_in(8);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP8_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP8_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP8_OUT) {
             self.handle_epdata_out(8);
         }
         // Endpoint 9
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP9_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP9_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP9_IN) {
             self.handle_epdata_in(9);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP9_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP9_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP9_OUT) {
             self.handle_epdata_out(9);
         }
         // Endpoint 10
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP10_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP10_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP10_IN) {
             self.handle_epdata_in(10);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP10_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP10_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP10_OUT) {
             self.handle_epdata_out(10);
         }
         // Endpoint 11
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP11_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP11_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP11_IN) {
             self.handle_epdata_in(11);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP11_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP11_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP11_OUT) {
             self.handle_epdata_out(11);
         }
         // Endpoint 12
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP12_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP12_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP12_IN) {
             self.handle_epdata_in(12);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP12_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP12_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP12_OUT) {
             self.handle_epdata_out(12);
         }
         // Endpoint 13
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP13_IN) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP13_IN::CLEAR);
+        if status.is_set(BUFF_STATUS::EP13_IN) {
             self.handle_epdata_in(13);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP13_OUT) {
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP13_OUT::CLEAR);
+        if status.is_set(BUFF_STATUS::EP13_OUT) {
             self.handle_epdata_out(13);
         }
         // Endpoint 14
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP14_IN) {
+        if status.is_set(BUFF_STATUS::EP14_IN) {
             self.handle_epdata_in(14);
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP14_IN::CLEAR);
         }
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP14_OUT) {
+        if status.is_set(BUFF_STATUS::EP14_OUT) {
             self.handle_epdata_out(14);
-            self.registers
-                .buff_status
-                .modify(BUFF_STATUS::EP14_OUT::CLEAR);
         }
         // Endpoint 15
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP15_IN) {
+        if status.is_set(BUFF_STATUS::EP15_IN) {
             self.handle_epdata_in(15);
         }
-        self.registers
-            .buff_status
-            .modify(BUFF_STATUS::EP15_IN::CLEAR);
-
-        if self.registers.buff_status.is_set(BUFF_STATUS::EP15_OUT) {
+        if status.is_set(BUFF_STATUS::EP15_OUT) {
             self.handle_epdata_out(15);
         }
-        self.registers
-            .buff_status
-            .modify(BUFF_STATUS::EP15_OUT::CLEAR);
 
-        self.registers.buff_status.set(0);
+        // Clear exactly the bits we just observed and handled. Writing back
+        // the snapshot clears every bit that was set (write-1-to-clear) and
+        // writes 0 (a no-op) everywhere else, so a completion that arrives
+        // after our read above is left set for the next interrupt instead of
+        // being silently dropped.
+        self.registers.buff_status.set(status.get());
     }
 
     fn process_requests(&self) {
