@@ -30,21 +30,19 @@ use cortexm::CortexMVariant;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::platform::chip::Chip;
+use kernel::platform::chip::{Chip, InterruptService};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
+use qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip;
 
 mod qemu_systick;
 use qemu_systick::QemuMps2SysTick;
 
 pub const NUM_PROCS: usize = 4;
 
-pub type ChipHw<C> = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
-    'static,
-    C,
-    qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
->;
+pub type ChipHw<C, P = qemu_arm_mps2::Mps2DefaultPeripherals<'static>> =
+    QemuArmMps2Chip<'static, C, P>;
 pub type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
@@ -89,7 +87,7 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
+impl<C: CortexMVariant, P: InterruptService + 'static> KernelResources<ChipHw<C, P>> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -139,25 +137,25 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
 // inline(never) so this frame, and the stack the `static_init!()`s below use,
 // is reclaimed when it returns rather than held for the life of the kernel.
 #[inline(never)]
-pub unsafe fn start_without_loading_processes<C: CortexMVariant, F>(
-    panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
+pub unsafe fn start_without_loading_processes<C: CortexMVariant, P: InterruptService + 'static, F>(
+    panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C, P>, ProcessPrinterInUse>>,
     alloc_chip: F,
 ) -> (
     &'static kernel::Kernel,
     &'static Platform,
-    &'static ChipHw<C>,
+    &'static ChipHw<C, P>,
     &'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
 )
 where
-    F: FnOnce(&'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>) -> &'static ChipHw<C>,
+    F: FnOnce(&'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>) -> &'static ChipHw<C, P>,
 {
-    ChipHw::<C>::init();
+    ChipHw::<C, P>::init();
 
-    kernel::deferred_call::initialize_deferred_call_state::<<ChipHw<C> as Chip>::ThreadIdProvider>(
+    kernel::deferred_call::initialize_deferred_call_state::<<ChipHw<C, P> as Chip>::ThreadIdProvider>(
     );
 
     let _ = panic_resources
-        .bind_to_thread::<<ChipHw<C> as Chip>::ThreadIdProvider>(PanicResources::new());
+        .bind_to_thread::<<ChipHw<C, P> as Chip>::ThreadIdProvider>(PanicResources::new());
 
     // SAFETY: We promise to be the only caller of `default_peripherals`.
     let peripherals = static_init!(
@@ -190,7 +188,7 @@ where
     )
     .finalize(components::console_component_static!());
 
-    components::debug_writer::DebugWriterComponent::new::<<ChipHw<C> as Chip>::ThreadIdProvider>(
+    components::debug_writer::DebugWriterComponent::new::<<ChipHw<C, P> as Chip>::ThreadIdProvider>(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
