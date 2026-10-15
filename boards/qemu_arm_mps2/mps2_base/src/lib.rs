@@ -13,7 +13,9 @@
 //! - The `static_init!(ChipHw<C>, ...)` allocation, which [`start()`] takes
 //!   as a closure: a `static`'s type cannot name the enclosing generic
 //!   function's own type parameter, so it has to be written at the board's
-//!   concrete type.
+//!   concrete type. A board needing a custom peripherals/`InterruptService`
+//!   type instead calls [`start_without_loading_processes()`] directly,
+//!   building that type the same way, wrapping the peripherals it returns.
 //! - `#[panic_handler]`, which has to be a concrete non-generic function, and
 //!   the `PANIC_RESOURCES` static it reads.
 //! - `kernel::stack_size!` and the board name in the boot banner.
@@ -30,21 +32,19 @@ use cortexm::CortexMVariant;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug::PanicResources;
-use kernel::platform::chip::Chip;
+use kernel::platform::chip::{Chip, InterruptService};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{create_capability, static_init};
+use qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip;
 
 mod qemu_systick;
 use qemu_systick::QemuMps2SysTick;
 
 pub const NUM_PROCS: usize = 4;
 
-pub type ChipHw<C> = qemu_arm_mps2_unsafe::chip::QemuArmMps2Chip<
-    'static,
-    C,
-    qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
->;
+pub type ChipHw<C, P = qemu_arm_mps2::Mps2DefaultPeripherals<'static>> =
+    QemuArmMps2Chip<'static, C, P>;
 pub type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 
@@ -89,7 +89,7 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
+impl<C: CortexMVariant, P: InterruptService + 'static> KernelResources<ChipHw<C, P>> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -121,13 +121,15 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
     }
 }
 
-/// Brings the board up, short of loading processes.
+/// Brings the board up, short of constructing the chip or loading processes.
 ///
-/// `alloc_chip` allocates the `ChipHw<C>`. That allocation has to be a
-/// `static_init!()` written at the board's concrete type, because a
-/// `static`'s type cannot name the enclosing generic function's own type
-/// parameter; taking it as a closure keeps the rest of the sequence in here,
-/// where its ordering is not something a board can get wrong.
+/// Most boards want [`start()`] instead, which does both. This lower-level
+/// entry point is for boards that need a custom peripherals/`InterruptService`
+/// type: the caller builds it by wrapping the returned peripherals, then
+/// constructs the `ChipHw<C>` itself, as a `static_init!()` written at the
+/// board's concrete type (a `static`'s type cannot name the enclosing generic
+/// function's own type parameter), and inserts it into `panic_resources`
+/// (`resources.chip.put()`) before doing anything that could panic.
 ///
 /// # Safety
 ///
@@ -139,25 +141,20 @@ impl<C: CortexMVariant> KernelResources<ChipHw<C>> for Platform {
 // inline(never) so this frame, and the stack the `static_init!()`s below use,
 // is reclaimed when it returns rather than held for the life of the kernel.
 #[inline(never)]
-pub unsafe fn start_without_loading_processes<C: CortexMVariant, F>(
-    panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C>, ProcessPrinterInUse>>,
-    alloc_chip: F,
+pub unsafe fn start_without_loading_processes<C: CortexMVariant, P: InterruptService + 'static>(
+    panic_resources: &'static SingleThreadValue<PanicResources<ChipHw<C, P>, ProcessPrinterInUse>>,
 ) -> (
     &'static kernel::Kernel,
     &'static Platform,
-    &'static ChipHw<C>,
     &'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
-)
-where
-    F: FnOnce(&'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>) -> &'static ChipHw<C>,
-{
-    ChipHw::<C>::init();
+) {
+    ChipHw::<C, P>::init();
 
-    kernel::deferred_call::initialize_deferred_call_state::<<ChipHw<C> as Chip>::ThreadIdProvider>(
+    kernel::deferred_call::initialize_deferred_call_state::<<ChipHw<C, P> as Chip>::ThreadIdProvider>(
     );
 
     let _ = panic_resources
-        .bind_to_thread::<<ChipHw<C> as Chip>::ThreadIdProvider>(PanicResources::new());
+        .bind_to_thread::<<ChipHw<C, P> as Chip>::ThreadIdProvider>(PanicResources::new());
 
     // The hardware buffers nothing, so UART0 needs a ring buffer for
     // background RX collection -- see
@@ -190,12 +187,6 @@ where
         resources.processes.put(processes.as_slice());
     });
 
-    let chip = alloc_chip(peripherals);
-
-    panic_resources.get().map(|resources| {
-        resources.chip.put(chip);
-    });
-
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
 
@@ -207,7 +198,7 @@ where
     )
     .finalize(components::console_component_static!());
 
-    components::debug_writer::DebugWriterComponent::new::<<ChipHw<C> as Chip>::ThreadIdProvider>(
+    components::debug_writer::DebugWriterComponent::new::<<ChipHw<C, P> as Chip>::ThreadIdProvider>(
         uart_mux,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
@@ -292,10 +283,16 @@ where
         }
     );
 
-    (board_kernel, platform, chip, peripherals)
+    (board_kernel, platform, peripherals)
 }
 
 /// Brings the board up and starts loading processes.
+///
+/// `alloc_chip` allocates the `ChipHw<C>`. That allocation has to be a
+/// `static_init!()` written at the board's concrete type, because a
+/// `static`'s type cannot name the enclosing generic function's own type
+/// parameter; taking it as a closure keeps the rest of the sequence in here,
+/// where its ordering is not something a board can get wrong.
 ///
 /// # Safety
 ///
@@ -315,8 +312,13 @@ pub unsafe fn start<C: CortexMVariant, F>(
 where
     F: FnOnce(&'static qemu_arm_mps2::Mps2DefaultPeripherals<'static>) -> &'static ChipHw<C>,
 {
-    let (board_kernel, platform, chip, _peripherals) =
-        start_without_loading_processes(panic_resources, alloc_chip);
+    let (board_kernel, platform, peripherals) = start_without_loading_processes(panic_resources);
+
+    let chip = alloc_chip(peripherals);
+
+    panic_resources.get().map(|resources| {
+        resources.chip.put(chip);
+    });
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
