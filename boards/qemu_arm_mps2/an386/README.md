@@ -23,5 +23,4 @@ boards support and for how to run them.
   Entering main loop.
   tock$
   ```
-
-- **`run-app`**: start Tock with one or more apps loaded.
+  
