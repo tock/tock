@@ -75,7 +75,7 @@ The register mapping remains the same as in TRD 104:
 | Upcall Return Values  |   None    | None     |
 
 In all instances where a `VALUE_32` is passed in a register the `VALUE_32` is placed in
-the lowest 32-bits of the register with the upper 32-bits being zero.
+the lowest 32-bits of the register with the upper 32-bits being undefined.
 
 3.2 Syscall Argument Types
 ====================================================================
