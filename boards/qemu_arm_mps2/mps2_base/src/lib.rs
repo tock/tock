@@ -159,11 +159,28 @@ where
     let _ = panic_resources
         .bind_to_thread::<<ChipHw<C> as Chip>::ThreadIdProvider>(PanicResources::new());
 
+    // The hardware buffers nothing, so UART0 needs a ring buffer for
+    // background RX collection -- see
+    // `qemu_arm_mps2::uart::Uart::set_ring_buffer`. Built here, rather than
+    // in `qemu_arm_mps2_unsafe::default_peripherals()`, because `static_init!()`
+    // is a board's call to make, not a chip's.
+    let uart0_ring_buffer_bytes = static_init!(
+        [u8; qemu_arm_mps2::uart::RING_BUFFER_SIZE_BYTE],
+        [0; qemu_arm_mps2::uart::RING_BUFFER_SIZE_BYTE]
+    );
+    let uart0_ring_buffer = static_init!(
+        kernel::collections::ring_buffer::RingBuffer<'static, u8>,
+        kernel::collections::ring_buffer::RingBuffer::new(
+            kernel::utilities::slice_uninit::mut_slice_as_maybeuninit(uart0_ring_buffer_bytes)
+        )
+    );
+
     // SAFETY: We promise to be the only caller of `default_peripherals`.
     let peripherals = static_init!(
         qemu_arm_mps2::Mps2DefaultPeripherals<'static>,
-        qemu_arm_mps2_unsafe::default_peripherals()
+        qemu_arm_mps2_unsafe::default_peripherals(uart0_ring_buffer)
     );
+    peripherals.init();
 
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
