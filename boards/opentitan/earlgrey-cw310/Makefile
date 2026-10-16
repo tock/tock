@@ -6,7 +6,7 @@
 
 FLASHID=--dev-id="0403:6010"
 RISC_PREFIX ?= riscv64-linux-gnu
-QEMU ?= ../../../tools/ci/qemu/build/qemu-system-riscv32
+QEMU_CMD ?= qemu-system-riscv32
 # Override for the entry point
 # This offset is calculated (from the linker file) as:
 # ORIGIN(rom) + size_manifest = 0x20000000 + 0x400
@@ -69,17 +69,50 @@ endif
 .PHONY: install
 install: flash
 
-qemu: $(TARGET_PATH)/release/$(PLATFORM).elf
-	$(QEMU) -M opentitan -kernel $^ -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
+# The apps image `tockloader` packs for us. It holds apps only -- the kernel
+# is loaded separately, by QEMU's `-kernel` -- so it is based at the start of
+# the "prog" region rather than at the start of flash. Covered by the
+# top-level `*.bin` .gitignore rule.
+LOCAL_BOARD     := earlgrey_cw310
+LOCAL_BOARD_BIN := $(LOCAL_BOARD)_apps.bin
+TOCKLOADER_ARCH := rv32imc
 
-qemu-gdb: $(TARGET_PATH)/release/$(PLATFORM).elf
-	$(QEMU) -s -S -M opentitan -kernel $^ -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
+# Base address of the "prog" (app) flash region; must match layout.ld.
+APP_ADDRESS := 0x20030000
 
-qemu-app: $(TARGET_PATH)/release/$(PLATFORM).elf
-	$(QEMU) -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
+QEMU_CMDLINE_EXTRA ?= \
 
-qemu-app-gdb : $(TARGET_PATH)/release/$(PLATFORM).elf
-	$(QEMU) -s -S -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
+QEMU_BASE_CMDLINE := \
+  $(QEMU_CMD) \
+    -M opentitan \
+    -nographic \
+    -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT} \
+    $(QEMU_CMDLINE_EXTRA)
+
+# Run the kernel inside a qemu-system-riscv32 "opentitan" machine simulation.
+.PHONY: run
+run: $(TARGET_PATH)/release/$(PLATFORM).elf
+	@echo
+	@echo -e "Running $$($(QEMU_CMD) --version | head -n1) with\n"\
+	  " - kernel $<\n"\
+	  " - apps $(LOCAL_BOARD_BIN)"
+	@echo "To exit type C-a x"
+	@echo
+	$(QEMU_BASE_CMDLINE) -kernel $< \
+	  -device loader,file=$(LOCAL_BOARD_BIN),addr=$(APP_ADDRESS)
+
+# Register this board's apps image as tockloader's "local board", so
+# `tockloader install`/`list`/`uninstall` operate on it with no extra flags.
+# tockloader stores a single local board for the whole user account, in its
+# own user data directory rather than in this tree, so this replaces any
+# board already registered. Re-run when switching boards.
+.PHONY: init
+init:
+	tockloader local-board set $(LOCAL_BOARD) \
+	  --binary-path $(LOCAL_BOARD_BIN) \
+	  --arch $(TOCKLOADER_ARCH) \
+	  --flash-address $(APP_ADDRESS) \
+	  --app-address $(APP_ADDRESS)
 
 flash: $(TARGET_PATH)/release/$(PLATFORM).bin
 	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TARGET_PATH)/release/$(PLATFORM).bin
