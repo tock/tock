@@ -78,3 +78,5 @@
 //! ```
 
 pub mod digest;
+pub mod hmac;
+pub mod xof;
