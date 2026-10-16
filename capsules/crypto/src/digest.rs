@@ -23,7 +23,8 @@ use capsules_core::driver_mutex::{
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::crypto::digest::{
-    Digest, DigestAlgorithm, DigestClient, Md5, Sha1, Sha224, Sha256, Sha384, Sha512,
+    Digest, DigestAlgorithm, DigestClient, Md5, Sha1, Sha3_224, Sha3_256, Sha3_384, Sha3_512,
+    Sha224, Sha256, Sha384, Sha512, Sha512_224, Sha512_256, Sm3,
 };
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -39,7 +40,14 @@ pub enum Algorithm {
     Sha224 = 2,
     Sha256 = 3,
     Sha384 = 4,
-    Sha512 = 5,
+    Sha512_224 = 5,
+    Sha512_256 = 6,
+    Sha512 = 7,
+    Sha3_224 = 8,
+    Sha3_256 = 9,
+    Sha3_384 = 10,
+    Sha3_512 = 11,
+    Sm3 = 12,
 }
 
 impl TryFrom<usize> for Algorithm {
@@ -52,7 +60,14 @@ impl TryFrom<usize> for Algorithm {
             2 => Ok(Self::Sha224),
             3 => Ok(Self::Sha256),
             4 => Ok(Self::Sha384),
-            5 => Ok(Self::Sha512),
+            5 => Ok(Self::Sha512_224),
+            6 => Ok(Self::Sha512_256),
+            7 => Ok(Self::Sha512),
+            8 => Ok(Self::Sha3_224),
+            9 => Ok(Self::Sha3_256),
+            10 => Ok(Self::Sha3_384),
+            11 => Ok(Self::Sha3_512),
+            12 => Ok(Self::Sm3),
             _ => Err(ErrorCode::NOSUPPORT),
         }
     }
@@ -67,7 +82,14 @@ impl Algorithm {
             Self::Sha224 => Sha224::DIGEST_LEN,
             Self::Sha256 => Sha256::DIGEST_LEN,
             Self::Sha384 => Sha384::DIGEST_LEN,
+            Self::Sha512_224 => Sha512_224::DIGEST_LEN,
+            Self::Sha512_256 => Sha512_256::DIGEST_LEN,
             Self::Sha512 => Sha512::DIGEST_LEN,
+            Self::Sha3_224 => Sha3_224::DIGEST_LEN,
+            Self::Sha3_256 => Sha3_256::DIGEST_LEN,
+            Self::Sha3_384 => Sha3_384::DIGEST_LEN,
+            Self::Sha3_512 => Sha3_512::DIGEST_LEN,
+            Self::Sm3 => Sm3::DIGEST_LEN,
         }
     }
 }
@@ -124,23 +146,65 @@ struct Request {
 }
 
 enum ActiveDriver<
-    Md5Driver: 'static,
-    Sha1Driver: 'static,
-    Sha224Driver: 'static,
-    Sha256Driver: 'static,
-    Sha384Driver: 'static,
-    Sha512Driver: 'static,
+    Md5Driver: Digest<Md5> + 'static,
+    Sha1Driver: Digest<Sha1> + 'static,
+    Sha224Driver: Digest<Sha224> + 'static,
+    Sha256Driver: Digest<Sha256> + 'static,
+    Sha384Driver: Digest<Sha384> + 'static,
+    Sha512_224Driver: Digest<Sha512_224> + 'static,
+    Sha512_256Driver: Digest<Sha512_256> + 'static,
+    Sha512Driver: Digest<Sha512> + 'static,
+    Sha3_224Driver: Digest<Sha3_224> + 'static,
+    Sha3_256Driver: Digest<Sha3_256> + 'static,
+    Sha3_384Driver: Digest<Sha3_384> + 'static,
+    Sha3_512Driver: Digest<Sha3_512> + 'static,
+    Sm3Driver: Digest<Sm3> + 'static,
 > {
     Md5(DriverMutexRef<Md5Driver>),
     Sha1(DriverMutexRef<Sha1Driver>),
     Sha224(DriverMutexRef<Sha224Driver>),
     Sha256(DriverMutexRef<Sha256Driver>),
     Sha384(DriverMutexRef<Sha384Driver>),
+    Sha512_224(DriverMutexRef<Sha512_224Driver>),
+    Sha512_256(DriverMutexRef<Sha512_256Driver>),
     Sha512(DriverMutexRef<Sha512Driver>),
+    Sha3_224(DriverMutexRef<Sha3_224Driver>),
+    Sha3_256(DriverMutexRef<Sha3_256Driver>),
+    Sha3_384(DriverMutexRef<Sha3_384Driver>),
+    Sha3_512(DriverMutexRef<Sha3_512Driver>),
+    Sm3(DriverMutexRef<Sm3Driver>),
 }
 
-impl<Md5Driver, Sha1Driver, Sha224Driver, Sha256Driver, Sha384Driver, Sha512Driver>
-    ActiveDriver<Md5Driver, Sha1Driver, Sha224Driver, Sha256Driver, Sha384Driver, Sha512Driver>
+impl<
+    Md5Driver: Digest<Md5>,
+    Sha1Driver: Digest<Sha1>,
+    Sha224Driver: Digest<Sha224>,
+    Sha256Driver: Digest<Sha256>,
+    Sha384Driver: Digest<Sha384>,
+    Sha512_224Driver: Digest<Sha512_224>,
+    Sha512_256Driver: Digest<Sha512_256>,
+    Sha512Driver: Digest<Sha512>,
+    Sha3_224Driver: Digest<Sha3_224>,
+    Sha3_256Driver: Digest<Sha3_256>,
+    Sha3_384Driver: Digest<Sha3_384>,
+    Sha3_512Driver: Digest<Sha3_512>,
+    Sm3Driver: Digest<Sm3>,
+>
+    ActiveDriver<
+        Md5Driver,
+        Sha1Driver,
+        Sha224Driver,
+        Sha256Driver,
+        Sha384Driver,
+        Sha512_224Driver,
+        Sha512_256Driver,
+        Sha512Driver,
+        Sha3_224Driver,
+        Sha3_256Driver,
+        Sha3_384Driver,
+        Sha3_512Driver,
+        Sm3Driver,
+    >
 {
     fn release(self) {
         match self {
@@ -150,6 +214,13 @@ impl<Md5Driver, Sha1Driver, Sha224Driver, Sha256Driver, Sha384Driver, Sha512Driv
             Self::Sha256(guard) => drop(guard),
             Self::Sha384(guard) => drop(guard),
             Self::Sha512(guard) => drop(guard),
+            Self::Sha512_224(guard) => drop(guard),
+            Self::Sha512_256(guard) => drop(guard),
+            Self::Sha3_224(guard) => drop(guard),
+            Self::Sha3_256(guard) => drop(guard),
+            Self::Sha3_384(guard) => drop(guard),
+            Self::Sha3_512(guard) => drop(guard),
+            Self::Sm3(guard) => drop(guard),
         }
     }
 }
@@ -178,7 +249,14 @@ pub struct DigestDriver<
     Sha224Driver: Digest<Sha224> + 'static = UnavailableDigest,
     Sha256Driver: Digest<Sha256> + 'static = UnavailableDigest,
     Sha384Driver: Digest<Sha384> + 'static = UnavailableDigest,
+    Sha512_224Driver: Digest<Sha512_224> + 'static = UnavailableDigest,
+    Sha512_256Driver: Digest<Sha512_256> + 'static = UnavailableDigest,
     Sha512Driver: Digest<Sha512> + 'static = UnavailableDigest,
+    Sha3_224Driver: Digest<Sha3_224> + 'static = UnavailableDigest,
+    Sha3_256Driver: Digest<Sha3_256> + 'static = UnavailableDigest,
+    Sha3_384Driver: Digest<Sha3_384> + 'static = UnavailableDigest,
+    Sha3_512Driver: Digest<Sha3_512> + 'static = UnavailableDigest,
+    Sm3Driver: Digest<Sm3> + 'static = UnavailableDigest,
 > {
     apps: DigestGrant,
     md5: Slot<Md5Driver>,
@@ -187,9 +265,30 @@ pub struct DigestDriver<
     sha256: Slot<Sha256Driver>,
     sha384: Slot<Sha384Driver>,
     sha512: Slot<Sha512Driver>,
+    sha512_224: Slot<Sha512_224Driver>,
+    sha512_256: Slot<Sha512_256Driver>,
+    sha3_224: Slot<Sha3_224Driver>,
+    sha3_256: Slot<Sha3_256Driver>,
+    sha3_384: Slot<Sha3_384Driver>,
+    sha3_512: Slot<Sha3_512Driver>,
+    sm3: Slot<Sm3Driver>,
     request: Cell<Option<Request>>,
     active: MapCell<
-        ActiveDriver<Md5Driver, Sha1Driver, Sha224Driver, Sha256Driver, Sha384Driver, Sha512Driver>,
+        ActiveDriver<
+            Md5Driver,
+            Sha1Driver,
+            Sha224Driver,
+            Sha256Driver,
+            Sha384Driver,
+            Sha512_224Driver,
+            Sha512_256Driver,
+            Sha512Driver,
+            Sha3_224Driver,
+            Sha3_256Driver,
+            Sha3_384Driver,
+            Sha3_512Driver,
+            Sm3Driver,
+        >,
     >,
 }
 
@@ -199,8 +298,30 @@ impl<
     Sha224Driver: Digest<Sha224> + 'static,
     Sha256Driver: Digest<Sha256> + 'static,
     Sha384Driver: Digest<Sha384> + 'static,
+    Sha512_224Driver: Digest<Sha512_224> + 'static,
+    Sha512_256Driver: Digest<Sha512_256> + 'static,
     Sha512Driver: Digest<Sha512> + 'static,
-> DigestDriver<Md5Driver, Sha1Driver, Sha224Driver, Sha256Driver, Sha384Driver, Sha512Driver>
+    Sha3_224Driver: Digest<Sha3_224> + 'static,
+    Sha3_256Driver: Digest<Sha3_256> + 'static,
+    Sha3_384Driver: Digest<Sha3_384> + 'static,
+    Sha3_512Driver: Digest<Sha3_512> + 'static,
+    Sm3Driver: Digest<Sm3> + 'static,
+>
+    DigestDriver<
+        Md5Driver,
+        Sha1Driver,
+        Sha224Driver,
+        Sha256Driver,
+        Sha384Driver,
+        Sha512_224Driver,
+        Sha512_256Driver,
+        Sha512Driver,
+        Sha3_224Driver,
+        Sha3_256Driver,
+        Sha3_384Driver,
+        Sha3_512Driver,
+        Sm3Driver,
+    >
 {
     /// Create the capsule with optional per-algorithm mutexes.
     ///
@@ -212,7 +333,14 @@ impl<
         sha224: Option<&'static DriverMutex<Sha224Driver>>,
         sha256: Option<&'static DriverMutex<Sha256Driver>>,
         sha384: Option<&'static DriverMutex<Sha384Driver>>,
+        sha512_224: Option<&'static DriverMutex<Sha512_224Driver>>,
+        sha512_256: Option<&'static DriverMutex<Sha512_256Driver>>,
         sha512: Option<&'static DriverMutex<Sha512Driver>>,
+        sha3_224: Option<&'static DriverMutex<Sha3_224Driver>>,
+        sha3_256: Option<&'static DriverMutex<Sha3_256Driver>>,
+        sha3_384: Option<&'static DriverMutex<Sha3_384Driver>>,
+        sha3_512: Option<&'static DriverMutex<Sha3_512Driver>>,
+        sm3: Option<&'static DriverMutex<Sm3Driver>>,
     ) -> Self {
         Self {
             apps,
@@ -221,7 +349,14 @@ impl<
             sha224: Slot::new(sha224),
             sha256: Slot::new(sha256),
             sha384: Slot::new(sha384),
+            sha512_224: Slot::new(sha512_224),
+            sha512_256: Slot::new(sha512_256),
             sha512: Slot::new(sha512),
+            sha3_224: Slot::new(sha3_224),
+            sha3_256: Slot::new(sha3_256),
+            sha3_384: Slot::new(sha3_384),
+            sha3_512: Slot::new(sha3_512),
+            sm3: Slot::new(sm3),
             request: Cell::new(None),
             active: MapCell::empty(),
         }
@@ -238,6 +373,13 @@ impl<
         self.sha256.register(client)?;
         self.sha384.register(client)?;
         self.sha512.register(client)?;
+        self.sha512_224.register(client)?;
+        self.sha512_256.register(client)?;
+        self.sha3_224.register(client)?;
+        self.sha3_256.register(client)?;
+        self.sha3_384.register(client)?;
+        self.sha3_512.register(client)?;
+        self.sm3.register(client)?;
         Ok(())
     }
 
@@ -248,7 +390,14 @@ impl<
             Algorithm::Sha224 => self.sha224.mutex.is_some(),
             Algorithm::Sha256 => self.sha256.mutex.is_some(),
             Algorithm::Sha384 => self.sha384.mutex.is_some(),
+            Algorithm::Sha512_224 => self.sha512_224.mutex.is_some(),
+            Algorithm::Sha512_256 => self.sha512_256.mutex.is_some(),
             Algorithm::Sha512 => self.sha512.mutex.is_some(),
+            Algorithm::Sha3_224 => self.sha3_224.mutex.is_some(),
+            Algorithm::Sha3_256 => self.sha3_256.mutex.is_some(),
+            Algorithm::Sha3_384 => self.sha3_384.mutex.is_some(),
+            Algorithm::Sha3_512 => self.sha3_512.mutex.is_some(),
+            Algorithm::Sm3 => self.sm3.mutex.is_some(),
         };
         if !supported {
             return Err(ErrorCode::NOSUPPORT);
@@ -285,7 +434,14 @@ impl<
             Algorithm::Sha224 => self.sha224.request(),
             Algorithm::Sha256 => self.sha256.request(),
             Algorithm::Sha384 => self.sha384.request(),
+            Algorithm::Sha512_224 => self.sha512_224.request(),
+            Algorithm::Sha512_256 => self.sha512_256.request(),
             Algorithm::Sha512 => self.sha512.request(),
+            Algorithm::Sha3_224 => self.sha3_224.request(),
+            Algorithm::Sha3_256 => self.sha3_256.request(),
+            Algorithm::Sha3_384 => self.sha3_384.request(),
+            Algorithm::Sha3_512 => self.sha3_512.request(),
+            Algorithm::Sm3 => self.sm3.request(),
         };
         if result.is_err() {
             self.request.set(None);
@@ -373,9 +529,30 @@ impl<
     Sha224Driver: Digest<Sha224> + 'static,
     Sha256Driver: Digest<Sha256> + 'static,
     Sha384Driver: Digest<Sha384> + 'static,
+    Sha512_224Driver: Digest<Sha512_224> + 'static,
+    Sha512_256Driver: Digest<Sha512_256> + 'static,
     Sha512Driver: Digest<Sha512> + 'static,
+    Sha3_224Driver: Digest<Sha3_224> + 'static,
+    Sha3_256Driver: Digest<Sha3_256> + 'static,
+    Sha3_384Driver: Digest<Sha3_384> + 'static,
+    Sha3_512Driver: Digest<Sha3_512> + 'static,
+    Sm3Driver: Digest<Sm3> + 'static,
 > SyscallDriver
-    for DigestDriver<Md5Driver, Sha1Driver, Sha224Driver, Sha256Driver, Sha384Driver, Sha512Driver>
+    for DigestDriver<
+        Md5Driver,
+        Sha1Driver,
+        Sha224Driver,
+        Sha256Driver,
+        Sha384Driver,
+        Sha512_224Driver,
+        Sha512_256Driver,
+        Sha512Driver,
+        Sha3_224Driver,
+        Sha3_256Driver,
+        Sha3_384Driver,
+        Sha3_512Driver,
+        Sm3Driver,
+    >
 {
     fn command(
         &self,
@@ -404,9 +581,30 @@ impl<
     Sha224Driver: Digest<Sha224> + 'static,
     Sha256Driver: Digest<Sha256> + 'static,
     Sha384Driver: Digest<Sha384> + 'static,
+    Sha512_224Driver: Digest<Sha512_224> + 'static,
+    Sha512_256Driver: Digest<Sha512_256> + 'static,
     Sha512Driver: Digest<Sha512> + 'static,
+    Sha3_224Driver: Digest<Sha3_224> + 'static,
+    Sha3_256Driver: Digest<Sha3_256> + 'static,
+    Sha3_384Driver: Digest<Sha3_384> + 'static,
+    Sha3_512Driver: Digest<Sha3_512> + 'static,
+    Sm3Driver: Digest<Sm3> + 'static,
 > DriverMutexClient
-    for DigestDriver<Md5Driver, Sha1Driver, Sha224Driver, Sha256Driver, Sha384Driver, Sha512Driver>
+    for DigestDriver<
+        Md5Driver,
+        Sha1Driver,
+        Sha224Driver,
+        Sha256Driver,
+        Sha384Driver,
+        Sha512_224Driver,
+        Sha512_256Driver,
+        Sha512Driver,
+        Sha3_224Driver,
+        Sha3_256Driver,
+        Sha3_384Driver,
+        Sha3_512Driver,
+        Sm3Driver,
+    >
 {
     fn ready(&'static self, resource: DriverMutexAny) {
         let Some(request) = self.request.get() else {
@@ -453,9 +651,30 @@ impl<
     Sha224Driver: Digest<Sha224> + 'static,
     Sha256Driver: Digest<Sha256> + 'static,
     Sha384Driver: Digest<Sha384> + 'static,
+    Sha512_224Driver: Digest<Sha512_224> + 'static,
+    Sha512_256Driver: Digest<Sha512_256> + 'static,
     Sha512Driver: Digest<Sha512> + 'static,
+    Sha3_224Driver: Digest<Sha3_224> + 'static,
+    Sha3_256Driver: Digest<Sha3_256> + 'static,
+    Sha3_384Driver: Digest<Sha3_384> + 'static,
+    Sha3_512Driver: Digest<Sha3_512> + 'static,
+    Sm3Driver: Digest<Sm3> + 'static,
 > DigestClient<AlgorithmType>
-    for DigestDriver<Md5Driver, Sha1Driver, Sha224Driver, Sha256Driver, Sha384Driver, Sha512Driver>
+    for DigestDriver<
+        Md5Driver,
+        Sha1Driver,
+        Sha224Driver,
+        Sha256Driver,
+        Sha384Driver,
+        Sha512_224Driver,
+        Sha512_256Driver,
+        Sha512Driver,
+        Sha3_224Driver,
+        Sha3_256Driver,
+        Sha3_384Driver,
+        Sha3_512Driver,
+        Sm3Driver,
+    >
 {
     fn read_input(&self, input: &mut [u8]) -> Result<usize, ErrorCode> {
         self.read(input)
