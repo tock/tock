@@ -8,11 +8,12 @@
 
 use core::fmt::Write;
 
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::interfaces::Readable;
 
 pub mod clic;
 pub mod csr;
 pub mod dma_fence;
+pub mod interrupt_controller;
 pub mod pmp;
 pub mod pseudo_instructions;
 pub mod support;
@@ -177,16 +178,8 @@ pub enum PermissionMode {
 ///
 /// The trap handler is called on exceptions and for interrupts.
 pub unsafe fn configure_trap_handler() {
-    // Indicate to the trap handler that we are executing kernel code.
-    csr::CSR.mscratch.set(0);
-
-    // Set the machine-mode trap handler. By not configuring an S-mode or U-mode
-    // trap handler, this should ensure that all traps are handled by the M-mode
-    // handler.
-    csr::CSR.mtvec.write(
-        csr::mtvec::mtvec::trap_addr.val(start_trap as extern "C" fn() -> ! as usize >> 2)
-            + csr::mtvec::mtvec::mode::CLEAR,
-    );
+    use interrupt_controller::InterruptController;
+    interrupt_controller::Clint::configure_trap_handler();
 }
 
 /// This is the trap handler function. This code is called on all traps,

@@ -16,6 +16,7 @@ pub use riscv::configure_trap_handler;
 pub use riscv::csr;
 pub use riscv::dma_fence;
 pub use riscv::initialize_ram_jump_to_main;
+pub use riscv::interrupt_controller;
 pub use riscv::pmp;
 pub use riscv::print_mcause;
 pub use riscv::print_riscv_state;
