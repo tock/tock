@@ -312,9 +312,6 @@ impl<'a> kernel::hil::symmetric_encryption::AES<'a, AES128> for AesECB<'a> {
         }
     }
 
-    // not needed by NRF5x
-    fn start_message(&self) {}
-
     fn crypt(
         &self,
         source: Option<&'static mut [u8]>,
