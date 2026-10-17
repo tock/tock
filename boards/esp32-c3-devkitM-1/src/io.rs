@@ -8,7 +8,7 @@ use kernel::debug;
 /// Panic handler.
 #[cfg(not(test))]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     debug::panic_print::<esp32::uart::Uart, _, _>(
         esp32::uart::UartPanicWriterConfig {
             registers: esp32::uart::UART0_BASE,
@@ -32,7 +32,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
 
 #[cfg(test)]
 #[panic_handler]
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub fn panic_fmt(pi: &PanicInfo) -> ! {
     debug::panic_print::<esp32::uart::Uart, _, _>(
         esp32::uart::UartPanicWriterConfig {
             registers: esp32::uart::UART0_BASE,
