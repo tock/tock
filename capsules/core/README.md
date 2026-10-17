@@ -56,7 +56,7 @@ various elements of Tock.
 - **[Process Console](src/process_console.rs)**: Provide a UART console to
   inspect the status of process and stop/start them.
 
-Virtualized Hardware Resources
+Shared Hardware Resources
 ------------------------------
 
 These allow for multiple users of shared hardware resources in the kernel.
@@ -71,6 +71,7 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual SPI](src/virtualizers/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
 - **[Virtual Timer](src/virtualizers/virtual_timer.rs)**: Shared timer.
 - **[Virtual UART](src/virtualizers/virtual_uart.rs)**: Shared UART bus.
+_ **[Driver Mutex](src/driver_mutex.rs)**: Generic, callback-based synchronization.
 
 Miscallenous Capsules & Infrastructure
 --------------------------------------
