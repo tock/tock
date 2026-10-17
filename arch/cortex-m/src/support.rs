@@ -183,3 +183,19 @@ pub fn is_interrupt_context() -> bool {
 pub fn is_interrupt_context() -> bool {
     unimplemented!()
 }
+
+/// Deliberately trigger a hard fault (undefined instruction) on the chip.
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+pub fn hardfault(_cap: &dyn capabilities::CpuControlCapability) -> ! {
+    // SAFETY: This does not use any registers or memory, it just crashes.
+    unsafe {
+        core::arch::asm!("udf #0", options(noreturn, nomem, nostack));
+    }
+}
+
+/// Deliberately trigger a hard fault (undefined instruction) on the chip
+/// (mock).
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+pub fn hardfault(_cap: &dyn capabilities::CpuControlCapability) -> ! {
+    unimplemented!()
+}

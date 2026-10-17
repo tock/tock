@@ -5,6 +5,7 @@
 //! Core low-level operations.
 
 use crate::csr::{CSR, mstatus::mstatus};
+use kernel::capabilities;
 
 #[cfg(riscv)]
 #[inline(always)]
@@ -50,6 +51,15 @@ where
     res
 }
 
+/// Deliberately trigger a hard fault (undefined instruction) on the chip.
+#[cfg(riscv)]
+pub fn hardfault(_cap: &dyn capabilities::CpuControlCapability) -> ! {
+    // SAFETY: This does not use any registers or memory, it just crashes.
+    unsafe {
+        core::arch::asm!("unimp", options(noreturn, nomem, nostack));
+    }
+}
+
 // Mock implementations for tests on Travis-CI.
 #[cfg(not(riscv))]
 pub fn nop() {
@@ -58,5 +68,10 @@ pub fn nop() {
 
 #[cfg(not(riscv))]
 pub unsafe fn wfi() {
+    unimplemented!()
+}
+
+#[cfg(not(riscv))]
+pub fn hardfault(_cap: &dyn capabilities::CpuControlCapability) -> ! {
     unimplemented!()
 }

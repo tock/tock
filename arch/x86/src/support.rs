@@ -6,6 +6,7 @@
 
 #[cfg(target_arch = "x86")]
 use core::arch::asm;
+use kernel::capabilities;
 
 /// Execute closure without allowing any interrupts on the current core.
 ///
@@ -61,5 +62,19 @@ pub fn nop() {
 #[cfg(not(target_arch = "x86"))]
 #[inline(always)]
 pub fn nop() {
+    unimplemented!()
+}
+
+/// Deliberately trigger a hard fault (undefined instruction) on the chip.
+#[cfg(target_arch = "x86")]
+pub fn hardfault(_cap: &dyn capabilities::CpuControlCapability) -> ! {
+    // SAFETY: This does not use any registers or memory, it just crashes.
+    unsafe {
+        asm!("ud2", options(noreturn, nomem, nostack));
+    }
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub fn hardfault(_cap: &dyn capabilities::CpuControlCapability) -> ! {
     unimplemented!()
 }
