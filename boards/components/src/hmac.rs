@@ -9,7 +9,7 @@
 //! ```rust
 //!    let hmac = components::hmac::HmacComponent::new(
 //!        board_kernel,
-//!        chip.hmac,
+//!        hmac_mutex, // A DriverMutex wrapping the HMAC implementation.
 //!    )
 //!    .finalize(components::hmac_component_static!(
 //!        lowrisc::hmac::Hmac,
@@ -17,6 +17,7 @@
 //!    ));
 //! ```
 
+use capsules_core::driver_mutex::DriverMutex;
 use capsules_extra::hmac::HmacDriver;
 use core::mem::MaybeUninit;
 use kernel::capabilities::MemoryAllocationCapability;
@@ -44,7 +45,7 @@ pub struct HmacComponent<
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    hmac: &'static A,
+    hmac: &'static DriverMutex<A>,
     mem_cap: CAP,
 }
 
@@ -57,7 +58,7 @@ impl<
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        hmac: &'static A,
+        hmac: &'static DriverMutex<A>,
         mem_cap: CAP,
     ) -> HmacComponent<A, L, CAP> {
         HmacComponent {
@@ -101,7 +102,11 @@ impl<
                 .create_grant(self.driver_num, &self.mem_cap),
         ));
 
-        self.hmac.set_client(hmac);
+        hmac.set_mutex_handle(
+            self.hmac
+                .add_client(hmac)
+                .expect("HMAC driver mutex has no client slots"),
+        );
 
         hmac
     }
