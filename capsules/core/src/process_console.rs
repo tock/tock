@@ -44,7 +44,7 @@ pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
 const VALID_COMMANDS_STR: &[u8] =
-    b"help status list stop start fault boot terminate process kernel reset panic console-start console-stop\r\n";
+    b"help status list stop start fault boot terminate process kernel reset hardfault panic console-start console-stop\r\n";
 
 /// Escape character for ANSI escape sequences.
 const ESC: u8 = b'\x1B';
@@ -271,6 +271,9 @@ pub struct ProcessConsole<
     /// Function used to reset the device in bootloader mode
     reset_function: Option<fn() -> !>,
 
+    /// Function used to trigger a hardfault (or equivalent) on the device.
+    hardfault_function: Option<fn() -> !>,
+
     /// This capsule needs to use potentially dangerous APIs related to
     /// processes, and requires a capability to access those APIs.
     capability: C,
@@ -454,6 +457,7 @@ impl<
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
         reset_function: Option<fn() -> !>,
+        hardfault_function: Option<fn() -> !>,
         capability: C,
     ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
         ProcessConsole {
@@ -477,6 +481,7 @@ impl<
             kernel,
             kernel_addresses,
             reset_function,
+            hardfault_function,
             capability,
         }
     }
@@ -998,6 +1003,16 @@ impl<
                             self.reset_function.map_or_else(
                                 || {
                                     let _ = self.write_bytes(b"Reset function is not implemented");
+                                },
+                                |f| {
+                                    f();
+                                },
+                            );
+                        } else if clean_str.starts_with("hardfault") {
+                            self.hardfault_function.map_or_else(
+                                || {
+                                    let _ =
+                                        self.write_bytes(b"Hardfault function is not implemented");
                                 },
                                 |f| {
                                     f();
