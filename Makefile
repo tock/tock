@@ -517,8 +517,10 @@ ci-job-capsules:
 	$(call banner,CI-Job: Capsules)
 	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
 	@cd capsules/core && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
+	@cd capsules/crypto && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
 	@cd capsules/extra && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
 	@cd capsules/system && cargo test --config $(DENY_WARNINGS_CARGO_CONFIG)
+	@cd boards/components && cargo test --test digest --config $(DENY_WARNINGS_CARGO_CONFIG)
 
 .PHONY: ci-job-chips
 ci-job-chips:

@@ -12,6 +12,7 @@ edition.workspace = true
 kernel = { path = "../../kernel" }
 
 capsules-core = { path = "../../capsules/core" }
+capsules-crypto = { path = "../../capsules/crypto" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 segger = { path = "../../chips/segger" }
