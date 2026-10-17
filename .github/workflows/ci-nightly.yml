@@ -48,7 +48,7 @@ jobs:
         run: make ci-job-collect-artifacts
 
       - name: upload-build-artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifacts-${{ matrix.os }}
           path: tools/ci/ci-artifacts
@@ -83,7 +83,7 @@ jobs:
         run: |
           brew install zeromq
         if: matrix.os == 'macos-latest'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: ci-job-libraries
         run: make ci-job-libraries
       - name: ci-job-archs

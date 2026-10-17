@@ -33,7 +33,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v7
       - name:      ci-job-format
         run:  make ci-job-format
       - name:      ci-job-markdown-toc
@@ -135,7 +135,7 @@ jobs:
       - name:      ci-job-collect-artifacts
         run:  make ci-job-collect-artifacts
       - name: upload-build-artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: tools/ci/ci-artifacts
