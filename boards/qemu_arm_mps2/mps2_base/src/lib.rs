@@ -244,6 +244,7 @@ where
         alarm_mux,
         process_printer,
         None,
+        None,
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(

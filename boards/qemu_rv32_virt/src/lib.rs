@@ -701,6 +701,11 @@ pub unsafe fn start(
         mux_alarm,
         process_printer,
         None,
+        Some(|| {
+            rv32i::support::hardfault(&kernel::create_capability!(
+                kernel::capabilities::CpuStateControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(
