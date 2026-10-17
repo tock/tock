@@ -418,6 +418,11 @@ pub unsafe fn main() {
                 kernel::capabilities::CpuControlCapability
             ))
         }),
+        Some(|| {
+            cortexm33::support::hardfault(&kernel::create_capability!(
+                kernel::capabilities::CpuControlCapability
+            ))
+        }),
         process_console_cap,
     )
     .finalize(components::process_console_component_static!(

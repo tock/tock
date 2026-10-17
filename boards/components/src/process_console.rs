@@ -21,6 +21,7 @@
 //!     alarm_mux,
 //!     process_printer,
 //!     Some(reset_function),
+//!     Some(hardfault_function),
 //!     process_console_cap,
 //! )
 //! .finalize(process_console_component_static!(AlarmType, ProcessConsoleCap));
@@ -93,6 +94,7 @@ pub struct ProcessConsoleComponent<
     alarm_mux: &'static MuxAlarm<'static, A>,
     process_printer: &'static dyn ProcessPrinter,
     reset_function: Option<fn() -> !>,
+    hardfault_function: Option<fn() -> !>,
     capability: C,
 }
 
@@ -108,6 +110,7 @@ impl<
         alarm_mux: &'static MuxAlarm<'static, A>,
         process_printer: &'static dyn ProcessPrinter,
         reset_function: Option<fn() -> !>,
+        hardfault_function: Option<fn() -> !>,
         capability: C,
     ) -> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A, C> {
         ProcessConsoleComponent {
@@ -116,6 +119,7 @@ impl<
             alarm_mux,
             process_printer,
             reset_function,
+            hardfault_function,
             capability,
         }
     }
@@ -210,6 +214,7 @@ impl<
             self.board_kernel,
             kernel_addresses,
             self.reset_function,
+            self.hardfault_function,
             self.capability,
         ));
         hil::uart::Transmit::set_transmit_client(console_uart, console);
