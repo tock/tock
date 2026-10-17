@@ -499,21 +499,18 @@ impl<
                             self.data_copied.set(copied_data + static_buffer_len);
 
                             if let Some(op) = app.aes_operation.as_ref() {
-                                if self
-                                    .calculate_output(
-                                        op,
-                                        app.aoff.get(),
-                                        app.moff.get(),
-                                        app.mlen.get(),
-                                        app.mic_len.get(),
-                                        app.confidential.get(),
-                                    )
-                                    .is_err()
-                                {
+                                if let Err(e) = self.calculate_output(
+                                    op,
+                                    app.aoff.get(),
+                                    app.moff.get(),
+                                    app.mlen.get(),
+                                    app.mic_len.get(),
+                                    app.confidential.get(),
+                                ) {
                                     // Error, clear the processid and data
                                     self.aes.disable();
                                     self.processid.clear();
-                                    self.check_queue();
+                                    let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
                                     return;
                                 }
                             }
