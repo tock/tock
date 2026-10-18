@@ -6,6 +6,10 @@
 
 RISC_PREFIX = riscv64-linux-gnu
 
+# Newer esptool releases install the `esptool` command, older releases install
+# `esptool.py`. Use whichever is installed, preferring `esptool`.
+ESPTOOL ?= $(or $(shell command -v esptool 2>/dev/null),esptool.py)
+
 include ../Makefile.common
 
 # Default target for installing the kernel.
@@ -24,7 +28,7 @@ write-kernel: $(TARGET_PATH)/release/$(PLATFORM).bin
 esp32_c3_devkitm1.bin: write-kernel
 
 flash: esp32_c3_devkitm1.bin
-	esptool.py --chip esp32c3 write_flash 0x0 esp32_c3_devkitm1.bin
+	$(ESPTOOL) --chip esp32c3 write_flash 0x0 esp32_c3_devkitm1.bin
 
 test:
 	$(Q)$(CARGO) test $(NO_RUN) --bin $(PLATFORM) --release
