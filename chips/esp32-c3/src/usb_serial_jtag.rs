@@ -15,6 +15,7 @@ use core::cell::Cell;
 use core::cmp::min;
 
 use kernel::ErrorCode;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
@@ -190,6 +191,10 @@ pub struct UsbSerialJtag<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
     rx_index: Cell<usize>,
     rx_len: Cell<usize>,
+
+    // Used to invoke the `received_buffer` callback when there's already some
+    // data to receive in the hardware buffers.
+    deferred_call: DeferredCall,
 }
 
 impl UsbSerialJtag<'_> {
@@ -205,6 +210,7 @@ impl UsbSerialJtag<'_> {
             rx_buffer: TakeCell::empty(),
             rx_index: Cell::new(0),
             rx_len: Cell::new(0),
+            deferred_call: DeferredCall::new(),
         };
 
         usb_serial_jtag.disable_rx_interrupt();
@@ -234,8 +240,7 @@ impl UsbSerialJtag<'_> {
     /// Write as much of one `USB_SERIAL_JTAG_PACKET_SIZE`-sized chunk as the
     /// hardware currently has room for, then flush it. Returns the number
     /// of bytes actually written.
-    fn write_chunk(&self, bytes: &[u8]) -> usize {
-        let regs = self.registers;
+    fn write_chunk(regs: &UsbSerialJtagRegisters, bytes: &[u8]) -> usize {
         let mut written = 0;
 
         for &b in bytes.iter().take(USB_SERIAL_JTAG_PACKET_SIZE) {
@@ -273,7 +278,7 @@ impl UsbSerialJtag<'_> {
 
         if idx < len {
             self.tx_buffer.map(|tx_buf| {
-                let written = self.write_chunk(&tx_buf[idx..len]);
+                let written = Self::write_chunk(&regs, &tx_buf[idx..len]);
                 self.tx_index.set(idx + written);
 
                 // If we wrote a full buffer we may need to send an empty
@@ -283,7 +288,7 @@ impl UsbSerialJtag<'_> {
                     .set(written == USB_SERIAL_JTAG_PACKET_SIZE);
             });
         } else if self.tx_needs_zero_length_packet.take() {
-            self.write_chunk(&[]);
+            Self::write_chunk(&regs, &[]);
         } else {
             self.disable_tx_interrupt();
             self.tx_client.map(|client| {
@@ -294,6 +299,11 @@ impl UsbSerialJtag<'_> {
         }
     }
 
+    /// Read bytes out of the RX hardware FIFO and invoke the `received_buffer`
+    /// callback once it's full.
+    ///
+    /// This must only be called from `handle_interrupt` or a deferred call
+    /// context.
     fn rx_progress(&self) {
         let regs = self.registers;
         let idx = self.rx_index.get();
@@ -310,6 +320,15 @@ impl UsbSerialJtag<'_> {
                 }
             });
         }
+
+        if self.rx_buffer.is_some() && self.rx_index.get() == len {
+            self.disable_rx_interrupt();
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|rx_buf| {
+                    client.received_buffer(rx_buf, len, Ok(()), hil::uart::Error::None);
+                });
+            });
+        }
     }
 
     pub fn handle_interrupt(&self) {
@@ -324,47 +343,35 @@ impl UsbSerialJtag<'_> {
         if intrs.is_set(INT::SERIAL_OUT_RECV_PKT) {
             regs.int_clr.write(INT::SERIAL_OUT_RECV_PKT::SET);
             self.rx_progress();
-
-            if self.rx_index.get() == self.rx_len.get() {
-                self.disable_rx_interrupt();
-                self.rx_client.map(|client| {
-                    self.rx_buffer.take().map(|rx_buf| {
-                        client.received_buffer(
-                            rx_buf,
-                            self.rx_len.get(),
-                            Ok(()),
-                            hil::uart::Error::None,
-                        );
-                    });
-                });
-            }
         }
     }
 
     /// Synchronously write `bytes` out the CDC-ACM serial port, including any
     /// terminating zero-length packet required. This is intended for panic
     /// output, where interrupts are unavailable.
-    pub fn transmit_sync(&self, bytes: &[u8]) {
+    fn transmit_sync(regs: &UsbSerialJtagRegisters, bytes: &[u8]) {
         let mut idx = 0;
 
         while idx < bytes.len() {
             let end = min(idx + USB_SERIAL_JTAG_PACKET_SIZE, bytes.len());
-            while !self
-                .registers
-                .ep1_conf
-                .is_set(EP1_CONF::SERIAL_IN_EP_DATA_FREE)
-            {}
-            idx += self.write_chunk(&bytes[idx..end]);
+            while !regs.ep1_conf.is_set(EP1_CONF::SERIAL_IN_EP_DATA_FREE) {}
+            idx += Self::write_chunk(regs, &bytes[idx..end]);
         }
 
         if !bytes.is_empty() && bytes.len().is_multiple_of(USB_SERIAL_JTAG_PACKET_SIZE) {
-            while !self
-                .registers
-                .ep1_conf
-                .is_set(EP1_CONF::SERIAL_IN_EP_DATA_FREE)
-            {}
-            self.write_chunk(&[]);
+            while !regs.ep1_conf.is_set(EP1_CONF::SERIAL_IN_EP_DATA_FREE) {}
+            Self::write_chunk(regs, &[]);
         }
+    }
+}
+
+impl DeferredCallClient for UsbSerialJtag<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
+    fn handle_deferred_call(&self) {
+        self.rx_progress();
     }
 }
 
@@ -423,6 +430,8 @@ impl<'a> hil::uart::Receive<'a> for UsbSerialJtag<'a> {
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if rx_len == 0 || rx_len > rx_buffer.len() {
             return Err((ErrorCode::SIZE, rx_buffer));
+        } else if self.rx_buffer.is_some() {
+            return Err((ErrorCode::BUSY, rx_buffer));
         }
 
         self.rx_buffer.replace(rx_buffer);
@@ -431,7 +440,24 @@ impl<'a> hil::uart::Receive<'a> for UsbSerialJtag<'a> {
 
         self.enable_rx_interrupt();
 
-        self.rx_progress();
+        // The UART hardware receives input on the granularity of USB packets,
+        // which may contain one or more characters. If this operation reads
+        // fewer than the available bytes of this packet, we won't re-raise an
+        // interrupt for the next few bytes, but also don't have a place to
+        // stash the pending bytes of the current packet for the next reader.
+        // So, if we already have some bytes to read, schedule a deferred call,
+        // which will read the current packet either partially or fully.
+        //
+        // (This check is allowed to race with an actual interrupt, in which
+        // case either the deferred call or interrupt will win, one of which
+        // might just find no available data to receive.)
+        if self
+            .registers
+            .ep1_conf
+            .is_set(EP1_CONF::SERIAL_OUT_EP_DATA_AVAIL)
+        {
+            self.deferred_call.set();
+        }
 
         Ok(())
     }
@@ -450,20 +476,23 @@ use kernel::utilities::io_write::IoWrite;
 /// A synchronous writer for the USB_SERIAL_JTAG CDC-ACM port, useful for
 /// panics.
 ///
-/// This is only to be used by panic messages and is not used within the
-/// normal operation of the Tock kernel.
-struct UsbSerialJtagPanicWriter<'a> {
-    usb_serial_jtag: UsbSerialJtag<'a>,
+/// This is only to be used by panic messages and is not used within the normal
+/// operation of the Tock kernel. It does not hold a full [`UsbSerialJtag`]
+/// instance, as creating that one invokes [`DeferredCall::new`]. That fails for
+/// panics raised in a trap handler, where the deferred call state is not
+/// accessible.
+struct UsbSerialJtagPanicWriter {
+    registers: StaticRef<UsbSerialJtagRegisters>,
 }
 
-impl IoWrite for UsbSerialJtagPanicWriter<'_> {
+impl IoWrite for UsbSerialJtagPanicWriter {
     fn write(&mut self, buf: &[u8]) -> usize {
-        self.usb_serial_jtag.transmit_sync(buf);
+        UsbSerialJtag::transmit_sync(&self.registers, buf);
         buf.len()
     }
 }
 
-impl core::fmt::Write for UsbSerialJtagPanicWriter<'_> {
+impl core::fmt::Write for UsbSerialJtagPanicWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.write(s.as_bytes());
         Ok(())
@@ -482,8 +511,8 @@ impl kernel::platform::chip::PanicWriter for UsbSerialJtag<'_> {
         config: Self::Config,
         _panic: &core::panic::PanicInfo,
     ) -> impl IoWrite + core::fmt::Write {
-        let usb_serial_jtag = UsbSerialJtag::new(config.registers);
-
-        UsbSerialJtagPanicWriter { usb_serial_jtag }
+        UsbSerialJtagPanicWriter {
+            registers: config.registers,
+        }
     }
 }
