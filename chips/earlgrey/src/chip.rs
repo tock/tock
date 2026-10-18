@@ -434,7 +434,7 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 }
 
 pub unsafe fn configure_trap_handler() {
-    // The common _start_trap handler uses mscratch to determine
+    // The common start_trap handler uses mscratch to determine
     // whether we are executing kernel or process code. Set to `0` to
     // indicate we're in the kernel right now.
     CSR.mscratch.set(0);
