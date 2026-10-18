@@ -191,4 +191,15 @@ static TESTS: &[TestCase] = &[
         screenshot_delay: Duration::from_millis(0),
         expected_screen_hash: None,
     },
+    TestCase {
+        name: "syscall-return",
+        description: "Run the syscall-return test app and verify all syscall return variants are encoded and decoded correctly.",
+        apps: &[App::LibtockC("tests/syscall-return")],
+        steps: &[TestStep::WaitSerialInOrder {
+            needles: &["All tests succeeded"],
+            timeout: Duration::from_secs(30),
+        }],
+        screenshot_delay: Duration::from_millis(0),
+        expected_screen_hash: None,
+    },
 ];
