@@ -5,10 +5,12 @@
 //! Kernel-userland system call interface for RISC-V architecture.
 
 use core::fmt::Write;
+use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ops::Range;
 
 use crate::csr::mcause;
+use crate::interrupt_controller::{Clint, InterruptController};
 use kernel::errorcode::ErrorCode;
 use kernel::syscall::ContextSwitchReason;
 
@@ -259,15 +261,15 @@ fn encode_upcall_helper(
 }
 
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
-pub struct SysCall(());
+pub struct SysCall<I: InterruptController = Clint>(PhantomData<I>);
 
-impl SysCall {
-    pub const unsafe fn new() -> SysCall {
-        SysCall(())
+impl<I: InterruptController> SysCall<I> {
+    pub const unsafe fn new() -> SysCall<I> {
+        SysCall(PhantomData)
     }
 }
 
-impl kernel::syscall::UserspaceKernelBoundary for SysCall {
+impl<I: InterruptController> kernel::syscall::UserspaceKernelBoundary for SysCall<I> {
     type StoredState = RiscvStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
@@ -770,7 +772,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             XLEN_LOG2 = const crate::XLEN_LOG2,
         );
 
-        let ret = match mcause::Trap::from(state.mcause) {
+        use kernel::utilities::registers::LocalRegisterCopy;
+        let mut cause = LocalRegisterCopy::<usize, mcause::mcause::Register>::new(state.mcause);
+        cause.modify(mcause::mcause::reason.val(I::exccode(state.mcause)));
+
+        let ret = match mcause::Trap::from(cause) {
             mcause::Trap::Interrupt(_intr) => {
                 // An interrupt occurred while the app was running.
                 ContextSwitchReason::Interrupted

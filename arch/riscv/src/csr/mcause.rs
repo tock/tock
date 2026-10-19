@@ -20,10 +20,11 @@ pub enum Trap {
 
 impl From<LocalRegisterCopy<usize, mcause::Register>> for Trap {
     fn from(val: LocalRegisterCopy<usize, mcause::Register>) -> Self {
+        let code = val.read(mcause::reason);
         if val.is_set(mcause::is_interrupt) {
-            Trap::Interrupt(Interrupt::from_reason(val.read(mcause::reason)))
+            Trap::Interrupt(Interrupt::try_from(code).unwrap_or(Interrupt::Unknown(code)))
         } else {
-            Trap::Exception(Exception::from_reason(val.read(mcause::reason)))
+            Trap::Exception(Exception::try_from(code).unwrap_or(Exception::Unknown))
         }
     }
 }
@@ -69,10 +70,11 @@ pub enum Exception {
     Unknown,
 }
 
-impl Interrupt {
-    fn from_reason(val: usize) -> Self {
-        let mcause = LocalRegisterCopy::<usize, mcause::Register>::new(val);
-        match mcause.read(mcause::reason) {
+impl TryFrom<usize> for Interrupt {
+    type Error = usize;
+
+    fn try_from(code: usize) -> Result<Self, Self::Error> {
+        Ok(match code {
             0 => Interrupt::UserSoft,
             1 => Interrupt::SupervisorSoft,
             3 => Interrupt::MachineSoft,
@@ -82,15 +84,16 @@ impl Interrupt {
             8 => Interrupt::UserExternal,
             9 => Interrupt::SupervisorExternal,
             11 => Interrupt::MachineExternal,
-            val => Interrupt::Unknown(val),
-        }
+            _ => return Err(code),
+        })
     }
 }
 
-impl Exception {
-    fn from_reason(val: usize) -> Self {
-        let mcause = LocalRegisterCopy::<usize, mcause::Register>::new(val);
-        match mcause.read(mcause::reason) {
+impl TryFrom<usize> for Exception {
+    type Error = usize;
+
+    fn try_from(code: usize) -> Result<Self, Self::Error> {
+        Ok(match code {
             0 => Exception::InstructionMisaligned,
             1 => Exception::InstructionFault,
             2 => Exception::IllegalInstruction,
@@ -105,7 +108,7 @@ impl Exception {
             12 => Exception::InstructionPageFault,
             13 => Exception::LoadPageFault,
             15 => Exception::StorePageFault,
-            _ => Exception::Unknown,
-        }
+            _ => return Err(code),
+        })
     }
 }
