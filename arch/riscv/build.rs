@@ -17,7 +17,7 @@
 //!
 //! ```
 //! #[cfg(riscv_bare_metal)]
-//! pub extern "C" fn _start_trap() -> ! {
+//! pub extern "C" fn start_trap() -> ! {
 //!     // trap handler code...
 //! }
 //! ```
@@ -30,7 +30,7 @@
 //!
 //! ```
 //! #[cfg(not(riscv_bare_metal))]
-//! pub extern "C" fn _start_trap() -> ! {
+//! pub extern "C" fn start_trap() -> ! {
 //!     unimplemented!()
 //! }
 //! ```
