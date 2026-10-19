@@ -31,13 +31,15 @@ impl<'a> MuxRngMaster<'a> {
         }
     }
 
+    fn get_next_node(&self) -> Option<&'a VirtualRngMasterDevice<'a>> {
+        self.devices
+            .iter()
+            .find(|node| node.operation.get() != Op::Idle)
+    }
+
     fn do_next_op(&self) -> Result<(), ErrorCode> {
         if self.inflight.is_none() {
-            let mnode = self
-                .devices
-                .iter()
-                .find(|node| node.operation.get() != Op::Idle);
-
+            let mnode = self.get_next_node();
             let return_code = mnode.map(|node| {
                 let op = node.operation.get();
                 let operation_code = match op {
@@ -80,10 +82,14 @@ impl Client for MuxRngMaster<'_> {
         let inflight = self.inflight.take();
         inflight.map_or(Continue::Done, |device| {
             let cont_code = device.randomness_available(_randomness, _error);
-
-            if cont_code == Continue::Done {
-                let _ = self.do_next_op();
-            } else {
+            if let Some(mnode) = self.get_next_node() {
+                mnode.operation.set(Op::Idle);
+                self.inflight.set(mnode);
+                if cont_code == Continue::More {
+                    device.operation.set(Op::Get);
+                }
+                return Continue::More;
+            } else if cont_code == Continue::More {
                 self.inflight.set(device);
             }
 
@@ -146,7 +152,14 @@ impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
             |current_node| {
                 // Find if current device is the one in flight or not
                 if current_node == self {
-                    self.mux.rng.cancel()
+                    self.mux.inflight.take();
+                    if let Some(node) = self.mux.get_next_node() {
+                        self.mux.inflight.set(node);
+                        node.operation.set(Op::Idle);
+                        Ok(())
+                    } else {
+                        self.mux.rng.cancel()
+                    }
                 } else {
                     Ok(())
                 }
