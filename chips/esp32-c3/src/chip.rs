@@ -102,6 +102,7 @@ impl Esp32C3DefaultPeripherals<'_> {
 
     pub fn init(&'static self) {
         kernel::deferred_call::DeferredCallClient::register(&self.rng);
+        kernel::deferred_call::DeferredCallClient::register(&self.usb_serial_jtag);
     }
 }
 
