@@ -58,6 +58,10 @@ impl<'a, H: digest::Digest<'a, SHA1_DIGEST_LEN> + digest::Sha1> TestSha1<'a, H> 
         }
         self.sha.set_client(self);
         let data = self.data.take().unwrap();
+        let r = self.sha.preset_message_length(data.len());
+        if r.is_err() {
+            panic!("Sha1Test: failed to preset the length: {:?}", r);
+        }
         let chunk_size = cmp::min(CHUNK_SIZE, data.len());
         self.position.set(chunk_size);
         let mut buffer = SubSliceMut::new(data);
