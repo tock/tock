@@ -5,6 +5,7 @@
 [workspace]
 members = [
     "arch/cortex-m",
+    "arch/cortex-r52",
     "arch/cortex-v7m",
     "arch/cortex-m0",
     "arch/cortex-m0p",
@@ -62,6 +63,7 @@ members = [
     "boards/qemu_arm_mps2/an386",
     "boards/qemu_arm_mps2/mps2_base",
     "boards/qemu_i486_q35",
+    "boards/qemu_mps3an536",
     "boards/qemu_rv32_virt",
     "boards/qemu_rv64_virt",
     "boards/weact_f401ccu6/",
@@ -137,6 +139,7 @@ members = [
     "chips/stm32wle5xx",
     "chips/stm32wle5jc",
     "chips/virtio",
+    "chips/xcku115an536",
     "kernel",
     "libraries/enum_primitive",
     "libraries/riscv-csr",

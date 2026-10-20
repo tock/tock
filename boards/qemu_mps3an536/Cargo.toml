@@ -1,0 +1,35 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2026.
+
+[package]
+name = "qemu_mps3an536"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+build = "../build.rs"
+
+[[bin]]
+name = "qemu_mps3an536"
+path = "src/main.rs"
+
+[dependencies]
+semihosting = { version = "0.1.18", features = ["stdio"] }
+sh = { path = "../../capsules/sh" }
+
+aarch32-cpu = { version = ">= 0.4.0" }
+
+components = { path = "../components" }
+cortexr52 = { path = "../../arch/cortex-r52" }
+xcku = { path = "../../chips/xcku115an536" }
+kernel = { path = "../../kernel", features = ["debug_load_processes"] }
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true
