@@ -14,6 +14,8 @@ To install all dependencies use:
   uv sync
 ```
 
+Note: Newer GCC versions might need `CFLAGS="-Wno-error=incompatible-pointer-types"`.
+
 ## Usage
 Once the dependencies are installed, you can execute the script using `uv run`. The basic command structure is:
 ```bash
