@@ -32,19 +32,19 @@ register_structs! {
     /// by the current code.
     pub PlicRegisters {
         /// Interrupt Priority Register
-        (0x000 => _reserved0: u32),
-        (0x004 => priority: [ReadWrite<u32, priority::Register>; MAX_INTERRUPTS]),
+        (0x00000 => _reserved0: u32),
+        (0x000004 => priority: [ReadWrite<u32, priority::Register>; MAX_INTERRUPTS]),
         /// Interrupt Pending Register
-        (0x1000 => pending: [ReadOnly<u32>; MAX_BIT_REGS]),
-        (0x1000 + 4 * MAX_BIT_REGS => _reserved1),
+        (0x001000 => pending: [ReadOnly<u32>; MAX_BIT_REGS]),
+        (0x001080 => _reserved1),
         /// Interrupt Enable Register
-        (0x2000 => enable: [ReadWrite<u32>; MAX_BIT_REGS]),
-        (0x2000 + 4 * MAX_BIT_REGS => _reserved2),
+        (0x002000 => enable: [ReadWrite<u32>; MAX_BIT_REGS]),
+        (0x002080 => _reserved2),
         /// Priority Threshold Register
-        (0x20_0000 => threshold: ReadWrite<u32, priority::Register>),
+        (0x200000 => threshold: ReadWrite<u32, priority::Register>),
         /// Claim/Complete Register
-        (0x20_0004 => claim: ReadWrite<u32>),
-        (0x20_0008 => @END),
+        (0x200004 => claim: ReadWrite<u32>),
+        (0x200008 => @END),
     }
 }
 
