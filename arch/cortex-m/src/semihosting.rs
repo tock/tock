@@ -123,7 +123,7 @@ pub unsafe fn terminate(reason: SysexitReason) -> ! {
     // Ensure `-> !` if semihosting does something funny.
     loop {
         crate::support::wfi(&kernel::create_capability!(
-            kernel::capabilities::CpuControlCapability
+            kernel::capabilities::CpuStateControlCapability
         ));
     }
 }

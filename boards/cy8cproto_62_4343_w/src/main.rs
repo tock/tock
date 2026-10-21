@@ -232,7 +232,7 @@ pub unsafe fn main() {
         process_printer,
         Some(|| {
             cortexm0p::support::reset(&kernel::create_capability!(
-                kernel::capabilities::CpuControlCapability
+                kernel::capabilities::CpuStateControlCapability
             ))
         }),
         process_console_cap,

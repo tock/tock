@@ -274,7 +274,7 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     }
 
     fn sleep(&self) {
-        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
         if pm::deep_sleep_ready() {
             cortexm4::scb::set_sleepdeep(&cap);
         } else {

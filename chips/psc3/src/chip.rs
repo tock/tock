@@ -145,7 +145,7 @@ impl<I: InterruptService> Chip for Psc3<'_, I> {
     }
 
     fn sleep(&self) {
-        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
         cortexm33::support::wfi(&cap);
     }
 

@@ -35,7 +35,7 @@ pub fn nop() {
 /// WFI instruction
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(always)]
-pub fn wfi(_cap: &dyn capabilities::CpuControlCapability) {
+pub fn wfi(_cap: &dyn capabilities::CpuStateControlCapability) {
     use core::arch::asm;
 
     // # Safety
@@ -117,7 +117,7 @@ pub fn nop() {
 
 /// WFI instruction (mock)
 #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-pub fn wfi(_cap: &dyn capabilities::CpuControlCapability) {
+pub fn wfi(_cap: &dyn capabilities::CpuStateControlCapability) {
     unimplemented!()
 }
 
@@ -131,7 +131,7 @@ where
 }
 
 /// Reset the chip.
-pub fn reset(cap: &dyn capabilities::CpuControlCapability) -> ! {
+pub fn reset(cap: &dyn capabilities::CpuStateControlCapability) -> ! {
     scb::reset(cap);
     loop {
         // This is required to avoid the empty loop clippy

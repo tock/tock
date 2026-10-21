@@ -485,7 +485,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32u5xx<'a, I> {
     }
 
     fn sleep(&self) {
-        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
         cortexm33::scb::unset_sleepdeep(&cap);
         cortexm33::support::wfi(&cap);
     }

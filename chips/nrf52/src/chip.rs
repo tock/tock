@@ -198,7 +198,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     }
 
     fn sleep(&self) {
-        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
         cortexm4f::support::wfi(&cap);
     }
 

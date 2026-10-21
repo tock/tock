@@ -154,7 +154,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
     }
 
     fn sleep(&self) {
-        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
         cortexm4f::scb::set_sleepdeep(&cap);
         cortexm4f::support::wfi(&cap);
     }

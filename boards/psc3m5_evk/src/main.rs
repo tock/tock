@@ -250,7 +250,7 @@ pub unsafe fn start() -> (
         process_printer,
         Some(|| {
             cortexm33::support::reset(&kernel::create_capability!(
-                kernel::capabilities::CpuControlCapability
+                kernel::capabilities::CpuStateControlCapability
             ))
         }),
         process_console_cap,

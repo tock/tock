@@ -93,7 +93,7 @@ fn baud_rate_reset_bootloader_enter() {
         power.set_gpregret(0x90);
     });
     cortexm4::scb::reset(&kernel::create_capability!(
-        kernel::capabilities::CpuControlCapability
+        kernel::capabilities::CpuStateControlCapability
     ));
 }
 
@@ -439,7 +439,7 @@ pub unsafe fn start() -> (
         process_printer,
         Some(|| {
             cortexm4::support::reset(&kernel::create_capability!(
-                kernel::capabilities::CpuControlCapability
+                kernel::capabilities::CpuStateControlCapability
             ))
         }),
         process_console_cap,

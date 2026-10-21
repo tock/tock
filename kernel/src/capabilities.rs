@@ -170,7 +170,7 @@ pub unsafe trait NetworkCapabilityCreationCapability {}
 /// Capabilities can only be created in trusted crates that can use `unsafe`.
 pub unsafe trait SetDebugWriterCapability {}
 
-/// The `CpuControlCapability` allows the holder to perform low-level
+/// The `CpuStateControlCapability` allows the holder to perform low-level
 /// microcontroller operations.
 ///
 /// These including resetting the MCU and putting it in sleep mode.
@@ -178,4 +178,4 @@ pub unsafe trait SetDebugWriterCapability {}
 /// # Safety
 ///
 /// Capabilities can only be created in trusted crates that can use `unsafe`.
-pub unsafe trait CpuControlCapability {}
+pub unsafe trait CpuStateControlCapability {}

@@ -143,7 +143,7 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
     }
 
     fn sleep(&self) {
-        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
         cortexm7::scb::unset_sleepdeep(&cap);
         cortexm7::support::wfi(&cap);
     }

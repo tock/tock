@@ -201,7 +201,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     }
 
     fn sleep(&self) {
-        let cap = kernel::create_capability!(kernel::capabilities::CpuControlCapability);
+        let cap = kernel::create_capability!(kernel::capabilities::CpuStateControlCapability);
         cortexm4f::scb::unset_sleepdeep(&cap);
         cortexm4f::support::wfi(&cap);
     }

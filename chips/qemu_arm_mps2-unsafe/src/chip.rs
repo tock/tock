@@ -72,7 +72,7 @@ impl<'a, V: CortexMVariant, I: InterruptService + 'a> kernel::platform::chip::Ch
 
     fn sleep(&self) {
         cortexm::support::wfi(&kernel::create_capability!(
-            kernel::capabilities::CpuControlCapability
+            kernel::capabilities::CpuStateControlCapability
         ));
     }
 
