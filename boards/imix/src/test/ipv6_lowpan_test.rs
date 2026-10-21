@@ -114,9 +114,6 @@ static SUCCESS_COUNT: AtomicUsize = AtomicUsize::new(0);
 // `initialize_all`. The packet's payload buffer (what used to be a
 // separate `UDP_DGRAM` static) is reached through this same pointer, as
 // `(*ip6_dg_ptr).payload.payload`.
-//
-// SAFETY: Only ever accessed from the single thread this test runs on, and
-// only after `initialize_all` has stored a non-null pointer into it.
 static IP6_DG_PTR: AtomicPtr<IP6Packet<'static>> = AtomicPtr::new(core::ptr::null_mut());
 
 type Rf233 = capsules_extra::rf233::RF233<
@@ -134,9 +131,6 @@ pub struct LowpanTest<'a, A: time::Alarm<'a>> {
     sixlowpan_tx: TxState<'a>,
     radio: &'a dyn MacDevice<'a>,
     test_counter: Cell<usize>,
-    // Pointer to the RF233 transmit buffer reused for every fragment sent
-    // by this test. See `send_ipv6_packet` for why re-deriving a fresh
-    // `&'static mut` to it on each call is sound.
     tx_buf_ptr: *mut u8,
 }
 

@@ -62,10 +62,6 @@ pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
     test_counter: Cell<usize>,
     icmp_sender: &'a dyn ICMP6Sender<'a>,
     net_cap: &'static NetworkCapability,
-    // Pointer to the payload buffer reused for every `send()` call.
-    // `ICMP6Sender::send()` only borrows this buffer for the duration of the
-    // (synchronous) call, so it is sound to hand out a fresh `&'static mut`
-    // to it on each invocation.
     payload_ptr: *mut u8,
 }
 
