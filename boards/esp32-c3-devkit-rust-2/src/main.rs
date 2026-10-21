@@ -186,6 +186,21 @@ unsafe fn setup() -> (
         .sysreg
         .use_pll_clock_source(PllFrequency::MHz320, CpuFrequency::MHz160);
 
+    // The mask ROM leaves flash in single-bit mode at 20 MHz. Switch flash
+    // reads to a faster mode (DIO or QIO at 80MHz).
+    //
+    // SAFETY: This board uses an ESP32-C3 whose mask ROM provides the ROM
+    // functions and flash state that `configure` uses. The chip crate's entry
+    // stub has copied the `.iram` section into SRAM, and no code has written
+    // to the `iram` region since. Interrupts are still disabled (`mstatus.MIE`
+    // is only set below). The linker script ends the `ram` and `iram` regions
+    // below 0x3FCDF000, so nothing has written to the SRAM that the mask ROM
+    // reserves. The ESP32-C3-MINI-1 module's SPI flash uses bit 9 of its
+    // status register as the QE bit and supports DIO and QIO at 80 MHz.
+    unsafe {
+        esp32_c3::flash::configure();
+    }
+
     // initialise capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -470,6 +485,11 @@ unsafe fn setup() -> (
     // enable interrupts globally
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
+    // SAFETY: This board uses an ESP32-C3, so the SPI0 registers that
+    // `print_active_flash_mode` reads are present.
+    unsafe {
+        esp32_c3::flash::print_active_flash_mode();
+    }
     debug!("ESP32-C3 initialisation complete.");
     debug!("Entering main loop.");
 

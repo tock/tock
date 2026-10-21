@@ -496,11 +496,14 @@ pub extern "C" fn start_trap_vectored() -> ! {
 pub extern "C" fn start_trap_vectored() -> ! {
     use core::arch::naked_asm;
     // Below are 32 (non-compressed) jumps to cover the entire possible
-    // range of vectored traps.
+    // range of vectored traps. `norvc` keeps the assembler from emitting
+    // compressed jumps, and `norelax` keeps the linker from relaxing them into
+    // compressed jumps.
     naked_asm!(
         "
       .option push
       .option norvc
+      .option norelax
         j {start_trap}
         j {start_trap}
         j {start_trap}
