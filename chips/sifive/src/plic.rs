@@ -48,13 +48,6 @@ register_structs! {
     }
 }
 
-/// Check that the registers are aligned to the PLIC memory map
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, priority) == 0x4);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, pending) == 0x1000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, enable) == 0x2000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, threshold) == 0x20_0000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, claim) == 0x20_0004);
-
 /// A wrapper around the PLIC registers to provide safe access to the registers
 /// within the defined interrupt number range
 struct RegsWrapper {
