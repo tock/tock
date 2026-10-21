@@ -8,6 +8,8 @@
 
 // TODO: Implement PMSAv8 MPU register interface and kernel::platform::mpu::MPU trait.
 
+use core::cmp;
+
 use kernel::platform::mpu;
 
 pub struct MPU {}
@@ -219,14 +221,26 @@ unsafe impl mpu::MPU for MPU {
     fn allocate_app_memory_region(
         &self,
         unallocated_memory_start: *const u8,
-        unallocated_memory_size: usize,
-        _min_memory_size: usize,
-        _initial_app_memory_size: usize,
-        _initial_kernel_memory_size: usize,
+        _unallocated_memory_size: usize,
+        min_memory_size: usize,
+        initial_app_memory_size: usize,
+        initial_kernel_memory_size: usize,
         _permissions: mpu::Permissions,
         _config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        Some((unallocated_memory_start, unallocated_memory_size))
+
+
+        // Make sure there is enough memory for app memory and kernel memory.
+        let memory_size = cmp::max(
+            min_memory_size,
+            initial_app_memory_size + initial_kernel_memory_size,
+        );
+
+        // Size must be a power of two, so:
+        // https://www.youtube.com/watch?v=ovo6zwv6DX4.
+        let mut memory_size_po2 = (memory_size as u32).next_power_of_two() as usize;
+
+        Some((unallocated_memory_start, memory_size_po2))
 
         /*
         // Check that no previously allocated regions overlap the unallocated
