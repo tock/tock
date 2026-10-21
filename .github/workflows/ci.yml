@@ -206,3 +206,14 @@ jobs:
       - uses: actions/checkout@v7
       - name:      ci-job-qemu
         run:  make ci-job-qemu
+
+  ci-docs:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+      - name:      ci-job-docs
+        run:  make ci-job-docs

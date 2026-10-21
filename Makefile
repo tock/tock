@@ -289,7 +289,8 @@ ci-runner-github:\
 	ci-runner-github-build\
 	ci-runner-github-tests\
 	ci-runner-github-flux\
-	ci-runner-github-qemu
+	ci-runner-github-qemu\
+	ci-runner-github-docs
 	$(call banner,CI-Runner: All GitHub runners DONE)
 
 .PHONY: ci-runner-github-format
@@ -334,6 +335,11 @@ ci-runner-github-flux:\
 ci-runner-github-qemu:\
 	ci-job-qemu
 	$(call banner,CI-Runner: GitHub qemu runner DONE)
+
+.PHONY: ci-runner-github-docs
+ci-runner-github-docs:\
+	ci-job-docs
+	$(call banner,CI-Runner: GitHub docs runner DONE)
 
 
 # n.b. this runs from .github/workflows/docs.yml, which also uploads the
@@ -667,17 +673,18 @@ ci-job-qemu-virt:
 	$(call ci_job_qemu_virt)
 
 
+### ci-runner-github-docs jobs:
+.PHONY: ci-job-docs
+ci-job-docs:
+	$(call banner,CI-Job: Doc Warnings)
+	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" $(MAKE) alldoc
+
+
 ### ci-runner-docs jobs:
 .PHONY: ci-job-rustdoc
 ci-job-rustdoc:
 	$(call banner,CI-Job: Rustdoc Documentation)
 	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" tools/build/build_all_docs.sh
-	# `build_all_docs.sh` above builds the published doc site, but only for
-	# the host's native target: code gated on a board's real target (e.g.
-	# `#[cfg(target_arch = "arm", target_os = "none")]`) is never compiled,
-	# so rustdoc never checks it. `alldoc` builds each board's docs against
-	# its own real target/config, closing that gap.
-	@TOCK_CARGO_FLAGS="--config $(DENY_WARNINGS_CARGO_CONFIG)" $(MAKE) alldoc
 
 ## End CI rules
 ##
