@@ -4,6 +4,7 @@
 
 //! A dummy SPI client to test the SPI implementation
 
+use kernel::ErrorCode;
 use kernel::hil::gpio;
 use kernel::hil::gpio::Pin;
 use kernel::hil::spi::{self, SpiSlave};
@@ -14,10 +15,11 @@ pub struct SlaveCB {
     val: u8,
 }
 
-pub static mut COUNTER: usize = 0;
-pub static mut FLOP: bool = false;
-pub static mut BUF1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-pub static mut BUF2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
+impl SlaveCB {
+    fn new() -> Self {
+        SlaveCB { val: 0x55_u8 }
+    }
+}
 
 impl spi::SpiSlaveClient for SlaveCB {
     #[allow(unused_variables, dead_code)]
@@ -26,36 +28,24 @@ impl spi::SpiSlaveClient for SlaveCB {
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
+        status: Result<(), ErrorCode>,
     ) {
+        // `write_buffer` is the same buffer handed to the previous
+        // `read_write_bytes` call (initially in `spi_slave_dummy_test`, and
+        // on every later call, the one below), returned to us here by the
+        // driver.
         unsafe {
-            SPI_SLAVE.read_write_bytes(Some(&mut BUF2), None, 8);
+            SPI_SLAVE.read_write_bytes(write_buffer, None, 8);
         }
     }
 
     #[allow(unused_variables, dead_code)]
     fn chip_selected(&self) {
         unsafe {
-            // This should be 0 at the start of every transfer
-            // if COUNTER != 0 {
-            //     loop {
-            //         SPI_SLAVE.set_write_byte(0xA5);
-            //     }
-            // }
-
             SPI_SLAVE.set_write_byte(0x05);
-            // Send initial byte
-            /*
-            if FLOP {
-                SPI_SLAVE.set_write_byte(BUF1[COUNTER]);
-            } else {
-                SPI_SLAVE.set_write_byte(BUF2[COUNTER]);
-            }
-            */
         }
     }
 }
-
-pub static mut SPISLAVECB: SlaveCB = SlaveCB { val: 0x55 as u8 };
 
 #[inline(never)]
 #[allow(unused_variables, dead_code)]
@@ -69,10 +59,14 @@ pub unsafe fn spi_slave_dummy_test() {
     pin2.make_output();
     pin2.set();
 
+    let buf1 = kernel::static_init!([u8; 8], [0, 0, 0, 0, 0, 0, 0, 0]);
+    let buf2 = kernel::static_init!([u8; 8], [8, 7, 6, 5, 4, 3, 2, 1]);
+    let slave_cb = kernel::static_init!(SlaveCB, SlaveCB::new());
+
     //sam4l::spi::SPI_SLAVE.set_active_peripheral(sam4l::spi::Peripheral::Peripheral0);
-    SPI_SLAVE.set_client(Some(&SPISLAVECB));
+    SPI_SLAVE.set_client(Some(slave_cb));
     SPI_SLAVE.init(); // SpiSlave::init
-    SPI_SLAVE.read_write_bytes(Some(&mut BUF2), Some(&mut BUF1), 8);
+    SPI_SLAVE.read_write_bytes(Some(buf2), Some(buf1), 8);
     SPI_SLAVE.enable();
 
     // Hint: Temporarily, when switching between master and slave dummy code,
