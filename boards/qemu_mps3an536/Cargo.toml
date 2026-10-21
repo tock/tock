@@ -22,7 +22,8 @@ aarch32-cpu = { version = ">= 0.4.0" }
 components = { path = "../components" }
 cortexr52 = { path = "../../arch/cortex-r52" }
 xcku = { path = "../../chips/xcku115an536" }
-kernel = { path = "../../kernel", features = ["debug_load_processes"] }
+# kernel = { path = "../../kernel", features = ["debug_load_processes"] }
+kernel = { path = "../../kernel"}
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
