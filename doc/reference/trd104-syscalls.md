@@ -976,7 +976,7 @@ than `u32` is left to the contract between the capsule and userspace
 libraries. However, they SHOULD adhere to the following convention:
 When passing values with types whose representation is smaller than 32
 bits (e.g. `u8` or `i16`), they must be explicitly cast to a `u32` (if
-unsigned) or `i32` (if signed). When passing values with types whoe
+unsigned) or `i32` (if signed). When passing values with types whose
 representation is larger than 32 bits (e.g. a `u64` or `i64`), they
 should be split into their lower and higher 32-bits with each portion
 treated as `u32`s in the lower-numbered and higher numbered registers,
