@@ -125,15 +125,21 @@ impl<
                                             AesOperation::AESCtr(_)
                                             | AesOperation::AESCBC(_)
                                             | AesOperation::AESECB(_) => {
-                                                AES::set_key(self.aes, buf)?;
+                                                AES::set_key(self.aes, &buf[..static_buffer_len])?;
                                                 Ok(())
                                             }
                                             AesOperation::AESCCM(_) => {
-                                                AESCCM::set_key(self.aes, buf)?;
+                                                AESCCM::set_key(
+                                                    self.aes,
+                                                    &buf[..static_buffer_len],
+                                                )?;
                                                 Ok(())
                                             }
                                             AesOperation::AESGCM(_) => {
-                                                AESGCM::set_key(self.aes, buf)?;
+                                                AESGCM::set_key(
+                                                    self.aes,
+                                                    &buf[..static_buffer_len],
+                                                )?;
                                                 Ok(())
                                             }
                                         }
@@ -167,7 +173,7 @@ impl<
                                             AesOperation::AESCtr(_)
                                             | AesOperation::AESCBC(_)
                                             | AesOperation::AESECB(_) => {
-                                                AES::set_iv(self.aes, buf)?;
+                                                AES::set_iv(self.aes, &buf[..static_buffer_len])?;
                                                 Ok(())
                                             }
                                             AesOperation::AESCCM(_) => {
