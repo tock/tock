@@ -25,7 +25,7 @@ use kernel::{capabilities, create_capability};
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, platform, chip) = nrf5340dk_lib::start();
+    let (board_kernel, platform, chip) = nrf5340dk_lib::start(None);
     board_kernel.kernel_loop(
         &platform,
         chip,

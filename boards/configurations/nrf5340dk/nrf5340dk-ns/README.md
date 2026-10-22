@@ -38,8 +38,9 @@ secure stage checks are in the kernel's RAM, or for data it only reads, the
 kernel's or apps' flash. It returns 0 on success and 1 for an invalid
 argument. `nrf5340::cryptocell::gateway` defines the calls.
 
-Each call runs to completion while the kernel waits; kernel interrupts still
-preempt it. A TRNG read takes two samples, as the first after a start is
+The kernel's RNG and SHA-256 system call drivers use the gateway. Each call
+runs to completion while the kernel waits; kernel interrupts still preempt
+it. A TRNG read takes two samples, as the first after a start is
 dropped.
 
 ## Limits

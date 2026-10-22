@@ -11,6 +11,7 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../../../kernel" }
+nrf5340 = { path = "../../../../chips/nrf5340" }
 nrf5340dk = { path = "../../../nordic/nrf5340dk" }
 
 [build-dependencies]

@@ -25,6 +25,7 @@ use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, debug, static_init};
 use nrf5340::ble_ipc::{BleMailboxRegisters, BleProxy};
 use nrf5340::chip::Nrf5340DefaultPeripherals;
+use nrf5340::cryptocell::SecureCryptoCell;
 use nrf5340::gpio::Pin;
 use nrf5340::pinmux::Pinmux;
 
@@ -206,8 +207,12 @@ impl KernelResources<ChipHw> for Platform {
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
+///
+/// In non-secure state, the CryptoCell runs through `gateway`.
 #[inline(never)]
-pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
+pub unsafe fn start(
+    gateway: Option<&'static dyn SecureCryptoCell>,
+) -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     ChipHw::init();
 
     // Initialize deferred calls very early.
@@ -226,6 +231,9 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         Nrf5340DefaultPeripherals::new()
     });
     peripherals.init();
+    if let Some(gateway) = gateway {
+        peripherals.cryptocell.set_gateway(gateway);
+    }
     // In non-secure state, the secure stage has done this.
     if cortexm33::trustzone::is_secure() {
         // The DK's 32.768 kHz crystal, as Nordic configures it.

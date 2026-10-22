@@ -1189,6 +1189,7 @@ name = "nrf5340dk-ns"
 version = "0.2.4-dev"
 dependencies = [
  "kernel",
+ "nrf5340",
  "nrf5340dk",
  "tock_build_scripts",
 ]
