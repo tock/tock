@@ -561,22 +561,9 @@ impl<
                             .get_readwrite_processbuffer(rw_allow::DEST)
                             .and_then(|dest| {
                                 dest.mut_enter(|dest| {
-                                    let offset = self.data_copied.get()
-                                        - (core::cmp::min(buf.len(), dest.len()));
-                                    let app_len = dest.len();
-                                    let static_len = buf.len();
-
-                                    if app_len < static_len {
-                                        if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
-                                        }
-                                    } else {
-                                        if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
-                                        }
-                                    }
+                                    // One-shot operation: the result starts at offset 0.
+                                    let len = core::cmp::min(buf.len(), dest.len());
+                                    dest[..len].copy_from_slice(&buf[..len]);
                                 })
                             });
 
@@ -633,22 +620,9 @@ impl<
                             .get_readwrite_processbuffer(rw_allow::DEST)
                             .and_then(|dest| {
                                 dest.mut_enter(|dest| {
-                                    let offset = self.data_copied.get()
-                                        - (core::cmp::min(buf.len(), dest.len()));
-                                    let app_len = dest.len();
-                                    let static_len = buf.len();
-
-                                    if app_len < static_len {
-                                        if app_len - offset > 0 {
-                                            dest[offset..app_len]
-                                                .copy_from_slice(&buf[0..(app_len - offset)]);
-                                        }
-                                    } else {
-                                        if offset + static_len <= app_len {
-                                            dest[offset..(offset + static_len)]
-                                                .copy_from_slice(&buf[0..static_len]);
-                                        }
-                                    }
+                                    // One-shot operation: the result starts at offset 0.
+                                    let len = core::cmp::min(buf.len(), dest.len());
+                                    dest[..len].copy_from_slice(&buf[..len]);
                                 })
                             });
 
