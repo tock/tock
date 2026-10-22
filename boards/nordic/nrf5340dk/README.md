@@ -17,12 +17,17 @@ kernel from [`../nrf5340dk-net`](../nrf5340dk-net/README.md).
 | Alarm (RTC1)           | Yes    |
 | Process console        | Yes    |
 | Network core release   | Yes    |
+| USB CDC-ACM console    | Yes    |
 | BLE                    | No     |
 | TrustZone (non-secure) | No     |
 
 The console is on the J-Link virtual COM port connected to P0.20 (TX) and
 P0.22 (RX), at 115200 baud without flow control. The LFCLK runs from the
 internal RC oscillator.
+
+A second console runs over USB CDC-ACM on the nRF5340 USB connector. It is
+registered as console instance 1 (driver number `0x1000001`). The cable must be
+plugged in when the kernel boots.
 
 ## Building and Flashing the Kernel
 

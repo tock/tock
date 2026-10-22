@@ -15,6 +15,7 @@ use kernel::component::Component;
 use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::utilities::single_thread_value::SingleThreadValue;
@@ -52,6 +53,9 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
+/// The USB CDC-ACM console, a second instance of the console driver.
+const CONSOLE2_DRIVER_NUM: usize = (1 << 24) | capsules_core::console::DRIVER_NUM;
+
 type ChipHw = nrf5340::chip::Nrf5340<'static, Nrf5340DefaultPeripherals<'static>>;
 type ProcessPrinterInUse = capsules_system::process_printer::ProcessPrinterText;
 
@@ -87,6 +91,7 @@ pub struct Platform {
     alarm: &'static AlarmDriver,
     button: &'static ButtonDriver,
     console: &'static ConsoleDriver,
+    console2: &'static ConsoleDriver,
     led: &'static LedDriver,
     pconsole: &'static ProcessConsoleDriver,
     scheduler: &'static SchedulerInUse,
@@ -100,6 +105,7 @@ impl SyscallDriverLookup for Platform {
     {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            CONSOLE2_DRIVER_NUM => f(Some(self.console2)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
@@ -162,6 +168,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     let peripherals = static_init!(Nrf5340DefaultPeripherals, unsafe {
         Nrf5340DefaultPeripherals::new()
     });
+    peripherals.init();
     peripherals.clock.start();
     peripherals.network.start(&[NET_UART_TXD, NET_UART_RXD]);
 
@@ -282,6 +289,40 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     )
     .finalize(components::debug_writer_component_static!());
 
+    // USB CDC-ACM on the nRF5340 USB connector, as a second console.
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "Tock",               // Manufacturer
+            "nRF5340DK - TockOS", // Product
+            "000000000000",       // Serial number
+        ]
+    );
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &peripherals.usbd,
+        capsules_extra::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
+        0x2341,
+        0x005a,
+        strings,
+        mux_alarm,
+        None,
+    )
+    .finalize(components::cdc_acm_component_static!(
+        nrf5340::usbd::Usbd,
+        nrf5340::rtc::Rtc
+    ));
+    let uart_mux2 = components::console::UartMuxComponent::new(cdc, 115200)
+        .finalize(components::uart_mux_component_static!());
+    let console2 = components::console::ConsoleComponent::new(
+        board_kernel,
+        CONSOLE2_DRIVER_NUM,
+        uart_mux2,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::console_component_static!());
+    cdc.enable();
+    cdc.attach();
+
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
@@ -289,6 +330,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         alarm,
         button,
         console,
+        console2,
         led,
         pconsole,
         scheduler,
