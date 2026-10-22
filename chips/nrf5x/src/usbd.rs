@@ -716,6 +716,10 @@ pub struct Usbd<'a> {
     client: OptionalCell<&'a dyn hil::usb::Client<'a>>,
     descriptors: [Endpoint<'a>; NUM_ENDPOINTS],
     power: OptionalCell<&'a dyn UsbPower>,
+    /// The client asked to start and attach. Kept so that both happen when
+    /// VBUS appears after the request, or appears again after an unplug.
+    start_requested: Cell<bool>,
+    attach_requested: Cell<bool>,
 }
 
 impl<'a> Usbd<'a> {
@@ -740,6 +744,8 @@ impl<'a> Usbd<'a> {
                 Endpoint::new(),
             ],
             power: OptionalCell::empty(),
+            start_requested: Cell::new(false),
+            attach_requested: Cell::new(false),
         }
     }
 
@@ -882,20 +888,30 @@ impl<'a> Usbd<'a> {
             UsbState::Initialized => self.state.set(UsbState::PoweredOn),
             _ => (),
         }
+        // Finish a start and attach that had to wait for VBUS.
+        if self.start_requested.get() && self.get_state() == UsbState::PoweredOn {
+            self.start();
+            self.restore_endpoints();
+            if self.attach_requested.get() {
+                self.enable_pullup();
+            }
+        }
     }
 
     fn enable_pullup(&self) {
         debug_info!("enable_pullup() - State={:?}", self.get_state());
+        self.attach_requested.set(true);
         if self.get_state() == UsbState::Started {
             debug_info!("Enabling USB pullups");
             self.registers.usbpullup.write(UsbPullup::CONNECT::Enabled);
+            self.state.set(UsbState::Attached);
         }
-        self.state.set(UsbState::Attached);
         debug_info!("New state is {:?}", self.get_state());
     }
 
     fn disable_pullup(&self) {
         debug_info!("Disabling USB pullup - State={:?}", self.get_state());
+        self.attach_requested.set(false);
         self.registers.usbpullup.write(UsbPullup::CONNECT::Disabled);
         self.state.set(UsbState::Started);
         debug_info!("New state is {:?}", self.get_state());
@@ -945,6 +961,7 @@ impl<'a> Usbd<'a> {
                 }
             }
         }
+        self.start_requested.set(true);
         let power = self.power.unwrap_or_panic(); // Unwrap fail = failed to initialize power reference for USB
         if !power.is_vbus_present() {
             debug_info!("[!] VBUS power is not detected.");
@@ -973,7 +990,10 @@ impl<'a> Usbd<'a> {
 
     fn stop(&self) {
         debug_info!("usbc::stop() - State={:?}", self.get_state());
-        if self.get_state() != UsbState::Started {
+        if !matches!(
+            self.get_state(),
+            UsbState::Started | UsbState::Attached | UsbState::Configured
+        ) {
             return;
         }
         self.ep_abort_all();
@@ -986,7 +1006,7 @@ impl<'a> Usbd<'a> {
         debug_info!("usbc::disable() - State={:?}", self.get_state());
         self.stop();
         self.registers.enable.write(Usb::ENABLE::OFF);
-        self.state.set(UsbState::Initialized);
+        self.state.set(UsbState::Disabled);
         self.clear_pending_dma();
     }
 
@@ -1133,6 +1153,25 @@ impl<'a> Usbd<'a> {
             8 => unimplemented!("isochronous endpoint"),
             _ => unreachable!("unexisting endpoint"),
         });
+    }
+
+    /// Enable again the endpoints a client enabled while the USBD was off,
+    /// which did not reach the hardware.
+    fn restore_endpoints(&self) {
+        for endpoint in 1..NUM_ENDPOINTS {
+            match self.descriptors[endpoint].state.get() {
+                EndpointState::Bulk(transfer_type, Some(_), Some(_)) => {
+                    self.enable_in_out_endpoint_(transfer_type, endpoint)
+                }
+                EndpointState::Bulk(transfer_type, Some(_), None) => {
+                    self.enable_in_endpoint_(transfer_type, endpoint)
+                }
+                EndpointState::Bulk(transfer_type, None, Some(_)) => {
+                    self.enable_out_endpoint_(transfer_type, endpoint)
+                }
+                _ => (),
+            }
+        }
     }
 
     fn ep_abort_all(&self) {
