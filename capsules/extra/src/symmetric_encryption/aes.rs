@@ -180,7 +180,7 @@ impl<
                                                 Ok(())
                                             }
                                             AesOperation::AESGCM(_) => {
-                                                AESGCM::set_iv(self.aes, &buf[0..13])?;
+                                                AESGCM::set_iv(self.aes, &buf[0..12])?;
                                                 Ok(())
                                             }
                                         }
