@@ -430,13 +430,28 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
                     // D1: Carrier control for half duplex modems.
                     //     - 0 -> Deactivate carrier
                     //     - 1 -> Activate carrier
-                    let dtr = setup_data.value & 1 == 1;
+                    let _dtr = setup_data.value & 1 == 1;
 
-                    // We ignore this message towards our state machine if DTR is false.
-                    // Linux and MAC only send this message when DTR is true. Windows
-                    // sends this multiple times, and only when something is actually
-                    // listening does it set DTR to true.
-                    self.set_connecting_state(false, dtr);
+                    // DTR should tell us if a terminal is connected. However,
+                    // tockloader does not because on some boards the DTR pin is used as
+                    // a way to reset the MCU from a host using standard serial console
+                    // operations.
+                    //
+                    // Ignoring DTR can mean that serial data is sent via USB even if
+                    // nothing is listening. This matches the behavior of a "normal"
+                    // serial port without flow control, which just sends and doesn't
+                    // know if anything is receiving the bytes.
+                    //
+                    // The behavior of DTR is different on windows vs. linux and mac. On
+                    // windows, the SetControlLineState message that is sent when the
+                    // USB device is first enumerated has DTR set to false. On mac and
+                    // linux, that first message has DTR set to true. On both platforms,
+                    // when tockloader opens the serial port, the SetControlLineState
+                    // message has DTR set to false.
+                    //
+                    // So, to be most compatible, we ignore DTR and just record that a
+                    // SetControlLineState message was sent.
+                    self.set_connecting_state(false, true);
 
                     self.ctrl_state.set(CtrlState::SetControlLineState);
                 }
