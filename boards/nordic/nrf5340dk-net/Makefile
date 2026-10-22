@@ -12,9 +12,11 @@ PROBE_RS ?= probe-rs
 .PHONY: install
 install: flash
 
-# Upload the kernel to the network core over the on-board J-Link, then reset
-# through the application core, whose kernel releases the network core again.
+# Upload the kernel to the network core over the on-board J-Link. Reset the
+# network core itself, which stops the flash loader, then the application core,
+# so both kernels start their IPC link together.
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(PROBE_RS) download --chip nRF5340_xxAA --verify $<
+	$(PROBE_RS) reset --chip nRF5340_xxAA --core 1
 	$(PROBE_RS) reset --chip nRF5340_xxAA_APPONLY
