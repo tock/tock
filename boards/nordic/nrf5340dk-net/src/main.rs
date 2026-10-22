@@ -153,7 +153,9 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     let peripherals = static_init!(Nrf5340NetDefaultPeripherals, unsafe {
         Nrf5340NetDefaultPeripherals::new()
     });
-    peripherals.clock.start();
+    peripherals
+        .clock
+        .start(nrf5340_net::clock::LfclkSource::Lfrc);
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
