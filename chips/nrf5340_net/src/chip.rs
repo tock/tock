@@ -26,8 +26,14 @@ const IPC_BASE: StaticRef<crate::ipc::IpcRegisters> =
 const RADIO_BASE: StaticRef<crate::ble_radio::RadioRegisters> =
     unsafe { StaticRef::new(0x41008000 as *const crate::ble_radio::RadioRegisters) };
 
+const RNG_BASE: StaticRef<crate::trng::RngRegisters> =
+    unsafe { StaticRef::new(0x41009000 as *const crate::trng::RngRegisters) };
+
 const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
     unsafe { StaticRef::new(0x41016000 as *const crate::rtc::RtcRegisters) };
+
+const TEMP_BASE: StaticRef<crate::temperature::TempRegisters> =
+    unsafe { StaticRef::new(0x41010000 as *const crate::temperature::TempRegisters) };
 
 pub const UARTE0_BASE: StaticRef<crate::uarte::UarteRegisters> =
     unsafe { StaticRef::new(0x41013000 as *const crate::uarte::UarteRegisters) };
@@ -59,6 +65,8 @@ pub struct Nrf5340NetDefaultPeripherals<'a> {
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
     pub ipc: crate::ipc::Ipc<'a>,
     pub rtc: crate::rtc::Rtc<'a>,
+    pub temp: crate::temperature::Temp<'a>,
+    pub trng: crate::trng::Trng<'a>,
     pub uarte0: crate::uarte::Uarte<'a>,
 }
 
@@ -88,6 +96,8 @@ impl Nrf5340NetDefaultPeripherals<'_> {
             gpio_port: crate::gpio::nrf5340_net_gpio_create(),
             ipc: crate::ipc::Ipc::new(IPC_BASE),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
+            temp: crate::temperature::Temp::new(TEMP_BASE),
+            trng: crate::trng::Trng::new(RNG_BASE),
             uarte0: crate::uarte::Uarte::new(uarte0_registers),
         }
     }
@@ -99,7 +109,9 @@ impl InterruptService for Nrf5340NetDefaultPeripherals<'_> {
             crate::peripheral_interrupts::RADIO => self.ble_radio.handle_interrupt(),
             crate::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
             crate::peripheral_interrupts::IPC => self.ipc.handle_interrupt(),
+            crate::peripheral_interrupts::RNG => self.trng.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
+            crate::peripheral_interrupts::TEMP => self.temp.handle_interrupt(),
             crate::peripheral_interrupts::SERIAL0 => self.uarte0.handle_interrupt(),
             _ => return false,
         }

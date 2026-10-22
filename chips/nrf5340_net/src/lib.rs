@@ -12,4 +12,4 @@ pub mod crt1;
 pub mod gpio;
 pub mod peripheral_interrupts;
 
-pub use nrf5x::{ble_ipc, ble_radio, ipc, pinmux, rtc, uarte};
+pub use nrf5x::{ble_ipc, ble_radio, ipc, pinmux, rtc, temperature, trng, uarte};
