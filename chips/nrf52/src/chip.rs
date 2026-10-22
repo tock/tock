@@ -144,11 +144,14 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         // SAFETY: See function-level doc.
         let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new(UARTE0_BASE) };
 
+        // SAFETY: See function-level doc.
+        let radio_registers = unsafe { crate::ble_radio::RadioRegistersManager::new(RADIO_BASE) };
+
         Self {
             acomp: crate::acomp::Comparator::new(COMP_BASE),
             ecb: crate::aes::AesECB::new(aes_registers, aes_ecb_buffer),
             pwr_clk: crate::power::Power::new(POWER_BASE),
-            ble_radio: crate::ble_radio::Radio::new(RADIO_BASE),
+            ble_radio: crate::ble_radio::Radio::new(radio_registers),
             trng: crate::trng::Trng::new(RNG_BASE),
             rtc: crate::rtc::Rtc::new(RTC1_BASE),
             temp: crate::temperature::Temp::new(TEMP_BASE),

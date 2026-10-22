@@ -7,7 +7,6 @@
 pub mod acomp;
 pub mod adc;
 pub mod approtect;
-pub mod ble_radio;
 pub mod chip;
 pub mod clock;
 pub mod crt1;
@@ -24,5 +23,6 @@ pub mod uicr;
 pub mod usbd;
 
 pub use nrf5x::{
-    aes, constants, gpio, peripheral_interrupts, pinmux, rtc, temperature, timer, trng, uarte,
+    aes, ble_radio, constants, gpio, peripheral_interrupts, pinmux, rtc, temperature, timer, trng,
+    uarte,
 };

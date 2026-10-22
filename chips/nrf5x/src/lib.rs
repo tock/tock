@@ -5,6 +5,7 @@
 #![no_std]
 
 pub mod aes;
+pub mod ble_radio;
 pub mod constants;
 pub mod gpio;
 pub mod peripheral_interrupts;

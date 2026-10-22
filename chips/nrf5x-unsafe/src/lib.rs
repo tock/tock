@@ -5,4 +5,5 @@
 #![no_std]
 
 pub mod aes;
+pub mod ble_radio;
 pub mod uarte;
