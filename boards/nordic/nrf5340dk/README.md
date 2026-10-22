@@ -16,6 +16,7 @@ kernel from [`../nrf5340dk-net`](../nrf5340dk-net/README.md).
 | Buttons (4)            | Yes    |
 | Alarm (RTC1)           | Yes    |
 | ADC (SAADC, A0 to A5)  | Yes    |
+| External flash, KV     | Yes    |
 | Process console        | Yes    |
 | Network core release   | Yes    |
 | USB CDC-ACM console    | Yes    |
@@ -30,6 +31,9 @@ BLE advertising uses the radio on the network core, so it needs the
 [`../nrf5340dk-net`](../nrf5340dk-net/README.md) kernel there. The two kernels
 exchange requests over IPC and a mailbox in the last 8 KB of RAM, which this
 kernel leaves out of its own RAM and lets the network core access.
+
+The MX25R6435F external flash is on the QSPI pins, driven by SPIM1. A TicKV
+key-value store on its first 32 sectors backs the KV system call driver.
 
 A second console runs over USB CDC-ACM on the nRF5340 USB connector. It is
 registered as console instance 1 (driver number `0x1000001`). The cable must be
