@@ -44,6 +44,20 @@ This writes the kernel to the network core's flash with
 application core. The network core's debug port only answers while it is
 released from reset, so the application core kernel must already be running.
 
+## Installing Apps
+
+With the application core kernel running, install apps for this core with
+[Tockloader](https://github.com/tock/tockloader):
+
+```bash
+$ tockloader install --board nrf5340dk-net --probers app.tab
+```
+
+Tockloader installs each app's Cortex-M3 build, as this core has no DSP or FPU
+and libtock-c has no Cortex-M33 target. It resets only this core; BLE
+advertising on the application core resumes on its own. Tockloader 1.18 and
+older cannot reach this core.
+
 ## Memory Layout
 
 | Region      | Address      | Size   |

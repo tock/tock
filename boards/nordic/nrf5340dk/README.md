@@ -62,6 +62,24 @@ $ make install
 This builds the kernel and writes it to flash at address 0x00000000 with
 `probe-rs download --chip nRF5340_xxAA_APPONLY`.
 
+## Installing Apps
+
+Install apps with [Tockloader](https://github.com/tock/tockloader):
+
+```bash
+$ tockloader install --board nrf5340dk --probers blink.tab
+```
+
+Tockloader installs each app's Cortex-M4 build, as libtock-c has no Cortex-M33
+target. Tockloader 1.18 and older do not know this board. With them, pass its
+settings and press the DK's RESET button afterwards:
+
+```bash
+$ tockloader install --board nrf5340dk --probers \
+    --probers-board nRF5340_xxAA_APPONLY --arch cortex-m4 \
+    --app-address 0x40000 --page-size 4096 blink.tab
+```
+
 ## Memory Layout
 
 | Region      | Address      | Size   |
