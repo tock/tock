@@ -598,6 +598,12 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
     }
 
     fn setup(&self, app_length: usize) -> Result<usize, ErrorCode> {
+        // An app must at least hold a 16 byte TBF base header. This also
+        // keeps the address alignment math from dividing by zero.
+        if app_length < 16 {
+            return Err(ErrorCode::INVAL);
+        }
+
         self.process_metadata.set(ProcessLoadMetadata::default());
 
         if self.state.get() == State::Idle {
