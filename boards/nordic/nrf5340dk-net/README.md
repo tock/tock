@@ -17,11 +17,16 @@ network core. Flash that kernel first.
 | Console (UARTE0)  | Yes    |
 | Alarm (RTC1)      | Yes    |
 | Process console   | Yes    |
-| BLE advertising   | Yes    |
+| BLE radio server  | Yes    |
 
 The console is on P1.01 (TX) and P1.00 (RX), at 115200 baud without flow
 control. These pins are connected to one of the DK's J-Link virtual COM ports;
 the application core console is on the other one.
+
+The kernel drives the radio for the application core kernel, whose processes
+use the BLE advertising driver. The two kernels exchange requests over IPC and
+a mailbox in the last 8 KB of application RAM (0x2007E000), which the
+application core shares with this core.
 
 ## Building and Flashing the Kernel
 

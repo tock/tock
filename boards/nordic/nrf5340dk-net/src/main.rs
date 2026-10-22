@@ -17,8 +17,10 @@ use kernel::debug::PanicResources;
 use kernel::hil::time::Counter;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::utilities::StaticRef;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, debug, static_init};
+use nrf5340_net::ble_ipc::{BleMailboxRegisters, BleServer};
 use nrf5340_net::chip::Nrf5340NetDefaultPeripherals;
 use nrf5340_net::gpio::Pin;
 use nrf5340_net::pinmux::Pinmux;
@@ -56,8 +58,17 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 type AlarmHw = nrf5340_net::rtc::Rtc<'static>;
 type BleHw = nrf5340_net::ble_radio::Radio<'static>;
 
+/// The BLE mailbox, in the RAM region the application core kernel leaves out of
+/// its RAM and shares with this core. It must match `../nrf5340dk`.
+//
+// # Safety
+//
+// This memory belongs to neither kernel, and only the BLE IPC drivers access
+// it, through volatile reads and writes.
+const BLE_MAILBOX: StaticRef<BleMailboxRegisters> =
+    unsafe { StaticRef::new(0x2007E000 as *const BleMailboxRegisters) };
+
 type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
-type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
 type ConsoleDriver = components::console::ConsoleComponentType;
 kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
@@ -69,7 +80,6 @@ type ProcessConsoleDriver =
 /// Supported drivers by the platform
 pub struct Platform {
     alarm: &'static AlarmDriver,
-    ble_radio: &'static BleDriver,
     console: &'static ConsoleDriver,
     pconsole: &'static ProcessConsoleDriver,
     scheduler: &'static SchedulerInUse,
@@ -84,7 +94,6 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             _ => f(None),
         }
     }
@@ -178,14 +187,20 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     )
     .finalize(components::alarm_component_static!(AlarmHw));
 
-    let ble_radio = components::ble::BLEComponent::new(
-        board_kernel,
-        capsules_extra::ble_advertising_driver::DRIVER_NUM,
-        &peripherals.ble_radio,
-        mux_alarm,
-        create_capability!(capabilities::MemoryAllocationCapability),
-    )
-    .finalize(components::ble_component_static!(AlarmHw, BleHw));
+    // Serve the radio to the application core over IPC.
+    let ble_tx_buffer = static_init!([u8; 255], [0; 255]);
+    let ble_rx_buffer = static_init!([u8; 255], [0; 255]);
+    let ble_server = static_init!(
+        BleServer<'static, BleHw>,
+        BleServer::new(
+            BLE_MAILBOX,
+            &peripherals.ipc,
+            &peripherals.ble_radio,
+            ble_tx_buffer,
+            ble_rx_buffer,
+        )
+    );
+    ble_server.init();
 
     peripherals
         .uarte0
@@ -237,7 +252,6 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
 
     let platform = Platform {
         alarm,
-        ble_radio,
         console,
         pconsole,
         scheduler,
