@@ -5,20 +5,20 @@
 use kernel::debug;
 use kernel::hil::led;
 use kernel::hil::uart;
-use nrf5340::gpio::{GPIO_BASE_PORT0, GPIOPin, GPIOTE0_BASE, Pin};
+use nrf5340::gpio::{GPIOPin, Pin};
 
 #[cfg(not(test))]
 #[panic_handler]
 /// Panic handler
 pub fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
     // LED1 on the nRF5340 DK.
-    let led_kernel_pin = &GPIOPin::new(Pin::P0_28, GPIOTE0_BASE, GPIO_BASE_PORT0);
+    let bases = nrf5340::chip::bases();
+    let led_kernel_pin = &GPIOPin::new(Pin::P0_28, bases.gpiote, bases.gpio[0]);
     let led = &mut led::LedLow::new(led_kernel_pin);
 
     // SAFETY: The kernel's UARTE0 driver never runs again after a panic, so
     // this is the only user of the UARTE0 DMA registers from here on.
-    let registers =
-        unsafe { nrf5340::uarte::UarteRegistersManager::new(nrf5340::chip::UARTE0_BASE) };
+    let registers = unsafe { nrf5340::uarte::UarteRegistersManager::new(bases.uarte0) };
 
     debug::panic::<_, nrf5340::uarte::Uarte<'static>, _, _>(
         &mut [led],

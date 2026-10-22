@@ -7,39 +7,65 @@ use cortexm33::{CortexM33, CortexMVariant, nvic};
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::StaticRef;
 
-//
-// Peripheral Registers Instantiations (secure aliases)
-//
-
-const CLOCK_BASE: StaticRef<crate::clock::ClockRegisters> =
-    unsafe { StaticRef::new(0x50005000 as *const crate::clock::ClockRegisters) };
-
-const RESET_BASE: StaticRef<crate::network::ResetRegisters> =
-    unsafe { StaticRef::new(0x50005000 as *const crate::network::ResetRegisters) };
-
-const IPC_BASE: StaticRef<crate::ipc::IpcRegisters> =
-    unsafe { StaticRef::new(0x5002A000 as *const crate::ipc::IpcRegisters) };
-
-const PIN_CNF_PORT0: StaticRef<crate::network::PinCnfRegisters> =
-    unsafe { StaticRef::new(0x50842000 as *const crate::network::PinCnfRegisters) };
-
-const PIN_CNF_PORT1: StaticRef<crate::network::PinCnfRegisters> =
-    unsafe { StaticRef::new(0x50842300 as *const crate::network::PinCnfRegisters) };
-
 pub const SPU_BASE: StaticRef<crate::spu::SpuRegisters> =
     unsafe { StaticRef::new(0x50003000 as *const crate::spu::SpuRegisters) };
 
-const RTC1_BASE: StaticRef<crate::rtc::RtcRegisters> =
-    unsafe { StaticRef::new(0x50015000 as *const crate::rtc::RtcRegisters) };
+/// Peripheral base addresses as seen from one security state.
+///
+/// Secure code uses the secure aliases. Non-secure code uses the non-secure
+/// aliases, 0x1000_0000 lower, of the peripherals the SPU makes non-secure,
+/// and GPIOTE1, as GPIOTE0 is secure only.
+pub struct PeripheralBases {
+    pub clock: StaticRef<crate::clock::ClockRegisters>,
+    pub gpio: [StaticRef<crate::gpio::GpioRegisters>; 2],
+    pub gpiote: StaticRef<crate::gpio::GpioteRegisters>,
+    pub ipc: StaticRef<crate::ipc::IpcRegisters>,
+    pub pin_cnf: [StaticRef<crate::network::PinCnfRegisters>; 2],
+    pub reset: StaticRef<crate::network::ResetRegisters>,
+    pub rtc1: StaticRef<crate::rtc::RtcRegisters>,
+    pub uarte0: StaticRef<crate::uarte::UarteRegisters>,
+    pub usbd: StaticRef<crate::usbd::UsbdRegisters<'static>>,
+    pub usbreg: StaticRef<crate::usbreg::UsbRegRegisters>,
+}
 
-pub const UARTE0_BASE: StaticRef<crate::uarte::UarteRegisters> =
-    unsafe { StaticRef::new(0x50008000 as *const crate::uarte::UarteRegisters) };
+impl PeripheralBases {
+    /// The bases for `offset` below the secure aliases, with `gpiote`.
+    const fn at(offset: usize, gpiote: usize) -> Self {
+        // SAFETY: These are the nRF5340 application core peripheral
+        // addresses, in the alias that `offset` selects.
+        unsafe {
+            Self {
+                clock: StaticRef::new((0x50005000 - offset) as *const _),
+                gpio: [
+                    StaticRef::new((0x50842000 - offset) as *const _),
+                    StaticRef::new((0x50842300 - offset) as *const _),
+                ],
+                gpiote: StaticRef::new(gpiote as *const _),
+                ipc: StaticRef::new((0x5002A000 - offset) as *const _),
+                pin_cnf: [
+                    StaticRef::new((0x50842000 - offset) as *const _),
+                    StaticRef::new((0x50842300 - offset) as *const _),
+                ],
+                reset: StaticRef::new((0x50005000 - offset) as *const _),
+                rtc1: StaticRef::new((0x50015000 - offset) as *const _),
+                uarte0: StaticRef::new((0x50008000 - offset) as *const _),
+                usbd: StaticRef::new((0x50036000 - offset) as *const _),
+                usbreg: StaticRef::new((0x50037000 - offset) as *const _),
+            }
+        }
+    }
+}
 
-const USBD_BASE: StaticRef<crate::usbd::UsbdRegisters<'static>> =
-    unsafe { StaticRef::new(0x50036000 as *const crate::usbd::UsbdRegisters<'static>) };
+pub const SECURE_BASES: PeripheralBases = PeripheralBases::at(0, 0x5000D000);
+pub const NONSECURE_BASES: PeripheralBases = PeripheralBases::at(0x1000_0000, 0x4002F000);
 
-const USBREG_BASE: StaticRef<crate::usbreg::UsbRegRegisters> =
-    unsafe { StaticRef::new(0x50037000 as *const crate::usbreg::UsbRegRegisters) };
+/// The peripheral base addresses for the security state this code runs in.
+pub fn bases() -> &'static PeripheralBases {
+    match cortexm33::trustzone::is_secure() {
+        true => &SECURE_BASES,
+        false => &NONSECURE_BASES,
+    }
+}
 
 pub struct Nrf5340<'a, I: InterruptService + 'a> {
     mpu: cortexm33::mpu::MPU<8>,
@@ -75,7 +101,10 @@ pub struct Nrf5340DefaultPeripherals<'a> {
 }
 
 impl Nrf5340DefaultPeripherals<'_> {
-    /// Create default peripherals for the nRF5340 application core.
+    /// Create default peripherals for the nRF5340 application core, at the
+    /// addresses for the security state this code runs in. In non-secure
+    /// state, a secure stage must already have made these peripherals, their
+    /// interrupts and the GPIO pins non-secure.
     ///
     /// # Safety
     ///
@@ -88,19 +117,21 @@ impl Nrf5340DefaultPeripherals<'_> {
     /// - There must not be any other code that accesses the DMA buffer and
     ///   length registers of the DMA-enabled peripherals.
     pub unsafe fn new() -> Self {
+        let bases = bases();
+
         // SAFETY: See function-level doc.
-        let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new(UARTE0_BASE) };
+        let uarte0_registers = unsafe { crate::uarte::UarteRegistersManager::new(bases.uarte0) };
 
         Self {
-            clock: crate::clock::Clock::new(CLOCK_BASE),
-            gpio_port: crate::gpio::nrf5340_gpio_create(),
-            ipc: crate::ipc::Ipc::new(IPC_BASE),
-            network: crate::network::NetworkCore::new(RESET_BASE, [PIN_CNF_PORT0, PIN_CNF_PORT1]),
-            rtc: crate::rtc::Rtc::new(RTC1_BASE),
+            clock: crate::clock::Clock::new(bases.clock),
+            gpio_port: crate::gpio::nrf5340_gpio_create(bases.gpiote, bases.gpio),
+            ipc: crate::ipc::Ipc::new(bases.ipc),
+            network: crate::network::NetworkCore::new(bases.reset, bases.pin_cnf),
+            rtc: crate::rtc::Rtc::new(bases.rtc1),
             spu: crate::spu::Spu::new(SPU_BASE),
             uarte0: crate::uarte::Uarte::new(uarte0_registers),
-            usbd: crate::usbd::Usbd::new(USBD_BASE, None),
-            usbreg: crate::usbreg::UsbReg::new(USBREG_BASE),
+            usbd: crate::usbd::Usbd::new(bases.usbd, None),
+            usbreg: crate::usbreg::UsbReg::new(bases.usbreg),
         }
     }
 
@@ -114,7 +145,9 @@ impl Nrf5340DefaultPeripherals<'_> {
 impl InterruptService for Nrf5340DefaultPeripherals<'_> {
     fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            crate::peripheral_interrupts::GPIOTE0 => self.gpio_port.handle_interrupt(),
+            crate::peripheral_interrupts::GPIOTE0 | crate::peripheral_interrupts::GPIOTE1 => {
+                self.gpio_port.handle_interrupt()
+            }
             crate::peripheral_interrupts::IPC => self.ipc.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::SERIAL0 => self.uarte0.handle_interrupt(),
@@ -132,12 +165,15 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for Nrf5340<'a, 
     type ThreadIdProvider = cortexm33::thread_id::CortexMThreadIdProvider;
 
     fn init() {
-        // # Safety
-        //
-        // We are setting up the nRF5340 application core in secure state, so
-        // these memory locations are valid and this is OK to call.
-        unsafe {
-            crate::crt1::fix_errata();
+        // In non-secure state, the secure stage applied the errata.
+        if cortexm33::trustzone::is_secure() {
+            // # Safety
+            //
+            // We are setting up the nRF5340 application core in secure state,
+            // so these memory locations are valid and this is OK to call.
+            unsafe {
+                crate::crt1::fix_errata();
+            }
         }
         crate::crt1::initialize_vector_table();
 

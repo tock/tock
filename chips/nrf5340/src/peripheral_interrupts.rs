@@ -8,5 +8,6 @@ pub const SERIAL0: u32 = 8;
 pub const GPIOTE0: u32 = 13;
 pub const RTC1: u32 = 21;
 pub const IPC: u32 = 42;
+pub const GPIOTE1: u32 = 47;
 pub const USBD: u32 = 54;
 pub const USBREGULATOR: u32 = 55;

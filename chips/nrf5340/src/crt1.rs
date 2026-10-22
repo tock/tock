@@ -56,7 +56,7 @@ unsafe fn write(addr: usize, val: u32) {
 ///
 /// These write to fixed, partly undocumented, register addresses. They are
 /// only valid on the nRF5340 application core running in secure state.
-pub(crate) unsafe fn fix_errata() {
+pub unsafe fn fix_errata() {
     const CLOCK: usize = 0x5000_5000;
     const RESETREAS: usize = 0x5000_5400;
     const RESETREAS_RESETPIN: u32 = 1;
