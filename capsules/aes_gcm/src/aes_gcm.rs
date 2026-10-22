@@ -325,9 +325,13 @@ impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>> AES
 impl<'a, A: AES<'a, AES128> + AESCtr + AESCBC + AESECB + AESCCM<'a, AES128>>
     symmetric_encryption::Client<'a> for Aes128Gcm<'a, A>
 {
-    fn crypt_done(&self, _: Option<&'static mut [u8]>, crypt_buf: &'static mut [u8]) {
+    fn crypt_done(&self, source: Option<&'static mut [u8]>, crypt_buf: &'static mut [u8]) {
         match self.state.get() {
-            GCMState::Idle => unreachable!(),
+            // Plain AES operation started through `AES::crypt`
+            GCMState::Idle => {
+                self.client
+                    .map(|client| client.crypt_done(source, crypt_buf));
+            }
             GCMState::GenerateHashKey => {
                 let (aad_offset, message_offset, message_len) = self.pos.get();
 
