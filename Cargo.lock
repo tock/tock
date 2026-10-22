@@ -1175,6 +1175,7 @@ name = "nrf5340dk-net"
 version = "0.2.4-dev"
 dependencies = [
  "capsules-core",
+ "capsules-extra",
  "capsules-system",
  "components",
  "cortexm33",

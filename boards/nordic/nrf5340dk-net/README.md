@@ -18,6 +18,8 @@ network core. Flash that kernel first.
 | Alarm (RTC1)      | Yes    |
 | Process console   | Yes    |
 | BLE radio server  | Yes    |
+| RNG               | Yes    |
+| Temperature       | Yes    |
 
 The console is on P1.01 (TX) and P1.00 (RX), at 115200 baud without flow
 control. These pins are connected to one of the DK's J-Link virtual COM ports;

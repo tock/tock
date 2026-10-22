@@ -16,6 +16,7 @@ kernel = { path = "../../../kernel" }
 nrf5340_net = { path = "../../../chips/nrf5340_net" }
 
 capsules-core = { path = "../../../capsules/core" }
+capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
 
 [build-dependencies]

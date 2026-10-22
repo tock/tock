@@ -56,6 +56,8 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 //------------------------------------------------------------------------------
 
 type AlarmHw = nrf5340_net::rtc::Rtc<'static>;
+type RngHw = nrf5340_net::trng::Trng<'static>;
+type TemperatureHw = nrf5340_net::temperature::Temp<'static>;
 type BleHw = nrf5340_net::ble_radio::Radio<'static>;
 
 /// The BLE mailbox, in the RAM region the application core kernel leaves out of
@@ -69,6 +71,8 @@ const BLE_MAILBOX: StaticRef<BleMailboxRegisters> =
     unsafe { StaticRef::new(0x2007E000 as *const BleMailboxRegisters) };
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type RngDriver = components::rng::RngComponentType<RngHw>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureHw>;
 type ConsoleDriver = components::console::ConsoleComponentType;
 kernel::define_capability_type!(ProcessConsoleCap:
     kernel::capabilities::ProcessManagementCapability,
@@ -80,6 +84,8 @@ type ProcessConsoleDriver =
 /// Supported drivers by the platform
 pub struct Platform {
     alarm: &'static AlarmDriver,
+    rng: &'static RngDriver,
+    temp: &'static TemperatureDriver,
     console: &'static ConsoleDriver,
     pconsole: &'static ProcessConsoleDriver,
     scheduler: &'static SchedulerInUse,
@@ -94,6 +100,8 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             _ => f(None),
         }
     }
@@ -189,6 +197,22 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     )
     .finalize(components::alarm_component_static!(AlarmHw));
 
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        &peripherals.trng,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::rng_component_static!(RngHw));
+
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        &peripherals.temp,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::temperature_component_static!(TemperatureHw));
+
     // Serve the radio to the application core over IPC.
     let ble_tx_buffer = static_init!([u8; 255], [0; 255]);
     let ble_rx_buffer = static_init!([u8; 255], [0; 255]);
@@ -254,6 +278,8 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
 
     let platform = Platform {
         alarm,
+        rng,
+        temp,
         console,
         pconsole,
         scheduler,
