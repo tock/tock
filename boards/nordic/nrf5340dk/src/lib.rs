@@ -514,9 +514,33 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
+    // Load processes without checking credentials, and give each one a fixed
+    // ShortId from its name, so that it can keep its own data in the KV store.
+    let checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
+        .finalize(components::app_checker_null_component_static!());
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+    kernel::create_typed_capability!(app_store_cap, AppStoreCap: kernel::capabilities::ApplicationStorageCapability);
+    let storage_permissions_policy =
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new(
+            app_store_cap,
+        )
+        .finalize(
+            components::storage_permissions_individual_component_static!(
+                ChipHw,
+                kernel::process::ProcessStandardDebugFull,
+                AppStoreCap,
+            ),
+        );
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
         board_kernel,
         chip,
+        &FAULT_RESPONSE,
+        assigner,
+        storage_permissions_policy,
         core::slice::from_raw_parts(
             core::ptr::addr_of!(_sapps),
             core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
@@ -525,13 +549,13 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &FAULT_RESPONSE,
-        &process_management_capability,
+        process_management_capability,
     )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    .finalize(components::process_loader_sequential_component_static!(
+        ChipHw,
+        kernel::process::ProcessStandardDebugFull,
+        NUM_PROCS
+    ));
 
     (board_kernel, platform, chip)
 }

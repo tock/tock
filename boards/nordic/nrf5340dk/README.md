@@ -33,7 +33,9 @@ exchange requests over IPC and a mailbox in the last 8 KB of RAM, which this
 kernel leaves out of its own RAM and lets the network core access.
 
 The MX25R6435F external flash is on the QSPI pins, driven by SPIM1. A TicKV
-key-value store on its first 32 sectors backs the KV system call driver.
+key-value store on its first 32 sectors backs the KV system call driver. The
+kernel gives each app a fixed ShortId derived from its name, and permission to
+read and write keys under that ID. It does not check app credentials.
 
 A second console runs over USB CDC-ACM on the nRF5340 USB connector. It is
 registered as console instance 1 (driver number `0x1000001`). The cable must be
