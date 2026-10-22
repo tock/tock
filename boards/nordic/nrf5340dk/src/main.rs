@@ -18,8 +18,10 @@ use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::utilities::StaticRef;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 use kernel::{capabilities, create_capability, debug, static_init};
+use nrf5340::ble_ipc::{BleMailboxRegisters, BleProxy};
 use nrf5340::chip::Nrf5340DefaultPeripherals;
 use nrf5340::gpio::Pin;
 use nrf5340::pinmux::Pinmux;
@@ -42,6 +44,17 @@ pub const UART_RXD: Pin = Pin::P0_22;
 // The network core's console UART, on the other J-Link virtual COM port.
 const NET_UART_TXD: Pin = Pin::P1_01;
 const NET_UART_RXD: Pin = Pin::P1_00;
+
+/// The BLE mailbox: the last 8 KB of RAM, which `layout.ld` leaves out of the
+/// kernel's RAM and this kernel shares with the network core. It must match
+/// `../nrf5340dk-net`.
+const BLE_MAILBOX_ADDRESS: usize = 0x2007E000;
+// # Safety
+//
+// This memory belongs to neither kernel, and only the BLE IPC drivers access
+// it, through volatile reads and writes.
+const BLE_MAILBOX: StaticRef<BleMailboxRegisters> =
+    unsafe { StaticRef::new(BLE_MAILBOX_ADDRESS as *const BleMailboxRegisters) };
 
 /// UART Writer
 pub mod io;
@@ -72,10 +85,12 @@ type SchedulerInUse = components::sched::round_robin::RoundRobinComponentType;
 //------------------------------------------------------------------------------
 
 type AlarmHw = nrf5340::rtc::Rtc<'static>;
+type BleHw = BleProxy<'static>;
 type GpioHw = nrf5340::gpio::GPIOPin<'static>;
 type LedHw = LedLow<'static, GpioHw>;
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<AlarmHw>;
+type BleDriver = components::ble::BLEComponentType<BleHw, AlarmHw>;
 type LedDriver = components::led::LedsComponentType<LedHw, 4>;
 type ButtonDriver = components::button::ButtonComponentType<GpioHw>;
 type ConsoleDriver = components::console::ConsoleComponentType;
@@ -89,6 +104,7 @@ type ProcessConsoleDriver =
 /// Supported drivers by the platform
 pub struct Platform {
     alarm: &'static AlarmDriver,
+    ble_radio: &'static BleDriver,
     button: &'static ButtonDriver,
     console: &'static ConsoleDriver,
     console2: &'static ConsoleDriver,
@@ -109,6 +125,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             _ => f(None),
         }
     }
@@ -170,6 +187,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
     });
     peripherals.init();
     peripherals.clock.start();
+    peripherals.network.share_ram(BLE_MAILBOX_ADDRESS);
     peripherals.network.start(&[NET_UART_TXD, NET_UART_RXD]);
 
     // Create an array to hold process references.
@@ -243,6 +261,18 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
         create_capability!(capabilities::MemoryAllocationCapability),
     )
     .finalize(components::alarm_component_static!(AlarmHw));
+
+    // BLE advertising, through the radio on the network core.
+    let ble_proxy = static_init!(BleHw, BleProxy::new(BLE_MAILBOX, &peripherals.ipc));
+    ble_proxy.init();
+    let ble_radio = components::ble::BLEComponent::new(
+        board_kernel,
+        capsules_extra::ble_advertising_driver::DRIVER_NUM,
+        ble_proxy,
+        mux_alarm,
+        create_capability!(capabilities::MemoryAllocationCapability),
+    )
+    .finalize(components::ble_component_static!(AlarmHw, BleHw));
 
     peripherals
         .uarte0
@@ -328,6 +358,7 @@ pub unsafe fn start() -> (&'static kernel::Kernel, Platform, &'static ChipHw) {
 
     let platform = Platform {
         alarm,
+        ble_radio,
         button,
         console,
         console2,
