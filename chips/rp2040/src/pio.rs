@@ -16,13 +16,17 @@ use core::cell::Cell;
 use kernel::utilities::StaticRef;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use kernel::utilities::registers::{
+    FieldValue, ReadOnly, ReadWrite, register_bitfields, register_structs,
+};
 use kernel::{ErrorCode, debug};
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
+const NUMBER_INTERRUPT_LINES: usize = 2;
+const NUMBER_IRQ_FLAGS: usize = 8;
 
 #[repr(C)]
 struct InstrMem {
@@ -51,6 +55,19 @@ struct StateMachineReg {
 }
 
 register_structs! {
+/// The enable, force and status registers for one of a PIO block's two
+/// interrupt lines. The two groups are identical and contiguous, so the line
+/// indexes them rather than naming a register.
+IrqReg {
+        // Interrupt enable
+        (0x000 => inte: ReadWrite<u32, IRQ_INTE::Register>),
+        // Interrupt force
+        (0x004 => intf: ReadWrite<u32, IRQ_INTF::Register>),
+        // Interrupt status after masking and forcing
+        (0x008 => ints: ReadWrite<u32, IRQ_INTS::Register>),
+        (0x00C => @END),
+    },
+
 PioRegisters {
         // PIO control register
         (0x000 => ctrl: ReadWrite<u32, CTRL::Register>),
@@ -79,7 +96,7 @@ PioRegisters {
         // between state machines, using IRQ and WAIT instructions. The
         // lower four of these flags are also routed out to system-level
         // interrupt requests, alongside FIFO status interrupts —
-        // see e.g. IRQ0_INTE.
+        // see e.g. IRQ_INTE.
         (0x030 => irq: ReadWrite<u32, IRQ::Register>),
         // Writing a 1 to each of these bits will forcibly assert the
         // corresponding IRQ. Note this is different to the INTF register:
@@ -112,18 +129,8 @@ PioRegisters {
         (0x0c8 => sm: [StateMachineReg; NUMBER_STATE_MACHINES]),
         // Raw Interrupts
         (0x128 => intr: ReadWrite<u32, INTR::Register>),
-        // Interrupt Enable for irq0
-        (0x12C => irq0_inte: ReadWrite<u32, IRQ0_INTE::Register>),
-        // Interrupt Force for irq0
-        (0x130 => irq0_intf: ReadWrite<u32, IRQ0_INTF::Register>),
-        // Interrupt status after masking & forcing for irq0
-        (0x134 => irq0_ints: ReadWrite<u32, IRQ0_INTS::Register>),
-        // Interrupt Enable for irq1
-        (0x138 => irq1_inte: ReadWrite<u32, IRQ1_INTE::Register>),
-        // Interrupt Force for irq1
-        (0x13C => irq1_intf: ReadWrite<u32, IRQ1_INTF::Register>),
-        // Interrupt status after masking & forcing for irq1
-        (0x140 => irq1_ints: ReadWrite<u32, IRQ1_INTS::Register>),
+        // Interrupt registers, one group per interrupt line
+        (0x12C => irq_lines: [IrqReg; NUMBER_INTERRUPT_LINES]),
         (0x144 => @END),
     }
 }
@@ -414,7 +421,7 @@ INTR [
     SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
-IRQ0_INTE [
+IRQ_INTE [
     SM3 OFFSET(11) NUMBITS(1) [],
     SM2 OFFSET(10) NUMBITS(1) [],
     SM1 OFFSET(9) NUMBITS(1) [],
@@ -428,7 +435,7 @@ IRQ0_INTE [
     SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
-IRQ0_INTF [
+IRQ_INTF [
     SM3 OFFSET(11) NUMBITS(1) [],
     SM2 OFFSET(10) NUMBITS(1) [],
     SM1 OFFSET(9) NUMBITS(1) [],
@@ -442,49 +449,7 @@ IRQ0_INTF [
     SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
-IRQ0_INTS [
-    SM3 OFFSET(11) NUMBITS(1) [],
-    SM2 OFFSET(10) NUMBITS(1) [],
-    SM1 OFFSET(9) NUMBITS(1) [],
-    SM0 OFFSET(8) NUMBITS(1) [],
-    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
-    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
-    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
-    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
-    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
-    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
-    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
-    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
-],
-IRQ1_INTE [
-    SM3 OFFSET(11) NUMBITS(1) [],
-    SM2 OFFSET(10) NUMBITS(1) [],
-    SM1 OFFSET(9) NUMBITS(1) [],
-    SM0 OFFSET(8) NUMBITS(1) [],
-    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
-    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
-    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
-    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
-    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
-    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
-    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
-    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
-],
-IRQ1_INTF [
-    SM3 OFFSET(11) NUMBITS(1) [],
-    SM2 OFFSET(10) NUMBITS(1) [],
-    SM1 OFFSET(9) NUMBITS(1) [],
-    SM0 OFFSET(8) NUMBITS(1) [],
-    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
-    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
-    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
-    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
-    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
-    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
-    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
-    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
-],
-IRQ1_INTS [
+IRQ_INTS [
     SM3 OFFSET(11) NUMBITS(1) [],
     SM2 OFFSET(10) NUMBITS(1) [],
     SM1 OFFSET(9) NUMBITS(1) [],
@@ -560,6 +525,88 @@ where
     }
 }
 
+/// Convert a big-endian `&[u8]` program into PIO instructions.
+///
+/// Split out of [`Pio::add_program`] so it can be tested on the host: the rest
+/// of that path writes instruction memory and needs the real peripheral.
+///
+/// Returns the full-size buffer and how much of it is populated.
+fn instructions_from_bytes(
+    program: &[u8],
+) -> Result<([u16; NUMBER_INSTR_MEMORY_LOCATIONS], usize), ProgramError> {
+    if !program.len().is_multiple_of(2) {
+        return Err(ProgramError::NotInstructionAligned);
+    }
+    let len = program.len() / 2;
+    if len > NUMBER_INSTR_MEMORY_LOCATIONS {
+        return Err(ProgramError::InsufficientSpace);
+    }
+
+    let mut instructions = [0u16; NUMBER_INSTR_MEMORY_LOCATIONS];
+    let (pairs, _) = program.as_chunks::<2>();
+    for (slot, chunk) in instructions.iter_mut().zip(pairs) {
+        *slot = u16::from_be_bytes(*chunk);
+    }
+    Ok((instructions, len))
+}
+
+/// The write-one-to-clear bit for one of the block's eight IRQ flags, or
+/// `None` if there is no such flag.
+fn irq_flag_bit(irq_num: u32) -> Option<u32> {
+    (irq_num < NUMBER_IRQ_FLAGS as u32).then(|| 1 << irq_num)
+}
+
+/// The block's IRQ flags asserted in an INTS reading, as a mask over flags
+/// 0 to 3.
+///
+/// The INTS bits named SM0 to SM3 are those flags, not state machines. The
+/// datasheet names them that way, which is the trap: any state machine can
+/// raise any flag.
+fn pending_irq_flags(ints: u32) -> u32 {
+    (ints >> IRQ_INTS::SM0.shift) & 0xf
+}
+
+/// The INTE bits that enable or disable one interrupt source.
+///
+/// The two interrupt lines have the same layout, so this does not depend on
+/// which one a source is being routed to. Split out of
+/// [`Pio::set_irq_source`] so a test can check all twelve against the
+/// datasheet, and check that disabling clears, without a peripheral.
+fn interrupt_source_bits(
+    source: InterruptSources,
+    enabled: bool,
+) -> FieldValue<u32, IRQ_INTE::Register> {
+    let field = match source {
+        InterruptSources::Interrupt0 => IRQ_INTE::SM0,
+        InterruptSources::Interrupt1 => IRQ_INTE::SM1,
+        InterruptSources::Interrupt2 => IRQ_INTE::SM2,
+        InterruptSources::Interrupt3 => IRQ_INTE::SM3,
+        InterruptSources::Sm0TXNotFull => IRQ_INTE::SM0_TXNFULL,
+        InterruptSources::Sm1TXNotFull => IRQ_INTE::SM1_TXNFULL,
+        InterruptSources::Sm2TXNotFull => IRQ_INTE::SM2_TXNFULL,
+        InterruptSources::Sm3TXNotFull => IRQ_INTE::SM3_TXNFULL,
+        InterruptSources::Sm0RXNotEmpty => IRQ_INTE::SM0_RXNEMPTY,
+        InterruptSources::Sm1RXNotEmpty => IRQ_INTE::SM1_RXNEMPTY,
+        InterruptSources::Sm2RXNotEmpty => IRQ_INTE::SM2_RXNEMPTY,
+        InterruptSources::Sm3RXNotEmpty => IRQ_INTE::SM3_RXNEMPTY,
+    };
+    field.val(enabled as u32)
+}
+
+/// The SHIFTCTRL bits for a FIFO join setting.
+///
+/// Both bits are always written, so a join can be undone and the two settings
+/// cannot both be left set. Split out of [`StateMachine::set_fifo_join`] so a
+/// test can assert what that function writes rather than restate it.
+fn fifo_join_bits(fifo_join: PioFifoJoin) -> FieldValue<u32, SMx_SHIFTCTRL::Register> {
+    let (rx, tx) = match fifo_join {
+        PioFifoJoin::PioFifoJoinNone => (0, 0),
+        PioFifoJoin::PioFifoJoinTx => (0, 1),
+        PioFifoJoin::PioFifoJoinRx => (1, 0),
+    };
+    SMx_SHIFTCTRL::FJOIN_RX.val(rx) + SMx_SHIFTCTRL::FJOIN_TX.val(tx)
+}
+
 #[derive(Clone, Copy)]
 pub struct LoadedProgram {
     used_memory: u32,
@@ -572,6 +619,8 @@ pub enum ProgramError {
     InsufficientSpace,
     /// Loading a program would overwrite the existing one
     AddrInUse(usize),
+    /// A `&[u8]` program did not contain a whole number of 16-bit instructions.
+    NotInstructionAligned,
 }
 
 /// There are a total of 4 State Machines per PIO.
@@ -596,13 +645,24 @@ pub enum PIONumber {
 /// The FIFO queues can be joined together for twice the length in one direction.
 #[derive(PartialEq)]
 pub enum PioFifoJoin {
-    PioFifoJoinNone = 0,
-    PioFifoJoinTx = 1,
-    PioFifoJoinRx = 2,
+    PioFifoJoinNone,
+    PioFifoJoinTx,
+    PioFifoJoinRx,
+}
+
+/// Which of a PIO block's two interrupt lines a source is routed to.
+///
+/// Each line reaches the NVIC separately -- PIO0_IRQ_0 and PIO0_IRQ_1 for
+/// PIO0, PIO1_IRQ_0 and PIO1_IRQ_1 for PIO1 -- and each has its own enable,
+/// force and status registers with the same layout.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PioInterrupt {
+    Irq0 = 0,
+    Irq1 = 1,
 }
 
 /// PIO interrupt source numbers for PIO related interrupts
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum InterruptSources {
     Interrupt0 = 0,
     Interrupt1 = 1,
@@ -626,9 +686,18 @@ pub trait PioRxClient {
     fn on_data_received(&self, data: u32);
 }
 
-/// Client for State Machine interrupts fired by the `irq` PIO instruction
-pub trait PioSmClient {
-    fn on_irq(&self);
+/// Client for a PIO block's IRQ flags, raised by the `irq` PIO instruction.
+///
+/// The flags belong to the block, not to a state machine. The hardware fixes
+/// no association between the eight flags and the four state machines, and any
+/// state machine can raise any flag, so there is one client for the block
+/// rather than one per state machine. Only flags 0 to 3 reach the NVIC.
+pub trait PioIrqClient {
+    /// One or more of the block's IRQ flags fired.
+    ///
+    /// `flags` is a mask over flags 0 to 3. They are cleared before this is
+    /// called, so any state machine blocked on one is already free to run.
+    fn on_irq(&self, flags: u32);
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -647,7 +716,6 @@ pub struct StateMachine {
     tx_client: OptionalCell<&'static dyn PioTxClient>,
     rx_state: Cell<StateMachineState>,
     rx_client: OptionalCell<&'static dyn PioRxClient>,
-    sm_client: OptionalCell<&'static dyn PioSmClient>,
 }
 
 impl StateMachine {
@@ -665,7 +733,6 @@ impl StateMachine {
             tx_state: Cell::new(StateMachineState::Ready),
             tx_client: OptionalCell::empty(),
             rx_state: Cell::new(StateMachineState::Ready),
-            sm_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
         }
     }
@@ -710,11 +777,6 @@ impl StateMachine {
     /// Set rx client for a state machine.
     pub fn set_rx_client(&self, client: &'static dyn PioRxClient) {
         self.rx_client.set(client);
-    }
-
-    /// Set client for a state machine interrupt.
-    pub fn set_sm_client(&self, client: &'static dyn PioSmClient) {
-        self.sm_client.set(client);
     }
 
     /// Set every config for the IN pins.
@@ -833,15 +895,9 @@ impl StateMachine {
     ///
     /// fifo_join => specifies the join type - see the `PioFifoJoin` type
     pub fn set_fifo_join(&self, fifo_join: PioFifoJoin) {
-        if fifo_join == PioFifoJoin::PioFifoJoinRx {
-            self.registers.sm[self.sm_number as usize]
-                .shiftctrl
-                .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join as u32));
-        } else if fifo_join == PioFifoJoin::PioFifoJoinTx {
-            self.registers.sm[self.sm_number as usize]
-                .shiftctrl
-                .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join as u32));
-        }
+        self.registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(fifo_join_bits(fifo_join));
     }
 
     /// Set every config for the SIDESET pins.
@@ -1139,12 +1195,14 @@ impl StateMachine {
                 if self.tx_full() {
                     // TX queue is full, set interrupt
                     let field = match self.sm_number {
-                        SMNumber::SM0 => IRQ0_INTE::SM0_TXNFULL::SET,
-                        SMNumber::SM1 => IRQ0_INTE::SM1_TXNFULL::SET,
-                        SMNumber::SM2 => IRQ0_INTE::SM2_TXNFULL::SET,
-                        SMNumber::SM3 => IRQ0_INTE::SM3_TXNFULL::SET,
+                        SMNumber::SM0 => IRQ_INTE::SM0_TXNFULL::SET,
+                        SMNumber::SM1 => IRQ_INTE::SM1_TXNFULL::SET,
+                        SMNumber::SM2 => IRQ_INTE::SM2_TXNFULL::SET,
+                        SMNumber::SM3 => IRQ_INTE::SM3_TXNFULL::SET,
                     };
-                    self.registers.irq0_inte.modify(field);
+                    self.registers.irq_lines[PioInterrupt::Irq0 as usize]
+                        .inte
+                        .modify(field);
                     self.tx_state.set(StateMachineState::Waiting);
                     Err(ErrorCode::BUSY)
                 } else {
@@ -1178,12 +1236,14 @@ impl StateMachine {
                 if self.rx_empty() {
                     // RX queue is empty, set interrupt
                     let field = match self.sm_number {
-                        SMNumber::SM0 => IRQ0_INTE::SM0_RXNEMPTY::SET,
-                        SMNumber::SM1 => IRQ0_INTE::SM1_RXNEMPTY::SET,
-                        SMNumber::SM2 => IRQ0_INTE::SM2_RXNEMPTY::SET,
-                        SMNumber::SM3 => IRQ0_INTE::SM3_RXNEMPTY::SET,
+                        SMNumber::SM0 => IRQ_INTE::SM0_RXNEMPTY::SET,
+                        SMNumber::SM1 => IRQ_INTE::SM1_RXNEMPTY::SET,
+                        SMNumber::SM2 => IRQ_INTE::SM2_RXNEMPTY::SET,
+                        SMNumber::SM3 => IRQ_INTE::SM3_RXNEMPTY::SET,
                     };
-                    self.registers.irq0_inte.modify(field);
+                    self.registers.irq_lines[PioInterrupt::Irq0 as usize]
+                        .inte
+                        .modify(field);
                     self.rx_state.set(StateMachineState::Waiting);
                     Err(ErrorCode::BUSY)
                 } else {
@@ -1211,12 +1271,14 @@ impl StateMachine {
             StateMachineState::Waiting => {
                 // TX queue has emptied, clear interrupt
                 let field = match self.sm_number {
-                    SMNumber::SM0 => IRQ0_INTE::SM0_TXNFULL::CLEAR,
-                    SMNumber::SM1 => IRQ0_INTE::SM1_TXNFULL::CLEAR,
-                    SMNumber::SM2 => IRQ0_INTE::SM2_TXNFULL::CLEAR,
-                    SMNumber::SM3 => IRQ0_INTE::SM3_TXNFULL::CLEAR,
+                    SMNumber::SM0 => IRQ_INTE::SM0_TXNFULL::CLEAR,
+                    SMNumber::SM1 => IRQ_INTE::SM1_TXNFULL::CLEAR,
+                    SMNumber::SM2 => IRQ_INTE::SM2_TXNFULL::CLEAR,
+                    SMNumber::SM3 => IRQ_INTE::SM3_TXNFULL::CLEAR,
                 };
-                self.registers.irq0_inte.modify(field);
+                self.registers.irq_lines[PioInterrupt::Irq0 as usize]
+                    .inte
+                    .modify(field);
                 self.tx_state.set(StateMachineState::Ready);
                 self.tx_client.map(|client| {
                     client.on_buffer_space_available();
@@ -1232,12 +1294,14 @@ impl StateMachine {
             StateMachineState::Waiting => {
                 // RX queue has data, clear interrupt
                 let field = match self.sm_number {
-                    SMNumber::SM0 => IRQ0_INTE::SM0_RXNEMPTY::CLEAR,
-                    SMNumber::SM1 => IRQ0_INTE::SM1_RXNEMPTY::CLEAR,
-                    SMNumber::SM2 => IRQ0_INTE::SM2_RXNEMPTY::CLEAR,
-                    SMNumber::SM3 => IRQ0_INTE::SM3_RXNEMPTY::CLEAR,
+                    SMNumber::SM0 => IRQ_INTE::SM0_RXNEMPTY::CLEAR,
+                    SMNumber::SM1 => IRQ_INTE::SM1_RXNEMPTY::CLEAR,
+                    SMNumber::SM2 => IRQ_INTE::SM2_RXNEMPTY::CLEAR,
+                    SMNumber::SM3 => IRQ_INTE::SM3_RXNEMPTY::CLEAR,
                 };
-                self.registers.irq0_inte.modify(field);
+                self.registers.irq_lines[PioInterrupt::Irq0 as usize]
+                    .inte
+                    .modify(field);
                 self.rx_state.set(StateMachineState::Ready);
                 self.rx_client.map(|client| {
                     client.on_data_received(
@@ -1248,17 +1312,11 @@ impl StateMachine {
             StateMachineState::Ready => {}
         }
     }
-
-    /// Handle an `SMx` interrupt. The PIO program got to a `irq` instruction.
-    fn handle_sm_interrupt(&self) {
-        let _ = self.sm_client.map(|client| {
-            client.on_irq();
-        });
-    }
 }
 
 pub struct Pio {
     registers: StaticRef<PioRegisters>,
+    irq_client: OptionalCell<&'static dyn PioIrqClient>,
     pio_number: PIONumber,
     sms: [StateMachine; NUMBER_STATE_MACHINES],
     instructions_used: Cell<u32>,
@@ -1350,6 +1408,7 @@ impl Pio {
         Self {
             registers: PIO0_BASE,
             _clear_registers: PIO0_CLEAR_BASE,
+            irq_client: OptionalCell::empty(),
             pio_number: PIONumber::PIO0,
             sms: SM_NUMBERS.map(|x| StateMachine::new(x, PIO0_BASE, PIO0_XOR_BASE, PIO0_SET_BASE)),
             instructions_used: Cell::new(0),
@@ -1361,6 +1420,7 @@ impl Pio {
         Self {
             registers: PIO1_BASE,
             _clear_registers: PIO1_CLEAR_BASE,
+            irq_client: OptionalCell::empty(),
             pio_number: PIONumber::PIO1,
             sms: SM_NUMBERS.map(|x| StateMachine::new(x, PIO1_BASE, PIO1_XOR_BASE, PIO1_SET_BASE)),
             instructions_used: Cell::new(0),
@@ -1372,123 +1432,27 @@ impl Pio {
         self.pio_number
     }
 
+    /// Set the client for this block's IRQ flags.
+    pub fn set_irq_client(&self, client: &'static dyn PioIrqClient) {
+        self.irq_client.set(client);
+    }
+
     /// Get state machine
     pub fn sm(&self, sm_number: SMNumber) -> &StateMachine {
         &self.sms[sm_number as usize]
     }
 
-    /// Enable/Disable a single source on a PIO's IRQ index.
+    /// Enable or disable one interrupt source on one of the block's two
+    /// interrupt lines.
     pub fn set_irq_source(
         &self,
-        irq_index: u32,
+        interrupt: PioInterrupt,
         interrupt_source: InterruptSources,
         enabled: bool,
     ) {
-        if irq_index == 0 {
-            match interrupt_source {
-                InterruptSources::Interrupt0 => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM0.val(enabled as u32)),
-                InterruptSources::Interrupt1 => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM1.val(enabled as u32)),
-                InterruptSources::Interrupt2 => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM2.val(enabled as u32)),
-                InterruptSources::Interrupt3 => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM3.val(enabled as u32)),
-                InterruptSources::Sm0TXNotFull => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM0_TXNFULL.val(enabled as u32)),
-                InterruptSources::Sm1TXNotFull => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM1_TXNFULL.val(enabled as u32)),
-                InterruptSources::Sm2TXNotFull => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM2_TXNFULL.val(enabled as u32)),
-                InterruptSources::Sm3TXNotFull => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM3_TXNFULL.val(enabled as u32)),
-                InterruptSources::Sm0RXNotEmpty => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM0_RXNEMPTY.val(enabled as u32)),
-                InterruptSources::Sm1RXNotEmpty => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM1_RXNEMPTY.val(enabled as u32)),
-                InterruptSources::Sm2RXNotEmpty => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM2_RXNEMPTY.val(enabled as u32)),
-                InterruptSources::Sm3RXNotEmpty => self
-                    .registers
-                    .irq0_inte
-                    .modify(IRQ0_INTE::SM3_RXNEMPTY.val(enabled as u32)),
-            }
-        } else if irq_index == 1 {
-            match interrupt_source {
-                InterruptSources::Interrupt0 => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM0.val(enabled as u32)),
-                InterruptSources::Interrupt1 => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM1.val(enabled as u32)),
-                InterruptSources::Interrupt2 => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM2.val(enabled as u32)),
-                InterruptSources::Interrupt3 => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM3.val(enabled as u32)),
-                InterruptSources::Sm0TXNotFull => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM0_TXNFULL.val(enabled as u32)),
-                InterruptSources::Sm1TXNotFull => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM1_TXNFULL.val(enabled as u32)),
-                InterruptSources::Sm2TXNotFull => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM2_TXNFULL.val(enabled as u32)),
-                InterruptSources::Sm3TXNotFull => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM3_TXNFULL.val(enabled as u32)),
-                InterruptSources::Sm0RXNotEmpty => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM0_RXNEMPTY.val(enabled as u32)),
-                InterruptSources::Sm1RXNotEmpty => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM1_RXNEMPTY.val(enabled as u32)),
-                InterruptSources::Sm2RXNotEmpty => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM2_RXNEMPTY.val(enabled as u32)),
-                InterruptSources::Sm3RXNotEmpty => self
-                    .registers
-                    .irq1_inte
-                    .modify(IRQ1_INTE::SM3_RXNEMPTY.val(enabled as u32)),
-            }
-        } else {
-            debug!("IRQ Index invalid - must be 0 or 1");
-        }
+        self.registers.irq_lines[interrupt as usize]
+            .inte
+            .modify(interrupt_source_bits(interrupt_source, enabled));
     }
 
     /// Checks if a PIO interrupt is set.
@@ -1510,52 +1474,54 @@ impl Pio {
 
     /// Clear a PIO interrupt.
     pub fn interrupt_clear(&self, irq_num: u32) {
-        match irq_num {
-            0 => self.registers.irq.modify(IRQ::IRQ0.val(1)),
-            1 => self.registers.irq.modify(IRQ::IRQ1.val(1)),
-            2 => self.registers.irq.modify(IRQ::IRQ2.val(1)),
-            3 => self.registers.irq.modify(IRQ::IRQ3.val(1)),
-            4 => self.registers.irq.modify(IRQ::IRQ4.val(1)),
-            5 => self.registers.irq.modify(IRQ::IRQ5.val(1)),
-            6 => self.registers.irq.modify(IRQ::IRQ6.val(1)),
-            7 => self.registers.irq.modify(IRQ::IRQ7.val(1)),
-            _ => debug!("IRQ Number invalid - must be from 0 to 7"),
+        // Write one to clear, so only the named flag may be written. modify()
+        // would read the other seven and write them back, clearing those too.
+        match irq_flag_bit(irq_num) {
+            Some(bit) => self.registers.irq.set(bit),
+            None => debug!("IRQ Number invalid - must be from 0 to 7"),
         }
     }
 
-    /// Handle interrupts
-    pub fn handle_interrupt(&self) {
-        let ints = &self.registers.irq0_ints;
+    /// Service one of the block's two interrupt lines.
+    ///
+    /// `interrupt` must be the line that actually fired: it selects which
+    /// status register is read, and the two are independent.
+    pub fn handle_interrupt(&self, interrupt: PioInterrupt) {
+        let ints = &self.registers.irq_lines[interrupt as usize].ints;
 
         for (sm, irq) in self.sms.iter().zip([
-            IRQ0_INTS::SM0_TXNFULL,
-            IRQ0_INTS::SM1_TXNFULL,
-            IRQ0_INTS::SM2_TXNFULL,
-            IRQ0_INTS::SM3_TXNFULL,
+            IRQ_INTS::SM0_TXNFULL,
+            IRQ_INTS::SM1_TXNFULL,
+            IRQ_INTS::SM2_TXNFULL,
+            IRQ_INTS::SM3_TXNFULL,
         ]) {
             if ints.is_set(irq) {
                 sm.handle_tx_interrupt();
             }
         }
         for (sm, irq) in self.sms.iter().zip([
-            IRQ0_INTS::SM0_RXNEMPTY,
-            IRQ0_INTS::SM1_RXNEMPTY,
-            IRQ0_INTS::SM2_RXNEMPTY,
-            IRQ0_INTS::SM3_RXNEMPTY,
+            IRQ_INTS::SM0_RXNEMPTY,
+            IRQ_INTS::SM1_RXNEMPTY,
+            IRQ_INTS::SM2_RXNEMPTY,
+            IRQ_INTS::SM3_RXNEMPTY,
         ]) {
             if ints.is_set(irq) {
                 sm.handle_rx_interrupt();
             }
         }
-        for (sm, irq) in self.sms.iter().zip([
-            IRQ0_INTS::SM0,
-            IRQ0_INTS::SM1,
-            IRQ0_INTS::SM2,
-            IRQ0_INTS::SM3,
-        ]) {
-            if ints.is_set(irq) {
-                sm.handle_sm_interrupt();
-            }
+        // The block's own IRQ flags, which belong to no particular state
+        // machine. Cleared here rather than by the client: leaving one set
+        // leaves the peripheral asserting, and the kernel's poll loop would
+        // find it pending again on the next pass.
+        //
+        // Before the call, not after, so a flag raised while the client runs
+        // survives to the next pass instead of being cleared unseen. And only
+        // the flags just read, because clearing all four would discard one
+        // raised between that read and this write.
+        let flags = pending_irq_flags(ints.get());
+        if flags != 0 {
+            self.registers.irq.set(flags);
+            self.irq_client.map(|client| client.on_irq(flags));
         }
     }
 
@@ -1581,13 +1547,8 @@ impl Pio {
         origin: Option<usize>,
         program: &[u8],
     ) -> Result<LoadedProgram, ProgramError> {
-        let mut program_u16: [u16; NUMBER_INSTR_MEMORY_LOCATIONS / 2] =
-            [0; NUMBER_INSTR_MEMORY_LOCATIONS / 2];
-        for (i, chunk) in program.chunks(2).enumerate() {
-            program_u16[i] = ((chunk[0] as u16) << 8) | (chunk[1] as u16);
-        }
-
-        self.add_program16(origin, &program_u16[0..program.len() / 2])
+        let (instructions, len) = instructions_from_bytes(program)?;
+        self.add_program16(origin, &instructions[0..len])
     }
 
     /// Adds a program to PIO.
@@ -1943,5 +1904,268 @@ mod examples {
                 self.registers.fdebug.read(FDEBUG::RXUNDER)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kernel::utilities::registers::LocalRegisterCopy;
+
+    // Composed by the driver's own fifo_join_bits rather than rebuilt here, so
+    // a change to what set_fifo_join writes fails this instead of passing it.
+    #[test]
+    fn joining_either_fifo_sets_that_bit_and_clears_the_other() {
+        assert_eq!(fifo_join_bits(PioFifoJoin::PioFifoJoinRx).value, 1 << 31);
+        assert_eq!(fifo_join_bits(PioFifoJoin::PioFifoJoinTx).value, 1 << 30);
+        assert_eq!(fifo_join_bits(PioFifoJoin::PioFifoJoinNone).value, 0);
+    }
+
+    // The same bits applied to a register, so the test sees what a write does
+    // rather than what it encodes. LocalRegisterCopy is tock-registers' own
+    // in-memory register; no mock is involved.
+    #[test]
+    fn switching_the_join_clears_the_previous_one() {
+        let mut shiftctrl: LocalRegisterCopy<u32, SMx_SHIFTCTRL::Register> =
+            LocalRegisterCopy::new(0);
+
+        shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinRx));
+        assert!(shiftctrl.is_set(SMx_SHIFTCTRL::FJOIN_RX));
+
+        shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinTx));
+        assert!(shiftctrl.is_set(SMx_SHIFTCTRL::FJOIN_TX));
+        assert!(
+            !shiftctrl.is_set(SMx_SHIFTCTRL::FJOIN_RX),
+            "both FIFOs joined at once"
+        );
+
+        shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinNone));
+        assert_eq!(shiftctrl.get(), 0, "a join could not be undone");
+    }
+
+    #[test]
+    fn a_program_filling_instruction_memory_converts() {
+        let (instrs, len) = instructions_from_bytes(&[0xe0; 64]).unwrap();
+        assert_eq!(len, NUMBER_INSTR_MEMORY_LOCATIONS);
+        assert_eq!(instrs[31], 0xe0e0);
+    }
+
+    #[test]
+    fn a_program_longer_than_instruction_memory_is_rejected() {
+        assert_eq!(
+            instructions_from_bytes(&[0xe0; 66]),
+            Err(ProgramError::InsufficientSpace)
+        );
+    }
+
+    #[test]
+    fn an_odd_byte_count_is_rejected() {
+        assert_eq!(
+            instructions_from_bytes(&[0xe0; 3]),
+            Err(ProgramError::NotInstructionAligned)
+        );
+    }
+
+    #[test]
+    fn bytes_are_read_big_endian() {
+        let (instrs, len) = instructions_from_bytes(&[0x12, 0x34, 0x56, 0x78]).unwrap();
+        assert_eq!(len, 2);
+        assert_eq!(instrs[0], 0x1234);
+        assert_eq!(instrs[1], 0x5678);
+    }
+
+    // Where each interrupt register lands, computed the way the hardware
+    // sees it: the array's own offset, plus the line's stride, plus the
+    // field's offset inside the group. register_structs! checks that a field
+    // sits at its declared offset, but not that the declaration names the
+    // right register, so these are the datasheet's numbers written down once.
+    #[test]
+    fn the_interrupt_registers_land_on_their_datasheet_offsets() {
+        use core::mem::{offset_of, size_of};
+        let group = |line: PioInterrupt| {
+            offset_of!(PioRegisters, irq_lines) + (line as usize) * size_of::<IrqReg>()
+        };
+        for (line, inte) in [(PioInterrupt::Irq0, 0x12C), (PioInterrupt::Irq1, 0x138)] {
+            assert_eq!(group(line) + offset_of!(IrqReg, inte), inte);
+            assert_eq!(group(line) + offset_of!(IrqReg, intf), inte + 4);
+            assert_eq!(group(line) + offset_of!(IrqReg, ints), inte + 8);
+        }
+    }
+
+    // The two functions work in different registers: pending_irq_flags reads
+    // INTS, where flag n is bit n + 8, and irq_flag_bit writes `irq`, where
+    // flag n is bit n. handle_interrupt feeds one to the other, so they have
+    // to agree on which flag is which.
+    #[test]
+    fn a_pending_flag_clears_the_flag_it_names() {
+        for n in 0..4u32 {
+            let pending = pending_irq_flags(1 << (IRQ_INTS::SM0.shift as u32 + n));
+            assert_eq!(pending, irq_flag_bit(n).unwrap(), "flag {n}");
+        }
+    }
+
+    #[test]
+    fn only_the_eight_real_irq_flags_have_a_clear_bit() {
+        for n in 0..8u32 {
+            assert_eq!(irq_flag_bit(n), Some(1 << n));
+        }
+        assert_eq!(irq_flag_bit(8), None, "there is no ninth flag");
+        assert_eq!(irq_flag_bit(u32::MAX), None);
+    }
+
+    // Flags 0 to 3 are INTS bits 8 to 11 per the datasheet. Written out here
+    // rather than taken from the bitfield, so moving the field fails this.
+    #[test]
+    fn pending_flags_are_the_block_irq_bits_and_nothing_else() {
+        for flags in 0..16u32 {
+            assert_eq!(pending_irq_flags(flags << 8), flags);
+        }
+        // The TXNFULL and RXNEMPTY halves sit below them and must not leak in.
+        assert_eq!(pending_irq_flags(0xff), 0);
+        // Only four flags reach the NVIC, however much else is set.
+        assert_eq!(pending_irq_flags(0xffff_ffff), 0xf);
+    }
+
+    // The discriminants index irq_lines, so they are the register layout, not
+    // just names: IRQ0's enable/force/status group is the one at 0x12C.
+    #[test]
+    fn the_interrupt_lines_index_their_own_registers() {
+        assert_eq!(PioInterrupt::Irq0 as usize, 0);
+        assert_eq!(PioInterrupt::Irq1 as usize, 1);
+        assert_eq!(NUMBER_INTERRUPT_LINES, 2);
+    }
+
+    // All twelve against the RP2040 datasheet's IRQ0_INTE table. Both lines
+    // share the layout, so this covers IRQ1 too.
+    #[test]
+    fn every_interrupt_source_sits_where_the_datasheet_puts_it() {
+        for (source, bit) in [
+            (InterruptSources::Sm0RXNotEmpty, 0),
+            (InterruptSources::Sm1RXNotEmpty, 1),
+            (InterruptSources::Sm2RXNotEmpty, 2),
+            (InterruptSources::Sm3RXNotEmpty, 3),
+            (InterruptSources::Sm0TXNotFull, 4),
+            (InterruptSources::Sm1TXNotFull, 5),
+            (InterruptSources::Sm2TXNotFull, 6),
+            (InterruptSources::Sm3TXNotFull, 7),
+            (InterruptSources::Interrupt0, 8),
+            (InterruptSources::Interrupt1, 9),
+            (InterruptSources::Interrupt2, 10),
+            (InterruptSources::Interrupt3, 11),
+        ] {
+            assert_eq!(interrupt_source_bits(source, true).value, 1 << bit);
+            assert_eq!(
+                interrupt_source_bits(source, false).value,
+                0,
+                "disabling still wrote a one"
+            );
+        }
+    }
+
+    // Enabling one source must not disturb the eleven others, which is the
+    // reason set_irq_source composes a field rather than writing the register.
+    #[test]
+    fn enabling_a_source_leaves_the_others_alone() {
+        let mut inte: LocalRegisterCopy<u32, IRQ_INTE::Register> = LocalRegisterCopy::new(0);
+        inte.modify(interrupt_source_bits(InterruptSources::Sm0TXNotFull, true));
+        inte.modify(interrupt_source_bits(InterruptSources::Interrupt2, true));
+        assert_eq!(inte.get(), (1 << 4) | (1 << 10));
+
+        inte.modify(interrupt_source_bits(InterruptSources::Sm0TXNotFull, false));
+        assert_eq!(inte.get(), 1 << 10, "disabling one cleared another");
+    }
+
+    #[test]
+    fn relocation_moves_jmp_targets_and_wraps_at_32() {
+        // jmp 3, then `set pindirs, 31`, which is not a jmp.
+        let jmp3 = 0b000_00000_000_00011u16;
+        let set = 0b111_00000_100_11111u16;
+        let mut out = [0u16; 2];
+        for (slot, instr) in out
+            .iter_mut()
+            .zip(RelocatedProgram::new([jmp3, set].iter(), 5))
+        {
+            *slot = instr;
+        }
+        assert_eq!(out[0], 0b000_00000_000_01000);
+        assert_eq!(out[1], set, "a non-jmp must be copied untouched");
+
+        // 3 + 30 is 33, which must come back as 1 and must not spill out of
+        // the five address bits. Comparing the whole instruction is the point:
+        // masking the result would hide a missing wrap.
+        let mut wrapped = [0u16; 1];
+        for (slot, instr) in wrapped
+            .iter_mut()
+            .zip(RelocatedProgram::new([jmp3].iter(), 30))
+        {
+            *slot = instr;
+        }
+        assert_eq!(wrapped[0], 0b000_00000_000_00001);
+    }
+
+    // Only opcode 000 is JMP. Every other opcode must survive relocation
+    // unchanged, including the ones whose low bits look like an address.
+    #[test]
+    fn relocation_leaves_every_other_opcode_alone() {
+        for opcode in 1..8u16 {
+            let instr = (opcode << 13) | 0b00000_000_11111;
+            let mut out = [0u16; 1];
+            for (slot, relocated) in out.iter_mut().zip(RelocatedProgram::new([instr].iter(), 7)) {
+                *slot = relocated;
+            }
+            assert_eq!(out[0], instr, "opcode {opcode:03b} was relocated");
+        }
+    }
+
+    // 0 means 32 in both threshold fields, and 0 means 65536 in CLKDIV::INT.
+    // Both come out right today only because .val() masks; nothing states the
+    // convention, so nothing would notice a field growing a bit.
+    #[test]
+    fn a_shift_threshold_of_32_encodes_as_zero() {
+        assert_eq!(SMx_SHIFTCTRL::PUSH_THRESH.val(32).value, 0);
+        assert_eq!(SMx_SHIFTCTRL::PULL_THRESH.val(32).value, 0);
+        assert_eq!(SMx_SHIFTCTRL::PUSH_THRESH.val(31).value, 31 << 20);
+    }
+
+    #[test]
+    fn a_clock_divisor_of_65536_encodes_as_zero() {
+        assert_eq!(SMx_CLKDIV::INT.val(65536).value, 0);
+        assert_eq!(SMx_CLKDIV::INT.val(1).value, 1 << 16);
+    }
+
+    // TXF0 is at +0x10 and RXF0 at +0x20, four bytes apart per state machine.
+    // Both blocks and all four state machines, because checking one of the
+    // eight would not notice the block or the index being dropped. One
+    // StateMachine serves both blocks here because these two take the block as
+    // an argument rather than reading it from the state machine they belong
+    // to -- worth knowing, since it means the pairing is unchecked.
+    #[test]
+    fn fifo_addresses_match_the_datasheet_map() {
+        for (pio, base) in [
+            (PIONumber::PIO0, PIO_0_BASE_ADDRESS as u32),
+            (PIONumber::PIO1, PIO_1_BASE_ADDRESS as u32),
+        ] {
+            for (n, sm_number) in [SMNumber::SM0, SMNumber::SM1, SMNumber::SM2, SMNumber::SM3]
+                .into_iter()
+                .enumerate()
+            {
+                let sm = StateMachine::new(sm_number, PIO0_BASE, PIO0_XOR_BASE, PIO0_SET_BASE);
+                let n = n as u32;
+                assert_eq!(sm.tx_fifo_addr(pio), base + 0x10 + 4 * n);
+                assert_eq!(sm.rx_fifo_addr(pio), base + 0x20 + 4 * n);
+            }
+        }
+    }
+
+    // Unrelated SHIFTCTRL fields must survive a join change.
+    #[test]
+    fn changing_the_join_leaves_the_shift_settings_alone() {
+        let mut shiftctrl: LocalRegisterCopy<u32, SMx_SHIFTCTRL::Register> =
+            LocalRegisterCopy::new(0);
+        shiftctrl.modify(SMx_SHIFTCTRL::PUSH_THRESH.val(8) + SMx_SHIFTCTRL::AUTOPUSH::SET);
+        shiftctrl.modify(fifo_join_bits(PioFifoJoin::PioFifoJoinRx));
+
+        assert_eq!(shiftctrl.read(SMx_SHIFTCTRL::PUSH_THRESH), 8);
+        assert!(shiftctrl.is_set(SMx_SHIFTCTRL::AUTOPUSH));
     }
 }
