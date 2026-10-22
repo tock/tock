@@ -7,6 +7,12 @@ use cortexm33::{CortexM33, CortexMVariant, nvic};
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::StaticRef;
 
+/// The CryptoCell, which has only secure aliases.
+pub const CRYPTOCELL_BASE: StaticRef<crate::cryptocell::CryptoCellRegisters> =
+    unsafe { StaticRef::new(0x50844000 as *const crate::cryptocell::CryptoCellRegisters) };
+pub const CC312_BASE: StaticRef<crate::cryptocell::Cc312Registers> =
+    unsafe { StaticRef::new(0x50845000 as *const crate::cryptocell::Cc312Registers) };
+
 pub const SPU_BASE: StaticRef<crate::spu::SpuRegisters> =
     unsafe { StaticRef::new(0x50003000 as *const crate::spu::SpuRegisters) };
 
@@ -97,6 +103,8 @@ impl<'a, I: InterruptService + 'a> Nrf5340<'a, I> {
 pub struct Nrf5340DefaultPeripherals<'a> {
     pub adc: crate::adc::Adc<'a>,
     pub clock: crate::clock::Clock,
+    /// Usable only in secure state.
+    pub cryptocell: crate::cryptocell::CryptoCell<'a>,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
     pub ipc: crate::ipc::Ipc<'a>,
     pub lfxo: crate::lfxo::Lfxo,
@@ -135,6 +143,10 @@ impl Nrf5340DefaultPeripherals<'_> {
             // SAFETY: See function-level doc.
             adc: crate::adc::Adc::new(bases.saadc, 3300, unsafe { crate::adc::AdcSample::new() }),
             clock: crate::clock::Clock::new(bases.clock),
+            cryptocell: crate::cryptocell::CryptoCell::new(crate::cryptocell::Cc312::new(
+                CRYPTOCELL_BASE,
+                CC312_BASE,
+            )),
             gpio_port: crate::gpio::nrf5340_gpio_create(bases.gpiote, bases.gpio),
             ipc: crate::ipc::Ipc::new(bases.ipc),
             lfxo: crate::lfxo::Lfxo::new(bases.oscillators, bases.pin_cnf[0]),
@@ -150,6 +162,7 @@ impl Nrf5340DefaultPeripherals<'_> {
 
     // Necessary for setting up circular dependencies
     pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.cryptocell);
         self.usbreg.set_usbd(&self.usbd);
         self.usbd.set_power_ref(&self.usbreg);
     }
@@ -163,6 +176,7 @@ impl InterruptService for Nrf5340DefaultPeripherals<'_> {
                 self.gpio_port.handle_interrupt()
             }
             crate::peripheral_interrupts::IPC => self.ipc.handle_interrupt(),
+            crate::peripheral_interrupts::CRYPTOCELL => self.cryptocell.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::SERIAL0 => self.uarte0.handle_interrupt(),
             crate::peripheral_interrupts::SERIAL1 => self.spim1.handle_interrupt(),
@@ -212,13 +226,21 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for Nrf5340<'a, 
             n.clear_pending();
             n.enable();
         }
+        if crate::cryptocell::trng_ready() {
+            self.interrupt_service
+                .service_interrupt(crate::peripheral_interrupts::CRYPTOCELL);
+        }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        nvic::has_pending()
+        nvic::has_pending() || crate::cryptocell::trng_ready()
     }
 
     fn sleep(&self) {
+        // The CryptoCell TRNG stops while the core sleeps.
+        if crate::cryptocell::trng_active() {
+            return;
+        }
         unsafe {
             cortexm33::support::wfi();
         }

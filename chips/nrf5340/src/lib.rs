@@ -5,10 +5,13 @@
 //! Peripheral implementations for the nRF5340 application core.
 
 #![no_std]
+// The CryptoCell register_structs! needs more than the default limit.
+#![recursion_limit = "256"]
 
 pub mod chip;
 pub mod clock;
 pub mod crt1;
+pub mod cryptocell;
 pub mod gpio;
 pub mod lfxo;
 pub mod network;

@@ -13,3 +13,4 @@ pub const IPC: u32 = 42;
 pub const GPIOTE1: u32 = 47;
 pub const USBD: u32 = 54;
 pub const USBREGULATOR: u32 = 55;
+pub const CRYPTOCELL: u32 = 68;
